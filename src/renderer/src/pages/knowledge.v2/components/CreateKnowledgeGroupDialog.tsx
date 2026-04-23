@@ -19,15 +19,13 @@ interface CreateKnowledgeGroupDialogProps {
   isCreating: boolean
   createGroup: (name: string) => Promise<Group>
   onOpenChange: (open: boolean) => void
-  onCreated?: (group: Group) => void
 }
 
 const CreateKnowledgeGroupDialog = ({
   open,
   isCreating,
   createGroup,
-  onOpenChange,
-  onCreated
+  onOpenChange
 }: CreateKnowledgeGroupDialogProps) => {
   const { t } = useTranslation()
   const [name, setName] = useState('')
@@ -55,43 +53,53 @@ const CreateKnowledgeGroupDialog = ({
     }
 
     try {
-      const createdGroup = await createGroup(normalizedName)
-      onCreated?.(createdGroup)
-      onOpenChange(false)
+      await createGroup(normalizedName)
     } catch {
       setSubmitError(t('knowledge_v2.groups.error.failed_to_create'))
+      return
     }
+
+    onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
-        <DialogHeader className="gap-1 border-border/40 border-b px-5 py-4 text-left">
-          <DialogTitle className="font-semibold text-base">{t('knowledge_v2.groups.add')}</DialogTitle>
+        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
+          <DialogTitle className="font-medium text-xs leading-4">{t('knowledge_v2.groups.add')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col">
-          <div className="space-y-1.5 px-5 py-4">
-            <Label htmlFor="knowledge-v2-create-group-name">{t('common.name')}</Label>
+          <div className="space-y-1 px-4 py-3">
+            <Label
+              htmlFor="knowledge-v2-create-group-name"
+              className="font-medium text-[11px] text-muted-foreground leading-4">
+              {t('common.name')}
+            </Label>
             <Input
               id="knowledge-v2-create-group-name"
               autoFocus
               value={name}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
               placeholder={t('knowledge_v2.groups.name_placeholder')}
+              className="h-8 rounded-lg px-2.5 text-[11px] leading-4 placeholder:text-[11px] placeholder:text-muted-foreground/70"
               onChange={(event) => setName(event.target.value)}
             />
             {hasAttemptedSubmit && !name.trim() ? (
-              <FieldError>{t('knowledge_v2.groups.name_required')}</FieldError>
+              <FieldError className="text-[11px] leading-4">{t('knowledge_v2.groups.name_required')}</FieldError>
             ) : null}
-            {submitError ? <FieldError>{submitError}</FieldError> : null}
+            {submitError ? <FieldError className="text-[11px] leading-4">{submitError}</FieldError> : null}
           </div>
 
-          <DialogFooter className="border-border/40 border-t px-5 py-4 sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 rounded-lg px-3 font-medium text-[11px]"
+              onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" loading={isCreating}>
+            <Button type="submit" loading={isCreating} className="h-8 rounded-lg px-3 font-medium text-[11px]">
               {t('common.add')}
             </Button>
           </DialogFooter>

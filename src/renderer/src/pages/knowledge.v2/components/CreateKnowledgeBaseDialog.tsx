@@ -57,8 +57,8 @@ const formatModelOptionLabel = (uniqueModelId: string) => {
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
   return (
-    <DialogHeader className="gap-1 border-border/40 border-b px-5 py-4 text-left">
-      <DialogTitle className="font-semibold text-base">{title}</DialogTitle>
+    <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
+      <DialogTitle className="font-medium text-xs leading-4">{title}</DialogTitle>
     </DialogHeader>
   )
 }
@@ -87,7 +87,7 @@ const CreateKnowledgeBaseDialogEmojiPicker = ({
   onChange: (value: string) => void
 }) => {
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="grid grid-cols-5 gap-1.5">
       {emojis.map((emoji) => {
         const selected = emoji === value
 
@@ -98,8 +98,10 @@ const CreateKnowledgeBaseDialogEmojiPicker = ({
             aria-label={emoji}
             aria-pressed={selected}
             className={cn(
-              'flex h-10 w-full items-center justify-center rounded-xl border border-border/50 bg-muted/20 text-lg transition-colors',
-              selected ? 'border-foreground/60 bg-accent text-foreground' : 'hover:bg-accent/60'
+              'flex h-8 w-full items-center justify-center rounded-lg border border-border/50 bg-muted/10 text-sm transition-[background-color,border-color,box-shadow]',
+              selected
+                ? 'border-foreground/20 bg-accent/80 text-foreground ring-1 ring-foreground/15'
+                : 'hover:bg-accent/50'
             )}
             onClick={() => onChange(emoji)}>
             <span aria-hidden="true">{emoji}</span>
@@ -122,11 +124,15 @@ const CreateKnowledgeBaseDialogActions = ({
   cancelLabel: string
 }) => {
   return (
-    <DialogFooter className="border-border/40 border-t px-5 py-4 sm:justify-end">
-      <Button type="button" variant="outline" onClick={onCancel}>
+    <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-8 rounded-lg px-3 font-medium text-[11px]"
+        onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button type="submit" loading={isCreating}>
+      <Button type="submit" loading={isCreating} className="h-8 rounded-lg px-3 font-medium text-[11px]">
         {submitLabel}
       </Button>
     </DialogFooter>
@@ -172,18 +178,22 @@ const CreateKnowledgeBaseDialogRoot = ({
       return
     }
 
+    // TODO: Resolve dimensions from the selected embedding model before creating the knowledge base.
+    const createInput: CreateKnowledgeBaseInput = {
+      name: values.name,
+      emoji: values.emoji,
+      embeddingModelId: values.embeddingModelId,
+      dimensions: DEFAULT_DIMENSIONS
+    }
+
+    if (values.groupId) {
+      createInput.groupId = values.groupId
+    }
+
     let createdBase: KnowledgeBase
 
     try {
-      // TODO: Resolve dimensions from the selected embedding model before creating the knowledge base.
-      const dimensions = DEFAULT_DIMENSIONS
-      createdBase = await createBase({
-        name: values.name,
-        emoji: values.emoji,
-        ...(values.groupId ? { groupId: values.groupId } : {}),
-        embeddingModelId: values.embeddingModelId,
-        dimensions
-      })
+      createdBase = await createBase(createInput)
     } catch {
       setSubmitError(t('knowledge_v2.error.failed_to_create'))
       return
@@ -199,23 +209,30 @@ const CreateKnowledgeBaseDialogRoot = ({
         <CreateKnowledgeBaseDialog.Header title={t('knowledge_v2.add.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
-          <div className="space-y-4 px-5 py-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="knowledge-v2-create-name">{t('common.name')}</Label>
+          <div className="space-y-3 px-4 py-3">
+            <div className="space-y-1">
+              <Label
+                htmlFor="knowledge-v2-create-name"
+                className="font-medium text-[11px] text-muted-foreground leading-4">
+                {t('common.name')}
+              </Label>
               <Input
                 id="knowledge-v2-create-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
                 placeholder={t('common.name')}
+                className="h-8 rounded-lg px-2.5 text-[11px] leading-4 placeholder:text-[11px] placeholder:text-muted-foreground/70"
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
-                <FieldError>{t('knowledge_v2.name_required')}</FieldError>
+                <FieldError className="text-[11px] leading-4">{t('knowledge_v2.name_required')}</FieldError>
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
-              <Label>{t('knowledge_v2.add.icon')}</Label>
+            <div className="space-y-1">
+              <Label className="font-medium text-[11px] text-muted-foreground leading-4">
+                {t('knowledge_v2.add.icon')}
+              </Label>
               <CreateKnowledgeBaseDialog.EmojiPicker
                 emojis={KNOWLEDGE_BASE_EMOJIS}
                 value={values.emoji}
@@ -223,8 +240,10 @@ const CreateKnowledgeBaseDialogRoot = ({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label>{t('knowledge_v2.add.group')}</Label>
+            <div className="space-y-1">
+              <Label className="font-medium text-[11px] text-muted-foreground leading-4">
+                {t('knowledge_v2.add.group')}
+              </Label>
               <Select
                 value={values.groupId ?? UNGROUPED_GROUP_VALUE}
                 onValueChange={(groupValue) =>
@@ -233,7 +252,9 @@ const CreateKnowledgeBaseDialogRoot = ({
                     groupId: groupValue === UNGROUPED_GROUP_VALUE ? undefined : groupValue
                   }))
                 }>
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-[placeholder]:text-[11px] data-[placeholder]:text-muted-foreground/70">
                   <SelectValue placeholder={t('knowledge_v2.groups.ungrouped')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -247,14 +268,19 @@ const CreateKnowledgeBaseDialogRoot = ({
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>{t('knowledge_v2.embedding_model')}</Label>
+            <div className="space-y-1">
+              <Label className="font-medium text-[11px] text-muted-foreground leading-4">
+                {t('knowledge_v2.embedding_model')}
+              </Label>
               <Select
                 value={values.embeddingModelId ?? undefined}
                 onValueChange={(embeddingModelId) =>
                   setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
                 }>
-                <SelectTrigger className="w-full" aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-[placeholder]:text-[11px] data-[placeholder]:text-muted-foreground/70"
+                  aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
                   <SelectValue placeholder={t('knowledge_v2.not_set')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -265,16 +291,16 @@ const CreateKnowledgeBaseDialogRoot = ({
                       </SelectItem>
                     ))
                   ) : (
-                    <div className="px-2 py-1.5 text-muted-foreground text-sm">{t('knowledge_v2.not_set')}</div>
+                    <div className="px-2.5 py-2 text-[11px] text-muted-foreground">{t('knowledge_v2.not_set')}</div>
                   )}
                 </SelectContent>
               </Select>
               {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError>{t('knowledge_v2.embedding_model_required')}</FieldError>
+                <FieldError className="text-[11px] leading-4">{t('knowledge_v2.embedding_model_required')}</FieldError>
               ) : null}
             </div>
 
-            {submitError ? <FieldError>{submitError}</FieldError> : null}
+            {submitError ? <FieldError className="text-[11px] leading-4">{submitError}</FieldError> : null}
           </div>
 
           <CreateKnowledgeBaseDialog.Actions

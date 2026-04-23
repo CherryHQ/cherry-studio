@@ -10,12 +10,24 @@ vi.mock('@cherrystudio/ui', () => ({
     <button {...props}>{loading ? 'loading' : children}</button>
   ),
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
   DialogDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
-  FieldError: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+  DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
+  DialogHeader: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
+  DialogTitle: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    <h1 {...props}>{children}</h1>
+  ),
+  FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+    <div role="alert" {...props}>
+      {children}
+    </div>
+  ),
   Input: (props: Record<string, unknown>) => <input {...props} />,
   Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <label {...props}>{children}</label>
@@ -67,6 +79,16 @@ describe('CreateKnowledgeGroupDialog', () => {
     expect(screen.getByText('分组名称为必填项')).toBeInTheDocument()
   })
 
+  it('applies compact typography classes to the header, field, and actions', () => {
+    render(<CreateKnowledgeGroupDialog open isCreating={false} createGroup={vi.fn()} onOpenChange={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: '新建分组' })).toHaveClass('text-xs')
+    expect(screen.getByText('名称')).toHaveClass('text-[11px]')
+    expect(screen.getByLabelText('名称')).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '添加' })).toHaveClass('text-[11px]', 'h-8')
+  })
+
   it('closes the dialog on cancel without sending a request', () => {
     const createGroupMock = vi.fn().mockResolvedValue(createGroup())
     const onOpenChange = vi.fn()
@@ -85,16 +107,9 @@ describe('CreateKnowledgeGroupDialog', () => {
     const createdGroup = createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
     const createGroupMock = vi.fn().mockResolvedValue(createdGroup)
     const onOpenChange = vi.fn()
-    const onCreated = vi.fn()
 
     render(
-      <CreateKnowledgeGroupDialog
-        open
-        isCreating={false}
-        createGroup={createGroupMock}
-        onOpenChange={onOpenChange}
-        onCreated={onCreated}
-      />
+      <CreateKnowledgeGroupDialog open isCreating={false} createGroup={createGroupMock} onOpenChange={onOpenChange} />
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: '  Archive  ' } })
@@ -103,7 +118,6 @@ describe('CreateKnowledgeGroupDialog', () => {
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Archive')
     })
-    expect(onCreated).toHaveBeenCalledWith(createdGroup)
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 

@@ -25,11 +25,23 @@ vi.mock('@cherrystudio/ui', async () => {
       <button {...props}>{loading ? 'loading' : children}</button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
-    FieldError: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
+    DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogHeader: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogTitle: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <h1 {...props}>{children}</h1>
+    ),
+    FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div role="alert" {...props}>
+        {children}
+      </div>
+    ),
     Input: (props: Record<string, unknown>) => <input {...props} />,
     Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <label {...props}>{children}</label>
@@ -176,6 +188,27 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
+  })
+
+  it('applies compact typography classes to the header, fields, and actions', () => {
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('text-xs')
+    expect(screen.getByText('名称')).toHaveClass('text-[11px]')
+    expect(screen.getByLabelText('名称')).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getAllByRole('button', { name: '未分组' })[0]).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('text-[11px]', 'h-8')
   })
 
   it('toggles the selected emoji', () => {
