@@ -474,7 +474,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     return data.data.map((item: { url: string; b64_json: string }) => {
       if (item.b64_json) {
-        return 'data:image/png;base64,' + item.b64_json
+        return item.b64_json.startsWith('data:') ? item.b64_json : 'data:image/png;base64,' + item.b64_json
       }
 
       if (item.url) {
