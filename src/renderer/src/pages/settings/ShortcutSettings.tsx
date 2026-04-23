@@ -1,5 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Input, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Kbd, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
@@ -271,14 +271,14 @@ const ShortcutSettings: FC = () => {
               </Tooltip>
             )}
             <RowFlex
-              className={`items-center gap-1 rounded-xs bg-white/5 px-2 py-1 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              className={`items-center gap-1 rounded-xs border bg-background-subtle px-2 py-1 ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
               {displayKeys.map((key) => (
-                <kbd
+                <Kbd
                   key={key}
-                  className="flex min-w-6 items-center justify-center rounded-md bg-white/10 px-1.5 py-0.5 text-xs">
+                  className="min-w-6 rounded-md border border-border/40 bg-background px-1.5 py-0.5 text-foreground text-xs">
                   {formatKeyDisplay(key, isMac)}
-                </kbd>
+                </Kbd>
               ))}
             </RowFlex>
           </RowFlex>
@@ -294,7 +294,7 @@ const ShortcutSettings: FC = () => {
     return (
       <div className="relative flex flex-col items-end">
         <span
-          className={`rounded-xs bg-white/5 px-3 py-1 text-sm text-white/30 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          className={`rounded-xs border bg-background-subtle px-3 py-1 text-foreground-muted text-sm ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
