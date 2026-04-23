@@ -19,6 +19,12 @@ export const languageDtoToVo = (lang: TranslateLanguage): TranslateLanguageVo =>
 
 /**
  * 获取双向翻译的目标语言
+ *
+ * Invariant: `sourceLanguage` must be one of the two entries in `languagePair`.
+ * {@link determineTargetLanguage} is the only caller and guards this with
+ * `isLanguageInPair` before invoking us; anything else would be a programming
+ * error, so we throw instead of silently returning a guessed value.
+ *
  * @param sourceLanguage 检测到的源语言
  * @param languagePair 配置的语言对
  * @returns 目标语言
@@ -27,12 +33,11 @@ export const getTargetLanguageForBidirectional = (
   sourceLanguage: TranslateLangCode,
   languagePair: TranslateBidirectionalPair
 ): TranslateLangCode => {
-  if (sourceLanguage === languagePair[0]) {
-    return languagePair[1]
-  } else if (sourceLanguage === languagePair[1]) {
-    return languagePair[0]
-  }
-  return languagePair[0] !== sourceLanguage ? languagePair[0] : languagePair[1]
+  if (sourceLanguage === languagePair[0]) return languagePair[1]
+  if (sourceLanguage === languagePair[1]) return languagePair[0]
+  throw new Error(
+    `Unreachable: sourceLanguage '${sourceLanguage}' is not in pair [${languagePair[0]}, ${languagePair[1]}]`
+  )
 }
 
 /**

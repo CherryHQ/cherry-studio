@@ -30,8 +30,11 @@ describe('getTargetLanguageForBidirectional', () => {
     expect(getTargetLanguageForBidirectional('zh-cn', pair)).toBe('en-us')
   })
 
-  it('should return first language when source matches neither', () => {
-    expect(getTargetLanguageForBidirectional('ja-jp', pair)).toBe('en-us')
+  it('throws "Unreachable" when source matches neither entry of the pair', () => {
+    // The public contract is "caller guards with isLanguageInPair"; anything
+    // else is a programmer error and should surface loudly rather than return
+    // a guessed value.
+    expect(() => getTargetLanguageForBidirectional('ja-jp', pair)).toThrow(/unreachable/i)
   })
 })
 
