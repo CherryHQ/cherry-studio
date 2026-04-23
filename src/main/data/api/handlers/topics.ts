@@ -7,6 +7,7 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { loggerService } from '@logger'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import {
@@ -15,6 +16,8 @@ import {
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
+
+const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 /**
  * Handler type for a specific topic endpoint
@@ -42,8 +45,9 @@ export const topicHandlers: {
       const parsed = CreateTopicSchema.parse(body)
       const topic = await topicService.create(parsed)
       if (parsed.sourceNodeId) {
-        await topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId)
-        return await topicService.getById(topic.id)
+        void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
+          logger.warn('Failed to auto-name forked topic', { topicId: topic.id, err })
+        })
       }
       return topic
     }

@@ -467,13 +467,17 @@ export class MessageService {
     const result: BranchMessage[] = []
 
     if (includeSiblings) {
-      // Collect unique (parentId, siblingsGroupId) pairs that need siblings
+      // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
+      // `parentId` may be null for root siblings (multi-root branches created
+      // by forking the first user message), so `null` is a valid group key.
       const uniqueGroups = new Set<string>()
-      const groupsToQuery: Array<{ parentId: string; siblingsGroupId: number }> = []
+      const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
+      const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
+        `${parentId ?? '__root__'}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
-        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           if (!uniqueGroups.has(key)) {
             uniqueGroups.add(key)
             groupsToQuery.push({ parentId: msg.parentId, siblingsGroupId: msg.siblingsGroupId })
@@ -485,9 +489,12 @@ export class MessageService {
       const siblingsMap = new Map<string, Message[]>()
 
       if (groupsToQuery.length > 0) {
-        // Build OR conditions for batch query
+        // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
-          and(eq(messageTable.parentId, g.parentId), eq(messageTable.siblingsGroupId, g.siblingsGroupId))
+          and(
+            g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
+            eq(messageTable.siblingsGroupId, g.siblingsGroupId)
+          )
         )
 
         const siblingsRows = await db
@@ -495,9 +502,8 @@ export class MessageService {
           .from(messageTable)
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
-        // Group results by parentId-siblingsGroupId
         for (const row of siblingsRows) {
-          const key = `${row.parentId}-${row.siblingsGroupId}`
+          const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
           if (!siblingsMap.has(key)) siblingsMap.set(key, [])
           siblingsMap.get(key)!.push(rowToMessage(row))
         }
@@ -508,8 +514,8 @@ export class MessageService {
         const message = rowToMessage(msg)
         let siblingsGroup: Message[] | undefined
 
-        if (msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           const group = siblingsMap.get(key)
           if (group && group.length > 1) {
             siblingsGroup = group.filter((m) => m.id !== message.id)
@@ -580,9 +586,10 @@ export class MessageService {
    *   still ungrouped (`= 0`); otherwise joins the source's existing group.
    * - The new message inherits the source's `role` and `topicId`, hangs off
    *   the same `parentId`, and always becomes the topic's active node.
-   *
-   * Rejects rooted messages: a root has no parent, so "sibling under the
-   * same parent" isn't expressible.
+   * - Root messages (`parentId = null`) are allowed: the single-root rule in
+   *   `create()` exists for plain creation ergonomics, but a topic can carry
+   *   multiple roots as long as they share a `siblingsGroupId`. This is how
+   *   we let the user branch the *first* user message.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
     const db = application.get('DbService').getDb()
@@ -591,9 +598,6 @@ export class MessageService {
       const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
-      }
-      if (source.parentId === null) {
-        throw DataApiErrorFactory.invalidOperation('create sibling', 'root message has no siblings')
       }
 
       let siblingsGroupId = source.siblingsGroupId ?? 0
@@ -655,33 +659,30 @@ export class MessageService {
       let resolvedParentId: string | null
 
       if (dto.parentId === undefined) {
-        // Auto-resolution mode: Determine parentId based on topic's current state.
-        // This provides convenience for callers who want to "append" to the conversation
-        // without needing to know the tree structure.
-
-        // Check if topic has any existing messages by querying for at least one.
-        const [existingMessage] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(eq(messageTable.topicId, topicId))
-          .limit(1)
-
-        if (!existingMessage) {
-          // Topic is empty: This will be the first message, so it becomes the root.
-          // Root messages have parentId = null.
-          resolvedParentId = null
-        } else if (topic.activeNodeId) {
-          // Topic has messages and an active node: Attach new message as child of activeNodeId.
-          // This is the typical case for continuing a conversation.
+        // Auto-resolution mode: the topic's `activeNodeId` is the
+        // authoritative "where we are in the conversation" marker — we trust
+        // it unconditionally here. For forked topics, `activeNodeId` may
+        // point into another topic's ancestor chain; that's intentional (see
+        // `TopicService.create`) and the new message will become the first
+        // divergence point of the fork.
+        if (topic.activeNodeId) {
           resolvedParentId = topic.activeNodeId
         } else {
-          // Topic has messages but no activeNodeId: This is an ambiguous state.
-          // We cannot auto-resolve because we don't know where in the tree to attach.
-          // Require explicit parentId from caller to resolve the ambiguity.
-          throw DataApiErrorFactory.invalidOperation(
-            'create message',
-            'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
-          )
+          // Fresh topic with no active node → root. Root-uniqueness is
+          // enforced in the `null`-branch below after re-entering create()
+          // semantics, so mirror that check here.
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation(
+              'create message',
+              'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
+            )
+          }
+          resolvedParentId = null
         }
       } else if (dto.parentId === null) {
         // Explicit root creation: Caller wants to create a root message.
@@ -701,19 +702,15 @@ export class MessageService {
         }
         resolvedParentId = null
       } else {
-        // Explicit parent ID provided: Validate the parent exists and belongs to this topic.
-        // This ensures referential integrity within the message tree.
-
+        // Explicit parent ID provided: Validate the parent exists. Cross-
+        // topic references are intentionally allowed — forked topics hang
+        // their first divergent message off the source topic's shared
+        // ancestor chain, so `parent.topicId !== topicId` is a legitimate
+        // case, not an error.
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
-          // Parent message not found: Cannot attach to non-existent message.
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
-        }
-        if (parent.topicId !== topicId) {
-          // Parent belongs to different topic: Cross-topic references are not allowed.
-          // Each topic's message tree must be self-contained.
-          throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
         }
         resolvedParentId = dto.parentId
       }
@@ -796,12 +793,12 @@ export class MessageService {
           }
           resolvedParentId = null
         } else {
+          // Cross-topic parent refs are intentional for forked topics — the
+          // first turn in a fork attaches to the source topic's shared
+          // ancestor. Only check existence, not `parent.topicId`.
           const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
           if (!parent) {
             throw DataApiErrorFactory.notFound('Message', dto.parentId)
-          }
-          if (parent.topicId !== input.topicId) {
-            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
           }
           resolvedParentId = dto.parentId
         }
@@ -827,12 +824,10 @@ export class MessageService {
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
         }
-        if (row.topicId !== input.topicId) {
-          throw DataApiErrorFactory.invalidOperation(
-            'reserve assistant turn',
-            'User message does not belong to this topic'
-          )
-        }
+        // Cross-topic anchors are legitimate for forked topics: regenerating
+        // in a fork may target a shared ancestor user message whose own
+        // `topicId` is the source topic. Placeholders below still get
+        // `input.topicId`, so the divergence stays scoped to the fork.
         userMessage = rowToMessage(row)
       }
 

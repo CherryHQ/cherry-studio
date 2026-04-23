@@ -85,84 +85,47 @@ export class TopicService {
   }
 
   /**
-   * Create a new topic
+   * Create a new topic.
+   *
+   * When `sourceNodeId` is set, the new topic **shares** the ancestor chain
+   * leading to that message — no message copies are made. The new topic
+   * simply records `activeNodeId = sourceNodeId`, and `getBranchMessages`
+   * walks `parent_id` across topics to reconstruct the shared history. The
+   * caller's first new message in the forked topic will attach to the shared
+   * node, diverging the tree from that point on.
+   *
+   * Rationale: copying the path produced two drawbacks — (1) storage grew
+   * quadratically with deep forks, and (2) edits in the source topic never
+   * showed up in forks, which is surprising when users think of "branch as
+   * continuation". Shared references avoid both.
    */
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
-    // If forking from existing node, copy the path
+    let activeNodeId: string | null = null
     if (dto.sourceNodeId) {
-      // Verify source node exists (let NOT_FOUND propagate naturally)
+      // Verify source exists (surface NOT_FOUND cleanly instead of FK violation)
       await messageService.getById(dto.sourceNodeId)
-
-      // Get path from root to source node
-      const path = await messageService.getPathToNode(dto.sourceNodeId)
-
-      // Wrap fork in transaction for atomicity
-      const topicId = await db.transaction(async (tx) => {
-        const [topicRow] = await tx
-          .insert(topicTable)
-          .values({
-            name: dto.name,
-            assistantId: dto.assistantId,
-            groupId: dto.groupId
-          })
-          .returning()
-
-        const id = topicRow.id
-
-        // Copy messages with new IDs
-        const idMapping = new Map<string, string>()
-        let activeNodeId: string | null = null
-
-        for (const message of path) {
-          const newParentId = message.parentId ? idMapping.get(message.parentId) || null : null
-
-          const [messageRow] = await tx
-            .insert(messageTable)
-            .values({
-              topicId: id,
-              parentId: newParentId,
-              role: message.role,
-              data: message.data,
-              status: message.status,
-              siblingsGroupId: 0,
-              modelId: message.modelId,
-              traceId: null,
-              stats: null
-            })
-            .returning()
-
-          idMapping.set(message.id, messageRow.id)
-          activeNodeId = messageRow.id
-        }
-
-        await tx.update(topicTable).set({ activeNodeId }).where(eq(topicTable.id, id))
-        return id
-      })
-
-      logger.info('Created topic by forking', {
-        id: topicId,
-        sourceNodeId: dto.sourceNodeId,
-        messageCount: path.length
-      })
-
-      return this.getById(topicId)
-    } else {
-      // Create empty topic using returning()
-      const [row] = await db
-        .insert(topicTable)
-        .values({
-          name: dto.name,
-          assistantId: dto.assistantId,
-          groupId: dto.groupId
-        })
-        .returning()
-
-      logger.info('Created empty topic', { id: row.id })
-
-      return rowToTopic(row)
+      activeNodeId = dto.sourceNodeId
     }
+
+    const [row] = await db
+      .insert(topicTable)
+      .values({
+        name: dto.name,
+        assistantId: dto.assistantId,
+        groupId: dto.groupId,
+        activeNodeId
+      })
+      .returning()
+
+    if (dto.sourceNodeId) {
+      logger.info('Created forked topic', { id: row.id, sourceNodeId: dto.sourceNodeId })
+    } else {
+      logger.info('Created empty topic', { id: row.id })
+    }
+
+    return rowToTopic(row)
   }
 
   /**
@@ -206,6 +169,27 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
+    // Guard against orphaning forked topics: if another topic has messages
+    // parented onto this topic's messages, the fork depends on this topic's
+    // ancestor chain and deleting here would leave dangling `parent_id`
+    // references. Reject with a list of dependents so the user can decide
+    // whether to delete them first.
+    const dependents = await db.all<{ id: string; name: string }>(sql`
+      SELECT DISTINCT t.id as id, t.name as name
+      FROM message m
+      INNER JOIN topic t ON t.id = m.topic_id AND t.deleted_at IS NULL
+      WHERE m.topic_id != ${id}
+        AND m.parent_id IN (SELECT id FROM message WHERE topic_id = ${id})
+    `)
+
+    if (dependents.length > 0) {
+      const names = dependents.map((d) => d.name).join(', ')
+      throw DataApiErrorFactory.invalidOperation(
+        'delete topic',
+        `${dependents.length} forked topic(s) depend on this topic's messages: ${names}. Delete them first.`
+      )
+    }
+
     await db.transaction(async (tx) => {
       // Hard delete all messages first (due to foreign key)
       await tx.delete(messageTable).where(eq(messageTable.topicId, id))
@@ -236,10 +220,12 @@ export class TopicService {
     // Verify topic exists
     await this.getById(topicId)
 
-    // Verify node exists and belongs to this topic
+    // Verify node exists. Cross-topic refs are valid: a forked topic's
+    // `activeNodeId` legitimately points into the source topic's shared
+    // ancestor chain, so we must not reject by `message.topicId !== topicId`.
     const [message] = await db.select().from(messageTable).where(eq(messageTable.id, nodeId)).limit(1)
 
-    if (!message || message.topicId !== topicId) {
+    if (!message) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 

@@ -8,7 +8,6 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -41,7 +40,6 @@ import { MessagesContainer, ScrollContainer } from './shared'
 interface MessagesProps {
   assistant: Assistant
   topic: Topic
-  setActiveTopic: (topic: Topic) => void
   onComponentUpdate?(): void
   onFirstUpdate?(): void
   messages: Message[]
@@ -49,21 +47,13 @@ interface MessagesProps {
 
 const logger = loggerService.withContext('Messages')
 
-const Messages: React.FC<MessagesProps> = ({
-  assistant,
-  topic,
-  setActiveTopic,
-  onComponentUpdate,
-  onFirstUpdate,
-  messages
-}) => {
+const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate, onFirstUpdate, messages }) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const { createTopic } = useTopicMutations()
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
@@ -152,29 +142,6 @@ const Messages: React.FC<MessagesProps> = ({
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
         logger.info('[NEW_CONTEXT] Not yet implemented in V2.')
-      }),
-      EventEmitter.on(EVENT_NAMES.NEW_BRANCH, async (index: number) => {
-        const currentMessages = messagesRef.current
-
-        if (index < 0 || index >= currentMessages.length) {
-          logger.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
-          return
-        }
-
-        const sourceMessage = currentMessages[index]
-
-        try {
-          const created = await createTopic({
-            name: topic.name,
-            assistantId: assistant.id,
-            sourceNodeId: sourceMessage.id
-          })
-          const newTopic = { ...created, messages: [] } as Topic
-          setActiveTopic(newTopic)
-        } catch (err) {
-          logger.error('[NEW_BRANCH] Failed to create topic branch via DataApi', { topicId: topic.id, err })
-          window.toast.error(t('message.branch.error'))
-        }
       }),
       EventEmitter.on(
         EVENT_NAMES.EDIT_CODE_BLOCK,

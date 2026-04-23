@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import AddButton from '@renderer/components/AddButton'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
@@ -58,6 +59,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
+
+const logger = loggerService.withContext('Topics')
 
 interface Props {
   assistant: Assistant
@@ -156,26 +159,32 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
+      await modelGenerating()
+      try {
+        await removeTopic(topic)
+      } catch (err) {
+        logger.error('Failed to delete topic', { topicId: topic.id, err })
+        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+        window.toast.error(message)
+        setDeletingTopicId(null)
+        return
+      }
+      // Only adjust the active topic / seed a fresh topic *after* the delete
+      // succeeded — otherwise a reject (e.g. `INVALID_OPERATION: forked
+      // topics depend on this topic`) leaves the user staring at a silently
+      // missing topic in the sidebar.
       if (topics.length === 1) {
-        // `addTopic` returns the DataApi-persisted Topic; use its id so
-        // `Ai_Stream_Open` can find it. The previous `db.topics.add(...)`
-        // placeholder was V1 Dexie bookkeeping — no longer needed now
-        // that DataApi/SQLite owns the topic table.
         const persisted = await addTopic(getDefaultTopic(assistant.id))
         if (persisted) {
           setActiveTopic(persisted)
         }
-      } else {
+      } else if (topic.id === activeTopic.id) {
         const index = findIndex(topics, (t) => t.id === topic.id)
-        if (topic.id === activeTopic.id) {
-          setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
-        }
+        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
-      await modelGenerating()
-      void removeTopic(topic)
       setDeletingTopicId(null)
     },
-    [activeTopic.id, addTopic, assistant.id, topics, removeTopic, setActiveTopic]
+    [activeTopic.id, addTopic, assistant.id, topics, removeTopic, setActiveTopic, t]
   )
 
   const onPinTopic = useCallback(
@@ -219,13 +228,20 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
       await modelGenerating()
+      try {
+        await removeTopic(topic)
+      } catch (err) {
+        logger.error('Failed to delete topic', { topicId: topic.id, err })
+        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+        window.toast.error(message)
+        return
+      }
       if (topic.id === activeTopic?.id) {
         const index = findIndex(topics, (t) => t.id === topic.id)
         setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
-      void removeTopic(topic)
     },
-    [topics, removeTopic, setActiveTopic, activeTopic]
+    [topics, removeTopic, setActiveTopic, activeTopic, t]
   )
 
   const onMoveTopic = useCallback(

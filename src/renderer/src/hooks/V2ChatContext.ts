@@ -42,6 +42,12 @@ export interface V2ChatOverrides {
   forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /** Switch the topic's active node — used to navigate between branch siblings. */
   setActiveNode: (messageId: string) => Promise<void>
+  /**
+   * Create a new topic by copying the ancestor chain from root to the given
+   * message (excluding descendants), then switch the UI to the new topic.
+   * Used by the message menu's "分支 / branch" action.
+   */
+  createBranchTopic: (messageId: string) => Promise<void>
   requestStatus: RequestStatus
   refresh: () => Promise<unknown>
 }

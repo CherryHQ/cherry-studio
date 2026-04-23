@@ -59,6 +59,10 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, v2]
   )
 
+  const createBranchTopic = useCallback(async () => {
+    await v2?.createBranchTopic(messageId)
+  }, [messageId, v2])
+
   /**
    * Initiates translation and returns an updater function.
    * TODO: Move translation persistence to Main side (dedicated IPC endpoint).
@@ -102,7 +106,7 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, partsMap, topic.id, v2]
   )
 
-  return { remove, regenerate, resend, editParts, forkAndResend, getTranslationUpdater }
+  return { remove, regenerate, resend, editParts, forkAndResend, createBranchTopic, getTranslationUpdater }
 }
 
 /**

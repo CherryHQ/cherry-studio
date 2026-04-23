@@ -15,7 +15,6 @@ import { useMessage } from '@renderer/hooks/useMessage'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
@@ -78,7 +77,6 @@ interface Props {
   assistant: Assistant
   topic: Topic
   model?: Model
-  index?: number
   isGrouped?: boolean
   isLastMessage: boolean
   isAssistantMessage: boolean
@@ -129,7 +127,6 @@ type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactN
 const MessageMenubar: FC<Props> = (props) => {
   const {
     message,
-    index,
     isGrouped,
     isLastMessage,
     isAssistantMessage,
@@ -149,6 +146,7 @@ const MessageMenubar: FC<Props> = (props) => {
     remove: deleteMessage,
     resend: resendMessage,
     regenerate: regenerateAssistantMessage,
+    createBranchTopic,
     getTranslationUpdater
   } = useMessage(message.id, topic)
 
@@ -192,9 +190,9 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    void EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
+    await createBranchTopic()
     window.toast.success(t('chat.message.new.branch.created'))
-  }, [index, t])
+  }, [createBranchTopic, t])
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
