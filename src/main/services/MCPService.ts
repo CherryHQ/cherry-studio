@@ -791,9 +791,7 @@ class McpService {
     if (server.baseUrl) {
       try {
         const remainingServers = await getMCPServersFromRedux()
-        const baseUrlStillInUse = remainingServers.some(
-          (s) => s.id !== server.id && s.baseUrl === server.baseUrl
-        )
+        const baseUrlStillInUse = remainingServers.some((s) => s.id !== server.id && s.baseUrl === server.baseUrl)
         if (!baseUrlStillInUse) {
           const serverUrlHash = crypto.createHash('md5').update(server.baseUrl).digest('hex')
           const oauthFilePath = path.join(getConfigDir(), 'mcp', 'oauth', `${serverUrlHash}_oauth.json`)
