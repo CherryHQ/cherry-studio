@@ -228,7 +228,7 @@ export function useChatWithHistory(
   }, [topicId, refreshAndReplace])
 
   // ── Adapt UIMessage[] to renderer Message[] ──
-
+  // TODO(v2): remove adapedMessages after migrate to new Message type
   const adaptedMessages = useMemo<Message[]>(() => {
     let lastUserId: string | undefined
     return messages.map((uiMsg) => {
@@ -245,7 +245,11 @@ export function useChatWithHistory(
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
-        topicId,
+        // Use the origin topic id when available so shared ancestors (messages
+        // owned by a source topic in a forked view) surface `topicId !==
+        // currentTopic.id`, which the rendering layer uses to switch to
+        // read-only mode for shared context.
+        topicId: meta?.topicId ?? topicId,
         createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
         askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
         modelId: meta?.modelId,
