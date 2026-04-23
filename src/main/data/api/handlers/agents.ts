@@ -14,17 +14,19 @@ import { sessionMessageService } from '@data/services/SessionMessageService'
 import { sessionService } from '@data/services/SessionService'
 import { taskService } from '@data/services/TaskService'
 import { skillService } from '@main/services/agents/skills/SkillService'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type {
-  AgentSchemas,
-  CreateAgentDto,
-  CreateSessionDto,
-  CreateTaskDto,
-  ListQuery,
-  UpdateAgentDto,
-  UpdateSessionDto,
-  UpdateTaskDto
+import {
+  type AgentSchemas,
+  type CreateAgentDto,
+  CreateAgentSchema,
+  type CreateSessionDto,
+  type CreateTaskDto,
+  CreateTaskSchema,
+  type ListQuery,
+  type UpdateAgentDto,
+  type UpdateSessionDto,
+  type UpdateTaskDto
 } from '@shared/data/api/schemas/agents'
 import type {
   CreateAgentRequest,
@@ -42,14 +44,6 @@ function paginationFromQuery(query?: ListQuery) {
   const limit = query?.limit ?? 50
   const offset = (page - 1) * limit
   return { page, limit, offset }
-}
-
-function requireFields(body: Record<string, unknown> | undefined, fields: string[]): void {
-  const missing = fields.filter((f) => body?.[f] === undefined || body?.[f] === null || body?.[f] === '')
-  if (missing.length > 0) {
-    const fieldErrors = Object.fromEntries(missing.map((f) => [f, ['is required']]))
-    throw DataApiErrorFactory.validation(fieldErrors, `Missing required fields: ${missing.join(', ')}`)
-  }
 }
 
 function stripUndefined<T extends object>(obj: T): Partial<T> {
@@ -155,8 +149,9 @@ export const agentHandlers: {
     },
 
     POST: async ({ body }) => {
-      requireFields(body as unknown as Record<string, unknown>, ['type', 'name', 'model'])
-      return await agentService.createAgent(toAgentRequest(body))
+      const parsed = CreateAgentSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentService.createAgent(toAgentRequest(parsed.data))
     }
   },
 
@@ -251,8 +246,9 @@ export const agentHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      requireFields(body as unknown as Record<string, unknown>, ['name', 'prompt', 'scheduleType', 'scheduleValue'])
-      return await taskService.createTask(params.agentId, toTaskRequest(body))
+      const parsed = CreateTaskSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await taskService.createTask(params.agentId, toTaskRequest(parsed.data))
     }
   },
 

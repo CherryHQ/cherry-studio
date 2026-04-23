@@ -7,6 +7,7 @@ import {
 } from '@data/db/schemas/agentChannel'
 import { loggerService } from '@logger'
 import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
+import { DataApiErrorFactory } from '@shared/data/api'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
@@ -34,7 +35,7 @@ export class ChannelService {
     const result = await database.insert(channelsTable).values(insertData).returning()
 
     if (!result[0]) {
-      throw new Error('Failed to create channel')
+      throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
     logger.info('Channel created', { channelId: result[0].id, type: data.type })

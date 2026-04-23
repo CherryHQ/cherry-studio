@@ -266,6 +266,63 @@ export async function listMcpTools(
   return { tools, legacyIdMap }
 }
 
+type McpServerInfo = Awaited<ReturnType<ReturnType<typeof getMcpApiService>['getServerInfo']>>
+
+export async function prefetchMcpServers(ids: string[]): Promise<Map<string, McpServerInfo>> {
+  const cache = new Map<string, McpServerInfo>()
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        cache.set(id, await getMcpApiService().getServerInfo(id))
+      } catch (error) {
+        logger.warn('Failed to prefetch MCP server', { id, error: error as Error })
+        cache.set(id, null)
+      }
+    })
+  )
+  return cache
+}
+
+export function listMcpToolsFromCache(
+  agentType: AgentType,
+  ids: string[] | undefined,
+  serverCache: Map<string, McpServerInfo>
+): { tools: Tool[]; legacyIdMap: Map<string, string> } {
+  const tools: Tool[] = []
+  const legacyIdMap = new Map<string, string>()
+
+  if (agentType === 'claude-code') {
+    tools.push(...builtinTools)
+  }
+
+  if (ids && ids.length > 0) {
+    for (const id of ids) {
+      const server = serverCache.get(id)
+      if (server) {
+        server.tools.forEach((tool) => {
+          const canonicalId = buildFunctionCallToolName(server.name, tool.name)
+          const serverIdBasedId = buildMcpToolId(id, tool.name)
+          const legacyId = toLegacyMcpToolId(serverIdBasedId)
+
+          tools.push({
+            id: canonicalId,
+            name: tool.name,
+            type: 'mcp',
+            description: tool.description || '',
+            requirePermissions: true
+          })
+          legacyIdMap.set(serverIdBasedId, canonicalId)
+          if (legacyId) {
+            legacyIdMap.set(legacyId, canonicalId)
+          }
+        })
+      }
+    }
+  }
+
+  return { tools, legacyIdMap }
+}
+
 export function normalizeAllowedTools(
   allowedTools: string[] | undefined,
   tools: Tool[],

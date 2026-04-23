@@ -9,6 +9,7 @@ import {
   type InsertAgentGlobalSkillRow
 } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
@@ -784,8 +785,8 @@ export class SkillService {
       tags: row.tags ?? [],
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,
-      createdAt: row.createdAt ?? Date.now(),
-      updatedAt: row.updatedAt ?? Date.now()
+      createdAt: timestampToISO(row.createdAt ?? Date.now()),
+      updatedAt: timestampToISO(row.updatedAt ?? Date.now())
     }
   }
 

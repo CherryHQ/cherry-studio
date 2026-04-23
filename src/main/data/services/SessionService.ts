@@ -13,7 +13,9 @@ import { loggerService } from '@logger'
 import {
   ensurePathsExist,
   listMcpTools,
+  listMcpToolsFromCache,
   normalizeAllowedTools,
+  prefetchMcpServers,
   resolveAccessiblePaths,
   rowToAgent,
   rowToSession,
@@ -258,13 +260,13 @@ export class SessionService {
 
     const sessions: GetAgentSessionResponse[] = result.map((row) => rowToSession(row))
 
-    await Promise.all(
-      sessions.map(async (session) => {
-        const { tools, legacyIdMap } = await listMcpTools(session.agentType, session.mcps)
-        session.tools = tools
-        session.allowedTools = normalizeAllowedTools(session.allowedTools, session.tools, legacyIdMap)
-      })
-    )
+    const allServerIds = [...new Set(sessions.flatMap((s) => s.mcps ?? []))]
+    const serverCache = await prefetchMcpServers(allServerIds)
+    for (const session of sessions) {
+      const { tools, legacyIdMap } = listMcpToolsFromCache(session.agentType, session.mcps, serverCache)
+      session.tools = tools
+      session.allowedTools = normalizeAllowedTools(session.allowedTools, session.tools, legacyIdMap)
+    }
 
     return { sessions, total }
   }
@@ -325,23 +327,27 @@ export class SessionService {
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
     const database = application.get('DbService').getDb()
-    const result = await database
-      .delete(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
-
+    const result = await withSqliteErrors(
+      () => database.delete(sessionsTable).where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId))),
+      defaultHandlersFor('Session', id)
+    )
     return result.rowsAffected > 0
   }
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
     const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx
-          .update(sessionsTable)
-          .set({ sortOrder: i })
-          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
-      }
-    })
+    await withSqliteErrors(
+      () =>
+        database.transaction(async (tx) => {
+          for (let i = 0; i < orderedIds.length; i++) {
+            await tx
+              .update(sessionsTable)
+              .set({ sortOrder: i })
+              .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
+          }
+        }),
+      {}
+    )
     logger.info('Sessions reordered', { agentId, count: orderedIds.length })
   }
 

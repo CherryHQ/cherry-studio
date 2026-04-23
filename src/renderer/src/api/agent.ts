@@ -369,7 +369,7 @@ export class AgentApiClient {
 
   // --- Channel CRUD ---
 
-  public async listChannels(filters?: { agent_id?: string; type?: string }): Promise<{ data: any[]; total: number }> {
+  public async listChannels(filters?: { agentId?: string; type?: string }): Promise<{ data: any[]; total: number }> {
     const url = this.channelPaths.base
     try {
       const response = await this.axios.get(url, { params: filters })

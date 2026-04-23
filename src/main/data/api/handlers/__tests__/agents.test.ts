@@ -312,6 +312,18 @@ describe('agentHandlers', () => {
       expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 20, offset: 0 })
     })
 
+    it('computes offset from page and limit on GET', async () => {
+      sessionExistsMock.mockResolvedValueOnce(true)
+      listSessionMessagesMock.mockResolvedValueOnce({ messages: [] })
+
+      await agentHandlers['/agents/:agentId/sessions/:sessionId/messages'].GET({
+        params: { agentId: AGENT_ID, sessionId: SESSION_ID },
+        query: { page: 2, limit: 10 }
+      } as never)
+
+      expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 10, offset: 10 })
+    })
+
     it('throws notFound when session does not belong to agent on GET', async () => {
       sessionExistsMock.mockResolvedValueOnce(false)
 

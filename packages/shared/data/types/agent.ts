@@ -163,8 +163,8 @@ export interface InstalledSkill {
   tags: string[]
   contentHash: string
   isEnabled: boolean
-  createdAt: number
-  updatedAt: number
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ListSkillsResponse {

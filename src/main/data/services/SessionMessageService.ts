@@ -10,6 +10,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import type { AgentStreamEvent } from '@main/services/agents/interfaces/AgentStreamInterface'
 import ClaudeCodeService from '@main/services/agents/services/claudecode'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   AgentMessageAssistantPersistPayload,
   AgentMessagePersistExchangePayload,
@@ -482,11 +483,11 @@ export class SessionMessageService {
     const { sessionId, agentSessionId = '', payload, metadata } = params
 
     if (!payload?.message?.role) {
-      throw new Error('Message payload missing role')
+      throw DataApiErrorFactory.validation({ role: ['is required'] }, 'Message payload missing role')
     }
 
     if (!payload.message.id) {
-      throw new Error('Message payload missing id')
+      throw DataApiErrorFactory.validation({ id: ['is required'] }, 'Message payload missing id')
     }
 
     const database = application.get('DbService').getDb()

@@ -10,7 +10,9 @@ import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import {
   listMcpTools,
+  listMcpToolsFromCache,
   normalizeAllowedTools,
+  prefetchMcpServers,
   resolveAccessiblePaths,
   rowToAgent,
   validateAgentModels
@@ -180,13 +182,13 @@ export class AgentService {
 
     const agents: GetAgentResponse[] = result.map((row) => rowToAgent(row))
 
-    await Promise.all(
-      agents.map(async (agent) => {
-        const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
-        agent.tools = tools
-        agent.allowedTools = normalizeAllowedTools(agent.allowedTools, agent.tools, legacyIdMap)
-      })
-    )
+    const allServerIds = [...new Set(agents.flatMap((a) => a.mcps ?? []))]
+    const serverCache = await prefetchMcpServers(allServerIds)
+    for (const agent of agents) {
+      const { tools, legacyIdMap } = listMcpToolsFromCache(agent.type, agent.mcps, serverCache)
+      agent.tools = tools
+      agent.allowedTools = normalizeAllowedTools(agent.allowedTools, agent.tools, legacyIdMap)
+    }
 
     return { agents, total: totalResult[0].count }
   }
