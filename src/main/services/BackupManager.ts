@@ -29,7 +29,7 @@ import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
-import { resolveAndValidatePath } from '../utils/file'
+import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -38,6 +38,7 @@ const logger = loggerService.withContext('BackupManager')
 
 interface CopyDirOptions {
   dereferenceSymlinks: boolean
+  sourceRootRealPath?: string
 }
 
 interface EffectiveEntryStats {
@@ -834,6 +835,7 @@ class BackupManager {
     onProgress: (processData: ProgressData) => void
   ) {
     let copiedSize = 0
+    let lastReported = startProgress
 
     return (size: number) => {
       copiedSize += size
@@ -841,6 +843,10 @@ class BackupManager {
         totalSize > 0
           ? Math.min(endProgress, startProgress + Math.floor((copiedSize / totalSize) * (endProgress - startProgress)))
           : endProgress
+      if (progress === lastReported && copiedSize < totalSize) {
+        return
+      }
+      lastReported = progress
       onProgress({ stage, progress, total: 100 })
     }
   }
@@ -855,6 +861,10 @@ class BackupManager {
     options: CopyDirOptions,
     activeDirectoryRealPaths = new Set<string>()
   ): Promise<number> {
+    const copyOptions = {
+      ...options,
+      sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(dirPath))
+    }
     const directoryRealPath = await this.enterDirectory(dirPath, activeDirectoryRealPaths)
 
     if (!directoryRealPath) {
@@ -868,7 +878,7 @@ class BackupManager {
 
       for (const item of items) {
         const fullPath = path.join(dirPath, item.name)
-        const entry = await this.getEffectiveEntryStats(fullPath, options)
+        const entry = await this.getEffectiveEntryStats(fullPath, copyOptions)
 
         if (!entry) {
           continue
@@ -877,12 +887,12 @@ class BackupManager {
         if (entry.stats.isDirectory()) {
           if (entry.isSymlink) {
             try {
-              size += await this.getDirSize(fullPath, options, activeDirectoryRealPaths)
+              size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
             } catch (error) {
               this.logSkippedSymlink(fullPath, error)
             }
           } else {
-            size += await this.getDirSize(fullPath, options, activeDirectoryRealPaths)
+            size += await this.getDirSize(fullPath, copyOptions, activeDirectoryRealPaths)
           }
         } else if (entry.stats.isFile()) {
           size += entry.stats.size
@@ -995,6 +1005,10 @@ class BackupManager {
     onProgress: (size: number) => void,
     options: CopyDirOptions
   ): Promise<void> {
+    const copyOptions = {
+      ...options,
+      sourceRootRealPath: options.sourceRootRealPath ?? (await fs.realpath(source))
+    }
     const activeDirectoryRealPaths = new Set<string>()
 
     const copyDir = async (src: string, dest: string): Promise<void> => {
@@ -1012,7 +1026,7 @@ class BackupManager {
         for (const item of items) {
           const sourcePath = path.join(src, item.name)
           const destPath = path.join(dest, item.name)
-          const entry = await this.getEffectiveEntryStats(sourcePath, options)
+          const entry = await this.getEffectiveEntryStats(sourcePath, copyOptions)
 
           if (!entry) {
             continue
@@ -1075,12 +1089,24 @@ class BackupManager {
 
   private async getSymlinkTargetStats(sourcePath: string, options: CopyDirOptions): Promise<Stats | null> {
     if (!options.dereferenceSymlinks) {
-      logger.warn('[BackupManager] Skipping symlink during restore', { path: sourcePath })
+      logger.warn('[BackupManager] Skipping symlink (dereferenceSymlinks=false)', { path: sourcePath })
       return null
     }
 
     try {
-      return await fs.stat(sourcePath)
+      const [targetStats, targetRealPath] = await Promise.all([fs.stat(sourcePath), fs.realpath(sourcePath)])
+      const context = {
+        path: sourcePath,
+        sourceRootRealPath: options.sourceRootRealPath,
+        targetRealPath
+      }
+
+      if (options.sourceRootRealPath && !isPathInside(targetRealPath, options.sourceRootRealPath)) {
+        logger.warn('[BackupManager] Dereferencing symlink outside source root during backup copy', context)
+      } else {
+        logger.info('[BackupManager] Dereferencing symlink during backup copy', context)
+      }
+      return targetStats
     } catch (error) {
       this.logSkippedSymlink(sourcePath, error)
       return null

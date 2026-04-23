@@ -153,7 +153,36 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
 
     expect(fs.copy).toHaveBeenCalledWith('/src/skill-link', '/dest/skill-link', { dereference: true })
     expect(onProgress).toHaveBeenCalledWith(42)
-    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Dereferencing symlink during backup copy'),
+      expect.objectContaining({
+        path: '/src/skill-link',
+        sourceRootRealPath: '/src',
+        targetRealPath: '/src/skill-link'
+      })
+    )
+  })
+
+  it('should warn when dereferencing a symlink target outside the source root', async () => {
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('external-link')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('symlink') as never)
+    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 8) as never)
+    vi.mocked(fs.realpath).mockImplementation(async (entryPath) => {
+      const sourcePath = String(entryPath)
+      return (sourcePath === '/src/external-link' ? '/external/file.txt' : sourcePath) as never
+    })
+
+    await (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), { dereferenceSymlinks: true })
+
+    expect(fs.copy).toHaveBeenCalledWith('/src/external-link', '/dest/external-link', { dereference: true })
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Dereferencing symlink outside source root'),
+      expect.objectContaining({
+        path: '/src/external-link',
+        sourceRootRealPath: '/src',
+        targetRealPath: '/external/file.txt'
+      })
+    )
   })
 
   it('should copy the real directory contents when a valid symlink points to a directory', async () => {
@@ -244,9 +273,22 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(fs.stat).not.toHaveBeenCalled()
     expect(fs.copy).not.toHaveBeenCalled()
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Skipping symlink during restore'),
+      expect.stringContaining('Skipping symlink (dereferenceSymlinks=false)'),
       expect.objectContaining({ path: '/restore-src/restore-link' })
     )
+  })
+
+  it('should throttle copy progress to integer progress changes and completion', () => {
+    const onProgress = vi.fn()
+    const handleProgress = (backupManager as any).createCopyProgressHandler(100, 0, 50, 'copying_files', onProgress)
+
+    handleProgress(1)
+    handleProgress(1)
+    handleProgress(98)
+
+    expect(onProgress).toHaveBeenCalledTimes(2)
+    expect(onProgress).toHaveBeenNthCalledWith(1, { stage: 'copying_files', progress: 1, total: 100 })
+    expect(onProgress).toHaveBeenNthCalledWith(2, { stage: 'copying_files', progress: 50, total: 100 })
   })
 
   it('should not recurse forever when a symlinked directory points to an ancestor during size calculation', async () => {
