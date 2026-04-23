@@ -30,6 +30,8 @@
 - 不再使用原先 Redux knowledge 数据作为事实来源。
 - 任何旧实现中存在、但不在 `knowledge.ts` 中稳定定义的字段，不应继续作为 V2 UI 的设计前提。
 - `itemCount`、知识库级 `status` 等列表展示字段属于基于 `knowledge_item` 的派生聚合结果，不属于 `knowledge_base` 主数据。
+- 当前语义下，“删除分组”只删除 group 本身，不删除分组下的 knowledge base。
+- 分组删除后，关联的 knowledge base 应回到 ungrouped；在产品语义重新确认前，不得把“删除分组”实现或文案扩展为“同时删除该分组下所有 base”。
 
 ### 当前暂留问题：`itemCount` / 知识库级 `status`
 
