@@ -236,88 +236,47 @@ export class WindowManager extends BaseService {
       return this.getInitData(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Close, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Close, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.close(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Show, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.show(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Hide, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.hide(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.minimize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.maximize(windowId)
     })
 
-    // For Unmaximize / SetFullScreen / IsMaximized / IsFullScreen and other state
-    // handlers below: the optional `type` parameter targets a singleton window by
-    // type (e.g. WindowType.Main); for `default`/`pooled` lifecycle types
-    // (SubWindow, MinAppPopup, QuickAssistant, etc.) `resolveTargetWindowId`
-    // returns null when type is supplied — those windows can only be addressed via
-    // the sender fallback (omit `type`, the handler resolves event.sender).
-    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.unmaximize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.isMaximized(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.setFullScreen(windowId, value)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.isFullScreen(windowId)
     })
-
-    this.ipcHandle(IpcChannel.WindowManager_Focus, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.focus(windowId)
-    })
-  }
-
-  /**
-   * Resolve target windowId from optional type string or IPC event sender.
-   * - No type: resolve from sender webContents (self)
-   * - With type: must be a valid singleton WindowType
-   */
-  private resolveTargetWindowId(sender: Electron.WebContents, type?: string): string | null {
-    if (type) {
-      if (!VALID_WINDOW_TYPES.has(type)) return null
-      const metadata = getWindowTypeMetadata(type as WindowType)
-      if (metadata.lifecycle !== 'singleton') return null
-      const windows = this.getWindowsByType(type as WindowType)
-      if (windows.length === 0) return null
-      return windows[0].id
-    }
-    return this.getWindowIdByWebContents(sender) ?? null
   }
 
   // ─── Public API: Open / Create / Close / Destroy ──────────────

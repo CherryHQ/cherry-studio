@@ -6,7 +6,7 @@ export function useFullScreenNotice() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    const unsubscribe = window.api.windowControls.onFullscreenChange((isFullscreen) => {
+    const unsubscribe = window.api.windowManager.onFullscreenChange((isFullscreen) => {
       if (isWin && isFullscreen) {
         window.toast.info({
           title: t('common.fullscreen'),
