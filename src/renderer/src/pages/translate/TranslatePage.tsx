@@ -143,7 +143,7 @@ const TranslatePage: FC = () => {
           setDetectedLanguage(actualSourceLanguage)
         } catch (e) {
           logger.error('Failed to detect language', e as Error)
-          window.toast.error(t('translate.error.detect_failed'))
+          window.toast.error(formatErrorMessageWithPrefix(e, t('translate.error.detect.failed')))
           return
         } finally {
           setIsDetecting(false)
