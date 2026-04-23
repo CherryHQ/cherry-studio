@@ -280,6 +280,10 @@ export const agentHandlers: {
 
   '/skills': {
     GET: async ({ query }) => {
+      if (query?.agentId) {
+        const agent = await agentService.getAgent(query.agentId)
+        if (!agent) throw DataApiErrorFactory.notFound('Agent', query.agentId)
+      }
       const skills = await skillService.list(query?.agentId)
       return { data: skills }
     }

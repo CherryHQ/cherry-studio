@@ -12,7 +12,6 @@
 import type {
   AgentDetail,
   AgentSessionDetail,
-  AgentSessionEntity,
   AgentSessionMessageEntity,
   InstalledSkill,
   ScheduledTaskEntity
@@ -151,7 +150,7 @@ export type AgentSchemas = {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionEntity>
+      response: OffsetPaginationResponse<AgentSessionDetail>
     }
     POST: {
       params: { agentId: string }
@@ -169,7 +168,7 @@ export type AgentSchemas = {
     PATCH: {
       params: { agentId: string; sessionId: string }
       body: UpdateSessionDto
-      response: AgentSessionEntity
+      response: AgentSessionDetail
     }
     DELETE: {
       params: { agentId: string; sessionId: string }
