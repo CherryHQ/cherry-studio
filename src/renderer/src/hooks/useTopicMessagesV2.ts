@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -36,6 +36,14 @@ export interface MessageMetadata {
    */
   topicId: string
   modelId?: string
+  /**
+   * Captured at message creation (`{id, name, provider, group?}`).
+   * Primary reason to plumb this through: UI avatars + model labels read
+   * `message.model.{provider,id,name}` via `getModelLogo`, and the live
+   * provider config may no longer have this model (e.g. uninstalled
+   * provider). The snapshot is the only stable source.
+   */
+  modelSnapshot?: ModelSnapshot
   siblingsGroupId?: number
   createdAt: string
   status: SharedMessage['status']
@@ -173,6 +181,7 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
           parentId: message.parentId,
           topicId: message.topicId,
           modelId: message.modelId ?? undefined,
+          modelSnapshot: message.modelSnapshot ?? undefined,
           siblingsGroupId: message.siblingsGroupId || undefined,
           createdAt: message.createdAt,
           status: message.status,

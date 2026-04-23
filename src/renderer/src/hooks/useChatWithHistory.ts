@@ -13,6 +13,7 @@
 import { useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import type { Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
@@ -253,6 +254,13 @@ export function useChatWithHistory(
         createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
         askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
         modelId: meta?.modelId,
+        // Avatar/tooltip consumers (`MessageGroupModelList`,
+        // `ModelAvatar`) read `message.model.{provider,id,name}` via
+        // `getModelLogo`. The persisted `modelSnapshot` captures those
+        // exact fields at reservation time, so it doubles as a minimal
+        // `Model` for rendering — even if the provider config later drops
+        // the model.
+        model: meta?.modelSnapshot ? (meta.modelSnapshot as unknown as Model) : undefined,
         siblingsGroupId: meta?.siblingsGroupId,
         status:
           uiMsg.role === 'user'
