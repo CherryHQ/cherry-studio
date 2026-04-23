@@ -168,8 +168,14 @@ export const isAgentBase = (value: unknown): value is AgentBase => {
   return AgentBaseSchema.safeParse(value).success
 }
 
+// `model` is optional here for the same reason it is optional on
+// `AgentEntitySchema` / `AgentSessionEntitySchema` — a persisted row can have
+// a NULL `model` after the referenced `user_model` is deleted (ON DELETE SET
+// NULL). Components that take an `AgentBaseWithId` receive already-saved
+// entities, so they must handle the absent-model case.
 export const AgentBaseWithIdSchema = AgentBaseSchema.extend({
-  id: z.string()
+  id: z.string(),
+  model: z.string().optional()
 })
 
 export type AgentBaseWithId = z.infer<typeof AgentBaseWithIdSchema>
