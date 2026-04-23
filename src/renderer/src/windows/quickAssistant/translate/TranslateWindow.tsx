@@ -5,6 +5,7 @@ import LanguageSelect from '@renderer/components/LanguageSelect'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { translateText } from '@renderer/services/TranslateService'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { Select } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC } from 'react'
@@ -38,8 +39,12 @@ const Translate: FC<Props> = ({ text }) => {
 
       translatingRef.current = false
     } catch (error) {
-      logger.error('Error fetching result:', error as Error)
-      window.toast.error(t('translate.error.failed'))
+      // User-initiated aborts shouldn't look like failures; anything else gets
+      // the upstream message prefixed so the user sees why it failed.
+      if (!isAbortError(error)) {
+        logger.error('Error fetching result:', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
     } finally {
       translatingRef.current = false
     }
