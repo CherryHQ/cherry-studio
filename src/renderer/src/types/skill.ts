@@ -149,8 +149,8 @@ export const InstalledSkillSchema = z.object({
   tags: z.array(z.string()),
   contentHash: z.string(),
   isEnabled: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
