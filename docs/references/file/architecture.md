@@ -10,6 +10,8 @@
 >
 > **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
 >
+> **Phase 1a contract stability**: the JSDoc, type signatures, and behavioral tables in this document (and `file-manager-architecture.md`) are **binding commitments** for the Phase 1b.x implementation — not provisional notes. When implementation reveals a contract that cannot be honored (a cleanup semantic that collides with reality, an error-type that needs expanding, a signature shape that doesn't fit), the required workflow is: **(1) open a PR revising the contract doc first**, with justification in the PR description; **(2) land that doc revision**; **(3) implement against the updated contract**. Do not ship an implementation that silently diverges from the doc — the cost of doc revision is minutes, the cost of hidden divergence compounds indefinitely.
+>
 > Related documents:
 >
 > - `docs/references/file/file-manager-architecture.md` — FileManager submodule design (FileEntry model, origin semantics, atomic writes, version detection, DirectoryWatcher, AI SDK integration)
@@ -251,7 +253,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
 | `read` | Read content | ops.read(userDataPath) | ops.read(externalPath) (live) | ops.read(path) |
-| `getMetadata` | Live physical metadata (`fs.stat`) | resolve + ops.stat | ops.stat(externalPath) — **sole live-size source for external** | ops.stat + getFileType |
+| `getMetadata` | Live physical metadata (`fs.stat`) — entry-id batch variant `batchGetMetadata` (id-only, see below) | resolve + ops.stat | ops.stat(externalPath) — **sole live-size source for external** | ops.stat + getFileType |
 | `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | ops.statVersion |
 | `getContentHash` | xxhash-128 | read userData + hash | read externalPath + hash | ops.contentHash |
 | `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
@@ -273,8 +275,9 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | `withTempCopy` | Copy isolation for calling third-party libraries |
 | `getDanglingState` / `batchGetDanglingStates` | Query external-origin entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal-origin entries always `'present'`. |
 | `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a FileEntry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
+| `batchGetMetadata` | Batch version of `getMetadata` — list-page flows MUST use this over `Promise.all(ids.map(id => getMetadata(...)))`. Handler parallelises `fs.stat` internally; single IPC round-trip. Returns `Record<id, PhysicalFileMetadata \| null>` — `null` marks per-id stat failure (missing / permission), caller falls back to "—". Not handle-native on purpose: path-handle stats have no N-call motivation (pickers/dialogs surface <20 items). |
 
-**How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState`, path via `getPhysicalPath`, live `size` / `mtime` via `getMetadata`. DataApi's SQL-only boundary is documented in §4.1.1.
+**How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 entry MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
 
 **How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
@@ -309,6 +312,31 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 Similar to VS Code's behavior model for open files: it changes when you tell it to, without modifying behind the scenes; if you change the file externally, it won't auto-follow.
 
+**UX labeling convention for `permanentDelete` (product contract)**:
+
+The IPC method name `permanentDelete` is polymorphic on handle/origin and does not translate literally to user-facing copy. The three branches have materially different user-observable effects; UI surfaces MUST choose the label at the call site based on `(handle.kind, entry.origin)`:
+
+| Call site | User-facing label | Confirmation copy |
+|---|---|---|
+| entry handle, `origin = 'internal'` | "Permanently delete" / "永久删除" | "This file will be permanently deleted from your library and from disk. This action cannot be undone." |
+| entry handle, `origin = 'external'` | "**Remove from library**" / "从库中移除" | "Cherry will stop tracking this file. The file on disk is not affected; it will remain where it is." |
+| path handle | "Delete file" / "删除文件" | "This file will be permanently removed from disk. This action cannot be undone." |
+
+The internal and path branches are **true destructive actions** (red button, clear warning). The external-entry branch is an **un-tracking** operation — the user's file is not touched. Presenting it with "permanent delete" language creates two classic bug paths:
+
+1. User expects disk deletion → later finds the file still in Finder/Explorer → files a bug report
+2. User hesitates or avoids the action fearing data loss → accumulates dangling library entries they actually want removed
+
+**Enforcement**: convention-only, verified at PR review. The IPC method name is intentionally kept polymorphic (preserves §3.2's "unified entry + kind dispatch" design); what varies is the UI copy around the call — product layer owns that.
+
+**UI filter convention for dangling external entries**:
+
+FilesPage and similar user-facing **list surfaces** SHOULD hide external entries with `DanglingState === 'missing'` by default, with a "Show missing files" toggle for power-user re-linking. Rationale:
+- UI noise reduction: dangling entries are far more common than present ones over the lifetime of heavy users (every `@`'d file whose user later moves/deletes becomes dangling eventually)
+- Pairs with the automatic cleanup policy in [`file-manager-architecture.md §7.2`](./file-manager-architecture.md#72-dangling-external-auto-cleanup-layer-3-extension) — entries that are dangling AND have lost all refs are eventually garbage-collected; the UI filter hides them during the retention window
+
+**Exception — reference-oriented surfaces**: when a specific message's attachment list, a knowledge item's source files, or any other view that consumes `file_ref` shows entries, dangling rows MUST remain visible (with a "file missing" marker). Hiding them would silently suppress the "your attached file is gone" signal the user needs in order to act — re-attach, remove the reference, etc. The auto-cleanup rule specifically excludes `refs > 0` entries for the same reason.
+
 ### 3.5 AI SDK Integration (Deferred)
 
 **AI SDK upload-related** → FileUploadService methods (**deferred implementation**, to be introduced after the AI SDK Files API is stable):
@@ -318,6 +346,71 @@ Similar to VS Code's behavior model for open files: it changes when you tell it 
 | `ensureUploaded(entryId, provider)` | upload-if-needed                 |
 | `buildProviderReference(entryId)`   | Build SharedV4ProviderReference  |
 | `invalidate(entryId)`               | Clear cache (on content change)  |
+
+### 3.6 Mutation Propagation to Renderer `[1b.2 impl]`
+
+Every main-side mutation that changes an entry's DB row, a file's physical content, or the dangling state of an external path invalidates zero or more renderer-side React Query caches. Manual per-caller invalidation is brittle — if any business caller forgets to invalidate after `rename`/`write`/`permanentDelete`, the UI shows stale data for up to the `staleTime` window.
+
+**Design**: FileManager owns both IPC registration (§3.1–3.4) and **post-dispatch event broadcast**. Mutation methods fire in-process `Event<T>` after a successful commit; FileManager's own `onInit` subscribes to those events (plus `DanglingCache.onDanglingStateChanged`) and forwards each via `WindowManager`'s broadcast helper to every live renderer window. Consolidating transport with dispatch keeps both concerns in the single place that already holds renderer-facing IPC authority — no dedicated broadcaster service.
+
+**Event contract** (three independent typed events — see [`file-manager-architecture.md §1.6.8`](./file-manager-architecture.md#168-event-emission--broadcast) for emission timing within each mutation):
+
+| Event | Fired when | Payload | QueryKey **prefixes** to invalidate |
+|---|---|---|---|
+| `onEntryRowChanged` | `createInternalEntry` / `ensureExternalEntry` / `update` / `rename` / `trash` / `restore` / `permanentDelete` (and batch variants) commit successfully | `{ kind: 'created' \| 'updated' \| 'deleted', id: FileEntryId, origin: FileEntryOrigin }` | `['fileManager', 'entry']`, `['fileManager', 'entries']`, `['fileManager', 'refCounts']`, `['fileManager', 'physicalPath']` |
+| `onEntryContentChanged` | `write` / `writeIfUnchanged` / `createWriteStream` commit completes | `{ id: FileEntryId, version: FileVersion }` | `['fileManager', 'metadata']`, `['fileManager', 'version']`, `['fileManager', 'contentHash']` |
+| `onDanglingStateChanged` | `DanglingCache` transitions an entry's state (watcher event / cold `fs.stat` observation / explicit `ops` observation) | `{ id: FileEntryId, state: 'present' \| 'missing' }` | `['fileManager', 'dangling']` |
+
+Three separate events, not a discriminated union: invalidation targets per event are disjoint enough that renderer-side dispatch should be `event type → queryKey prefix`, not `payload field → queryKey`. Adding a new event type (e.g. `onUploadStateChanged` when AI SDK lands) costs one handler in the renderer binding.
+
+**QueryKey convention** — required shape for every React Query cache that shadows file-manager state:
+
+| Singular queryKey | Batch queryKey | Shadows |
+|---|---|---|
+| `['fileManager', 'entry', id]` | — | DataApi `GET /files/entries/:id` |
+| — | `['fileManager', 'entries', ...filters]` | DataApi `GET /files/entries` (list; no singular form) |
+| — | `['fileManager', 'refCounts', sortedIds]` | DataApi `GET /files/entries/ref-counts` (batch-only endpoint) |
+| `['fileManager', 'metadata', id]` | `['fileManager', 'metadata', 'batch', sortedIds]` | File IPC `getMetadata` / `batchGetMetadata` |
+| `['fileManager', 'version', id]` | — | File IPC `getVersion` (no batch variant) |
+| `['fileManager', 'contentHash', id]` | — | File IPC `getContentHash` (no batch variant) |
+| `['fileManager', 'dangling', id]` | `['fileManager', 'dangling', 'batch', sortedIds]` | File IPC `getDanglingState` / `batchGetDanglingStates` |
+| `['fileManager', 'physicalPath', id]` | `['fileManager', 'physicalPath', 'batch', sortedIds]` | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` |
+
+**Convention rules**:
+
+1. **Fixed namespace**: every key starts with `['fileManager', <kind>, ...]`. `<kind>` names the resource (one of the second-element values above). Deviating requires a paired update to this table and the renderer binding hook.
+2. **Singular = id as third element**: `['fileManager', <kind>, id]`. This is the canonical form — most renderer hooks produce keys in this shape.
+3. **Batch = `'batch'` marker + sorted id array as fourth element**: `['fileManager', <kind>, 'batch', sortedIds]`. Always sort ids before keying (lexicographic by `FileEntryId` string) so equivalent batches share a cache entry regardless of input order.
+4. **Filter / compound keys append after the third element**: `['fileManager', 'entries', { origin: 'external' }]`. Filters are structured objects, not positional arguments — React Query hashes them structurally.
+
+**Invalidation semantics — prefix-based, uniformly**:
+
+The broadcast binding invalidates at the `['fileManager', <kind>]` prefix (second-element depth), which hits **both singular and batch variants** under that kind. Invalidating `['fileManager', 'metadata']` refreshes every cache under that kind — singular per-id, batch-of-ids, anything keyed off it — regardless of the specific id reported by the event.
+
+This is intentionally coarse: a `write` on entry X invalidates entry Y's metadata cache too. The cost is one extra refetch per unrelated cache; React Query's query-level dedup keeps the network cost bounded, and desktop-scale apps have tens of caches, not thousands. The benefit is that dispatch is one `invalidateQueries` call per kind, and batch caches are automatically covered.
+
+If a future hot spot needs precision (e.g. a view renders 500 independent metadata queries and over-invalidation measurably hurts), upgrade that specific dispatch to predicate-based matching:
+
+```typescript
+queryClient.invalidateQueries({
+  predicate: (q) =>
+    q.queryKey[0] === 'fileManager' &&
+    q.queryKey[1] === 'metadata' &&
+    (q.queryKey[2] === id || (Array.isArray(q.queryKey[3]) && q.queryKey[3].includes(id)))
+})
+```
+
+Predicate-based invalidation is an optimization; prefix-based is the default.
+
+**Delivery semantics — best-effort fire-and-forget**:
+
+- **No delivery guarantee**: renderer windows unmounted / starting up / crashed during broadcast lose events. `staleTime ≤ 5min` contract (§4.1.1) is the backstop — lost events mean caches refresh on their natural cadence rather than instantly.
+- **No ordering guarantee**: multiple events for the same id may arrive out of order. `queryClient.invalidateQueries` is idempotent, repeated invalidations are benign.
+- **Emit cannot roll back commit**: broadcasts fire after the DB transaction commits; if `windowManager.broadcast` throws, the mutation return value is unaffected — the data is durable, only the notification is lost.
+
+**Renderer integration**: a single hook `useFileManagerEventsBinding()` installed once at the application root. It subscribes to the preload-exposed `onFileManagerEvent(listener)` bridge and dispatches each event to `queryClient.invalidateQueries({ queryKey: [...] })` per the dispatch table. Idempotent mounting — if the hook mounts twice, it de-duplicates listeners.
+
+**Design boundary**: events carry **identity + minimal state-change info, never the post-mutation data itself**. Renderers always refetch through the established query/IPC surface — events are invalidation signals, not data pushes. This keeps channel payload bounded and lets React Query manage freshness policy per consumer.
 
 ---
 
@@ -385,7 +478,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 | Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
 | Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
 | `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
-| Live `size` / `mtime` for external           | File IPC `getMetadata(id)`                                              | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design |
+| Live `size` / `mtime` for external           | File IPC `getMetadata(id)` (single) / `batchGetMetadata({ ids })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
 
@@ -415,35 +508,39 @@ Pure **formatting** helpers built on top of an already-resolved path — `toFile
 The new pattern is **DataApi for SQL-level data + File IPC for enrichments**, composed in the renderer. Each extra enrichment = one more `useQuery` against an IPC method.
 
 ```typescript
+// Shared helper used throughout: every queryKey in the 'fileManager' namespace
+// sorts its id array so equivalent batches share a cache entry (§3.6).
+const sortIds = (ids: FileEntryId[]) => [...ids].sort()
+
 // Case 1: FilesPage — list + presence + preview URL + ref counts
-//         (external rows also need getMetadata for live size)
+//         (external rows also need live size via batchGetMetadata)
 const { data: entries } = useQuery(fileApi.listEntries, {})
 const entryIds = entries?.map(e => e.id) ?? []
 const externalIds = entries?.filter(e => e.origin === 'external').map(e => e.id) ?? []
 
 const { data: presence } = useQuery(
-  ['fileManager.batchGetDanglingStates', entryIds],
-  () => window.api.fileManager.batchGetDanglingStates(entryIds),
+  ['fileManager', 'dangling', 'batch', sortIds(entryIds)],
+  () => window.api.fileManager.batchGetDanglingStates({ ids: entryIds }),
   { enabled: entryIds.length > 0 }
 )
 const { data: paths } = useQuery(
-  ['fileManager.batchGetPhysicalPaths', entryIds],
-  () => window.api.fileManager.batchGetPhysicalPaths(entryIds),
+  ['fileManager', 'physicalPath', 'batch', sortIds(entryIds)],
+  () => window.api.fileManager.batchGetPhysicalPaths({ ids: entryIds }),
   { enabled: entryIds.length > 0 }
 )
 const { data: liveMeta } = useQuery(
-  ['fileManager.getMetadata', externalIds],
-  async () => {
-    const pairs = await Promise.all(
-      externalIds.map(async (id) => [id, await window.api.fileManager.getMetadata({ kind: 'entry', entryId: id })] as const)
-    )
-    return Object.fromEntries(pairs)
-  },
+  ['fileManager', 'metadata', 'batch', sortIds(externalIds)],
+  () => window.api.fileManager.batchGetMetadata({ ids: externalIds }),
   { enabled: externalIds.length > 0 } // internal.size is already on the DataApi row
 )
-const { data: refCounts } = useQuery(fileApi.refCounts, { entryIds })
+const { data: refCounts } = useQuery(
+  ['fileManager', 'refCounts', sortIds(entryIds)],
+  () => fileApi.refCounts({ entryIds }),
+  { enabled: entryIds.length > 0 }
+)
 // size lookup: prefer DB (internal SoT), fall back to live stat (external):
 //   const size = entry.size ?? liveMeta?.[entry.id]?.size
+// stat failures surface as `liveMeta?.[id] === null` — render "—" in that case.
 // render (URL computed in-process — no extra IPC):
 //   <img src={paths && toSafeFileUrl(paths[entry.id], entry.ext)} />
 //   dangling: presence?.[entry.id], count: refCounts?.[entry.id]
@@ -451,14 +548,16 @@ const { data: refCounts } = useQuery(fileApi.refCounts, { entryIds })
 // Case 2: Agent compose — list + absolute paths (same IPC as above, different consumer)
 const { data: entries } = useQuery(fileApi.listEntries, { ids: selectedFileIds })
 const { data: paths } = useQuery(
-  ['fileManager.batchGetPhysicalPaths', selectedFileIds],
-  () => window.api.fileManager.batchGetPhysicalPaths(selectedFileIds)
+  ['fileManager', 'physicalPath', 'batch', sortIds(selectedFileIds)],
+  () => window.api.fileManager.batchGetPhysicalPaths({ ids: selectedFileIds })
 )
 const filePaths = selectedFileIds.map(id => paths?.[id]).filter(Boolean).join('\n')
 
 // Case 3: Simple chat attachment list — no enrichment needed
 const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
 ```
+
+**Anti-pattern — N+1 IPC**: DO NOT write `Promise.all(ids.map(id => window.api.fileManager.getMetadata(...)))` or the equivalent for `getDanglingState` / `getPhysicalPath`. Every singular IPC is an independent `ipcMain.handle` round-trip (~0.1ms overhead each); 1000-entry list pages pay >100ms purely in IPC overhead before any `fs.stat` runs. The batch variants run one IPC + `Promise.all`-parallelised handler work — constant round-trip cost.
 
 Benefits of the split:
 
@@ -737,13 +836,19 @@ BusinessService
     |
     x-- fs.readFile / writeFile / unlink           -> FORBIDDEN for FileEntry paths
     x-- ops/fs direct on FileEntry-backed paths    -> FORBIDDEN (same reason)
+    x-- FilePathHandle pointing at {userData}/files/{uuid}.{ext}
+                                                   -> FORBIDDEN for writes — silently desyncs
+                                                       FileEntry.size on internal entries
 ```
 
 **Why business services are forbidden from directly operating on the physical files backing a FileEntry**:
 
 - **Path opacity**: the physical path is determined by origin (internal = UUID-based; external = user-provided); business services must not assume it
-- **Cache consistency**: FileManager maintains an in-memory version cache; bypassing it causes inconsistency
+- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `ops/fs` or a `FilePathHandle` to `{userData}/files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
+- **Cache consistency**: FileManager maintains an in-memory `versionCache`; bypassing it leaves `getVersion` returning stale `(mtime, size)` until the next write/reconcile. `writeIfUnchanged` is unaffected (it always re-stats — see [`file-manager-architecture.md §4.4`](./file-manager-architecture.md#44-lru-version-cache)), but UI surfaces that display cached mtime can show stale values.
 - **Atomicity guarantee**: writes must go through FileManager's atomic write path
+
+**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `ops/fs` runtime checks the target path against the internal-storage tree. Legitimate `ops/*` consumers outside file_module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/files/`". Violations are caught by code review.
 
 The scope of this constraint is **physical files backing a FileEntry**. Other modules' own files (Knowledge vector index, Agent workspace, MCP config, Notes, etc.) are outside this constraint.
 
@@ -771,10 +876,11 @@ BeforeReady (parallel with app.whenReady(), no Electron API)
 +-- DbService                    -- database connection
 
 WhenReady (after app.whenReady(), Electron API available)
-+-- FileManager                  -- entry coordination + IPC
-      @DependsOn(DbService)
++-- FileManager                  -- entry coordination + IPC + event broadcast
+      @DependsOn(DbService, WindowManager)
       onInit(): registers IPC, inits LRU cache, inits DanglingCache reverse
-                index from DB, FIRES background orphan sweep
+                index from DB, wires mutation events to WindowManager
+                broadcast (see §3.6), FIRES background orphan sweep
                 (sweep runs async; does NOT block ready)
 
 Background (fire-and-forget, non-blocking)
@@ -813,7 +919,9 @@ Data Repositories (not lifecycle, managed by DataApiService):
                           (SELECT id, externalPath FROM file_entry
                            WHERE origin='external'
                            — external rows are never trashed by invariant)
-                       4. fire void this.runOrphanSweep()  ◄── not awaited
+                       4. subscribe to own mutation Events + DanglingCache
+                          events, wire to windowManager.broadcast (§3.6)
+                       5. fire void this.runOrphanSweep()  ◄── not awaited
                                    │
                           (ready signal emitted immediately; ready not blocked)
                           │                            │

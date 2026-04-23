@@ -69,9 +69,20 @@ const DANGEROUS_EXTS = new Set([
   'wsh',
   'hta',
   'reg',
+  // Windows shortcuts — can point at arbitrary targets, including remote scripts
+  'lnk',
+  'url',
   // macOS
   'app',
   'command',
+  // Linux launchers — `.desktop` can exec arbitrary commands via the `Exec=` key
+  'desktop',
+  // Java — executable archives / Web Start
+  'jar',
+  'jnlp',
+  // SVG — `<embed>` / `<object>` references can execute embedded script
+  // (note: `<img src>` sandboxes SVG script, but toSafeFileUrl serves <embed> too)
+  'svg',
   // Installer bundles that can launch executables
   'dmg',
   'pkg'

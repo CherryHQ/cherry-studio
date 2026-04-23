@@ -23,7 +23,7 @@
  * RFC §9.3 for the Phase 1b.1 deliverables.
  */
 
-import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
 export interface CreateFileEntryRow {
@@ -68,10 +68,27 @@ export interface FileEntryService {
 
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
-   * no row matches. Callers MUST pass the output of `canonicalizeExternalPath`
-   * — raw user paths will not match.
+   * no row matches. The `CanonicalExternalPath` brand forces callers through
+   * `canonicalizeExternalPath()` at compile time — raw `string` values are
+   * not assignable here, which prevents the "caller forgot to canonicalize"
+   * class of bug that would silently miss all matches.
    */
-  findByExternalPath(canonicalPath: string): Promise<FileEntry | null>
+  findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null>
+
+  /**
+   * Return external entries whose `externalPath` matches `canonicalPath`
+   * case-insensitively. Byte-exact matches are included; callers that only
+   * want "suspect duplicates" (e.g. `ensureExternalEntry` on insert) should
+   * filter the byte-exact self-match from the result.
+   *
+   * Intended for the duplicate-suspect `warn` logging contract in
+   * `file-manager-architecture.md §1.2 Duplicate-entry detection on insert`.
+   * Best-effort: callers are free to skip invoking this method when the
+   * `file_entry` table size exceeds a sensible threshold (the service itself
+   * does not gate on size — separation of concerns keeps the repository
+   * dumb).
+   */
+  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
 
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
@@ -94,6 +111,7 @@ export const fileEntryService: FileEntryService = {
   findById: () => notImplemented('findById'),
   getById: () => notImplemented('getById'),
   findByExternalPath: () => notImplemented('findByExternalPath'),
+  findCaseInsensitivePeers: () => notImplemented('findCaseInsensitivePeers'),
   findMany: () => notImplemented('findMany'),
   create: () => notImplemented('create'),
   update: () => notImplemented('update'),

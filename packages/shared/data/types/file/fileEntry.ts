@@ -129,6 +129,41 @@ const AbsolutePathSchema = z
   .min(1)
   .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
 
+// ─── Canonical External Path (TS phantom brand) ───
+
+/**
+ * A `string` already processed through `canonicalizeExternalPath`.
+ *
+ * This is a **TypeScript-only phantom brand** (zero runtime cost, zero wire
+ * cost) that acts as a compile-time guard for every DB read/write surface on
+ * `externalPath`: any query entry point that filters by `externalPath` MUST
+ * narrow its input to this type, which forces callers through
+ * `canonicalizeExternalPath()` instead of accepting a raw user path.
+ *
+ * ## Why a brand and not runtime validation
+ *
+ * The correctness invariant — "the string equals `canonicalizeExternalPath(x)`
+ * for some `x`" — cannot be verified at runtime without re-running
+ * canonicalization, which would defeat the purpose. The brand expresses
+ * "this value was produced by the authorized factory" structurally, so the
+ * type system (not runtime checks) enforces the contract.
+ *
+ * ## Authorized construction
+ *
+ * - **Production code**: only `canonicalizeExternalPath()` in
+ *   `src/main/data/utils/pathResolver.ts` may produce values of this type.
+ *   Other production code importing `CanonicalExternalPath` MUST receive it
+ *   from that function (directly or transitively) — never via `as` cast.
+ * - **Tests and fixtures**: may cast known-canonical string literals with
+ *   `'/abs/path' as CanonicalExternalPath` for readability.
+ * - **DB rows**: the `externalPath` column is typed as `string | null` in
+ *   Drizzle (SQLite has no brand concept); upcasting into
+ *   `CanonicalExternalPath` at the service boundary is acceptable because
+ *   writes on that column already go through the canonicalization path.
+ */
+declare const canonicalExternalPathBrand: unique symbol
+export type CanonicalExternalPath = string & { readonly [canonicalExternalPathBrand]: 'CanonicalExternalPath' }
+
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
 
 const CommonEntryFields = {

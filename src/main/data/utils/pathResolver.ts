@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { FileEntryOrigin } from '@shared/data/types/file'
+import type { CanonicalExternalPath, FileEntryOrigin } from '@shared/data/types/file'
 
 const logger = loggerService.withContext('pathResolver')
 
@@ -66,10 +66,44 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
  * before any DB write or query, and `fileEntryService.findByExternalPath`
  * does the same at read boundaries.
  *
+ * The return type is branded as `CanonicalExternalPath` so that downstream
+ * surfaces filtering by `externalPath` (today: `findByExternalPath`; in future:
+ * any new DataApi / service query on this column) cannot accept a raw user
+ * path by mistake. New call sites gain compile-time guarding for free.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ *  ⚠️ RULE-EVOLUTION DISCIPLINE
+ * ─────────────────────────────────────────────────────────────────────────
+ * Modifying the normalization behavior of this function (adding / removing /
+ * altering any step below) REQUIRES a paired Drizzle migration that
+ * re-canonicalizes every existing `file_entry` row where `origin='external'`.
+ *
+ * Rationale: the canonical form is application-layer logic, not DB schema.
+ * Existing rows were written under the **old** rule; new queries run under
+ * the **new** rule. Without a re-canonicalization migration, historical rows
+ * remain under the old rule and silently stop matching `findByExternalPath`
+ * lookups — users experience "my file is in the library but the system says
+ * it isn't".
+ *
+ * When a new rule also collapses previously-distinct strings to the same
+ * canonical form (e.g. `fs.realpath` merging case-insensitive duplicates),
+ * the migration additionally MUST merge the colliding rows. The winner
+ * selection and file_ref re-pointing rules are defined in
+ * `docs/references/file/file-manager-architecture.md §1.2 Rule evolution
+ * discipline` — follow them exactly; do not improvise.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
  * ## Phase 1b scope (this function's contract)
  *
  * Cheap, synchronous normalization — no FS IO, cross-platform uniform:
  *
+ *   0. Reject null bytes (`\0`) — a null byte in the raw path is never a
+ *      legal filesystem path; rejecting at canonicalization keeps the rest
+ *      of the pipeline (ensureExternalEntry → findByExternalPath →
+ *      resolvePhysicalPath) free to treat canonical paths as null-byte-free.
+ *      Without this step, a malformed path could be persisted into
+ *      `file_entry.externalPath` and only blow up later at use-time inside
+ *      `resolvePhysicalPath`, leaving a poisoned row in the DB.
  *   1. `path.resolve(raw)` — make absolute, resolve `./` and `../`
  *   2. Unicode NFC normalization — defends against NFC-vs-NFD mismatch
  *      (macOS filesystems can surface either form depending on API; this
@@ -86,6 +120,10 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
  *   `/Users/me/FILE.pdf` vs `/Users/me/file.pdf` can still produce two
  *   entries. Requires `fs.realpath()` (async, FS-IO-backed, requires file
  *   existence) — deferred until real user reports materialize.
+ *   Mitigation in Phase 1b.1: `ensureExternalEntry` logs a `warn` on insert
+ *   when a case-insensitive match against an existing row is found (see
+ *   `file-manager-architecture.md §1.2 Duplicate-entry detection on
+ *   insert`), giving operational visibility without blocking the insert.
  * - **Symlink resolution** (`realpath` target collapse): two symlinks to
  *   the same file remain distinct entries. Same rationale as above.
  * - **Windows short-name (8.3) resolution**: `LONGNA~1` vs `longname` —
@@ -96,13 +134,14 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): string {
  * ## Upgrade path
  *
  * If user reports of "same file, two entries" materialize, extend this
- * function with `fs.realpath` (making the signature `Promise<string>`) and
- * ship a one-off migration that re-canonicalizes existing rows and merges
- * file_ref targets. See `rfc-file-manager.md §11` risks.
+ * function with `fs.realpath` (making the signature `Promise<CanonicalExternalPath>`)
+ * and ship a one-off migration per the RULE-EVOLUTION DISCIPLINE above.
+ * See `rfc-file-manager.md §11` risks for context.
  *
  * @param raw user-provided absolute (or resolvable) path
  * @returns canonical form stored in `file_entry.externalPath`
+ * @throws if `raw` contains null bytes
  */
-export function canonicalizeExternalPath(_raw: string): string {
+export function canonicalizeExternalPath(_raw: string): CanonicalExternalPath {
   throw new Error('canonicalizeExternalPath: not implemented (Phase 1a stub, cheap-subset impl lands in Phase 1b)')
 }

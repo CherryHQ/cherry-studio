@@ -206,6 +206,29 @@ export interface FileIpcApi {
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
+  /**
+   * Batch version of `getMetadata`. Entry-id only — path-handle stat has no
+   * N-call motivation (pickers and dialogs typically surface <20 items, for
+   * which parallel singular calls are fine).
+   *
+   * List-page flows in the renderer MUST use this over
+   * `Promise.all(ids.map(id => getMetadata(...)))` — the latter incurs N IPC
+   * round-trips, while this endpoint is a single round-trip whose handler
+   * parallelises `fs.stat` internally via `Promise.all` (microseconds per
+   * stat on local FS; the IPC hop dominates).
+   *
+   * Per-id result semantics:
+   * - `fs.stat` succeeds → `PhysicalFileMetadata`
+   * - `fs.stat` fails (missing file, permission denied, etc.) → `null`
+   *   (caller renders a "—" fallback; DanglingCache is updated to `'missing'`
+   *   for external entries as a side effect)
+   *
+   * The result map contains every input id exactly once. Ids that refer to
+   * non-existent FileEntry rows (already deleted, never existed) cause the
+   * whole batch to throw — this is a caller bug, not a per-id failure.
+   */
+  batchGetMetadata(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, PhysicalFileMetadata | null>>
+
   /** Get lightweight FileVersion (live `fs.stat`-backed). */
   getVersion(handle: FileHandle): Promise<FileVersion>
 
@@ -243,6 +266,15 @@ export interface FileIpcApi {
    *   physical deletion; callers wanting to also delete the file on disk
    *   should invoke the path-handle branch below separately.
    * - Path handle: removes the file at the given path (delegates to `ops.remove`).
+   *
+   * **⚠️ UX label warning**: the literal name `permanentDelete` is misleading
+   * for the external-entry branch, where nothing is "permanently deleted"
+   * on disk. UI surfaces MUST choose the user-facing label per
+   * `(handle.kind, origin)` — see the UX labeling convention table in
+   * `docs/references/file/architecture.md §3.4` before wiring this call
+   * into a button. Failing to differentiate results in either (a) user
+   * expects disk deletion and files a bug report, or (b) user avoids the
+   * action fearing data loss and accumulates dangling library entries.
    */
   permanentDelete(handle: FileHandle): Promise<void>
 

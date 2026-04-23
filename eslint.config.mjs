@@ -151,6 +151,40 @@ export default defineConfig([
       ]
     }
   },
+  // DataApi handler boundary — handlers must be SQL-only.
+  // See packages/shared/data/api/schemas/files.ts and
+  // docs/references/file/architecture.md §4.1.1 for the full rationale:
+  // handlers MUST NOT touch FS, MUST NOT call main-side resolvers,
+  // MUST NOT consult in-memory caches outside the DB. Anything requiring
+  // FS IO or main-side compute lives on File IPC (FileManager), never here.
+  {
+    files: ['src/main/data/api/handlers/**/*.{ts,tsx,js,jsx}'],
+    ignores: ['src/main/data/api/handlers/**/__tests__/**', 'src/main/data/api/handlers/**/*.test.*'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@main/file', '@main/file/*'],
+              message:
+                '❌ DataApi handlers must be SQL-only. For FS / cache / resolver access, expose the capability via File IPC (FileManager) instead — see docs/references/file/architecture.md §4.1.1.'
+            },
+            {
+              group: ['fs', 'fs/*', 'node:fs', 'node:fs/*'],
+              message:
+                '❌ DataApi handlers must not touch the filesystem. Move FS-dependent logic to File IPC.'
+            },
+            {
+              group: ['@main/data/utils/pathResolver'],
+              message:
+                '❌ DataApi handlers must not call main-side path resolvers. Expose paths via File IPC `getPhysicalPath` instead.'
+            }
+          ]
+        }
+      ]
+    }
+  },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],
