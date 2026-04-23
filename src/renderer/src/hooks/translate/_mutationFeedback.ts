@@ -1,4 +1,4 @@
-import { loggerService } from '@logger'
+import type { loggerService } from '@logger'
 import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
