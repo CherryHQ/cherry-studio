@@ -45,7 +45,8 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         emoji: '📁',
         embeddingModelId: null,
-        rerankModelId: null
+        rerankModelId: null,
+        searchMode: 'hybrid'
       })
     })
   })
@@ -139,7 +140,7 @@ describe('KnowledgeMappings', () => {
         chunkOverlap: 199,
         threshold: undefined,
         documentCount: undefined,
-        searchMode: 'default'
+        searchMode: 'hybrid'
       })
     })
   })

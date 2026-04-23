@@ -22,7 +22,7 @@
 
 1. Base metadata migration
    - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
-   - Migrated base `searchMode` is set to `default`.
+   - Migrated base `searchMode` is set to `hybrid`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
    - Invalid runtime tuning fields are normalized away instead of causing the whole base to be skipped.
 
@@ -66,7 +66,7 @@
 | `chunkOverlap` | `chunkOverlap` | Copied when non-negative and smaller than `chunkSize`; otherwise cleared |
 | `threshold` | `threshold` | Copied when within `[0, 1]`; otherwise cleared |
 | `documentCount` | `documentCount` | Copied when positive; otherwise cleared |
-| _constant_ | `searchMode` | Always `default` during v1 migration |
+| _constant_ | `searchMode` | Always `hybrid` during v1 migration |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
 

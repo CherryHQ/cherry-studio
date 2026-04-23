@@ -5,6 +5,7 @@
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   DirectoryItemDataSchema,
   FileItemDataSchema,
   FileMetadataSchema,
@@ -40,7 +41,7 @@ export const CreateKnowledgeBaseSchema = z
     chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
     threshold: KnowledgeThresholdSchema.optional(),
     documentCount: KnowledgeDocumentCountSchema.optional(),
-    searchMode: KnowledgeSearchModeSchema.optional(),
+    searchMode: KnowledgeSearchModeSchema.default(DEFAULT_KNOWLEDGE_SEARCH_MODE),
     hybridAlpha: KnowledgeHybridAlphaSchema.optional()
   })
   .superRefine((value, ctx) => {

@@ -176,7 +176,7 @@ describe('KnowledgeBaseService', () => {
       expect(row.emoji).toBe('📚')
     })
 
-    it('should apply schema chunk defaults when chunk config is omitted', async () => {
+    it('should apply default chunk config and hybrid search mode when omitted', async () => {
       const result = await service.create({
         name: 'Default Chunk Base',
         dimensions: 1024,
@@ -185,10 +185,12 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
+      expect(result.searchMode).toBe('hybrid')
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
+      expect(row.searchMode).toBe('hybrid')
     })
 
     it('should reject invalid runtime config before insert', async () => {

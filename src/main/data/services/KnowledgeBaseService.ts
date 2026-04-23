@@ -16,6 +16,7 @@ import {
 } from '@shared/data/api/schemas/knowledges'
 import {
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
   type KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
@@ -160,7 +161,7 @@ export class KnowledgeBaseService {
       chunkOverlap: dto.chunkOverlap,
       threshold: dto.threshold,
       documentCount: dto.documentCount,
-      searchMode: dto.searchMode,
+      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
       hybridAlpha: dto.hybridAlpha
     }
 
@@ -169,7 +170,7 @@ export class KnowledgeBaseService {
       chunkOverlap: dto.chunkOverlap,
       threshold: dto.threshold,
       documentCount: dto.documentCount,
-      searchMode: dto.searchMode,
+      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
       hybridAlpha: dto.hybridAlpha
     })
     if (Object.keys(createFieldErrors).length > 0) {

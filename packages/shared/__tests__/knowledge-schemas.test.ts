@@ -30,6 +30,19 @@ describe('Knowledge base schemas', () => {
     }
   })
 
+  it('applies hybrid as the default search mode in create schema', () => {
+    const result = CreateKnowledgeBaseSchema.safeParse({
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'embed-model'
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.searchMode).toBe('hybrid')
+    }
+  })
+
   it('rejects invalid numeric tuning fields in create schema', () => {
     const result = CreateKnowledgeBaseSchema.safeParse({
       name: 'KB',

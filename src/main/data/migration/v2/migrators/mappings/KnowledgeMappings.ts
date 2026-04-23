@@ -6,6 +6,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
@@ -210,7 +211,7 @@ export const transformKnowledgeBase = (
     chunkOverlap: base.chunkOverlap,
     threshold: base.threshold,
     documentCount: base.documentCount,
-    searchMode: 'default',
+    searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
     createdAt: toTimestamp(base.created_at),
     updatedAt: toTimestamp(base.updated_at)
   }

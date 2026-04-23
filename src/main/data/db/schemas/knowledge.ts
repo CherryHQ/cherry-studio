@@ -1,6 +1,7 @@
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeItemData,
   type KnowledgeItemStatus,
   type KnowledgeItemType,
@@ -40,7 +41,7 @@ export const knowledgeBaseTable = sqliteTable(
     chunkOverlap: integer().notNull().default(DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP),
     threshold: real(),
     documentCount: integer(),
-    searchMode: text().$type<KnowledgeSearchMode>(),
+    searchMode: text().$type<KnowledgeSearchMode>().default(DEFAULT_KNOWLEDGE_SEARCH_MODE),
     hybridAlpha: real(),
 
     ...createUpdateTimestamps
