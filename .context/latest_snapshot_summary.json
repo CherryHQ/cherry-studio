@@ -1,94 +1,332 @@
 {
-  "generated_at": "2026-04-22T00:00:00Z",
-  "date": "2026-04-22",
+  "generated_at": "2026-04-23T17:51:28.702112+00:00",
+  "date": "2026-04-23",
+  "source": "GitHub MCP API (cherryhq/cherry-studio)",
   "issues": {
-    "open_total": 775,
-    "closed_last_30d": 222,
-    "no_label_count": 89,
-    "no_label_pct": 11.5,
+    "open_total": 791,
+    "closed_last_30d": 235,
+    "fetched_for_analysis": 791,
+    "no_label_count": 92,
+    "no_label_pct": 11.6,
     "health": {
-      "active": 215,
-      "active_pct": 27.7,
-      "aging": 408,
-      "aging_pct": 52.6,
-      "stale": 149,
-      "stale_pct": 19.2,
+      "active": 239,
+      "active_pct": 30.2,
+      "aging": 398,
+      "aging_pct": 50.3,
+      "stale": 151,
+      "stale_pct": 19.1,
       "zombie": 3,
       "zombie_pct": 0.4
     },
     "top_labels": [
-      {"name": "UI/UX", "count": 30},
-      {"name": "inactive", "count": 20},
-      {"name": "Models", "count": 19},
-      {"name": "Assistant", "count": 14},
-      {"name": "needs-repro", "count": 9},
-      {"name": "Connectivity", "count": 8},
-      {"name": "MCP", "count": 8},
-      {"name": "feature", "count": 5},
-      {"name": "help wanted", "count": 5},
-      {"name": "discussion", "count": 5},
-      {"name": "BUG", "count": 5},
-      {"name": "Data", "count": 4},
-      {"name": "needs-more-info", "count": 4},
-      {"name": "Performance", "count": 4},
-      {"name": "Planned", "count": 3}
+      {
+        "name": "UI/UX",
+        "count": 206
+      },
+      {
+        "name": "Models",
+        "count": 193
+      },
+      {
+        "name": "feature",
+        "count": 141
+      },
+      {
+        "name": "BUG",
+        "count": 124
+      },
+      {
+        "name": "inactive",
+        "count": 89
+      },
+      {
+        "name": "Assistant",
+        "count": 78
+      },
+      {
+        "name": "MCP",
+        "count": 65
+      },
+      {
+        "name": "Blocked: v2",
+        "count": 61
+      },
+      {
+        "name": "Data",
+        "count": 53
+      },
+      {
+        "name": "needs-repro",
+        "count": 43
+      },
+      {
+        "name": "discussion",
+        "count": 42
+      },
+      {
+        "name": "help wanted",
+        "count": 40
+      },
+      {
+        "name": "RAG",
+        "count": 32
+      },
+      {
+        "name": "Connectivity",
+        "count": 29
+      },
+      {
+        "name": "P3",
+        "count": 29
+      },
+      {
+        "name": "Planned",
+        "count": 23
+      },
+      {
+        "name": "Performance",
+        "count": 21
+      },
+      {
+        "name": "v2",
+        "count": 20
+      },
+      {
+        "name": "P2",
+        "count": 18
+      },
+      {
+        "name": "Dev Team",
+        "count": 15
+      }
     ],
     "p1_issues": [
       {
+        "number": 12966,
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for ",
+        "labels": [
+          "BUG",
+          "P1"
+        ],
+        "updated_at": "2026-03-25T06:23:45Z",
+        "age_days": 63,
+        "health_bucket": "aging",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+      },
+      {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": ["P1", "Models"],
+        "labels": [
+          "P1",
+          "Models"
+        ],
         "updated_at": "2026-03-19T14:22:09Z",
-        "age_days": 34,
+        "age_days": 36,
         "health_bucket": "stale",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
       },
       {
         "number": 13193,
-        "title": "[Bug]: Azure OpenAI Resource not found, default use responses API",
-        "labels": ["P1", "Models"],
+        "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azu",
+        "labels": [
+          "P1",
+          "Models"
+        ],
         "updated_at": "2026-03-05T08:47:59Z",
-        "age_days": 48,
+        "age_days": 50,
         "health_bucket": "stale",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      }
+    ],
+    "issue_type_distribution": {
+      "Bug": 327,
+      "Feature": 309,
+      "Task": 22,
+      "__untyped__": 133
+    }
+  },
+  "pull_requests": {
+    "open_total": 100,
+    "v2_open": 57,
+    "v2_open_draft": 18,
+    "main_open_hotfix": 42,
+    "stale_prs_over_30d": 32,
+    "v2_closed_last_30d_approx": 79
+  },
+  "v2_branch": {
+    "open_prs": 57,
+    "draft_prs": 18,
+    "ready_prs": 39,
+    "top_contributors_open": {
+      "DeJeune": 15,
+      "EurFelux": 12,
+      "zhangjiadi225": 4,
+      "404-Page-Found": 4,
+      "kovsu": 3,
+      "vaayne": 2,
+      "LWWZH": 2,
+      "jidan745le": 2,
+      "eeee0717": 1,
+      "kangfenmao": 1
+    },
+    "recent_closed_30d": [
+      {
+        "number": 14452,
+        "title": "refactor(provider-settings): migrate provider settings to v2 hooks and order-key",
+        "updated_at": "2026-04-21",
+        "author": "jidan745le"
       },
       {
-        "number": 12966,
-        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-        "labels": ["BUG", "P1"],
-        "updated_at": "2026-03-25T06:23:45Z",
-        "age_days": 28,
-        "health_bucket": "aging",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966"
+        "number": 13781,
+        "title": "refactor(v2): memory schema, migrator, and MemoryService Drizzle ORM refactor",
+        "updated_at": "2026-04-21",
+        "author": "jidan745le"
+      },
+      {
+        "number": 14269,
+        "title": "feat(data): add domain hooks for models/providers and batch model API",
+        "updated_at": "2026-04-21",
+        "author": "jidan745le"
+      },
+      {
+        "number": 14315,
+        "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
+        "updated_at": "2026-04-21",
+        "author": "zhangjiadi225"
+      },
+      {
+        "number": 14412,
+        "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseServ",
+        "updated_at": "2026-04-20",
+        "author": "vaayne"
+      },
+      {
+        "number": 14159,
+        "title": "feat: migrate agents storage to v2 main database",
+        "updated_at": "2026-04-20",
+        "author": "vaayne"
+      },
+      {
+        "number": 7104,
+        "title": "docs: add technical report for message history version management system",
+        "updated_at": "2026-04-20",
+        "author": "DeJeune"
+      },
+      {
+        "number": 14328,
+        "title": "refactor: stabilize ui package boundaries and theme contracts",
+        "updated_at": "2026-04-20",
+        "author": "kangfenmao"
+      },
+      {
+        "number": 14309,
+        "title": "refactor(settings): unify settings list item and action button patterns",
+        "updated_at": "2026-04-20",
+        "author": "kangfenmao"
+      },
+      {
+        "number": 14174,
+        "title": "refactor(v2): remove local web search backend",
+        "updated_at": "2026-04-20",
+        "author": "eeee0717"
+      },
+      {
+        "number": 14359,
+        "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+        "updated_at": "2026-04-18",
+        "author": "DeJeune"
+      },
+      {
+        "number": 14234,
+        "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
+        "updated_at": "2026-04-17",
+        "author": "DeJeune"
+      },
+      {
+        "number": 14229,
+        "title": "feat(migration): migrate llm model preferences to v2 with UniqueModelId format",
+        "updated_at": "2026-04-17",
+        "author": "DeJeune"
+      },
+      {
+        "number": 13909,
+        "title": "feat(v2): add agent/session schema and migration transform mappings",
+        "updated_at": "2026-04-17",
+        "author": "DeJeune"
+      },
+      {
+        "number": 13443,
+        "title": "V2 websearch setting ui",
+        "updated_at": "2026-04-17",
+        "author": "eeee0717"
+      },
+      {
+        "number": 14311,
+        "title": "feat(data): migrate paintings to v2 data architecture",
+        "updated_at": "2026-04-17",
+        "author": "jidan745le"
+      },
+      {
+        "number": 14257,
+        "title": "refactor(data): unify legacy model ID conversion and add FK references to user_m",
+        "updated_at": "2026-04-16",
+        "author": "DeJeune"
+      },
+      {
+        "number": 14210,
+        "title": "feat: add v2 painting data foundation",
+        "updated_at": "2026-04-16",
+        "author": "jidan745le"
+      },
+      {
+        "number": 14251,
+        "title": "refactor: remove memory module from v2",
+        "updated_at": "2026-04-16",
+        "author": "kangfenmao"
+      },
+      {
+        "number": 14086,
+        "title": "refactor: migrate shortcut system to Preference architecture",
+        "updated_at": "2026-04-16",
+        "author": "kangfenmao"
       }
     ]
   },
-  "pull_requests": {
-    "open_total": 249,
-    "merged_last_30d": 187,
-    "v2_open": 57,
-    "v2_merged_last_30d": 55
-  },
-  "v2_milestone": {
-    "name": "v2.0.0",
-    "open_issues": 54,
-    "closed_issues": 60,
-    "due_on": "2026-04-30T00:00:00Z"
-  },
   "notable_today": [
     {
-      "type": "hotfix_merged",
-      "number": 14488,
-      "title": "hotfix(ai-sdk/openai): patch @ai-sdk/openai to support gpt-image-2",
-      "merged_at": "2026-04-22T15:29:50Z"
+      "type": "new_bug",
+      "number": 14542,
+      "title": "[Bug]: API address input auto-completes to chat/completions even when ending wit",
+      "updated_at": "2026-04-23T17:32:29Z",
+      "reactions": 1
     },
     {
-      "type": "no_label_issue",
-      "number": 14465,
-      "title": "[Bug]: Built-in web search can repeat excessively and consume huge tokens",
-      "created_at": "2026-04-22T04:03:24Z",
-      "author": "kangfenmao",
-      "note": "Opened by maintainer, no label yet"
+      "type": "new_bug",
+      "number": 14402,
+      "title": "[Bug]: pdf输入无法识别",
+      "updated_at": "2026-04-23T16:46:38Z",
+      "reactions": 1
+    },
+    {
+      "type": "new_bug",
+      "number": 14527,
+      "title": "[Bug]:  Mistral Small 4 / mistral-small-2603 is missing vision and reasoning_eff",
+      "updated_at": "2026-04-23T14:44:00Z",
+      "reactions": 1
+    },
+    {
+      "type": "hotfix_open",
+      "number": 14541,
+      "title": "fix(models): add vision and reasoning_effort support for mistral-small-2603",
+      "author": "GeorgeDong32",
+      "created_at": "2026-04-23T16:11:52Z"
+    },
+    {
+      "type": "hotfix_open",
+      "number": 14539,
+      "title": "fix(models): add gpt-image-2 model icon",
+      "author": "DeJeune",
+      "created_at": "2026-04-23T14:10:17Z"
     }
   ]
 }
