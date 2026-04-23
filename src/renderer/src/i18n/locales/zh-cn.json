@@ -6108,6 +6108,7 @@
     "error": {
       "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
+        "failed": "语言检测失败",
         "qwen_mt": "QwenMT模型不能用于语言检测",
         "unknown": "检测到未知语言",
         "update_setting": "设置失败"

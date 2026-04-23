@@ -18,7 +18,7 @@ import {
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useLanguages'
@@ -69,6 +69,10 @@ export const detectLanguageByLLM = async (
   const onChunk = (chunk: Chunk) => {
     if (chunk.type === ChunkType.TEXT_DELTA) {
       detectedLang = chunk.text
+    } else if (chunk.type === ChunkType.ERROR) {
+      // Surface upstream LLM errors instead of letting the caller mistake them
+      // for an empty-response / invalid-langcode result further down.
+      throw new Error(i18n.t('translate.error.detect.failed'))
     }
   }
 
@@ -117,7 +121,14 @@ export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
     zsm: BUILTIN_LANGUAGE.msMY.langCode
   }
 
-  return isoMap[iso3] ?? UNKNOWN.langCode
+  const mapped = isoMap[iso3]
+  if (mapped === undefined) {
+    // franc recognized a language but we have no mapping for it yet. Log so
+    // we can discover cold languages that real users speak.
+    logger.debug('franc iso3 not in isoMap, falling back to UNKNOWN', { iso3 })
+    return UNKNOWN.langCode
+  }
+  return mapped
 }
 
 /**
@@ -136,7 +147,13 @@ export const detectWithMethod = async (
         return detectLanguageByLLM(text, langCodes)
       } else {
         const francResult = detectLanguageByFranc(text)
-        return francResult === UNKNOWN.langCode ? detectLanguageByLLM(text, langCodes) : francResult
+        if (francResult === UNKNOWN.langCode) {
+          // Auto mode's contract is "pick what works"; we fall back silently from
+          // the user's perspective but log so `auto` → LLM quota bursts are traceable.
+          logger.info('franc returned UNKNOWN, falling back to LLM detection')
+          return detectLanguageByLLM(text, langCodes)
+        }
+        return francResult
       }
     case 'franc':
       return detectLanguageByFranc(text)
@@ -165,24 +182,34 @@ export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
 
-  const langCodes = useMemo(() => languages?.map((l: TranslateLanguageVo) => l.langCode) ?? [], [languages])
-
   const detectLanguage = useCallback(
     async (inputText: string): Promise<TranslateLangCode> => {
       const text = inputText.trim()
       if (!text) return UNKNOWN.langCode
 
-      if (langCodes.length === 0) {
-        logger.warn('Language list not available yet, skipping detection')
+      // Not ready: SWR hasn't resolved yet. Rare (the hook is normally called
+      // from click handlers) but possible on very fast user input; degrade
+      // to UNKNOWN silently so UX doesn't crash.
+      if (languages === undefined) {
+        logger.warn('useDetectLang invoked before languages were ready, returning UNKNOWN')
         return UNKNOWN.langCode
       }
 
+      // No data: endpoint resolved with an empty list. Seeder failure or DB
+      // corruption — `useLanguages` already surfaces load errors, so here we
+      // just log loudly for Sentry and degrade to UNKNOWN.
+      if (languages.length === 0) {
+        logger.error('useDetectLang invoked with an empty language list')
+        return UNKNOWN.langCode
+      }
+
+      const langCodes = languages.map((l: TranslateLanguageVo) => l.langCode)
       logger.info(`Auto detection method: ${method}`)
       const result = await detectWithMethod(text, method, langCodes)
       logger.info(`Detected language: ${result}`)
       return result.trim()
     },
-    [method, langCodes]
+    [method, languages]
   )
 
   return detectLanguage
