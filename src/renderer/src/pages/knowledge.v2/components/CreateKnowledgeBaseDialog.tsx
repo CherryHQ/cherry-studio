@@ -254,7 +254,7 @@ const CreateKnowledgeBaseDialogRoot = ({
                 }>
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-[placeholder]:text-[11px] data-[placeholder]:text-muted-foreground/70">
+                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-placeholder:text-[11px] data-placeholder:text-muted-foreground/70">
                   <SelectValue placeholder={t('knowledge_v2.groups.ungrouped')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -279,7 +279,7 @@ const CreateKnowledgeBaseDialogRoot = ({
                 }>
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-[placeholder]:text-[11px] data-[placeholder]:text-muted-foreground/70"
+                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-placeholder:text-[11px] data-placeholder:text-muted-foreground/70"
                   aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
                   <SelectValue placeholder={t('knowledge_v2.not_set')} />
                 </SelectTrigger>

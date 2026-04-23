@@ -85,7 +85,7 @@ vi.mock('@cherrystudio/ui', () => {
       ...props
     }: {
       children: ReactNode
-      type?: string
+      type?: 'button' | 'reset' | 'submit'
       [key: string]: unknown
     }) => (
       <button type={type} {...props}>

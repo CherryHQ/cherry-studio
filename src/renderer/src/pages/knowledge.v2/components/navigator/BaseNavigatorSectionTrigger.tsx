@@ -12,7 +12,7 @@ const BaseNavigatorSectionTrigger = ({
 }: BaseNavigatorSectionTriggerProps) => {
   return (
     <div
-      className="group/grp flex w-full items-center gap-1.5 px-1.5 py-[4px] text-[10px] text-foreground/45 transition-colors hover:text-foreground/60"
+      className="group/grp flex w-full items-center gap-1.5 px-1.5 py-1 text-[10px] text-foreground/45 transition-colors hover:text-foreground/60"
       onContextMenu={onContextMenu}>
       <div className="min-w-0 flex-1">
         <AccordionTrigger

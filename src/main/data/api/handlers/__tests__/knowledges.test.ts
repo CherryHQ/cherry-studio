@@ -137,7 +137,8 @@ describe('knowledgeHandlers', () => {
         dimensions: 1536,
         embeddingModelId: 'text-embedding-3-large',
         groupId: '  group-1  ',
-        emoji: '📚'
+        emoji: '📚',
+        searchMode: 'hybrid'
       })
       expect(result).toMatchObject({ id: 'kb-1' })
     })

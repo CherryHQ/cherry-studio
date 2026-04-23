@@ -35,7 +35,7 @@ const KnowledgeGroupRow = ({ group, itemCount, onRenameGroup, onDeleteGroup }: K
       <BaseNavigatorSectionTrigger
         label={group.name}
         itemCount={itemCount}
-        leadingSlot={<Briefcase className="size-[11px] shrink-0" strokeWidth={1.5} />}
+        leadingSlot={<Briefcase className="size-2.75 shrink-0" strokeWidth={1.5} />}
         actionSlot={
           <NavigatorMoreButton
             visible={Boolean(contextMenuPosition)}
