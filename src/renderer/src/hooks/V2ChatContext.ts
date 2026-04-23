@@ -11,9 +11,6 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/** AI SDK useChat status — V2 single source of truth for request state. */
-export type RequestStatus = 'submitted' | 'streaming' | 'ready' | 'error'
-
 /**
  * V2 chat overrides injected via React Context. Operations delegate to
  * DataApi + useChat.
@@ -64,7 +61,6 @@ export interface V2ChatOverrides {
    *   full follow-up chain of the target branch.
    */
   setActiveNode: (messageId: string, options?: { descend?: boolean }) => Promise<void>
-  requestStatus: RequestStatus
   refresh: () => Promise<unknown>
 }
 
@@ -78,15 +74,4 @@ export const V2ChatOverridesProvider = V2ChatOverridesContext.Provider
  */
 export function useV2Chat(): V2ChatOverrides | null {
   return use(V2ChatOverridesContext)
-}
-
-/** True while a generation is in progress on the current topic. */
-export function useTopicLoading(): boolean {
-  const v2 = useV2Chat()
-  if (!v2) return false
-  return v2.requestStatus === 'submitted' || v2.requestStatus === 'streaming'
-}
-
-export function useRequestStatus(): RequestStatus | undefined {
-  return useV2Chat()?.requestStatus
 }

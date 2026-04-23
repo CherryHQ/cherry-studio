@@ -580,8 +580,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
-      refresh,
-      requestStatus: status
+      refresh
     }),
     [
       regenerateWithCapabilities,
@@ -592,8 +591,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,
-      refresh,
-      status
+      refresh
     ]
   )
 

@@ -15,7 +15,8 @@ import { useInputText } from '@renderer/hooks/useInputText'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useRequestStatus, useTopicLoading, useV2Chat } from '@renderer/hooks/V2ChatContext'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
   InputbarToolsProvider,
   useInputbarToolsDispatch,
@@ -167,8 +168,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const { t } = useTranslation()
   const v2Chat = useV2Chat()
-  const loading = useTopicLoading()
-  const requestStatus = useRequestStatus()
+  const { isPending } = useTopicStreamStatus(topic.id)
+  const [isSending, setIsSending] = useState(false)
+  useEffect(() => {
+    if (isPending) setIsSending(false)
+  }, [isPending])
+  useEffect(() => {
+    setIsSending(false)
+  }, [topic.id])
+  const loading = isPending || isSending
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
@@ -237,6 +245,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   const sendMessage = useCallback(async () => {
     const text_ = text.trim()
     if (!text_) return
+    setIsSending(true)
     onSendProp(text_, {
       files: files.length > 0 ? files : undefined,
       mentionedModels:
@@ -480,7 +489,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       rightToolbar={rightToolbar}
-      primaryActionMode={requestStatus === 'submitted' || requestStatus === 'streaming' ? 'pause' : 'send'}
+      primaryActionMode={loading ? 'pause' : 'send'}
       topContent={topContent}
     />
   )
