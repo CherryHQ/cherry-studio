@@ -4,7 +4,6 @@ import { Form, Input, Modal } from 'antd'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SelectionFilterListModalProps {
   open: boolean
@@ -57,27 +56,18 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
           {t('common.save')}
         </Button>
       ]}>
-      <UserTip>
+      <div className="text-sm">
         {isWin
           ? t('selection.settings.filter_modal.user_tips.windows')
           : t('selection.settings.filter_modal.user_tips.mac')}
-      </UserTip>
+      </div>
       <Form form={form} layout="vertical" initialValues={{ filterList: '' }}>
         <Form.Item name="filterList" noStyle>
-          <StyledTextArea autoSize={{ minRows: 6, maxRows: 16 }} spellCheck={false} autoFocus />
+          <Input.TextArea className="mt-4 w-full" autoSize={{ minRows: 6, maxRows: 16 }} spellCheck={false} autoFocus />
         </Form.Item>
       </Form>
     </Modal>
   )
 }
-
-const StyledTextArea = styled(Input.TextArea)`
-  margin-top: 16px;
-  width: 100%;
-`
-
-const UserTip = styled.div`
-  font-size: 14px;
-`
 
 export default SelectionFilterListModal

@@ -2,10 +2,11 @@ import { Box, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Empty, Radio } from 'antd'
+import type React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -127,121 +128,77 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-h-0 flex-1 flex-col', className)} {...props} />
+)
 
-const HeaderContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-`
+const HeaderContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-4 flex items-center justify-between', className)} {...props} />
+)
 
-const ModeSelector = styled.div`
-  margin-bottom: 16px;
+const ModeSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'mb-4 [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-xs [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-border [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2',
+      className
+    )}
+    {...props}
+  />
+)
 
-  .ant-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+const ModeOption = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-0.5', className)} {...props} />
+)
 
-  .ant-radio-button-wrapper {
-    height: auto;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--color-border);
+const ModeLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('font-semibold', className)} {...props} />
+)
 
-    &:not(:first-child)::before {
-      display: none;
-    }
+const ModeDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('text-foreground-secondary text-xs', className)} {...props} />
+)
 
-    &:first-child {
-      border-radius: 8px;
-    }
+const EnabledCount = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('mb-2 text-foreground-secondary text-xs', className)} {...props} />
+)
 
-    &:last-child {
-      border-radius: 8px;
-    }
-  }
-`
+const EmptyContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-1 items-center justify-center py-10', className)} {...props} />
+)
 
-const ModeOption = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`
+const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-2 overflow-y-auto', className)} {...props} />
+)
 
-const ModeLabel = styled.span`
-  font-weight: 600;
-`
+const ServerItem = ({
+  className,
+  isEnabled,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { isEnabled: boolean }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between rounded-xs border border-border bg-muted px-4 py-3 transition-all',
+      isEnabled ? 'opacity-100' : 'opacity-70',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ModeDescription = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-`
+const ServerInfo = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-1 flex-col overflow-hidden', className)} {...props} />
+)
 
-const EnabledCount = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-  margin-bottom: 8px;
-`
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-1 font-semibold', className)} {...props} />
+)
 
-const EmptyContainer = styled.div`
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 0;
-`
+const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-[3px] text-[0.85rem] text-foreground-secondary', className)} {...props} />
+)
 
-const ServerList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-`
-
-const ServerItem = styled.div<{ isEnabled: boolean }>`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background-color: var(--color-background-mute);
-  border: 1px solid var(--color-border);
-  transition: all 0.2s ease;
-  opacity: ${(props) => (props.isEnabled ? 1 : 0.7)};
-`
-
-const ServerInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-`
-
-const ServerName = styled.div`
-  font-weight: 600;
-  margin-bottom: 4px;
-`
-
-const ServerDescription = styled.div`
-  font-size: 0.85rem;
-  color: var(--color-text-2);
-  margin-bottom: 3px;
-`
-
-const ServerUrl = styled.div`
-  font-size: 0.8rem;
-  color: var(--color-text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
+const ServerUrl = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('truncate text-[0.8rem] text-foreground-muted', className)} {...props} />
+)
 
 export default AssistantMCPSettings

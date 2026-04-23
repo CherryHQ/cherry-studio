@@ -1,7 +1,8 @@
+import { Button } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
-import { Button, Popover, Tag } from 'antd'
+import { Popover, Tag } from 'antd'
 import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,11 +30,8 @@ const BuiltinMCPServerList: FC = () => {
                 </div>
                 <div className="ml-2 flex items-center gap-2">
                   <Button
-                    type="text"
-                    icon={
-                      isInstalled ? <Check size={16} style={{ color: 'var(--color-primary)' }} /> : <Plus size={16} />
-                    }
-                    size="small"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={async () => {
                       if (isInstalled) {
                         return
@@ -46,8 +44,9 @@ const BuiltinMCPServerList: FC = () => {
                         window.toast.error(t('settings.mcp.addError'))
                       }
                     }}
-                    disabled={isInstalled}
-                  />
+                    disabled={isInstalled}>
+                    {isInstalled ? <Check size={16} className="text-primary" /> : <Plus size={16} />}
+                  </Button>
                 </div>
               </div>
               <Popover

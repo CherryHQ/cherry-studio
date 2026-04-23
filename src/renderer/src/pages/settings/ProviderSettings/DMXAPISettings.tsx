@@ -5,7 +5,6 @@ import { Radio, Space } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingSubtitle } from '..'
 
@@ -68,11 +67,11 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   )
 
   return (
-    <Container>
+    <div className="mt-4 mb-[30px]">
       <Space direction="vertical" style={{ width: '100%' }}>
-        <LogoContainer>
+        <div className="mb-[30px] flex flex-col items-center justify-center">
           <Dmxapi.Color height={70} width="auto" />
-        </LogoContainer>
+        </div>
 
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
         <Radio.Group
@@ -95,22 +94,8 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
             )
           }))}></Radio.Group>
       </Space>
-    </Container>
+    </div>
   )
 }
-
-// 样式组件
-const Container = styled.div`
-  margin-top: 16px;
-  margin-bottom: 30px;
-`
-
-const LogoContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 30px;
-`
 
 export default DMXAPISettings

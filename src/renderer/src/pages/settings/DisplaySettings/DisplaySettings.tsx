@@ -2,6 +2,7 @@ import { RowFlex } from '@cherrystudio/ui'
 import { CodeEditor } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
@@ -11,45 +12,41 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { cn } from '@renderer/utils/style'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { ColorPicker, Segmented, Select, Tooltip } from 'antd'
+import { ColorPicker, Segmented, Select } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import SidebarIconsManager from './SidebarIconsManager'
 
-const ColorCircleWrapper = styled.div`
-  width: 24px;
-  height: 24px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
+const ColorCircleWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('relative flex h-6 w-6 items-center justify-center', className)} {...props} />
+)
 
-const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: ${(props) => props.color};
-  cursor: pointer;
-  transform: translate(-50%, -50%);
-  border: 2px solid ${(props) => (props.isActive ? 'var(--color-border)' : 'transparent')};
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 0.8;
-  }
-`
+const ColorCircle = ({
+  color,
+  isActive,
+  className,
+  style,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { color: string; isActive?: boolean }) => (
+  <div
+    className={cn(
+      '-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-5 w-5 cursor-pointer rounded-full border-2 transition-opacity hover:opacity-80',
+      isActive ? 'border-border' : 'border-transparent',
+      className
+    )}
+    style={{ backgroundColor: color, ...style }}
+    {...props}
+  />
+)
 
 const DisplaySettings: FC = () => {
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -211,7 +208,7 @@ const DisplaySettings: FC = () => {
 
   const renderFontOption = useCallback(
     (font: string) => (
-      <Tooltip title={font} placement="left" mouseEnterDelay={0.5}>
+      <Tooltip title={font} placement="left" delay={500}>
         <div
           className="truncate"
           style={{
@@ -484,34 +481,24 @@ const DisplaySettings: FC = () => {
   )
 }
 
-const TitleExtra = styled.div`
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-  opacity: 0.7;
-`
-const ResetButtonWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-const ZoomButtonGroup = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  width: 210px;
-`
-const ZoomValue = styled.span`
-  width: 40px;
-  text-align: center;
-  margin: 0 5px;
-`
+const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
+)
 
-const SelectRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  width: 380px;
-`
+const ResetButtonWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center justify-center', className)} {...props} />
+)
+
+const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex w-[210px] items-center justify-end', className)} {...props} />
+)
+
+const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('mx-[5px] w-10 text-center', className)} {...props} />
+)
+
+const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex w-[380px] items-center justify-end', className)} {...props} />
+)
 
 export default DisplaySettings

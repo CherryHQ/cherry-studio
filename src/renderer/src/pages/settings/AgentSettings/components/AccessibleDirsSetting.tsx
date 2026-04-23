@@ -1,6 +1,6 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
 import { Plus } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,7 +62,9 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
       <SettingsTitle
         contentAfter={
           <Tooltip title={t('agent.session.accessible_paths.add')}>
-            <Button type="text" icon={<Plus size={16} />} shape="circle" onClick={addAccessiblePath} />
+            <Button variant="ghost" size="icon-sm" className="rounded-full" onClick={addAccessiblePath}>
+              <Plus size={16} />
+            </Button>
           </Tooltip>
         }>
         {t('agent.session.accessible_paths.label')}
@@ -80,9 +82,8 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
                 base.accessible_paths.length <= 1 ? t('agent.session.accessible_paths.error.at_least_one') : undefined
               }>
               <Button
-                size="small"
-                type="text"
-                danger
+                size="sm"
+                variant="destructive"
                 disabled={base.accessible_paths.length <= 1}
                 onClick={() => removeAccessiblePath(path)}>
                 {t('common.delete')}

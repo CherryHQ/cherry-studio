@@ -2,7 +2,6 @@ import type { DroppableProvided } from '@hello-pangea/dnd'
 import { Draggable, Droppable } from '@hello-pangea/dnd'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { memo } from 'react'
-import styled from 'styled-components'
 
 import ActionsListItemComponent from './ActionsListItem'
 
@@ -20,8 +19,8 @@ const ActionsList = memo(
     return (
       <Droppable droppableId={droppableId}>
         {(provided: DroppableProvided) => (
-          <List ref={provided.innerRef} {...provided.droppableProps}>
-            <ActionsListContent>
+          <div ref={provided.innerRef} className="mb-4 rounded bg-background-subtle pb-px" {...provided.droppableProps}>
+            <div className="p-2.5">
               {items.map((item, index) => (
                 <Draggable key={item.id} draggableId={item.id} index={index}>
                   {(provided) => (
@@ -38,23 +37,12 @@ const ActionsList = memo(
                 </Draggable>
               ))}
               {provided.placeholder}
-            </ActionsListContent>
-          </List>
+            </div>
+          </div>
         )}
       </Droppable>
     )
   }
 )
-
-const List = styled.div`
-  background: var(--color-bg-1);
-  border-radius: 4px;
-  margin-bottom: 16px;
-  padding-bottom: 1px;
-`
-
-const ActionsListContent = styled.div`
-  padding: 10px;
-`
 
 export default ActionsList

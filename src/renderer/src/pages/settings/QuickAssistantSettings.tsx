@@ -7,12 +7,13 @@ import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/h
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import { matchKeywordsInString } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import { Select } from 'antd'
+import type React from 'react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -178,76 +179,51 @@ const QuickAssistantSettings: FC = () => {
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <AssistantContainer>
+        <div className="mx-auto h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
-        </AssistantContainer>
+        </div>
       )}
     </SettingContainer>
   )
 }
 
-const AssistantContainer = styled.div`
-  width: 100%;
-  height: 460px;
-  background-color: var(--color-background);
-  border-radius: 10px;
-  border: 0.5px solid var(--color-border);
-  margin: 0 auto;
-  overflow: hidden;
-`
+const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-7 flex-row items-center gap-2', className)} {...props} />
+)
 
-const AssistantItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-`
+const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('max-w-[calc(100%-60px)] truncate', className)} {...props} />
+)
 
-const AssistantName = styled.span`
-  max-width: calc(100% - 60px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1', className)} {...props} />
+)
 
-const Spacer = styled.div`
-  flex: 1;
-`
+const DefaultTag = ({
+  className,
+  isCurrent,
+  ...props
+}: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
+  <span
+    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
+    {...props}
+  />
+)
 
-const DefaultTag = styled.span<{ isCurrent: boolean }>`
-  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 4px;
-`
-
-const StyledButton = styled(Button)<{ selected: boolean }>`
-  border-radius: ${(props) => (props.selected ? '6px' : '6px')};
-  z-index: ${(props) => (props.selected ? 1 : 0)};
-  min-width: 80px;
-
-  &:first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    border-right-width: 0; // No right border for the first button when not selected
-  }
-
-  &:last-child {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left-width: 1px; // Ensure left border for the last button
-  }
-
-  // Override Ant Design's default hover and focus styles for a cleaner look
-
-  &:hover,
-  &:focus {
-    z-index: 1;
-    border-color: ${(props) => (props.selected ? 'var(--ant-primary-color)' : 'var(--ant-primary-color-hover)')};
-    box-shadow: ${(props) =>
-      props.selected ? '0 0 0 2px var(--ant-primary-color-outline)' : '0 0 0 2px var(--ant-primary-color-outline)'};
-  }
-`
+const StyledButton = ({
+  className,
+  selected,
+  ...props
+}: React.ComponentProps<typeof Button> & { selected: boolean }) => (
+  <Button
+    className={cn(
+      'min-w-20 rounded-md first:rounded-r-none first:border-r-0 last:rounded-l-none last:border-l',
+      selected ? 'z-1' : 'z-0',
+      'hover:z-1 focus:z-1',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default QuickAssistantSettings

@@ -1,11 +1,12 @@
 import { Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import { GLOBALLY_DISALLOWED_TOOLS, SOUL_MODE_DISALLOWED_TOOLS } from '@shared/agents/claudecode/constants'
 import type { CardProps } from 'antd'
-import { Card, Tag, Tooltip } from 'antd'
+import { Card, Tag } from 'antd'
 import { uniq } from 'lodash'
 import { Wrench } from 'lucide-react'
 import type { FC } from 'react'
@@ -216,7 +217,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                               })
                             : undefined
                         }
-                        open={isAuto ? undefined : false}>
+                        isOpen={isAuto ? undefined : false}>
                         <Switch
                           aria-label={t('agent.settings.tooling.preapproved.toggle', {
                             defaultValue: `Toggle ${tool.name}`,
@@ -280,7 +281,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
                         </div>
                         <Tooltip
                           title={!server.isActive ? t('agent.settings.tooling.mcp.inactiveTooltip') : undefined}
-                          open={!server.isActive ? undefined : false}>
+                          isOpen={!server.isActive ? undefined : false}>
                           <Switch
                             aria-label={t('agent.settings.tooling.mcp.toggle', {
                               defaultValue: `Toggle ${server.name}`,

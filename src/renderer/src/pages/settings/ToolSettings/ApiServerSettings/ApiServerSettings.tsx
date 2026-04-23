@@ -1,13 +1,14 @@
-import { IndicatorLight } from '@cherrystudio/ui'
+import { Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
-import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
+import { Alert, Input, InputNumber, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SettingContainer } from '../..'
@@ -90,7 +91,8 @@ const ApiServerSettings: FC = () => {
           <Text type="secondary">{t('apiServer.description')}</Text>
         </HeaderContent>
         {apiServerRunning && (
-          <Button type="primary" icon={<ExternalLink size={14} />} onClick={openApiDocs}>
+          <Button onClick={openApiDocs}>
+            <ExternalLink size={14} />
             {t('apiServer.documentation.title')}
           </Button>
         )}
@@ -177,12 +179,14 @@ const ApiServerSettings: FC = () => {
           suffix={
             <InputButtonContainer>
               {!apiServerRunning && (
-                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} type="link">
+                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} variant="link">
                   {t('apiServer.actions.regenerate')}
                 </RegenerateButton>
               )}
               <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
-                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
+                <InputButton onClick={copyApiKey} disabled={!apiServerConfig.apiKey}>
+                  <Copy size={14} />
+                </InputButton>
               </Tooltip>
             </InputButtonContainer>
           }
@@ -203,170 +207,122 @@ const ApiServerSettings: FC = () => {
   )
 }
 
-// Styled Components
-const Container = styled(SettingContainer)`
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingContainer>) => (
+  <SettingContainer className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props} />
+)
 
-const HeaderSection = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-`
+const HeaderSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-6 flex flex-row items-center justify-between', className)} {...props} />
+)
 
-const HeaderContent = styled.div`
-  flex: 1;
-`
+const HeaderContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1', className)} {...props} />
+)
 
-const ServerControlPanel = styled.div<{ $status: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-radius: 8px;
-  border: 1px solid ${(props) => (props.$status ? 'var(--color-success-base)' : 'var(--color-border)')};
-  transition: all 0.3s ease;
-  margin-bottom: 16px;
-`
+const ServerControlPanel = ({
+  $status,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $status: boolean }) => (
+  <div
+    className={cn(
+      'mb-4 flex items-center justify-between rounded-xs border px-5 py-4 transition-all duration-300',
+      $status ? 'border-success-base' : 'border-border',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StatusSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`
+const StatusSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-2.5', className)} {...props} />
+)
 
-const StatusContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`
+const StatusContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-0.5', className)} {...props} />
+)
 
-const StatusText = styled.div<{ $status: boolean }>`
-  font-weight: 600;
-  font-size: 14px;
-  color: ${(props) => (props.$status ? 'var(--cs-success-base)' : 'var(--color-text-1)')};
-  margin: 0;
-`
+const StatusText = ({ $status, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $status: boolean }) => (
+  <div
+    className={cn('m-0 font-semibold text-sm', $status ? 'text-success-base' : 'text-foreground', className)}
+    {...props}
+  />
+)
 
-const StatusSubtext = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 0;
-`
+const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('m-0 text-foreground-muted text-xs', className)} {...props} />
+)
 
-const ControlSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`
+const ControlSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-3', className)} {...props} />
+)
 
-const RestartButton = styled.div<{ $loading: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--color-text-2);
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  font-size: 12px;
-  transition: all 0.2s ease;
+const RestartButton = ({
+  $loading,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $loading: boolean }) => (
+  <div
+    className={cn(
+      'flex items-center gap-1 text-foreground-secondary text-xs transition-all hover:text-primary',
+      $loading ? 'cursor-not-allowed opacity-50 hover:text-foreground-secondary' : 'cursor-pointer opacity-100',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    color: ${(props) => (props.$loading ? 'var(--color-text-2)' : 'var(--color-primary)')};
-  }
-`
+const StyledInputNumber = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof InputNumber>) => (
+  <InputNumber className={cn('mr-[5px] w-20 rounded-md border-[1.5px] border-border', className)} {...props} />
+)
 
-const StyledInputNumber = styled(InputNumber)`
-  width: 80px;
-  border-radius: 6px;
-  border: 1.5px solid var(--color-border);
-  margin-right: 5px;
-`
+const StartButton = ({
+  $loading,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $loading: boolean }) => (
+  <div
+    className={cn(
+      'inline-flex items-center justify-center transition-all hover:scale-110',
+      $loading ? 'cursor-not-allowed opacity-50 hover:scale-100' : 'cursor-pointer opacity-100',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StartButton = styled.div<{ $loading: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  transition: all 0.2s ease;
+const StopButton = StartButton
 
-  &:hover {
-    transform: ${(props) => (props.$loading ? 'scale(1)' : 'scale(1.1)')};
-  }
-`
+const ConfigurationField = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-2 rounded-xs border border-border bg-card p-4', className)} {...props} />
+)
 
-const StopButton = styled.div<{ $loading: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ${(props) => (props.$loading ? 'not-allowed' : 'pointer')};
-  opacity: ${(props) => (props.$loading ? 0.5 : 1)};
-  transition: all 0.2s ease;
+const FieldLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('m-0 font-medium text-foreground text-sm', className)} {...props} />
+)
 
-  &:hover {
-    transform: ${(props) => (props.$loading ? 'scale(1)' : 'scale(1.1)')};
-  }
-`
+const FieldDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('m-0 text-foreground-muted text-xs', className)} {...props} />
+)
 
-const ConfigurationField = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background: var(--card);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-`
+const StyledInput = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Input>) => (
+  <Input className={cn('w-full rounded-md border-[1.5px] border-border', className)} {...props} />
+)
 
-const FieldLabel = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-1);
-  margin: 0;
-`
+const InputButtonContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center gap-1', className)} {...props} />
+)
 
-const FieldDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 0;
-`
+const InputButton = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button className={cn('border-none bg-transparent px-1', className)} {...props} />
+)
 
-const StyledInput = styled(Input)`
-  width: 100%;
-  border-radius: 6px;
-  border: 1.5px solid var(--color-border);
-`
+const RegenerateButton = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button className={cn('h-auto border-none bg-transparent px-1 text-xs leading-none', className)} {...props} />
+)
 
-const InputButtonContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const InputButton = styled(Button)`
-  border: none;
-  padding: 0 4px;
-  background: transparent;
-`
-
-const RegenerateButton = styled(Button)`
-  padding: 0 4px;
-  font-size: 12px;
-  height: auto;
-  line-height: 1;
-  border: none;
-  background: transparent;
-`
-
-const AuthHeaderSection = styled.div`
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
+const AuthHeaderSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-3 flex flex-col gap-2', className)} {...props} />
+)
 
 export default ApiServerSettings

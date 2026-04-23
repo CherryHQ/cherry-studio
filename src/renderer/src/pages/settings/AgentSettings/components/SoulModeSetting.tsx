@@ -1,11 +1,11 @@
 import { Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import type {
   AgentBaseWithId,
   AgentConfiguration,
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

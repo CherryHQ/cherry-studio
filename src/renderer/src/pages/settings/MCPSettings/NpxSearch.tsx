@@ -10,7 +10,6 @@ import { Card, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SearchResult {
   name: string
@@ -101,7 +100,7 @@ const NpxSearch: FC = () => {
   }, [])
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col gap-2 pt-5">
       <Center>
         <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
           <Center className="mb-3.75">
@@ -142,7 +141,7 @@ const NpxSearch: FC = () => {
         </Center>
       )}
       {!searchLoading && (
-        <ResultList>
+        <div className="mx-auto grid w-full max-w-[1200px] flex-1 grid-cols-2 gap-4 overflow-y-auto pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (
@@ -203,30 +202,10 @@ const NpxSearch: FC = () => {
               </Card>
             )
           })}
-        </ResultList>
+        </div>
       )}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 20px;
-`
-
-const ResultList = styled.div`
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  width: 100%;
-  padding-right: 4px;
-  overflow-y: auto;
-  max-width: 1200px;
-  margin: 0 auto;
-`
 
 export default NpxSearch

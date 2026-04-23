@@ -1,13 +1,12 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import type { Assistant } from '@renderer/types'
-import { Menu, Modal } from 'antd'
+import { Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
@@ -79,7 +78,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   ].filter(Boolean) as { key: string; label: string }[]
 
   return (
-    <StyledModal
+    <Modal
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -98,19 +97,25 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           padding: 0
         }
       }}
+      rootClassName="[&_.ant-modal-title]:text-sm [&_.ant-modal-close]:top-1 [&_.ant-modal-close]:right-1"
       width="min(900px, 70vw)"
       height="80vh"
       centered>
       <RowFlex>
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'model']}
-            mode="vertical"
-            items={items}
-            onSelect={({ key }) => setMenu(key as AssistantSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>
+        <div className="h-[calc(80vh-20px)] border-border border-r-[0.5px]">
+          <MenuList className="mt-0.5 w-[220px] p-1.25">
+            {items.map((item) => (
+              <MenuItem
+                key={item.key}
+                label={item.label}
+                active={menu === item.key}
+                className="mb-[7px] font-medium last:mb-0"
+                onClick={() => setMenu(item.key as AssistantSettingPopupTab)}
+              />
+            ))}
+          </MenuList>
+        </div>
+        <div className="h-[calc(80vh-16px)] flex-1 overflow-y-scroll p-4">
           {menu === 'model' && (
             <AssistantModelSettings
               assistant={assistant}
@@ -136,66 +141,11 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
-        </Settings>
+        </div>
       </RowFlex>
-    </StyledModal>
+    </Modal>
   )
 }
-
-const LeftMenu = styled.div`
-  height: calc(80vh - 20px);
-  border-right: 0.5px solid var(--color-border);
-`
-
-const Settings = styled.div`
-  flex: 1;
-  padding: 16px 16px;
-  height: calc(80vh - 16px);
-  overflow-y: scroll;
-`
-
-const StyledModal = styled(Modal)`
-  .ant-modal-title {
-    font-size: 14px;
-  }
-  .ant-modal-close {
-    top: 4px;
-    right: 4px;
-  }
-  .ant-menu-item {
-    height: 36px;
-    color: var(--color-text-2);
-    display: flex;
-    align-items: center;
-    border: 0.5px solid transparent;
-    border-radius: 6px;
-    .ant-menu-title-content {
-      line-height: 36px;
-    }
-  }
-  .ant-menu-item-active {
-    background-color: var(--color-background-soft) !important;
-    transition: none;
-  }
-  .ant-menu-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .ant-menu-title-content {
-      color: var(--color-text-1);
-      font-weight: 500;
-    }
-  }
-`
-
-const StyledMenu = styled(Menu)`
-  width: 220px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  .ant-menu-item {
-    margin-bottom: 7px;
-  }
-`
 
 export default class AssistantSettingsPopup {
   static show(props: AssistantSettingPopupShowParams) {

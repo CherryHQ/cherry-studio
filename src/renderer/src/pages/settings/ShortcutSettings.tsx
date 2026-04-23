@@ -271,7 +271,7 @@ const ShortcutSettings: FC = () => {
               </Tooltip>
             )}
             <RowFlex
-              className={`items-center gap-1 rounded-lg bg-white/5 px-2 py-1 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+              className={`items-center gap-1 rounded-xs bg-white/5 px-2 py-1 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
               {displayKeys.map((key) => (
                 <kbd
@@ -294,7 +294,7 @@ const ShortcutSettings: FC = () => {
     return (
       <div className="relative flex flex-col items-end">
         <span
-          className={`rounded-lg bg-white/5 px-3 py-1 text-sm text-white/30 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+          className={`rounded-xs bg-white/5 px-3 py-1 text-sm text-white/30 ${hasSystemConflict ? 'border border-red-500' : ''} ${isEditable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>

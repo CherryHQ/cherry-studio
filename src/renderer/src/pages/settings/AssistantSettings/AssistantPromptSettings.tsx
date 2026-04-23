@@ -25,7 +25,6 @@ import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
-import styled from 'styled-components'
 
 import { SettingDivider } from '..'
 
@@ -77,10 +76,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const promptVarsContent = <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col overflow-hidden">
       <Box className="mb-2 font-bold">{t('common.name')}</Box>
       <RowFlex className="items-center gap-2">
-        <EmojiDeleteButtonWrapper>
+        <div className="group/emoji relative inline-block">
           <Popover>
             <PopoverTrigger>
               <Button className="h-7 min-w-7 p-1 text-lg">{emoji}</Button>
@@ -91,7 +90,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           </Popover>
           {emoji && (
             <CloseCircleFilled
-              className="delete-icon z-50"
+              className="group-hover/emoji:block! absolute top-[-8px] right-[-8px] z-50 hidden cursor-pointer text-[#ff4d4f] text-base"
               onClick={(e) => {
                 e.stopPropagation()
                 handleEmojiDelete()
@@ -107,7 +106,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
               }}
             />
           )}
-        </EmojiDeleteButtonWrapper>
+        </div>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
@@ -130,17 +129,18 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           <HelpCircle size={14} color="var(--color-text-2)" />
         </Tooltip>
       </RowFlex>
-      <TextAreaContainer>
-        <RichEditorContainer>
+      <div className="relative w-full">
+        <div className="h-[calc(80vh-202px)] overflow-hidden rounded-[5px] border-[0.5px] border-border">
           {showPreview ? (
-            <MarkdownContainer
+            <div
+              className="markdown h-full overflow-auto p-[0.5em]"
               onDoubleClick={() => {
                 const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
                 setShowPreview(false)
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
               }}>
               <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
-            </MarkdownContainer>
+            </div>
           ) : (
             <CodeEditor
               theme={activeCmTheme}
@@ -155,10 +155,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
               }}
             />
           )}
-        </RichEditorContainer>
-      </TextAreaContainer>
+        </div>
+      </div>
       <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
-        <TokenCount>Tokens: {tokenCount}</TokenCount>
+        <div className="select-none rounded px-0.5 py-0.5 text-foreground-secondary text-sm">Tokens: {tokenCount}</div>
         <Button
           variant="default"
           onClick={() => {
@@ -178,66 +178,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           {showPreview ? t('common.edit') : t('common.save')}
         </Button>
       </SpaceBetweenRowFlex>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-`
-
-const EmojiDeleteButtonWrapper = styled.div`
-  position: relative;
-  display: inline-block;
-
-  &:hover .delete-icon {
-    display: block !important;
-  }
-`
-
-const TextAreaContainer = styled.div`
-  position: relative;
-  width: 100%;
-`
-
-const TokenCount = styled.div`
-  padding: 2px 2px;
-  border-radius: 4px;
-  font-size: 14px;
-  color: var(--color-text-2);
-  user-select: none;
-`
-
-const RichEditorContainer = styled.div`
-  height: calc(80vh - 202px);
-  border: 0.5px solid var(--color-border);
-  border-radius: 5px;
-  overflow: hidden;
-
-  .prompt-rich-editor {
-    border: none;
-    height: 100%;
-
-    .rich-editor-wrapper {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .rich-editor-content {
-      flex: 1;
-      overflow: auto;
-    }
-  }
-`
-
-const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
-  height: 100%;
-  padding: 0.5em;
-  overflow: auto;
-`
 
 export default AssistantPromptSettings

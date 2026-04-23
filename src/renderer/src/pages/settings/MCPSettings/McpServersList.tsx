@@ -1,4 +1,4 @@
-import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Button, Sortable, useDndReorder } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,12 +7,11 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Button, Dropdown, Empty } from 'antd'
+import { Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
@@ -129,8 +128,10 @@ const McpServersList: FC = () => {
   )
 
   return (
-    <Container ref={scrollRef}>
-      <ListHeader>
+    <Scrollbar
+      ref={scrollRef}
+      className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-[15px] overflow-hidden overflow-y-auto p-5 pt-[15px]">
+      <div className="flex w-full items-center justify-between [&_h2]:m-0 [&_h2]:text-[22px]">
         <SettingTitle style={{ gap: 6 }}>
           <span>{t('settings.mcp.newServer')}</span>
           <CollapsibleSearchBar
@@ -140,18 +141,20 @@ const McpServersList: FC = () => {
             style={{ borderRadius: 20 }}
           />
         </SettingTitle>
-        <ButtonGroup>
+        <div className="flex items-center gap-2">
           <InstallNpxUv mini />
-          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+          <Button className="rounded-full" onClick={() => EditMcpJsonPopup.show()}>
+            <EditIcon size={14} />
             {t('common.edit')}
           </Button>
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button icon={<Plus size={16} />} type="default" shape="round">
+            <Button className="rounded-full">
+              <Plus size={16} />
               {t('common.add')}
             </Button>
           </Dropdown>
-        </ButtonGroup>
-      </ListHeader>
+        </div>
+      </div>
       <Sortable
         items={filteredMcpServers}
         itemKey="id"
@@ -183,39 +186,8 @@ const McpServersList: FC = () => {
         existingServers={mcpServers} // 傳遞現有的伺服器列表
         initialImportMethod={modalType}
       />
-    </Container>
+    </Scrollbar>
   )
 }
-
-const Container = styled(Scrollbar)`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height));
-  overflow: hidden;
-  padding: 20px;
-  padding-top: 15px;
-  gap: 15px;
-  overflow-y: auto;
-`
-
-const ListHeader = styled.div`
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h2 {
-    font-size: 22px;
-    margin: 0;
-  }
-`
-
-const ButtonGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
 
 export default McpServersList

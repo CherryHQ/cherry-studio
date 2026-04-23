@@ -5,7 +5,6 @@ import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface McpDescriptionProps {
   searchKey: string
@@ -36,16 +35,12 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   }, [shikiMarkdownIt, searchKey, t])
 
   return (
-    <Section>
+    <div className="max-w-[calc(100vw-var(--sidebar-width)-var(--settings-width)-75px)] pt-2">
       <Card loading={loading}>
         <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
       </Card>
-    </Section>
+    </div>
   )
 }
-const Section = styled.div`
-  padding-top: 8px;
-  max-width: calc(100vw - var(--sidebar-width) - var(--settings-width) - 75px);
-`
 
 export default memo(MCPDescription)

@@ -20,14 +20,15 @@ import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getDuplicateModelNames, isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { cn } from '@renderer/utils/style'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
 import { ListMinus, ListPlus, RefreshCcw, Search } from 'lucide-react'
+import type React from 'react'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ManageModelsList from './ManageModelsList'
 import { isModelInProvider, isValidNewApiModel } from './utils'
@@ -337,35 +338,24 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
   )
 }
 
-const SearchContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+const SearchContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('flex flex-col gap-[5px] [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-wrap', className)}
+    {...props}
+  />
+)
 
-  .ant-radio-group {
-    display: flex;
-    flex-wrap: wrap;
-  }
-`
+const TopToolsWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2.5 mb-0 flex items-center gap-2', className)} {...props} />
+)
 
-const TopToolsWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  margin-bottom: 0;
-`
+const ListContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('h-[calc(90vh-300px)]', className)} {...props} />
+)
 
-const ListContainer = styled.div`
-  height: calc(90vh - 300px);
-`
-
-const ModelHeaderTitle = styled.div`
-  color: var(--color-text);
-  font-size: 18px;
-  font-weight: 600;
-  margin-right: 10px;
-`
+const ModelHeaderTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mr-2.5 font-semibold text-foreground text-lg', className)} {...props} />
+)
 
 const TopViewKey = 'ManageModelsPopup'
 

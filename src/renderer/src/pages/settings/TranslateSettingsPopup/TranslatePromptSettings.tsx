@@ -7,7 +7,6 @@ import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { Input } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
 
@@ -30,9 +29,12 @@ const TranslatePromptSettings = () => {
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip content={t('common.reset')}>
-              <ResetButton type="reset" onClick={onResetTranslatePrompt}>
+              <button
+                type="reset"
+                className="flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-xs border-none bg-transparent p-0 text-foreground transition-colors hover:bg-accent"
+                onClick={onResetTranslatePrompt}>
                 <RedoOutlined size={16} />
-              </ResetButton>
+              </button>
             </Tooltip>
           )}
         </RowFlex>
@@ -47,20 +49,5 @@ const TranslatePromptSettings = () => {
     </SettingGroup>
   )
 }
-
-const ResetButton = styled.button`
-  background-color: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text);
-  padding: 0;
-  width: 30px;
-  height: 30px;
-
-  &:hover {
-    background: var(--color-list-item);
-    border-radius: 8px;
-  }
-`
 
 export default TranslatePromptSettings

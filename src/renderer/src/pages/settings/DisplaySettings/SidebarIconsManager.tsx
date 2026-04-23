@@ -3,6 +3,7 @@ import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pa
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SVGIcon'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { cn } from '@renderer/utils/style'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import {
   Code,
@@ -16,10 +17,10 @@ import {
   Palette,
   Sparkle
 } from 'lucide-react'
+import type React from 'react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface SidebarIconsManagerProps {
   visibleIcons: SidebarIcon[]
@@ -188,87 +189,66 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
   )
 }
 
-// Styled components remain the same
-const IconSection = styled.div`
-  display: flex;
-  gap: 20px;
-  padding: 10px;
-  background: var(--color-background);
-`
+const IconSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex gap-5 bg-background p-2.5', className)} {...props} />
+)
 
-const IconColumn = styled.div`
-  flex: 1;
+const IconColumn = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1 [&_h4]:mb-2.5 [&_h4]:font-normal [&_h4]:text-foreground', className)} {...props} />
+)
 
-  h4 {
-    margin-bottom: 10px;
-    color: var(--color-text);
-    font-weight: normal;
-  }
-`
+type DivWithElementRefProps = React.ComponentPropsWithoutRef<'div'> & { ref?: React.Ref<HTMLElement> }
 
-const IconList = styled.div`
-  height: 400px;
-  min-height: 400px;
-  padding: 10px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-`
+const IconList = ({ ref, className, ...props }: DivWithElementRefProps) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    className={cn(
+      'flex h-[400px] min-h-[400px] flex-col overflow-y-auto rounded-xs border border-border bg-background-subtle p-2.5',
+      className
+    )}
+    {...props}
+  />
+)
 
-const IconItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  cursor: move;
-`
+const IconItem = ({ ref, className, ...props }: DivWithElementRefProps) => (
+  <div
+    ref={ref as React.Ref<HTMLDivElement>}
+    className={cn(
+      'group mb-2 flex cursor-move items-center justify-between rounded border border-border bg-background px-3 py-2',
+      className
+    )}
+    {...props}
+  />
+)
 
-const IconContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
+const IconContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex items-center gap-2.5 text-foreground [&_.iconfont]:text-base [&_.iconfont]:text-foreground [&_span]:text-foreground',
+      className
+    )}
+    {...props}
+  />
+)
 
-  .iconfont {
-    font-size: 16px;
-    color: var(--color-text);
-  }
+const CloseButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'cursor-pointer text-foreground-secondary opacity-0 transition-all hover:text-foreground group-hover:opacity-100',
+      className
+    )}
+    {...props}
+  />
+)
 
-  span {
-    color: var(--color-text);
-  }
-`
-
-const CloseButton = styled.div`
-  cursor: pointer;
-  color: var(--color-text-2);
-  opacity: 0;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--color-text);
-  }
-
-  ${IconItem}:hover & {
-    opacity: 1;
-  }
-`
-
-const EmptyPlaceholder = styled.div`
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-2);
-  text-align: center;
-  padding: 20px;
-  font-size: 14px;
-`
+const EmptyPlaceholder = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex flex-1 items-center justify-center p-5 text-center text-foreground-secondary text-sm',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default SidebarIconsManager

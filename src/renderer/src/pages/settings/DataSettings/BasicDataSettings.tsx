@@ -1,6 +1,7 @@
 import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
@@ -11,12 +12,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Tooltip, Typography } from 'antd'
+import { Progress, Typography } from 'antd'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
@@ -453,10 +455,12 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-[5px]">
-            <Button onClick={() => BackupPopup.show()} icon={<SaveIcon size={14} />}>
+            <Button onClick={() => BackupPopup.show()}>
+              <SaveIcon size={14} />
               {t('settings.general.backup.button')}
             </Button>
-            <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
+            <Button onClick={RestorePopup.show}>
+              <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
           </RowFlex>
@@ -476,7 +480,8 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-[5px]">
-            <Button onClick={LanTransferPopup.show} icon={<WifiOutlined size={14} />}>
+            <Button onClick={LanTransferPopup.show}>
+              <WifiOutlined size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
           </RowFlex>
@@ -485,7 +490,8 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-[5px]">
-            <Button onClick={() => BackupPopup.show('lan-transfer')} icon={<FolderInput size={14} />}>
+            <Button onClick={() => BackupPopup.show('lan-transfer')}>
+              <FolderInput size={14} />
               {t('settings.data.export_to_phone.file.button')}
             </Button>
           </RowFlex>
@@ -541,7 +547,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
           <RowFlex className="gap-[5px]">
-            <Button onClick={reset} danger>
+            <Button onClick={reset} variant="destructive">
               {t('settings.general.reset.title')}
             </Button>
           </RowFlex>
@@ -551,69 +557,48 @@ const BasicDataSettings: React.FC = () => {
   )
 }
 
-const CacheText = styled(Typography.Text)`
-  color: var(--color-text-3);
-  font-size: 12px;
-  margin-left: 5px;
-  line-height: 16px;
-  display: inline-block;
-  vertical-align: middle;
-  text-align: left;
-`
+const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
+  <Typography.Text
+    className={cn('ml-[5px] inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    {...props}
+  />
+)
 
-const PathText = styled(Typography.Text)`
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-  vertical-align: middle;
-  text-align: right;
-  margin-left: 5px;
-  cursor: pointer
-`
+const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
+  <Typography.Text
+    className={cn('ml-[5px] inline-block min-w-0 flex-1 cursor-pointer truncate text-right align-middle', className)}
+    {...props}
+  />
+)
 
-const PathRow = styled(RowFlex)`
-  min-width: 0;
-  flex: 1;
-  width: 0;
-  align-items: center;
-  gap: 5px;
-`
+const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
+  <RowFlex className={cn('w-0 min-w-0 flex-1 items-center gap-[5px]', className)} {...props} />
+)
 
-// Add styled components for migration modal
-const MigrationModalContent = styled.div`
-  padding: 20px 0 10px;
-  display: flex;
-  flex-direction: column;
-`
+const MigrationModalContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col py-5 pb-2.5', className)} {...props} />
+)
 
-const MigrationNotice = styled.div`
-  margin-top: 24px;
-  font-size: 14px;
-`
+const MigrationNotice = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-6 text-sm', className)} {...props} />
+)
 
-const MigrationPathRow = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`
+const MigrationPathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-[5px]', className)} {...props} />
+)
 
-const MigrationPathLabel = styled.div`
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--color-text-1);
-`
+const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-semibold text-[15px] text-foreground', className)} {...props} />
+)
 
-const MigrationPathValue = styled.div`
-  font-size: 14px;
-  color: var(--color-text-2);
-  background-color: var(--color-background-soft);
-  padding: 8px 12px;
-  border-radius: 4px;
-  word-break: break-all;
-  border: 1px solid var(--color-border);
-`
+const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default BasicDataSettings

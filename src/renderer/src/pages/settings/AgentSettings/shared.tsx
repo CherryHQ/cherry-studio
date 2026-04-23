@@ -15,9 +15,7 @@ import type {
 import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Menu, Modal } from 'antd'
 import React, { type ReactNode } from 'react'
-import styled from 'styled-components'
 
 import { SettingDivider } from '..'
 
@@ -156,61 +154,13 @@ export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & Sc
   )
 }
 
-export const LeftMenu = styled.div`
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
-`
+export const LeftMenu = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
+  <div className={cn('h-full border-border border-r-[0.5px]', className)} {...props} />
+)
 
-export const Settings = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-`
-
-export const StyledModal = styled(Modal)`
-  .ant-modal-title {
-    font-size: 14px;
-  }
-  .ant-modal-close {
-    top: 4px;
-    right: 4px;
-  }
-  .ant-menu-item {
-    height: 36px;
-    color: var(--color-text-2);
-    display: flex;
-    align-items: center;
-    border: 0.5px solid transparent;
-    border-radius: 6px;
-    .ant-menu-title-content {
-      line-height: 36px;
-    }
-  }
-  .ant-menu-item-active {
-    background-color: var(--color-background-soft) !important;
-    transition: none;
-  }
-  .ant-menu-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .ant-menu-title-content {
-      color: var(--color-text-1);
-      font-weight: 500;
-    }
-  }
-`
-
-export const StyledMenu = styled(Menu)`
-  width: 220px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  .ant-menu-item {
-    margin-bottom: 7px;
-  }
-`
+export const Settings = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
+  <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)} {...props} />
+)
 
 /**
  * Shared modal styles configuration for settings popups

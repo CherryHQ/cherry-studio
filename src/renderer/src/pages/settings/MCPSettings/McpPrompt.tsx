@@ -3,7 +3,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import type { MCPPrompt } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface MCPPromptsSectionProps {
   prompts: MCPPrompt[]
@@ -48,8 +47,10 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
   }
 
   return (
-    <Section>
-      <SectionTitle>{t('settings.mcp.prompts.availablePrompts')}</SectionTitle>
+    <div className="mt-2 pt-2">
+      <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+        {t('settings.mcp.prompts.availablePrompts')}
+      </h3>
       {prompts.length > 0 ? (
         <Collapse bordered={false} ghost>
           {prompts.map((prompt) => (
@@ -67,32 +68,15 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                   )}
                 </ColFlex>
               }>
-              <SelectableContent>{renderPromptArguments(prompt)}</SelectableContent>
+              <div className="select-text px-3">{renderPromptArguments(prompt)}</div>
             </Collapse.Panel>
           ))}
         </Collapse>
       ) : (
         <Empty description={t('settings.mcp.prompts.noPromptsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
-    </Section>
+    </div>
   )
 }
-
-const Section = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-`
-
-const SectionTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: var(--color-text-secondary);
-`
-
-const SelectableContent = styled.div`
-  user-select: text;
-  padding: 0 12px;
-`
 
 export default MCPPromptsSection

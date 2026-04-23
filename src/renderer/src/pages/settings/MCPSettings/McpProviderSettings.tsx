@@ -1,15 +1,17 @@
+import { Button, Divider } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Divider, Flex, Input, Space } from 'antd'
+import { cn } from '@renderer/utils/style'
+import { Flex, Input, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
+import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle } from '..'
 import { getProviderDisplayName, type ProviderConfig } from './providers/config'
@@ -126,13 +128,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
           <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
           {provider.discoverUrl && (
             <Link target="_blank" href={provider.discoverUrl} style={{ display: 'flex' }}>
-              <Button type="text" size="small">
+              <Button variant="ghost" size="icon-sm">
                 <SquareArrowOutUpRight size={14} />
               </Button>
             </Link>
           )}
         </Flex>
-        <Button type="primary" onClick={handleFetch} disabled={isFetching || isFetchDisabled}>
+        <Button onClick={handleFetch} disabled={isFetching || isFetchDisabled}>
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
@@ -189,7 +191,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   return (
                     <Button
                       disabled={isAlreadyAdded}
-                      style={{ marginLeft: 10 }}
+                      className="ml-2.5"
                       onClick={async () => {
                         if (!isAlreadyAdded) {
                           try {
@@ -199,9 +201,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                             window.toast.error(t('settings.mcp.addError'))
                           }
                         }
-                      }}
-                      icon={isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}
-                    />
+                      }}>
+                      {isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}
+                    </Button>
                   )
                 })()}
               </ServerItem>
@@ -213,54 +215,38 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = styled(Scrollbar)`
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
+const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col p-5', className)} {...props} />
+)
 
-const ProviderHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`
+const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex items-center justify-between', className)} {...props} />
+)
 
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: -2px;
-`
+const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('mr-[-2px] font-medium text-sm', className)} {...props} />
+)
 
-const ServerList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-`
+const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-2 flex flex-col gap-3', className)} {...props} />
+)
 
-const ServerItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-background);
-  &:hover {
-    border-color: var(--color-primary);
-  }
-`
+const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'flex items-center justify-between rounded-xs border border-border bg-background px-4 py-3 hover:border-primary',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ServerName = styled.div`
-  font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 4px;
-`
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-1 font-medium text-sm', className)} {...props} />
+)
 
-const ServerDescription = styled.div`
-  color: var(--color-text-secondary);
-  font-size: 12px;
-`
+const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('text-foreground-secondary text-xs', className)} {...props} />
+)
 
 export default McpProviderSettings

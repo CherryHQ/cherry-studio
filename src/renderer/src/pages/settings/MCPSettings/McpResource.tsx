@@ -2,7 +2,6 @@ import { ColFlex, Flex } from '@cherrystudio/ui'
 import type { MCPResource } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Tag, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface MCPResourcesSectionProps {
   resources: MCPResource[]
@@ -54,8 +53,10 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
   }
 
   return (
-    <Section>
-      <SectionTitle>{t('settings.mcp.resources.availableResources') || 'Available Resources'}</SectionTitle>
+    <div className="mt-2 pt-2">
+      <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+        {t('settings.mcp.resources.availableResources') || 'Available Resources'}
+      </h3>
       {resources.length > 0 ? (
         <Collapse bordered={false} ghost>
           {resources.map((resource) => (
@@ -75,7 +76,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
                   )}
                 </ColFlex>
               }>
-              <SelectableContent>{renderResourceProperties(resource)}</SelectableContent>
+              <div className="select-text px-3">{renderResourceProperties(resource)}</div>
             </Collapse.Panel>
           ))}
         </Collapse>
@@ -85,25 +86,8 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
       )}
-    </Section>
+    </div>
   )
 }
-
-const Section = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-`
-
-const SectionTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: var(--color-text-secondary);
-`
-
-const SelectableContent = styled.div`
-  user-select: text;
-  padding: 0 12px;
-`
 
 export default MCPResourcesSection

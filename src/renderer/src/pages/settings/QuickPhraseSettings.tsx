@@ -12,7 +12,6 @@ import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
 
@@ -85,7 +84,7 @@ const QuickPhraseSettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <QuickPhraseList>
+          <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
             <DraggableList
               list={reversedPhrases}
               onUpdate={(newPhrases) => handleUpdateOrder([...newPhrases].reverse())}
@@ -121,7 +120,7 @@ const QuickPhraseSettings: FC = () => {
                 />
               )}
             </DraggableList>
-          </QuickPhraseList>
+          </div>
         </SettingRow>
       </SettingGroup>
 
@@ -136,7 +135,7 @@ const QuickPhraseSettings: FC = () => {
         maskClosable={false}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Label>{t('settings.quickPhrase.titleLabel')}</Label>
+            <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.titleLabel')}</div>
             <Input
               placeholder={t('settings.quickPhrase.titlePlaceholder')}
               value={formData.title}
@@ -144,7 +143,7 @@ const QuickPhraseSettings: FC = () => {
             />
           </div>
           <div>
-            <Label>{t('settings.quickPhrase.contentLabel')}</Label>
+            <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.contentLabel')}</div>
             <TextArea
               placeholder={t('settings.quickPhrase.contentPlaceholder')}
               value={formData.content}
@@ -158,20 +157,5 @@ const QuickPhraseSettings: FC = () => {
     </SettingContainer>
   )
 }
-
-const Label = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  margin-bottom: 8px;
-`
-
-const QuickPhraseList = styled.div`
-  width: 100%;
-  height: calc(100vh - 162px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
 
 export default QuickPhraseSettings

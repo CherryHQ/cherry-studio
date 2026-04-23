@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -8,7 +9,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { Alert, Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
+import { Alert, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -165,29 +166,28 @@ const TaskDetail: FC<{
           </div>
           <div className="flex items-center gap-1">
             {!isCompleted && (
-              <Button
-                size="small"
-                icon={<Play size={14} />}
-                onClick={() => onRun(task.id)}
-                title={t('agent.cherryClaw.tasks.run')}
-              />
+              <Button size="icon-sm" onClick={() => onRun(task.id)} title={t('agent.cherryClaw.tasks.run')}>
+                <Play size={14} />
+              </Button>
             )}
             {!isCompleted && (
               <Button
-                size="small"
-                icon={<Pause size={14} />}
+                size="icon-sm"
                 onClick={() => onToggleStatus(task.id, task.status === 'active' ? 'paused' : 'active')}
                 title={
                   task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')
-                }
-              />
+                }>
+                <Pause size={14} />
+              </Button>
             )}
             <Popconfirm
               title={t('agent.cherryClaw.tasks.delete.confirm')}
               onConfirm={() => onDelete(task.id)}
               okText={t('agent.cherryClaw.tasks.delete.label')}
               cancelText={t('agent.cherryClaw.tasks.cancel')}>
-              <Button size="small" danger icon={<Trash2 size={14} />} />
+              <Button size="icon-sm" variant="destructive">
+                <Trash2 size={14} />
+              </Button>
             </Popconfirm>
           </div>
         </SettingTitle>
@@ -254,12 +254,9 @@ const TaskDetail: FC<{
             <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
             {!isCompleted && (
               <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<Maximize2 size={13} />}
-                  onClick={() => setPromptModalOpen(true)}
-                />
+                <Button variant="ghost" size="icon-sm" onClick={() => setPromptModalOpen(true)}>
+                  <Maximize2 size={13} />
+                </Button>
               </Tooltip>
             )}
           </div>
@@ -500,12 +497,12 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
             {hasSession && (
               <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
                 <Button
-                  type="text"
-                  size="small"
-                  icon={<ExternalLink size={12} />}
-                  style={{ flexShrink: 0 }}
-                  onClick={() => navigateToSession(record.session_id!)}
-                />
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0"
+                  onClick={() => navigateToSession(record.session_id!)}>
+                  <ExternalLink size={12} />
+                </Button>
               </Tooltip>
             )}
           </div>
@@ -641,12 +638,9 @@ const CreateForm: FC<{
           <div className="flex items-center justify-between">
             <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
             <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
-              <Button
-                type="text"
-                size="small"
-                icon={<Maximize2 size={13} />}
-                onClick={() => setPromptModalOpen(true)}
-              />
+              <Button variant="ghost" size="icon-sm" onClick={() => setPromptModalOpen(true)}>
+                <Maximize2 size={13} />
+              </Button>
             </Tooltip>
           </div>
           <Input.TextArea
@@ -744,10 +738,10 @@ const CreateForm: FC<{
         <SettingDivider />
 
         <div className="flex gap-2">
-          <Button size="small" onClick={onCancel}>
+          <Button size="sm" onClick={onCancel}>
             {t('agent.cherryClaw.tasks.cancel')}
           </Button>
-          <Button type="primary" size="small" disabled={!isValid} loading={saving} onClick={handleCreate}>
+          <Button size="sm" disabled={!isValid} loading={saving} onClick={handleCreate}>
             {t('agent.cherryClaw.tasks.save')}
           </Button>
         </div>
@@ -918,13 +912,9 @@ const TasksSettings: FC = () => {
           style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
           <div className="flex items-center justify-between">
             <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
-            <Button
-              type="text"
-              size="small"
-              icon={<PlusOutlined />}
-              disabled={agents.length === 0}
-              onClick={handleStartCreate}
-            />
+            <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
+              <PlusOutlined />
+            </Button>
           </div>
           <div className="flex flex-col gap-1">
             {tasks.length === 0 && !creating ? (

@@ -265,7 +265,7 @@ const AboutSettings: FC = () => {
                         <Tooltip key={option.value} content={option.tooltip}>
                           <label
                             htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-(--color-border) px-3 py-2 text-(--color-text-1) text-sm transition-colors hover:bg-(--color-background-soft)">
+                            className="flex cursor-pointer items-center gap-2 rounded-xs border border-(--color-border) px-3 py-2 text-(--color-text-1) text-sm transition-colors hover:bg-(--color-background-soft)">
                             <RadioGroupItem id={id} value={option.value} />
                             <span>{option.label}</span>
                           </label>

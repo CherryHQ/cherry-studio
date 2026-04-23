@@ -1,5 +1,6 @@
 import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { HelpTooltip } from '@cherrystudio/ui'
+import { Divider } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -35,14 +36,13 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { Divider, Input, Select, Space } from 'antd'
+import { Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import {
   SettingContainer,
@@ -377,7 +377,9 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       <>
         <WarnTooltip
           content={
-            <ErrorOverlay>{apiKeyConnectivity.error?.message || t('settings.models.check.failed')}</ErrorOverlay>
+            <div className="max-h-[200px] max-w-[300px] select-text overflow-y-auto break-words">
+              {apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
+            </div>
           }
           iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
           onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
@@ -446,7 +448,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
         <Flex className="items-center gap-2">
-          <ProviderName>{fancyProviderName}</ProviderName>
+          <span className="mr-[-2px] font-medium text-sm">{fancyProviderName}</span>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button variant="ghost" size="sm">
@@ -663,19 +665,5 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
     </SettingContainer>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: -2px;
-`
-
-const ErrorOverlay = styled.div`
-  max-height: 200px;
-  overflow-y: auto;
-  max-width: 300px;
-  word-wrap: break-word;
-  user-select: text;
-`
 
 export default ProviderSetting

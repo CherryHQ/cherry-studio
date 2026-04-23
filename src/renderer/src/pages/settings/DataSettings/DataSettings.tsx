@@ -9,7 +9,6 @@ import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer } from '..'
 import BasicDataSettings from './BasicDataSettings'
@@ -81,8 +80,8 @@ const DataSettings: FC = () => {
   ]
 
   return (
-    <Container>
-      <DataMenuList>
+    <RowFlex className="flex-1">
+      <MenuList className="flex h-screen min-h-0 w-(--settings-width) flex-col overflow-auto border-border border-r-[0.5px] p-3 pb-12 [box-sizing:border-box] [&_.iconfont]:text-current [&_.iconfont]:leading-4">
         {menuItems.map((item) =>
           item.isDivider ? (
             <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} />
@@ -97,7 +96,7 @@ const DataSettings: FC = () => {
             />
           )
         )}
-      </DataMenuList>
+      </MenuList>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
@@ -113,30 +112,8 @@ const DataSettings: FC = () => {
         {menu === 'siyuan' && <SiyuanSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
-    </Container>
+    </RowFlex>
   )
 }
-
-const Container = styled(RowFlex)`
-  flex: 1;
-`
-
-const DataMenuList = styled(MenuList)`
-  display: flex;
-  flex-direction: column;
-  width: var(--settings-width);
-  padding: 12px;
-  padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
-  height: 100vh;
-  overflow: auto;
-  box-sizing: border-box;
-  min-height: 0;
-
-  .iconfont {
-    color: currentColor;
-    line-height: 16px;
-  }
-`
 
 export default DataSettings

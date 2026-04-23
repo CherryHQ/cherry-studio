@@ -10,7 +10,6 @@ import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SettingDivider, SettingRow, SettingTitle } from '..'
@@ -84,7 +83,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
   const reversedPrompts = [...promptsList].reverse()
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col">
       <SettingTitle>
         {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
         <Button variant="ghost" size="icon" onClick={handleAdd}>
@@ -93,7 +92,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
-        <StyledPromptList>
+        <div className="flex w-full flex-col gap-2">
           <DraggableList
             list={reversedPrompts}
             onUpdate={(newPrompts) => handleUpdateOrder([...newPrompts].reverse())}
@@ -132,7 +131,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
               />
             )}
           </DraggableList>
-        </StyledPromptList>
+        </div>
       </SettingRow>
 
       <Modal
@@ -149,7 +148,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
         centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Label>{t('assistants.settings.regular_phrases.titleLabel', 'Title')}</Label>
+            <div className="mb-2 text-foreground text-sm">
+              {t('assistants.settings.regular_phrases.titleLabel', 'Title')}
+            </div>
             <Input
               placeholder={t('assistants.settings.regular_phrases.titlePlaceholder', 'Enter title')}
               value={formData.title}
@@ -157,7 +158,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
             />
           </div>
           <div>
-            <Label>{t('assistants.settings.regular_phrases.contentLabel', 'Content')}</Label>
+            <div className="mb-2 text-foreground text-sm">
+              {t('assistants.settings.regular_phrases.contentLabel', 'Content')}
+            </div>
             <TextArea
               placeholder={t('assistants.settings.regular_phrases.contentPlaceholder', 'Enter content')}
               value={formData.content}
@@ -168,27 +171,8 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
           </div>
         </Space>
       </Modal>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
-
-const Label = styled.div`
-  font-size: 14px;
-  color: var(--color-text);
-  margin-bottom: 8px;
-`
-
-const StyledPromptList = styled.div`
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
 
 export default AssistantRegularPromptsSettings

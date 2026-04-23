@@ -1,4 +1,4 @@
-import { Center, ColFlex } from '@cherrystudio/ui'
+import { Center, ColFlex, Divider } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -7,11 +7,10 @@ import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
-import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
+import { Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('AddProviderPopup')
 
@@ -153,7 +152,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               window.toast.error(error.message)
             }
           }}>
-          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
+          <div ref={uploadRef} className="w-full text-center">
+            {t('settings.general.image_upload')}
+          </div>
         </Upload>
       ),
       onClick: (e: any) => {
@@ -163,7 +164,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     },
     {
       key: 'builtin',
-      label: <MenuItem>{t('settings.general.avatar.builtin')}</MenuItem>,
+      label: <div className="w-full text-center">{t('settings.general.avatar.builtin')}</div>,
       onClick: () => {
         setDropdownOpen(false)
         setLogoPickerOpen(true)
@@ -171,7 +172,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     },
     {
       key: 'reset',
-      label: <MenuItem>{t('settings.general.avatar.reset')}</MenuItem>,
+      label: <div className="w-full text-center">{t('settings.general.avatar.reset')}</div>,
       onClick: handleReset
     }
   ] satisfies ItemType[]
@@ -220,13 +221,15 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               }}
               placement="bottom">
               {logo ? (
-                <ProviderLogo>
+                <div className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80">
                   <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
-                </ProviderLogo>
+                </div>
               ) : (
-                <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
+                <div
+                  className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-full border-[0.5px] border-border bg-background-subtle font-medium text-[30px] transition-opacity hover:opacity-80"
+                  style={name ? { backgroundColor, color } : undefined}>
                   {getInitials()}
-                </ProviderInitialsLogo>
+                </div>
               )}
             </Popover>
           </Dropdown>
@@ -271,45 +274,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     </Modal>
   )
 }
-
-const ProviderLogo = styled.div`
-  cursor: pointer;
-  width: 60px;
-  height: 60px;
-  border-radius: 100%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  transition: opacity 0.3s ease;
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const ProviderInitialsLogo = styled.div`
-  cursor: pointer;
-  width: 60px;
-  height: 60px;
-  border-radius: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  font-weight: 500;
-  transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const MenuItem = styled.div`
-  width: 100%;
-  text-align: center;
-`
 
 export default class AddProviderPopup {
   static topviewId = 0

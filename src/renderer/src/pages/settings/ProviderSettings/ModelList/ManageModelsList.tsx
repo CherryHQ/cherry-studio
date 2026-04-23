@@ -11,7 +11,6 @@ import { isNewApiProvider } from '@renderer/utils/provider'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { isModelInProvider, isValidNewApiModel } from './utils'
 
@@ -149,8 +148,12 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <GroupHeaderContainer isCollapsed={isCollapsed}>
-              <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
+            <div className={isCollapsed ? 'pb-2' : undefined}>
+              <div
+                className={`flex min-h-[38px] cursor-pointer items-center justify-between bg-muted px-[13px] text-foreground ${
+                  isCollapsed ? 'rounded-xs' : 'rounded-t-xs'
+                }`}
+                onClick={() => handleGroupToggle(row.groupName)}>
                 <Flex className="flex-1 items-center gap-2.5">
                   <ChevronRight
                     size={16}
@@ -164,8 +167,8 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                   </CustomTag>
                 </Flex>
                 {renderGroupTools(row.models)}
-              </GroupHeader>
-            </GroupHeaderContainer>
+              </div>
+            </div>
           )
         }
 
@@ -198,7 +201,8 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
   ({ model, showIdentifier, provider, onAddModel, onRemoveModel, last }) => {
     const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
     return (
-      <ModelListItemContainer last={last}>
+      <div
+        className={`border border-border p-1 ${last ? 'mb-2 rounded-b-lg border-b' : 'rounded-none border-b-0'} border-t-0`}>
         <FileItem
           style={{
             backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
@@ -230,34 +234,9 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(
             )
           }}
         />
-      </ModelListItemContainer>
+      </div>
     )
   }
 )
-
-const GroupHeader = styled.div<{ isCollapsed: boolean }>`
-  display: flex;
-  background-color: var(--color-background-mute);
-  border-radius: ${(props) => (props.isCollapsed ? '8px' : '8px 8px 0 0')};
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 13px;
-  min-height: 38px;
-  color: var(--color-text);
-  cursor: pointer;
-`
-
-const GroupHeaderContainer = styled.div<{ isCollapsed: boolean }>`
-  padding-bottom: ${(props) => (props.isCollapsed ? '8px' : '0')};
-`
-
-const ModelListItemContainer = styled.div<{ last?: boolean }>`
-  border: 1px solid var(--color-border);
-  padding: 4px;
-  border-top: none;
-  border-radius: ${(props) => (props.last ? '0 0 8px 8px' : '0')};
-  border-bottom: ${(props) => (props.last ? '1px solid var(--color-border)' : 'none')};
-  margin-bottom: ${(props) => (props.last ? '8px' : '0')};
-`
 
 export default memo(ManageModelsList)

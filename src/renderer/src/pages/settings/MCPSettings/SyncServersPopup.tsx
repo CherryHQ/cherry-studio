@@ -2,11 +2,12 @@ import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Form, Input, Modal, Select } from 'antd'
+import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
 import { getBailianToken, saveBailianToken, syncBailianServers } from './providers/bailian'
@@ -302,106 +303,69 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
   )
 }
 
-const ContentContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-`
+const ContentContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-2.5', className)} {...props} />
+)
 
-const ProviderSelector = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 15px;
-`
+const ProviderSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-[15px] flex items-center gap-3', className)} {...props} />
+)
 
-const SelectorLabel = styled.div`
-  font-weight: 500;
-  white-space: nowrap;
-`
+const SelectorLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('whitespace-nowrap font-medium', className)} {...props} />
+)
 
-const ProviderContent = styled.div`
-  border-top: 1px solid var(--color-border);
-  padding-top: 20px;
+const ProviderContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('border-border border-t pt-5', className)} {...props} />
+)
 
-  &.no-border {
-    border-top: none;
-    padding-top: 0;
-  }
-`
+const StepSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-5 flex items-start gap-[15px]', className)} {...props} />
+)
 
-const StepSection = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 15px;
-  margin-bottom: 20px;
-`
+const StepNumber = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-sm text-white',
+      className
+    )}
+    {...props}
+  />
+)
 
-const StepNumber = styled.div`
-  background-color: var(--color-primary);
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-  flex-shrink: 0;
-  margin-top: 2px;
-`
+const StepContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex grow flex-col', className)} {...props} />
+)
 
-const StepContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-`
+const StepTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-1 font-semibold text-[15px]', className)} {...props} />
+)
 
-const StepTitle = styled.div`
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 4px;
-`
+const StepDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-2 text-[13px] text-foreground-secondary', className)} {...props} />
+)
 
-const StepDescription = styled.div`
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  margin-bottom: 8px;
-`
+const LinkContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-1', className)} {...props} />
+)
 
-const LinkContainer = styled.div`
-  margin-top: 4px;
-`
+const ExternalLink = ({ className, ...props }: React.ComponentPropsWithoutRef<'a'>) => (
+  <a
+    className={cn(
+      'flex items-center gap-2 rounded-md bg-background-subtle px-2.5 py-2 text-primary text-sm transition-all hover:bg-muted hover:no-underline',
+      className
+    )}
+    {...props}
+  />
+)
 
-const ExternalLink = styled.a`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background-color: var(--color-background-2);
-  font-size: 14px;
-  color: var(--color-primary);
-  transition: all 0.2s ease;
+const LinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('text-base', className)} {...props} />
+)
 
-  &:hover {
-    background-color: var(--color-background-3);
-    text-decoration: none;
-  }
-`
-
-const LinkIcon = styled.span`
-  font-size: 16px;
-`
-
-const ButtonContainer = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 15px;
-  border-top: 1px solid var(--color-border);
-`
+const ButtonContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex justify-end gap-2 border-border border-t pt-[15px]', className)} {...props} />
+)
 
 const TopViewKey = 'SyncServersPopup'
 

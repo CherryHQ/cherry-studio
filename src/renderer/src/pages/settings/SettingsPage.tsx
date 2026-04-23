@@ -23,7 +23,6 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const SettingsPage: FC = () => {
   const location = useLocation()
@@ -35,12 +34,12 @@ const SettingsPage: FC = () => {
   const go = (path: string) => navigate({ to: path })
 
   return (
-    <Container>
+    <div className="flex min-h-0 flex-1 flex-col">
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container">
-        <SettingMenus>
+      <div id="content-container" className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row py-px">
+        <Scrollbar className="flex min-h-0 min-w-(--settings-width) select-none flex-col border-border border-r-[0.5px] p-2.5">
           <MenuList>
             <MenuItem
               icon={<Cloud size={18} />}
@@ -149,46 +148,13 @@ const SettingsPage: FC = () => {
               onClick={() => go('/settings/about')}
             />
           </MenuList>
-        </SettingMenus>
-        <SettingContent>
+        </Scrollbar>
+        <div className="flex h-full min-h-0 flex-1">
           <Outlet />
-        </SettingContent>
-      </ContentContainer>
-    </Container>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  min-height: 0;
-  height: calc(100vh - var(--navbar-height));
-  padding: 1px 0;
-`
-
-const SettingMenus = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  min-width: var(--settings-width);
-  min-height: 0;
-  border-right: 0.5px solid var(--color-border);
-  padding: 10px;
-  user-select: none;
-`
-
-const SettingContent = styled.div`
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex: 1;
-`
 
 export default SettingsPage

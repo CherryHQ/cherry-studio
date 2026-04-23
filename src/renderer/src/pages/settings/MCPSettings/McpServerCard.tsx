@@ -9,14 +9,15 @@ import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { Alert, Space, Tag, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('McpServerCard')
 
@@ -226,105 +227,66 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   )
 }
 
-// Styled components
-const CardContainer = styled.div<{ $isActive: boolean }>`
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--cs-radius-2xs);
-  padding: 10px 10px 10px 16px;
-  transition: all 0.2s ease;
-  background-color: var(--color-background);
-  margin-bottom: 5px;
-  height: 125px;
-  opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
-  width: 100%;
+const CardContainer = ({
+  $isActive,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
+  <div
+    className={cn(
+      'mb-[5px] flex h-[125px] w-full flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-background py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
+      $isActive ? 'opacity-100' : 'opacity-60',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    opacity: 1;
-    border-color: var(--color-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-`
+const ServerHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-[5px] flex items-center', className)} {...props} />
+)
 
-const ServerHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 5px;
-`
+const ServerNameWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-1 items-center gap-1 overflow-hidden whitespace-nowrap', className)} {...props} />
+)
 
-const ServerNameWrapper = styled.div`
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
+const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
+  <Typography.Text className={cn('font-medium text-[15px]', className)} {...props} />
+)
 
-const ServerNameText = styled(Typography.Text)`
-  font-size: 15px;
-  font-weight: 500;
-`
+const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
+  <img className={cn('mr-2 h-6 w-6 rounded object-cover', className)} {...props} />
+)
 
-const ServerLogo = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-  margin-right: 8px;
-`
+const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('ml-2 flex items-center [&>*:first-child]:mr-1', className)} {...props} />
+)
 
-const ToolbarWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  margin-left: 8px;
+const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn('line-clamp-3 h-[50px] w-full break-words text-foreground-secondary text-xs', className)}
+    {...props}
+  />
+)
 
-  > :first-child {
-    margin-right: 4px;
-  }
-`
+const ServerFooter = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar
+    className={cn('mt-2.5 flex min-h-[22px] flex-row items-center justify-start gap-1 overflow-x-auto', className)}
+    style={{ scrollbarWidth: 'none' }}
+    {...props}
+  />
+)
 
-const ServerDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-2);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  width: 100%;
-  word-break: break-word;
-  height: 50px;
-`
+const ServerTag = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Tag>) => (
+  <Tag className={cn('m-0 rounded-[20px]', className)} {...props} />
+)
 
-const ServerFooter = styled(Scrollbar)`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-direction: row;
-  overflow-x: auto;
-  min-height: 22px;
-  gap: 4px;
-  margin-top: 10px;
+const VersionBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Tag>) => (
+  <ServerTag className={cn('max-w-24 font-medium', className)} {...props} />
+)
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
-
-const ServerTag = styled(Tag)`
-  border-radius: 20px;
-  margin: 0;
-`
-
-const VersionBadge = styled(ServerTag)`
-  font-weight: 500;
-  max-width: 6rem !important;
-`
-
-const VersionText = styled(Typography.Text)`
-  font-size: inherit;
-  color: white;
-`
+const VersionText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
+  <Typography.Text className={cn('text-inherit text-white', className)} {...props} />
+)
 
 export default McpServerCard

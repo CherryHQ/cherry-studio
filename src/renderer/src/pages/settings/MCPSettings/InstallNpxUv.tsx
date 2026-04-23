@@ -7,7 +7,6 @@ import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDescription, SettingRow, SettingSubtitle } from '..'
 
@@ -107,7 +106,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   }
 
   return (
-    <Container>
+    <div className="mb-5 flex flex-col gap-3 pt-[50px]">
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
         style={{ borderRadius: 'var(--cs-radius-2xs)' }}
@@ -164,16 +163,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
           {t('settings.mcp.installHelp')}
         </Button>
       </Center>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 20px;
-  gap: 12px;
-  padding-top: 50px;
-`
 
 export default InstallNpxUv

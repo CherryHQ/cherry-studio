@@ -1,11 +1,11 @@
-import { Switch } from '@cherrystudio/ui'
+import { Button, Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useNavigate } from '@tanstack/react-router'
 import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
-import { Button, Card, Empty, Spin, Tag } from 'antd'
+import { Card, Empty, Spin, Tag } from 'antd'
 import { Plus, Puzzle } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -165,12 +165,12 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
                 style={searchBarStyle}
               />
               <Button
-                icon={<Plus size={18} />}
-                style={{ marginLeft: 'auto' }}
+                className="ml-auto"
                 onClick={() => {
                   TopView.hide('AgentSettingsPopup')
                   void navigate({ to: '/settings/skills' })
                 }}>
+                <Plus size={18} />
                 {t('agent.settings.skills.addMore', 'Add More Skills')}
               </Button>
             </>

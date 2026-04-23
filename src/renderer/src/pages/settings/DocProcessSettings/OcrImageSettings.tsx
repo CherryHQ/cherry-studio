@@ -1,3 +1,4 @@
+import { Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
@@ -5,7 +6,7 @@ import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import type { ImageOcrProvider, OcrProvider } from '@renderer/types'
 import { BuiltinOcrProviderIds, isImageOcrProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { Alert, Select, Skeleton } from 'antd'
+import { Alert, Select } from 'antd'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -94,7 +95,7 @@ const OcrProviderSelector = ({ isLoading, error, value, options, onChange }: Ocr
   const { t } = useTranslation()
 
   if (isLoading) {
-    return <Skeleton.Input active style={{ width: '200px', height: '32px' }} />
+    return <Skeleton className="h-8 w-[200px]" />
   }
 
   if (error) {

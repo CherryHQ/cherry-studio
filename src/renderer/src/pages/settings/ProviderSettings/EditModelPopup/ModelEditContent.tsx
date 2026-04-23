@@ -1,4 +1,4 @@
-import { Button, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -22,13 +22,12 @@ import type { Model, ModelCapability, ModelType, Provider } from '@renderer/type
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import type { ModalProps } from 'antd'
-import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
+import { Form, Input, InputNumber, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ModelEditContentProps {
   provider: Provider
@@ -181,7 +180,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 
     return (
       <>
-        <TypeTitle>
+        <div className="my-3 flex items-center justify-between font-semibold text-sm">
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
             <WarnTooltip content={t('settings.moresetting.check.warn')} />
@@ -194,7 +193,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               </Button>
             </Tooltip>
           )}
-        </TypeTitle>
+        </div>
         <Flex className="mb-2 flex-wrap items-center justify-start gap-1">
           <VisionTag
             showLabel
@@ -441,14 +440,5 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     </Modal>
   )
 }
-
-const TypeTitle = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-`
 
 export default ModelEditContent

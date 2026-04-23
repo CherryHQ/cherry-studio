@@ -1,9 +1,9 @@
-import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
+import { ColFlex, Divider, RowFlex, Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
 import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
-import { Divider, InputNumber } from 'antd'
+import { InputNumber } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

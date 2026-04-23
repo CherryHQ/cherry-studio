@@ -1,14 +1,12 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList } from '@cherrystudio/ui'
+import { Button, Flex, MenuItem, MenuList } from '@cherrystudio/ui'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Button, Flex } from 'antd'
 import { FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
@@ -50,10 +48,10 @@ const MCPSettings: FC = () => {
   }
 
   return (
-    <Container>
-      <MainContainer>
-        <McpMenuScroll>
-          <McpMenuList>
+    <Flex className="flex-1">
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+        <Scrollbar className="h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]">
+          <MenuList className="flex min-h-full flex-col p-3 pb-12 [box-sizing:border-box]">
             <MenuItem
               label={t('settings.mcp.servers', 'MCP Servers')}
               active={activeView === 'servers'}
@@ -90,68 +88,23 @@ const MCPSettings: FC = () => {
                 className="font-medium"
               />
             ))}
-          </McpMenuList>
-        </McpMenuScroll>
-        <RightContainer>
+          </MenuList>
+        </Scrollbar>
+        <div className="relative flex-1">
           {!isHomePage() && (
-            <BackButtonContainer>
+            <div className="absolute top-0 right-0 left-0 z-[1000] flex items-center bg-transparent px-5 py-2.5">
               <Link to="/settings/mcp/servers">
-                <Button type="default" shape="circle" size="small">
+                <Button variant="secondary" size="icon-sm" className="rounded-full">
                   <ArrowLeftOutlined />
                 </Button>
               </Link>
-            </BackButtonContainer>
+            </div>
           )}
           <Outlet />
-        </RightContainer>
-      </MainContainer>
-    </Container>
+        </div>
+      </div>
+    </Flex>
   )
 }
-
-const Container = styled(Flex)`
-  flex: 1;
-`
-
-const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  width: 100%;
-  height: calc(100vh - var(--navbar-height) - 6px);
-  overflow: hidden;
-`
-
-const McpMenuScroll = styled(Scrollbar)`
-  width: var(--settings-width);
-  height: calc(100vh - var(--navbar-height));
-  border-right: 0.5px solid var(--color-border);
-`
-
-const McpMenuList = styled(MenuList)`
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  padding-bottom: 48px;
-  min-height: 100%;
-  box-sizing: border-box;
-`
-
-const RightContainer = styled.div`
-  flex: 1;
-  position: relative;
-`
-
-const BackButtonContainer = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 10px 20px;
-  background-color: transparent;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-`
 
 export default MCPSettings

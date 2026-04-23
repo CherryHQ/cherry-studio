@@ -8,7 +8,6 @@ import type { TableProps } from 'antd'
 import { Popconfirm, Space, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingRowTitle } from '..'
 import CustomLanguageModal from './CustomLanguageModal'
@@ -121,7 +120,7 @@ const CustomLanguageSettings = () => {
 
   return (
     <>
-      <CustomLanguageSettingsContainer>
+      <div className="flex h-full w-full flex-col justify-between">
         <RowFlex className="justify-between py-1">
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
           <Button onClick={onClickAdd} style={{ marginBottom: 5, marginTop: -5 }}>
@@ -129,14 +128,14 @@ const CustomLanguageSettings = () => {
             {t('common.add')}
           </Button>
         </RowFlex>
-        <TableContainer>
+        <div className="flex flex-1 flex-col">
           <Table<CustomTranslateLanguage>
             columns={columns}
             pagination={{ position: ['bottomCenter'], defaultPageSize: 10 }}
             dataSource={displayedItems}
           />
-        </TableContainer>
-      </CustomLanguageSettingsContainer>
+        </div>
+      </div>
       <CustomLanguageModal
         isOpen={isModalOpen}
         editingCustomLanguage={editingCustomLanguage}
@@ -147,19 +146,5 @@ const CustomLanguageSettings = () => {
     </>
   )
 }
-
-const CustomLanguageSettingsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-`
-
-const TableContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`
 
 export default memo(CustomLanguageSettings)

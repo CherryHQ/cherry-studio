@@ -3,15 +3,16 @@ import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
+import { cn } from '@renderer/utils/style'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { Link } from '@tanstack/react-router'
 import { Radio, Row, Slider } from 'antd'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
+import type React from 'react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import {
   SettingContainer,
@@ -345,37 +346,21 @@ const SelectionAssistantSettings: FC = () => {
   )
 }
 
-const Spacer = styled.div`
-  flex: 1;
-`
-const SettingLabel = styled.div`
-  flex: 1;
-`
-
-const ExperimentalText = styled.div`
-  color: var(--color-text-3);
-  font-size: 12px;
-`
-
-const DemoContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 15px;
-  margin-bottom: 5px;
-`
-
-const QuestionIcon = styled(CircleHelp)`
-  cursor: pointer;
-  color: var(--color-text-3);
-`
-
-const ChecklistItem = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 2px;
-  font-size: 12px;
-  color: var(--color-text-3);
-`
+const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex-1', className)} {...props} />
+)
+const SettingLabel = Spacer
+const ExperimentalText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('text-foreground-muted text-xs', className)} {...props} />
+)
+const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-[15px] mb-[5px] flex items-center justify-center', className)} {...props} />
+)
+const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
+  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+)
+const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mb-0.5 flex items-center text-foreground-muted text-xs', className)} {...props} />
+)
 
 export default SelectionAssistantSettings

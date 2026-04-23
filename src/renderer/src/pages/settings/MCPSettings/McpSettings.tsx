@@ -11,6 +11,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -20,7 +21,6 @@ import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
@@ -841,70 +841,47 @@ const McpSettings: React.FC = () => {
   )
 }
 
-const Container = styled(Scrollbar)`
-  height: calc(100vh - var(--navbar-height));
-`
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('h-[calc(100vh-var(--navbar-height))]', className)} {...props} />
+)
 
-const ServerName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
+const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('font-medium text-sm', className)} {...props} />
+)
 
-const AdvancedSettingsButton = styled.div`
-  cursor: pointer;
-  margin-bottom: 16px;
-  margin-top: -10px;
-  color: var(--color-primary);
-  display: flex;
-  align-items: center;
-`
+const AdvancedSettingsButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('-mt-2.5 mb-4 flex cursor-pointer items-center text-primary', className)} {...props} />
+)
 
-const LogList = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-bottom: 15px;
-  padding-top: 5px;
-`
+const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex flex-col gap-3 pt-[5px] pb-[15px]', className)} {...props} />
+)
 
-const LogItem = styled.div`
-  background: var(--color-background-mute, #1f1f1f);
-  color: var(--color-text-1, #e6e6e6);
-  border-radius: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-`
+const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('rounded-xs border border-border bg-muted px-3 py-2.5 text-foreground', className)} {...props} />
+)
 
-const LogHeader = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-`
+const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-wrap items-baseline gap-2', className)} {...props} />
+)
 
-const Timestamp = styled.span`
-  color: var(--color-text-3, #9aa2b1);
-  font-size: 12px;
-  flex-shrink: 0;
-`
+const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('shrink-0 text-foreground-muted text-xs', className)} {...props} />
+)
 
-const LogMessage = styled.span`
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: break-word;
-`
+const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('break-words text-[13px] leading-normal', className)} {...props} />
+)
 
-const PreBlock = styled.pre`
-  margin: 6px 0 0;
-  padding: 8px;
-  background: var(--color-bg-3, #111418);
-  color: var(--color-text-1, #e6e6e6);
-  border-radius: 6px;
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-`
+const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
+  <pre
+    className={cn(
+      'mt-1.5 whitespace-pre-wrap break-words rounded-md border border-border bg-background px-2 py-2 text-foreground text-xs',
+      className
+    )}
+    {...props}
+  />
+)
 
 function mapLogLevelColor(level: MCPServerLogEntry['level']) {
   switch (level) {
@@ -921,19 +898,14 @@ function mapLogLevelColor(level: MCPServerLogEntry['level']) {
   }
 }
 
-const VersionBadge = styled(Badge)`
-  .ant-badge-count {
-    background-color: var(--color-primary);
-    color: white;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 0 6px;
-    height: 18px;
-    line-height: 18px;
-    border-radius: 9px;
-    min-width: 18px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  }
-`
+const VersionBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Badge>) => (
+  <Badge
+    className={cn(
+      '[&_.ant-badge-count]:h-[18px] [&_.ant-badge-count]:min-w-[18px] [&_.ant-badge-count]:rounded-[9px] [&_.ant-badge-count]:bg-primary [&_.ant-badge-count]:px-1.5 [&_.ant-badge-count]:font-medium [&_.ant-badge-count]:text-[11px] [&_.ant-badge-count]:text-white [&_.ant-badge-count]:leading-[18px] [&_.ant-badge-count]:shadow-[0_1px_2px_rgba(0,0,0,0.1)]',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default McpSettings

@@ -1,5 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
@@ -8,13 +8,12 @@ import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hoo
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Divider, Form, Input } from 'antd'
+import { Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
@@ -164,9 +163,9 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             {providerLogo ? (
               <providerLogo.Avatar size={20} shape="rounded" />
             ) : (
-              <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
+              <div className="h-5 w-5 rounded bg-background-subtle" />
             )}
-            <ProviderName> {provider.name}</ProviderName>
+            <span className="font-medium text-sm">{provider.name}</span>
             {officialWebsite && webSearchProviderConfig?.websites && (
               <Link target="_blank" href={webSearchProviderConfig.websites.official}>
                 <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
@@ -316,10 +315,5 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default WebSearchProviderSetting

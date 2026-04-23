@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
-import { Switch } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -7,7 +7,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Alert, Button, Empty, Input, Modal, Popconfirm, Select, Spin, Tag, Tooltip } from 'antd'
+import { Alert, Empty, Input, Modal, Popconfirm, Select, Spin, Tag } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -307,10 +307,14 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.cherryClaw.channels.logs')}>
-        <Button type="text" size="small" icon={<FileTextOutlined />} onClick={onShowLogs} />
+        <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
+          <FileTextOutlined />
+        </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button type="text" size="small" icon={<EditOutlined />} onClick={onEdit} />
+        <Button variant="ghost" size="icon-sm" onClick={onEdit}>
+          <EditOutlined />
+        </Button>
       </Tooltip>
       <Popconfirm
         title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
@@ -318,7 +322,9 @@ const ChannelInstanceRow: FC<{
         okText={t('common.confirm')}
         cancelText={t('common.cancel')}>
         <Tooltip title={t('common.delete')}>
-          <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+          <Button variant="destructive" size="icon-sm">
+            <DeleteOutlined />
+          </Button>
         </Tooltip>
       </Popconfirm>
       <Switch checked={channel.isActive} size="sm" onCheckedChange={onToggle} />
@@ -453,12 +459,8 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
             <span>{channelDef.name}</span>
           </div>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlusOutlined />}
-            disabled={!channelDef.available}
-            onClick={handleAdd}>
+          <Button size="sm" disabled={!channelDef.available} onClick={handleAdd}>
+            <PlusOutlined />
             {t('agent.cherryClaw.channels.add')}
           </Button>
         </SettingTitle>

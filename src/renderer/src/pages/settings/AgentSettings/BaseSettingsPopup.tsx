@@ -1,11 +1,10 @@
-import { Center } from '@cherrystudio/ui'
-import type { MenuProps } from 'antd'
-import { Alert, Spin } from 'antd'
+import { Center, MenuItem, MenuList } from '@cherrystudio/ui'
+import { Alert, Modal, Spin } from 'antd'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { LeftMenu, Settings, settingsModalStyles, StyledMenu, StyledModal } from './shared'
+import { LeftMenu, Settings, settingsModalStyles } from './shared'
 
 export type SettingsPopupTab =
   | 'essential'
@@ -17,8 +16,10 @@ export type SettingsPopupTab =
   | 'plugins'
   | 'installed'
 
-export type SettingsMenuItem = NonNullable<MenuProps['items']>[number] & {
+export type SettingsMenuItem = {
   key: SettingsPopupTab
+  label: string
+  icon?: ReactNode
 }
 
 interface BaseSettingsPopupProps {
@@ -72,13 +73,18 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[initialTab]}
-            mode="vertical"
-            selectedKeys={[menu]}
-            items={menuItems}
-            onSelect={({ key }) => setMenu(key as SettingsPopupTab)}
-          />
+          <MenuList className="w-[220px] p-1.25 pt-1.75">
+            {menuItems.map((item) => (
+              <MenuItem
+                key={item.key}
+                label={item.label}
+                icon={item.icon}
+                active={menu === item.key}
+                className="mb-[7px] font-medium last:mb-0"
+                onClick={() => setMenu(item.key)}
+              />
+            ))}
+          </MenuList>
         </LeftMenu>
         <Settings>{renderTabContent(menu)}</Settings>
       </div>
@@ -86,7 +92,7 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
   }
 
   return (
-    <StyledModal
+    <Modal
       open={open}
       onOk={handleClose}
       onCancel={handleClose}
@@ -96,9 +102,10 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
       title={titleContent}
       transitionName="animation-move-down"
       styles={settingsModalStyles}
+      rootClassName="[&_.ant-modal-title]:text-sm [&_.ant-modal-close]:top-1 [&_.ant-modal-close]:right-1"
       width="min(900px, 70vw)"
       centered>
       {renderContent()}
-    </StyledModal>
+    </Modal>
   )
 }

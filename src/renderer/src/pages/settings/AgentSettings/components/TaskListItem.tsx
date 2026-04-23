@@ -1,5 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { ScheduledTaskEntity } from '@renderer/types'
-import { Popconfirm, Tag, Tooltip } from 'antd'
+import { Popconfirm, Tag } from 'antd'
 import { Clock, Edit2, History, Pause, Play, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,7 +71,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   const typeConfig = scheduleTypeConfig[task.schedule_type] ?? { label: task.schedule_type, color: 'default' }
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3">
+    <div className="flex items-center justify-between rounded-xs border border-[var(--color-border)] p-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span

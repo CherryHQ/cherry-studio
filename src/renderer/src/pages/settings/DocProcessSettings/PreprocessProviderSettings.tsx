@@ -1,18 +1,17 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, Tooltip } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Divider, Input } from 'antd'
+import { Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
@@ -74,7 +73,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       <SettingTitle>
         <Flex className="items-center gap-2">
           <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-          <ProviderName> {preprocessProvider.name}</ProviderName>
+          <span className="font-medium text-sm">{preprocessProvider.name}</span>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
               <ExportOutlined className="text-[--color-text] text-[12px]" />
@@ -197,10 +196,5 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default PreprocessProviderSettings

@@ -7,7 +7,6 @@ import type { SelectProps } from 'antd'
 import { Row, Segmented, Select } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
@@ -31,7 +30,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }
 
   return (
-    <Container>
+    <div className="flex flex-1 flex-col overflow-hidden p-[5px]">
       <Box className="mb-2 font-bold">{t('common.knowledge_base')}</Box>
       <Select
         mode="multiple"
@@ -48,7 +47,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         }
       />
       <Row align="middle" style={{ marginTop: 10 }}>
-        <Label>{t('assistants.settings.knowledge_base.recognition.label')}</Label>
+        <p className="mr-[5px] font-medium">{t('assistants.settings.knowledge_base.recognition.label')}</p>
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented
@@ -60,7 +59,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {t('assistants.settings.knowledge_base.recognition.on')}
                   <Tooltip content={t('assistants.settings.knowledge_base.recognition.tip')}>
-                    <QuestionIcon size={15} />
+                    <CircleHelp className="cursor-pointer text-foreground-muted" size={15} />
                   </Tooltip>
                 </div>
               ),
@@ -75,24 +74,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
           }
         />
       </Row>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 5px;
-`
-const Label = styled.p`
-  margin-right: 5px;
-  font-weight: 500;
-`
-
-const QuestionIcon = styled(CircleHelp)`
-  cursor: pointer;
-  color: var(--color-text-3);
-`
 export default AssistantKnowledgeBaseSettings

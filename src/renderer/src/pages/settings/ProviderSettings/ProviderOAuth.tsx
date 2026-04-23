@@ -10,7 +10,6 @@ import { isEmpty } from 'lodash'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   providerId: string
@@ -33,8 +32,14 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const Icon = resolveProviderIcon(provider.id)
 
   return (
-    <Container>
-      {Icon ? <Icon.Avatar size={60} /> : <ProviderLogoFallback>{provider.name[0]}</ProviderLogoFallback>}
+    <div className="flex flex-col items-center justify-center gap-[15px] p-5">
+      {Icon ? (
+        <Icon.Avatar size={60} />
+      ) : (
+        <div className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-background-subtle font-bold text-2xl">
+          {provider.name[0]}
+        </div>
+      )}
       {isEmpty(provider.apiKey) ? (
         <OAuthButton provider={provider} onSuccess={setApiKey}>
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
@@ -51,53 +56,24 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           </Button>
         </RowFlex>
       )}
-      <Description>
+      <div className="flex items-center gap-[5px] text-[11px] text-foreground-secondary">
         <Trans
           i18nKey="settings.provider.oauth.description"
           components={{
             website: (
-              <OfficialWebsite href={PROVIDER_URLS[provider.id].websites.official} target="_blank" rel="noreferrer" />
+              <a
+                className="text-foreground-secondary no-underline"
+                href={PROVIDER_URLS[provider.id].websites.official}
+                target="_blank"
+                rel="noreferrer"
+              />
             )
           }}
           values={{ provider: providerWebsite }}
         />
-      </Description>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-  padding: 20px;
-`
-
-const ProviderLogoFallback = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background-soft);
-  font-size: 24px;
-  font-weight: bold;
-`
-
-const Description = styled.div`
-  font-size: 11px;
-  color: var(--color-text-2);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`
-
-const OfficialWebsite = styled.a`
-  text-decoration: none;
-  color: var(--color-text-2);
-`
 
 export default ProviderOAuth

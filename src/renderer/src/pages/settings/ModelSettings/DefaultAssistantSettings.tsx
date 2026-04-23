@@ -1,5 +1,5 @@
 import { CloseCircleFilled } from '@ant-design/icons'
-import { Button, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import Selector from '@renderer/components/Selector'
@@ -10,12 +10,11 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Divider, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
+import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingContainer, SettingRow, SettingSubtitle } from '..'
 
@@ -108,11 +107,11 @@ const AssistantSettings: FC = () => {
       theme={theme}>
       <RowFlex className="items-center gap-2" style={{ marginTop: 10 }}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
-          <EmojiButtonWrapper>
+          <div className="group/emoji relative inline-block">
             <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
-                className="delete-icon"
+                className="group-hover/emoji:block! absolute top-[-8px] right-[-8px] hidden cursor-pointer text-[#ff4d4f] text-base"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleEmojiDelete()
@@ -128,7 +127,7 @@ const AssistantSettings: FC = () => {
                 }}
               />
             )}
-          </EmojiButtonWrapper>
+          </div>
         </Popover>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
@@ -162,7 +161,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
-          <Label>{t('chat.settings.temperature.label')}</Label>
+          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.temperature.label')}</p>
           <HelpTooltip
             content={t('chat.settings.temperature.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
@@ -205,7 +204,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
-          <Label>{t('chat.settings.top_p.label')}</Label>
+          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.top_p.label')}</p>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
@@ -240,7 +239,7 @@ const AssistantSettings: FC = () => {
       )}
       <Divider style={{ margin: '2px 0' }} />
       <Row align="middle">
-        <Label>{t('chat.settings.context_count.label')}</Label>
+        <p className="m-0 mr-[5px] text-sm">{t('chat.settings.context_count.label')}</p>
         <HelpTooltip
           content={t('chat.settings.context_count.tip')}
           iconProps={{ className: 'cursor-pointer text-color-text-3' }}
@@ -272,7 +271,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
-          <Label>{t('chat.settings.max_tokens.label')}</Label>
+          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.max_tokens.label')}</p>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
@@ -316,7 +315,7 @@ const AssistantSettings: FC = () => {
       )}
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
-        <Label>{t('assistants.settings.tool_use_mode.label')}</Label>
+        <p className="m-0 mr-[5px] text-sm">{t('assistants.settings.tool_use_mode.label')}</p>
         <Selector
           value={toolUseMode}
           options={[
@@ -393,18 +392,3 @@ export default class DefaultAssistantSettingsPopup {
     })
   }
 }
-
-const EmojiButtonWrapper = styled.div`
-  position: relative;
-  display: inline-block;
-
-  &:hover .delete-icon {
-    display: block !important;
-  }
-`
-
-const Label = styled.p`
-  margin: 0;
-  font-size: 14px;
-  margin-right: 5px;
-`

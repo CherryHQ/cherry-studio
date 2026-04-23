@@ -2,7 +2,6 @@ import { Button } from '@cherrystudio/ui'
 import { Modal, Typography } from 'antd'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const { Text, Paragraph } = Typography
 
@@ -44,7 +43,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
       }
       centered
       destroyOnHidden>
-      <ContentContainer>
+      <div className="py-4">
         <Paragraph>
           <Text>
             <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
@@ -60,13 +59,9 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
             <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
           </Text>
         </Paragraph>
-      </ContentContainer>
+      </div>
     </Modal>
   )
 }
-
-const ContentContainer = styled.div`
-  padding: 16px 0;
-`
 
 export default MacProcessTrustHintModal
