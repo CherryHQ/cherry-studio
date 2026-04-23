@@ -2131,24 +2131,19 @@
     },
     "data_source": {
       "add_dialog": {
+        "directory": {
+          "description": "将递归导入目录下所有支持的文件",
+          "title": "点击选择目录或拖拽到此处"
+        },
         "footer": {
           "selected_directories": "已选 {{count}} 个目录",
           "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
-        "directory": {
-          "description": "将递归导入目录下所有支持的文件",
-          "title": "点击选择目录或拖拽到此处"
-        },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "items": {
-            "customer_feedback": "客户反馈整理",
-            "meeting_minutes": "项目会议纪要",
-            "product_requirements": "产品需求文档",
-            "release_retro": "版本发布复盘",
-            "research_notes": "竞品调研笔记"
-          }
+          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或网站。",
+          "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2166,7 +2161,7 @@
           "description": "输入网页链接：",
           "help": "将自动抓取页面文本并分块索引",
           "input_label": "网页地址",
-          "placeholder": "https://example.com/article",
+          "placeholder": "https://docs.cherry-ai.com/",
           "title": "导入单个网页"
         },
         "website": {
@@ -2175,7 +2170,7 @@
           "help": "深度 1 = 仅首页，2 = 首页链接的页面",
           "input_label": "站点地址 / Sitemap",
           "max_pages_label": "最大页面数",
-          "placeholder": "https://docs.example.com/sitemap.xml",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml",
           "settings_description": "设置默认爬取范围和页面数量上限",
           "settings_title": "爬虫设置",
           "title": "导入网站或 Sitemap"

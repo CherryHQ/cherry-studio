@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddKnowledgeSourceDialog from '../AddKnowledgeSourceDialog'
 
-const noteItemNames = ['产品需求文档', '项目会议纪要', '竞品调研笔记', '客户反馈整理', '版本发布复盘']
 let mockAcceptedFiles: File[] = []
 
 const setMockAcceptedFiles = (files: File[]) => {
@@ -73,6 +72,20 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     DropzoneEmptyState: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
+    ),
+    EmptyState: ({
+      title,
+      description,
+      ...props
+    }: {
+      title?: React.ReactNode
+      description?: React.ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        {title ? <div>{title}</div> : null}
+        {description ? <div>{description}</div> : null}
+      </div>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Dialog: ({
@@ -193,11 +206,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
           'knowledge_v2.data_source.add_dialog.footer.selected_notes': `已选 ${options?.count ?? 0} 个笔记`,
           'knowledge_v2.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
-          'knowledge_v2.data_source.add_dialog.note.items.customer_feedback': '客户反馈整理',
-          'knowledge_v2.data_source.add_dialog.note.items.meeting_minutes': '项目会议纪要',
-          'knowledge_v2.data_source.add_dialog.note.items.product_requirements': '产品需求文档',
-          'knowledge_v2.data_source.add_dialog.note.items.release_retro': '版本发布复盘',
-          'knowledge_v2.data_source.add_dialog.note.items.research_notes': '竞品调研笔记',
+          'knowledge_v2.data_source.add_dialog.note.empty_description':
+            '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或网站。',
+          'knowledge_v2.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
           'knowledge_v2.data_source.add_dialog.title': '添加数据源',
           'knowledge_v2.data_source.add_dialog.sources.file': '文件',
           'knowledge_v2.data_source.add_dialog.sources.note': '笔记',
@@ -216,7 +227,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.data_source.add_dialog.website.help': '深度 1 = 仅首页，2 = 首页链接的页面',
           'knowledge_v2.data_source.add_dialog.website.input_label': '站点地址 / Sitemap',
           'knowledge_v2.data_source.add_dialog.website.max_pages_label': '最大页面数',
-          'knowledge_v2.data_source.add_dialog.website.placeholder': 'https://docs.example.com/sitemap.xml',
+          'knowledge_v2.data_source.add_dialog.website.placeholder': 'https://docs.cherry-ai.com/',
+          'knowledge_v2.data_source.add_dialog.website.sitemap_example':
+            'Sitemap 示例：https://docs.cherry-ai.com/sitemap-pages.xml',
           'knowledge_v2.data_source.add_dialog.website.settings_description': '设置默认爬取范围和页面数量上限',
           'knowledge_v2.data_source.add_dialog.website.settings_title': '爬虫设置',
           'knowledge_v2.data_source.add_dialog.website.title': '导入网站或 Sitemap',
@@ -281,22 +294,18 @@ describe('AddKnowledgeSourceDialog', () => {
     expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(1)
   })
 
-  it('renders the note list and updates selected note count when items are toggled', () => {
+  it('renders the note placeholder state and keeps add disabled before the real integration lands', () => {
     render(<AddKnowledgeSourceDialog open onOpenChange={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('tab', { name: '笔记' }))
 
     expect(screen.getByRole('tab', { name: '笔记' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText('选择已有笔记作为知识库数据源')).toBeInTheDocument()
-
-    for (const noteItemName of noteItemNames) {
-      expect(screen.getByText(noteItemName)).toBeInTheDocument()
-    }
-
-    fireEvent.click(screen.getByRole('button', { name: /产品需求文档/ }))
-
-    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
+    expect(
+      screen.getByText('真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或网站。')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('已选 1 个笔记')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
   it('renders grouped directory entries below the dropzone without expanding nested files', () => {
@@ -374,7 +383,8 @@ describe('AddKnowledgeSourceDialog', () => {
 
     expect(screen.getByRole('tab', { name: '网站' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('输入站点地址或 Sitemap：')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('https://docs.example.com/sitemap.xml')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('https://docs.cherry-ai.com/')).toBeInTheDocument()
+    expect(screen.getByText('Sitemap 示例：https://docs.cherry-ai.com/sitemap-pages.xml')).toBeInTheDocument()
     expect(screen.getByText('爬虫设置')).toBeInTheDocument()
     expect(screen.getByLabelText('爬取深度')).toHaveValue('2')
     expect(screen.getByLabelText('最大页面数')).toHaveValue('50')
@@ -400,10 +410,6 @@ describe('AddKnowledgeSourceDialog', () => {
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
     expect(screen.getByTestId('knowledge-source-file-list')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: '笔记' }))
-    fireEvent.click(screen.getByRole('button', { name: /产品需求文档/ }))
-    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
-
     fireEvent.click(screen.getByRole('tab', { name: '目录' }))
     setMockAcceptedFiles([createMockFile('guide.pdf', 1024, 'docs/guide.pdf')])
     fireEvent.click(screen.getByTestId('mock-directory-dropzone-trigger'))
@@ -427,7 +433,7 @@ describe('AddKnowledgeSourceDialog', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: '笔记' }))
 
-    expect(screen.queryByText('已选 1 个笔记')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /产品需求文档/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 })
