@@ -6108,6 +6108,7 @@
     "error": {
       "chat_qwen_mt": "Qwen MT 模型無法在對話中使用，請前往翻譯頁面",
       "detect": {
+        "failed": "語言偵測失敗",
         "qwen_mt": "QwenMT 模型不能用於語言偵測",
         "unknown": "偵測到未知語言",
         "update_setting": "設定失敗"
@@ -6115,6 +6116,7 @@
       "empty": "翻譯結果為空",
       "failed": "翻譯失敗",
       "invalid_source": "無效的來源語言",
+      "languages_load_failed": "無法載入翻譯語言。部分功能可能無法使用。",
       "not_configured": "翻譯模型未設定",
       "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
@@ -6138,12 +6140,20 @@
       "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "add": "新增翻譯紀錄失敗",
+        "clear": "清除翻譯紀錄失敗",
         "delete": "刪除失敗",
         "load": "無法載入翻譯紀錄",
         "save": "儲存翻譯歷史失敗"
       },
       "search": {
         "placeholder": "搜尋翻譯歷史"
+      },
+      "success": {
+        "add": "已儲存至紀錄",
+        "clear": "歷史紀錄已清除",
+        "delete": "已刪除",
+        "update": "已儲存"
       },
       "title": "翻譯歷史"
     },
