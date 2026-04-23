@@ -782,7 +782,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'cutoff'
 
 export type WebSearchStatus = {
   phase: WebSearchPhase

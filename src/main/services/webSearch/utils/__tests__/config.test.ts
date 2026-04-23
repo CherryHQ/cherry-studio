@@ -9,10 +9,6 @@ const preferenceValues: Record<string, unknown> = {
   'chat.web_search.compression.method': 'none',
   'chat.web_search.compression.cutoff_limit': null,
   'chat.web_search.compression.cutoff_unit': 'char',
-  'chat.web_search.compression.rag_document_count': 5,
-  'chat.web_search.compression.rag_embedding_model_id': null,
-  'chat.web_search.compression.rag_embedding_dimensions': null,
-  'chat.web_search.compression.rag_rerank_model_id': null,
   'chat.web_search.provider_overrides': {
     tavily: {
       apiKeys: ['tavily-key']

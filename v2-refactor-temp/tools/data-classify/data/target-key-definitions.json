@@ -76,34 +76,6 @@
       "description": "Web search compression method (from complex migration)"
     },
     {
-      "targetKey": "chat.web_search.compression.rag_document_count",
-      "type": "number",
-      "defaultValue": 5,
-      "status": "classified",
-      "description": "Web search RAG document count (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_dimensions",
-      "type": "number",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding dimensions (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_rerank_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
-    },
-    {
       "targetKey": "feature.code_cli.overrides",
       "type": "PreferenceTypes.CodeCliOverrides",
       "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliOverrides",

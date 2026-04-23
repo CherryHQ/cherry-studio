@@ -23,14 +23,7 @@ export type WebSearchRequest = {
   requestId: string
 }
 
-export type WebSearchPhase =
-  | 'default'
-  | 'fetch_complete'
-  | 'partial_failure'
-  | 'rag'
-  | 'rag_complete'
-  | 'rag_failed'
-  | 'cutoff'
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'partial_failure' | 'cutoff'
 
 export type WebSearchStatus = {
   phase: WebSearchPhase
@@ -42,10 +35,6 @@ export type WebSearchCompressionConfig = {
   method: WebSearchCompressionMethod
   cutoffLimit: number | null
   cutoffUnit: WebSearchCompressionCutoffUnit
-  ragDocumentCount: number
-  ragEmbeddingModelId: string | null
-  ragEmbeddingDimensions: number | null
-  ragRerankModelId: string | null
 }
 
 export type WebSearchExecutionConfig = {

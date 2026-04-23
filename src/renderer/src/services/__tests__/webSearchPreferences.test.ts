@@ -134,11 +134,7 @@ describe('webSearchPreferences', () => {
       ],
       compressionMethod: 'cutoff',
       cutoffLimit: 2000,
-      cutoffUnit: 'token',
-      ragDocumentCount: 3,
-      ragEmbeddingModelId: null,
-      ragEmbeddingDimensions: null,
-      ragRerankModelId: null
+      cutoffUnit: 'token'
     })
 
     expect(state.defaultProvider).toBe('tavily')
@@ -150,8 +146,7 @@ describe('webSearchPreferences', () => {
       expect.objectContaining({
         method: 'cutoff',
         cutoffLimit: 2000,
-        cutoffUnit: 'token',
-        documentCount: 3
+        cutoffUnit: 'token'
       })
     )
   })

@@ -161,7 +161,6 @@ import type {
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
-import { legacyModelToUniqueId } from './ModelTransformers'
 
 // Re-export TransformResult for convenience
 export type { TransformResult }
@@ -239,13 +238,9 @@ interface WebSearchCompressionConfigSource {
   method?: string
   cutoffLimit?: number | null
   cutoffUnit?: string
-  documentCount?: number
-  embeddingModel?: { id?: string; provider?: string } | null
-  embeddingDimensions?: number | null
-  rerankModel?: { id?: string; provider?: string } | null
 }
 
-const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff', 'rag'] as const
+const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff'] as const
 const WEB_SEARCH_CUTOFF_UNITS = ['char', 'token'] as const
 
 function isStringInList<const T extends readonly string[]>(value: unknown, list: T): value is T[number] {
@@ -263,22 +258,18 @@ function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[n
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
- * Transforms model references into flat composite ids in the `provider::modelId` format.
- *
  * @example
  * Input: {
  *   compressionConfig: {
- *     method: 'rag',
- *     documentCount: 5,
- *     embeddingModel: { id: 'model-1', provider: 'openai' },
- *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
+ *     method: 'cutoff',
+ *     cutoffLimit: 2000,
+ *     cutoffUnit: 'token'
  *   }
  * }
  * Output: {
- *   'chat.web_search.compression.method': 'rag',
- *   'chat.web_search.compression.rag_document_count': 5,
- *   'chat.web_search.compression.rag_embedding_model_id': 'openai::model-1',
- *   ...
+ *   'chat.web_search.compression.method': 'cutoff',
+ *   'chat.web_search.compression.cutoff_limit': 2000,
+ *   'chat.web_search.compression.cutoff_unit': 'token'
  * }
  */
 export function flattenCompressionConfig(sources: {
@@ -291,11 +282,7 @@ export function flattenCompressionConfig(sources: {
     return {
       'chat.web_search.compression.method': 'none',
       'chat.web_search.compression.cutoff_limit': null,
-      'chat.web_search.compression.cutoff_unit': 'char',
-      'chat.web_search.compression.rag_document_count': 5,
-      'chat.web_search.compression.rag_embedding_model_id': null,
-      'chat.web_search.compression.rag_embedding_dimensions': null,
-      'chat.web_search.compression.rag_rerank_model_id': null
+      'chat.web_search.compression.cutoff_unit': 'char'
     }
   }
 
@@ -305,11 +292,7 @@ export function flattenCompressionConfig(sources: {
   return {
     'chat.web_search.compression.method': method,
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
-    'chat.web_search.compression.cutoff_unit': cutoffUnit,
-    'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id': legacyModelToUniqueId(config.embeddingModel),
-    'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id': legacyModelToUniqueId(config.rerankModel)
+    'chat.web_search.compression.cutoff_unit': cutoffUnit
   }
 }
 

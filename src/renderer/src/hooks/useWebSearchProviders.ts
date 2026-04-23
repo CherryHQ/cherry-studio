@@ -1,8 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import { filterSupportedWebSearchProviders } from '@renderer/config/webSearchProviders'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
@@ -101,16 +99,8 @@ export const useWebSearchSettings = (): WebSearchState & {
   setCompressionConfig: (config: WebSearchState['compressionConfig']) => Promise<void>
   updateCompressionConfig: (config: Partial<WebSearchState['compressionConfig']>) => Promise<void>
 } => {
-  const { providers } = useProviders()
   const [preferences, setPreferences] = useMultiplePreferences(WEB_SEARCH_PREFERENCE_KEYS)
-
-  const state = buildRendererWebSearchState(preferences, (uniqId) => {
-    if (!uniqId) {
-      return undefined
-    }
-
-    return providers.flatMap((provider) => provider.models).find((model) => getModelUniqId(model) === uniqId)
-  })
+  const state = buildRendererWebSearchState(preferences)
 
   return {
     ...state,
@@ -152,12 +142,6 @@ function mapCompressionConfigToPreferenceValues(
   return {
     'chat.web_search.compression.method': config.method,
     'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
-    'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char',
-    'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id': config.embeddingModel
-      ? getModelUniqId(config.embeddingModel)
-      : null,
-    'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id': config.rerankModel ? getModelUniqId(config.rerankModel) : null
+    'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char'
   }
 }

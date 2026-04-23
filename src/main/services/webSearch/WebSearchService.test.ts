@@ -74,11 +74,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
   compression: {
     method: 'none',
     cutoffLimit: null,
-    cutoffUnit: 'char',
-    ragDocumentCount: 5,
-    ragEmbeddingModelId: null,
-    ragEmbeddingDimensions: null,
-    ragRerankModelId: null
+    cutoffUnit: 'char'
   }
 }
 

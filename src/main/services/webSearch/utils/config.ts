@@ -40,26 +40,12 @@ export function resolveProviders(providerOverrides: WebSearchProviderOverrides):
 }
 
 export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchExecutionConfig> {
-  const [
-    maxResults,
-    excludeDomains,
-    method,
-    cutoffLimit,
-    cutoffUnit,
-    ragDocumentCount,
-    ragEmbeddingModelId,
-    ragEmbeddingDimensions,
-    ragRerankModelId
-  ] = await Promise.all([
+  const [maxResults, excludeDomains, method, cutoffLimit, cutoffUnit] = await Promise.all([
     preferences.get('chat.web_search.max_results'),
     preferences.get('chat.web_search.exclude_domains'),
     preferences.get('chat.web_search.compression.method'),
     preferences.get('chat.web_search.compression.cutoff_limit'),
-    preferences.get('chat.web_search.compression.cutoff_unit'),
-    preferences.get('chat.web_search.compression.rag_document_count'),
-    preferences.get('chat.web_search.compression.rag_embedding_model_id'),
-    preferences.get('chat.web_search.compression.rag_embedding_dimensions'),
-    preferences.get('chat.web_search.compression.rag_rerank_model_id')
+    preferences.get('chat.web_search.compression.cutoff_unit')
   ])
 
   return {
@@ -68,11 +54,7 @@ export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): 
     compression: {
       method,
       cutoffLimit,
-      cutoffUnit,
-      ragDocumentCount,
-      ragEmbeddingModelId,
-      ragEmbeddingDimensions,
-      ragRerankModelId
+      cutoffUnit
     }
   }
 }

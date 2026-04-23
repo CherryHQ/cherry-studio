@@ -77,7 +77,7 @@ describe('ComplexPreferenceMappings', () => {
       const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
       expect(websearchMapping).toBeDefined()
       expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
-      expect(websearchMapping?.targetKeys.length).toBe(7)
+      expect(websearchMapping?.targetKeys.length).toBe(3)
     })
 
     it('should contain websearch providers migrate mapping', () => {
@@ -118,7 +118,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(35) // 7 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
+      expect(keys.length).toBe(31) // 3 websearch compression + 1 provider overrides + 1 default provider + 1 code_cli + 20 shortcuts + 1 file processing + 4 llm model ids
     })
 
     it('should flatten target keys from all mappings', () => {

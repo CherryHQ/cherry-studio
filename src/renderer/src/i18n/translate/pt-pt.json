@@ -2489,10 +2489,7 @@
     },
     "websearch": {
       "cutoff": "Truncando o conteúdo da pesquisa...",
-      "fetch_complete": "{{count}} resultados da pesquisa",
-      "rag": "Executando RAG...",
-      "rag_complete": "Mantendo {{countAfter}} dos {{countBefore}} resultados...",
-      "rag_failed": "RAG falhou, retornando resultado vazio..."
+      "fetch_complete": "{{count}} resultados da pesquisa"
     }
   },
   "minapp": {
@@ -5674,23 +5671,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG falhou"
-          },
-          "info": {
-            "dimensions_auto_success": "Obtenção automática de dimensões bem-sucedida, as dimensões são {{dimensions}}"
-          },
           "method": {
             "cutoff": "Cortar",
             "label": "Método de compressão",
-            "none": "Sem compressão",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Número de fragmentos de documentos",
-              "tooltip": "Número esperado de fragmentos de documentos a serem extraídos de um único resultado de pesquisa. O número total real extraído será esse valor multiplicado pelo número de resultados de pesquisa."
-            }
+            "none": "Sem compressão"
           },
           "title": "Compressão de resultados de pesquisa"
         },

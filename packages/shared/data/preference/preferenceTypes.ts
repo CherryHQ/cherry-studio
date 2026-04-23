@@ -215,7 +215,7 @@ export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
  * Compression method type
  * Stored in chat.web_search.compression.method
  */
-export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
+export type WebSearchCompressionMethod = 'none' | 'cutoff'
 
 /**
  * Cutoff unit type

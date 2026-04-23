@@ -2489,10 +2489,7 @@
     },
     "websearch": {
       "cutoff": "Truncating search content...",
-      "fetch_complete": "{{count}} search result(s)",
-      "rag": "Executing RAG...",
-      "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
-      "rag_failed": "RAG failed, returning empty results..."
+      "fetch_complete": "{{count}} search result(s)"
     }
   },
   "minapp": {
@@ -5727,23 +5724,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG failed"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Cutoff",
             "label": "Compression Method",
-            "none": "None",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Document Chunks Count",
-              "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
-            }
+            "none": "None"
           },
           "title": "Search Result Compression"
         },

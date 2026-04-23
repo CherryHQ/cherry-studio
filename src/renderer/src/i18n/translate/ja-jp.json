@@ -2489,10 +2489,7 @@
     },
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
-      "fetch_complete": "{{count}}件の検索結果",
-      "rag": "RAGを実行中...",
-      "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
-      "rag_failed": "RAGが失敗しました。空の結果を返します..."
+      "fetch_complete": "{{count}}件の検索結果"
     }
   },
   "minapp": {
@@ -5674,23 +5671,10 @@
               "token": "トークン"
             }
           },
-          "error": {
-            "rag_failed": "RAG に失敗しました"
-          },
-          "info": {
-            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
-          },
           "method": {
             "cutoff": "切り捨て",
             "label": "圧縮方法",
-            "none": "圧縮しない",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文書チャンク数",
-              "tooltip": "単一の検索結果から抽出する文書チャンク数。実際に抽出される文書チャンク数は、この値に検索結果数を乗じたものです。"
-            }
+            "none": "圧縮しない"
           },
           "title": "検索結果の圧縮"
         },

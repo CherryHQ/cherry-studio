@@ -38,15 +38,6 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
         return t('message.websearch.fetch_complete', {
           count: status.countAfter ?? 0
         })
-      case 'rag':
-        return t('message.websearch.rag')
-      case 'rag_complete':
-        return t('message.websearch.rag_complete', {
-          countBefore: status.countBefore ?? 0,
-          countAfter: status.countAfter ?? 0
-        })
-      case 'rag_failed':
-        return t('message.websearch.rag_failed')
       case 'cutoff':
         return t('message.websearch.cutoff')
       default:
