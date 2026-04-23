@@ -150,4 +150,19 @@ describe('webSearchPreferences', () => {
       })
     )
   })
+
+  it('defaults stale empty cutoff limit when building renderer state', () => {
+    const state = buildRendererWebSearchState({
+      defaultProvider: null,
+      excludeDomains: [],
+      maxResults: 10,
+      providerOverrides: {},
+      subscribeSources: [],
+      compressionMethod: 'cutoff',
+      cutoffLimit: null as any,
+      cutoffUnit: 'char'
+    })
+
+    expect(state.compressionConfig.cutoffLimit).toBe(2000)
+  })
 })

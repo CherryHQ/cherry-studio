@@ -37,7 +37,7 @@ const runtimeConfig: WebSearchExecutionConfig = {
   excludeDomains: ['example.com'],
   compression: {
     method: 'none',
-    cutoffLimit: null,
+    cutoffLimit: 2000,
     cutoffUnit: 'char'
   }
 }

@@ -9,6 +9,7 @@ import type {
   WebSearchExecutionConfig,
   WebSearchResolvedConfig
 } from '@shared/data/types/webSearch'
+import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 export interface WebSearchPreferenceReader {
   get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
@@ -53,7 +54,7 @@ export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): 
     excludeDomains,
     compression: {
       method,
-      cutoffLimit,
+      cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit),
       cutoffUnit
     }
   }

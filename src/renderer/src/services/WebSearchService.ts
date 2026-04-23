@@ -24,6 +24,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('WebSearchService')
@@ -495,7 +496,7 @@ export function buildRendererWebSearchState(preferences: WebSearchPreferenceValu
     overwrite: false,
     compressionConfig: {
       method: preferences.compressionMethod,
-      cutoffLimit: preferences.cutoffLimit ?? undefined,
+      cutoffLimit: normalizeWebSearchCutoffLimit(preferences.cutoffLimit),
       cutoffUnit: preferences.cutoffUnit
     }
   }

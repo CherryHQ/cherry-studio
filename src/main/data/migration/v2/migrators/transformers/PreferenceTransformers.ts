@@ -159,6 +159,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
@@ -281,7 +282,7 @@ export function flattenCompressionConfig(sources: {
   if (!config) {
     return {
       'chat.web_search.compression.method': 'none',
-      'chat.web_search.compression.cutoff_limit': null,
+      'chat.web_search.compression.cutoff_limit': DEFAULT_WEB_SEARCH_CUTOFF_LIMIT,
       'chat.web_search.compression.cutoff_unit': 'char'
     }
   }
@@ -291,7 +292,7 @@ export function flattenCompressionConfig(sources: {
 
   return {
     'chat.web_search.compression.method': method,
-    'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
+    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit),
     'chat.web_search.compression.cutoff_unit': cutoffUnit
   }
 }

@@ -10,6 +10,7 @@ import {
 } from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@renderer/types'
 import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
+import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 import { useMemo } from 'react'
 
 function resolveRendererWebSearchProviders(
@@ -141,7 +142,7 @@ function mapCompressionConfigToPreferenceValues(
 ): Partial<UnifiedPreferenceType> {
   return {
     'chat.web_search.compression.method': config.method,
-    'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
+    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit),
     'chat.web_search.compression.cutoff_unit': config.cutoffUnit ?? 'char'
   }
 }

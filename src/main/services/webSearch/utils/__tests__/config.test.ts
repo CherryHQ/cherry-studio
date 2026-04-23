@@ -40,6 +40,21 @@ describe('webSearch config utils', () => {
     expect(runtime.maxResults).toBe(5)
     expect(runtime.excludeDomains).toEqual(['example.com'])
     expect(runtime.compression.method).toBe('none')
+    expect(runtime.compression.cutoffLimit).toBe(2000)
+  })
+
+  it('defaults stale empty cutoff limit in runtime config', async () => {
+    const runtime = await getRuntimeConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.compression.cutoff_limit') {
+          return null as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(runtime.compression.cutoffLimit).toBe(2000)
   })
 
   it('normalizes maxResults to at least 1 in runtime config', async () => {

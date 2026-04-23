@@ -6,6 +6,12 @@ import type {
   WebSearchProviderType
 } from '@shared/data/preference/preferenceTypes'
 
+export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 2000
+
+export function normalizeWebSearchCutoffLimit(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
+}
+
 export type WebSearchResult = {
   title: string
   content: string
@@ -33,7 +39,7 @@ export type WebSearchStatus = {
 
 export type WebSearchCompressionConfig = {
   method: WebSearchCompressionMethod
-  cutoffLimit: number | null
+  cutoffLimit: number
   cutoffUnit: WebSearchCompressionCutoffUnit
 }
 

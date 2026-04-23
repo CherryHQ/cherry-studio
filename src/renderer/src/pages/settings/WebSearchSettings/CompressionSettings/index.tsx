@@ -1,5 +1,6 @@
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +18,10 @@ const CompressionSettings = () => {
   ]
 
   const handleCompressionMethodChange = (method: 'none' | 'cutoff') => {
-    void updateCompressionConfig({ method })
+    void updateCompressionConfig({
+      method,
+      cutoffLimit: method === 'cutoff' ? compressionConfig.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT : undefined
+    })
   }
 
   return (

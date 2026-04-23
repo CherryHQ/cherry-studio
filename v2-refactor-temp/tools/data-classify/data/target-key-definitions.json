@@ -57,9 +57,9 @@
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
-      "defaultValue": null,
+      "defaultValue": 2000,
       "status": "classified",
-      "description": "Web search compression cutoff limit (from complex migration)"
+      "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_unit",

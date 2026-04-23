@@ -8,7 +8,7 @@ import type { WebSearchProvider } from './index'
 
 export type RendererCompressionConfig = {
   method: PreferenceDefaultScopeType['chat.web_search.compression.method']
-  cutoffLimit?: number
+  cutoffLimit: number
   cutoffUnit?: PreferenceDefaultScopeType['chat.web_search.compression.cutoff_unit']
 }
 
