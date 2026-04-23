@@ -120,11 +120,24 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
 /**
- * Language code pattern.
- * - 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters
- * - e.g. "en-us", "zh-cn", "ja", "ja-jp"
+ * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
+ *
+ * Prefer this in persistence paths (API DTOs, DB entities). {@link TranslateLangCodeSchema}
+ * below widens it with the `'unknown'` UI sentinel, which must not leak into the DB:
+ * there is no matching row in the `translate_language` table, and the history FK
+ * would silently break.
+ *
+ * Pattern: 2–3 lowercase letters, optionally followed by `-` and 2–4 lowercase letters.
  */
-export const TranslateLangCodeSchema = z.union([z.literal('unknown'), z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)])
+export const PersistedLangCodeSchema = z.string().regex(/^[a-z]{2,3}(-[a-z]{2,4})?$/)
+
+/**
+ * Permissive language code — {@link PersistedLangCodeSchema} plus the `'unknown'` UI sentinel.
+ *
+ * Use in UI state and detection paths where "unknown" is a meaningful value.
+ * For anything that gets written to the DB, use {@link PersistedLangCodeSchema} instead.
+ */
+export const TranslateLangCodeSchema = z.union([z.literal('unknown'), PersistedLangCodeSchema])
 export type TranslateLangCode = z.infer<typeof TranslateLangCodeSchema>
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success

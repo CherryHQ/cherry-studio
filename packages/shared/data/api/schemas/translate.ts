@@ -8,7 +8,7 @@
  * Entity schemas and types live in `@shared/data/types/translate`.
  */
 
-import { TranslateLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import { PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
 
 import type { TranslateHistory, TranslateLanguage } from '../../types/translate'
@@ -23,10 +23,10 @@ export const CreateTranslateHistorySchema = z.object({
   sourceText: z.string().min(1),
   /** Non-empty string */
   targetText: z.string().min(1),
-  /** Required, must match TranslateLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
-  sourceLanguage: TranslateLangCodeSchema,
-  /** Required, must match TranslateLangCodeSchema */
-  targetLanguage: TranslateLangCodeSchema
+  /** Required, must match PersistedLangCodeSchema — the `'unknown'` UI sentinel is rejected. */
+  sourceLanguage: PersistedLangCodeSchema,
+  /** Required, must match PersistedLangCodeSchema — the `'unknown'` UI sentinel is rejected. */
+  targetLanguage: PersistedLangCodeSchema
 })
 /** DTO for creating a translate history record. */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
@@ -36,10 +36,10 @@ export const UpdateTranslateHistorySchema = z.object({
   sourceText: z.string().min(1).optional(),
   /** Non-empty string if provided */
   targetText: z.string().min(1).optional(),
-  /** Must match TranslateLangCodeSchema if provided */
-  sourceLanguage: TranslateLangCodeSchema.optional(),
-  /** Must match TranslateLangCodeSchema if provided */
-  targetLanguage: TranslateLangCodeSchema.optional(),
+  /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
+  sourceLanguage: PersistedLangCodeSchema.optional(),
+  /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
+  targetLanguage: PersistedLangCodeSchema.optional(),
   /** Boolean if provided */
   star: z.boolean().optional()
 })
@@ -69,7 +69,7 @@ export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
 
 export const CreateTranslateLanguageSchema = z.object({
   /** Becomes the PK, immutable after creation. Normalized to lowercase before insert. */
-  langCode: TranslateLangCodeSchema,
+  langCode: PersistedLangCodeSchema,
   /** Display name, non-empty */
   value: z.string().min(1),
   /** Flag emoji */
