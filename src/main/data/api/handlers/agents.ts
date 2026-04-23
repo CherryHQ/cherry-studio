@@ -25,8 +25,11 @@ import {
   CreateTaskSchema,
   type ListQuery,
   type UpdateAgentDto,
+  UpdateAgentSchema,
   type UpdateSessionDto,
-  type UpdateTaskDto
+  UpdateSessionSchema,
+  type UpdateTaskDto,
+  UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
 import type {
   CreateAgentRequest,
@@ -163,7 +166,9 @@ export const agentHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const agent = await agentService.updateAgent(params.agentId, toAgentUpdateRequest(body ?? {}))
+      const parsed = UpdateAgentSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const agent = await agentService.updateAgent(params.agentId, toAgentUpdateRequest(parsed.data))
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
     },
@@ -199,10 +204,12 @@ export const agentHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
+      const parsed = UpdateSessionSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
       const session = await sessionService.updateSession(
         params.agentId,
         params.sessionId,
-        toSessionUpdateRequest(body ?? {})
+        toSessionUpdateRequest(parsed.data)
       )
       if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
       return session
@@ -260,7 +267,9 @@ export const agentHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const task = await taskService.updateTask(params.agentId, params.taskId, toTaskUpdateRequest(body ?? {}))
+      const parsed = UpdateTaskSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const task = await taskService.updateTask(params.agentId, params.taskId, toTaskUpdateRequest(parsed.data))
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },

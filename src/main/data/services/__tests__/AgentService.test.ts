@@ -58,23 +58,6 @@ describe('AgentService', () => {
     return { id }
   }
 
-  describe('initBuiltinAgent', () => {
-    it('skips recreating a built-in agent that was soft-deleted by the user', async () => {
-      await insertAgent({
-        id: 'cherry-assistant-default',
-        deletedAt: Date.now()
-      })
-
-      const result = await agentService.initBuiltinAgent({
-        id: 'cherry-assistant-default',
-        builtinRole: 'assistant',
-        provisionWorkspace: vi.fn()
-      })
-
-      expect(result).toEqual({ agentId: null, skippedReason: 'deleted' })
-    })
-  })
-
   describe('deleteAgent', () => {
     it('hard-deletes a non-builtin agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })

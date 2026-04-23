@@ -21,8 +21,8 @@ vi.mock('@data/services/SessionService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionMessageService', () => ({
-  sessionMessageService: {
+vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
+  sessionMessageOrchestrator: {
     createSessionMessage: vi.fn()
   }
 }))
@@ -131,7 +131,7 @@ describe('SchedulerService', () => {
     const { taskService } = await import('@data/services/TaskService')
     const { agentService } = await import('@data/services/AgentService')
     const { sessionService } = await import('@data/services/SessionService')
-    const { sessionMessageService } = await import('@data/services/SessionMessageService')
+    const { sessionMessageOrchestrator } = await import('@main/services/agents/services/SessionMessageOrchestrator')
 
     const mockTask = {
       id: 'task-1',
@@ -168,7 +168,7 @@ describe('SchedulerService', () => {
       id: 'session-1',
       agentId: 'agent-1'
     } as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce({
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce({
       stream: new ReadableStream({ start: (c) => c.close() }),
       completion: Promise.resolve({})
     } as any)

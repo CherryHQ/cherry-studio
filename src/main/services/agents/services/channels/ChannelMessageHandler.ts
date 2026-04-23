@@ -4,9 +4,9 @@ import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
 import { channelService } from '@data/services/ChannelService'
-import { sessionMessageService } from '@data/services/SessionMessageService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
+import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
 import type { GetAgentSessionResponse, PermissionMode } from '@types'
 
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
@@ -581,7 +581,7 @@ export class ChannelMessageHandler {
     //   stream chunks and events are forwarded to the renderer via the bus.
     // When renderer is NOT watching: persist=true (main persists via persistHeadlessExchange),
     //   stream events are NOT forwarded (no subscriber or subscriber arrived late).
-    const { stream, completion } = await sessionMessageService.createSessionMessage(
+    const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
       session,
       { content },
       abortController,

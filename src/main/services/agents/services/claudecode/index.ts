@@ -52,6 +52,7 @@ import { withoutTrailingApiVersion } from '@shared/utils'
 import type { GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
 
+import { listSlashCommands } from '../../agentUtils'
 import type {
   AgentServiceInterface,
   AgentStream,
@@ -954,7 +955,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
           try {
             // Get builtin + local slash commands from BaseService
-            const existingCommands = await sessionService.listSlashCommands('claude-code', agentId)
+            const existingCommands = await listSlashCommands('claude-code')
 
             // Convert SDK slash_commands (string[]) to SlashCommand[] format
             // Ensure all commands start with '/'

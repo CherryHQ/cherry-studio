@@ -1,7 +1,7 @@
 import { agentService } from '@data/services/AgentService'
 import { channelService } from '@data/services/ChannelService'
-import { sessionMessageService } from '@data/services/SessionMessageService'
 import { sessionService } from '@data/services/SessionService'
+import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,8 +32,8 @@ vi.mock('@data/services/SessionService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionMessageService', () => ({
-  sessionMessageService: {
+vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
+  sessionMessageOrchestrator: {
     createSessionMessage: vi.fn()
   }
 }))
@@ -123,7 +123,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([
         // Turn 1: cumulative text-delta within block
         { type: 'text-delta', text: 'Hello ' },
@@ -157,7 +157,7 @@ describe('ChannelMessageHandler', () => {
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
     )
 
@@ -185,7 +185,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: longText }]) as any
     )
 
@@ -227,7 +227,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'Compacted.' }]) as any
     )
 
@@ -238,7 +238,7 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
-    expect(sessionMessageService.createSessionMessage).toHaveBeenCalledWith(
+    expect(sessionMessageOrchestrator.createSessionMessage).toHaveBeenCalledWith(
       session,
       { content: '/compact' },
       expect.any(AbortController),
@@ -308,7 +308,7 @@ describe('ChannelMessageHandler', () => {
 
     // Now send a message — should use the tracked session
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(newSession as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'OK' }]) as any
     )
 
@@ -334,7 +334,7 @@ describe('ChannelMessageHandler', () => {
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R1' }]) as any
     )
 
@@ -355,7 +355,7 @@ describe('ChannelMessageHandler', () => {
       permissionMode: null
     } as any)
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
     )
 
