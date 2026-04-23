@@ -226,7 +226,8 @@ export const agentHandlers: {
     GET: async ({ params, query }) => {
       const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
       if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      return await sessionMessageService.listSessionMessages(params.sessionId, query)
+      const { limit, offset } = paginationFromQuery(query)
+      return await sessionMessageService.listSessionMessages(params.sessionId, { limit, offset })
     }
   },
 

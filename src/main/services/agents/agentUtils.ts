@@ -1,9 +1,20 @@
 import { application } from '@application'
+import type { AgentRow } from '@data/db/schemas/agent'
+import type { AgentSessionRow } from '@data/db/schemas/agentSession'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
+import type {
+  AgentConfiguration,
+  AgentEntity,
+  AgentSessionEntity,
+  AgentType,
+  SlashCommand,
+  SystemProviderId,
+  Tool
+} from '@types'
 import fs from 'fs'
 import path from 'path'
 
@@ -52,6 +63,48 @@ export function deserializeJsonFields(data: any): any {
   }
 
   return deserialized
+}
+
+export function rowToAgent(row: AgentRow): AgentEntity {
+  const type = (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType
+  return {
+    id: row.id,
+    type,
+    name: row.name,
+    description: row.description ?? undefined,
+    accessiblePaths: row.accessiblePaths ?? [],
+    instructions: row.instructions ?? undefined,
+    model: row.model,
+    planModel: row.planModel ?? undefined,
+    smallModel: row.smallModel ?? undefined,
+    mcps: row.mcps ?? undefined,
+    allowedTools: row.allowedTools ?? undefined,
+    configuration: (row.configuration as AgentConfiguration) ?? undefined,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
+  }
+}
+
+export function rowToSession(row: AgentSessionRow): AgentSessionEntity {
+  const agentType = (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType
+  return {
+    id: row.id,
+    agentId: row.agentId,
+    agentType,
+    name: row.name,
+    description: row.description ?? undefined,
+    accessiblePaths: row.accessiblePaths ?? [],
+    instructions: row.instructions ?? undefined,
+    model: row.model,
+    planModel: row.planModel ?? undefined,
+    smallModel: row.smallModel ?? undefined,
+    mcps: row.mcps ?? undefined,
+    allowedTools: row.allowedTools ?? undefined,
+    slashCommands: (row.slashCommands as SlashCommand[] | null) ?? undefined,
+    configuration: (row.configuration as AgentConfiguration) ?? undefined,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
+  }
 }
 
 export function ensurePathsExist(paths?: string[]): string[] {

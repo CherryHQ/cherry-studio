@@ -14,7 +14,6 @@ import { parsePluginMetadata } from '@main/utils/markdownParser'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AgentBaseSchema,
-  type AgentEntity,
   type AgentSessionEntity,
   type CreateSessionRequest,
   type GetAgentSessionResponse,
@@ -26,11 +25,12 @@ import {
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 import {
-  deserializeJsonFields,
   ensurePathsExist,
   listMcpTools,
   normalizeAllowedTools,
   resolveAccessiblePaths,
+  rowToAgent,
+  rowToSession,
   validateAgentModels
 } from '../agentUtils'
 import type { AgentModelField } from '../errors'
@@ -57,8 +57,8 @@ export class SessionService {
       try {
         const database = application.get('DbService').getDb()
         const result = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
-        const agent = result[0] ? deserializeJsonFields(result[0]) : null
-        const workdir = (agent as AgentEntity | null)?.accessiblePaths?.[0]
+        const agent = result[0] ? rowToAgent(result[0]) : null
+        const workdir = agent?.accessiblePaths?.[0]
 
         if (workdir) {
           const commandsDir = path.join(workdir, '.claude', 'commands')
@@ -130,7 +130,7 @@ export class SessionService {
     if (!agents[0]) {
       throw DataApiErrorFactory.notFound('Agent', agentId)
     }
-    const agent = deserializeJsonFields(agents[0]) as AgentEntity
+    const agent = rowToAgent(agents[0])
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
@@ -190,7 +190,7 @@ export class SessionService {
       throw DataApiErrorFactory.invalidOperation('create session', 'insert succeeded but select returned no row')
     }
 
-    const session = deserializeJsonFields(result[0])
+    const session = rowToSession(result[0])
     return await this.getSession(agentId, session.id)
   }
 
@@ -206,7 +206,7 @@ export class SessionService {
       return null
     }
 
-    const session = deserializeJsonFields(result[0]) as GetAgentSessionResponse
+    const session: GetAgentSessionResponse = rowToSession(result[0])
     const { tools, legacyIdMap } = await listMcpTools(session.agentType, session.mcps)
     session.tools = tools
     session.allowedTools = normalizeAllowedTools(session.allowedTools, session.tools, legacyIdMap)
@@ -257,7 +257,7 @@ export class SessionService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const sessions = result.map((row) => deserializeJsonFields(row)) as GetAgentSessionResponse[]
+    const sessions: GetAgentSessionResponse[] = result.map((row) => rowToSession(row))
 
     await Promise.all(
       sessions.map(async (session) => {

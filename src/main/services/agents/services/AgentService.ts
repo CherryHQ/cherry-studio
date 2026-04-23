@@ -22,10 +22,10 @@ import { AgentBaseSchema } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import {
-  deserializeJsonFields,
   listMcpTools,
   normalizeAllowedTools,
   resolveAccessiblePaths,
+  rowToAgent,
   validateAgentModels
 } from '../agentUtils'
 import { type AgentModelField, AgentModelValidationError } from '../errors'
@@ -87,7 +87,7 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = deserializeJsonFields(result[0]) as AgentEntity
+    const agent = rowToAgent(result[0])
 
     // Seed workspace templates for soul mode agents
     if ((req.configuration as Record<string, unknown> | undefined)?.soul_enabled === true) {
@@ -129,7 +129,7 @@ export class AgentService {
       return null
     }
 
-    const agent = deserializeJsonFields(row) as GetAgentResponse
+    const agent: GetAgentResponse = rowToAgent(row)
     const { tools, legacyIdMap } = await listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
     agent.allowedTools = normalizeAllowedTools(agent.allowedTools, agent.tools, legacyIdMap)
@@ -179,7 +179,7 @@ export class AgentService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => deserializeJsonFields(row)) as GetAgentResponse[]
+    const agents: GetAgentResponse[] = result.map((row) => rowToAgent(row))
 
     await Promise.all(
       agents.map(async (agent) => {
@@ -281,10 +281,14 @@ export class AgentService {
         sortOrder: 0
       }
 
-      await database.transaction(async (tx) => {
-        await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
-        await tx.insert(agentsTable).values(insertData)
-      })
+      await withSqliteErrors(
+        () =>
+          database.transaction(async (tx) => {
+            await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
+            await tx.insert(agentsTable).values(insertData)
+          }),
+        defaultHandlersFor('Agent', id)
+      )
 
       try {
         await skillService.initSkillsForAgent(id, resolvedPaths?.[0])
@@ -373,10 +377,14 @@ export class AgentService {
         sortOrder: 0
       }
 
-      await database.transaction(async (tx) => {
-        await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
-        await tx.insert(agentsTable).values(insertData)
-      })
+      await withSqliteErrors(
+        () =>
+          database.transaction(async (tx) => {
+            await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
+            await tx.insert(agentsTable).values(insertData)
+          }),
+        defaultHandlersFor('Agent', id)
+      )
 
       // Seed workspace templates for soul mode
       const workspace = resolvedPaths?.[0]

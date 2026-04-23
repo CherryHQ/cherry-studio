@@ -36,7 +36,7 @@ const AgentConfigurationSchema = z.record(z.string(), z.unknown())
 // Agent DTOs
 // ============================================================================
 
-export const CreateAgentSchema = z.object({
+export const CreateAgentSchema = z.strictObject({
   type: z.enum(['claude-code']),
   name: z.string().min(1),
   model: z.string().min(1),
@@ -59,7 +59,7 @@ export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 // Session DTOs
 // ============================================================================
 
-export const CreateSessionSchema = z.object({
+export const CreateSessionSchema = z.strictObject({
   model: z.string().optional(),
   name: z.string().optional(),
   description: z.string().optional(),
@@ -81,7 +81,7 @@ export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
 // Task DTOs
 // ============================================================================
 
-export const CreateTaskSchema = z.object({
+export const CreateTaskSchema = z.strictObject({
   name: z.string().min(1),
   prompt: z.string().min(1),
   scheduleType: z.enum(['cron', 'interval', 'once']),
@@ -100,13 +100,13 @@ export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
 // Common query types
 // ============================================================================
 
-export const ListQuerySchema = z.object({
+export const ListQuerySchema = z.strictObject({
   page: z.number().int().positive().optional(),
   limit: z.number().int().positive().max(500).optional()
 })
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
-export const ListSessionMessagesQuerySchema = z.object({
+export const ListSessionMessagesQuerySchema = z.strictObject({
   page: z.number().int().positive().optional(),
   limit: z.number().int().positive().max(500).optional()
 })

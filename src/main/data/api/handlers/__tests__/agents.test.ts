@@ -286,7 +286,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(sessionExistsMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID)
-      expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 20 })
+      expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 20, offset: 0 })
     })
 
     it('throws notFound when session does not belong to agent on GET', async () => {
