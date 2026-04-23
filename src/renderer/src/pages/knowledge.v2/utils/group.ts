@@ -12,6 +12,7 @@ export const buildKnowledgeBaseGroupSections = (
   searchValue: string
 ): KnowledgeV2BaseGroupSection[] => {
   const normalizedSearch = searchValue.trim().toLowerCase()
+  const includeEmptyKnownGroups = normalizedSearch.length === 0
   const groupedBases = new Map<string | null, KnowledgeBase[]>()
   const knownGroupIds = new Set(groups.map((group) => group.id))
   const unknownGroupIds: string[] = []
@@ -40,8 +41,8 @@ export const buildKnowledgeBaseGroupSections = (
 
   for (const group of groups) {
     const items = groupedBases.get(group.id)
-    if (items) {
-      sections.push({ groupId: group.id, items })
+    if (items || includeEmptyKnownGroups) {
+      sections.push({ groupId: group.id, items: items ?? [] })
     }
   }
 

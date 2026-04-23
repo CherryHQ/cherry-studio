@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next'
 
 import BaseNavigator from './components/BaseNavigator'
 import CreateKnowledgeBaseDialog from './components/CreateKnowledgeBaseDialog'
+import CreateKnowledgeGroupDialog from './components/CreateKnowledgeGroupDialog'
 import DetailHeader from './components/DetailHeader'
 import DetailTabs from './components/DetailTabs'
 import {
   useCreateKnowledgeBase,
+  useCreateKnowledgeGroup,
   useDeleteKnowledgeBase,
   useKnowledgeBases,
   useKnowledgeGroups,
@@ -28,9 +30,11 @@ const KnowledgeV2Page = () => {
   const { t } = useTranslation()
   const { bases, isLoading } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
+  const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating } = useCreateKnowledgeBase()
   const { updateBase } = useUpdateKnowledgeBase()
   const { deleteBase } = useDeleteKnowledgeBase()
+  const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
@@ -144,6 +148,7 @@ const KnowledgeV2Page = () => {
           width={navigatorWidth}
           selectedBaseId={selectedBaseId}
           onSelectBase={handleSelectBase}
+          onCreateGroup={() => setIsCreateGroupDialogOpen(true)}
           onCreateBase={() => setIsCreateDialogOpen(true)}
           onMoveBase={handleMoveBase}
           onDeleteBase={handleDeleteBase}
@@ -168,9 +173,19 @@ const KnowledgeV2Page = () => {
         )}
       </div>
 
+      {isCreateGroupDialogOpen ? (
+        <CreateKnowledgeGroupDialog
+          open={isCreateGroupDialogOpen}
+          isCreating={isCreatingGroup}
+          createGroup={createGroup}
+          onOpenChange={setIsCreateGroupDialogOpen}
+        />
+      ) : null}
+
       {isCreateDialogOpen ? (
         <CreateKnowledgeBaseDialog
           open={isCreateDialogOpen}
+          groups={groups}
           isCreating={isCreating}
           createBase={createBase}
           onOpenChange={setIsCreateDialogOpen}

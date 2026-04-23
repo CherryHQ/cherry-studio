@@ -29,6 +29,7 @@ interface BaseNavigatorProps {
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
+  onCreateGroup: () => void
   onCreateBase: () => void
   onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
   onDeleteBase: (baseId: string) => Promise<void> | void
@@ -205,6 +206,7 @@ const BaseNavigator = ({
   width,
   selectedBaseId,
   onSelectBase,
+  onCreateGroup,
   onCreateBase,
   onMoveBase,
   onDeleteBase,
@@ -250,8 +252,8 @@ const BaseNavigator = ({
                 variant="ghost"
                 size="icon-sm"
                 className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                onClick={onCreateBase}
-                aria-label={t('knowledge_v2.add.title')}>
+                onClick={onCreateGroup}
+                aria-label={t('knowledge_v2.groups.add')}>
                 <FolderPlus className="size-3" />
               </Button>
               <Button
@@ -280,7 +282,7 @@ const BaseNavigator = ({
         </div>
 
         <Scrollbar className={cn('min-h-0 flex-1 px-1.5')}>
-          {bases.length === 0 ? (
+          {knowledgeBaseGroupSections.length === 0 ? (
             <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
               {t('knowledge_v2.empty')}
             </div>

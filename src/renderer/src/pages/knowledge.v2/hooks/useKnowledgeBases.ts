@@ -40,6 +40,7 @@ export const useCreateKnowledgeBase = () => {
   const createBase = useCallback(
     async (input: CreateKnowledgeBaseInput) => {
       const name = input.name.trim()
+      const groupId = input.groupId?.trim()
       const embeddingModelId = input.embeddingModelId?.trim()
       const dimensions = Number(input.dimensions)
 
@@ -60,6 +61,7 @@ export const useCreateKnowledgeBase = () => {
           body: {
             name,
             emoji: input.emoji,
+            ...(groupId ? { groupId } : {}),
             embeddingModelId,
             dimensions
           }
@@ -67,6 +69,7 @@ export const useCreateKnowledgeBase = () => {
       } catch (error) {
         logger.error('Failed to create knowledge base', {
           name,
+          groupId,
           embeddingModelId,
           error
         })

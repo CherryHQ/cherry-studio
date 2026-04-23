@@ -1,3 +1,4 @@
+import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -68,12 +69,14 @@ vi.mock('react-i18next', () => ({
           'common.cancel': '取消',
           'knowledge_v2.add.title': '新建知识库',
           'knowledge_v2.add.icon': '图标',
+          'knowledge_v2.add.group': '分组',
           'knowledge_v2.add.submit': '创建',
           'knowledge_v2.embedding_model': '嵌入模型',
           'knowledge_v2.not_set': '未设置',
           'knowledge_v2.name_required': '知识库名称为必填项',
           'knowledge_v2.embedding_model_required': '知识库嵌入模型是必需的',
-          'knowledge_v2.error.failed_to_create': '知识库创建失败'
+          'knowledge_v2.error.failed_to_create': '知识库创建失败',
+          'knowledge_v2.groups.ungrouped': '未分组'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -100,6 +103,16 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   ...overrides
 })
 
+const createGroup = (overrides: Partial<Group> = {}): Group => ({
+  id: 'group-1',
+  entityType: 'knowledge',
+  name: 'Research',
+  orderKey: 'a0',
+  createdAt: '2026-04-23T00:00:00.000Z',
+  updatedAt: '2026-04-23T00:00:00.000Z',
+  ...overrides
+})
+
 describe('CreateKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,6 +127,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[]}
         isCreating={false}
         createBase={createBase}
         onOpenChange={vi.fn()}
@@ -134,6 +148,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[]}
         isCreating={false}
         createBase={createBase}
         onOpenChange={vi.fn()}
@@ -152,6 +167,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[]}
         isCreating={false}
         createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
         onOpenChange={vi.fn()}
@@ -166,6 +182,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[]}
         isCreating={false}
         createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
         onOpenChange={vi.fn()}
@@ -192,6 +209,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[]}
         isCreating={false}
         createBase={createBase}
         onOpenChange={onOpenChange}
@@ -205,6 +223,24 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(createBase).not.toHaveBeenCalled()
   })
 
+  it('renders the ungrouped option before real groups', () => {
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('分组')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '未分组' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
+  })
+
   it('submits the selected emoji in the request payload', async () => {
     const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ emoji: '📚' }))
     const onOpenChange = vi.fn()
@@ -213,6 +249,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
+        groups={[createGroup()]}
         isCreating={false}
         createBase={createBase}
         onOpenChange={onOpenChange}
@@ -235,5 +272,35 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
     expect(onCreated).toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('submits the selected group id in the request payload', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ groupId: 'group-2' }))
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })]}
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        emoji: '📁',
+        groupId: 'group-2',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: '1536'
+      })
+    )
   })
 })

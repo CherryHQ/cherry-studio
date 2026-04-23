@@ -63,6 +63,25 @@ describe('buildKnowledgeV2BaseGroupSections', () => {
     ])
   })
 
+  it('keeps empty real groups visible when search is empty', () => {
+    const bases = [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-2' })]
+    const groups = [
+      createGroup({ id: 'group-1', name: 'Research', orderKey: 'a0' }),
+      createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+    ]
+
+    expect(buildKnowledgeBaseGroupSections(bases, groups, '')).toEqual([
+      {
+        groupId: 'group-1',
+        items: []
+      },
+      {
+        groupId: 'group-2',
+        items: [bases[0]]
+      }
+    ])
+  })
+
   it('filters group sections by knowledge base name', () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Alpha Docs', groupId: 'group-1' }),
@@ -77,6 +96,21 @@ describe('buildKnowledgeV2BaseGroupSections', () => {
       {
         groupId: 'group-2',
         items: [bases[1]]
+      }
+    ])
+  })
+
+  it('hides empty real groups while searching', () => {
+    const bases = [createKnowledgeBase({ id: 'base-1', name: 'Alpha Docs', groupId: 'group-1' })]
+    const groups = [
+      createGroup({ id: 'group-1', name: 'Research', orderKey: 'a0' }),
+      createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+    ]
+
+    expect(buildKnowledgeBaseGroupSections(bases, groups, 'alpha')).toEqual([
+      {
+        groupId: 'group-1',
+        items: [bases[0]]
       }
     ])
   })

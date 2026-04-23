@@ -1,13 +1,14 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as ReactModule from 'react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import BaseNavigator from '../BaseNavigator'
 
 vi.mock('@cherrystudio/ui', () => {
-  const React = require('react') as typeof import('react')
+  const React = require('react') as typeof ReactModule
 
   const PopoverContext = React.createContext(false)
 
@@ -68,6 +69,7 @@ vi.mock('@cherrystudio/ui', () => {
       [key: string]: unknown
     }) => (
       <button data-active={active ? 'true' : 'false'} {...props}>
+        {icon}
         {label}
         {suffix}
       </button>
@@ -98,6 +100,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.add.title': '新建知识库',
           'knowledge_v2.search': '搜索知识库',
           'knowledge_v2.empty': '暂无知识库',
+          'knowledge_v2.groups.add': '新建分组',
           'knowledge_v2.groups.ungrouped': '未分组',
           'knowledge_v2.context.rename': '重命名',
           'knowledge_v2.context.move_to': '移动到',
@@ -152,6 +155,7 @@ describe('BaseNavigator', () => {
         width={280}
         selectedBaseId="base-1"
         onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
         onDeleteBase={vi.fn()}
@@ -171,6 +175,7 @@ describe('BaseNavigator', () => {
         width={280}
         selectedBaseId="base-1"
         onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
         onDeleteBase={vi.fn()}
@@ -194,6 +199,7 @@ describe('BaseNavigator', () => {
         width={280}
         selectedBaseId="base-1"
         onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={onMoveBase}
         onDeleteBase={vi.fn()}
@@ -224,6 +230,7 @@ describe('BaseNavigator', () => {
         width={280}
         selectedBaseId="base-1"
         onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
         onCreateBase={vi.fn()}
         onMoveBase={vi.fn()}
         onDeleteBase={onDeleteBase}
@@ -242,5 +249,31 @@ describe('BaseNavigator', () => {
     await waitFor(() => {
       expect(onDeleteBase).toHaveBeenCalledWith('base-1')
     })
+  })
+
+  it('uses the folder-plus button as the create-group entry', () => {
+    const onCreateGroup = vi.fn()
+    const onCreateBase = vi.fn()
+
+    render(
+      <BaseNavigator
+        bases={[]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId=""
+        onSelectBase={vi.fn()}
+        onCreateGroup={onCreateGroup}
+        onCreateBase={onCreateBase}
+        onMoveBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
+
+    expect(onCreateGroup).toHaveBeenCalledTimes(1)
+    expect(onCreateBase).not.toHaveBeenCalled()
+    expect(screen.getByText('Research')).toBeInTheDocument()
   })
 })

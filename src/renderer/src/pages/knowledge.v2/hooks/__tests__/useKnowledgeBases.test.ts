@@ -99,10 +99,11 @@ describe('useCreateKnowledgeBase', () => {
     vi.clearAllMocks()
   })
 
-  it('creates a knowledge base with the expected body and declares refresh via useMutation', async () => {
+  it('creates a knowledge base with the selected group id in the request body and declares refresh via useMutation', async () => {
     const createdBase = createKnowledgeBase({
       id: 'base-2',
       name: 'Base 2',
+      groupId: 'group-2',
       emoji: '📚',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 2048
@@ -112,6 +113,7 @@ describe('useCreateKnowledgeBase', () => {
     const input: CreateKnowledgeBaseInput = {
       name: '  Base 2  ',
       emoji: '📚',
+      groupId: 'group-2',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: '2048'
     }
@@ -136,6 +138,7 @@ describe('useCreateKnowledgeBase', () => {
       body: {
         name: 'Base 2',
         emoji: '📚',
+        groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 2048
       }
@@ -143,6 +146,44 @@ describe('useCreateKnowledgeBase', () => {
     expect(created).toEqual(createdBase)
     expect(result.current.isCreating).toBe(true)
     expect(result.current.createError).toBe(createError)
+  })
+
+  it('omits groupId from the request body when the input stays ungrouped', async () => {
+    const createdBase = createKnowledgeBase({
+      id: 'base-3',
+      name: 'Base 3',
+      emoji: '🧠',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1536
+    })
+    const trigger = vi.fn().mockResolvedValue(createdBase)
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 3',
+      emoji: '🧠',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: '1536'
+    }
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: false,
+      error: undefined
+    })
+
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(trigger).toHaveBeenCalledWith({
+      body: {
+        name: 'Base 3',
+        emoji: '🧠',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
+      }
+    })
   })
 })
 

@@ -10,6 +10,7 @@ export interface KnowledgeSelectOption {
 export interface CreateKnowledgeBaseInput {
   name: string
   emoji: string
+  groupId?: string
   embeddingModelId: string | null
   dimensions: string
 }

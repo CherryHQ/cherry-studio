@@ -17,6 +17,7 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useModels } from '@renderer/hooks/useModels'
 import type { CreateKnowledgeBaseInput, KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
@@ -25,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
+  groups: Group[]
   isCreating: boolean
   createBase: (input: CreateKnowledgeBaseInput) => Promise<KnowledgeBase>
   onOpenChange: (open: boolean) => void
@@ -33,6 +35,7 @@ interface CreateKnowledgeBaseDialogProps {
 
 const DEFAULT_EMOJI = '📁'
 const DEFAULT_DIMENSIONS = '1536'
+const UNGROUPED_GROUP_VALUE = '__ungrouped__'
 const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
 
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'>
@@ -132,6 +135,7 @@ const CreateKnowledgeBaseDialogActions = ({
 
 const CreateKnowledgeBaseDialogRoot = ({
   open,
+  groups,
   isCreating,
   createBase,
   onOpenChange,
@@ -173,7 +177,13 @@ const CreateKnowledgeBaseDialogRoot = ({
     try {
       // TODO: Resolve dimensions from the selected embedding model before creating the knowledge base.
       const dimensions = DEFAULT_DIMENSIONS
-      createdBase = await createBase({ ...values, dimensions })
+      createdBase = await createBase({
+        name: values.name,
+        emoji: values.emoji,
+        ...(values.groupId ? { groupId: values.groupId } : {}),
+        embeddingModelId: values.embeddingModelId,
+        dimensions
+      })
     } catch {
       setSubmitError(t('knowledge_v2.error.failed_to_create'))
       return
@@ -214,13 +224,37 @@ const CreateKnowledgeBaseDialogRoot = ({
             </div>
 
             <div className="space-y-1.5">
+              <Label>{t('knowledge_v2.add.group')}</Label>
+              <Select
+                value={values.groupId ?? UNGROUPED_GROUP_VALUE}
+                onValueChange={(groupValue) =>
+                  setValues((currentValues) => ({
+                    ...currentValues,
+                    groupId: groupValue === UNGROUPED_GROUP_VALUE ? undefined : groupValue
+                  }))
+                }>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t('knowledge_v2.groups.ungrouped')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNGROUPED_GROUP_VALUE}>{t('knowledge_v2.groups.ungrouped')}</SelectItem>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label>{t('knowledge_v2.embedding_model')}</Label>
               <Select
                 value={values.embeddingModelId ?? undefined}
                 onValueChange={(embeddingModelId) =>
                   setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
                 }>
-                <SelectTrigger aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
+                <SelectTrigger className="w-full" aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
                   <SelectValue placeholder={t('knowledge_v2.not_set')} />
                 </SelectTrigger>
                 <SelectContent>

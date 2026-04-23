@@ -16,7 +16,7 @@ const DataSourcePanel = ({ items, isLoading }: DataSourcePanelProps) => {
   const readyCount = getReadyCount(items)
   const visibleItems = getVisibleItems(items, activeFilter)
   const handleAdd = () => undefined
-  const handleItemClick = (_item: KnowledgeItem) => undefined
+  const handleItemClick = () => undefined
 
   return (
     <div className="flex h-full min-h-0 flex-col">

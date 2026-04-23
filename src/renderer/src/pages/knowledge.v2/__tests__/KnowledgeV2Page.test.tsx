@@ -8,6 +8,7 @@ import KnowledgeV2Page from '../KnowledgeV2Page'
 
 const mockUseKnowledgeBases = vi.fn()
 const mockUseKnowledgeGroups = vi.fn()
+const mockUseCreateKnowledgeGroup = vi.fn()
 const mockUseCreateKnowledgeBase = vi.fn()
 const mockUseUpdateKnowledgeBase = vi.fn()
 const mockUseDeleteKnowledgeBase = vi.fn()
@@ -16,6 +17,7 @@ const mockUseKnowledgeItems = vi.fn()
 vi.mock('../hooks', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
+  useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useUpdateKnowledgeBase: () => mockUseUpdateKnowledgeBase(),
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase(),
@@ -33,6 +35,7 @@ vi.mock('../components/BaseNavigator', () => ({
     groups,
     selectedBaseId,
     onSelectBase,
+    onCreateGroup,
     onCreateBase,
     onMoveBase,
     onDeleteBase
@@ -41,6 +44,7 @@ vi.mock('../components/BaseNavigator', () => ({
     groups: Array<{ id: string; name: string }>
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
+    onCreateGroup: () => void
     onCreateBase: () => void
     onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
     onDeleteBase: (baseId: string) => Promise<void> | void
@@ -49,6 +53,9 @@ vi.mock('../components/BaseNavigator', () => ({
       <div data-testid="base-count">{bases.length}</div>
       <div data-testid="group-names">{groups.map((group) => group.name).join(',')}</div>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
+      <button type="button" onClick={onCreateGroup}>
+        新建分组
+      </button>
       <button type="button" onClick={onCreateBase}>
         新建知识库
       </button>
@@ -105,14 +112,17 @@ vi.mock('../panels/recallTest/RecallTestPanel', () => ({
 vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
   default: ({
     open,
+    groups,
     createBase,
     onOpenChange,
     onCreated
   }: {
     open: boolean
+    groups: Array<{ id: string; name: string }>
     createBase: (input: {
       name: string
       emoji: string
+      groupId?: string
       embeddingModelId: string | null
       dimensions: string
     }) => Promise<KnowledgeBase>
@@ -121,6 +131,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
   }) =>
     open ? (
       <div data-testid="create-dialog">
+        <div data-testid="create-dialog-groups">{groups.map((group) => group.name).join(',')}</div>
         <button
           type="button"
           onClick={async () => {
@@ -137,6 +148,33 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
           Cancel Create
+        </button>
+      </div>
+    ) : null
+}))
+
+vi.mock('../components/CreateKnowledgeGroupDialog', () => ({
+  default: ({
+    open,
+    createGroup,
+    onOpenChange
+  }: {
+    open: boolean
+    createGroup: (name: string) => Promise<Group>
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div data-testid="create-group-dialog">
+        <button
+          type="button"
+          onClick={async () => {
+            await createGroup('Group 2')
+            onOpenChange(false)
+          }}>
+          Submit Create Group
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cancel Create Group
         </button>
       </div>
     ) : null
@@ -203,6 +241,11 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgeV2Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseCreateKnowledgeGroup.mockReturnValue({
+      createGroup: vi.fn(),
+      isCreating: false,
+      createError: undefined
+    })
     mockUseCreateKnowledgeBase.mockReturnValue({
       createBase: vi.fn(),
       isCreating: false,
@@ -280,6 +323,19 @@ describe('KnowledgeV2Page', () => {
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
   })
 
+  it('does not mount the create-group dialog before it is opened', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgeV2Page />)
+
+    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
+  })
+
   it('does not mount the create dialog before it is opened', () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
@@ -291,6 +347,55 @@ describe('KnowledgeV2Page', () => {
     render(<KnowledgeV2Page />)
 
     expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
+  })
+
+  it('passes the current groups into the create knowledge base dialog', () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeGroups.mockReturnValue({
+      groups: [createGroup({ name: 'Research' }), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
+
+    expect(screen.getByTestId('create-dialog-groups')).toHaveTextContent('Research,Archive')
+  })
+
+  it('opens the create-group dialog and wires submission to the group mutation hook', async () => {
+    const createGroupMock = vi.fn().mockResolvedValue(createGroup({ id: 'group-2', name: 'Group 2', orderKey: 'a1' }))
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseCreateKnowledgeGroup.mockReturnValue({
+      createGroup: createGroupMock,
+      isCreating: false,
+      createError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
+    expect(screen.getByTestId('create-group-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Create Group' }))
+
+    await waitFor(() => {
+      expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+    })
+    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
   })
 
   it('falls back to the first remaining base when the selected base disappears', () => {
