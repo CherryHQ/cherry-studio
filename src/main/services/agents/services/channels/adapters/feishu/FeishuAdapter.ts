@@ -194,6 +194,31 @@ function buildPostPayload(text: string): string {
   })
 }
 
+/** Feishu's im.file.create only accepts a small enum — map by extension, default to 'stream'. */
+type FeishuFileType = 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt' | 'stream'
+function deriveFeishuFileType(fileName: string): FeishuFileType {
+  const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
+  switch (ext) {
+    case 'pdf':
+      return 'pdf'
+    case 'doc':
+    case 'docx':
+      return 'doc'
+    case 'xls':
+    case 'xlsx':
+      return 'xls'
+    case 'ppt':
+    case 'pptx':
+      return 'ppt'
+    case 'mp4':
+      return 'mp4'
+    case 'opus':
+      return 'opus'
+    default:
+      return 'stream'
+  }
+}
+
 const STREAMING_ELEMENT_ID = 'streaming_content'
 
 /** Throttle interval for CardKit streaming updates (ms). */
@@ -635,6 +660,76 @@ class FeishuAdapter extends ChannelAdapter {
     void _chatId
     // Feishu doesn't have a native typing indicator API.
     // The streaming card itself serves as a visual indicator.
+  }
+
+  /**
+   * Send an image or file to a Feishu chat via the Open Platform:
+   *   1. Upload the bytes with im.image.create / im.file.create → returns image_key / file_key
+   *   2. Post an image or file message carrying that key
+   *
+   * im.file.create requires a typed `file_type` enum; for arbitrary documents
+   * (docx/txt/zip/...) we fall back to 'stream', which the SDK accepts.
+   */
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client is not connected')
+    }
+
+    if (mediaType === 'image') {
+      const uploadResp = await this.client.im.image.create({
+        data: { image_type: 'message', image: data }
+      })
+      const imageKey = uploadResp?.image_key
+      if (!imageKey) {
+        throw new Error('Feishu image upload returned no image_key')
+      }
+
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: {
+            receive_id: chatId,
+            msg_type: 'image',
+            content: JSON.stringify({ image_key: imageKey })
+          }
+        }),
+        'Send Feishu image'
+      )
+      return
+    }
+
+    if (!fileName) {
+      throw new Error('fileName is required when sending a file to Feishu')
+    }
+
+    const uploadResp = await this.client.im.file.create({
+      data: {
+        file_type: deriveFeishuFileType(fileName),
+        file_name: fileName,
+        file: data
+      }
+    })
+    const fileKey = uploadResp?.file_key
+    if (!fileKey) {
+      throw new Error('Feishu file upload returned no file_key')
+    }
+
+    ensureFeishuSuccess(
+      await this.client.im.message.create({
+        params: { receive_id_type: 'chat_id' },
+        data: {
+          receive_id: chatId,
+          msg_type: 'file',
+          content: JSON.stringify({ file_key: fileKey })
+        }
+      }),
+      'Send Feishu file'
+    )
   }
 
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {

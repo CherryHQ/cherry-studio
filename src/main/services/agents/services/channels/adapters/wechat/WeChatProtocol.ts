@@ -4,7 +4,7 @@
  * Inlined from @pinixai/weixin-bot to avoid the external dependency
  * and its fragile postinstall build step.
  */
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -64,9 +64,22 @@ interface MessageItem {
   text_item?: { text: string }
   image_item?: ImageItem
   voice_item?: { text?: string }
-  file_item?: { file_name?: string; file_size?: number; media?: CDNMedia; aeskey?: string }
+  /** Inbound carries file_size (number); outbound uses len (string, plaintext bytes). */
+  file_item?: { file_name?: string; file_size?: number; len?: string; media?: CDNMedia; aeskey?: string; md5?: string }
   video_item?: unknown
   ref_msg?: unknown
+}
+
+/**
+ * Upload `media_type` values for /ilink/bot/getuploadurl.
+ * Note: this enum is DIFFERENT from MessageItemType — FILE here is 3, but
+ * MessageItemType.FILE is 4. See @tencent-weixin/openclaw-weixin api/types.ts.
+ */
+const enum UploadMediaType {
+  IMAGE = 1,
+  VIDEO = 2,
+  FILE = 3,
+  VOICE = 4
 }
 
 interface WeixinMessage {
@@ -273,44 +286,62 @@ async function cdnDownloadFile(item: FileItem): Promise<Buffer | null> {
 // --------------- CDN upload ---------------
 
 const GetUploadUrlRespSchema = z.object({
-  upload_param: z.string()
+  upload_param: z.string().optional(),
+  upload_full_url: z.string().optional()
 })
 
-async function cdnUploadImage(
+type UploadResult = {
+  downloadEncryptedQueryParam: string
+  /** Raw 16-byte AES key (for any encoding the caller needs). */
+  aeskey: Buffer
+  /** Ciphertext size after AES-128-ECB PKCS7 padding. */
+  ciphertextSize: number
+}
+
+/** AES-128-ECB with PKCS7 padding always adds 1..16 bytes, rounded up to a 16-byte boundary. */
+function aesEcbPaddedSize(plaintextSize: number): number {
+  return Math.ceil((plaintextSize + 1) / 16) * 16
+}
+
+async function cdnUpload(
   baseUrl: string,
   token: string,
   uin: string,
   toUserId: string,
-  imageData: Buffer
-): Promise<{ downloadEncryptedQueryParam: string; aeskey: Buffer; ciphertextSize: number } | null> {
+  data: Buffer,
+  options: { mediaType: UploadMediaType }
+): Promise<UploadResult | null> {
   const aeskey = randomBytes(16)
   const filekey = randomBytes(16).toString('hex')
-  const md5Hash = await import('node:crypto').then((c) => c.createHash('md5').update(imageData).digest('hex'))
+  const md5Hash = createHash('md5').update(data).digest('hex')
+  const ciphertextSize = aesEcbPaddedSize(data.length)
 
-  // Step 1: get upload URL
-  const raw = await apiFetch(
-    baseUrl,
-    '/ilink/bot/getuploadurl',
-    {
-      filekey,
-      media_type: 1,
-      to_user_id: toUserId,
-      rawsize: imageData.length,
-      rawfilemd5: md5Hash,
-      filesize: imageData.length,
-      no_need_thumb: true,
-      aeskey: aeskey.toString('hex'),
-      base_info: buildBaseInfo()
-    },
-    token,
-    uin,
-    15_000
-  )
-  const { upload_param } = GetUploadUrlRespSchema.parse(raw)
+  const requestBody: Record<string, unknown> = {
+    filekey,
+    media_type: options.mediaType,
+    to_user_id: toUserId,
+    rawsize: data.length,
+    rawfilemd5: md5Hash,
+    filesize: ciphertextSize,
+    no_need_thumb: true,
+    aeskey: aeskey.toString('hex'),
+    base_info: buildBaseInfo()
+  }
 
-  // Step 2: encrypt and upload
-  const ciphertext = aesEcbEncrypt(imageData, aeskey)
-  const uploadUrl = `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(upload_param)}&filekey=${encodeURIComponent(filekey)}`
+  const raw = await apiFetch(baseUrl, '/ilink/bot/getuploadurl', requestBody, token, uin, 15_000)
+  const { upload_param, upload_full_url } = GetUploadUrlRespSchema.parse(raw)
+
+  const ciphertext = aesEcbEncrypt(data, aeskey)
+  const uploadUrl = upload_full_url?.trim()
+    ? upload_full_url.trim()
+    : upload_param
+      ? `${CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(upload_param)}&filekey=${encodeURIComponent(filekey)}`
+      : null
+  if (!uploadUrl) {
+    logger.error('getUploadUrl returned neither upload_full_url nor upload_param', { mediaType: options.mediaType })
+    return null
+  }
+
   const uploadResp = await net.fetch(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
@@ -318,17 +349,47 @@ async function cdnUploadImage(
   })
 
   if (!uploadResp.ok) {
-    logger.error('CDN upload failed', { status: uploadResp.status })
+    logger.error('CDN upload failed', { status: uploadResp.status, mediaType: options.mediaType })
     return null
   }
 
   const downloadEncryptedQueryParam = uploadResp.headers.get('x-encrypted-param')
   if (!downloadEncryptedQueryParam) {
-    logger.error('CDN upload response missing x-encrypted-param header')
+    logger.error('CDN upload response missing x-encrypted-param header', { mediaType: options.mediaType })
     return null
   }
 
-  return { downloadEncryptedQueryParam, aeskey, ciphertextSize: ciphertext.length }
+  return { downloadEncryptedQueryParam, aeskey, ciphertextSize }
+}
+
+function cdnUploadImage(
+  baseUrl: string,
+  token: string,
+  uin: string,
+  toUserId: string,
+  imageData: Buffer
+): Promise<UploadResult | null> {
+  return cdnUpload(baseUrl, token, uin, toUserId, imageData, { mediaType: UploadMediaType.IMAGE })
+}
+
+function cdnUploadFile(
+  baseUrl: string,
+  token: string,
+  uin: string,
+  toUserId: string,
+  fileData: Buffer
+): Promise<UploadResult | null> {
+  return cdnUpload(baseUrl, token, uin, toUserId, fileData, { mediaType: UploadMediaType.FILE })
+}
+
+/**
+ * Encode a 16-byte AES key the way the iLink server expects on the wire:
+ *   base64( ASCII bytes of lowercase hex string )  → 44-char base64 of 32 hex chars.
+ * This matches @tencent-weixin/openclaw-weixin send.ts and the "32-char hex ASCII"
+ * branch of parseAesKey() above.
+ */
+function encodeAesKeyForWire(aeskey: Buffer): string {
+  return Buffer.from(aeskey.toString('hex'), 'ascii').toString('base64')
 }
 
 // --------------- API helpers ---------------
@@ -777,6 +838,8 @@ export class WeixinBot {
 
   /**
    * Send an image to a user by uploading to WeChat CDN.
+   * Payload shape mirrors @tencent-weixin/openclaw-weixin: `filesize` is the
+   * AES-ECB padded ciphertext length and `aes_key` travels as base64(hex-ASCII).
    */
   async sendImage(userId: string, imageData: Buffer): Promise<void> {
     const contextToken = this.contextTokens.get(userId)
@@ -803,10 +866,57 @@ export class WeixinBot {
           image_item: {
             media: {
               encrypt_query_param: uploaded.downloadEncryptedQueryParam,
-              aes_key: Buffer.from(uploaded.aeskey).toString('base64'),
+              aes_key: encodeAesKeyForWire(uploaded.aeskey),
               encrypt_type: 1
             },
             mid_size: uploaded.ciphertextSize
+          }
+        }
+      ]
+    }
+
+    await apiSendMessage(this.baseUrl, credentials.token, this.uin, msg)
+  }
+
+  /**
+   * Send a generic file (PDF, DOCX, zip, etc.) to a user by uploading to WeChat CDN.
+   * Uses UploadMediaType.FILE (3) for upload; the outbound message item carries
+   * MessageItemType.FILE (4) with `file_name` and `len` (plaintext bytes as string).
+   */
+  async sendFile(userId: string, fileData: Buffer, fileName: string): Promise<void> {
+    if (!fileName) {
+      throw new Error('fileName is required for sendFile')
+    }
+
+    const contextToken = this.contextTokens.get(userId)
+    if (!contextToken) {
+      logger.warn('No cached context token for sendFile, sending without context', { userId })
+    }
+
+    const credentials = await this.ensureCredentials()
+    const uploaded = await cdnUploadFile(this.baseUrl, credentials.token, this.uin, userId, fileData)
+    if (!uploaded) {
+      throw new Error('Failed to upload file to WeChat CDN')
+    }
+
+    const msg = {
+      from_user_id: '',
+      to_user_id: userId,
+      client_id: randomUUID(),
+      message_type: MessageType.BOT,
+      message_state: MessageState.FINISH,
+      context_token: contextToken ?? '',
+      item_list: [
+        {
+          type: MessageItemType.FILE,
+          file_item: {
+            file_name: fileName,
+            len: String(fileData.length),
+            media: {
+              encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+              aes_key: encodeAesKeyForWire(uploaded.aeskey),
+              encrypt_type: 1
+            }
           }
         }
       ]

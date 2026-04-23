@@ -1,4 +1,4 @@
-import { Bot } from 'grammy'
+import { Bot, InputFile } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import {
@@ -12,10 +12,9 @@ import {
   type SendMessageOptions
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
+import { detectImageExtension, splitMessage } from '../../utils'
 
 const TELEGRAM_MAX_LENGTH = 4096
-
-import { splitMessage } from '../../utils'
 
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
@@ -273,6 +272,28 @@ class TelegramAdapter extends ChannelAdapter {
     }
 
     await this.bot.api.sendChatAction(chatId, 'typing')
+  }
+
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    if (mediaType === 'image') {
+      const name = fileName ?? `image.${detectImageExtension(data)}`
+      await this.bot.api.sendPhoto(chatId, new InputFile(data, name))
+      return
+    }
+
+    if (!fileName) {
+      throw new Error('fileName is required when sending a file to Telegram')
+    }
+    await this.bot.api.sendDocument(chatId, new InputFile(data, fileName))
   }
 }
 

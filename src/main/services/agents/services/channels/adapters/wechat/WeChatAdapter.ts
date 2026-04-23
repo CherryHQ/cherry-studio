@@ -115,6 +115,27 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  override async sendMedia(
+    chatId: string,
+    data: Buffer,
+    mediaType: 'image' | 'file',
+    fileName?: string
+  ): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+
+    if (mediaType === 'image') {
+      await this.bot.sendImage(chatId, data)
+      return
+    }
+
+    if (!fileName) {
+      throw new Error('fileName is required when sending a file to WeChat')
+    }
+    await this.bot.sendFile(chatId, data, fileName)
+  }
+
   private sendQrToRenderer(
     url: string,
     status: 'pending' | 'confirmed' | 'expired' | 'disconnected',

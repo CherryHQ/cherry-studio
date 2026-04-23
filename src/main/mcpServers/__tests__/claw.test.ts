@@ -303,12 +303,14 @@ describe('ClawServer', () => {
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
-    it('should error when message is missing', async () => {
+    it('should error when no payload is provided', async () => {
       const server = createServer()
       const result = await callTool(server, {}, 'notify')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'message' is required")
+      expect(result.content[0].text).toContain(
+        "At least one of 'message', 'image_path', 'image_base64', or 'file_path'"
+      )
     })
 
     it('should report partial failures', async () => {
@@ -320,6 +322,119 @@ describe('ClawServer', () => {
 
       expect(result.content[0].text).toContain('1 chat(s)')
       expect(result.content[0].text).toContain('rate limited')
+    })
+
+    it('should send image via sendMedia when image_base64 is provided', async () => {
+      const mockSendMedia = vi.fn().mockResolvedValue(undefined)
+      const adapter = {
+        channelId: 'wx1',
+        notifyChatIds: ['wxid_abc'],
+        sendMessage: mockSendMessage,
+        sendMedia: mockSendMedia
+      }
+      mockGetNotifyAdapters.mockReturnValue([adapter])
+
+      const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      const server = createServer('agent_1')
+      const result = await callTool(server, { image_base64: pngBytes.toString('base64') }, 'notify')
+
+      expect(mockSendMedia).toHaveBeenCalledTimes(1)
+      expect(mockSendMedia).toHaveBeenCalledWith('wxid_abc', expect.any(Buffer), 'image')
+      const [, bufferArg] = mockSendMedia.mock.calls[0]
+      expect((bufferArg as Buffer).equals(pngBytes)).toBe(true)
+      expect(mockSendMessage).not.toHaveBeenCalled()
+      expect(result.content[0].text).toContain('Image sent to 1 chat(s)')
+    })
+
+    it('should reject when both image_path and image_base64 are supplied', async () => {
+      mockGetNotifyAdapters.mockReturnValue([])
+
+      const server = createServer('agent_1')
+      const result = await callTool(
+        server,
+        { image_path: '/tmp/img.png', image_base64: Buffer.from('x').toString('base64') },
+        'notify'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("only one of 'image_path' or 'image_base64'")
+    })
+
+    it('should require absolute path for image_path', async () => {
+      mockGetNotifyAdapters.mockReturnValue([])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { image_path: 'relative/img.png' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('absolute path')
+    })
+
+    it('should send both image and message when provided together', async () => {
+      const mockSendMedia = vi.fn().mockResolvedValue(undefined)
+      const adapter = {
+        channelId: 'wx1',
+        notifyChatIds: ['wxid_abc'],
+        sendMessage: mockSendMessage,
+        sendMedia: mockSendMedia
+      }
+      mockSendMessage.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([adapter])
+
+      const server = createServer('agent_1')
+      const result = await callTool(
+        server,
+        { message: 'here is the pic', image_base64: Buffer.from('abc').toString('base64') },
+        'notify'
+      )
+
+      expect(mockSendMedia).toHaveBeenCalledTimes(1)
+      expect(mockSendMessage).toHaveBeenCalledWith('wxid_abc', 'here is the pic')
+      expect(result.content[0].text).toContain('Notification sent to 1 chat(s)')
+      expect(result.content[0].text).toContain('Image sent to 1 chat(s)')
+    })
+
+    it('should send file via sendMedia with basename when file_path is provided', async () => {
+      const fs = await import('node:fs/promises')
+      const nodePath = await import('node:path')
+
+      const tmpFile = `/tmp/cherry-notify-test-${Date.now()}.pdf`
+      const fileBytes = Buffer.from('%PDF-1.4\n%fake pdf\n')
+      await fs.writeFile(tmpFile, fileBytes)
+
+      try {
+        const mockSendMedia = vi.fn().mockResolvedValue(undefined)
+        const adapter = {
+          channelId: 'wx1',
+          notifyChatIds: ['wxid_abc'],
+          sendMessage: mockSendMessage,
+          sendMedia: mockSendMedia
+        }
+        mockGetNotifyAdapters.mockReturnValue([adapter])
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { file_path: tmpFile }, 'notify')
+
+        expect(mockSendMedia).toHaveBeenCalledTimes(1)
+        const [chatId, bufferArg, mediaType, fileName] = mockSendMedia.mock.calls[0]
+        expect(chatId).toBe('wxid_abc')
+        expect((bufferArg as Buffer).equals(fileBytes)).toBe(true)
+        expect(mediaType).toBe('file')
+        expect(fileName).toBe(nodePath.basename(tmpFile))
+        expect(result.content[0].text).toContain('File sent to 1 chat(s)')
+      } finally {
+        await fs.rm(tmpFile, { force: true })
+      }
+    })
+
+    it('should require absolute path for file_path', async () => {
+      mockGetNotifyAdapters.mockReturnValue([])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { file_path: 'relative/doc.pdf' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('absolute path')
     })
   })
 
