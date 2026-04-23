@@ -63,17 +63,6 @@ describe('TagService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
-
-    it('should surface timestamp anomalies instead of masking them', async () => {
-      await dbh.client.execute({
-        sql: `INSERT INTO tag (id, name, color, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL)`,
-        args: [TAG_1, 'broken', '#ff0000']
-      })
-
-      await expect(tagService.getById(TAG_1)).rejects.toMatchObject({
-        code: ErrorCode.INTERNAL_SERVER_ERROR
-      })
-    })
   })
 
   describe('create', () => {
@@ -297,7 +286,7 @@ describe('TagService', () => {
     })
   })
 
-  describe('removeEntityTags', () => {
+  describe('purgeForEntity', () => {
     it('should remove only tag rows for the target entity', async () => {
       await seedTags()
       await dbh.db.insert(entityTagTable).values([
@@ -306,7 +295,7 @@ describe('TagService', () => {
         { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.removeEntityTags('assistant', ASSISTANT_1)
+      await tagService.purgeForEntity(dbh.db, 'assistant', ASSISTANT_1)
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([

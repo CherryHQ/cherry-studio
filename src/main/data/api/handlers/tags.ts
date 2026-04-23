@@ -13,13 +13,12 @@ import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
-  EntityIdSchema,
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
   TagIdSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
-import { TaggableEntityType } from '@shared/data/types/tag'
+import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 
 /**
  * Handler type for a specific tag endpoint
@@ -75,13 +74,13 @@ export const tagHandlers: {
 
   '/tags/entities/:entityType/:entityId': {
     GET: async ({ params }) => {
-      const entityType = TaggableEntityType.parse(params.entityType)
+      const entityType = EntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
       return await tagService.getTagsByEntity(entityType, entityId)
     },
 
     PUT: async ({ params, body }) => {
-      const entityType = TaggableEntityType.parse(params.entityType)
+      const entityType = EntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
       await tagService.syncEntityTags(entityType, entityId, parsed)

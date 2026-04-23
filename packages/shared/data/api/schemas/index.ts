@@ -23,11 +23,13 @@ import type { AssertValidSchemas } from '../apiTypes'
 import type { AssistantSchemas } from './assistants'
 import type { FileProcessingSchemas } from './fileProcessing'
 import type { FileSchemas } from './files'
+import type { GroupSchemas } from './groups'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniappSchemas } from './miniapps'
 import type { ModelSchemas } from './models'
+import type { PinSchemas } from './pins'
 import type { ProviderSchemas } from './providers'
 import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
@@ -60,5 +62,7 @@ export type ApiSchemas = AssertValidSchemas<
     KnowledgeSchemas &
     MiniappSchemas &
     AssistantSchemas &
-    TagSchemas
+    TagSchemas &
+    GroupSchemas &
+    PinSchemas
 >

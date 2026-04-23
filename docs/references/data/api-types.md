@@ -158,6 +158,7 @@ const hasNext = nextCursor !== undefined
 1. Create the schema file (e.g., `schemas/topic.ts`):
 
 ```typescript
+import * as z from 'zod'
 import type {
   OffsetPaginationParams,
   OffsetPaginationResponse,
@@ -165,19 +166,23 @@ import type {
   SortParams
 } from '../apiTypes'
 
-// Domain models
-export interface Topic {
-  id: string
-  name: string
-  createdAt: string
-}
+// Field atoms — share between entity, DTO, and query
+export const TopicNameSchema = z.string().trim().min(1).max(128)
 
-export interface CreateTopicDto {
-  name: string
-}
+// Entity schema (z.strictObject rejects unknown fields)
+export const TopicSchema = z.strictObject({
+  id: z.uuidv4(),
+  name: TopicNameSchema,
+  createdAt: z.iso.datetime()
+})
+export type Topic = z.infer<typeof TopicSchema>
 
-// API Schema - validation happens via AssertValidSchemas in index.ts
-export interface TopicSchemas {
+// DTO — whitelist pick from entity (see api-design-guidelines.md § Zod Schema & DTO Conventions)
+export const CreateTopicSchema = TopicSchema.pick({ name: true })
+export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
+
+// API Schema — validation happens via AssertValidSchemas in index.ts
+export type TopicSchemas = {
   '/topics': {
     GET: {
       query?: OffsetPaginationParams & SortParams & SearchParams

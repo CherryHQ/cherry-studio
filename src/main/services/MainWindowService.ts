@@ -7,7 +7,8 @@ import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeImage, nativeTheme, shell } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, nativeImage, nativeTheme, shell } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
@@ -121,20 +122,6 @@ export class MainWindowService extends BaseService {
     this.registerDisposable(() => app.removeListener('second-instance', handler))
   }
 
-  /**
-   * Resolves the BrowserWindow that originated the IPC call.
-   * Used for window-control channels (minimize/maximize/close) that must operate
-   * on whichever window sent the IPC — main window or a detached tab window.
-   * Throws if the sender cannot be mapped to a live window.
-   */
-  private resolveIpcSenderWindow(sender: Electron.WebContents): BrowserWindow {
-    const win = BrowserWindow.fromWebContents(sender)
-    if (win && !win.isDestroyed()) {
-      return win
-    }
-    throw new Error('MainWindowService: could not resolve a live BrowserWindow from IPC sender')
-  }
-
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.MainWindow_SetMinimumSize, (_, width: number, height: number) => {
       this.requireMainWindow().setMinimumSize(width, height)
@@ -149,31 +136,6 @@ export class MainWindowService extends BaseService {
       }
     })
 
-    this.ipcHandle(IpcChannel.MainWindow_GetSize, () => {
-      const [width, height] = this.requireMainWindow().getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-      return [width, height]
-    })
-
-    this.ipcHandle(IpcChannel.Windows_Minimize, (event) => {
-      this.resolveIpcSenderWindow(event.sender).minimize()
-    })
-
-    this.ipcHandle(IpcChannel.Windows_Maximize, (event) => {
-      this.resolveIpcSenderWindow(event.sender).maximize()
-    })
-
-    this.ipcHandle(IpcChannel.Windows_Unmaximize, (event) => {
-      this.resolveIpcSenderWindow(event.sender).unmaximize()
-    })
-
-    this.ipcHandle(IpcChannel.Windows_Close, (event) => {
-      this.resolveIpcSenderWindow(event.sender).close()
-    })
-
-    this.ipcHandle(IpcChannel.Windows_IsMaximized, (event) => {
-      return this.resolveIpcSenderWindow(event.sender).isMaximized()
-    })
-
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
 
     // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
@@ -182,14 +144,6 @@ export class MainWindowService extends BaseService {
 
     this.ipcHandle(IpcChannel.MainWindow_Reload, () => {
       this.mainWindow?.reload()
-    })
-
-    this.ipcHandle(IpcChannel.MainWindow_SetFullScreen, (_, value: boolean): void => {
-      this.mainWindow?.setFullScreen(value)
-    })
-
-    this.ipcHandle(IpcChannel.MainWindow_IsFullScreen, (): boolean => {
-      return this.mainWindow?.isFullScreen() ?? false
     })
 
     // Renderer tells main that a notification was clicked → broadcast the
@@ -351,53 +305,25 @@ export class MainWindowService extends BaseService {
       }
     })
 
-    // 处理全屏相关事件
-    mainWindow.on('enter-full-screen', () => {
-      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, true)
-    })
-
-    mainWindow.on('leave-full-screen', () => {
-      mainWindow.webContents.send(IpcChannel.FullscreenStatusChanged, false)
-    })
-
-    // set the zoom factor again when the window is going to resize
-    //
-    // this is a workaround for the known bug that
-    // the zoom factor is reset to cached value when window is resized after routing to other page
-    // see: https://github.com/electron/electron/issues/10572
-    //
-    // and resize ipc
-    //
+    // Workaround for electron#10572: zoom factor resets to the cached value when
+    // the main window is resized after navigating to a new route. Re-apply the
+    // user-configured zoom factor on every resize / restore so the page does not
+    // visibly snap to the wrong scale.
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
     })
 
-    // set the zoom factor again when the window is going to restore
-    // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // ARCH: as `will-resize` is only for Win & Mac,
-    // linux has the same problem, use `resize` listener instead
-    // but `resize` will fliker the ui
+    // `will-resize` only fires on Win & Mac; Linux uses `resize` instead (which
+    // can cause UI flicker but is the only available signal).
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-        mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
       })
     }
-
-    mainWindow.on('unmaximize', () => {
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
-      mainWindow.webContents.send(IpcChannel.MainWindow_MaximizedChanged, false)
-    })
-
-    mainWindow.on('maximize', () => {
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
-      mainWindow.webContents.send(IpcChannel.MainWindow_MaximizedChanged, true)
-    })
 
     // 添加Escape键退出全屏的支持
     // mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -568,7 +494,7 @@ export class MainWindowService extends BaseService {
       // macOS close-to-tray: opt Main windows out of Dock contribution BEFORE hiding.
       // This tells WindowManager "the app is now in tray mode" so the Dock icon goes
       // away too. Unlike the previous hard-coded app.dock?.hide(), this cooperates
-      // with multi-window scenarios: if a DetachedTab (or any other Dock-contributing
+      // with multi-window scenarios: if a SubWindow (or any other Dock-contributing
       // window) is still alive, it will keep the Dock visible. The override is lifted
       // in showMainWindow/toggleMainWindow when the user brings Main back.
       if (isMac && isTrayOnClose) {
@@ -666,7 +592,7 @@ export class MainWindowService extends BaseService {
         if (application.get('PreferenceService').get('app.tray.on_close')) {
           // Same pattern as the close handler: tell WM to stop counting Main
           // toward Dock visibility BEFORE hiding, so the Dock coordinates with
-          // whatever else is alive (e.g. a DetachedTab) rather than blindly hiding.
+          // whatever else is alive (e.g. a SubWindow) rather than blindly hiding.
           if (isMac) {
             application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
           }

@@ -49,6 +49,8 @@ export interface MigrationPaths {
   readonly knowledgeBaseDir: string
   /** {userData}/version.log — v1 VersionService version history log. */
   readonly versionLogFile: string
+  /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
+  readonly legacyAgentDbFile: string
 
   // ── Derived from cherryHome ──
 
@@ -160,6 +162,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     databaseFile: path.join(currentUserData, DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     versionLogFile: path.join(currentUserData, 'version.log'),
+    legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

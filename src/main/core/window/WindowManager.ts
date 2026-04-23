@@ -236,58 +236,47 @@ export class WindowManager extends BaseService {
       return this.getInitData(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Close, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Close, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.close(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Show, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.show(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Hide, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.hide(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.minimize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.maximize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Focus, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
-      return this.focus(windowId)
+      return this.unmaximize(windowId)
     })
-  }
 
-  /**
-   * Resolve target windowId from optional type string or IPC event sender.
-   * - No type: resolve from sender webContents (self)
-   * - With type: must be a valid singleton WindowType
-   */
-  private resolveTargetWindowId(sender: Electron.WebContents, type?: string): string | null {
-    if (type) {
-      if (!VALID_WINDOW_TYPES.has(type)) return null
-      const metadata = getWindowTypeMetadata(type as WindowType)
-      if (metadata.lifecycle !== 'singleton') return null
-      const windows = this.getWindowsByType(type as WindowType)
-      if (windows.length === 0) return null
-      return windows[0].id
-    }
-    return this.getWindowIdByWebContents(sender) ?? null
+    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.isMaximized(windowId)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.setFullScreen(windowId, value)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.isFullScreen(windowId)
+    })
   }
 
   // ─── Public API: Open / Create / Close / Destroy ──────────────
@@ -471,16 +460,37 @@ export class WindowManager extends BaseService {
     return true
   }
 
-  /** Maximize or unmaximize a window (toggle) */
   public maximize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
-    if (managed.window.isMaximized()) {
-      managed.window.unmaximize()
-    } else {
-      managed.window.maximize()
-    }
+    managed.window.maximize()
     return true
+  }
+
+  public unmaximize(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.unmaximize()
+    return true
+  }
+
+  public isMaximized(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isMaximized()
+  }
+
+  public setFullScreen(windowId: string, value: boolean): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.setFullScreen(value)
+    return true
+  }
+
+  public isFullScreen(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isFullScreen()
   }
 
   public restore(windowId: string): boolean {
@@ -616,6 +626,56 @@ export class WindowManager extends BaseService {
   /** Retrieve initialization data for a window */
   public getInitData(windowId: string): unknown | null {
     return this.initDataStore.get(windowId) ?? null
+  }
+
+  /**
+   * Push fresh init data to a single already-open window and notify its
+   * renderer in-place, reusing the same IPC channel (`WindowManager_Reused`)
+   * that pool-recycle and singleton-reopen paths use. The renderer's
+   * `useWindowInitData` hook picks this up without remounting the subtree.
+   *
+   * Use this for "update the already-visible window with new context"
+   * scenarios — e.g. a main-process service reacting to an external event
+   * and wanting the current window to swap its payload. For first-time
+   * creation or recycling, continue using `open({ initData })`.
+   *
+   * Semantics:
+   * - Writes `data` into the init-data store so subsequent `getInitData()`
+   *   calls (devtools reload, lazy child mount) observe the latest value.
+   * - Sends `WindowManager_Reused` to the window's `webContents`.
+   * - Returns `true` if the window exists and is not destroyed, `false`
+   *   otherwise. No throw on miss.
+   *
+   * The signature forbids `undefined` on purpose: unlike the reuse path,
+   * "pushing undefined" has no meaningful semantics here, and silently
+   * no-oping would hide caller bugs.
+   */
+  public pushInitData<T>(windowId: string, data: T): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return false
+    this.setInitData(windowId, data)
+    managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
+    return true
+  }
+
+  /**
+   * Push fresh init data to every currently-open window of the given type.
+   * Returns the number of windows that received the event.
+   *
+   * Does NOT filter by visibility — an idle pooled window sitting in the
+   * recycle queue will also receive the event, so when it is next taken
+   * out of the pool its renderer already has the latest payload. If you
+   * need visibility filtering, iterate `getWindows(type)` and call
+   * `pushInitData` selectively.
+   */
+  public pushInitDataToType<T>(type: WindowType, data: T): number {
+    const ids = this.windowsByType.get(type)
+    if (!ids || ids.size === 0) return 0
+    let count = 0
+    for (const id of ids) {
+      if (this.pushInitData(id, data)) count++
+    }
+    return count
   }
 
   // ─── Public API: Pool management ──────────────────────────────
@@ -1248,6 +1308,35 @@ export class WindowManager extends BaseService {
     // macOS native semantics where Cmd+W (hide) keeps the dock icon, Cmd+Q (destroy) removes it.
     // The 'closed' handler below triggers updateDockVisibility on destruction; type-override
     // changes via wm.behavior.setMacShowInDockByType do so explicitly.
+
+    // Forward OS-level window state changes to the window's own webContents so its
+    // renderer chrome (titlebar buttons, fullscreen-aware layout) can stay in sync
+    // with state changes that bypass IPC: double-click titlebar, Win+↑/↓, Windows
+    // Snap, macOS green button, F11, third-party tiling WMs.
+    //
+    // - setupWindowListeners runs exactly once per BrowserWindow lifetime (called
+    //   from createWindow); pooled windows reuse the same instance + listeners on
+    //   recycle, so there is no listener accumulation. The window.on('closed')
+    //   handler below calls window.removeAllListeners() as a final safety net.
+    // - macOS does NOT reliably fire 'maximize'/'unmaximize' (electron#3325, #28699)
+    //   so MaximizedChanged is Win/Linux-effective. Renderer code on macOS should
+    //   treat FullscreenChanged as the source of truth (the green button defaults
+    //   to native fullscreen, which fires reliably).
+    // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
+    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
+    //   semantics is OS-level native fullscreen only.
+    window.on('maximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, true)
+    })
+    window.on('unmaximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, false)
+    })
+    window.on('enter-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, true)
+    })
+    window.on('leave-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
+    })
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {

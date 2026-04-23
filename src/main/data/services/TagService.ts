@@ -16,37 +16,26 @@
  *   pattern; TagService reads are scoped to tag-management flows.
  *
  * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
- * Callers deleting tagged entities must invoke `removeEntityTags()` as part of their delete workflow.
+ * Callers deleting tagged entities must invoke `purgeForEntity()` as part of their delete workflow.
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
 import { application } from '@application'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { entityTagTable, type TagSelect, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
-import type { Tag, TaggableEntityType } from '@shared/data/types/tag'
+import type { EntityType } from '@shared/data/types/entityType'
+import type { Tag } from '@shared/data/types/tag'
 import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
+
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TagService')
 
-type TagRow = typeof tagTable.$inferSelect
 type EntityBinding = SetTagEntitiesDto['entities'][number]
-
-function ensureTagTimestamp(
-  timestamp: number | null | undefined,
-  field: 'createdAt' | 'updatedAt',
-  tagId: string
-): number {
-  if (timestamp == null) {
-    logger.warn('Tag row has null timestamp', { id: tagId, field })
-    throw DataApiErrorFactory.internal(new Error(`Tag row '${tagId}' is missing ${field}`), 'TagService.rowToTag')
-  }
-
-  return timestamp
-}
 
 function entityBindingKey(entity: { entityType: string; entityId: string }): string {
   return `${entity.entityType}:${entity.entityId}`
@@ -80,16 +69,13 @@ function buildEntityBindingCondition(entities: Array<{ entityType: string; entit
 /**
  * Convert database row to Tag entity
  */
-function rowToTag(row: TagRow): Tag {
-  const createdAt = ensureTagTimestamp(row.createdAt, 'createdAt', row.id)
-  const updatedAt = ensureTagTimestamp(row.updatedAt, 'updatedAt', row.id)
-
+function rowToTag(row: TagSelect): Tag {
   return {
     id: row.id,
     name: row.name,
     color: row.color ?? null,
-    createdAt: new Date(createdAt).toISOString(),
-    updatedAt: new Date(updatedAt).toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -210,7 +196,7 @@ export class TagService {
   /**
    * Get tags for a specific entity
    */
-  async getTagsByEntity(entityType: TaggableEntityType, entityId: string): Promise<Tag[]> {
+  async getTagsByEntity(entityType: EntityType, entityId: string): Promise<Tag[]> {
     const rows = await this.db
       .select({
         id: tagTable.id,
@@ -231,7 +217,7 @@ export class TagService {
    * Sync tags for an entity (replace all tag associations).
    * Performs diff-based sync: only deletes removed and inserts added associations.
    */
-  async syncEntityTags(entityType: TaggableEntityType, entityId: string, dto: SyncEntityTagsDto): Promise<void> {
+  async syncEntityTags(entityType: EntityType, entityId: string, dto: SyncEntityTagsDto): Promise<void> {
     const desiredTagIds = [...new Set(dto.tagIds)]
 
     await this.db.transaction(async (tx) => {
@@ -309,24 +295,23 @@ export class TagService {
    * Remove all tag associations for a given entity.
    * Must be called by entity services (AssistantService, TopicService, etc.)
    * when deleting an entity, since entity_tag has no FK to entity tables.
+   *
+   * Signature is tx-first to match the polymorphic-purge convention
+   * (see PinService.purgeForEntity).
    */
-  async removeEntityTags(
-    entityType: TaggableEntityType,
-    entityId: string,
-    db: Pick<DbType, 'delete'> = this.db
-  ): Promise<void> {
-    await db
+  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
+    await tx
       .delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
-    logger.info('Removed entity tags', { entityType, entityId })
+    logger.info('Purged tags for entity', { entityType, entityId })
   }
 
   /**
    * Get tag IDs for multiple entities of the same type (batch query).
    * Used by other services (e.g., AssistantService) to efficiently load tags.
    */
-  async getTagIdsByEntities(entityType: TaggableEntityType, entityIds: string[]): Promise<Map<string, string[]>> {
+  async getTagIdsByEntities(entityType: EntityType, entityIds: string[]): Promise<Map<string, string[]>> {
     const result = new Map<string, string[]>()
 
     if (entityIds.length === 0) {

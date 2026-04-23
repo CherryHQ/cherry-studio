@@ -77,7 +77,7 @@ export type ListMiniappsQuery = z.infer<typeof ListMiniappsQuerySchema>
 /**
  * MiniApp API Schema definitions
  */
-export interface MiniappSchemas {
+export type MiniappSchemas = {
   /**
    * Miniapps collection endpoint
    * @example GET /miniapps?status=enabled

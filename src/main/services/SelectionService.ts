@@ -1358,29 +1358,6 @@ export class SelectionService extends BaseService implements Activatable {
     }, 50)
   }
 
-  /**
-   * Close an action window via WindowManager.
-   * For pooled windows, WindowManager intercepts the close and hides the window back
-   * into the idle pool. The macRestoreFocusOnHide quirk applies the macOS focus dance
-   * automatically at the hide/close call site.
-   */
-  public closeActionWindow(actionWindow: BrowserWindow): void {
-    if (actionWindow.isDestroyed()) return
-    const wm = application.get('WindowManager')
-    const windowId = wm.getWindowId(actionWindow)
-    if (windowId) {
-      wm.close(windowId)
-    } else {
-      // Fallback for untracked windows (should not happen in normal flow)
-      actionWindow.close()
-    }
-  }
-
-  public minimizeActionWindow(actionWindow: BrowserWindow): void {
-    if (actionWindow.isDestroyed()) return
-    actionWindow.minimize()
-  }
-
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
     if (actionWindow.isDestroyed()) return
     // Route through WindowManager so any future `behavior.alwaysOnTop` on the
@@ -1485,20 +1462,6 @@ export class SelectionService extends BaseService implements Activatable {
       }
       return BrowserWindow.fromWebContents(event.sender)
     }
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.closeActionWindow(actionWindow)
-      }
-    })
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.minimizeActionWindow(actionWindow)
-      }
-    })
 
     this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = resolveActionWindow(event)

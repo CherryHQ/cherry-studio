@@ -981,6 +981,142 @@ describe('WindowManager', () => {
     })
   })
 
+  // ─── Window state operations ───────────────────────────
+
+  describe('window state operations', () => {
+    it('maximize() invokes BrowserWindow.maximize without toggling', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isMaximized.mockReturnValue(true) // pre-condition irrelevant — must NOT toggle
+
+      const ok = wm.maximize(id)
+
+      expect(ok).toBe(true)
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+      expect(win.unmaximize).not.toHaveBeenCalled()
+    })
+
+    it('maximize() returns false for unknown windowId', () => {
+      expect(wm.maximize('does-not-exist')).toBe(false)
+    })
+
+    it('unmaximize() invokes BrowserWindow.unmaximize', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+
+      const ok = wm.unmaximize(id)
+
+      expect(ok).toBe(true)
+      expect(win.unmaximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('unmaximize() returns false for unknown windowId', () => {
+      expect(wm.unmaximize('does-not-exist')).toBe(false)
+    })
+
+    it('isMaximized() reflects BrowserWindow.isMaximized', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+
+      win.isMaximized.mockReturnValue(true)
+      expect(wm.isMaximized(id)).toBe(true)
+
+      win.isMaximized.mockReturnValue(false)
+      expect(wm.isMaximized(id)).toBe(false)
+    })
+
+    it('isMaximized() returns false for unknown windowId', () => {
+      expect(wm.isMaximized('does-not-exist')).toBe(false)
+    })
+
+    it('setFullScreen() forwards value to BrowserWindow.setFullScreen', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+
+      expect(wm.setFullScreen(id, true)).toBe(true)
+      expect(win.setFullScreen).toHaveBeenLastCalledWith(true)
+
+      expect(wm.setFullScreen(id, false)).toBe(true)
+      expect(win.setFullScreen).toHaveBeenLastCalledWith(false)
+    })
+
+    it('setFullScreen() returns false for unknown windowId', () => {
+      expect(wm.setFullScreen('does-not-exist', true)).toBe(false)
+    })
+
+    it('isFullScreen() reflects BrowserWindow.isFullScreen', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+
+      win.isFullScreen.mockReturnValue(true)
+      expect(wm.isFullScreen(id)).toBe(true)
+
+      win.isFullScreen.mockReturnValue(false)
+      expect(wm.isFullScreen(id)).toBe(false)
+    })
+
+    it('isFullScreen() returns false for unknown windowId', () => {
+      expect(wm.isFullScreen('does-not-exist')).toBe(false)
+    })
+  })
+
+  // ─── Window state forwarding (OS events → renderer) ────
+
+  describe('window state forwarding', () => {
+    it("forwards BrowserWindow 'maximize' event to webContents.send(MaximizedChanged, true)", () => {
+      wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      win.emit('maximize')
+
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:maximized-changed', true)
+    })
+
+    it("forwards BrowserWindow 'unmaximize' event to webContents.send(MaximizedChanged, false)", () => {
+      wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      win.emit('unmaximize')
+
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:maximized-changed', false)
+    })
+
+    it("forwards BrowserWindow 'enter-full-screen' event to webContents.send(FullscreenChanged, true)", () => {
+      wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      win.emit('enter-full-screen')
+
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:fullscreen-changed', true)
+    })
+
+    it("forwards BrowserWindow 'leave-full-screen' event to webContents.send(FullscreenChanged, false)", () => {
+      wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      win.emit('leave-full-screen')
+
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:fullscreen-changed', false)
+    })
+
+    it('only forwards events to the originating window (no cross-window leakage)', () => {
+      wm.open('default' as never)
+      wm.open('default' as never)
+      const [winA, winB] = createdWindows
+      winA.webContents.send.mockClear()
+      winB.webContents.send.mockClear()
+
+      winA.emit('maximize')
+
+      expect(winA.webContents.send).toHaveBeenCalledWith('window-manager:maximized-changed', true)
+      expect(winB.webContents.send).not.toHaveBeenCalledWith('window-manager:maximized-changed', expect.anything())
+    })
+  })
+
   // ─── Queries ───────────────────────────────────────────
 
   describe('queries', () => {
@@ -1215,6 +1351,76 @@ describe('WindowManager', () => {
       } finally {
         application.isQuitting = previousQuitting
       }
+    })
+  })
+
+  // ─── pushInitData / pushInitDataToType ────────────────
+
+  describe('pushInitData', () => {
+    it('writes init-data store and sends Reused event to the target window', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.webContents.send.mockClear()
+
+      const payload = { v: 2, kind: 'refresh' }
+      const result = wm.pushInitData(id, payload)
+
+      expect(result).toBe(true)
+      expect(wm.getInitData(id)).toEqual(payload)
+      expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', payload)
+    })
+
+    it('returns false and does not send when window does not exist', () => {
+      const result = wm.pushInitData('no-such-id', { anything: true })
+      expect(result).toBe(false)
+    })
+
+    it('returns false for a destroyed window and does not touch its webContents', () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      win.isDestroyed.mockReturnValue(true)
+      win.webContents.send.mockClear()
+
+      const result = wm.pushInitData(id, { v: 3 })
+
+      expect(result).toBe(false)
+      expect(win.webContents.send).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pushInitDataToType', () => {
+    it('pushes to every live window of the given type and returns the count', () => {
+      const ids = [wm.open('pooled' as never), wm.open('pooled' as never), wm.open('pooled' as never)]
+      for (const win of createdWindows) win.webContents.send.mockClear()
+
+      const payload = { broadcast: true }
+      const count = wm.pushInitDataToType('pooled' as never, payload)
+
+      expect(count).toBe(3)
+      for (const win of createdWindows) {
+        expect(win.webContents.send).toHaveBeenCalledWith('window-manager:reused', payload)
+      }
+      for (const id of ids) {
+        expect(wm.getInitData(id)).toEqual(payload)
+      }
+    })
+
+    it('returns 0 and does not throw when no windows of that type exist', () => {
+      const count = wm.pushInitDataToType('pooled' as never, { v: 1 })
+      expect(count).toBe(0)
+    })
+
+    it('skips destroyed windows in the count and does not send to them', () => {
+      wm.open('pooled' as never)
+      wm.open('pooled' as never)
+      createdWindows[0].isDestroyed.mockReturnValue(true)
+      for (const win of createdWindows) win.webContents.send.mockClear()
+
+      const count = wm.pushInitDataToType('pooled' as never, { v: 9 })
+
+      expect(count).toBe(1)
+      expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('window-manager:reused', { v: 9 })
     })
   })
 
