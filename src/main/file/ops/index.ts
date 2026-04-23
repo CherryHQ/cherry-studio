@@ -8,20 +8,20 @@
  * MCP OAuth flow, and any service that truly needs raw `atomicWriteFile` /
  * `stat` / `listDirectory` import directly from `@main/file/ops`.
  *
- * The intent is "give everyone access to the **unmanaged** FS primitives",
+ * The intent is "give everyone access to the **entry-agnostic** FS primitives",
  * not "offer a back door around FileManager". Concretely:
  *
- * - **Do NOT** write files under the managed storage namespace
+ * - **Do NOT** write files under the internal-origin storage namespace
  *   (`application.getPath('feature.files.data', …)`) via `ops/*`. That region
  *   is FileManager's domain — bypassing it desyncs DanglingCache, versionCache,
  *   and the orphan sweep. Use `FileManager.createInternalEntry` /
- *   `writeIfUnchanged` instead. A future `ops.path.isUnderManagedStorage`
+ *   `writeIfUnchanged` instead. A future `ops.path.isUnderInternalStorage`
  *   guard (Phase 1b.1) will make this boundary detectable in dev mode.
  * - **Do NOT** mutate files a FileEntry references without going through
  *   FileManager (same reason).
  * - **OK** to use `ops/*` for: temp workspaces, module-local storage (Notes,
- *   backups), OAuth token caches, MCP configs — anything outside the managed
- *   storage region.
+ *   backups), OAuth token caches, MCP configs — anything outside the
+ *   internal-origin storage region.
  *
  * ## No DB awareness
  *

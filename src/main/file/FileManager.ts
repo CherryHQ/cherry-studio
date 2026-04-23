@@ -31,25 +31,26 @@
  * See `docs/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
  *
- * ## Managed vs Unmanaged — FileHandle dispatch at the IPC boundary
+ * ## FileHandle dispatch at the IPC boundary
  *
  * FileManager's public API (below) is **entry-native** — every method takes a
  * `FileEntryId`. Main-side business services call it directly without having
  * to wrap ids in a handle.
  *
- * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union over
- * managed/unmanaged references). Dispatching on `handle.kind` is treated as
- * the IPC adapter's legitimate responsibility (translating request shape),
- * not business orchestration. In the planned lifecycle implementation,
- * `FileManager.onInit()` will register handlers with the private
- * `dispatchHandle` helper:
+ * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
+ * variants select the *reference form* — `FileEntryHandle` routes through the
+ * entry system, `FilePathHandle` hits `ops/*` directly). Dispatching on
+ * `handle.kind` is treated as the IPC adapter's legitimate responsibility
+ * (translating request shape), not business orchestration. In the planned
+ * lifecycle implementation, `FileManager.onInit()` will register handlers with
+ * the private `dispatchHandle` helper:
  *
- * - `{ kind: 'managed', entryId }` → the corresponding FileManager public
+ * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
- * - `{ kind: 'unmanaged', path }`  → the `*Unmanaged` variant exported from
- *   `internal/*` (e.g. `contentRead.readUnmanaged(deps, path, opts)`)
+ * - `{ kind: 'path', path }`     → the `*ByPath` variant exported from
+ *   `internal/*` (e.g. `contentRead.readByPath(deps, path, opts)`)
  *
- * `*Unmanaged` variants are not exposed on the FileManager class — Main-side
+ * `*ByPath` variants are not exposed on the FileManager class — Main-side
  * callers have no use for them (they hold FileEntry, not arbitrary paths).
  *
  * New handle kinds (e.g. `virtual` for zip members) extend `dispatchHandle`
@@ -82,8 +83,9 @@
  * - No tracking of external rename/move
  * - `permanentDelete` on an external file_entry removes only the DB row — this
  *   entry-level operation is deliberately decoupled from physical deletion.
- *   Path-level deletion remains available via unmanaged `ops.remove(path)`,
- *   which is an explicit user-facing operation not tied to any entry id.
+ *   Path-level deletion remains available via `ops.remove(path)` (reached
+ *   through a `FilePathHandle`), which is an explicit user-facing operation
+ *   not tied to any entry id.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
@@ -357,7 +359,7 @@ export interface IFileManager {
    * - external: **DB-only** — the user's physical file is left untouched.
    *   Entry-level deletion is deliberately decoupled from physical deletion;
    *   callers that want to also delete the file on disk should invoke the
-   *   path-level `ops.remove(path)` (unmanaged FileHandle) separately.
+   *   path-level `ops.remove(path)` (via a `FilePathHandle`) separately.
    *
    * For internal, failure to unlink (file already missing, permission denied)
    * is logged but does not block DB deletion — we prefer DB-FS convergence to

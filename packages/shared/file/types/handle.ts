@@ -1,8 +1,18 @@
 /**
  * FileHandle — unified reference to any file accessible by Cherry.
  *
- * Consumers can hold a `FileHandle` without knowing whether the underlying
- * file is managed by Cherry (has a FileEntry) or just an arbitrary path.
+ * A handle is a **call-site choice of reference form**, not a statement about
+ * the file's ownership or registration status:
+ * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the
+ *   entry system (FileManager, versionCache, DanglingCache, …).
+ * - `FilePathHandle` carries an absolute `FilePath` — the call bypasses the
+ *   entry system and hits `ops/*` directly.
+ *
+ * The same physical file can be referenced by either form. In particular, an
+ * external file that has a FileEntry can also be reached via a `FilePathHandle`
+ * (with different side-effect semantics: no DB snapshot refresh, no dangling
+ * cache update, no version cache lookup). Picking a form is the caller's
+ * decision, driven by which subsystem they want in the loop.
  *
  * Distinct from `FileRef` (the file_ref table, which links business entities
  * like chat_message to FileEntry).
@@ -10,12 +20,12 @@
  * ## Examples
  *
  * ```ts
- * const h1 = createManagedHandle(entry.id)               // points at FileEntry
- * const h2 = createUnmanagedHandle('/Users/me/doc.pdf')  // points at filesystem path
+ * const h1 = createFileEntryHandle(entry.id)               // routes via FileManager
+ * const h2 = createFilePathHandle('/Users/me/doc.pdf')     // routes via ops/*
  *
  * // IPC / service methods accept either
- * await window.api.file.read(h1)     // resolves via FileManager + entry.externalPath
- * await window.api.file.read(h2)     // resolves via ops.read(path)
+ * await window.api.file.read(h1)     // FileManager.read — entry-aware
+ * await window.api.file.read(h2)     // ops.read(path)   — entry-agnostic
  * ```
  */
 
@@ -23,20 +33,20 @@ import type { FileEntryId } from '@shared/data/types/file'
 
 import type { FilePath } from './common'
 
-export type ManagedFileHandle = {
-  readonly kind: 'managed'
+export type FileEntryHandle = {
+  readonly kind: 'entry'
   readonly entryId: FileEntryId
 }
 
-export type UnmanagedFileHandle = {
-  readonly kind: 'unmanaged'
+export type FilePathHandle = {
+  readonly kind: 'path'
   readonly path: FilePath
 }
 
-export type FileHandle = ManagedFileHandle | UnmanagedFileHandle
+export type FileHandle = FileEntryHandle | FilePathHandle
 
 /**
- * Wrap a FileEntry ID as a managed FileHandle.
+ * Wrap a FileEntry ID as a `FileEntryHandle`.
  *
  * The caller is responsible for ensuring `entryId` is a valid UUID v7 —
  * typically produced by a FileManager factory or the DataApi response. This
@@ -44,12 +54,12 @@ export type FileHandle = ManagedFileHandle | UnmanagedFileHandle
  * (see `FileEntryIdSchema`), and runtime validation happens at the entry
  * *production* boundaries, not when wrapping an existing id.
  */
-export function createManagedHandle(entryId: FileEntryId): ManagedFileHandle {
-  return { kind: 'managed', entryId }
+export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
+  return { kind: 'entry', entryId }
 }
 
 /**
- * Wrap an absolute filesystem path as an unmanaged FileHandle.
+ * Wrap an absolute filesystem path as a `FilePathHandle`.
  *
  * ## Runtime validation
  *
@@ -68,27 +78,27 @@ export function createManagedHandle(entryId: FileEntryId): ManagedFileHandle {
  *
  * @throws {TypeError} When `path` is not a non-empty absolute filesystem path.
  */
-export function createUnmanagedHandle(path: FilePath): UnmanagedFileHandle {
+export function createFilePathHandle(path: FilePath): FilePathHandle {
   if (typeof path !== 'string' || path.length === 0) {
-    throw new TypeError('createUnmanagedHandle: path must be a non-empty string')
+    throw new TypeError('createFilePathHandle: path must be a non-empty string')
   }
   if (path.startsWith('file://')) {
-    throw new TypeError('createUnmanagedHandle: path must be a filesystem path, not a file:// URL')
+    throw new TypeError('createFilePathHandle: path must be a filesystem path, not a file:// URL')
   }
   const isPosixAbsolute = path.startsWith('/')
   const isWindowsAbsolute = /^[A-Za-z]:\\/.test(path)
   if (!isPosixAbsolute && !isWindowsAbsolute) {
-    throw new TypeError(`createUnmanagedHandle: path must be absolute (got ${JSON.stringify(path)})`)
+    throw new TypeError(`createFilePathHandle: path must be absolute (got ${JSON.stringify(path)})`)
   }
-  return { kind: 'unmanaged', path }
+  return { kind: 'path', path }
 }
 
-/** Type guard: narrow to the managed variant. */
-export function isManagedHandle(handle: FileHandle): handle is ManagedFileHandle {
-  return handle.kind === 'managed'
+/** Type guard: narrow to the entry-handle variant. */
+export function isFileEntryHandle(handle: FileHandle): handle is FileEntryHandle {
+  return handle.kind === 'entry'
 }
 
-/** Type guard: narrow to the unmanaged variant. */
-export function isUnmanagedHandle(handle: FileHandle): handle is UnmanagedFileHandle {
-  return handle.kind === 'unmanaged'
+/** Type guard: narrow to the path-handle variant. */
+export function isFilePathHandle(handle: FileHandle): handle is FilePathHandle {
+  return handle.kind === 'path'
 }

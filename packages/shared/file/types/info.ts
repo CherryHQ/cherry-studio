@@ -1,21 +1,21 @@
 /**
- * FileInfo — descriptor for an unmanaged file on disk.
+ * FileInfo — live descriptor of a file on disk, identified by `path`.
  *
- * Paired with `UnmanagedFileHandle` on the reference side. Together they form
- * the "unmanaged half" of the FileHandle ⊕ data-shape symmetry:
+ * Paired with `FilePathHandle` on the reference side. Together they form the
+ * path-indexed half of the FileHandle ⊕ data-shape symmetry:
  *
  * ```
  *  reference layer                  data-shape layer
  *  ─────────────────                ─────────────────
- *  ManagedFileHandle   ──resolve──▶ FileEntry      (DB-row snapshot, identity-first)
- *  UnmanagedFileHandle ──resolve──▶ FileInfo       (live disk descriptor, path-first)
+ *  FileEntryHandle   ──resolve──▶ FileEntry      (DB-row snapshot, identity-first)
+ *  FilePathHandle    ──resolve──▶ FileInfo       (live disk descriptor, path-first)
  * ```
  *
  * ## Relationship to FileEntry
  *
  * FileInfo and FileEntry share many fields (`name`, `ext`, `size`, etc.)
- * because every file has these attributes regardless of whether it is managed.
- * The difference is **semantic**, not structural:
+ * because every file has these attributes regardless of whether a FileEntry
+ * row exists for it. The difference is **semantic**, not structural:
  *
  * | Aspect          | FileInfo                                  | FileEntry                                    |
  * |-----------------|-------------------------------------------|----------------------------------------------|
@@ -26,16 +26,18 @@
  *
  * ## When to use FileInfo vs FileEntry in signatures
  *
- * Primary axis: **is the file managed by Cherry?** This is a property of the
- * file, not of the consumer. See
+ * Primary axis: **which subsystem does the caller want in the loop?** The
+ * entry system (FileManager, versionCache, DanglingCache) or just raw FS
+ * (`ops/*`). This is a call-site choice, not an intrinsic file property — the
+ * same physical file can be reached either way. See
  * [architecture.md](../../../../docs/references/file/architecture.md) for the
  * full decision matrix. Quick rules:
  *
- * - Accept `FileHandle` when the operation is meaningful on both managed and
- *   unmanaged files (read / open / getMetadata / most IPC). The handler
- *   dispatches on `handle.kind`.
+ * - Accept `FileHandle` when the operation is meaningful regardless of which
+ *   subsystem the caller picked (read / open / getMetadata / most IPC). The
+ *   handler dispatches on `handle.kind`.
  * - Accept `FileEntry` (or `FileEntryId`) only when the operation requires
- *   managed-file identity: persisting a reference, calling FileManager
+ *   entry-system identity: persisting a reference, calling FileManager
  *   lifecycle methods, rendering the Files management UI.
  * - Accept `FileInfo` only at the leaf — pure content/attribute processors
  *   (OCR, tokenization, hashing) that work off a resolved on-disk descriptor.
@@ -59,7 +61,7 @@ import type { FilePath, FileType } from './common'
 /**
  * Descriptor for a file on disk. Flat, cheap to construct, no identity.
  *
- * @see {@link FileEntry} for the managed-file counterpart.
+ * @see {@link FileEntry} for the entry-system counterpart.
  * @see {@link PhysicalFileMetadata} for per-kind rich stat (dimensions,
  *      pageCount, etc.).
  */

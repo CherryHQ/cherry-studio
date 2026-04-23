@@ -811,10 +811,10 @@ Main 侧消费者可以直接用 main 的 `resolvePhysicalPath(entry)`（`src/ma
 | ------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `'file://' + FileManager.getSafePath(file)` | 新 renderer helper `entryToFileUrl(entry)` —— 同步拼接                                  |
 | `FileManager.getFilePath(file)`             | 新 renderer helper `entryToAbsolutePath(entry)` —— 同步拼接                             |
-| `window.api.file.openPath(path)`            | `window.api.fileIpc.open(createManagedHandle(entry.id))`                                |
+| `window.api.file.openPath(path)`            | `window.api.fileIpc.open(createFileEntryHandle(entry.id))`                              |
 | `window.api.file.isTextFile(path)`          | `window.api.fileIpc.getMetadata(handle)` 返回 type（含 buffer 升级）                    |
 | `window.api.file.readText(path)`            | `window.api.fileIpc.read(handle, { encoding: 'text' })`                                 |
-| `window.api.file.readExternal(path, true)`  | `window.api.fileIpc.read(handle, { encoding: 'text' })` —— unmanaged handle 走 ops 直读 |
+| `window.api.file.readExternal(path, true)`  | `window.api.fileIpc.read(handle, { encoding: 'text' })` —— path handle 直接走 ops      |
 | `getFileExtension(file.path)`               | `file.ext`                                                                              |
 | OCR `thirdPartyLib(file.path)`              | `fileManager.withTempCopy(entryId, path => thirdPartyLib(path))`                        |
 
@@ -924,7 +924,7 @@ Renderer helper 方案、DataApi opt-in 方案、IPC 双方法方案皆已作废
 
 | #   | 文件                            | 改动                                                                                                                |
 | --- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| C1  | `FilesPage.tsx:105`             | `window.api.file.openPath(FileManager.getFilePath(file))` → `window.api.fileIpc.open({ kind: 'managed', entryId })` |
+| C1  | `FilesPage.tsx:105`             | `window.api.file.openPath(FileManager.getFilePath(file))` → `window.api.fileIpc.open({ kind: 'entry', entryId })`   |
 | C2  | `useAttachment.ts:26`           | 同上                                                                                                                |
 | C3  | `AttachmentPreview.tsx:127-129` | `preview(path, name, type, ext)` → 改 preview 签名接 FileEntry 或 handle                                            |
 
@@ -978,8 +978,8 @@ Renderer helper 方案、DataApi opt-in 方案、IPC 双方法方案皆已作废
 
 `window.api.file.readExternal(path, asText)` 是旧 API。v2 **统一到 `FileIpcApi.read(handle)`，不保留别名**：
 
-- 旧 `readExternal(path, true)` → `read({ kind: 'unmanaged', path }, { encoding: 'text' })`
-- 上下文已经是 FileEntry 时：`read({ kind: 'managed', entryId }, ...)`
+- 旧 `readExternal(path, true)` → `read({ kind: 'path', path }, { encoding: 'text' })`
+- 上下文已经是 FileEntry 时：`read({ kind: 'entry', entryId }, ...)`
 
 所有调用方**必须替换**（不存在过渡兼容层）。
 
@@ -1007,7 +1007,7 @@ IPC 批量方法内部 `Promise.all` 一次 RT 完成——效率等同旧方案
 | **危险文件防护丢失**                       | `entryToSafePath` 必须继承 `isDangerFile` 逻辑；FileManager IPC `open(handle)` 对 danger ext 应该 refuse 或 open dirname                                               |
 | **Image render 性能**（C1 大列表）         | Helper 同步拼接，比原 `getSafePath` 还快（无 db.files.get 调用）                                                                                                       |
 | **路径字符串作为 key 的代码**（C5 F2）     | Obsidian dialog 等改为用 entry.id 作为 key，避免 path 字符串字面比较                                                                                                   |
-| **主 `readExternal` 的调用签名迁移**       | `readExternal` 可以临时保留（别名到 `read({unmanaged,path})`），逐步淘汰                                                                                               |
+| **主 `readExternal` 的调用签名迁移**       | `readExternal` 可以临时保留（别名到 `read({ kind: 'path', path })`），逐步淘汰                                                                                         |
 | **历史 message block 里内嵌 FileMetadata** | ChatMigrator 抽取 `file.id` 建立 file_ref（`sourceType='chat_message'`）；新 message block JSON 只存 `fileEntryId`；渲染时查 FileEntry。**不需要 shim**，见 §2.6.10 Q3 |
 | **Drag-drop 出 Cherry 给 OS**              | Electron drag-drop 需要绝对路径；用 `entryToAbsolutePath(entry)` 获取                                                                                                  |
 
@@ -1030,7 +1030,7 @@ IPC 批量方法内部 `Promise.all` 一次 RT 完成——效率等同旧方案
 
 **Q1: `readExternal` 的 IPC 别名** ✅ **已决定**
 
-统一到 `read(handle)`，不保留 `readExternal` 别名。FileHandle 自身区分 managed 和 unmanaged，旧 `readExternal(path, text)` 相当于 `read({ kind: 'unmanaged', path }, { encoding: 'text' })`。
+统一到 `read(handle)`，不保留 `readExternal` 别名。FileHandle 自身区分 `entry` 与 `path` 两种引用形态，旧 `readExternal(path, text)` 相当于 `read({ kind: 'path', path }, { encoding: 'text' })`。
 
 影响：Step D 所有 `readExternal` 调用**必须替换**（不能留过渡别名），配套 `readText` / `isTextFile` 等旧 IPC 也走 `read` / `getMetadata`。
 
@@ -1207,7 +1207,7 @@ export function entryDisplayName(entry: FileEntry): string {
 | C2  | `KnowledgeService.ts:135`           | `http://file/${file.name}` → `http://file/${entry.id}`（用 id 作为资源标识）                   |
 | C3  | `utils/knowledge.ts:211, 222`       | XML 的 `filename="..."` 用 `entryDisplayName(entry)`                                           |
 | C4  | `KnowledgeSearchItem/hooks.ts:54`   | `href: http://file/${item.file.name}` → `${entry.id}`                                          |
-| C5  | `useKnowledge.ts:134, 138`          | `window.api.file.delete(file.name)` → `fileIpc.permanentDelete(createManagedHandle(entry.id))` |
+| C5  | `useKnowledge.ts:134, 138`          | `window.api.file.delete(file.name)` → `fileIpc.permanentDelete(createFileEntryHandle(entry.id))` |
 
 **Step D: Consumer 改造 —— 原名使用点**
 

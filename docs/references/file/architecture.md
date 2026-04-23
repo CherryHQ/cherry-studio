@@ -65,7 +65,7 @@ File Module (src/main/file/)
 │     │    ├── copy.ts          [1b.2]
 │     │    └── refresh.ts       — refreshMetadata / getMetadata  [1b.1 getMetadata · 1b.2 refreshMetadata]
 │     ├── content/
-│     │    ├── read.ts          — read / createReadStream (including unmanaged variants)  [1b.1]
+│     │    ├── read.ts          — read / createReadStream (including `*ByPath` variants)  [1b.1]
 │     │    ├── write.ts         — write / writeIfUnchanged / createWriteStream  [1b.2]
 │     │    └── hash.ts          — getContentHash / getVersion  [1b.1]
 │     ├── system/
@@ -90,7 +90,7 @@ File Module (src/main/file/)
       │                 atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream  [1b.2]
       │                 version: statVersion / contentHash (xxhash-128)  [1b.1 hash · 1b.2 statVersion]
       ├── shell.ts    — system ops: open / showInFolder  [1b.2]
-      ├── path.ts     — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderManagedStorage · 1b.2 rest]
+      ├── path.ts     — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderInternalStorage · 1b.2 rest]
       ├── metadata.ts — type detection: getFileType / isTextFile / mimeToExt  [1b.1]
       └── search.ts   — directory search: listDirectory (ripgrep + fuzzy matching)  [1b.2]
 
@@ -154,46 +154,51 @@ These modules manage their own files and may use `node:fs` or `ops/*` directly; 
 
 ### 2.1 Two Layers of File Types
 
-The file module organizes its types along two orthogonal axes — and whether the file is *managed* (Cherry has registered a FileEntry for it) or *unmanaged* (just a path on disk):
+The file module organizes its types along two layers — the **reference layer** (how a call site names the target file when crossing a boundary) and the **data-shape layer** (what the handler receives after resolving that reference):
 
 ```
-                    Managed                           Unmanaged
-                    ───────                           ─────────
-Reference layer     ManagedFileHandle                 UnmanagedFileHandle
-(across boundaries) { kind: 'managed', entryId }      { kind: 'unmanaged', path }
-                          │                                 │
-                          ▼ FileManager.getEntry            ▼ ops.stat + projection
-Data-shape layer    FileEntry                         FileInfo
-(after resolution)  { id, origin, name, ext,          { path, name, ext, size,
-                      size, trashedAt, ... }            mime, type, modifiedAt, ... }
+                    Entry-referenced                   Path-referenced
+                    ────────────────                   ────────────────
+Reference layer     FileEntryHandle                    FilePathHandle
+(across boundaries) { kind: 'entry', entryId }         { kind: 'path', path }
+                          │                                  │
+                          ▼ FileManager.getEntry             ▼ ops.stat + projection
+Data-shape layer    FileEntry                          FileInfo
+(after resolution)  { id, origin, name, ext,           { path, name, ext, size,
+                      size, trashedAt, ... }             mime, type, modifiedAt, ... }
 ```
 
-"Managed vs unmanaged" is a property of the **file itself** at the moment of the call, not a preference of the consumer. The reference layer (`FileHandle`) is the polymorphic currency that lets a single IPC call accept either kind; the data-shape layer is what the handler works with after dispatching.
+Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
+
+- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache, DB snapshot refresh); `FilePathHandle` bypasses it and hits `ops/*` directly.
+- **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
+
+The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (snapshot refresh, dangling updates, version cache); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
 
 ### 2.2 `FileHandle`: the Polymorphic Reference
 
-`FileHandle = ManagedFileHandle | UnmanagedFileHandle` (see [`packages/shared/file/types/handle.ts`](../../../packages/shared/file/types/handle.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense on *both* managed and unmanaged files accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
+`FileHandle = FileEntryHandle | FilePathHandle` (see [`packages/shared/file/types/handle.ts`](../../../packages/shared/file/types/handle.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
 
-Use `FileHandle` whenever a signature does not *inherently* require managed-file identity.
+Use `FileHandle` whenever a signature does not *inherently* require an entry row (e.g. anything that isn't a lifecycle op on a FileEntry).
 
 ### 2.3 `FileEntry` vs `FileInfo`
 
-Once a handle is dispatched, the handler works with either a `FileEntry` (the DB row for a managed file) or a `FileInfo` (a live descriptor of an unmanaged file). They are the two "data shapes" of a file:
+Once a handle is dispatched, the handler works with either a `FileEntry` (the DB row identified by an entryId) or a `FileInfo` (a live descriptor produced from a path). They are the two "data shapes" of a file:
 
 | Aspect         | `FileEntry`                                                | `FileInfo`                                                |
 |----------------|------------------------------------------------------------|-----------------------------------------------------------|
-| Role           | DB row for a managed file                                  | Descriptor for an unmanaged file                          |
+| Role           | DB row identified by `id`                                  | Live descriptor identified by `path`                      |
 | Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
 | Liveness       | Snapshot — decoupled from physical state                   | Live view — re-read from `fs.stat`                        |
-| Lifecycle      | Persistent; trash/restore (internal only)                  | Transient — per-call descriptor                           |
+| Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
 | Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `ops.stat(path)` / `toFileInfo(entry)`                    |
 | Typical use    | FileManager ops, UI management panels, `file_ref` creation | Pure content processors (OCR, hashing, tokenization)      |
 
-**Field overlap is inherent, not redundant**: `name`, `ext`, `size`, `type` (and `mime` on `FileInfo`) describe a file regardless of whether it is managed. What distinguishes the two types is the *surrounding* fields and the *semantics* of the shared ones:
+**Field overlap is inherent, not redundant**: `name`, `ext`, `size`, `type` (and `mime` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *semantics* of the shared ones:
 
 - **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `trashedAt`.
 - **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`.
-- **Same-named fields have different invariants**. `FileInfo.size` is live from `fs.stat`; `FileEntry.size` for an external entry is a last-observed snapshot that may drift until `refreshMetadata`. Mixing them up is a silent correctness bug.
+- **Same-named fields have different invariants**. `FileInfo.size` is live from `fs.stat`; `FileEntry.size` for an external-origin entry is a last-observed snapshot that may drift until `refreshMetadata`. Mixing them up is a silent correctness bug.
 
 **Projection is one-way**. `FileEntry → FileInfo` is always possible via `toFileInfo(entry)` (async — performs `fs.stat` plus path resolution based on `origin`). The reverse is **not a type conversion**: it is a state change, and requires explicit registration through `FileManager.createInternalEntry` or `ensureExternalEntry`. The Zod brand on `FileEntrySchema` enforces this — arbitrary object literals cannot satisfy the `FileEntry` type.
 
@@ -201,17 +206,17 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 
 Default to the narrowest type that covers the need. "When in doubt, `FileHandle`" for cross-boundary calls, and "when in doubt, `FileInfo`" for leaf content processors.
 
-| What the consumer needs                                                                 | Signature                                |
-|-----------------------------------------------------------------------------------------|------------------------------------------|
-| Doesn't care whether managed; just operates on a file                                   | `FileHandle` ⭐ default for IPC          |
-| Only to call a FileManager lifecycle op (trash, restore, permanentDelete, …)            | `FileEntryId`                            |
-| Only to hand a path to an ops-level FS function                                         | `FilePath`                               |
-| The managed record's fields (UI management panel, origin-aware rendering, ref creation) | `FileEntry`                              |
-| A resolved on-disk descriptor for pure content processing                               | `FileInfo` (typically a return type)     |
+| What the consumer needs                                                                    | Signature                                |
+|--------------------------------------------------------------------------------------------|------------------------------------------|
+| Doesn't care which subsystem is in the loop; just operates on a file                       | `FileHandle` ⭐ default for IPC          |
+| Only to call a FileManager lifecycle op (trash, restore, permanentDelete, …)               | `FileEntryId`                            |
+| Only to hand a path to an ops-level FS function                                            | `FilePath`                               |
+| The entry row's fields (UI management panel, origin-aware rendering, ref creation)         | `FileEntry`                              |
+| A resolved on-disk descriptor for pure content processing                                  | `FileInfo` (typically a return type)     |
 
 Anti-patterns to avoid:
 
-- **Requiring `FileEntry` when only `path` or `size` is read** — this couples the caller to the management system. Accept `FileHandle` (and dispatch), or accept `FileInfo` (and have the caller project).
+- **Requiring `FileEntry` when only `path` or `size` is read** — this couples the caller to the entry system. Accept `FileHandle` (and dispatch), or accept `FileInfo` (and have the caller project).
 - **Returning a value typed `FileEntry` whose contract is "might or might not be registered"** — use `FileHandle` or an explicit variant instead.
 - **Synthesising a `FileEntry` from a `FileInfo`** — registration must go through sanctioned FileManager methods; the Zod brand is specifically there to prevent this.
 
@@ -219,7 +224,7 @@ Anti-patterns to avoid:
 
 The legacy `FileMetadata` type served two roles simultaneously — DB persistence (Dexie `files` table, `message_block.file` JSON) **and** generic file descriptor (OCR input, token estimation, UI rendering). The v2 type system makes those roles explicit by splitting them:
 
-- The **persistence role** → `FileEntry` (plus managed references via `file_ref`)
+- The **persistence role** → `FileEntry` (plus entry-system references via `file_ref`)
 - The **descriptor role** → `FileInfo`
 - The **polymorphic reference** → `FileHandle`
 
@@ -248,11 +253,11 @@ Other services in the main process can call ops.ts or FileManager directly as ne
 
 ### 3.3 IPC Method Categories
 
-All operations that can act on any file (managed FileEntry or unmanaged path) **accept a `FileHandle` tagged union** (`{ kind: 'managed', entryId } | { kind: 'unmanaged', path }`). Handlers dispatch by `handle.kind` to FileManager (managed) or `ops/*` (unmanaged).
+All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). Handlers dispatch by `handle.kind` to FileManager (entry branch) or `ops/*` (path branch).
 
-**Operations that accept FileHandle (managed + unmanaged unified)**:
+**Operations that accept FileHandle (entry + path branches unified)**:
 
-| Method | Description | managed-internal | managed-external | unmanaged |
+| Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
 | `read` | Read content | ops.read(userDataPath) | ops.read(externalPath) + DB snapshot refresh | ops.read(path) |
 | `getMetadata` | Physical metadata | based on entry + ops.stat | stat + refresh | ops.stat + getFileType |
@@ -260,24 +265,24 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 | `getContentHash` | xxhash-128 | read userData + hash | read external + hash | ops.contentHash |
 | `write` | Atomic write | atomic → userData | atomic → externalPath (explicit user edit) | atomic → path |
 | `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
-| `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via unmanaged `ops.remove`) | ops.remove(path) |
+| `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `ops.remove`) | ops.remove(path) |
 | `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update | ops.rename(path, newPath) |
-| `copy` | Copy to a new internal entry | read source + create new internal | read source external + create new internal | read path + create new internal |
+| `copy` | Copy to a new internal-origin entry | read source + create new internal | read source external + create new internal | read path + create new internal |
 | `open` / `showInFolder` | System ops | resolve + shell | resolve + shell | shell |
 
-**Operations accepting only FileEntryId (meaningful only for managed entries)**:
+**Operations accepting only FileEntryId (meaningful only when you already hold an entry id)**:
 
 | Method | Description |
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
 | `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path (snapshot refreshed via stat) or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. |
-| `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-only** — external entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
-| `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-only rule. |
+| `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
+| `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
-| `refreshMetadata` | Explicit stat refresh of external snapshot (UI manual refresh button) |
+| `refreshMetadata` | Explicit stat refresh of external-origin snapshot (UI manual refresh button) |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
-| `getDanglingState` / `batchGetDanglingStates` | Query external entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal entries always `'present'`. |
-| `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a managed entry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
+| `getDanglingState` / `batchGetDanglingStates` | Query external-origin entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal-origin entries always `'present'`. |
+| `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a FileEntry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
 
 **How to obtain dangling state / absolute path**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. See the two `FileEntryId`-only rows above. DataApi's SQL-only boundary is documented in §4.1.1.
 
@@ -298,17 +303,17 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 
 | User action | Physical external file |
 |---|---|
-| Trash from Cherry | **Not applicable** — external entries cannot be trashed (`fe_external_no_trash` CHECK) |
-| Restore from Cherry | **Not applicable** — external entries are never trashed |
+| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK) |
+| Restore from Cherry | **Not applicable** — external-origin entries are never trashed |
 | permanentDelete from Cherry (entry-level) | **Untouched** — only the DB row is deleted; the physical file remains on disk |
 | write / writeIfUnchanged from Cherry | **Overwritten** (atomic write) |
 | Rename from Cherry | **Physically renamed** (the external filename also changes) |
-| `ops.remove(path)` via unmanaged FileHandle (path-level) | **Deleted** — this is a deliberate path-level operation, not coupled to any file_entry row |
+| `ops.remove(path)` via `FilePathHandle` (path-level) | **Deleted** — this is a deliberate path-level operation, not coupled to any file_entry row |
 
 **Key principles**:
 - Cherry does not perform automatic / watcher-driven external file modifications
 - Cherry does perform user-explicitly-requested external file modifications (save, rename)
-- **Entry-level deletion (`permanentDelete` on an external file_entry) does NOT touch the physical file** — this decouples "remove from Cherry's tracking" from "destroy on disk". If a user truly wants to delete the physical file, they invoke the path-level `ops.remove(path)` (unmanaged FileHandle) explicitly, which is not bound to any entry row.
+- **Entry-level deletion (`permanentDelete` on an external file_entry) does NOT touch the physical file** — this decouples "remove from Cherry's tracking" from "destroy on disk". If a user truly wants to delete the physical file, they invoke the path-level `ops.remove(path)` (via a `FilePathHandle`) explicitly, which is not bound to any entry row.
 - External entry lifecycle is monotonic (Active → Deleted), with no Trashed state — "remove entry from Cherry's view" always means clearing the DB row + cascading `file_ref` rows
 - **Cherry does not track external file rename/move**—when a file is moved outside of Cherry, the corresponding entry becomes dangling (best-effort semantics); the caller must proactively call `ensureExternalEntry` on the new path to establish a new reference (upsert by path; reuses existing entry if hit)
 
@@ -726,7 +731,7 @@ BusinessService
     |   +-- factory auto-wires events into DanglingCache
     |
     x-- fs.readFile / writeFile / unlink           -> FORBIDDEN for FileEntry paths
-    x-- ops/fs direct on managed paths              -> FORBIDDEN for FileEntry paths
+    x-- ops/fs direct on FileEntry-backed paths    -> FORBIDDEN (same reason)
 ```
 
 **Why business services are forbidden from directly operating on the physical files backing a FileEntry**:
@@ -875,7 +880,7 @@ src/main/file/                        -- file module
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
 - **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` / `refreshMetadata` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
 - **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
-- **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via the unmanaged `ops.remove(path)` operation, which is a separate explicit call not bound to any entry id.
+- **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `ops.remove(path)` (reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
 - **External entry DB snapshot may be stale**: list queries return DB values directly; critical paths (read / hash / upload) automatically stat-verify + refresh; UI may provide a manual refresh
 - **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates

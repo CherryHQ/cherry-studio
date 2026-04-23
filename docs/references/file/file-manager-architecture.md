@@ -106,7 +106,7 @@ When a business object is deleted, the business Service is responsible for clean
 
 ### 1.4 FileHandle / FileInfo — see `architecture.md §2`
 
-`FileHandle` (polymorphic reference crossing IPC), `FileInfo` (unmanaged data shape), and the full reference-vs-data-shape symmetry are defined at the **module-level architecture document**, not here. This document concerns FileManager's internal implementation only.
+`FileHandle` (polymorphic reference crossing IPC), `FileInfo` (path-indexed data shape), and the full reference-vs-data-shape symmetry are defined at the **module-level architecture document**, not here. This document concerns FileManager's internal implementation only.
 
 - **`FileHandle`** (tagged union / factories / dispatch): [`architecture.md §2.2`](./architecture.md#22-filehandle-the-polymorphic-reference)
 - **`FileEntry` vs `FileInfo`** (semantic comparison / field invariants / projection rules): [`architecture.md §2.3`](./architecture.md#23-fileentry-vs-fileinfo)
@@ -116,8 +116,8 @@ When a business object is deleted, the business Service is responsible for clean
 
 | Category                                                                                                              | Methods                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Accept `FileHandle`** (managed + unmanaged via IPC dispatch)                                                        | `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder` |
-| **Accept `FileEntryId` only** (managed-identity operations; no unmanaged counterpart)                                 | `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`          |
+| **Accept `FileHandle`** (entry + path branches via IPC dispatch)                                                      | `read` / `getMetadata` / `getVersion` / `getContentHash` / `write` / `writeIfUnchanged` / `rename` / `permanentDelete` / `copy` / `open` / `showInFolder` |
+| **Accept `FileEntryId` only** (entry-identity operations; no path-handle counterpart)                                 | `trash` / `restore` / `createInternalEntry` / `ensureExternalEntry` / `refreshMetadata` / `withTempCopy`          |
 
 ### 1.5 FileUpload (AI Provider Upload Cache) — deferred
 
@@ -156,7 +156,7 @@ src/main/file/
 │     │    ├── copy.ts
 │     │    └── refresh.ts      — refreshMetadata / getMetadata
 │     ├── content/
-│     │    ├── read.ts         — read / createReadStream (including unmanaged variants)
+│     │    ├── read.ts         — read / createReadStream (including `readByPath` variants)
 │     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
 │     │    └── hash.ts         — getContentHash / getVersion
 │     ├── system/
@@ -213,7 +213,7 @@ export class FileManager extends BaseService implements IFileManager {
   // public API: thin delegates; naming strictly aligned with semantics (create = new, ensure = upsert)
   createInternalEntry(params) { return entryCreate.createInternalEntry(this.deps, params) }
   ensureExternalEntry(params) { return entryCreate.ensureExternalEntry(this.deps, params) }
-  read(id, opts?) { return contentRead.readManaged(this.deps, id, opts) }
+  read(id, opts?) { return contentRead.readByEntry(this.deps, id, opts) }
   trash(id) { return entryLifecycle.trash(this.deps, id) }
   // ... one line per method
 
@@ -229,19 +229,19 @@ export class FileManager extends BaseService implements IFileManager {
 **Dispatch location**: `FileHandle.kind` dispatch **stays at the IPC handler registration site**. Rationale:
 
 - `FileHandle` is the input shape at the IPC serialization layer—the renderer sends a `{ kind, ... }` tagged union, and post-deserialization kind-dispatch is a "request interpretation" concern—it is the **proper responsibility** of the IPC adapter layer
-- FileManager's public API remains entry-native (accepts only `FileEntryId`); main-side business service calls are intuitive without needing a `createManagedHandle(id)` wrapper
-- Operations on unmanaged **only need the IPC handler**; main-side business services hold FileEntries—they have no unmanaged path scenario
+- FileManager's public API remains entry-native (accepts only `FileEntryId`); main-side business service calls are intuitive without needing a `createFileEntryHandle(id)` wrapper
+- The `FilePathHandle` branch **only needs the IPC handler**; main-side business services hold FileEntries—they have no arbitrary-path scenario
 
 **Internal module convention**: each action file exposes consistently named variants by kind:
 
 ```typescript
 // internal/content/read.ts
-export async function readManaged(deps, entryId, opts): Promise<ReadResult<T>>    // serves FileManager public API
-export async function readUnmanaged(deps, path, opts): Promise<ReadResult<T>>      // serves the unmanaged branch of IPC handler
+export async function readByEntry(deps, entryId, opts): Promise<ReadResult<T>>    // serves FileManager public API
+export async function readByPath(deps, path, opts): Promise<ReadResult<T>>         // serves the path-handle branch of IPC handler
 // future: export async function readVirtual(deps, handle, opts)
 ```
 
-`*Managed` flows through FileManager's public methods; `*Unmanaged` (and future `*Virtual`) **do not** go through FileManager's public methods—they serve the unmanaged branch of the IPC handler only.
+`*ByEntry` flows through FileManager's public methods; `*ByPath` (and future `*Virtual`) **do not** go through FileManager's public methods—they serve the path-handle branch of the IPC handler only.
 
 **Unified style for dispatch helper**: to prevent "every IPC method writing its own if-else" noise, FileManager provides a small internal helper:
 
@@ -249,12 +249,12 @@ export async function readUnmanaged(deps, path, opts): Promise<ReadResult<T>>   
 // FileManager.ts (private)
 private dispatchHandle<T>(
   handle: FileHandle,
-  managed: (entryId: FileEntryId) => Promise<T>,
-  unmanaged: (path: FilePath) => Promise<T>
+  byEntry: (entryId: FileEntryId) => Promise<T>,
+  byPath: (path: FilePath) => Promise<T>
 ): Promise<T> {
   switch (handle.kind) {
-    case 'managed':   return managed(handle.entryId)
-    case 'unmanaged': return unmanaged(handle.path)
+    case 'entry': return byEntry(handle.entryId)
+    case 'path':  return byPath(handle.path)
   }
 }
 
@@ -262,13 +262,13 @@ private registerIpcHandlers() {
   this.ipcHandle('file.read', (handle, opts) =>
     this.dispatchHandle(handle,
       id   => this.read(id, opts),
-      path => contentRead.readUnmanaged(this.deps, path, opts)
+      path => contentRead.readByPath(this.deps, path, opts)
     )
   )
   this.ipcHandle('file.write', (handle, data) =>
     this.dispatchHandle(handle,
       id   => this.write(id, data),
-      path => contentWrite.writeUnmanaged(this.deps, path, data)
+      path => contentWrite.writeByPath(this.deps, path, data)
     )
   )
   // ... other IPC methods that accept FileHandle
@@ -305,7 +305,7 @@ private registerIpcHandlers() {
 | Split business methods into 5 lifecycle services | ❌ | Overkill—lifecycle registration, dependency ordering, and test mocking costs all 5×, in exchange only for "methods split across files" |
 | FileManager as facade + `internal/*` pure functions | ✅ | Only 1 lifecycle node; pure functions can be unit-tested with stub deps directly; external API surface remains stable |
 | FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch itself is a proper responsibility of the IPC adapter layer; converging into the `dispatchHandle` helper inside FileManager suffices; splitting off another layer adds pure complexity |
-| FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createManagedHandle` wrapper |
+| FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
 ---
@@ -476,7 +476,7 @@ FileManager maintains `Map<FileEntryId, CachedVersion>` internally (LRU, ~2000 e
 
 ### 5.1 tmp + fsync + rename Flow
 
-All writes (internal to userData, external to externalPath, unmanaged to any path) follow the POSIX atomic flow:
+All writes (entry/internal to userData, entry/external to externalPath, path-handle to any path) follow the POSIX atomic flow:
 
 ```
 1. Create {target}.tmp-{uuid} in the same directory

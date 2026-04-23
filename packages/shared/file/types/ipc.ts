@@ -15,13 +15,15 @@
  *
  * ## Unified access via FileHandle
  *
- * Most operations accept `FileHandle` (tagged union) so consumers don't need
- * to branch on "managed entry vs arbitrary path". The handler dispatches:
- * - `{ kind: 'managed', entryId }` → FileManager method (entry-aware)
- * - `{ kind: 'unmanaged', path }`  → `ops/*` direct (path-only)
+ * Most operations accept `FileHandle` (tagged union) so consumers don't have
+ * to pick between "route through the entry system" and "hit the FS directly"
+ * at the type-signature level — they encode the choice in the handle instead.
+ * The handler dispatches:
+ * - `{ kind: 'entry', entryId }` → FileManager method (entry-aware)
+ * - `{ kind: 'path', path }`     → `ops/*` direct (entry-agnostic)
  *
- * Operations that only make sense on FileEntry (trash, rename, refreshMetadata,
- * enrichment queries, etc.) take `FileEntryId` directly.
+ * Operations that only make sense against a FileEntry row (trash, rename,
+ * refreshMetadata, enrichment queries, etc.) take `FileEntryId` directly.
  */
 
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -190,13 +192,13 @@ export interface FileIpcApi {
   /** Get physical metadata (size, mime, timestamps, type-specific fields) */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
-  /** Get lightweight FileVersion. For managed-external entries, refreshes DB snapshot if changed. */
+  /** Get lightweight FileVersion. On an entry-handle pointing at an external entry, refreshes DB snapshot if changed. */
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /** Compute xxhash-128 of file content. */
   getContentHash(handle: FileHandle): Promise<string>
 
-  // ─── D. Write (accepts FileHandle; external and unmanaged paths are written via ops atomic write) ───
+  // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
 
   /** Unconditional atomic write. */
   write(handle: FileHandle, data: string | Uint8Array): Promise<FileVersion>
@@ -207,59 +209,62 @@ export interface FileIpcApi {
   // ─── E. Trash / Delete ───
 
   /**
-   * Move entry to Trash (soft delete via trashedAt). Managed + internal-only.
-   * Passing an external entry id throws: external entries cannot be trashed
+   * Move entry to Trash (soft delete via trashedAt). Internal-origin entries only.
+   * Passing an external-origin entry id throws: external entries cannot be trashed
    * (`fe_external_no_trash` CHECK).
    */
   trash(params: { id: FileEntryId }): Promise<void>
 
   /**
-   * Restore entry from Trash. Managed + internal-only — external entries are
-   * never trashed, so passing one throws.
+   * Restore entry from Trash. Internal-origin entries only — external entries
+   * are never trashed, so passing one throws.
    */
   restore(params: { id: FileEntryId }): Promise<FileEntry>
 
   /**
-   * Permanently delete. Always deletes the DB row when managed.
-   * - Managed internal: unlinks `{userData}/files/{id}.{ext}`, then deletes DB row.
-   * - Managed external: **DB-only** — the user's physical file is left
-   *   untouched. Entry-level deletion is deliberately decoupled from physical
-   *   deletion; callers wanting to also delete the file on disk should invoke
-   *   the path-level unmanaged branch below separately.
-   * - Unmanaged: removes the file at the given path (delegates to `ops.remove`).
+   * Permanently delete.
+   * - Entry handle, internal origin: unlinks `{userData}/files/{id}.{ext}`, then deletes DB row.
+   * - Entry handle, external origin: **DB-only** — the user's physical file
+   *   is left untouched. Entry-level deletion is deliberately decoupled from
+   *   physical deletion; callers wanting to also delete the file on disk
+   *   should invoke the path-handle branch below separately.
+   * - Path handle: removes the file at the given path (delegates to `ops.remove`).
    */
   permanentDelete(handle: FileHandle): Promise<void>
 
-  /** Batch trash — internal-only; external ids fail like `trash`. */
+  /** Batch trash — internal-origin only; external ids fail like `trash`. */
   batchTrash(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch restore — internal-only; external ids fail like `restore`. */
+  /** Batch restore — internal-origin only; external ids fail like `restore`. */
   batchRestore(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
-  /** Batch permanently delete managed entries (DB row always removed; physical FS follows origin rules above). */
+  /** Batch permanently delete entries (DB row always removed; physical FS follows origin rules above). */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchOperationResult>
 
   // ─── F. Rename ───
 
   /**
    * Rename a file.
-   * - Managed: `newTarget` is a new display name (no path separators). For external,
-   *   the physical file is renamed in place; for internal, only DB name changes.
-   * - Unmanaged: `newTarget` is a full new absolute path. Equivalent to `fs.rename(path, newTarget)`.
+   * - Entry handle: `newTarget` is a new display name (no path separators).
+   *   For external-origin entries the physical file is renamed in place; for
+   *   internal-origin entries only the DB name changes.
+   * - Path handle: `newTarget` is a full new absolute path. Equivalent to
+   *   `fs.rename(path, newTarget)`.
    */
   rename(handle: FileHandle, newTarget: string): Promise<FileEntry | void>
 
   // ─── G. Copy ───
 
   /**
-   * Copy content into a new internal managed entry.
-   * Source can be managed (internal or external) or unmanaged.
+   * Copy content into a new internal-origin entry.
+   * Source can be either handle variant (and for the entry variant, either origin).
    */
   copy(params: { source: FileHandle; newName?: string }): Promise<FileEntry>
 
-  // ─── H. External Metadata Refresh (managed-external only) ───
+  // ─── H. External-origin Metadata Refresh (entry-handle, external origin only) ───
 
   /**
-   * Re-stat external entry and refresh DB snapshot (name/ext/size). No-op for internal.
-   * Side effect: updates DanglingCache based on stat result.
+   * Re-stat external-origin entry and refresh DB snapshot (name/ext/size).
+   * No-op for internal-origin entries. Side effect: updates DanglingCache
+   * based on stat result.
    *
    * Dangling state itself is queried via `getDanglingState` / `batchGetDanglingStates` (section K).
    */
@@ -280,7 +285,7 @@ export interface FileIpcApi {
   /** Check if a directory is non-empty. */
   isNotEmptyDir(dirPath: FilePath): Promise<boolean>
 
-  // ─── K. Entry Enrichment (managed-entry only; FS / main-side compute) ───
+  // ─── K. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
   // These methods replace the former DataApi opt-in fields
   // (`includeDangling` / `includePath`). DataApi is kept strictly SQL-only;
@@ -296,9 +301,9 @@ export interface FileIpcApi {
   // cache lookups, and keeps the per-call IPC overhead O(1).
 
   /**
-   * Query the presence state of an external managed entry (via file_module's
+   * Query the presence state of an external-origin entry (via file_module's
    * `DanglingCache`). On cache hit, synchronous; on miss, performs a single
-   * `fs.stat` and updates the cache. Internal entries always return `'present'`.
+   * `fs.stat` and updates the cache. Internal-origin entries always return `'present'`.
    *
    * ## Staleness contract (best-effort)
    *
@@ -321,9 +326,9 @@ export interface FileIpcApi {
   batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>>
 
   /**
-   * Resolve the absolute filesystem path of a managed entry. For internal
-   * entries this is `{userData}/files/{id}.{ext}`; for external entries it
-   * returns `entry.externalPath`.
+   * Resolve the absolute filesystem path of a FileEntry. For internal-origin
+   * entries this is `{userData}/files/{id}.{ext}`; for external-origin entries
+   * it returns `entry.externalPath`.
    *
    * ## Intended uses
    *
