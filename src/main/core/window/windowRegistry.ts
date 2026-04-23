@@ -84,6 +84,74 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Detached tab window — multi-instance, one per user-detached Tab.
+  // Placed adjacent to Main because a SubWindow is logically a Main spin-off
+  // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
+  // to the Main tab bar re-attaches).
+  // Managed by SubWindowService: dynamic options (per-tab title, theme-driven
+  // titleBarOverlay / backgroundColor / darkTheme, Linux-only icon nativeImage,
+  // optional initial x/y) are injected via wm.open({ options }). showMode
+  // 'manual' lets SubWindowService decide show timing based on whether an
+  // initial position was provided at Tab_Detach time (drop-at-cursor detach
+  // wants the window at that position before show; no-position detach uses a
+  // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
+  // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
+  // the renderer.
+  // NOTE on future evolution: if this ever changes to `lifecycle: 'pooled'`,
+  // the Win/Linux content-bounds move path in SubWindowService (electron#27651)
+  // requires `useContentSize: true` here — otherwise resetPooledWindowGeometry's
+  // content-bounds branch is skipped and cached size drifts across reuse.
+  [WindowType.SubWindow]: {
+    type: WindowType.SubWindow,
+    lifecycle: 'default',
+    htmlPath: 'subWindow.html',
+    // preload omitted → defaults to 'index.js' (full API preload).
+    showMode: 'manual',
+    windowOptions: {
+      width: 800,
+      height: 600,
+      minWidth: 400,
+      minHeight: 300,
+      autoHideMenuBar: true,
+      transparent: false,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      platformOverrides: {
+        mac: {
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 8, y: 13 }
+          // titleBarOverlay is theme-dependent → injected via args.options
+        },
+        win: {
+          frame: false
+          // backgroundColor is theme-dependent → injected via args.options (non-mac only)
+        },
+        linux: {
+          frame: false
+          // icon is a nativeImage (required for Wayland task switcher) → injected via args.options
+        }
+      },
+      webPreferences: {
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true,
+        // REQUIRED: SubWindow hosts streaming LLM responses and WebSocket heartbeats;
+        // Chromium's background-tab throttling would freeze the UI for seconds after
+        // focus switches. Mirrors the Main window's choice above; do not remove.
+        backgroundThrottling: false
+      }
+    }
+    // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
+    //   - title (per-tab dynamic)
+    //   - titleBarOverlay / backgroundColor / darkTheme (theme snapshot at create time)
+    //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
+    //   - x / y (only when Tab_Detach payload carries a drop position)
+    // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
+    // every BrowserWindow (see WindowManager.ts:1186-1201). SubWindow inherits both
+    // automatically; do NOT attach another setWindowOpenHandler here or in the
+    // service — Electron's API is single-slot and would overwrite WM's version.
+  },
+
   // Quick Assistant window — singleton floating panel.
   // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
   // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).

@@ -15,10 +15,10 @@ import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { GroupSchemas } from '@shared/data/api/schemas/groups'
 import {
-  CreateGroupDtoSchema,
+  CreateGroupSchema,
   GroupIdSchema,
   ListGroupsQuerySchema,
-  UpdateGroupDtoSchema
+  UpdateGroupSchema
 } from '@shared/data/api/schemas/groups'
 
 type GroupHandler<Path extends keyof GroupSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
@@ -35,7 +35,7 @@ export const groupHandlers: {
     },
 
     POST: async ({ body }) => {
-      const parsed = CreateGroupDtoSchema.parse(body)
+      const parsed = CreateGroupSchema.parse(body)
       return await groupService.create(parsed)
     }
   },
@@ -48,7 +48,7 @@ export const groupHandlers: {
 
     PATCH: async ({ params, body }) => {
       const id = GroupIdSchema.parse(params.id)
-      const parsed = UpdateGroupDtoSchema.parse(body)
+      const parsed = UpdateGroupSchema.parse(body)
       return await groupService.update(id, parsed)
     },
 

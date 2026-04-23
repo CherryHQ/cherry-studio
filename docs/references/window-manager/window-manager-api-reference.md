@@ -63,12 +63,15 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 | `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never fires `Reused` (all create paths are fresh creation). |
 | `setInitData` | `(windowId: string, data: unknown) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
 | `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release. |
+| `pushInitData<T>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and fires `WindowManager_Reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
+| `pushInitDataToType<T>` | `(type: WindowType, data: T) => number` | Same as `pushInitData` but fans out to every live window of the given type. Returns the number of windows that received the event. Does not filter by visibility — idle pooled windows receive the payload too. |
 
 **Timing contract:**
 
 - **Cold start** (fresh creation): `createWindow` writes `initData` to the store synchronously before returning, so any `getInitData` invoke from the renderer (after React mounts) sees the fresh value. The renderer should use the [`useWindowInitData` hook](./window-manager-usage.md#renderer-usewindowinitdata-hook) — it handles the invoke on mount automatically.
 - **Reuse** (pool recycle / singleton reopen): `open()` simultaneously writes to the store AND fires `WindowManager_Reused` with the same payload. The `useWindowInitData` hook updates its state directly from the event payload — no round-trip.
 - **No initData** on a reuse call: the event is NOT fired. No "empty Reused" events — the hook therefore never needs a fallback invoke.
+- **Live update** (already-open window): call `pushInitData` / `pushInitDataToType` from any main-process service. Both paths reuse the `WindowManager_Reused` channel, so `useWindowInitData` picks up the new payload in-place with no remount — useful for "swap the visible window's context without `close()`+`open()` flicker". Unlike reuse, these methods forbid `undefined` payloads: pushing nothing has no meaningful semantics here.
 
 `webContents.send` is fire-and-forget and does not buffer messages sent before the renderer registers listeners. This is exactly why fresh windows can't use PUSH — they still must PULL via `getInitData` on mount.
 

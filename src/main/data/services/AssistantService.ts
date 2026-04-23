@@ -250,7 +250,7 @@ export class AssistantDataService {
 
     await this.db.transaction(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
-      await tagService.removeEntityTags('assistant', id, tx)
+      await tagService.purgeForEntity(tx, 'assistant', id)
     })
 
     logger.info('Soft-deleted assistant', { id })

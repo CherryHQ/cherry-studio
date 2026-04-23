@@ -13,13 +13,12 @@ import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
-  EntityIdSchema,
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
   TagIdSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
-import { EntityTypeSchema } from '@shared/data/types/entityType'
+import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 
 /**
  * Handler type for a specific tag endpoint

@@ -13,7 +13,7 @@
 import { pinService } from '@data/services/PinService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
-import { CreatePinDtoSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
+import { CreatePinSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
 
 type PinHandler<Path extends keyof PinSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
@@ -29,7 +29,7 @@ export const pinHandlers: {
     },
 
     POST: async ({ body }) => {
-      const parsed = CreatePinDtoSchema.parse(body)
+      const parsed = CreatePinSchema.parse(body)
       return await pinService.pin(parsed)
     }
   },

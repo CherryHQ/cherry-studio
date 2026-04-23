@@ -286,7 +286,7 @@ describe('TagService', () => {
     })
   })
 
-  describe('removeEntityTags', () => {
+  describe('purgeForEntity', () => {
     it('should remove only tag rows for the target entity', async () => {
       await seedTags()
       await dbh.db.insert(entityTagTable).values([
@@ -295,7 +295,7 @@ describe('TagService', () => {
         { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
       ])
 
-      await tagService.removeEntityTags('assistant', ASSISTANT_1)
+      await tagService.purgeForEntity(dbh.db, 'assistant', ASSISTANT_1)
 
       const rows = await dbh.db.select().from(entityTagTable)
       expect(rows).toEqual([

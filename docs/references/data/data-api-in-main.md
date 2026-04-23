@@ -304,7 +304,7 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 
 ```typescript
 // schemas/topic.ts
-export interface TopicSchemas {
+export type TopicSchemas = {
   '/topics': {
     GET: { response: PaginatedResponse<Topic> }
     POST: { body: CreateTopicDto; response: Topic }
