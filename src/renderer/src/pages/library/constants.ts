@@ -1,9 +1,8 @@
 import type { AssistantSettings } from '@shared/data/types/assistant'
-import { BookOpen, Bot, FileText, MessageCircle, Settings, Wrench, Zap } from 'lucide-react'
+import { Bot, MessageCircle, Zap } from 'lucide-react'
 
 import type { ResourceType, ResourceTypeUIConfig, SortKey } from './types'
 
-export type AssistantConfigSection = 'basic' | 'prompt' | 'knowledge' | 'tools'
 export type AssistantConfigMcpMode = AssistantSettings['mcpMode']
 
 type ResourceTypeMeta = ResourceTypeUIConfig & { labelKey: string }
@@ -27,38 +26,6 @@ export const RESOURCE_TYPE_META: Record<ResourceType, ResourceTypeMeta> = {
 }
 
 export const RESOURCE_TYPE_ORDER: ResourceType[] = ['agent', 'assistant', 'skill']
-
-export const ASSISTANT_CONFIG_SECTIONS: {
-  id: AssistantConfigSection
-  icon: typeof Settings
-  labelKey: string
-  descKey: string
-}[] = [
-  {
-    id: 'basic',
-    icon: Settings,
-    labelKey: 'library.config.section.basic.label',
-    descKey: 'library.config.section.basic.desc'
-  },
-  {
-    id: 'prompt',
-    icon: FileText,
-    labelKey: 'library.config.section.prompt.label',
-    descKey: 'library.config.section.prompt.desc'
-  },
-  {
-    id: 'knowledge',
-    icon: BookOpen,
-    labelKey: 'library.config.section.knowledge.label',
-    descKey: 'library.config.section.knowledge.desc'
-  },
-  {
-    id: 'tools',
-    icon: Wrench,
-    labelKey: 'library.config.section.tools.label',
-    descKey: 'library.config.section.tools.desc'
-  }
-]
 
 export const MCP_MODE_OPTIONS: {
   id: AssistantConfigMcpMode
@@ -99,4 +66,4 @@ export function getRandomTagColor(): string {
   return TAG_COLOR_PALETTE[idx]
 }
 
-export const PENDING_BACKEND_TYPES: ReadonlySet<ResourceType> = new Set(['agent', 'skill'])
+export const PENDING_BACKEND_TYPES: ReadonlySet<ResourceType> = new Set(['skill'])

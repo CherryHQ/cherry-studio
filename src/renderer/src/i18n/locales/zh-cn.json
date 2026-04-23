@@ -2249,6 +2249,120 @@
       "update": "更新"
     },
     "config": {
+      "agent": {
+        "create_banner": "保存后才能绑定工具和 MCP 服务",
+        "create_title": "新建智能体",
+        "field": {
+          "accessible_paths": {
+            "add": "添加目录",
+            "empty": "未设置（将使用默认工作区）",
+            "label": "可访问目录"
+          },
+          "allowed_tools": {
+            "add": "添加工具",
+            "empty": "留空则使用权限模式默认值",
+            "label": "允许使用的工具"
+          },
+          "description": {
+            "label": "描述",
+            "placeholder": "这个 Agent 的用途…"
+          },
+          "env_vars": {
+            "help": "每行一个 KEY=VALUE",
+            "label": "环境变量"
+          },
+          "heartbeat_enabled": {
+            "label": "心跳检测"
+          },
+          "heartbeat_interval": {
+            "label": "心跳间隔 (分钟)"
+          },
+          "instructions": {
+            "label": "系统提示词",
+            "placeholder": "告诉 Agent 它是谁、它能做什么…"
+          },
+          "max_turns": {
+            "help": "0 表示使用默认值",
+            "label": "最大对话轮数"
+          },
+          "mcps": {
+            "add": "添加 MCP 服务",
+            "empty": "未绑定",
+            "label": "MCP 服务 (id)"
+          },
+          "model": {
+            "help": "UniqueModelId,后续版本将改为从 /models 选择",
+            "hint": "负责主要推理和执行",
+            "label": "主模型 (必填)"
+          },
+          "name": {
+            "label": "Agent 名称",
+            "placeholder": "给 Agent 起个名字"
+          },
+          "permission_mode": {
+            "help": "切换到 bypassPermissions 等同于启用 Soul 模式",
+            "label": "权限模式",
+            "option": {
+              "acceptEdits": "接受编辑",
+              "bypassPermissions": "绕过权限 (Soul)",
+              "default": "默认",
+              "plan": "Plan 模式"
+            }
+          },
+          "plan_model": {
+            "hint": "负责任务拆解和决策",
+            "label": "Plan 模型 (可选)"
+          },
+          "small_model": {
+            "hint": "负责简单判断和格式化",
+            "label": "Small 模型 (可选)"
+          },
+          "soul_enabled": {
+            "help": "启用后自动授予 bypassPermissions 权限",
+            "label": "Soul 模式"
+          }
+        },
+        "model_config": "模型配置",
+        "section": {
+          "advanced": {
+            "desc": "最大轮次与环境变量",
+            "label": "高级设置",
+            "title": "高级设置"
+          },
+          "basic": {
+            "desc": "名称、头像、模型、目录、运行时",
+            "label": "基础设置",
+            "title": "基础设置"
+          },
+          "permission": {
+            "desc": "控制 Agent 可执行操作的授权范围",
+            "label": "权限模式",
+            "title": "权限模式"
+          },
+          "prompt": {
+            "desc": "系统提示词 / 行为约束",
+            "label": "提示词",
+            "title": "提示词"
+          },
+          "tools": {
+            "add": "添加",
+            "desc": "配置智能体可使用的工具和 MCP Server",
+            "label": "工具",
+            "no_builtin_enabled": "未启用任何内置工具",
+            "no_mcp_bound": "未绑定任何 MCP 服务",
+            "no_skills_enabled": "未启用任何技能",
+            "search_placeholder": "搜索工具或 Server...",
+            "skills_require_save": "保存后才能启用技能",
+            "skills_coming_soon": "Skill 绑定即将支持",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "内置工具"
+            },
+            "title": "能力扩展"
+          }
+        }
+      },
       "basic": {
         "context_count": "上下文数",
         "creative": "创意",
@@ -2368,6 +2482,12 @@
       "create": "新建{{type}}",
       "import": "导入{{type}}"
     },
+    "delete": {
+      "agent": {
+        "content": "确定要删除这个 Agent 吗？该操作不可撤销。",
+        "title": "删除 Agent"
+      }
+    },
     "delete_confirm": {
       "cancel": "取消",
       "confirm": "删除",
@@ -2375,6 +2495,7 @@
       "title": "确认删除"
     },
     "duplicate_name": "{{name}} (副本)",
+    "no_match": "无匹配结果",
     "empty_state": {
       "description": "点击「新建」创建你的第一个资源",
       "empty_description": "创建你的第一个智能体或助手",
@@ -2455,6 +2576,7 @@
     "type": {
       "agent": "智能体",
       "assistant": "助手",
+      "new_agent": "新智能体",
       "new_assistant": "新助手",
       "skill": "技能"
     },

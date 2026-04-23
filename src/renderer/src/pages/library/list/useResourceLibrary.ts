@@ -1,12 +1,12 @@
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
 
-import { agentAdapter } from './adapters/agentAdapter'
-import { assistantAdapter } from './adapters/assistantAdapter'
-import { skillAdapter } from './adapters/skillAdapter'
-import { useTagList } from './adapters/tagAdapter'
-import { PENDING_BACKEND_TYPES } from './constants'
-import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from './types'
+import { agentAdapter } from '../adapters/agentAdapter'
+import { assistantAdapter } from '../adapters/assistantAdapter'
+import { skillAdapter } from '../adapters/skillAdapter'
+import { useTagList } from '../adapters/tagAdapter'
+import { PENDING_BACKEND_TYPES } from '../constants'
+import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
 
 function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
   if (sort === 'name') return a.name.localeCompare(b.name, 'zh')
@@ -66,21 +66,23 @@ export function useResourceLibrary({
       raw: a
     }))
 
-    const agentItems: ResourceItem[] = agents.data.map((a) => ({
-      id: a.id,
-      type: 'agent',
-      name: a.name,
-      description: a.description ?? '',
-      avatar: a.emoji || '🤖',
-      model: a.model,
-      tags: [],
-      tagRefs: [],
-      enabled: true,
-      createdAt: a.createdAt,
-      updatedAt: a.updatedAt,
-      raw: a,
-      pendingBackend: true
-    }))
+    const agentItems: ResourceItem[] = agents.data.map((a) => {
+      const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
+      return {
+        id: a.id,
+        type: 'agent',
+        name: a.name ?? '',
+        description: a.description ?? '',
+        avatar: avatarFromConfig || '🤖',
+        model: a.model,
+        tags: [],
+        tagRefs: [],
+        enabled: true,
+        createdAt: a.created_at,
+        updatedAt: a.updated_at,
+        raw: a
+      }
+    })
 
     const skillItems: ResourceItem[] = skills.data.map((s) => ({
       id: s.id,

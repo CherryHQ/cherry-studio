@@ -2,7 +2,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
-import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
+import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../transfer'
 
 function createTag(id: string, name: string, color: string | null = '#3b82f6'): Tag {
   return {

@@ -2249,6 +2249,120 @@
       "update": "Update"
     },
     "config": {
+      "agent": {
+        "create_banner": "Save before binding tools and MCP servers",
+        "create_title": "New agent",
+        "field": {
+          "accessible_paths": {
+            "add": "Add directory",
+            "empty": "Not set (defaults to the workspace root)",
+            "label": "Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "Add tool",
+            "empty": "Leave empty to use the permission mode default",
+            "label": "Allowed tools"
+          },
+          "description": {
+            "label": "Description",
+            "placeholder": "What this agent is for…"
+          },
+          "env_vars": {
+            "help": "One KEY=VALUE per line",
+            "label": "Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "System prompt",
+            "placeholder": "Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "0 means use the default",
+            "label": "Max conversation turns"
+          },
+          "mcps": {
+            "add": "Add MCP server",
+            "empty": "None bound",
+            "label": "MCP servers (id)"
+          },
+          "model": {
+            "help": "UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "Main reasoning and execution",
+            "label": "Primary model (required)"
+          },
+          "name": {
+            "label": "Agent name",
+            "placeholder": "Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "Permission mode",
+            "option": {
+              "acceptEdits": "Accept edits",
+              "bypassPermissions": "Bypass permissions (Soul)",
+              "default": "Default",
+              "plan": "Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "Task decomposition and planning",
+            "label": "Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "Lightweight checks and formatting",
+            "label": "Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "When enabled, automatically grants bypassPermissions",
+            "label": "Soul mode"
+          }
+        },
+        "model_config": "Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "Max turns and environment variables",
+            "label": "Advanced",
+            "title": "Advanced"
+          },
+          "basic": {
+            "desc": "Name, avatar, model, directories, runtime",
+            "label": "Basic",
+            "title": "Basic"
+          },
+          "permission": {
+            "desc": "Authorization scope for agent actions",
+            "label": "Permission mode",
+            "title": "Permission mode"
+          },
+          "prompt": {
+            "desc": "System prompt and behavioral constraints",
+            "label": "Prompt",
+            "title": "Prompt"
+          },
+          "tools": {
+            "add": "Add",
+            "desc": "Configure tools and MCP servers the agent can use",
+            "label": "Tools",
+            "no_builtin_enabled": "No built-in tools enabled",
+            "no_mcp_bound": "No MCP servers bound",
+            "no_skills_enabled": "No skills enabled",
+            "search_placeholder": "Search tools or servers...",
+            "skills_require_save": "Save before enabling skills",
+            "skills_coming_soon": "Skill bindings coming soon",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "Built-in tools"
+            },
+            "title": "Capabilities"
+          }
+        }
+      },
       "basic": {
         "context_count": "Context count",
         "creative": "Creative",
@@ -2368,6 +2482,12 @@
       "create": "New {{type}}",
       "import": "Import {{type}}"
     },
+    "delete": {
+      "agent": {
+        "content": "Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "Delete agent"
+      }
+    },
     "delete_confirm": {
       "cancel": "Cancel",
       "confirm": "Delete",
@@ -2375,6 +2495,7 @@
       "title": "Delete"
     },
     "duplicate_name": "{{name}} (copy)",
+    "no_match": "No matching results",
     "empty_state": {
       "description": "Click \"New\" to create your first resource.",
       "empty_description": "Create your first agent or assistant",
@@ -2455,6 +2576,7 @@
     "type": {
       "agent": "Agent",
       "assistant": "Assistant",
+      "new_agent": "New agent",
       "new_assistant": "New assistant",
       "skill": "Skill"
     },

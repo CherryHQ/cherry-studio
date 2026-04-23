@@ -8,7 +8,7 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { useAssistantMutations } from '../adapters/assistantAdapter'
 import { useEnsureTags } from '../adapters/tagAdapter'
-import { AssistantTransferError, parseAssistantImportContent } from '../assistantTransfer'
+import { AssistantTransferError, parseAssistantImportContent } from '../editor/assistant/transfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const FETCH_TIMEOUT_MS = 15_000

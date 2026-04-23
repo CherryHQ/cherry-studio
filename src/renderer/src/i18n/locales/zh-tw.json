@@ -2249,6 +2249,120 @@
       "update": "[to be translated]:Update"
     },
     "config": {
+      "agent": {
+        "create_banner": "儲存後才能綁定工具和 MCP 服務",
+        "create_title": "新增智能體",
+        "field": {
+          "accessible_paths": {
+            "add": "[to be translated]:Add directory",
+            "empty": "[to be translated]:Not set (defaults to the workspace root)",
+            "label": "[to be translated]:Accessible directories"
+          },
+          "allowed_tools": {
+            "add": "[to be translated]:Add tool",
+            "empty": "[to be translated]:Leave empty to use the permission mode default",
+            "label": "[to be translated]:Allowed tools"
+          },
+          "description": {
+            "label": "[to be translated]:Description",
+            "placeholder": "[to be translated]:What this agent is for…"
+          },
+          "env_vars": {
+            "help": "[to be translated]:One KEY=VALUE per line",
+            "label": "[to be translated]:Environment variables"
+          },
+          "heartbeat_enabled": {
+            "label": "[to be translated]:Heartbeat check"
+          },
+          "heartbeat_interval": {
+            "label": "[to be translated]:Heartbeat interval (minutes)"
+          },
+          "instructions": {
+            "label": "[to be translated]:System prompt",
+            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+          },
+          "max_turns": {
+            "help": "[to be translated]:0 means use the default",
+            "label": "[to be translated]:Max conversation turns"
+          },
+          "mcps": {
+            "add": "[to be translated]:Add MCP server",
+            "empty": "[to be translated]:None bound",
+            "label": "[to be translated]:MCP servers (id)"
+          },
+          "model": {
+            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
+            "hint": "[to be translated]:Main reasoning and execution",
+            "label": "[to be translated]:Primary model (required)"
+          },
+          "name": {
+            "label": "[to be translated]:Agent name",
+            "placeholder": "[to be translated]:Give the agent a name"
+          },
+          "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
+            "label": "[to be translated]:Permission mode",
+            "option": {
+              "acceptEdits": "[to be translated]:Accept edits",
+              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
+              "default": "[to be translated]:Default",
+              "plan": "[to be translated]:Plan mode"
+            }
+          },
+          "plan_model": {
+            "hint": "[to be translated]:Task decomposition and planning",
+            "label": "[to be translated]:Plan model (optional)"
+          },
+          "small_model": {
+            "hint": "[to be translated]:Lightweight checks and formatting",
+            "label": "[to be translated]:Small model (optional)"
+          },
+          "soul_enabled": {
+            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
+            "label": "[to be translated]:Soul mode"
+          }
+        },
+        "model_config": "[to be translated]:Model configuration",
+        "section": {
+          "advanced": {
+            "desc": "[to be translated]:Execution limits and runtime parameters",
+            "label": "[to be translated]:Advanced",
+            "title": "[to be translated]:Advanced"
+          },
+          "basic": {
+            "desc": "[to be translated]:Agent name, description, and primary model",
+            "label": "[to be translated]:Basic",
+            "title": "[to be translated]:Basic"
+          },
+          "permission": {
+            "desc": "控制 Agent 可執行操作的授權範圍",
+            "label": "權限模式",
+            "title": "權限模式"
+          },
+          "prompt": {
+            "desc": "[to be translated]:System prompt and behavioral constraints",
+            "label": "[to be translated]:Prompt",
+            "title": "[to be translated]:Prompt"
+          },
+          "tools": {
+            "add": "新增",
+            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
+            "label": "[to be translated]:Tools & runtime",
+            "no_builtin_enabled": "未啟用任何內建工具",
+            "no_mcp_bound": "未綁定任何 MCP 服務",
+            "no_skills_enabled": "未啟用任何技能",
+            "search_placeholder": "搜尋工具或 Server...",
+            "skills_require_save": "儲存後才能啟用技能",
+            "skills_coming_soon": "Skill 綁定即將支援",
+            "tab": {
+              "mcp": "MCP Server",
+              "skills": "Skills",
+              "tools": "內建工具"
+            },
+            "title": "[to be translated]:Tools & runtime"
+          }
+        }
+      },
       "basic": {
         "context_count": "[to be translated]:Context count",
         "creative": "[to be translated]:Creative",
@@ -2368,6 +2482,12 @@
       "create": "[to be translated]:New {{type}}",
       "import": "[to be translated]:Import {{type}}"
     },
+    "delete": {
+      "agent": {
+        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
+        "title": "[to be translated]:Delete agent"
+      }
+    },
     "delete_confirm": {
       "cancel": "取消",
       "confirm": "刪除",
@@ -2375,6 +2495,7 @@
       "title": "確認刪除"
     },
     "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "no_match": "無相符結果",
     "empty_state": {
       "description": "點選「新增」建立你的第一個資源",
       "empty_description": "[to be translated]:Create your first agent or assistant",
@@ -2455,6 +2576,7 @@
     "type": {
       "agent": "智能體",
       "assistant": "助手",
+      "new_agent": "[to be translated]:New agent",
       "new_assistant": "[to be translated]:New assistant",
       "skill": "技能"
     },

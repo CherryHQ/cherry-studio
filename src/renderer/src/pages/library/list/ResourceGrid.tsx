@@ -52,6 +52,10 @@ interface Props {
   allTagNames: string[]
 }
 
+export function canDuplicateResource(resource: ResourceItem) {
+  return resource.type === 'assistant'
+}
+
 function timeAgo(t: TFunction, dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -635,7 +639,7 @@ function FixedCardMenu({
         setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
       }
     },
-    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id]
+    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id, t]
   )
 
   const toggleTag = (tag: string) => {
@@ -752,15 +756,17 @@ function FixedCardMenu({
           </div>
         )}
 
-        <Button
-          variant="ghost"
-          onClick={() => {
-            onDuplicate(resource)
-            onClose()
-          }}
-          className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-          <Copy size={10} /> {t('library.action.duplicate')}
-        </Button>
+        {canDuplicateResource(resource) && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onDuplicate(resource)
+              onClose()
+            }}
+            className="flex h-auto min-h-0 w-full items-center justify-start gap-2 rounded-4xs px-2.5 py-[5px] font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+            <Copy size={10} /> {t('library.action.duplicate')}
+          </Button>
+        )}
         {resource.type === 'assistant' && (
           <Button
             variant="ghost"

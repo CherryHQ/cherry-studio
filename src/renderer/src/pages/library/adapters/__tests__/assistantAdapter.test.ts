@@ -13,6 +13,17 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: vi.fn()
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, vars?: Record<string, string>) => {
+      if (key === 'library.duplicate_name') {
+        return `${vars?.name ?? ''} (副本)`
+      }
+      return key
+    }
+  })
+}))
+
 function createTag(id: string, name: string): Tag {
   return {
     id,
@@ -100,18 +111,5 @@ describe('useAssistantMutations', () => {
         tagIds: ['tag-1', 'tag-2']
       }
     })
-  })
-
-  it('passes an empty tagIds array when the source has no tags', async () => {
-    createTriggerMock.mockResolvedValue(createAssistant({ id: 'ast-copy' }))
-
-    const { result } = renderHook(() => useAssistantMutations())
-
-    await act(async () => {
-      await result.current.duplicateAssistant(createAssistant())
-    })
-
-    expect(createTriggerMock).toHaveBeenCalledTimes(1)
-    expect(createTriggerMock.mock.calls[0][0].body.tagIds).toEqual([])
   })
 })

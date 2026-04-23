@@ -69,13 +69,7 @@ export function useAssistantMutations() {
    */
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
-      const defaultDuplicateName = `${source.name} (副本)`
-      const duplicateNameKey = 'library.duplicate_name'
-      const localizedDuplicateName = t(duplicateNameKey, {
-        name: source.name,
-        defaultValue: defaultDuplicateName
-      })
-      const duplicateName = localizedDuplicateName === duplicateNameKey ? defaultDuplicateName : localizedDuplicateName
+      const duplicateName = t('library.duplicate_name', { name: source.name })
 
       return createTrigger({
         body: {

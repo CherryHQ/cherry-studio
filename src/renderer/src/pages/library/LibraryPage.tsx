@@ -1,3 +1,4 @@
+import type { AgentDetail } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { AnimatePresence, motion } from 'motion/react'
@@ -6,18 +7,23 @@ import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from './adapters/tagAdapter'
-import AssistantConfigPage from './AssistantConfig/AssistantConfigPage'
-import { serializeAssistantForExport } from './assistantTransfer'
-import { DeleteConfirmDialog } from './components/DeleteConfirmDialog'
-import { ImportAssistantDialog } from './components/ImportAssistantDialog'
-import { LibrarySidebar } from './components/LibrarySidebar'
-import PendingBackendNotice from './components/PendingBackendNotice'
-import { ResourceGrid } from './components/ResourceGrid'
 import { DEFAULT_TAG_COLOR } from './constants'
+import AgentConfigPage from './editor/agent/AgentConfigPage'
+import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
+import { serializeAssistantForExport } from './editor/assistant/transfer'
+import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
+import { ImportAssistantDialog } from './list/ImportAssistantDialog'
+import { LibrarySidebar } from './list/LibrarySidebar'
+import PendingBackendNotice from './list/PendingBackendNotice'
+import { ResourceGrid } from './list/ResourceGrid'
+import { useResourceLibrary } from './list/useResourceLibrary'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from './types'
-import { useResourceLibrary } from './useResourceLibrary'
 
-type ConfigView = { type: 'list' } | { type: 'assistant-edit'; assistant: Assistant }
+type ConfigView =
+  | { type: 'list' }
+  | { type: 'assistant-edit'; assistant: Assistant }
+  | { type: 'agent-edit'; agent: AgentDetail }
+  | { type: 'agent-create' }
 
 // Baseline for「新建助手」. `modelId` is intentionally omitted — the backend
 // fills it from the `chat.default_model_id` preference (AssistantService
@@ -101,13 +107,16 @@ export default function LibraryPage() {
   const handleEdit = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
       setConfigView({ type: 'assistant-edit', assistant: r.raw as Assistant })
+    } else if (r.type === 'agent') {
+      setConfigView({ type: 'agent-edit', agent: r.raw as AgentDetail })
     }
   }, [])
 
   const handleDuplicate = useCallback(
     async (r: ResourceItem) => {
-      if (r.type !== 'assistant') return
-      await duplicateAssistant(r.raw as Assistant)
+      if (r.type === 'assistant') {
+        await duplicateAssistant(r.raw as Assistant)
+      }
     },
     [duplicateAssistant]
   )
@@ -136,12 +145,22 @@ export default function LibraryPage() {
 
   const handleCreate = useCallback(
     async (type: ResourceType) => {
-      if (type !== 'assistant') return
-      // Create the row up-front so the edit page opens against a real id.
-      // modelId is omitted here so the backend can fill it from
-      // `chat.default_model_id` (see DEFAULT_NEW_ASSISTANT_BASE above).
-      const created = await createAssistant({ ...DEFAULT_NEW_ASSISTANT_BASE, name: t('library.type.new_assistant') })
-      setConfigView({ type: 'assistant-edit', assistant: created })
+      if (type === 'assistant') {
+        // Create the row up-front so the edit page opens against a real id.
+        // modelId is omitted here so the backend can fill it from
+        // `chat.default_model_id` (see DEFAULT_NEW_ASSISTANT_BASE above).
+        const created = await createAssistant({
+          ...DEFAULT_NEW_ASSISTANT_BASE,
+          name: t('library.type.new_assistant')
+        })
+        setConfigView({ type: 'assistant-edit', assistant: created })
+      } else if (type === 'agent') {
+        // Defer DB write until the user hits 保存 in the config page. This
+        // avoids leaving half-configured agent rows behind if the user
+        // navigates away, and matches the flow the user spec'd:
+        // "新建智能体 要先进入到配置页 配置完后点击保存 才能成功新建".
+        setConfigView({ type: 'agent-create' })
+      }
     },
     [createAssistant, t]
   )
@@ -156,6 +175,39 @@ export default function LibraryPage() {
           exit={{ opacity: 0, x: -20 }}
           className="flex min-h-0 flex-1 flex-col bg-background">
           <AssistantConfigPage assistant={configView.assistant} onBack={() => setConfigView({ type: 'list' })} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (configView.type === 'agent-edit') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`agent-edit-${configView.agent.id}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <AgentConfigPage agent={configView.agent} onBack={() => setConfigView({ type: 'list' })} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (configView.type === 'agent-create') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key="agent-create"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <AgentConfigPage
+            onBack={() => setConfigView({ type: 'list' })}
+            onCreated={(created) => setConfigView({ type: 'agent-edit', agent: created })}
+          />
         </motion.div>
       </AnimatePresence>
     )

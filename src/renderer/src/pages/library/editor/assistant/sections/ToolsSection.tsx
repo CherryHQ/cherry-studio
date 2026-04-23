@@ -17,7 +17,7 @@ import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type AssistantConfigMcpMode, MCP_MODE_OPTIONS } from '../../constants'
+import { type AssistantConfigMcpMode, MCP_MODE_OPTIONS } from '../../../constants'
 
 interface Props {
   mcpMode: AssistantConfigMcpMode

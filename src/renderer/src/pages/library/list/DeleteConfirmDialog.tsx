@@ -3,6 +3,7 @@ import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMutationsById } from '../adapters/agentAdapter'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import type { ResourceItem } from '../types'
 
@@ -12,10 +13,10 @@ interface Props {
 }
 
 /**
- * Assistant-list delete confirmation — reuses the existing `assistants.delete.*`
- * i18n keys and the shared Shadcn `ConfirmDialog` (destructive variant). Matches
- * the legacy antd `window.modal.confirm` copy + behaviour while staying within
- * the v2 UI stack.
+ * Delete confirmation for library resources. Dispatches the delete mutation
+ * by `resource.type` — assistants go through `useAssistantMutationsById`,
+ * agents through `useAgentMutationsById`. Skills are read-only from the
+ * DataApi, so a skill resource is a no-op (the menu entry is also hidden).
  */
 export const DeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
   if (!resource) return null
@@ -24,19 +25,25 @@ export const DeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
 
 const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({ resource, onClose }) => {
   const { t } = useTranslation()
-  // Hook is only instantiated while the dialog is mounted → resource.id is always valid.
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
+  const { deleteAgent } = useAgentMutationsById(resource.id)
   const [pending, setPending] = useState(false)
 
   const handleConfirm = useCallback(async () => {
-    if (resource.type !== 'assistant') return
     setPending(true)
     try {
-      await deleteAssistant()
+      if (resource.type === 'assistant') {
+        await deleteAssistant()
+      } else if (resource.type === 'agent') {
+        await deleteAgent()
+      }
     } finally {
       setPending(false)
     }
-  }, [resource, deleteAssistant])
+  }, [resource, deleteAssistant, deleteAgent])
+
+  const title = resource.type === 'agent' ? t('library.delete.agent.title') : t('assistants.delete.title')
+  const description = resource.type === 'agent' ? t('library.delete.agent.content') : t('assistants.delete.content')
 
   return (
     <ConfirmDialog
@@ -44,8 +51,8 @@ const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({
       onOpenChange={(open) => {
         if (!open && !pending) onClose()
       }}
-      title={t('assistants.delete.title')}
-      description={t('assistants.delete.content')}
+      title={title}
+      description={description}
       confirmText={t('common.delete')}
       cancelText={t('common.cancel')}
       destructive

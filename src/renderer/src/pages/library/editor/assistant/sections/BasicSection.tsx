@@ -44,87 +44,24 @@ import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isSelectableAssistantModel } from '../../assistantModelFilter'
-import { DEFAULT_TAG_COLOR } from '../../constants'
+import { DEFAULT_TAG_COLOR } from '../../../constants'
+import type { AssistantFormState } from '../descriptor'
+import { isSelectableAssistantModel } from '../modelFilter'
 
 type CustomParameter = AssistantSettings['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
 
-// Fallbacks applied only when the backend row doesn't have a value — mirrors
-// original AssistantModelSettings defaults. `enable*` is false by default
-// (matches DEFAULT_ASSISTANT_SETTINGS): the sampling parameter is NOT sent to
-// the LLM unless the user explicitly opts in.
-const UI_DEFAULT_TEMPERATURE = 1.0
-const UI_DEFAULT_TOP_P = 1
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_CONTEXT_COUNT = 5
 const UI_MAX_CONTEXT_COUNT = 20
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 const AVATAR_OPTIONS = ['🤖', '💬', '✍️', '🎓', '💻', '🎨', '📝', '🌟', '🔮', '⚡', '🎭', '📊']
 
-export interface BasicFormState {
-  name: string
-  emoji: string
-  description: string
-  modelId: Assistant['modelId']
-  temperature: number
-  /** When false, temperature is omitted from the LLM request (model default). */
-  enableTemperature: boolean
-  topP: number
-  enableTopP: boolean
-  maxTokens: number
-  enableMaxTokens: boolean
-  contextCount: number
-  streamOutput: boolean
-  toolUseMode: 'function' | 'prompt'
-  maxToolCalls: number
-  enableMaxToolCalls: boolean
-  customParameters: CustomParameter[]
-  tags: string[]
-  // Fields owned by other sections but kept on the same form object so a single
-  // PATCH commits the whole editor — prompt / knowledge / tools sections read
-  // and write these directly.
-  prompt: string
-  knowledgeBaseIds: string[]
-  mcpServerIds: string[]
-  mcpMode: AssistantSettings['mcpMode']
-}
-
-export function initialBasicFormState(assistant: Assistant): BasicFormState {
-  // Per-field fallbacks when the backend row lacks a value. `enable*` defaults
-  // to false (sampling param not sent to the LLM unless the user flips it on).
-  const settings = assistant.settings ?? {}
-  return {
-    name: assistant.name,
-    emoji: assistant.emoji,
-    description: assistant.description,
-    modelId: assistant.modelId,
-    temperature: settings.temperature ?? UI_DEFAULT_TEMPERATURE,
-    enableTemperature: settings.enableTemperature ?? false,
-    topP: settings.topP ?? UI_DEFAULT_TOP_P,
-    enableTopP: settings.enableTopP ?? false,
-    maxTokens: settings.maxTokens ?? UI_DEFAULT_MAX_TOKENS,
-    enableMaxTokens: settings.enableMaxTokens ?? false,
-    contextCount: settings.contextCount ?? UI_DEFAULT_CONTEXT_COUNT,
-    streamOutput: settings.streamOutput ?? true,
-    toolUseMode: settings.toolUseMode ?? 'function',
-    maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
-    enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
-    customParameters: settings.customParameters ?? [],
-    tags: (assistant.tags ?? []).map((t) => t.name),
-    prompt: assistant.prompt ?? '',
-    knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
-    mcpServerIds: assistant.mcpServerIds ?? [],
-    mcpMode: settings.mcpMode ?? 'auto'
-  }
-}
-
 interface Props {
   /** Present in edit mode; omitted during create. */
   assistant?: Assistant
-  form: BasicFormState
-  onChange: (patch: Partial<BasicFormState>) => void
+  form: AssistantFormState
+  onChange: (patch: Partial<AssistantFormState>) => void
   /**
    * Map of tag name → backend-assigned color (random hex chosen at POST time).
    * Used for the tag-dot icon in the Combobox options.
@@ -172,7 +109,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, tagColorByName, allTag
     // rest of BasicSection. Tracked as tech-debt upstream (see v1 comment
     // "TODO: 移除根据模型自动修改参数的逻辑").
     const nameLower = picked.name.toLowerCase()
-    const patch: Partial<BasicFormState> = {
+    const patch: Partial<AssistantFormState> = {
       modelId: createUniqueModelId(picked.provider, picked.id)
     }
     if (nameLower.includes('kimi-k2')) {

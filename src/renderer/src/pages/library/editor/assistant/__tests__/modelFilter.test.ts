@@ -1,7 +1,7 @@
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isSelectableAssistantModel } from '../assistantModelFilter'
+import { isSelectableAssistantModel } from '../modelFilter'
 
 const isEmbeddingModelMock = vi.hoisted(() => vi.fn())
 const isRerankModelMock = vi.hoisted(() => vi.fn())

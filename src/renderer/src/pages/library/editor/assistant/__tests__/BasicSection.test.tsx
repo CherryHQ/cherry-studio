@@ -3,7 +3,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { type BasicFormState, BasicSection } from '../AssistantConfig/sections/BasicSection'
+import { type AssistantFormState } from '../descriptor'
+import { BasicSection } from '../sections/BasicSection'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -85,7 +86,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
   )
 }))
 
-function createForm(overrides: Partial<BasicFormState> = {}): BasicFormState {
+function createForm(overrides: Partial<AssistantFormState> = {}): AssistantFormState {
   return {
     name: '助手',
     emoji: '💬',
