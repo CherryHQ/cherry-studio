@@ -511,6 +511,12 @@ function buildGenericProviderOptions(
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, any> {
+  // Gemini models need google.thinking_config via GoogleGenerativeAIProviderOptions;
+  // wrapping reasoning params under a raw providerId is silently ignored.
+  if (isGeminiModel(model)) {
+    return buildGeminiProviderOptions(assistant, model, capabilities)
+  }
+
   const { enableWebSearch } = capabilities
   let providerOptions: Record<string, any> = {}
 
