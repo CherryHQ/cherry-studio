@@ -30,7 +30,7 @@ The `origin` field on a FileEntry defines content ownership, with two values:
 - **`internal`**: Cherry owns the file content, physically stored at `{userData}/files/{id}.{ext}`. The caller hands a Buffer/Stream/source file to FileManager, which copies and takes ownership. `name` / `ext` / `size` are authoritative on the row (atomic writes keep DB and FS in sync).
 - **`external`**: Cherry only records an absolute path reference on the user's side, does not copy content, and does not own the file. `name` / `ext` on the row are pure projections of `externalPath` (basename / extname); `size` is **not stored** (always `null`) — live value is obtained via File IPC `getMetadata`. File availability and content changes are determined by the user side.
 
-Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer. For the specific caller's migration/current state, see the RFC.
+Which origin to pick is the **caller's** decision; FileManager makes no assumption about the business layer. For concrete per-caller choices, see the RFC.
 
 ### 1.0.2 Best-effort Semantics for External
 
@@ -221,16 +221,6 @@ Anti-patterns to avoid:
 - **Returning a value typed `FileEntry` whose contract is "might or might not be registered"** — use `FileHandle` or an explicit variant instead.
 - **Synthesising a `FileEntry` from a `FileInfo`** — registration must go through sanctioned FileManager methods; the Zod brand is specifically there to prevent this.
 
-### 2.5 Relationship to v1 `FileMetadata`
-
-The legacy `FileMetadata` type served two roles simultaneously — DB persistence (Dexie `files` table, `message_block.file` JSON) **and** generic file descriptor (OCR input, token estimation, UI rendering). The v2 type system makes those roles explicit by splitting them:
-
-- The **persistence role** → `FileEntry` (plus entry-system references via `file_ref`)
-- The **descriptor role** → `FileInfo`
-- The **polymorphic reference** → `FileHandle`
-
-A consumer that was "given a `FileMetadata`" is migrated by asking *which role* it was using — see the [migration plan](../../../v2-refactor-temp/docs/file-manager/migration-plan.md) for per-consumer bucket assignment.
-
 ---
 
 ## 3. IPC Design
@@ -362,14 +352,14 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 
 | Endpoint                         | Method | Purpose                                                                 |
 | -------------------------------- | ------ | ----------------------------------------------------------------------- |
-| `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape — no opt-in fields. |
+| `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape. |
 | `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
 | `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (pure SQL JOIN + GROUP BY). |
 | `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
 | `/files/refs/by-source`          | GET    | All files referenced by a business object.                              |
 
 > **DataApi vs File IPC decision criteria (strict boundary)**:
-> - **DataApi** = **pure SQL read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`). The response shape is **fixed per endpoint — no opt-in flags that toggle extra fields**. SQL aggregations (JOIN / GROUP BY / COUNT) are the only allowed "derivation" because they remain DB-layer.
+> - **DataApi** = **pure SQL read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`). The response shape is **fixed per endpoint**. SQL aggregations (JOIN / GROUP BY / COUNT) are the only allowed "derivation" because they remain DB-layer.
 > - **File IPC** = everything else. All mutations (create / rename / delete / move / write / trash), **and** every read that needs FS IO or main-side computation (content read, dangling probe, path resolution, dialogs, streams, `open`).
 >
 > Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
@@ -383,27 +373,27 @@ DataApi handlers are strictly SQL-backed. A handler:
 - MUST NOT read or `stat` the filesystem
 - MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
 - MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
-- MUST return a fixed shape per endpoint — **no opt-in flags** that toggle extra fields
+- MUST return a fixed shape per endpoint
 
 The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY / COUNT), because that stays in the DB layer.
 
-**Where the former opt-in fields live now**:
+**Enrichments that require FS IO or main-side compute** are served by File IPC (or an in-process pure helper), never by DataApi:
 
-| Former opt-in         | Current home                                                            | Kind                                             |
-|-----------------------|-------------------------------------------------------------------------|--------------------------------------------------|
-| `includeRefCount`     | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)           |
-| `includeDangling`     | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)  |
-| `includePath`         | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                        |
-| `includeUrl`          | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own) |
-| Live `size` / `mtime` for external | File IPC `getMetadata(id)`                                   | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design |
+| Capability                                   | Call site                                                               | Kind                                                    |
+|----------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------|
+| Ref counts per entry                         | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)                  |
+| Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
+| Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
+| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
+| Live `size` / `mtime` for external           | File IPC `getMetadata(id)`                                              | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design |
 
-**Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Moving FS / compute side effects to File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
+**Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
 
 **Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative.
 
 **Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh, invalidate the presence query (the refetch re-runs the IPC, which repopulates the cache via a cold `fs.stat`).
 
-**Safety conventions for raw path / URL (carried over from the opt-in era, still relevant)**:
+**Safety conventions for raw path / URL**:
 
 - **`getPhysicalPath` — NOT intended for**: caching as a stable identifier (storage layout may change); string-concat into shell commands without independent sanitization; bypassing FileManager for writes. Use `entry.id` when identity is all you need.
 - **`toSafeFileUrl` — scoped capability**: the danger-file wrap defends only HTML rendering contexts (`<img src>` / `<video src>` / `<embed>`), not arbitrary string concatenation. Don't compose this URL into command-line args or subprocess arguments — pass the raw `FilePath` from `getPhysicalPath` instead.
@@ -477,7 +467,7 @@ Benefits of the split:
 - **Mutations uniformly go through IPC**, cleanly separating "view data" from "change data"
 - **Renderer is unaware of internal storage layout**; main-side storage changes don't propagate
 
-For patterns that recur across components, encapsulate the composition in a hook (e.g. `useEntriesWithPresence(filter)`) so callers stay declarative without re-introducing opt-in flags.
+For patterns that recur across components, encapsulate the composition in a hook (e.g. `useEntriesWithPresence(filter)`) so callers stay declarative.
 
 ### 4.2 FS-Side-Effect Path (File IPC)
 
