@@ -62,13 +62,13 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 ### CacheService
 
-Three-tier cache system with type-safe and casual (dynamic key) methods.
+Three-tier cache system with type-safe methods (and casual/dynamic key methods on the Memory tier only).
 
 #### Methods
 
 | Category | Method | Signature |
 |----------|--------|-----------|
-| Memory (typed) | `get` | `<K>(key: K) => UseCacheSchema[K]` |
+| Memory (typed) | `get` | `<K>(key: K) => InferUseCacheValue<K>` |
 | Memory (typed) | `set` | `<K>(key: K, value, ttl?) => void` |
 | Memory (typed) | `has` | `<K>(key: K) => boolean` |
 | Memory (typed) | `delete` | `<K>(key: K) => boolean` |
@@ -78,16 +78,11 @@ Three-tier cache system with type-safe and casual (dynamic key) methods.
 | Memory (casual) | `hasCasual` | `(key: string) => boolean` |
 | Memory (casual) | `deleteCasual` | `(key: string) => boolean` |
 | Memory (casual) | `hasTTLCasual` | `(key: string) => boolean` |
-| Shared (typed) | `getShared` | `<K>(key: K) => SharedCacheSchema[K]` |
+| Shared (typed) | `getShared` | `<K>(key: K) => InferSharedCacheValue<K>` |
 | Shared (typed) | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared (typed) | `hasShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `deleteShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `hasSharedTTL` | `<K>(key: K) => boolean` |
-| Shared (casual) | `getSharedCasual` | `<T>(key: string) => T \| undefined` |
-| Shared (casual) | `setSharedCasual` | `<T>(key, value, ttl?) => void` |
-| Shared (casual) | `hasSharedCasual` | `(key: string) => boolean` |
-| Shared (casual) | `deleteSharedCasual` | `(key: string) => boolean` |
-| Shared (casual) | `hasSharedTTLCasual` | `(key: string) => boolean` |
 | Persist | `getPersist` | `<K>(key: K) => RendererPersistCacheSchema[K]` |
 | Persist | `setPersist` | `<K>(key: K, value) => void` |
 | Persist | `hasPersist` | `(key) => boolean` |
@@ -369,6 +364,10 @@ Internal cache and cross-window shared cache.
 | Shared | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared | `hasShared` | `<K>(key: K) => boolean` |
 | Shared | `deleteShared` | `<K>(key: K) => boolean` |
+| Subscription | `subscribeChange` | `<T>(key, callback) => () => void` — returns a fresh `vi.fn()` unsubscribe stub |
+| Subscription | `subscribeSharedChange` | `<K>(key, callback) => () => void` — returns a fresh `vi.fn()` unsubscribe stub |
+
+> **Note on subscription mocks**: `subscribeChange` / `subscribeSharedChange` are call-tracking stubs — they do **not** replicate the real fire semantics. Use them to verify `registerDisposable(cacheService.subscribeChange(...))` wiring and that subscriptions happen, not to simulate callbacks. The `setShared` / `deleteShared` mocks also record every call to `broadcastCalls` unconditionally (no `isEqual` short-circuit), keeping `getBroadcastHistory()` consumers backward-compatible.
 
 ```typescript
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'

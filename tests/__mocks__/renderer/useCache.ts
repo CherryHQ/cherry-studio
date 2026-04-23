@@ -1,11 +1,12 @@
 import type {
+  InferSharedCacheValue,
+  InferUseCacheValue,
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
-  UseCacheKey,
-  UseCacheSchema,
-  InferUseCacheValue,
   SharedCacheKey,
-  SharedCacheSchema
+  SharedCacheSchema,
+  UseCacheKey,
+  UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultUseCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import { vi } from 'vitest'
@@ -164,19 +165,21 @@ export const mockUseCache = vi.fn(
 export const mockUseSharedCache = vi.fn(
   <K extends SharedCacheKey>(
     key: K,
-    initValue?: SharedCacheSchema[K]
-  ): [SharedCacheSchema[K], (value: SharedCacheSchema[K]) => void] => {
+    initValue?: InferSharedCacheValue<K>
+  ): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] => {
     // Get current value
     let currentValue = mockSharedCache.get(key)
     if (currentValue === undefined) {
-      currentValue = initValue ?? DefaultSharedCache[key]
+      // Fixed keys look up in DefaultSharedCache; template instances return undefined.
+      const schemaDefault = DefaultSharedCache[key as keyof SharedCacheSchema]
+      currentValue = initValue ?? schemaDefault
       if (currentValue !== undefined) {
         mockSharedCache.set(key, currentValue)
       }
     }
 
     // Mock setValue function
-    const setValue = vi.fn((value: SharedCacheSchema[K]) => {
+    const setValue = vi.fn((value: InferSharedCacheValue<K>) => {
       mockSharedCache.set(key, value)
       notifySharedSubscribers(key)
     })
@@ -274,7 +277,7 @@ export const MockUseCacheUtils = {
   /**
    * Set shared cache value for testing
    */
-  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K]) => {
+  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>) => {
     mockSharedCache.set(key, value)
     notifySharedSubscribers(key)
   },
@@ -282,8 +285,8 @@ export const MockUseCacheUtils = {
   /**
    * Get shared cache value
    */
-  getSharedCacheValue: <K extends SharedCacheKey>(key: K): SharedCacheSchema[K] => {
-    return mockSharedCache.get(key) ?? DefaultSharedCache[key]
+  getSharedCacheValue: <K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> => {
+    return mockSharedCache.get(key) ?? DefaultSharedCache[key as keyof SharedCacheSchema]
   },
 
   /**
@@ -366,18 +369,19 @@ export const MockUseCacheUtils = {
    */
   mockSharedCacheReturn: <K extends SharedCacheKey>(
     key: K,
-    value: SharedCacheSchema[K],
-    setValue?: (value: SharedCacheSchema[K]) => void
+    value: InferSharedCacheValue<K>,
+    setValue?: (value: InferSharedCacheValue<K>) => void
   ) => {
-    mockUseSharedCache.mockImplementation((cacheKey, initValue) => {
+    mockUseSharedCache.mockImplementation(((cacheKey: K, initValue: InferSharedCacheValue<K> | undefined) => {
       if (cacheKey === key) {
         return [value, setValue || vi.fn()]
       }
 
       // Default behavior for other keys
-      const defaultValue = mockSharedCache.get(cacheKey) ?? initValue ?? DefaultSharedCache[cacheKey]
+      const defaultValue =
+        mockSharedCache.get(cacheKey) ?? initValue ?? DefaultSharedCache[cacheKey as keyof SharedCacheSchema]
       return [defaultValue, vi.fn()]
-    })
+    }) as never)
   },
 
   /**
