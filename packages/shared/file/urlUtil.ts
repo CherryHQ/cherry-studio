@@ -130,7 +130,7 @@ export function toFileUrl(absolutePath: FilePath): FileURLString {
     .split('/')
     .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
     .join('/')
-  return `file://${encoded}` as FileURLString
+  return `file://${encoded}`
 }
 
 /**
