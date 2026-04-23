@@ -93,11 +93,6 @@ export async function registerIpc() {
     return shell.openExternal(url)
   })
 
-  // language
-  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-  //   configManager.setLanguage(language)
-  // })
-
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
     // disable spell check for all webviews
@@ -123,27 +118,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
-
-  // // launch to tray
-  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-  //   configManager.setLaunchToTray(isActive)
-  // })
-
-  // // tray
-  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-  //   configManager.setTray(isActive)
-  // })
-
-  // // to tray on close
-  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-  //   configManager.setTrayOnClose(isActive)
-  // })
-
-  // // auto update
-  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-  //   appUpdater.setAutoUpdate(isActive)
-  //   configManager.setAutoUpdate(isActive)
-  // })
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
@@ -177,8 +151,6 @@ export async function registerIpc() {
       return systemPreferences.isTrustedAccessibilityClient(true)
     })
   }
-
-  // MainWindow_SetFullScreen / MainWindow_IsFullScreen handlers moved into MainWindowService.
 
   // Get System Fonts
   ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {

@@ -266,6 +266,36 @@ export class WindowManager extends BaseService {
       return this.maximize(windowId)
     })
 
+    // For Unmaximize / SetFullScreen / IsMaximized / IsFullScreen and other state
+    // handlers below: the optional `type` parameter targets a singleton window by
+    // type (e.g. WindowType.Main); for `default`/`pooled` lifecycle types
+    // (SubWindow, MinAppPopup, QuickAssistant, etc.) `resolveTargetWindowId`
+    // returns null when type is supplied — those windows can only be addressed via
+    // the sender fallback (omit `type`, the handler resolves event.sender).
+    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event, type?: string) => {
+      const windowId = this.resolveTargetWindowId(event.sender, type)
+      if (!windowId) return false
+      return this.unmaximize(windowId)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event, type?: string) => {
+      const windowId = this.resolveTargetWindowId(event.sender, type)
+      if (!windowId) return false
+      return this.isMaximized(windowId)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean, type?: string) => {
+      const windowId = this.resolveTargetWindowId(event.sender, type)
+      if (!windowId) return false
+      return this.setFullScreen(windowId, value)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event, type?: string) => {
+      const windowId = this.resolveTargetWindowId(event.sender, type)
+      if (!windowId) return false
+      return this.isFullScreen(windowId)
+    })
+
     this.ipcHandle(IpcChannel.WindowManager_Focus, (event, type?: string) => {
       const windowId = this.resolveTargetWindowId(event.sender, type)
       if (!windowId) return false
@@ -471,16 +501,37 @@ export class WindowManager extends BaseService {
     return true
   }
 
-  /** Maximize or unmaximize a window (toggle) */
   public maximize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
-    if (managed.window.isMaximized()) {
-      managed.window.unmaximize()
-    } else {
-      managed.window.maximize()
-    }
+    managed.window.maximize()
     return true
+  }
+
+  public unmaximize(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.unmaximize()
+    return true
+  }
+
+  public isMaximized(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isMaximized()
+  }
+
+  public setFullScreen(windowId: string, value: boolean): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.setFullScreen(value)
+    return true
+  }
+
+  public isFullScreen(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isFullScreen()
   }
 
   public restore(windowId: string): boolean {
@@ -1298,6 +1349,35 @@ export class WindowManager extends BaseService {
     // macOS native semantics where Cmd+W (hide) keeps the dock icon, Cmd+Q (destroy) removes it.
     // The 'closed' handler below triggers updateDockVisibility on destruction; type-override
     // changes via wm.behavior.setMacShowInDockByType do so explicitly.
+
+    // Forward OS-level window state changes to the window's own webContents so its
+    // renderer chrome (titlebar buttons, fullscreen-aware layout) can stay in sync
+    // with state changes that bypass IPC: double-click titlebar, Win+↑/↓, Windows
+    // Snap, macOS green button, F11, third-party tiling WMs.
+    //
+    // - setupWindowListeners runs exactly once per BrowserWindow lifetime (called
+    //   from createWindow); pooled windows reuse the same instance + listeners on
+    //   recycle, so there is no listener accumulation. The window.on('closed')
+    //   handler below calls window.removeAllListeners() as a final safety net.
+    // - macOS does NOT reliably fire 'maximize'/'unmaximize' (electron#3325, #28699)
+    //   so MaximizedChanged is Win/Linux-effective. Renderer code on macOS should
+    //   treat FullscreenChanged as the source of truth (the green button defaults
+    //   to native fullscreen, which fires reliably).
+    // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
+    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
+    //   semantics is OS-level native fullscreen only.
+    window.on('maximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, true)
+    })
+    window.on('unmaximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, false)
+    })
+    window.on('enter-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, true)
+    })
+    window.on('leave-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
+    })
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {

@@ -1,5 +1,4 @@
 import { isWin } from '@renderer/config/constant'
-import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +6,7 @@ export function useFullScreenNotice() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    const cleanup = window.electron.ipcRenderer.on(IpcChannel.FullscreenStatusChanged, (_, isFullscreen) => {
+    const unsubscribe = window.api.windowControls.onFullscreenChange((isFullscreen) => {
       if (isWin && isFullscreen) {
         window.toast.info({
           title: t('common.fullscreen'),
@@ -17,7 +16,7 @@ export function useFullScreenNotice() {
     })
 
     return () => {
-      cleanup()
+      unsubscribe()
     }
   }, [t])
 }
