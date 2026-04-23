@@ -23,10 +23,12 @@ export const CreateTranslateHistorySchema = z.object({
   sourceText: z.string().min(1),
   /** Non-empty string */
   targetText: z.string().min(1),
-  /** Required, must match PersistedLangCodeSchema — the `'unknown'` UI sentinel is rejected. */
-  sourceLanguage: PersistedLangCodeSchema,
-  /** Required, must match PersistedLangCodeSchema — the `'unknown'` UI sentinel is rejected. */
-  targetLanguage: PersistedLangCodeSchema
+  /** Must match PersistedLangCodeSchema; `null` is allowed when detection
+   *  degrades to UNKNOWN. The `'unknown'` UI sentinel is still rejected. */
+  sourceLanguage: PersistedLangCodeSchema.nullable(),
+  /** Must match PersistedLangCodeSchema; `null` is allowed when the target
+   *  is unknown. The `'unknown'` UI sentinel is still rejected. */
+  targetLanguage: PersistedLangCodeSchema.nullable()
 })
 /** DTO for creating a translate history record. */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
@@ -37,10 +39,12 @@ export const UpdateTranslateHistorySchema = z
     sourceText: z.string().min(1).optional(),
     /** Non-empty string if provided */
     targetText: z.string().min(1).optional(),
-    /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
-    sourceLanguage: PersistedLangCodeSchema.optional(),
-    /** Must match PersistedLangCodeSchema if provided — the `'unknown'` UI sentinel is rejected. */
-    targetLanguage: PersistedLangCodeSchema.optional(),
+    /** Must match PersistedLangCodeSchema or be `null` if provided.
+     *  The `'unknown'` UI sentinel is rejected. */
+    sourceLanguage: PersistedLangCodeSchema.nullable().optional(),
+    /** Must match PersistedLangCodeSchema or be `null` if provided.
+     *  The `'unknown'` UI sentinel is rejected. */
+    targetLanguage: PersistedLangCodeSchema.nullable().optional(),
     /** Boolean if provided */
     star: z.boolean().optional()
   })

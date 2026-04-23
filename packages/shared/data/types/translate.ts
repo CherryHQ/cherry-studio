@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { TranslateLangCodeSchema } from '../preference/preferenceTypes'
+import { PersistedLangCodeSchema } from '../preference/preferenceTypes'
 
 // ============================================================================
 // Translate History
@@ -20,10 +20,14 @@ export const TranslateHistorySchema = z.object({
   sourceText: z.string().min(1),
   /** Translated text, non-empty */
   targetText: z.string().min(1),
-  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  sourceLanguage: TranslateLangCodeSchema.nullable(),
-  /** FK to translate_language.langCode, nullable (SET NULL on language delete) */
-  targetLanguage: TranslateLangCodeSchema.nullable(),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete).
+   *  Uses `PersistedLangCodeSchema` (strict) to match the write-side DTOs —
+   *  the `'unknown'` UI sentinel is never written and must not appear here. */
+  sourceLanguage: PersistedLangCodeSchema.nullable(),
+  /** FK to translate_language.langCode, nullable (SET NULL on language delete).
+   *  Uses `PersistedLangCodeSchema` (strict) to match the write-side DTOs —
+   *  the `'unknown'` UI sentinel is never written and must not appear here. */
+  targetLanguage: PersistedLangCodeSchema.nullable(),
   /** Whether the record is starred */
   star: z.boolean(),
   /** ISO 8601 datetime */
@@ -39,8 +43,9 @@ export type TranslateHistory = z.infer<typeof TranslateHistorySchema>
 // ============================================================================
 
 export const TranslateLanguageSchema = z.object({
-  /** PK, immutable, must match TranslateLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`) */
-  langCode: TranslateLangCodeSchema,
+  /** PK, immutable, must match PersistedLangCodeSchema (`/^[a-z]{2,3}(-[a-z]{2,4})?$/`).
+   *  Persistence-only schema — the `'unknown'` UI sentinel never has a row here. */
+  langCode: PersistedLangCodeSchema,
   /** Display name, non-empty (e.g. "English", "Chinese (Simplified)") */
   value: z.string().min(1),
   /** Flag emoji (e.g. "🇬🇧", "🇨🇳") */
