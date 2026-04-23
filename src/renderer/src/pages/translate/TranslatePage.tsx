@@ -197,12 +197,15 @@ const TranslatePage: FC = () => {
       }
 
       // 保存历史记录 — hook logs the error; we keep the upstream-message toast here.
+      // Auto-detect may legitimately degrade to UNKNOWN (languages not ready, empty
+      // seed, etc.). The persistence layer rejects the 'unknown' sentinel but accepts
+      // null, which matches the existing history shape (see onHistoryItemClick).
       try {
         await addHistory({
           sourceText: translateInput,
           targetText: translated,
-          sourceLanguage: actualSourceLanguage,
-          targetLanguage: actualTargetLanguage
+          sourceLanguage: actualSourceLanguage === UNKNOWN.langCode ? null : actualSourceLanguage,
+          targetLanguage: actualTargetLanguage === UNKNOWN.langCode ? null : actualTargetLanguage
         })
       } catch (e) {
         window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
