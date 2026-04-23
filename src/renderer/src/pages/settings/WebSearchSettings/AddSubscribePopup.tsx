@@ -72,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="right"
         colon={false}
-        className="mt-[25px]"
+        className="mt-6.25"
         onFinish={onFinish}>
         <Form.Item name="url" label={t('settings.tool.websearch.subscribe_url')} rules={[{ required: true }]}>
           <Input

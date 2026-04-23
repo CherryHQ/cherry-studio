@@ -494,7 +494,7 @@ const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('mx-[5px] w-10 text-center', className)} {...props} />
+  <span className={cn('mx-1.25 w-10 text-center', className)} {...props} />
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -4905,6 +4905,13 @@
       "url": "URL",
       "user": "使用者"
     },
+    "menuGroups": {
+      "appSettings": "應用設定",
+      "integrations": "整合",
+      "productivity": "效率工具",
+      "services": "服務",
+      "system": "系統"
+    },
     "messages": {
       "divider": {
         "label": "訊息間顯示分隔線",

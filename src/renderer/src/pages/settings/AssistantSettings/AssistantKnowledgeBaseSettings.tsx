@@ -30,7 +30,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-[5px]">
+    <div className="flex flex-1 flex-col overflow-hidden p-1.25">
       <Box className="mb-2 font-bold">{t('common.knowledge_base')}</Box>
       <Select
         mode="multiple"
@@ -47,7 +47,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         }
       />
       <Row align="middle" style={{ marginTop: 10 }}>
-        <p className="mr-[5px] font-medium">{t('assistants.settings.knowledge_base.recognition.label')}</p>
+        <p className="mr-1.25 font-medium">{t('assistants.settings.knowledge_base.recognition.label')}</p>
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented

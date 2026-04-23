@@ -106,7 +106,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   }
 
   return (
-    <div className="mb-5 flex flex-col gap-3 pt-[50px]">
+    <div className="mb-5 flex flex-col gap-3 pt-12.5">
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
         style={{ borderRadius: 'var(--cs-radius-2xs)' }}

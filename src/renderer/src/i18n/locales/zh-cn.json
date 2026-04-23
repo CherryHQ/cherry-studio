@@ -4905,6 +4905,13 @@
       "url": "URL",
       "user": "用户"
     },
+    "menuGroups": {
+      "appSettings": "应用设置",
+      "integrations": "集成",
+      "productivity": "效率工具",
+      "services": "服务",
+      "system": "系统"
+    },
     "messages": {
       "divider": {
         "label": "消息分割线",

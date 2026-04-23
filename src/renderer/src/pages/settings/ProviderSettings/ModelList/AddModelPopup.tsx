@@ -96,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
-        className="mt-[25px]"
+        className="mt-6.25"
         onFinish={onFinish}>
         <Form.Item
           name="id"

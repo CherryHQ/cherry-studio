@@ -80,7 +80,7 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
                 label={item.label}
                 icon={item.icon}
                 active={menu === item.key}
-                className="mb-[7px] font-medium last:mb-0"
+                className="mb-1.75 font-medium last:mb-0"
                 onClick={() => setMenu(item.key)}
               />
             ))}

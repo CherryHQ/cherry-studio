@@ -109,7 +109,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
                 key={item.key}
                 label={item.label}
                 active={menu === item.key}
-                className="mb-[7px] font-medium last:mb-0"
+                className="mb-1.75 font-medium last:mb-0"
                 onClick={() => setMenu(item.key as AssistantSettingPopupTab)}
               />
             ))}

@@ -854,7 +854,7 @@ const AdvancedSettingsButton = ({ className, ...props }: React.ComponentPropsWit
 )
 
 const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex flex-col gap-3 pt-[5px] pb-[15px]', className)} {...props} />
+  <Scrollbar className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

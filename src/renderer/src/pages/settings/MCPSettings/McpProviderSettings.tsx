@@ -234,7 +234,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-xs border border-border bg-background px-4 py-3 hover:border-primary',
+      'flex items-center justify-between rounded-xs border border-border bg-card px-4 py-3 hover:border-primary',
       className
     )}
     {...props}

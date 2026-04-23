@@ -32,7 +32,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const Icon = resolveProviderIcon(provider.id)
 
   return (
-    <div className="flex flex-col items-center justify-center gap-[15px] p-5">
+    <div className="flex flex-col items-center justify-center gap-3.75 p-5">
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
@@ -56,7 +56,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           </Button>
         </RowFlex>
       )}
-      <div className="flex items-center gap-[5px] text-[11px] text-foreground-secondary">
+      <div className="flex items-center gap-1.25 text-[11px] text-foreground-secondary">
         <Trans
           i18nKey="settings.provider.oauth.description"
           components={{

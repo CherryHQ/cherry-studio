@@ -207,7 +207,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('relative flex flex-col items-center justify-center gap-[15px] p-5', className)} {...props} />
+  <div className={cn('relative flex flex-col items-center justify-center gap-3.75 p-5', className)} {...props} />
 )
 
 const LogoutCorner = ({ className, ...props }: React.ComponentPropsWithoutRef<'button'>) => (
@@ -231,7 +231,7 @@ const ButtonRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 const BalanceCapsule = ({ className, ...props }: React.ComponentPropsWithoutRef<'button'>) => (
   <button
     className={cn(
-      'flex h-8 min-w-[110px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-background-subtle px-[15px] transition-all hover:border-primary disabled:cursor-not-allowed disabled:opacity-70',
+      'flex h-8 min-w-[110px] cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-background-subtle px-3.75 transition-all hover:border-primary disabled:cursor-not-allowed disabled:opacity-70',
       className
     )}
     {...props}
@@ -251,7 +251,7 @@ const BalanceValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'s
 )
 
 const Description = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center gap-[5px] text-[11px] text-foreground-secondary', className)} {...props} />
+  <div className={cn('flex items-center gap-1.25 text-[11px] text-foreground-secondary', className)} {...props} />
 )
 
 const OfficialWebsite = ({ className, ...props }: React.ComponentPropsWithoutRef<'a'>) => (

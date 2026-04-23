@@ -85,7 +85,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
           <Input
             type="text"
             value={siyuanApiUrl || ''}
@@ -105,8 +105,8 @@ const SiyuanSettings: FC = () => {
             onClick={handleSiyuanHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
-          <RowFlex className="w-full items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
+          <RowFlex className="w-full items-center gap-1.25">
             <Input
               type="password"
               value={siyuanToken || ''}
@@ -122,7 +122,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
           <Input
             type="text"
             value={siyuanBoxId || ''}
@@ -134,7 +134,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
           <Input
             type="text"
             value={siyuanRootPath || ''}

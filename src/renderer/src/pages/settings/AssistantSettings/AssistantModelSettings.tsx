@@ -253,7 +253,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     <Container>
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
-        <RowFlex className="items-center gap-[5px]">
+        <RowFlex className="items-center gap-1.25">
           <ModelSelectButton onClick={onSelectModel}>
             {defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
@@ -578,11 +578,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 flex-col p-[5px]', className)} {...props} />
+  <div className={cn('flex flex-1 flex-col p-1.25', className)} {...props} />
 )
 
 const Label = ({ className, ...props }: React.ComponentPropsWithoutRef<'p'>) => (
-  <p className={cn('mr-[5px] flex shrink-0 items-center gap-[5px] font-medium', className)} {...props} />
+  <p className={cn('mr-1.25 flex shrink-0 items-center gap-1.25 font-medium', className)} {...props} />
 )
 
 const ModelSelectButton = ({ className, ...props }: React.ComponentProps<typeof Button>) => (
@@ -594,7 +594,7 @@ const ModelName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const ContextSliderWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('pb-[5px]', className)} {...props} />
+  <div className={cn('pb-1.25', className)} {...props} />
 )
 
 export default AssistantModelSettings

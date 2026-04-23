@@ -82,7 +82,7 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
           <Input
             type="text"
             value={joplinUrl || ''}
@@ -104,8 +104,8 @@ const JoplinSettings: FC = () => {
             onClick={handleJoplinHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-[5px]">
-          <RowFlex className="w-full items-center gap-[5px]">
+        <RowFlex className="w-[315px] items-center gap-1.25">
+          <RowFlex className="w-full items-center gap-1.25">
             <Input
               type="password"
               value={joplinToken || ''}

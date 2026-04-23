@@ -103,7 +103,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
         labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
-        className="mt-[25px]"
+        className="mt-6.25"
         onFinish={onFinish}
         initialValues={
           model

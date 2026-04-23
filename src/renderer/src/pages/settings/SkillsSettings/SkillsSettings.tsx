@@ -848,7 +848,7 @@ const MainContainer = divWithClass(
 const SkillsMenuList = ({ className, ...props }: React.ComponentProps<typeof MenuList>) => (
   <MenuList
     className={cn(
-      'flex min-h-full w-(--settings-width) flex-col gap-[5px] p-3 pb-12 [box-sizing:border-box]',
+      'flex min-h-full w-(--settings-width) flex-col gap-1.25 p-3 pb-12 [box-sizing:border-box]',
       className
     )}
     {...props}

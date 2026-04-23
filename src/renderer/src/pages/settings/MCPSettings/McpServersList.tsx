@@ -130,7 +130,7 @@ const McpServersList: FC = () => {
   return (
     <Scrollbar
       ref={scrollRef}
-      className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-[15px] overflow-hidden overflow-y-auto p-5 pt-[15px]">
+      className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-3.75 overflow-hidden overflow-y-auto p-5 pt-3.75">
       <div className="flex w-full items-center justify-between [&_h2]:m-0 [&_h2]:text-[22px]">
         <SettingTitle style={{ gap: 6 }}>
           <span>{t('settings.mcp.newServer')}</span>

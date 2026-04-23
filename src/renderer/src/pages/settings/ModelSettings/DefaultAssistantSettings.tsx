@@ -161,7 +161,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
-          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.temperature.label')}</p>
+          <p className="m-0 mr-1.25 text-sm">{t('chat.settings.temperature.label')}</p>
           <HelpTooltip
             content={t('chat.settings.temperature.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
@@ -204,7 +204,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
         <RowFlex className="items-center">
-          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.top_p.label')}</p>
+          <p className="m-0 mr-1.25 text-sm">{t('chat.settings.top_p.label')}</p>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
@@ -239,7 +239,7 @@ const AssistantSettings: FC = () => {
       )}
       <Divider style={{ margin: '2px 0' }} />
       <Row align="middle">
-        <p className="m-0 mr-[5px] text-sm">{t('chat.settings.context_count.label')}</p>
+        <p className="m-0 mr-1.25 text-sm">{t('chat.settings.context_count.label')}</p>
         <HelpTooltip
           content={t('chat.settings.context_count.tip')}
           iconProps={{ className: 'cursor-pointer text-color-text-3' }}
@@ -271,7 +271,7 @@ const AssistantSettings: FC = () => {
       <Divider style={{ margin: '2px 0' }} />
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
-          <p className="m-0 mr-[5px] text-sm">{t('chat.settings.max_tokens.label')}</p>
+          <p className="m-0 mr-1.25 text-sm">{t('chat.settings.max_tokens.label')}</p>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
             iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
@@ -315,7 +315,7 @@ const AssistantSettings: FC = () => {
       )}
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
-        <p className="m-0 mr-[5px] text-sm">{t('assistants.settings.tool_use_mode.label')}</p>
+        <p className="m-0 mr-1.25 text-sm">{t('assistants.settings.tool_use_mode.label')}</p>
         <Selector
           value={toolUseMode}
           options={[

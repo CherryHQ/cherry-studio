@@ -344,7 +344,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('pt-[15px]', className)} {...props} />
+  <div className={cn('pt-3.75', className)} {...props} />
 )
 
 const StartContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -375,10 +375,7 @@ const AuthActionsContainer = ({ className, ...props }: React.ComponentPropsWitho
 
 const StepCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn(
-      'rounded-xs border border-border bg-background-subtle p-4 transition-all hover:border-border-subtle',
-      className
-    )}
+    className={cn('rounded-xs border border-border bg-card p-4 transition-all hover:border-border-subtle', className)}
     {...props}
   />
 )

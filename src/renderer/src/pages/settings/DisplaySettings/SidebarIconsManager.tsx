@@ -214,7 +214,7 @@ const IconItem = ({ ref, className, ...props }: DivWithElementRefProps) => (
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'group mb-2 flex cursor-move items-center justify-between rounded border border-border bg-background px-3 py-2',
+      'group mb-2 flex cursor-move items-center justify-between rounded border border-border bg-card px-3 py-2',
       className
     )}
     {...props}

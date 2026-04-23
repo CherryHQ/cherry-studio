@@ -234,7 +234,7 @@ const CardContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
   <div
     className={cn(
-      'mb-[5px] flex h-[125px] w-full flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-background py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
+      'mb-1.25 flex h-[125px] w-full flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
       $isActive ? 'opacity-100' : 'opacity-60',
       className
     )}
@@ -243,7 +243,7 @@ const CardContainer = ({
 )
 
 const ServerHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-[5px] flex items-center', className)} {...props} />
+  <div className={cn('mb-1.25 flex items-center', className)} {...props} />
 )
 
 const ServerNameWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

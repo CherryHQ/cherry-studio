@@ -80,10 +80,10 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           )}
         </Flex>
       </SettingTitle>
-      <Divider className="my-[10px] w-full" />
+      <Divider className="my-2.5 w-full" />
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
-          <SettingSubtitle className="mt-[5px] mb-[10px] flex items-center justify-between">
+          <SettingSubtitle className="mt-1.25 mb-2.5 flex items-center justify-between">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.aistudio_access_token')
               : t('settings.provider.api_key.label')}
@@ -111,7 +111,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             />
           </Flex>
           {preprocessProvider.id !== 'paddleocr' && (
-            <SettingHelpTextRow className="mt-[5px] justify-between">
+            <SettingHelpTextRow className="mt-1.25 justify-between">
               <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                 {t('settings.provider.get_api_key')}
               </SettingHelpLink>
@@ -123,7 +123,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
       {hasObjectKey(preprocessProvider, 'apiHost') && (
         <>
-          <SettingSubtitle className="mt-[5px] mb-[10px]">
+          <SettingSubtitle className="mt-1.25 mb-2.5">
             {preprocessProvider.id === 'paddleocr'
               ? t('settings.tool.preprocess.paddleocr.api_url')
               : t('settings.provider.api_host')}

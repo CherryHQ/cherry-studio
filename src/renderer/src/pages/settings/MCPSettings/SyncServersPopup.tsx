@@ -308,7 +308,7 @@ const ContentContainer = ({ className, ...props }: React.ComponentPropsWithoutRe
 )
 
 const ProviderSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-[15px] flex items-center gap-3', className)} {...props} />
+  <div className={cn('mb-3.75 flex items-center gap-3', className)} {...props} />
 )
 
 const SelectorLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -320,7 +320,7 @@ const ProviderContent = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const StepSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-5 flex items-start gap-[15px]', className)} {...props} />
+  <div className={cn('mb-5 flex items-start gap-3.75', className)} {...props} />
 )
 
 const StepNumber = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -364,7 +364,7 @@ const LinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'
 )
 
 const ButtonContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex justify-end gap-2 border-border border-t pt-[15px]', className)} {...props} />
+  <div className={cn('flex justify-end gap-2 border-border border-t pt-3.75', className)} {...props} />
 )
 
 const TopViewKey = 'SyncServersPopup'

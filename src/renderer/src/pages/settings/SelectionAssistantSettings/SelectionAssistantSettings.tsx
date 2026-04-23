@@ -348,7 +348,7 @@ const ExperimentalText = ({ className, ...props }: React.ComponentPropsWithoutRe
   <div className={cn('text-foreground-muted text-xs', className)} {...props} />
 )
 const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-[15px] mb-[5px] flex items-center justify-center', className)} {...props} />
+  <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
   <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />

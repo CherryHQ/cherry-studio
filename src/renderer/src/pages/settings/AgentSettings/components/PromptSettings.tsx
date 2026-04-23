@@ -51,7 +51,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
             <HelpCircle size={14} color="var(--color-foreground-secondary)" />
           </Popover>
         </SettingsTitle>
-        <div className="relative mt-[5px] min-h-0 w-full flex-1 overflow-hidden">
+        <div className="relative mt-1.25 min-h-0 w-full flex-1 overflow-hidden">
           <div className="h-full flex-1 overflow-hidden rounded-[5px] border-[0.5px] border-border">
             {showPreview ? (
               <div

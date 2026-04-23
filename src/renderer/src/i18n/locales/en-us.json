@@ -4905,6 +4905,13 @@
       "url": "URL",
       "user": "User"
     },
+    "menuGroups": {
+      "appSettings": "App Settings",
+      "integrations": "Integrations",
+      "productivity": "Productivity",
+      "services": "Services",
+      "system": "System"
+    },
     "messages": {
       "divider": {
         "label": "Show divider between messages",

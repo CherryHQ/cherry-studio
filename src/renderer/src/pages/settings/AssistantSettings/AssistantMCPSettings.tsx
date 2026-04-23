@@ -177,7 +177,7 @@ const ServerItem = ({
 }: React.ComponentPropsWithoutRef<'div'> & { isEnabled: boolean }) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-xs border border-border bg-muted px-4 py-3 transition-all',
+      'flex items-center justify-between rounded-xs border border-border bg-card px-4 py-3 transition-all',
       isEnabled ? 'opacity-100' : 'opacity-70',
       className
     )}
@@ -194,7 +194,7 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-[3px] text-[0.85rem] text-foreground-secondary', className)} {...props} />
+  <div className={cn('mb-0.75 text-[0.85rem] text-foreground-secondary', className)} {...props} />
 )
 
 const ServerUrl = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

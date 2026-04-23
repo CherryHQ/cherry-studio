@@ -111,7 +111,7 @@ const MarketGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const MarketCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex h-20 cursor-pointer flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-background px-4 py-3 transition-all hover:border-primary hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
+      'flex h-20 cursor-pointer flex-col rounded-[var(--cs-radius-2xs)] border-[0.5px] border-border bg-card px-4 py-3 transition-all hover:border-primary hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
       className
     )}
     {...props}

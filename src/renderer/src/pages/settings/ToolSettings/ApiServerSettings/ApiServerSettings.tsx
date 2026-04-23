@@ -273,7 +273,7 @@ const RestartButton = ({
 )
 
 const StyledInputNumber = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof InputNumber>) => (
-  <InputNumber className={cn('mr-[5px] w-20 rounded-md border-[1.5px] border-border', className)} {...props} />
+  <InputNumber className={cn('mr-1.25 w-20 rounded-md border-[1.5px] border-border', className)} {...props} />
 )
 
 const StartButton = ({

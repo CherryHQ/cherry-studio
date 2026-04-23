@@ -20,7 +20,7 @@ export const CollapsibleSettingGroup = ({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <div className={cn('mt-0 mb-1 w-full rounded-xs px-[5px]', className)} {...rest}>
+    <div className={cn('mt-0 mb-1 w-full rounded-xs px-1.25', className)} {...rest}>
       <div className="mb-2.5 flex cursor-pointer select-none items-center border-border border-b-[0.5px] pb-3">
         <div onClick={() => setIsExpanded(!isExpanded)} className="flex flex-1 cursor-pointer items-center">
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}

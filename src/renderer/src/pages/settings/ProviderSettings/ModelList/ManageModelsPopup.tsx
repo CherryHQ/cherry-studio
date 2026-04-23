@@ -342,7 +342,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
 const SearchContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex flex-col gap-[5px] [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-wrap', className)}
+    className={cn('flex flex-col gap-1.25 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-wrap', className)}
     {...props}
   />
 )

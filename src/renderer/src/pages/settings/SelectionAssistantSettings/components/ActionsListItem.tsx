@@ -91,7 +91,7 @@ const Item = ({
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'mb-2 flex cursor-move items-center justify-between rounded-md border border-border bg-background-subtle px-4 py-3 transition-colors last:mb-0 hover:bg-accent',
+      'mb-2 flex cursor-move items-center justify-between rounded-md border border-border bg-card px-4 py-3 transition-colors last:mb-0 hover:bg-accent',
       disabled && 'opacity-80',
       className === 'non-draggable' && 'relative cursor-default bg-accent',
       className

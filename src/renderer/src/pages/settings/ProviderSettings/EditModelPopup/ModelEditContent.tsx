@@ -262,7 +262,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
-          <Flex className="justify-between gap-[5px]">
+          <Flex className="justify-between gap-1.25">
             <Input
               placeholder={t('settings.models.add.model_id.placeholder')}
               spellCheck={false}

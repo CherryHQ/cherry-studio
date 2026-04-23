@@ -62,7 +62,7 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
       <SettingsItem inline>
         <SettingsTitle>{t('common.name')}</SettingsTitle>
         <div className="relative flex flex-1 justify-end">
-          <span className="invisible whitespace-pre px-[11px] py-1">
+          <span className="invisible whitespace-pre px-2.75 py-1">
             {name || t('common.agent_one') + t('common.name')}
           </span>
           <Input

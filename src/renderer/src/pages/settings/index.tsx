@@ -12,7 +12,7 @@ export const SettingContainer = ({
   <div
     data-theme-mode={theme}
     className={cn(
-      'flex flex-1 flex-col overflow-y-scroll bg-transparent px-[18px] py-[15px] [&::-webkit-scrollbar]:hidden',
+      'flex flex-1 flex-col overflow-y-scroll bg-background-subtle px-4.5 py-3.75 [&::-webkit-scrollbar]:hidden',
       className
     )}
     {...props}
@@ -40,11 +40,11 @@ export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutR
 )
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center text-foreground text-sm leading-[18px]', className)} {...props} />
+  <div className={cn('flex items-center text-foreground text-sm leading-4.5', className)} {...props} />
 )
 
 export const SettingHelpTextRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center py-[5px]', className)} {...props} />
+  <div className={cn('flex items-center py-1.25', className)} {...props} />
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
