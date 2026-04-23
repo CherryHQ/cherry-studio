@@ -152,7 +152,7 @@ const MessageMenubar: FC<Props> = (props) => {
     resend: resendMessage,
     regenerate: regenerateAssistantMessage,
     regenerateWithModel,
-    createBranchTopic,
+    startBranch,
     getTranslationUpdater
   } = useMessage(message.id, topic)
 
@@ -196,9 +196,9 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    await createBranchTopic()
+    await startBranch()
     window.toast.success(t('chat.message.new.branch.created'))
-  }, [createBranchTopic, t])
+  }, [startBranch, t])
 
   /**
    * Mention a specific model to regenerate this assistant turn — produces a
@@ -291,10 +291,11 @@ const MessageMenubar: FC<Props> = (props) => {
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenubarConfig(menubarScope)
 
   const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
-  // In forked topics, shared ancestors keep read-only actions (copy, export,
-  // new-branch) but the write-flavored button renderers gate themselves on
-  // this flag so no separate `readOnly` prop has to thread through the tree.
-  const supportsWrites = message.topicId === topic.id
+  // All messages in the rendered topic are owned by it; there's no shared-
+  // ancestor read-only mode today. The `supportsWrites` flag stays wired
+  // through the button-renderer context so future scopes (e.g. an
+  // agent-session read-only view) can opt out by setting it to `false`.
+  const supportsWrites = true
 
   const dropdownItems = useMemo(() => {
     // Assistant edit is intentionally hidden from the UI — editing an LLM

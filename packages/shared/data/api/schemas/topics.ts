@@ -47,11 +47,20 @@ export const UpdateTopicSchema = TopicSchema.pick({
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
- * DTO for setting active node
+ * DTO for setting active node.
+ *
+ * `descend` toggles two distinct behaviors:
+ *   - `false` / omitted (default): pin the exact `nodeId`. The conversation
+ *     view truncates there; the user's next message forks the tree.
+ *   - `true`: walk down from `nodeId` to any leaf. Used by navigators that
+ *     switch between sibling branches and want the full follow-up chain
+ *     visible.
  */
 export const SetActiveNodeSchema = z.strictObject({
   /** Node ID to set as active */
-  nodeId: z.string().min(1)
+  nodeId: z.string().min(1),
+  /** Whether to descend to a leaf under `nodeId` before pinning. */
+  descend: z.boolean().optional()
 })
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 

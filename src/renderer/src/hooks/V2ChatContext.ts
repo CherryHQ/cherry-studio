@@ -52,14 +52,18 @@ export interface V2ChatOverrides {
    * response anchored at the new sibling. The source message stays intact.
    */
   forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
-  /** Switch the topic's active node — used to navigate between branch siblings. */
-  setActiveNode: (messageId: string) => Promise<void>
   /**
-   * Create a new topic by copying the ancestor chain from root to the given
-   * message (excluding descendants), then switch the UI to the new topic.
-   * Used by the message menu's "分支 / branch" action.
+   * Switch the topic's active node.
+   *
+   * - Default (`descend: false`) pins the exact `messageId`. The scroll
+   *   view truncates there; the user's next message becomes the new leaf
+   *   and the tree forks. This is the "分支" menu action — it stays inside
+   *   the current topic.
+   * - `descend: true` walks from `messageId` down to any leaf before
+   *   pinning, so the sibling navigator's branch-switch still shows the
+   *   full follow-up chain of the target branch.
    */
-  createBranchTopic: (messageId: string) => Promise<void>
+  setActiveNode: (messageId: string, options?: { descend?: boolean }) => Promise<void>
   requestStatus: RequestStatus
   refresh: () => Promise<unknown>
 }

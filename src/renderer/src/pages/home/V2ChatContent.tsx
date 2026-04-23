@@ -7,7 +7,6 @@ import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
@@ -18,7 +17,6 @@ import type { BranchMessagesResponse, CherryMessagePart, CherryUIMessage } from 
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
@@ -248,24 +246,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
     const adaptedIds = new Set(adaptedMessages.map((m) => m.id))
     return [...adaptedMessages, ...executionOverlayMessages.filter((m) => !adaptedIds.has(m.id))]
   }, [adaptedMessages, executionOverlayMessages])
-
-  // Visibility rule for forked topics (Option B architecture):
-  //   - Before the user has sent anything in the fork, show all shared
-  //     ancestors as read-only context so they can see what they're
-  //     continuing from.
-  //   - After the user's first local message, hide shared context entirely;
-  //     the fork visually becomes its own conversation even though the LLM
-  //     continues to receive the full history.
-  // Non-forked topics are a no-op here (every message's `topicId` equals
-  // `topic.id`).
-  const hasLocalDivergence = useMemo(
-    () => mergedMessages.some((m) => m.topicId === topic.id),
-    [mergedMessages, topic.id]
-  )
-  const visibleMessages = useMemo(
-    () => (hasLocalDivergence ? mergedMessages.filter((m) => m.topicId === topic.id) : mergedMessages),
-    [hasLocalDivergence, mergedMessages, topic.id]
-  )
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const nextPartsMap = { ...partsMap }
@@ -559,8 +539,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
   )
 
   const handleSetActiveNode = useCallback(
-    async (messageId: string) => {
-      await setActiveNodeTrigger({ params: { id: topic.id }, body: { nodeId: messageId } })
+    async (messageId: string, options?: { descend?: boolean }) => {
+      await setActiveNodeTrigger({
+        params: { id: topic.id },
+        body: { nodeId: messageId, ...(options?.descend !== undefined && { descend: options.descend }) }
+      })
       // useChat owns its own messages state — SWR invalidation refreshes the
       // branch response but doesn't reach into the chat instance. Pull the
       // new active branch and replace so the messages pane reflects the
@@ -569,26 +552,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
       setMessages(refreshed)
     },
     [setActiveNodeTrigger, topic.id, refresh, setMessages]
-  )
-
-  const { createTopic } = useTopicMutations()
-  const { t } = useTranslation()
-  const handleCreateBranchTopic = useCallback(
-    async (messageId: string) => {
-      try {
-        const created = await createTopic({
-          name: topic.name,
-          assistantId: assistant.id,
-          sourceNodeId: messageId
-        })
-        const newTopic = { ...created, messages: [] } as Topic
-        setActiveTopic(newTopic)
-      } catch (err) {
-        logger.error('Failed to create branch topic', { topicId: topic.id, messageId, err })
-        window.toast.error(t('message.branch.error'))
-      }
-    },
-    [createTopic, topic.id, topic.name, assistant.id, setActiveTopic, t]
   )
 
   const v2ChatOverrides = useMemo<V2ChatOverrides>(
@@ -602,7 +565,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
-      createBranchTopic: handleCreateBranchTopic,
       refresh,
       requestStatus: status
     }),
@@ -615,7 +577,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,
-      handleCreateBranchTopic,
       refresh,
       status
     ]
@@ -694,7 +655,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     />
                   ))}
 
-                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={visibleMessages} />
+                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={mergedMessages} />
 
                   <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>

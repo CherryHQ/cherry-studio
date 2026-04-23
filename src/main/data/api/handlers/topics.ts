@@ -72,7 +72,7 @@ export const topicHandlers: {
   '/topics/:id/active-node': {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
-      return await topicService.setActiveNode(params.id, parsed.nodeId)
+      return await topicService.setActiveNode(params.id, parsed.nodeId, { descend: parsed.descend })
     }
   }
 }

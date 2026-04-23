@@ -170,48 +170,11 @@ export class TopicService {
     await this.getById(id)
 
     await db.transaction(async (tx) => {
-      // Ownership transfer before cascade: forks and their source topic are
-      // peers, not parent-child, so deleting one must not collapse the
-      // others. For every other live topic with an `activeNodeId`, walk
-      // that topic's ancestor chain and reassign any encountered messages
-      // whose `topic_id` is the one being deleted — those ancestors are
-      // still needed by at least one survivor.
-      //
-      // First-come-first-served ordering is deterministic via
-      // `ORDER BY created_at`: the oldest survivor inherits first, and
-      // once a message's `topic_id` is no longer `:id`, subsequent
-      // dependents' UPDATE simply won't match it. The final `DELETE FROM
-      // message WHERE topic_id = :id` sweep then removes only the
-      // messages that were exclusive to the deleted topic.
-      const otherTopics = await tx.all<{ id: string; activeNodeId: string }>(sql`
-        SELECT id, active_node_id as activeNodeId
-        FROM topic
-        WHERE id != ${id}
-          AND deleted_at IS NULL
-          AND active_node_id IS NOT NULL
-        ORDER BY created_at
-      `)
-
-      for (const survivor of otherTopics) {
-        await tx.run(sql`
-          WITH RECURSIVE ancestors(id, parent_id) AS (
-            SELECT id, parent_id FROM message
-            WHERE id = ${survivor.activeNodeId} AND deleted_at IS NULL
-            UNION ALL
-            SELECT m.id, m.parent_id FROM message m
-            INNER JOIN ancestors a ON m.id = a.parent_id
-            WHERE m.deleted_at IS NULL
-          )
-          UPDATE message
-          SET topic_id = ${survivor.id}
-          WHERE id IN (SELECT id FROM ancestors)
-            AND topic_id = ${id}
-        `)
-      }
-
-      // Hard delete remaining (exclusively-owned) messages + tags + topic row.
+      // Hard delete all messages first (due to foreign key)
       await tx.delete(messageTable).where(eq(messageTable.topicId, id))
       await tagService.purgeForEntity(tx, 'topic', id)
+
+      // Hard delete topic
       await tx.delete(topicTable).where(eq(topicTable.id, id))
     })
 
@@ -221,57 +184,63 @@ export class TopicService {
   /**
    * Set the active node for a topic.
    *
-   * The caller supplies a branch entry point (e.g. a user-message sibling from
-   * the navigator). `getBranchMessages` walks ancestors, so pointing
-   * `activeNodeId` at a non-leaf would truncate the rendered conversation at
-   * that node and hide its descendants (the follow-up assistant turns on that
-   * branch). To preserve the conversation view we descend to the leaf of the
-   * target branch first — at each step picking the most recently created child
-   * so multi-model groups resolve to their latest member and newly-forked
-   * branches to the freshest turn.
+   * Two modes:
+   *   - `descend: true` (navigator semantics) — walk down from `nodeId` to
+   *     any leaf and pin that as active. Used when switching between sibling
+   *     branches where the user wants to see the full follow-up chain.
+   *   - `descend: false` (default, branch semantics) — pin `nodeId` itself
+   *     as active. The conversation view truncates at that node; the user's
+   *     next message becomes the new child and the tree forks from here.
+   *
+   * `getBranchMessages` walks parent_id upward, so the leaf vs. non-leaf
+   * choice decides whether follow-up descendants show in the scroll view.
    */
-  async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
+  async setActiveNode(
+    topicId: string,
+    nodeId: string,
+    options: { descend?: boolean } = {}
+  ): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
+    const { descend = false } = options
 
     // Verify topic exists
     await this.getById(topicId)
 
-    // Verify node exists. Cross-topic refs are valid: a forked topic's
-    // `activeNodeId` legitimately points into the source topic's shared
-    // ancestor chain, so we must not reject by `message.topicId !== topicId`.
+    // Verify node exists within this topic.
     const [message] = await db.select().from(messageTable).where(eq(messageTable.id, nodeId)).limit(1)
 
-    if (!message) {
+    if (!message || message.topicId !== topicId) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    // Descend to any leaf in the subtree rooted at `nodeId`. Picking an
-    // arbitrary leaf is sufficient: `getBranchMessages(includeSiblings: true)`
-    // re-hydrates the whole sibling group for each path node, so multi-model
-    // alternatives at the leaf level render together regardless of which
-    // member is `activeNodeId`.
-    const [leaf] = await db.all<{ id: string }>(sql`
-      WITH RECURSIVE descend AS (
-        SELECT id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id FROM message m
-        INNER JOIN descend d ON m.parent_id = d.id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT d.id FROM descend d
-      WHERE NOT EXISTS (
-        SELECT 1 FROM message c
-        WHERE c.parent_id = d.id AND c.deleted_at IS NULL
-      )
-      LIMIT 1
-    `)
-    const leafId = leaf?.id ?? nodeId
+    let targetId = nodeId
+    if (descend) {
+      // Pick any leaf in the subtree rooted at `nodeId`. Multi-model siblings
+      // at the leaf level are re-hydrated by `getBranchMessages(includeSiblings)`,
+      // so it doesn't matter which member of a leaf group we pin.
+      const [leaf] = await db.all<{ id: string }>(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.id FROM message m
+          INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+        )
+        SELECT s.id FROM subtree s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM message c
+          WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+        )
+        LIMIT 1
+      `)
+      targetId = leaf?.id ?? nodeId
+    }
 
-    await db.update(topicTable).set({ activeNodeId: leafId }).where(eq(topicTable.id, topicId))
+    await db.update(topicTable).set({ activeNodeId: targetId }).where(eq(topicTable.id, topicId))
 
-    logger.info('Set active node', { topicId, requestedNodeId: nodeId, resolvedLeafId: leafId })
+    logger.info('Set active node', { topicId, requestedNodeId: nodeId, activeNodeId: targetId, descend })
 
-    return { activeNodeId: leafId }
+    return { activeNodeId: targetId }
   }
 }
 

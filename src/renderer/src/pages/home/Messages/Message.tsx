@@ -123,11 +123,6 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
   const isProcessing = isMessageProcessing(message)
-  // Messages belonging to a different topic are "shared context" from a
-  // source topic. They keep read-only actions (copy, export, new-branch)
-  // but suppress writes (edit, delete, regenerate, translate, sibling
-  // navigation) so the fork's scope is preserved.
-  const isShared = message.topicId !== topic.id
   const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
@@ -161,12 +156,10 @@ const MessageItem: FC<Props> = ({
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
 
-  // Listen for external edit requests and activate editor for this message if it matches.
-  // Shared messages are never editable (see `isShared` comment above), so
-  // guard the listener against the global "edit last user message" shortcut.
+  // Listen for external edit requests and activate editor for this message if it matches
   useEffect(() => {
     const handleEditRequest = (targetId: string) => {
-      if (targetId === message.id && !isShared) {
+      if (targetId === message.id) {
         startEditing(message.id)
       }
     }
@@ -174,7 +167,7 @@ const MessageItem: FC<Props> = ({
     return () => {
       unsubscribe()
     }
-  }, [message.id, startEditing, isShared])
+  }, [message.id, startEditing])
 
   if (message.type === 'clear') {
     return (
@@ -257,7 +250,7 @@ const MessageItem: FC<Props> = ({
                     onUpdateUseful={onUpdateUseful}
                   />
                 </HorizontalScrollContainer>
-                {!isShared && <SiblingNavigator messageId={message.id} />}
+                <SiblingNavigator messageId={message.id} />
               </div>
             )}
           </>

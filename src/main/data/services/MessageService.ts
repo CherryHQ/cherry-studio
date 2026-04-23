@@ -659,18 +659,14 @@ export class MessageService {
       let resolvedParentId: string | null
 
       if (dto.parentId === undefined) {
-        // Auto-resolution mode: the topic's `activeNodeId` is the
-        // authoritative "where we are in the conversation" marker — we trust
-        // it unconditionally here. For forked topics, `activeNodeId` may
-        // point into another topic's ancestor chain; that's intentional (see
-        // `TopicService.create`) and the new message will become the first
-        // divergence point of the fork.
+        // Auto-resolution: `activeNodeId` is the authoritative "where we are
+        // in this conversation" marker. When set, append there; otherwise
+        // the topic must be empty and we create the root.
         if (topic.activeNodeId) {
           resolvedParentId = topic.activeNodeId
         } else {
-          // Fresh topic with no active node → root. Root-uniqueness is
-          // enforced in the `null`-branch below after re-entering create()
-          // semantics, so mirror that check here.
+          // No active node → topic should be empty. If a root already exists
+          // in some ambiguous state, require the caller to be explicit.
           const [existingRoot] = await tx
             .select({ id: messageTable.id })
             .from(messageTable)
@@ -702,15 +698,16 @@ export class MessageService {
         }
         resolvedParentId = null
       } else {
-        // Explicit parent ID provided: Validate the parent exists. Cross-
-        // topic references are intentionally allowed — forked topics hang
-        // their first divergent message off the source topic's shared
-        // ancestor chain, so `parent.topicId !== topicId` is a legitimate
-        // case, not an error.
+        // Explicit parent ID: verify existence and topic membership. Each
+        // topic's message tree is self-contained — cross-topic parent refs
+        // aren't a supported shape.
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
+        }
+        if (parent.topicId !== topicId) {
+          throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
         }
         resolvedParentId = dto.parentId
       }
@@ -793,12 +790,12 @@ export class MessageService {
           }
           resolvedParentId = null
         } else {
-          // Cross-topic parent refs are intentional for forked topics — the
-          // first turn in a fork attaches to the source topic's shared
-          // ancestor. Only check existence, not `parent.topicId`.
           const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
           if (!parent) {
             throw DataApiErrorFactory.notFound('Message', dto.parentId)
+          }
+          if (parent.topicId !== input.topicId) {
+            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
           }
           resolvedParentId = dto.parentId
         }
@@ -824,10 +821,12 @@ export class MessageService {
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
         }
-        // Cross-topic anchors are legitimate for forked topics: regenerating
-        // in a fork may target a shared ancestor user message whose own
-        // `topicId` is the source topic. Placeholders below still get
-        // `input.topicId`, so the divergence stays scoped to the fork.
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'reserve assistant turn',
+            'User message does not belong to this topic'
+          )
+        }
         userMessage = rowToMessage(row)
       }
 

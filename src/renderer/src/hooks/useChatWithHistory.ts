@@ -246,11 +246,7 @@ export function useChatWithHistory(
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
-        // Use the origin topic id when available so shared ancestors (messages
-        // owned by a source topic in a forked view) surface `topicId !==
-        // currentTopic.id`, which the rendering layer uses to switch to
-        // read-only mode for shared context.
-        topicId: meta?.topicId ?? topicId,
+        topicId,
         createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
         askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
         modelId: meta?.modelId,

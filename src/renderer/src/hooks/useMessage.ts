@@ -72,8 +72,14 @@ export function useMessage(messageId: string, topic: Topic) {
     [messageId, v2]
   )
 
-  const createBranchTopic = useCallback(async () => {
-    await v2?.createBranchTopic(messageId)
+  /**
+   * Start a new branch at this message: pin it as the topic's active node
+   * (no `descend`) so the scroll view truncates here and the user's next
+   * input forks the tree. Stays inside the current topic — no new topic
+   * is created.
+   */
+  const startBranch = useCallback(async () => {
+    await v2?.setActiveNode(messageId)
   }, [messageId, v2])
 
   /**
@@ -126,7 +132,7 @@ export function useMessage(messageId: string, topic: Topic) {
     resend,
     editParts,
     forkAndResend,
-    createBranchTopic,
+    startBranch,
     getTranslationUpdater
   }
 }

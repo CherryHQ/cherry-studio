@@ -28,13 +28,6 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
 
 export interface MessageMetadata {
   parentId: string | null
-  /**
-   * Origin topic id — which topic *owns* this message row, not necessarily
-   * the topic being viewed. For forked topics, shared ancestors report the
-   * source topic here; this is what the UI uses to detect "shared" state
-   * (`message.topicId !== currentTopic.id`) and render read-only.
-   */
-  topicId: string
   modelId?: string
   /**
    * Captured at message creation (`{id, name, provider, group?}`).
@@ -179,7 +172,6 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
         message.id,
         {
           parentId: message.parentId,
-          topicId: message.topicId,
           modelId: message.modelId ?? undefined,
           modelSnapshot: message.modelSnapshot ?? undefined,
           siblingsGroupId: message.siblingsGroupId || undefined,
