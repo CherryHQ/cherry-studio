@@ -45,7 +45,7 @@ const {
   getSkillByIdMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     listAgents: listAgentsMock,
     createAgent: createAgentMock,
@@ -55,7 +55,7 @@ vi.mock('@main/services/agents/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/services/SessionService', () => ({
+vi.mock('@data/services/SessionService', () => ({
   sessionService: {
     listSessions: listSessionsMock,
     createSession: createSessionMock,
@@ -66,14 +66,14 @@ vi.mock('@main/services/agents/services/SessionService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/services/SessionMessageService', () => ({
+vi.mock('@data/services/SessionMessageService', () => ({
   sessionMessageService: {
     listSessionMessages: listSessionMessagesMock,
     deleteSessionMessage: deleteSessionMessageMock
   }
 }))
 
-vi.mock('@main/services/agents/services/TaskService', () => ({
+vi.mock('@data/services/TaskService', () => ({
   taskService: {
     listTasks: listTasksMock,
     createTask: createTaskMock,

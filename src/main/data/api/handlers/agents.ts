@@ -9,10 +9,10 @@
  * Skills layer:  src/main/services/agents/skills/SkillService
  */
 
-import { agentService } from '@main/services/agents/services/AgentService'
-import { sessionMessageService } from '@main/services/agents/services/SessionMessageService'
-import { sessionService } from '@main/services/agents/services/SessionService'
-import { taskService } from '@main/services/agents/services/TaskService'
+import { agentService } from '@data/services/AgentService'
+import { sessionMessageService } from '@data/services/SessionMessageService'
+import { sessionService } from '@data/services/SessionService'
+import { taskService } from '@data/services/TaskService'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
