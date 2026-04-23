@@ -1,7 +1,6 @@
-import { ColFlex, Flex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { ColFlex, EmptyState, Flex, Tooltip } from '@cherrystudio/ui'
 import type { MCPPrompt } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Typography } from 'antd'
+import { Collapse, Descriptions, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 interface MCPPromptsSectionProps {
@@ -73,7 +72,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
           ))}
         </Collapse>
       ) : (
-        <Empty description={t('settings.mcp.prompts.noPromptsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <EmptyState compact preset="no-result" description={t('settings.mcp.prompts.noPromptsAvailable')} />
       )}
     </div>
   )

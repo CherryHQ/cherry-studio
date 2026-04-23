@@ -1,8 +1,7 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Input, Select, Space } from 'antd'
-import { ChevronDown } from 'lucide-react'
+import { Input, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -54,11 +53,18 @@ const CutoffSettings = () => {
         />
         <Select
           value={compressionConfig?.cutoffUnit || 'char'}
-          style={{ minWidth: '40%' }}
-          onChange={handleCutoffUnitChange}
-          options={unitOptions}
-          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
-        />
+          onValueChange={(value) => handleCutoffUnitChange(value as 'char' | 'token')}>
+          <SelectTrigger className="min-w-[40%] rounded-l-none">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {unitOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Space.Compact>
     </SettingRow>
   )

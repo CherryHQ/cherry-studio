@@ -1,9 +1,7 @@
 import { Button } from '@cherrystudio/ui'
-import { Modal, Typography } from 'antd'
+import { Modal } from 'antd'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-
-const { Text, Paragraph } = Typography
 
 interface MacProcessTrustHintModalProps {
   open: boolean
@@ -43,22 +41,16 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
       }
       centered
       destroyOnHidden>
-      <div className="py-4">
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
-          </Text>
-        </Paragraph>
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.1" />
-          </Text>
-        </Paragraph>
-        <Paragraph>
-          <Text>
-            <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
-          </Text>
-        </Paragraph>
+      <div className="flex flex-col gap-3 py-4 text-foreground text-sm">
+        <p className="m-0">
+          <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
+        </p>
+        <p className="m-0">
+          <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.1" />
+        </p>
+        <p className="m-0">
+          <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
+        </p>
       </div>
     </Modal>
   )

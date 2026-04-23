@@ -1,7 +1,7 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { EmptyState, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Empty, Select, Spin } from 'antd'
+import { Select, Spin } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -77,13 +77,14 @@ const ObsidianSettings: FC = () => {
                 ))}
               </Select>
             ) : (
-              <Empty
+              <EmptyState
+                compact
+                preset="no-resource"
                 description={
                   loading
                     ? t('settings.data.obsidian.default_vault_loading')
                     : error || t('settings.data.obsidian.default_vault_no_vaults')
                 }
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             )}
           </Spin>

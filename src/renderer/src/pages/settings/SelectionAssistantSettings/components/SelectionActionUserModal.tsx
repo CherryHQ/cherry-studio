@@ -5,7 +5,7 @@ import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
+import { Input, Modal, Radio, Select } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type React from 'react'
@@ -99,10 +99,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       onOk={handleOk}
       onCancel={onCancel}
       width={520}>
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <div className="flex w-full flex-col gap-4">
         <ModalSection>
-          <div style={{ display: 'flex', flexDirection: 'row' }}>
-            <Col flex="auto" style={{ paddingRight: '16px', width: '70%' }}>
+          <div className="flex flex-row">
+            <div className="w-[70%] flex-auto pr-4">
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
@@ -114,8 +114,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 status={errors.name ? 'error' : ''}
               />
               {errors.name && <ErrorText>{errors.name}</ErrorText>}
-            </Col>
-            <Col>
+            </div>
+            <div>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
                 <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
@@ -139,7 +139,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   </DiceButton>
                 </Tooltip>
               </ModalSectionTitle>
-              <Space>
+              <div className="flex gap-2">
                 <Input
                   placeholder={t('selection.settings.user_modal.icon.placeholder')}
                   value={formData.icon || ''}
@@ -155,21 +155,21 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                       <OctagonX size={18} color="var(--color-error-base)" />
                     ))}
                 </IconPreview>
-              </Space>
+              </div>
               {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
-            </Col>
+            </div>
           </div>
         </ModalSection>
         <ModalSection>
-          <Row>
-            <Col flex="auto" style={{ paddingRight: '16px' }}>
+          <div className="flex">
+            <div className="flex-auto pr-4">
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
                 <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
               </ModalSectionTitle>
-            </Col>
+            </div>
             <Radio.Group
               value={formData.assistantId ? 'assistant' : 'default'}
               onChange={(e) =>
@@ -179,7 +179,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <Radio.Button value="default">{t('selection.settings.user_modal.model.default')}</Radio.Button>
               <Radio.Button value="assistant">{t('selection.settings.user_modal.model.assistant')}</Radio.Button>
             </Radio.Group>
-          </Row>
+          </div>
         </ModalSection>
 
         {formData.assistantId && (
@@ -242,7 +242,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             style={{ resize: 'none' }}
           />
         </ModalSection>
-      </Space>
+      </div>
     </Modal>
   )
 }

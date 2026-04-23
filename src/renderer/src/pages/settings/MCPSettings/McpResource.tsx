@@ -1,6 +1,6 @@
-import { ColFlex, Flex } from '@cherrystudio/ui'
+import { ColFlex, EmptyState, Flex } from '@cherrystudio/ui'
 import type { MCPResource } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Tag, Typography } from 'antd'
+import { Collapse, Descriptions, Tag, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 interface MCPResourcesSectionProps {
@@ -81,10 +81,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
           ))}
         </Collapse>
       ) : (
-        <Empty
-          description={t('settings.mcp.resources.noResourcesAvailable') || 'No resources available'}
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
+        <EmptyState compact preset="no-result" description={t('settings.mcp.resources.noResourcesAvailable')} />
       )}
     </div>
   )

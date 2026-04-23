@@ -1,5 +1,4 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { Row } from 'antd'
 import { Plus } from 'lucide-react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +17,7 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
   const isCustomItemLimitReached = customItemsCount >= maxCustomItems
 
   return (
-    <Row className="w-full">
+    <div className="flex w-full items-center">
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
       <div className="flex-1" />
       <Tooltip content={t('selection.settings.actions.reset.tooltip')}>
@@ -37,7 +36,7 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
           {t('selection.settings.actions.custom')}
         </Button>
       </Tooltip>
-    </Row>
+    </div>
   )
 })
 

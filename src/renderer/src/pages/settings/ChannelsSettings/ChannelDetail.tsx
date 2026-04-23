@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, Spinner, Switch, Tooltip } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -7,7 +7,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Alert, Empty, Input, Modal, Popconfirm, Select, Spin, Tag } from 'antd'
+import { Alert, Input, Modal, Popconfirm, Select, Tag } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -444,7 +444,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       <Scrollbar
         className="flex flex-1 flex-col items-center justify-center px-5 py-4"
         style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-        <Spin />
+        <Spinner text={t('common.loading')} />
       </Scrollbar>
     )
   }
@@ -471,9 +471,11 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       <SettingDivider style={{ margin: '0 0 4px 0' }} />
       <div className="flex flex-col">
         {channelList.length === 0 && (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          <EmptyState
+            compact
+            preset="no-resource"
             description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
+            className="py-8"
           />
         )}
         {channelList.map((ch) => (

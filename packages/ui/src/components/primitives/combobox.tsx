@@ -19,7 +19,7 @@ import * as React from 'react'
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
     'bg-zinc-50 dark:bg-zinc-900',
     'text-foreground'
   ),
@@ -44,7 +44,7 @@ const comboboxTriggerVariants = cva(
 )
 
 const comboboxItemVariants = cva(
-  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-2xs cursor-pointer transition-colors outline-none select-none',
+  'relative flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors outline-none select-none',
   {
     variants: {
       state: {
@@ -263,7 +263,7 @@ export function Combobox({
           <ChevronDown className="size-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className={cn('p-0 rounded-2xs', popoverClassName)} style={{ width: triggerWidth }}>
+      <PopoverContent className={cn('p-0 rounded-md', popoverClassName)} style={{ width: triggerWidth }}>
         <Command>
           {searchable && (
             <CommandInput placeholder={searchPlaceholder} className="h-9 rounded-none" onValueChange={onSearch} />

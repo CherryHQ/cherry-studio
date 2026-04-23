@@ -7,7 +7,7 @@ import { cn } from '@renderer/utils/style'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { Link } from '@tanstack/react-router'
-import { Radio, Row, Slider } from 'antd'
+import { Radio, Slider } from 'antd'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -95,7 +95,7 @@ const SelectionAssistantSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
-        <Row align="middle">
+        <div className="flex items-center">
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
           <Button
@@ -105,7 +105,7 @@ const SelectionAssistantSettings: FC = () => {
             {'FAQ & ' + t('settings.about.feedback.button')}
           </Button>
           {isMac && <ExperimentalText>{t('selection.settings.experimental')}</ExperimentalText>}
-        </Row>
+        </div>
         <SettingDivider />
         <SettingRow>
           <SettingLabel>

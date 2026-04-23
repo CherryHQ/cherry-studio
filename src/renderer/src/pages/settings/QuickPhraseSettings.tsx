@@ -7,7 +7,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Modal, Popconfirm, Space } from 'antd'
+import { Modal, Popconfirm } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -131,7 +131,7 @@ const QuickPhraseSettings: FC = () => {
         transitionName="animation-move-down"
         centered
         maskClosable={false}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <div className="flex w-full flex-col gap-4">
           <div>
             <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.titleLabel')}</div>
             <Input
@@ -150,7 +150,7 @@ const QuickPhraseSettings: FC = () => {
               style={{ resize: 'none' }}
             />
           </div>
-        </Space>
+        </div>
       </Modal>
     </SettingContainer>
   )

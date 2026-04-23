@@ -1,12 +1,12 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
-import { Center, RowFlex } from '@cherrystudio/ui'
+import { Center, RowFlex, Spinner } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Card, Input, Space, Spin, Tag, Typography } from 'antd'
+import { Card, Input, Space, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -137,7 +137,7 @@ const NpxSearch: FC = () => {
       </Center>
       {searchLoading && (
         <Center>
-          <Spin />
+          <Spinner text={t('common.loading')} />
         </Center>
       )}
       {!searchLoading && (

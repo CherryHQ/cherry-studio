@@ -56,7 +56,7 @@ function TooltipTrigger({ ...props }: TooltipTriggerProps) {
 }
 
 const contentStyles =
-  'z-50 max-w-60 rounded-3xs border border-border bg-background px-4 py-3 text-sm leading-4 text-foreground shadow-[0px_6px_12px_0px_rgba(0,0,0,0.2)] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
+  'z-50 max-w-60 rounded-md border border-border bg-background px-4 py-3 text-sm leading-4 text-foreground shadow-[0px_6px_12px_0px_rgba(0,0,0,0.2)] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
 
 function TooltipContent({ className, sideOffset = 4, children, ...props }: TooltipContentProps) {
   return (

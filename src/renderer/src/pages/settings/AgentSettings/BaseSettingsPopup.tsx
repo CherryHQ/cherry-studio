@@ -1,5 +1,5 @@
-import { Center, MenuItem, MenuList } from '@cherrystudio/ui'
-import { Alert, Modal, Spin } from 'antd'
+import { Center, MenuItem, MenuList, Spinner } from '@cherrystudio/ui'
+import { Alert, Modal } from 'antd'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,7 +57,7 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
     if (isLoading) {
       return (
         <Center className="flex-1">
-          <Spin />
+          <Spinner text={t('common.loading')} />
         </Center>
       )
     }

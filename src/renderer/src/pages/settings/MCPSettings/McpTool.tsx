@@ -1,8 +1,8 @@
-import { ColFlex, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { ColFlex, EmptyState, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Table, Tag, Typography } from 'antd'
+import { Badge, Descriptions, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -213,7 +213,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       }}
     />
   ) : (
-    <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+    <EmptyState compact preset="no-result" description={t('settings.mcp.tools.noToolsAvailable')} />
   )
 }
 

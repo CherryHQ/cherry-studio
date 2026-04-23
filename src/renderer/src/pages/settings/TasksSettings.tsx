@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -9,7 +9,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { Alert, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag } from 'antd'
+import { Alert, DatePicker, Input, Modal, Popconfirm, Select, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -514,13 +514,13 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   if (isLoading) {
     return (
       <div className="flex justify-center py-4">
-        <Spin size="small" />
+        <Spinner text={t('common.loading')} />
       </div>
     )
   }
 
   if (logs.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('agent.cherryClaw.tasks.logs.empty')} />
+    return <EmptyState compact preset="no-result" description={t('agent.cherryClaw.tasks.logs.empty')} />
   }
 
   return (
@@ -895,7 +895,7 @@ const TasksSettings: FC = () => {
     return (
       <div className="flex flex-1">
         <div className="flex flex-1 items-center justify-center">
-          <Spin />
+          <Spinner text={t('common.loading')} />
         </div>
       </div>
     )
@@ -918,23 +918,13 @@ const TasksSettings: FC = () => {
           </div>
           <div className="flex flex-col gap-1">
             {tasks.length === 0 && !creating ? (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              <EmptyState
+                compact
+                preset="no-agent"
                 description={
-                  <div className="flex flex-col gap-2">
-                    <span>
-                      {agents.length === 0
-                        ? t('settings.scheduledTasks.noAgents')
-                        : t('settings.scheduledTasks.noTasks')}
-                    </span>
-                    {agents.length === 0 && (
-                      <span className="text-(--color-foreground-muted) text-xs">
-                        {t('settings.scheduledTasks.noAgentsTip')}
-                      </span>
-                    )}
-                  </div>
+                  agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
                 }
-                style={{ marginTop: 20 }}
+                className="mt-5 py-8"
               />
             ) : (
               tasks.map((task) => (

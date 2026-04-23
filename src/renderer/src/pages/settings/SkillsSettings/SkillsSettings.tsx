@@ -1,4 +1,4 @@
-import { MenuItem, MenuList } from '@cherrystudio/ui'
+import { EmptyState, MenuItem, MenuList, Spinner } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -7,21 +7,7 @@ import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/h
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import {
-  Button,
-  Checkbox,
-  Dropdown,
-  Empty,
-  Input,
-  message,
-  Modal,
-  Popconfirm,
-  Spin,
-  Tag,
-  Tooltip,
-  Typography,
-  Upload
-} from 'antd'
+import { Button, Checkbox, Dropdown, Input, message, Modal, Popconfirm, Tag, Tooltip, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,
@@ -560,7 +546,7 @@ const SkillsSettings: FC = () => {
 
                 {loading ? (
                   <SpinContainer>
-                    <Spin size="small" />
+                    <Spinner text={t('common.loading')} />
                   </SpinContainer>
                 ) : filteredSkills.length === 0 ? (
                   <EmptyHint>
@@ -684,7 +670,7 @@ const SkillsSettings: FC = () => {
                     <SearchResultsScroll>
                       {searching ? (
                         <DropdownLoading>
-                          <Spin size="small" />
+                          <Spinner text={t('common.loading')} className="text-xs" />
                         </DropdownLoading>
                       ) : null}
                       {!searching && searchQuery && filteredResults.length === 0 ? (
@@ -711,7 +697,7 @@ const SkillsSettings: FC = () => {
             {selectedSkill ? (
               loadingContent ? (
                 <SpinContainer>
-                  <Spin />
+                  <Spinner text={t('common.loading')} />
                 </SpinContainer>
               ) : selectedFile && fileContent !== null ? (
                 isMarkdownFile(selectedFile) ? (
@@ -732,7 +718,9 @@ const SkillsSettings: FC = () => {
                 )
               ) : (
                 <EmptyStateContainer>
-                  <Empty
+                  <EmptyState
+                    compact
+                    preset="no-file"
                     description={selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
                   />
                 </EmptyStateContainer>

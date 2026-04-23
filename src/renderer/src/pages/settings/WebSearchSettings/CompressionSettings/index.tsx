@@ -1,6 +1,6 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Select } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import CutoffSettings from './CutoffSettings'
@@ -32,10 +32,19 @@ const CompressionSettings = () => {
         <SettingRowTitle>{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
         <Select
           value={compressionConfig?.method || 'none'}
-          style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}
-          onChange={handleCompressionMethodChange}
-          options={compressionMethodOptions}
-        />
+          onValueChange={(value) => handleCompressionMethodChange(value as 'none' | 'cutoff' | 'rag')}>
+          <SelectTrigger
+            style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {compressionMethodOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </SettingRow>
       <SettingDivider />
 

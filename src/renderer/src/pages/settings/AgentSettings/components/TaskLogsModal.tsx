@@ -1,5 +1,6 @@
+import { Spinner } from '@cherrystudio/ui'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
-import { Modal, Spin, Table, Tag } from 'antd'
+import { Modal, Table, Tag } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,7 +63,7 @@ const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, taskId, taskName, onClose
       destroyOnClose>
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <Spin />
+          <Spinner text={t('common.loading')} />
         </div>
       ) : logs.length === 0 ? (
         <div className="py-8 text-center text-gray-400">{t('agent.cherryClaw.tasks.logs.empty')}</div>

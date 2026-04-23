@@ -1,4 +1,4 @@
-import { Button, Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Button, EmptyState, Sortable, useDndReorder } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,7 +7,7 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Dropdown, Empty } from 'antd'
+import { Dropdown } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -172,10 +172,11 @@ const McpServersList: FC = () => {
         )}
       />
       {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        <EmptyState
+          compact
+          preset="no-resource"
           description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
-          style={{ marginTop: 20 }}
+          className="mt-5"
         />
       )}
 

@@ -1,11 +1,11 @@
-import { Button, Switch } from '@cherrystudio/ui'
+import { Button, EmptyState, Spinner, Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useNavigate } from '@tanstack/react-router'
 import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
-import { Card, Empty, Spin, Tag } from 'antd'
+import { Card, Tag } from 'antd'
 import { Plus, Puzzle } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,8 +27,6 @@ const cardStyles: CardProps['styles'] = {
 }
 
 const searchBarStyle = { borderRadius: 20 }
-const emptyIconStyle = { opacity: 0.3 }
-
 // rerender-memo: Extract card into memo component so toggling one skill
 // doesn't re-render every other skill card in the list.
 const SkillCard = memo<{
@@ -184,19 +182,19 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
             </div>
           ) : loading ? (
             <div className="flex flex-1 items-center justify-center py-10">
-              <Spin />
+              <Spinner text={t('common.loading')} />
             </div>
           ) : hasNoResults ? (
-            <div className="flex flex-1 items-center justify-center py-10">
-              <Empty
-                image={<Puzzle size={40} strokeWidth={1} style={emptyIconStyle} />}
-                description={
-                  filter
-                    ? t('agent.settings.skills.noFilterResults', 'No matching skills')
-                    : t('agent.settings.skills.noSkills', 'No skills installed. Install skills from Settings > Skills.')
-                }
-              />
-            </div>
+            <EmptyState
+              compact
+              icon={Puzzle}
+              description={
+                filter
+                  ? t('agent.settings.skills.noFilterResults', 'No matching skills')
+                  : t('agent.settings.skills.noSkills', 'No skills installed. Install skills from Settings > Skills.')
+              }
+              className="py-10"
+            />
           ) : (
             <>
               {filteredSkills.map((skill) => (

@@ -1,10 +1,10 @@
-import { Box, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { Box, EmptyState, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Empty, Radio } from 'antd'
+import { Radio } from 'antd'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -116,9 +116,10 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
             </ServerList>
           ) : (
             <EmptyContainer>
-              <Empty
+              <EmptyState
+                compact
+                preset="no-resource"
                 description={t('assistants.settings.mcp.noServersAvailable', 'No MCP servers available')}
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             </EmptyContainer>
           )}

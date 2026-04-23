@@ -21,7 +21,7 @@ import {
 const inputGroupVariants = cva(
   [
     'h-auto',
-    'rounded-xs',
+    'rounded-md',
     'has-[[data-slot=input-group-control]:focus-visible]:ring-ring/40',
     'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
   ],

@@ -1,4 +1,4 @@
-import { CodeEditor } from '@cherrystudio/ui'
+import { CodeEditor, Spinner } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,7 +9,7 @@ import type { MCPServer } from '@renderer/types'
 import { safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatErrorMessage, formatZodError } from '@renderer/utils/error'
-import { Modal, Spin, Typography } from 'antd'
+import { Modal, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -151,7 +151,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         </Typography.Text>
       </div>
       {isLoading ? (
-        <Spin size="large" />
+        <Spinner text={t('common.loading')} />
       ) : (
         <CodeEditor
           theme={activeCmTheme}
