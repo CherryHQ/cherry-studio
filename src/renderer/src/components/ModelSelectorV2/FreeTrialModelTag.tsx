@@ -1,7 +1,7 @@
 import { CustomTag } from '@cherrystudio/ui'
 import { getProviderLabel } from '@renderer/i18n/label'
-import NavigationService from '@renderer/services/NavigationService'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,7 @@ function resolveTrialProviderId(model: Model): string {
  */
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBeforeNavigate }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   if (model.providerId !== 'cherryai') {
     return null
@@ -39,7 +40,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
 
   const navigateToProvider = () => {
     onBeforeNavigate?.()
-    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+    void navigate({ to: '/settings/provider', search: { id: providerId } })
   }
 
   const handleTagClick = (event: MouseEvent) => {

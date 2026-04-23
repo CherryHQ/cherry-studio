@@ -14,6 +14,7 @@ import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
 import { Pin, Search, Settings2 } from 'lucide-react'
 import {
@@ -227,6 +228,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     onMultiSelectModeChange
   } = props
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const multiple = props.multiple === true
   const selectionType = props.selectionType ?? 'model'
   const value = props.value
@@ -317,8 +319,14 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels,
     showTagFilter
   })
+  const listItemsRef = useRef(listItems)
+  const modelItemsRef = useRef(modelItems)
+  listItemsRef.current = listItems
+  modelItemsRef.current = modelItems
 
   const listHeight = useMemo(() => Math.min(PAGE_SIZE, listItems.length || 1) * ITEM_HEIGHT, [listItems.length])
+  const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
+  const resolvedSelectedModelIdsKey = useMemo(() => resolvedSelectedModelIds.join('|'), [resolvedSelectedModelIds])
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -348,14 +356,14 @@ export function ModelSelector(props: ModelSelectorProps) {
   const focusItem = useCallback(
     (key: string) => {
       setFocusedItemKey(key)
-      const index = listItems.findIndex((item) => item.key === key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
       if (index >= 0) {
         requestAnimationFrame(() => {
           listRef.current?.scrollToIndex(index, { align: 'auto' })
         })
       }
     },
-    [listItems, setFocusedItemKey]
+    [setFocusedItemKey]
   )
 
   const handleSelectItem = useCallback(
@@ -386,9 +394,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      void window.navigate?.({ to: '/settings/provider', search: { id: providerId } })
+      void navigate({ to: '/settings/provider', search: { id: providerId } })
     },
-    [setOpen]
+    [navigate, setOpen]
   )
 
   const handleTogglePin = useCallback(
@@ -449,7 +457,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
-    if (!open || isLoading || modelItems.length === 0) {
+    const currentModelItems = modelItemsRef.current
+    if (!open || isLoading || currentModelItems.length === 0) {
       return
     }
 
@@ -459,14 +468,14 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     const targetKey =
-      deferredSearchText || selectedTags.length > 0
-        ? modelItems[0]?.key
-        : (modelItems.find((item) => item.isSelected)?.key ?? modelItems[0]?.key)
+      deferredSearchText || selectedTagsKey.length > 0
+        ? currentModelItems[0]?.key
+        : (currentModelItems.find((item) => item.isSelected)?.key ?? currentModelItems[0]?.key)
 
     if (targetKey) {
       focusItem(targetKey)
     }
-  }, [deferredSearchText, focusItem, isLoading, modelItems, open, selectedTags.length])
+  }, [deferredSearchText, focusItem, isLoading, open, resolvedSelectedModelIdsKey, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem) => {
@@ -593,11 +602,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         )}
 
         {listItems.length > 0 ? (
-          <div
-            className="px-1 py-1"
-            role="listbox"
-            aria-multiselectable={multiple && multiSelectMode}
-            onScroll={handleListScroll}>
+          <div className="px-1 py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
             <DynamicVirtualList
               ref={listRef}
               list={listItems}
@@ -606,6 +611,7 @@ export function ModelSelector(props: ModelSelectorProps) {
               getItemKey={(index) => listItems[index].key}
               isSticky={(index) => listItems[index].type === 'group'}
               scrollPaddingStart={ITEM_HEIGHT}
+              onScroll={handleListScroll}
               overscan={6}>
               {rowRenderer}
             </DynamicVirtualList>
