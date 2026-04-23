@@ -211,10 +211,9 @@ export const generateToolEnvironment = ({
         // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
         // others: append /v1 (standard OpenAI-compatible endpoint)
         const endpointType = model.endpoint_type
-        const isAnthropicEndpoint = endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
-        const openCodeBaseUrl = isAnthropicEndpoint
-          ? formatApiHost(baseUrl, false)
-          : formattedBaseUrl
+        const isAnthropicEndpoint =
+          endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
+        const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
 
         env.OPENCODE_BASE_URL = openCodeBaseUrl
         env.OPENCODE_MODEL_NAME = model.name
