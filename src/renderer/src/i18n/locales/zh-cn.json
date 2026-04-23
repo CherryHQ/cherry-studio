@@ -6115,6 +6115,7 @@
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",
+      "languages_load_failed": "翻译模块初始化失败，部分功能可能不可用",
       "not_configured": "翻译模型未配置",
       "not_supported": "不支持的语言 {{language}}",
       "unknown": "翻译过程中遇到未知错误"

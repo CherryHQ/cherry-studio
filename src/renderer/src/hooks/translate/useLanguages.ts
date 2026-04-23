@@ -6,7 +6,7 @@ import { languageDtoToVo } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { isTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { langCodeToI18nKey } from '@shared/data/presets/translate-languages'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('translate/useLanguages')
@@ -14,17 +14,29 @@ const logger = loggerService.withContext('translate/useLanguages')
 /**
  * Fetches translate languages from the data API and converts DTOs to view objects.
  *
- * @returns An array of {@link TranslateLanguageVo} view objects, or `undefined` while loading.
+ * Surfaces load failures both to Sentry (via `logger.error`) and to the user (via
+ * a one-shot toast debounced with a ref so SWR retries don't spam). Callers get
+ * `error` back so consumers can differentiate "still loading" from "failed to
+ * load" — the hook returning `languages: undefined` alone is ambiguous.
+ *
+ * @returns `{ languages, getLabel, getLanguage, error }` — `languages` is
+ * `undefined` while loading or on failure; pair it with `error` to tell the two
+ * apart.
  */
 export const useLanguages = () => {
   const { data, error } = useQuery('/translate/languages')
   const { t } = useTranslation()
 
+  // One-shot UX surface: we only want to tell the user "translate module
+  // failed to initialize" once per session, not on every SWR retry tick.
+  const toastedRef = useRef(false)
   useEffect(() => {
-    if (error) {
+    if (error && !toastedRef.current) {
+      toastedRef.current = true
       logger.error('Failed to load translate languages', error)
+      window.toast.error(t('translate.error.languages_load_failed'))
     }
-  }, [error])
+  }, [error, t])
 
   const languages = useMemo(() => {
     if (data !== undefined) {
@@ -42,7 +54,11 @@ export const useLanguages = () => {
       if (isTranslateLangCode(lang)) {
         lang = languages.find((l) => l.langCode === lang) ?? UNKNOWN
       } else if (typeof lang === 'string' || lang === null) {
-        // string but not valid lang code
+        // String but not a valid lang code — log so malformed upstream data is
+        // discoverable in Sentry. `null` is a legitimate UI sentinel and stays silent.
+        if (lang !== null) {
+          logger.warn('getLabel received an invalid lang code, falling back to UNKNOWN', { lang })
+        }
         lang = UNKNOWN
       }
       const i18nKey = langCodeToI18nKey.get(lang.langCode)
