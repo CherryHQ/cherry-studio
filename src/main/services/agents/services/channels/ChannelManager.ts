@@ -294,6 +294,9 @@ class ChannelManager {
             channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
+          adapter
+            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+            .catch(() => {})
         })
       })
 

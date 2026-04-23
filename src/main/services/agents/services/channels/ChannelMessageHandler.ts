@@ -412,6 +412,14 @@ export class ChannelMessageHandler {
         command: command.command,
         error: error instanceof Error ? error.message : String(error)
       })
+      adapter
+        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+        .catch((sendErr) => {
+          logger.debug('Failed to send error notification to channel', {
+            chatId: command.chatId,
+            error: sendErr instanceof Error ? sendErr.message : String(sendErr)
+          })
+        })
     }
   }
 
