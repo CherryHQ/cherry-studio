@@ -5,13 +5,13 @@
  * (CherryClaw, Cherry Assistant, etc.). Keeps business details out of
  * the main entry point (`src/main/index.ts`).
  */
+import type { BuiltinAgentInitResult } from '@data/services/AgentService'
+import { agentService } from '@data/services/AgentService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 
-import type { BuiltinAgentInitResult } from '../AgentService'
-import { agentService } from '../AgentService'
 import { schedulerService } from '../SchedulerService'
-import { sessionService } from '../SessionService'
 import { CHERRY_ASSISTANT_AGENT_ID, CHERRY_CLAW_AGENT_ID } from './BuiltinAgentIds'
 import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 

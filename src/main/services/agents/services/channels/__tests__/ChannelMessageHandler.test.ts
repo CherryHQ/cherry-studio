@@ -1,10 +1,10 @@
+import { agentService } from '@data/services/AgentService'
+import { channelService } from '@data/services/ChannelService'
+import { sessionMessageService } from '@data/services/SessionMessageService'
+import { sessionService } from '@data/services/SessionService'
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { agentService } from '../../AgentService'
-import { channelService } from '../../ChannelService'
-import { sessionMessageService } from '../../SessionMessageService'
-import { sessionService } from '../../SessionService'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 vi.mock('@logger', () => ({
@@ -18,13 +18,13 @@ vi.mock('../../security', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 
-vi.mock('../../AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: vi.fn().mockResolvedValue({ configuration: {} })
   }
 }))
 
-vi.mock('../../SessionService', () => ({
+vi.mock('@data/services/SessionService', () => ({
   sessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
@@ -32,13 +32,13 @@ vi.mock('../../SessionService', () => ({
   }
 }))
 
-vi.mock('../../SessionMessageService', () => ({
+vi.mock('@data/services/SessionMessageService', () => ({
   sessionMessageService: {
     createSessionMessage: vi.fn()
   }
 }))
 
-vi.mock('../../ChannelService', () => ({
+vi.mock('@data/services/ChannelService', () => ({
   channelService: {
     getChannel: vi.fn().mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null }),
     updateChannel: vi.fn().mockResolvedValue(null),

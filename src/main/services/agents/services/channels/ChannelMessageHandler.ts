@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { agentService } from '@data/services/AgentService'
+import { channelService } from '@data/services/ChannelService'
+import { sessionMessageService } from '@data/services/SessionMessageService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import type { GetAgentSessionResponse, PermissionMode } from '@types'
 
-import { agentService } from '../AgentService'
-import { channelService } from '../ChannelService'
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
-import { sessionMessageService } from '../SessionMessageService'
-import { sessionService } from '../SessionService'
 import type {
   ChannelAdapter,
   ChannelCommandEvent,

@@ -19,7 +19,7 @@ vi.mock('node:fs/promises', () => ({
   stat: (...args: unknown[]) => mockStat(...args)
 }))
 
-vi.mock('@main/services/agents/services/AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent
   }

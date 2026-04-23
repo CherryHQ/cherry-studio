@@ -19,7 +19,10 @@ import type {
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { channelService } from '@data/services/ChannelService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
@@ -46,9 +49,9 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
+import type { GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
 
-import type { GetAgentSessionResponse } from '../..'
 import type {
   AgentServiceInterface,
   AgentStream,
@@ -56,11 +59,8 @@ import type {
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
 import { skillService } from '../../skills/SkillService'
-import { agentService } from '../AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
-import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
-import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
@@ -713,7 +713,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   private async resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
     try {
-      const { channelService } = await import('../ChannelService')
+      const { channelService } = await import('@data/services/ChannelService')
       const channels = await channelService.listChannels({ agentId })
       return channels.find((ch) => ch.sessionId === sessionId)?.id
     } catch {

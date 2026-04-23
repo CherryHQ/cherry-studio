@@ -59,6 +59,7 @@ export interface AgentDetail extends AgentEntity {
   tools?: Array<{ id: string; name: string; description?: string }>
 }
 
+/** @deprecated Use `OffsetPaginationResponse<AgentDetail>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
 export interface ListAgentsResponse {
   data: AgentDetail[]
   total: number
@@ -90,6 +91,7 @@ export interface AgentSessionDetail extends AgentSessionEntity {
   }>
 }
 
+/** @deprecated Use `OffsetPaginationResponse<AgentSessionEntity>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
 export interface ListAgentSessionsResponse {
   data: AgentSessionEntity[]
   total: number
@@ -137,6 +139,7 @@ export interface ScheduledTaskEntity {
   updatedAt: string
 }
 
+/** @deprecated Use `OffsetPaginationResponse<ScheduledTaskEntity>` from `@shared/data/api`. Remove once #14431 rebinds renderer to DataApi. */
 export interface ListTasksResponse {
   data: ScheduledTaskEntity[]
   total: number

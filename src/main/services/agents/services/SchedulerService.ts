@@ -1,15 +1,15 @@
+import { agentService } from '@data/services/AgentService'
+import { channelService } from '@data/services/ChannelService'
+import { sessionMessageService } from '@data/services/SessionMessageService'
+import { sessionService } from '@data/services/SessionService'
+import { taskService } from '@data/services/TaskService'
 import { loggerService } from '@logger'
 import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
 
-import { agentService } from './AgentService'
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
 import { broadcastSessionChanged } from './channels/sessionStreamIpc'
-import { channelService } from './ChannelService'
 import { readHeartbeat } from './cherryclaw/heartbeat'
-import { sessionMessageService } from './SessionMessageService'
-import { sessionService } from './SessionService'
-import { taskService } from './TaskService'
 
 const logger = loggerService.withContext('SchedulerService')
 

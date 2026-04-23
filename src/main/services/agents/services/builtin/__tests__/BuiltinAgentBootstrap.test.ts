@@ -20,14 +20,14 @@ vi.mock('@main/utils/builtinSkills', () => ({
   installBuiltinSkills: mockInstallBuiltinSkills
 }))
 
-vi.mock('../../AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     initDefaultCherryClawAgent: mockInitDefaultCherryClawAgent,
     initBuiltinAgent: mockInitBuiltinAgent
   }
 }))
 
-vi.mock('../../SessionService', () => ({
+vi.mock('@data/services/SessionService', () => ({
   sessionService: {
     listSessions: mockListSessions,
     createSession: mockCreateSession

@@ -6,9 +6,8 @@ import {
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
 import { loggerService } from '@logger'
+import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
 import { and, eq, inArray } from 'drizzle-orm'
-
-import type { ChannelConfig } from './channels/channelConfig'
 
 const logger = loggerService.withContext('ChannelService')
 

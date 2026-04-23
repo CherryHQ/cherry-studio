@@ -1,11 +1,11 @@
 import { application } from '@application'
 import type { AgentChannelRow as ChannelRow } from '@data/db/schemas/agentChannel'
+import { channelService } from '@data/services/ChannelService'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { channelService } from '../ChannelService'
 import type { ChannelAdapter } from './ChannelAdapter'
 import type { ChannelConfig } from './channelConfig'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
@@ -283,6 +283,9 @@ class ChannelManager {
             channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
+          adapter
+            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .catch(() => {})
         })
       })
 
