@@ -30,6 +30,7 @@
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileInfo } from '@shared/file/types'
 
+// oxlint-disable-next-line no-unused-vars -- TODO(phase-1b): drop once implementation lands in Phase 1b.1.
 export async function toFileInfo(_entry: FileEntry): Promise<FileInfo> {
   throw new Error('toFileInfo: not implemented (Phase 1a skeleton, lands in Phase 1b.1)')
 }

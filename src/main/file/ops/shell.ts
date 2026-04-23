@@ -1,3 +1,5 @@
+/* oxlint-disable no-unused-vars -- TODO(phase-1b): Phase 1a stub exports; parameters shape the public signature but are unused until implementations land. */
+
 /**
  * System shell operations — open files/folders with OS defaults.
  */

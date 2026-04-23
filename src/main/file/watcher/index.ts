@@ -64,6 +64,7 @@ export interface CreateDirectoryWatcherOptions {
  * subscribe immediately; a `'ready'` event fires once the initial scan
  * completes. Factory auto-wires events into `danglingCache.onFsEvent`.
  */
+// oxlint-disable-next-line no-unused-vars -- TODO(phase-1b): drop once implementation lands in Phase 1b.3.
 export function createDirectoryWatcher(_root: FilePath, _opts?: CreateDirectoryWatcherOptions): DirectoryWatcher {
   throw new Error('createDirectoryWatcher: not implemented (Phase 1a skeleton, lands in Phase 1b.3)')
 }
