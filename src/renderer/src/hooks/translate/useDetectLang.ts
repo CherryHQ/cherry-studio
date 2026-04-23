@@ -40,8 +40,13 @@ const AUTO_MODE_LLM_THRESHOLD = 100
 
 /**
  * Detect language using an LLM with the provided language list as candidates.
+ *
+ * @internal Exported for unit tests alongside the other pure helpers.
  */
-const detectLanguageByLLM = async (inputText: string, langCodes: TranslateLangCode[]): Promise<TranslateLangCode> => {
+export const detectLanguageByLLM = async (
+  inputText: string,
+  langCodes: TranslateLangCode[]
+): Promise<TranslateLangCode> => {
   logger.info('Detect language by LLM')
   let detectedLang: string = ''
   const text = sliceByTokens(inputText, 0, LLM_INPUT_MAX_TOKENS)
@@ -84,8 +89,10 @@ const detectLanguageByLLM = async (inputText: string, langCodes: TranslateLangCo
 
 /**
  * Detect language using the franc library (offline, fast).
+ *
+ * @internal Exported for unit tests alongside the other pure helpers.
  */
-const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
+export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
   logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
@@ -115,8 +122,10 @@ const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
 
 /**
  * Run detection with the given method and language candidate list.
+ *
+ * @internal Exported for unit tests alongside the other pure helpers.
  */
-const detectWithMethod = async (
+export const detectWithMethod = async (
   text: string,
   method: AutoDetectionMethod,
   langCodes: TranslateLangCode[]
