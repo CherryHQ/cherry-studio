@@ -34,6 +34,7 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(undefined
 export type DropzoneProps = Omit<DropzoneOptions, 'onDrop'> & {
   src?: File[]
   className?: string
+  webkitdirectory?: boolean | string
   onDrop?: (acceptedFiles: File[], fileRejections: FileRejection[], event: DropEvent) => void
   children?: ReactNode
 }
@@ -48,6 +49,7 @@ export const Dropzone = ({
   disabled,
   src,
   className,
+  webkitdirectory,
   children,
   ...props
 }: DropzoneProps) => {
@@ -83,7 +85,7 @@ export const Dropzone = ({
         type="button"
         variant="outline"
         {...getRootProps()}>
-        <input {...getInputProps()} disabled={disabled} />
+        <input {...getInputProps({ disabled, ...(webkitdirectory === undefined ? {} : { webkitdirectory }) })} />
         {children}
       </Button>
     </DropzoneContext>
