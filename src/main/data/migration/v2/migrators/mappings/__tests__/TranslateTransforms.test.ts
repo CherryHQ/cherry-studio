@@ -30,6 +30,25 @@ describe('splitBidirectionalPairForAction', () => {
     expect(splitBidirectionalPairForAction({ bidirectionalPair: [123, 456] })).toEqual({})
     expect(splitBidirectionalPairForAction({ bidirectionalPair: [null, 'en-us'] })).toEqual({})
   })
+
+  it('normalizes uppercase input to lowercase so "EN-US" becomes "en-us"', () => {
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['EN-US', 'ZH-CN'] })).toEqual({
+      'feature.translate.action.preferred_lang': 'en-us',
+      'feature.translate.action.alter_lang': 'zh-cn'
+    })
+  })
+
+  it('returns empty object when a string element fails the TranslateLangCode regex', () => {
+    // Historical dexie data sometimes carries non-conformant values like underscores
+    // or freeform labels; schema validation must block them from reaching the new preference.
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['zh_CN', 'en-us'] })).toEqual({})
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['Auto', 'en-us'] })).toEqual({})
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['en-us', 'NOT-A-CODE-X'] })).toEqual({})
+  })
+
+  it('rejects the "unknown" sentinel (PersistedLangCodeSchema is strict)', () => {
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['unknown', 'en-us'] })).toEqual({})
+  })
 })
 
 describe('copyTargetLanguageForMiniWindow', () => {
@@ -52,5 +71,21 @@ describe('copyTargetLanguageForMiniWindow', () => {
 
   it('should return empty object when targetLanguage is an empty string', () => {
     expect(copyTargetLanguageForMiniWindow({ targetLanguage: '' })).toEqual({})
+  })
+
+  it('normalizes uppercase input to lowercase so "EN-US" becomes "en-us"', () => {
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'EN-US' })).toEqual({
+      'feature.translate.mini_window.target_lang': 'en-us'
+    })
+  })
+
+  it('returns empty object when the string fails the TranslateLangCode regex', () => {
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'zh_CN' })).toEqual({})
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'Auto' })).toEqual({})
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'NOT-A-CODE-X' })).toEqual({})
+  })
+
+  it('rejects the "unknown" sentinel (PersistedLangCodeSchema is strict)', () => {
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'unknown' })).toEqual({})
   })
 })
