@@ -128,6 +128,33 @@ const V2ChatContentInner: FC<InnerProps> = ({
     addToolApprovalResponse
   } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
 
+  /**
+   * Align the three assistant-id producers for a single-execution turn so
+   * `useChat.activeResponse`, the chunks coming off the stream, and the DB
+   * placeholder row all agree on one UUID:
+   *   1. `prepareNextAssistantId` queues the id for the next
+   *      `Chat.generateId()` call (consumed inside `Chat.makeRequest` when it
+   *      seeds `activeResponse.state.message.id`).
+   *   2. Returned id goes into `body.assistantMessageId`, which the main-side
+   *      `reserveAssistantTurn` honours as the placeholder row's `id`.
+   *
+   * Without this alignment, AI SDK falls back to `pushMessage` on the first
+   * chunk (it sees an unknown id and assumes a brand-new message), producing
+   * two duplicate assistant bubbles — the silent orphan from `activeResponse`
+   * and the real one receiving chunks. Multi-model turns skip this entirely:
+   * each execution gets its own id on Main, so there's nothing to align on
+   * the renderer side.
+   */
+  const allocateSingleAssistantId = useCallback(
+    (isMultiModel: boolean) => {
+      if (isMultiModel) return undefined
+      const id = crypto.randomUUID()
+      prepareNextAssistantId(id)
+      return id
+    },
+    [prepareNextAssistantId]
+  )
+
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
 
   const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
@@ -480,9 +507,16 @@ const V2ChatContentInner: FC<InnerProps> = ({
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string) => {
-      await regenerate({ messageId, body: capabilityBody })
+      // Regenerate is single-execution: allocate a shared assistant id here
+      // to keep `useChat.activeResponse` and the DB placeholder on the same
+      // UUID. Skipping this step makes AI SDK `pushMessage` on the first
+      // chunk (id mismatch) and the old + new assistant bubbles render side
+      // by side. Multi-model fan-out is never a regenerate today, so the
+      // single-id path always applies.
+      const assistantMessageId = allocateSingleAssistantId(false)
+      await regenerate({ messageId, body: { ...capabilityBody, assistantMessageId } })
     },
-    [regenerate, capabilityBody]
+    [regenerate, capabilityBody, allocateSingleAssistantId]
   )
 
   /**
@@ -582,10 +616,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       // the old path — Main allocates N ids and the overlay renderer owns
       // per-execution state via `ExecutionStreamCollector`.
       const isMultiModel = (options?.mentionedModels?.length ?? 0) > 1
-      const assistantMessageId = isMultiModel ? undefined : crypto.randomUUID()
-      if (assistantMessageId) {
-        prepareNextAssistantId(assistantMessageId)
-      }
+      const assistantMessageId = allocateSingleAssistantId(isMultiModel)
       void sendMessage(
         { text },
         {
@@ -616,7 +647,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         })
       }
     },
-    [activeNodeId, sendMessage, setMessages, prepareNextAssistantId, capabilityBody]
+    [activeNodeId, sendMessage, setMessages, allocateSingleAssistantId, capabilityBody]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
