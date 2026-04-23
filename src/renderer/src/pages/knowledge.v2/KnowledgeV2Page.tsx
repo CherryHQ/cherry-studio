@@ -7,7 +7,14 @@ import BaseNavigator from './components/BaseNavigator'
 import CreateKnowledgeBaseDialog from './components/CreateKnowledgeBaseDialog'
 import DetailHeader from './components/DetailHeader'
 import DetailTabs from './components/DetailTabs'
-import { useCreateKnowledgeBase, useKnowledgeBases, useKnowledgeItems } from './hooks'
+import {
+  useCreateKnowledgeBase,
+  useDeleteKnowledgeBase,
+  useKnowledgeBases,
+  useKnowledgeGroups,
+  useKnowledgeItems,
+  useUpdateKnowledgeBase
+} from './hooks'
 import DataSourcePanel from './panels/dataSource/DataSourcePanel'
 import RagConfigPanel from './panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from './panels/recallTest/RecallTestPanel'
@@ -20,7 +27,10 @@ const NAVIGATOR_MAX_WIDTH = 360
 const KnowledgeV2Page = () => {
   const { t } = useTranslation()
   const { bases, isLoading } = useKnowledgeBases()
+  const { groups } = useKnowledgeGroups()
   const { createBase, isCreating } = useCreateKnowledgeBase()
+  const { updateBase } = useUpdateKnowledgeBase()
+  const { deleteBase } = useDeleteKnowledgeBase()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [selectedBaseId, setSelectedBaseId] = useState('')
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
@@ -72,6 +82,20 @@ const KnowledgeV2Page = () => {
     setSelectedBaseId(createdBase.id)
   }, [])
 
+  const handleMoveBase = useCallback(
+    async (baseId: string, groupId: string) => {
+      await updateBase(baseId, { groupId })
+    },
+    [updateBase]
+  )
+
+  const handleDeleteBase = useCallback(
+    async (baseId: string) => {
+      await deleteBase(baseId)
+    },
+    [deleteBase]
+  )
+
   const startNavigatorResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
     isResizingRef.current = true
@@ -116,10 +140,13 @@ const KnowledgeV2Page = () => {
         className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 overflow-hidden bg-background">
         <BaseNavigator
           bases={bases}
+          groups={groups}
           width={navigatorWidth}
           selectedBaseId={selectedBaseId}
           onSelectBase={handleSelectBase}
           onCreateBase={() => setIsCreateDialogOpen(true)}
+          onMoveBase={handleMoveBase}
+          onDeleteBase={handleDeleteBase}
           onResizeStart={startNavigatorResize}
         />
 

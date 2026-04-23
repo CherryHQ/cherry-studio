@@ -43,6 +43,12 @@ describe('GroupService', () => {
       // because neither bucket has a predecessor.
       expect(topicFirst.orderKey).toBe(sessionFirst.orderKey)
     })
+
+    it('should create knowledge groups', async () => {
+      const result = await groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
+
+      expect(result).toMatchObject({ entityType: 'knowledge', name: 'Knowledge Group' })
+    })
   })
 
   describe('listByEntityType', () => {
@@ -57,6 +63,13 @@ describe('GroupService', () => {
 
     it('should return an empty array when no groups exist for the entityType', async () => {
       await expect(groupService.listByEntityType('assistant')).resolves.toEqual([])
+    })
+
+    it('should list groups for the knowledge entityType', async () => {
+      const knowledgeGroup = await groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
+      await groupService.create({ entityType: 'topic', name: 'Topic Group' })
+
+      await expect(groupService.listByEntityType('knowledge')).resolves.toEqual([knowledgeGroup])
     })
   })
 

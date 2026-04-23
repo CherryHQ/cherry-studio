@@ -4,23 +4,34 @@ import {
   AccordionItem,
   AccordionTrigger,
   Button,
+  ConfirmDialog,
   Input,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { buildKnowledgeBaseGroupSections } from '@renderer/pages/knowledge.v2/utils'
+import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { BookOpenText, FolderPlus, Plus, Search } from 'lucide-react'
+import { ArrowRightLeft, BookOpenText, Check, FolderPlus, PencilLine, Plus, Search, Trash2 } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface BaseNavigatorProps {
   bases: KnowledgeBase[]
+  groups: Group[]
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
   onCreateBase: () => void
+  onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+  onDeleteBase: (baseId: string) => Promise<void> | void
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
@@ -32,20 +43,194 @@ const statusDotClassNames = {
   failed: 'bg-destructive'
 } as const
 
+interface KnowledgeBaseListItemProps {
+  base: KnowledgeBase
+  groups: Group[]
+  selected: boolean
+  onSelectBase: (baseId: string) => void
+  onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+  onDeleteBase: (baseId: string) => Promise<void> | void
+}
+
+function KnowledgeBaseListItem({
+  base,
+  groups,
+  selected,
+  onSelectBase,
+  onMoveBase,
+  onDeleteBase
+}: KnowledgeBaseListItemProps) {
+  const { t } = useTranslation()
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuPosition(null)
+  }, [])
+
+  const handleContextMenu = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    setContextMenuPosition({
+      x: event.clientX,
+      y: event.clientY
+    })
+  }, [])
+
+  const handleMoveBase = useCallback(
+    async (groupId: string) => {
+      closeContextMenu()
+
+      if (base.groupId === groupId) {
+        return
+      }
+
+      await onMoveBase(base.id, groupId)
+    },
+    [base.groupId, base.id, closeContextMenu, onMoveBase]
+  )
+
+  const handleDeleteBase = useCallback(async () => {
+    await onDeleteBase(base.id)
+  }, [base.id, onDeleteBase])
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => onSelectBase(base.id)}
+        onContextMenu={handleContextMenu}
+        className={cn(
+          'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
+          selected ? 'bg-accent hover:bg-accent hover:text-foreground' : 'hover:bg-accent/60 hover:text-foreground'
+        )}>
+        <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted/60 text-xs">
+          <span aria-hidden="true">{base.emoji}</span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[0.6875rem] text-foreground leading-4.125">{base.name}</div>
+          <div className="mt-px flex items-center gap-1">
+            <span className="text-[0.5625rem] text-muted-foreground/45 leading-3.375">
+              {t('knowledge_v2.meta.documents_count', { count: DEFAULT_DOCUMENT_COUNT })}
+            </span>
+            <span aria-hidden="true" className={cn('size-1.5 rounded-full', statusDotClassNames.completed)} />
+          </div>
+        </div>
+      </Button>
+
+      <Popover open={Boolean(contextMenuPosition)} onOpenChange={(open) => !open && closeContextMenu()}>
+        {contextMenuPosition ? (
+          <PopoverAnchor
+            className="fixed size-0"
+            style={{
+              left: contextMenuPosition.x,
+              top: contextMenuPosition.y
+            }}
+          />
+        ) : null}
+
+        <PopoverContent
+          align="start"
+          side="bottom"
+          sideOffset={8}
+          collisionPadding={8}
+          className="w-52 rounded-xl p-2"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}>
+          <MenuList className="gap-0.5">
+            <MenuItem
+              disabled
+              variant="ghost"
+              icon={<PencilLine className="size-3.5" />}
+              label={t('knowledge_v2.context.rename')}
+            />
+
+            {groups.length > 0 ? (
+              <>
+                <div className="px-2.5 pt-1 pb-0.5 font-medium text-[0.625rem] text-muted-foreground/70 leading-4">
+                  {t('knowledge_v2.context.move_to')}
+                </div>
+
+                {groups.map((group) => (
+                  <MenuItem
+                    key={group.id}
+                    variant="ghost"
+                    icon={<ArrowRightLeft className="size-3.5" />}
+                    label={group.name}
+                    active={base.groupId === group.id}
+                    suffix={base.groupId === group.id ? <Check className="size-3 text-foreground" /> : null}
+                    onClick={() => void handleMoveBase(group.id)}
+                  />
+                ))}
+
+                <MenuDivider />
+              </>
+            ) : null}
+
+            <MenuItem
+              variant="ghost"
+              icon={<Trash2 className="size-3.5" />}
+              label={t('knowledge_v2.context.delete')}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+              onClick={() => {
+                closeContextMenu()
+                setIsDeleteDialogOpen(true)
+              }}
+            />
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title={t('knowledge_v2.context.delete_confirm_title')}
+        description={t('knowledge_v2.context.delete_confirm_description')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={handleDeleteBase}
+      />
+    </>
+  )
+}
+
 const BaseNavigator = ({
   bases,
+  groups,
   width,
   selectedBaseId,
   onSelectBase,
   onCreateBase,
+  onMoveBase,
+  onDeleteBase,
   onResizeStart
 }: BaseNavigatorProps) => {
   const { t } = useTranslation()
   const [searchValue, setSearchValue] = useState('')
 
   const knowledgeBaseGroupSections = useMemo(
-    () => buildKnowledgeBaseGroupSections(bases, searchValue),
-    [bases, searchValue]
+    () => buildKnowledgeBaseGroupSections(bases, groups, searchValue),
+    [bases, groups, searchValue]
+  )
+
+  const groupNameById = useMemo(() => {
+    return new Map(groups.map((group) => [group.id, group.name]))
+  }, [groups])
+
+  const getGroupLabel = useCallback(
+    (groupId: string | null) => {
+      if (groupId == null) {
+        return t('knowledge_v2.groups.ungrouped')
+      }
+
+      return groupNameById.get(groupId) ?? groupId
+    },
+    [groupNameById, t]
   )
 
   return (
@@ -117,9 +302,7 @@ const BaseNavigator = ({
                         'flex-row-reverse'
                       )}>
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <span className="truncate font-medium tracking-widest">
-                          {groupId || t('knowledge_v2.groups.ungrouped')}
-                        </span>
+                        <span className="truncate font-medium tracking-widest">{getGroupLabel(groupId)}</span>
                         <span className="shrink-0 text-foreground/45">{items.length}</span>
                       </div>
                     </AccordionTrigger>
@@ -127,40 +310,16 @@ const BaseNavigator = ({
                     <AccordionContent className="pt-0 pb-0">
                       <div className="space-y-px">
                         {items.map((base) => {
-                          const selected = base.id === selectedBaseId
-
                           return (
-                            <Button
+                            <KnowledgeBaseListItem
                               key={base.id}
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => onSelectBase(base.id)}
-                              className={cn(
-                                'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
-                                selected
-                                  ? 'bg-accent hover:bg-accent hover:text-foreground'
-                                  : 'hover:bg-accent/60 hover:text-foreground'
-                              )}>
-                              <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted/60 text-xs">
-                                <span aria-hidden="true">{base.emoji}</span>
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate text-[0.6875rem] text-foreground leading-4.125">
-                                  {base.name}
-                                </div>
-                                <div className="mt-px flex items-center gap-1">
-                                  <span className="text-[0.5625rem] text-muted-foreground/45 leading-3.375">
-                                    {t('knowledge_v2.meta.documents_count', { count: DEFAULT_DOCUMENT_COUNT })}
-                                  </span>
-                                  <span
-                                    aria-hidden="true"
-                                    className={cn('size-1.5 rounded-full', statusDotClassNames.completed)}
-                                  />
-                                </div>
-                              </div>
-                            </Button>
+                              base={base}
+                              groups={groups}
+                              selected={base.id === selectedBaseId}
+                              onSelectBase={onSelectBase}
+                              onMoveBase={onMoveBase}
+                              onDeleteBase={onDeleteBase}
+                            />
                           )
                         })}
                       </div>

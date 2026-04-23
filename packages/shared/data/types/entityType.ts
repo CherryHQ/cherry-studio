@@ -6,7 +6,7 @@ import * as z from 'zod'
  * of entityType discriminators. DB storage is still `text()` on each table —
  * this enum enforces the value at the API boundary via Zod.
  */
-export const EntityTypeSchema = z.enum(['assistant', 'topic', 'session'])
+export const EntityTypeSchema = z.enum(['assistant', 'topic', 'session', 'knowledge'])
 export type EntityType = z.infer<typeof EntityTypeSchema>
 
 /**

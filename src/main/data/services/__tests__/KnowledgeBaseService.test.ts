@@ -97,7 +97,7 @@ describe('KnowledgeBaseService', () => {
   async function seedGroup(overrides: Partial<typeof groupTable.$inferInsert> = {}) {
     const values: typeof groupTable.$inferInsert = {
       id: 'group-kb',
-      entityType: 'topic',
+      entityType: 'knowledge',
       name: 'Knowledge Base Group',
       orderKey: 'a0',
       ...overrides
@@ -231,6 +231,19 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
+    })
+
+    it('should accept an existing knowledge groupId', async () => {
+      await seedGroup({ id: 'group-knowledge', entityType: 'knowledge' })
+
+      const result = await service.create({
+        name: 'New Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        groupId: 'group-knowledge'
+      })
+
+      expect(result.groupId).toBe('group-knowledge')
     })
 
     it('should accept an existing groupId without checking entityType', async () => {

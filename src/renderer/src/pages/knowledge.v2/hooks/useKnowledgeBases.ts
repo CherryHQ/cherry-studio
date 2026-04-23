@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import { useCallback, useMemo } from 'react'
 
@@ -10,7 +11,7 @@ const KNOWLEDGE_V2_BASES_QUERY = {
   limit: KNOWLEDGE_BASES_MAX_LIMIT
 } as const
 
-const logger = loggerService.withContext('useCreateKnowledgeBase')
+const logger = loggerService.withContext('useKnowledgeBases')
 
 export const useKnowledgeBases = () => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
@@ -79,5 +80,73 @@ export const useCreateKnowledgeBase = () => {
     createBase,
     isCreating,
     createError
+  }
+}
+
+export const useUpdateKnowledgeBase = () => {
+  const {
+    trigger: updateTrigger,
+    isLoading: isUpdating,
+    error: updateError
+  } = useMutation('PATCH', '/knowledge-bases/:id', {
+    refresh: ['/knowledge-bases']
+  })
+
+  const updateBase = useCallback(
+    async (baseId: string, updates: UpdateKnowledgeBaseDto) => {
+      try {
+        return await updateTrigger({
+          params: { id: baseId },
+          body: updates
+        })
+      } catch (error) {
+        logger.error('Failed to update knowledge base', {
+          baseId,
+          updates,
+          error
+        })
+        throw error
+      }
+    },
+    [updateTrigger]
+  )
+
+  return {
+    updateBase,
+    isUpdating,
+    updateError
+  }
+}
+
+export const useDeleteKnowledgeBase = () => {
+  const {
+    trigger: deleteTrigger,
+    isLoading: isDeleting,
+    error: deleteError
+  } = useMutation('DELETE', '/knowledge-bases/:id', {
+    refresh: ['/knowledge-bases']
+  })
+
+  const deleteBase = useCallback(
+    async (baseId: string) => {
+      try {
+        return await deleteTrigger({
+          params: { id: baseId }
+        })
+      } catch (error) {
+        logger.error('Failed to delete knowledge base', {
+          baseId,
+          error
+        })
+        throw error
+      }
+    },
+    [deleteTrigger]
+  )
+
+  return {
+    deleteBase,
+    isDeleting,
+    deleteError
   }
 }

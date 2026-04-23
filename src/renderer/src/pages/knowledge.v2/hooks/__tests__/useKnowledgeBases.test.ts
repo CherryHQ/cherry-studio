@@ -1,9 +1,15 @@
 import type { CreateKnowledgeBaseInput } from '@renderer/pages/knowledge.v2/types'
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCreateKnowledgeBase, useKnowledgeBases } from '../useKnowledgeBases'
+import {
+  useCreateKnowledgeBase,
+  useDeleteKnowledgeBase,
+  useKnowledgeBases,
+  useUpdateKnowledgeBase
+} from '../useKnowledgeBases'
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -137,5 +143,80 @@ describe('useCreateKnowledgeBase', () => {
     expect(created).toEqual(createdBase)
     expect(result.current.isCreating).toBe(true)
     expect(result.current.createError).toBe(createError)
+  })
+})
+
+describe('useUpdateKnowledgeBase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('updates a knowledge base with the expected params and body', async () => {
+    const updates: UpdateKnowledgeBaseDto = {
+      groupId: 'group-2'
+    }
+    const updatedBase = createKnowledgeBase({
+      id: 'base-1',
+      name: 'Base 1',
+      groupId: 'group-2'
+    })
+    const trigger = vi.fn().mockResolvedValue(updatedBase)
+    const updateError = new Error('update failed')
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: false,
+      error: updateError
+    })
+
+    const { result } = renderHook(() => useUpdateKnowledgeBase())
+    let updated: KnowledgeBase | undefined
+
+    await act(async () => {
+      updated = await result.current.updateBase('base-1', updates)
+    })
+
+    expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
+      refresh: ['/knowledge-bases']
+    })
+    expect(trigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: updates
+    })
+    expect(updated).toEqual(updatedBase)
+    expect(result.current.isUpdating).toBe(false)
+    expect(result.current.updateError).toBe(updateError)
+  })
+})
+
+describe('useDeleteKnowledgeBase', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('deletes a knowledge base with the expected params', async () => {
+    const trigger = vi.fn().mockResolvedValue(undefined)
+    const deleteError = new Error('delete failed')
+
+    mockUseMutation.mockReturnValue({
+      trigger,
+      isLoading: true,
+      error: deleteError
+    })
+
+    const { result } = renderHook(() => useDeleteKnowledgeBase())
+
+    await act(async () => {
+      await result.current.deleteBase('base-1')
+    })
+
+    expect(mockUseMutation).toHaveBeenCalledWith('DELETE', '/knowledge-bases/:id', {
+      refresh: ['/knowledge-bases']
+    })
+    expect(trigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' }
+    })
+    expect(result.current.isDeleting).toBe(true)
+    expect(result.current.deleteError).toBe(deleteError)
   })
 })

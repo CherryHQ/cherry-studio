@@ -1,3 +1,4 @@
+import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -6,12 +7,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeV2Page from '../KnowledgeV2Page'
 
 const mockUseKnowledgeBases = vi.fn()
+const mockUseKnowledgeGroups = vi.fn()
 const mockUseCreateKnowledgeBase = vi.fn()
+const mockUseUpdateKnowledgeBase = vi.fn()
+const mockUseDeleteKnowledgeBase = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 
 vi.mock('../hooks', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
+  useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
+  useUpdateKnowledgeBase: () => mockUseUpdateKnowledgeBase(),
+  useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase(),
   useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId)
 }))
 
@@ -23,25 +30,40 @@ vi.mock('@renderer/components/app/Navbar', () => ({
 vi.mock('../components/BaseNavigator', () => ({
   default: ({
     bases,
+    groups,
     selectedBaseId,
     onSelectBase,
-    onCreateBase
+    onCreateBase,
+    onMoveBase,
+    onDeleteBase
   }: {
     bases: Array<{ id: string; name: string }>
+    groups: Array<{ id: string; name: string }>
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
     onCreateBase: () => void
+    onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+    onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
       <div data-testid="base-count">{bases.length}</div>
+      <div data-testid="group-names">{groups.map((group) => group.name).join(',')}</div>
       <div data-testid="selected-base-id">{selectedBaseId}</div>
       <button type="button" onClick={onCreateBase}>
         新建知识库
       </button>
       {bases.map((base) => (
-        <button key={base.id} onClick={() => onSelectBase(base.id)} type="button">
-          {base.name}
-        </button>
+        <div key={base.id}>
+          <button onClick={() => onSelectBase(base.id)} type="button">
+            {base.name}
+          </button>
+          <button onClick={() => void onMoveBase(base.id, groups[1]?.id ?? 'group-2')} type="button">
+            Move {base.name}
+          </button>
+          <button onClick={() => void onDeleteBase(base.id)} type="button">
+            Delete {base.name}
+          </button>
+        </div>
       ))}
     </div>
   )
@@ -154,6 +176,16 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   ...overrides
 })
 
+const createGroup = (overrides: Partial<Group> = {}): Group => ({
+  id: 'group-1',
+  entityType: 'knowledge',
+  name: 'Research',
+  orderKey: 'a0',
+  createdAt: '2026-04-23T00:00:00.000Z',
+  updatedAt: '2026-04-23T00:00:00.000Z',
+  ...overrides
+})
+
 const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> => ({
   baseId: 'base-1',
   groupId: null,
@@ -175,6 +207,22 @@ describe('KnowledgeV2Page', () => {
       createBase: vi.fn(),
       isCreating: false,
       createError: undefined
+    })
+    mockUseKnowledgeGroups.mockReturnValue({
+      groups: [createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase: vi.fn(),
+      isUpdating: false,
+      updateError: undefined
+    })
+    mockUseDeleteKnowledgeBase.mockReturnValue({
+      deleteBase: vi.fn(),
+      isDeleting: false,
+      deleteError: undefined
     })
     mockUseKnowledgeItems.mockReturnValue({
       items: [],
@@ -209,6 +257,7 @@ describe('KnowledgeV2Page', () => {
     render(<KnowledgeV2Page />)
 
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
+    expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
     expect(screen.getByTestId('detail-tabs')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2')
@@ -309,5 +358,40 @@ describe('KnowledgeV2Page', () => {
     expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
     expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2')
+  })
+
+  it('wires move and delete actions to the knowledge base mutation hooks', async () => {
+    const updateBase = vi.fn().mockResolvedValue(undefined)
+    const deleteBase = vi.fn().mockResolvedValue(undefined)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseUpdateKnowledgeBase.mockReturnValue({
+      updateBase,
+      isUpdating: false,
+      updateError: undefined
+    })
+    mockUseDeleteKnowledgeBase.mockReturnValue({
+      deleteBase,
+      isDeleting: false,
+      deleteError: undefined
+    })
+
+    render(<KnowledgeV2Page />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Base 2' }))
+
+    await waitFor(() => {
+      expect(updateBase).toHaveBeenCalledWith('base-1', { groupId: 'group-2' })
+      expect(deleteBase).toHaveBeenCalledWith('base-2')
+    })
   })
 })

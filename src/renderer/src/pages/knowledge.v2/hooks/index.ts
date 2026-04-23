@@ -1,5 +1,8 @@
 export { useKnowledgeBases } from './useKnowledgeBases'
 export { useCreateKnowledgeBase } from './useKnowledgeBases'
+export { useDeleteKnowledgeBase } from './useKnowledgeBases'
+export { useUpdateKnowledgeBase } from './useKnowledgeBases'
+export { useKnowledgeGroups } from './useKnowledgeGroups'
 export { useKnowledgeItems } from './useKnowledgeItems'
 export { useKnowledgeRagConfig } from './useKnowledgeRagConfig'
 export { useKnowledgeRagConfig as useKnowledgeConfig } from './useKnowledgeRagConfig'

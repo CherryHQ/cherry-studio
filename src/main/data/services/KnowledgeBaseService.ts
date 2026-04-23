@@ -113,19 +113,22 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
 }
 
 export class KnowledgeBaseService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
   async list(query: KnowledgeBaseListQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
-    const db = application.get('DbService').getDb()
     const { page, limit } = query
     const offset = (page - 1) * limit
 
     const [rows, [{ count }]] = await Promise.all([
-      db
+      this.db
         .select()
         .from(knowledgeBaseTable)
         .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
         .limit(limit)
         .offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
+      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
     ])
 
     return {
@@ -136,8 +139,7 @@ export class KnowledgeBaseService {
   }
 
   async getById(id: string): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
+    const [row] = await this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
@@ -147,7 +149,6 @@ export class KnowledgeBaseService {
   }
 
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       description: dto.description,
@@ -177,14 +178,13 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
 
-    const [row] = await db.insert(knowledgeBaseTable).values(createValues).returning()
+    const [row] = await this.db.insert(knowledgeBaseTable).values(createValues).returning()
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
@@ -266,16 +266,15 @@ export class KnowledgeBaseService {
       updates.hybridAlpha = nextHybridAlpha
     }
 
-    const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()
+    const [row] = await this.db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
   }
 
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
     await this.getById(id)
-    await db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
+    await this.db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
     logger.info('Deleted knowledge base', { id })
   }
 }
