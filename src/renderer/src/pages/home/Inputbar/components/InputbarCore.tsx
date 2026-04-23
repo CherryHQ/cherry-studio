@@ -11,6 +11,7 @@ import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { isSendMessageKeyPressed } from '@renderer/utils/input'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -208,11 +209,16 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       translatedText && setText(translatedText)
       setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error as Error)
+      // Mirrors TranslatePage's error flow: suppress user-initiated aborts,
+      // log + toast anything else so the space-key auto-translate never fails silently.
+      if (!isAbortError(error)) {
+        logger.error('Auto-translate (space) failed', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+  }, [isTranslating, resizeTextArea, setText, setTimeoutTimer, t, targetLanguage, text])
 
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 
