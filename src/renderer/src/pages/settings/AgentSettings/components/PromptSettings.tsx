@@ -48,7 +48,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
         <SettingsTitle>
           {t('common.prompt')}
           <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
-            <HelpCircle size={14} color="var(--color-text-2)" />
+            <HelpCircle size={14} color="var(--color-foreground-secondary)" />
           </Popover>
         </SettingsTitle>
         <div className="relative mt-[5px] min-h-0 w-full flex-1 overflow-hidden">

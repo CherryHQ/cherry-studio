@@ -68,7 +68,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     <SettingContainer theme={theme} style={containerStyle}>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <MessageSquareMore size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          <MessageSquareMore size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
           {t('settings.models.default_assistant_model')}
         </SettingTitle>
         <RowFlex className="items-center">
@@ -94,7 +94,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <Rocket size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          <Rocket size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
           {t('settings.models.quick_model.label')}
           <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
         </SettingTitle>
@@ -119,7 +119,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       </SettingGroup>
       <SettingGroup theme={theme} style={groupStyle}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <Languages size={18} className="lucide-custom shrink-0 text-(--color-text-1)" />
+          <Languages size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
           {t('settings.models.translate_model')}
         </SettingTitle>
         <RowFlex className="items-center">

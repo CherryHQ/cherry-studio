@@ -73,7 +73,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
         {base.accessible_paths.map((path) => (
           <li key={path} className="flex items-center justify-between gap-2 py-1">
             <span
-              className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--color-text-2)] text-sm"
+              className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--color-foreground-secondary)] text-sm"
               title={path}>
               {path}
             </span>

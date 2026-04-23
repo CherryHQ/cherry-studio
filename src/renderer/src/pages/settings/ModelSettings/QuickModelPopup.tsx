@@ -66,7 +66,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <Flex className="mb-1 h-[30px] items-center gap-1">
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
-              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
+              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-foreground-secondary)' }} />
             </Popover>
             {topicNamingPrompt && (
               <Button onClick={handleReset} variant="ghost" size="icon">

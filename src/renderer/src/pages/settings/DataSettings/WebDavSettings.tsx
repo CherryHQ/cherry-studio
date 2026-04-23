@@ -62,7 +62,7 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
@@ -75,7 +75,7 @@ const WebDavSettings: FC = () => {
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}

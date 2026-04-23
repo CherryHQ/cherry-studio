@@ -53,25 +53,25 @@ export const DEFAULT_SEARCH_ENGINES: SearchEngineOption[] = [
     label: 'Google',
     value: 'Google',
     searchEngine: 'Google|https://www.google.com/search?q={{queryString}}',
-    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: 'Baidu',
     value: 'Baidu',
     searchEngine: 'Baidu|https://www.baidu.com/s?wd={{queryString}}',
-    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: 'Bing',
     value: 'Bing',
     searchEngine: 'Bing|https://www.bing.com/search?q={{queryString}}',
-    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: '',
     value: 'custom',
     searchEngine: '',
-    icon: <Globe size={14} color="var(--color-text-2)" />
+    icon: <Globe size={14} color="var(--color-foreground-secondary)" />
   }
 ]
 

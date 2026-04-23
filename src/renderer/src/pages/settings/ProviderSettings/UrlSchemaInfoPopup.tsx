@@ -113,9 +113,9 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
               <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
                 {showFullKey ? (
-                  <Eye size={16} color="var(--color-text-3)" />
+                  <Eye size={16} color="var(--color-foreground-muted)" />
                 ) : (
-                  <EyeOff size={16} color="var(--color-text-3)" />
+                  <EyeOff size={16} color="var(--color-foreground-muted)" />
                 )}
               </Button>
             </Flex>

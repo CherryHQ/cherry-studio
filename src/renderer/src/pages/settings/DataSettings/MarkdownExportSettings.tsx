@@ -82,7 +82,10 @@ const MarkdownExportSettings: FC = () => {
             placeholder={t('settings.data.markdown_export.path_placeholder')}
             suffix={
               markdownExportPath ? (
-                <DeleteOutlined onClick={handleClearPath} style={{ color: 'var(--color-error)', cursor: 'pointer' }} />
+                <DeleteOutlined
+                  onClick={handleClearPath}
+                  style={{ color: 'var(--color-error-base)', cursor: 'pointer' }}
+                />
               ) : null
             }
           />

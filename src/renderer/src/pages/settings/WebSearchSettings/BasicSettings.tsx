@@ -72,7 +72,7 @@ const BasicSettings: FC = () => {
         {logo ? (
           <logo.Avatar size={16} shape="rounded" />
         ) : (
-          <div className="h-4 w-4 rounded-sm bg-[var(--color-background-soft)]" />
+          <div className="h-4 w-4 rounded-sm bg-[var(--color-background-subtle)]" />
         )}
         <span>
           {provider.name}

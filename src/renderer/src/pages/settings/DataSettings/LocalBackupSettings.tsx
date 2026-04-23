@@ -146,7 +146,7 @@ const LocalBackupSettings: React.FC = () => {
     if (!localBackupDir) return null
 
     if (!localBackupSync.lastSyncTime && !localBackupSync.syncing && !localBackupSync.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.local.noSync')}</span>
+      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.local.noSync')}</span>
     }
 
     return (
@@ -159,7 +159,7 @@ const LocalBackupSettings: React.FC = () => {
           />
         )}
         {localBackupSync.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}

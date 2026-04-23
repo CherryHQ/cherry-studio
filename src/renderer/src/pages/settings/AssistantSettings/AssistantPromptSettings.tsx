@@ -126,7 +126,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             </>
           }
           showArrow>
-          <HelpCircle size={14} color="var(--color-text-2)" />
+          <HelpCircle size={14} color="var(--color-foreground-secondary)" />
         </Tooltip>
       </RowFlex>
       <div className="relative w-full">

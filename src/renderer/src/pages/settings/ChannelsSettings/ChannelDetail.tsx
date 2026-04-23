@@ -135,7 +135,7 @@ const ChannelLogModal: FC<{
       destroyOnHidden
       transitionName="animation-move-down"
       centered>
-      <div className="max-h-100 overflow-y-auto rounded-[6px] bg-(--color-background-soft) p-2 font-mono text-[11px] leading-[1.6]">
+      <div className="max-h-100 overflow-y-auto rounded-[6px] bg-(--color-background-subtle) p-2 font-mono text-[11px] leading-[1.6]">
         {logs.length === 0 && (
           <div className="py-8 text-center text-foreground-400 text-xs">{t('agent.cherryClaw.channels.noLogs')}</div>
         )}
@@ -464,7 +464,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {t('agent.cherryClaw.channels.add')}
           </Button>
         </SettingTitle>
-        <p className="mt-1.5 mb-0 text-(--color-text-3) text-xs">
+        <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
           {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
         </p>
       </div>

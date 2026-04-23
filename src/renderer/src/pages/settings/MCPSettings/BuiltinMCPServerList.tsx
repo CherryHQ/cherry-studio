@@ -51,7 +51,7 @@ const BuiltinMCPServerList: FC = () => {
               </div>
               <Popover
                 content={
-                  <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-(--color-text-1) text-[14px] leading-normal">
+                  <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-(--color-foreground) text-[14px] leading-normal">
                     {getBuiltInMcpServerDescriptionLabel(server.name)}
                     {server.reference && (
                       <a
@@ -66,7 +66,7 @@ const BuiltinMCPServerList: FC = () => {
                 trigger="hover"
                 placement="topLeft"
                 overlayStyle={{ maxWidth: 400 }}>
-                <div className="wrap-break-word relative line-clamp-2 w-full cursor-pointer text-(--color-text-2) text-[12px] hover:text-(--color-text-1)">
+                <div className="wrap-break-word relative line-clamp-2 w-full cursor-pointer text-(--color-foreground-secondary) text-[12px] hover:text-(--color-foreground)">
                   {getBuiltInMcpServerDescriptionLabel(server.name)}
                 </div>
               </Popover>

@@ -80,7 +80,7 @@ export const OcrTesseractSettings = () => {
             onBlur={onBlur}
             // use tag render to disable default close action
             // don't modify this, because close action won't trigger onBlur to update state
-            tagRender={(props) => <CustomTag color="var(--color-text)">{props.label}</CustomTag>}
+            tagRender={(props) => <CustomTag color="var(--color-foreground)">{props.label}</CustomTag>}
           />
         </div>
       </SettingRow>

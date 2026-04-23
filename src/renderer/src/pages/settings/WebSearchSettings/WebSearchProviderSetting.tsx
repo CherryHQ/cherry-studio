@@ -168,7 +168,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             <span className="font-medium text-sm">{provider.name}</span>
             {officialWebsite && webSearchProviderConfig?.websites && (
               <Link target="_blank" href={webSearchProviderConfig.websites.official}>
-                <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+                <ExportOutlined style={{ color: 'var(--color-foreground)', fontSize: '12px' }} />
               </Link>
             )}
           </Flex>

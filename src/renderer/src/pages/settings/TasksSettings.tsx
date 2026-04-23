@@ -162,7 +162,7 @@ const TaskDetail: FC<{
         <SettingTitle>
           <div className="flex items-center gap-2">
             <Tag color={statusColors[task.status] ?? 'default'}>{statusLabels[task.status] ?? task.status}</Tag>
-            <span className="text-(--color-text-3) text-xs">{agentName}</span>
+            <span className="text-(--color-foreground-muted) text-xs">{agentName}</span>
           </div>
           <div className="flex items-center gap-1">
             {!isCompleted && (
@@ -196,18 +196,18 @@ const TaskDetail: FC<{
           <Tag color={scheduleTypeColors[task.schedule_type] ?? 'default'}>
             {scheduleTypeLabels[task.schedule_type] ?? task.schedule_type}
           </Tag>
-          <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+          <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
             <Clock size={12} />
             {formatScheduleValue()}
           </span>
           {task.last_run && (
-            <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+            <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
               <History size={12} />
               {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.last_run)}
             </span>
           )}
           {task.next_run && (
-            <span className="inline-flex items-center gap-1 text-(--color-text-3)">
+            <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
               <CalendarClock size={12} />
               {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.next_run)}
             </span>
@@ -527,7 +527,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     <div className="flex flex-col gap-2">
       <Input
         size="small"
-        prefix={<Search size={12} className="text-(--color-text-3)" />}
+        prefix={<Search size={12} className="text-(--color-foreground-muted)" />}
         placeholder={t('agent.cherryClaw.tasks.logs.search', 'Search logs...')}
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
@@ -928,7 +928,9 @@ const TasksSettings: FC = () => {
                         : t('settings.scheduledTasks.noTasks')}
                     </span>
                     {agents.length === 0 && (
-                      <span className="text-(--color-text-3) text-xs">{t('settings.scheduledTasks.noAgentsTip')}</span>
+                      <span className="text-(--color-foreground-muted) text-xs">
+                        {t('settings.scheduledTasks.noAgentsTip')}
+                      </span>
                     )}
                   </div>
                 }
@@ -977,7 +979,7 @@ const TasksSettings: FC = () => {
               onToggleStatus={handleToggleStatus}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-(--color-text-3) text-sm">
+            <div className="flex flex-1 items-center justify-center text-(--color-foreground-muted) text-sm">
               {tasks.length > 0
                 ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
                 : t('settings.scheduledTasks.noTasks')}

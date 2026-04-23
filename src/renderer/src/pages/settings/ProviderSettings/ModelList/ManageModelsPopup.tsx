@@ -308,7 +308,9 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       </SearchContainer>
       <Spin
         spinning={isLoading}
-        indicator={<LoadingIcon color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}>
+        indicator={
+          <LoadingIcon color="var(--color-foreground-secondary)" style={{ opacity: loadingModels ? 1 : 0 }} />
+        }>
         <ListContainer>
           {loadingModels || isEmpty(list) ? (
             <Empty

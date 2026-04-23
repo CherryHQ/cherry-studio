@@ -69,7 +69,9 @@ const S3Settings: FC = () => {
     if (!s3Endpoint) return null
 
     if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
+      return (
+        <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
+      )
     }
 
     return (
@@ -82,7 +84,7 @@ const S3Settings: FC = () => {
           />
         )}
         {s3Sync?.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}

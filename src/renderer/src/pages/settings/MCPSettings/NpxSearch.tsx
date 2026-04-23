@@ -127,7 +127,7 @@ const NpxSearch: FC = () => {
                 style={{
                   cursor: searchLoading ? 'not-allowed' : 'pointer',
                   borderRadius: 100,
-                  backgroundColor: 'var(--color-background-mute)'
+                  backgroundColor: 'var(--color-muted)'
                 }}>
                 {scope}
               </Tag>

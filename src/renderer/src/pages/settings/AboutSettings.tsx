@@ -166,7 +166,7 @@ const AboutSettings: FC = () => {
     <div
       className={cn(
         'flex flex-1 flex-col overflow-y-auto px-4.5 py-3.75 [&::-webkit-scrollbar]:hidden',
-        theme === ThemeMode.dark ? 'bg-transparent' : 'bg-(--color-background-soft)'
+        theme === ThemeMode.dark ? 'bg-transparent' : 'bg-(--color-background-subtle)'
       )}>
       <AboutGroup theme={theme}>
         <div className="flex select-none items-center justify-between gap-3 font-bold text-sm">
@@ -174,7 +174,7 @@ const AboutSettings: FC = () => {
           <button
             type="button"
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
-            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-text) transition-colors hover:bg-(--color-background-mute)">
+            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-foreground) transition-colors hover:bg-(--color-muted)">
             <Github className="size-5" />
           </button>
         </div>
@@ -203,8 +203,8 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-20 flex-col items-start justify-center">
-              <div className="mb-1.25 font-bold text-(--color-text-1) text-xl">{APP_NAME}</div>
-              <div className="text-(--color-text-2) text-sm">{t('settings.about.description')}</div>
+              <div className="mb-1.25 font-bold text-(--color-foreground) text-xl">{APP_NAME}</div>
+              <div className="text-(--color-foreground-secondary) text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
@@ -265,7 +265,7 @@ const AboutSettings: FC = () => {
                         <Tooltip key={option.value} content={option.tooltip}>
                           <label
                             htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-xs border border-(--color-border) px-3 py-2 text-(--color-text-1) text-sm transition-colors hover:bg-(--color-background-soft)">
+                            className="flex cursor-pointer items-center gap-2 rounded-xs border border-(--color-border) px-3 py-2 text-(--color-foreground) text-sm transition-colors hover:bg-(--color-background-subtle)">
                             <RadioGroupItem id={id} value={option.value} />
                             <span>{option.label}</span>
                           </label>
@@ -288,7 +288,7 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="green" />
             </AboutRowTitle>
           </AboutRow>
-          <div className="markdown my-2 rounded-md bg-(--color-bg-2) px-0 py-3 text-(--color-text-2) text-sm [&_p]:m-0">
+          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-(--color-foreground-secondary) text-sm [&_p]:m-0">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
@@ -377,7 +377,7 @@ function AboutRow({ children, className }: { children: ReactNode; className?: st
 
 function AboutRowTitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex items-center gap-2.5 text-(--color-text-1) text-sm leading-4.5', className)}>
+    <div className={cn('flex items-center gap-2.5 text-(--color-foreground) text-sm leading-4.5', className)}>
       {children}
     </div>
   )

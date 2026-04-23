@@ -381,7 +381,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
               {apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
             </div>
           }
-          iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+          iconProps={{ size: 16, color: 'var(--color-warning-base)' }}
           onClick={() => showErrorDetailPopup({ error: apiKeyConnectivity.error })}
         />
       </>

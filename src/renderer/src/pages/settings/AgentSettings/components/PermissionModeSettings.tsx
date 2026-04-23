@@ -131,7 +131,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
                     <span className="whitespace-normal break-words text-left font-semibold text-sm">
                       {t(card.titleKey, card.titleFallback)}
                     </span>
-                    <span className="whitespace-normal break-words text-left text-[var(--color-text-2)] text-xs">
+                    <span className="whitespace-normal break-words text-left text-[var(--color-foreground-secondary)] text-xs">
                       {t(card.descriptionKey, card.descriptionFallback)}
                     </span>
                   </div>
@@ -143,8 +143,8 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
                 {showCaution && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-start gap-2 rounded-md bg-[var(--color-error-bg)]">
-                      <ShieldAlert className="flex-shrink-0 text-[var(--color-error)]" size={16} />
-                      <span className="text-[var(--color-error)] text-xs">
+                      <ShieldAlert className="flex-shrink-0 text-[var(--color-error-base)]" size={16} />
+                      <span className="text-[var(--color-error-base)] text-xs">
                         {t(
                           'agent.settings.tooling.permissionMode.bypassPermissions.warning',
                           'Use with caution — all tools will run without asking for approval.'

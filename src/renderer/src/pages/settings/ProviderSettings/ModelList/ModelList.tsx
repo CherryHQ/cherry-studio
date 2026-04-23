@@ -172,7 +172,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         </RowFlex>
       </SettingSubtitle>
       {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
-      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
+      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-foreground-secondary)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (

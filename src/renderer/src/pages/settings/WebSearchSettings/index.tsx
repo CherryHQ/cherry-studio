@@ -70,7 +70,7 @@ const WebSearchSettings: FC = () => {
                     logo ? (
                       <logo.Avatar size={20} shape="rounded" />
                     ) : (
-                      <div className="h-5 w-5 rounded bg-(--color-background-soft)" />
+                      <div className="h-5 w-5 rounded bg-(--color-background-subtle)" />
                     )
                   }
                   className="font-medium"
@@ -108,7 +108,7 @@ const WebSearchSettings: FC = () => {
                         logo ? (
                           <logo.Avatar size={20} shape="rounded" />
                         ) : (
-                          <div className="h-5 w-5 rounded bg-(--color-background-soft)" />
+                          <div className="h-5 w-5 rounded bg-(--color-background-subtle)" />
                         )
                       }
                       className="font-medium"

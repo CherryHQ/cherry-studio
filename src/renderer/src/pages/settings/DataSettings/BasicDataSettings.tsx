@@ -158,7 +158,7 @@ const BasicDataSettings: React.FC = () => {
           <CopyDataContent />
           <MigrationNotice>
             <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-text-3)', marginTop: '8px' }}>
+            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
               {t('settings.data.app_data.copy_time_notice')}
             </p>
           </MigrationNotice>
@@ -503,7 +503,9 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
-            <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+            <PathText
+              style={{ color: 'var(--color-foreground-muted)' }}
+              onClick={() => handleOpenPath(appInfo?.appDataPath)}>
               {appInfo?.appDataPath}
             </PathText>
             <Tooltip title={t('settings.data.app_data.select')}>
@@ -518,7 +520,9 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
-            <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
+            <PathText
+              style={{ color: 'var(--color-foreground-muted)' }}
+              onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
             <RowFlex className="ml-2 gap-[5px]">

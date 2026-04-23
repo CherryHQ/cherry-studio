@@ -75,7 +75,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <span className="font-medium text-sm">{preprocessProvider.name}</span>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
-              <ExportOutlined className="text-[--color-text] text-[12px]" />
+              <ExportOutlined className="text-[--color-foreground] text-[12px]" />
             </Link>
           )}
         </Flex>

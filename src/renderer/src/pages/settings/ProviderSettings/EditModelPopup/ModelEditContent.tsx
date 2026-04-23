@@ -320,7 +320,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             <Button
               variant="default"
               onClick={() => setShowMoreSettings(!showMoreSettings)}
-              style={{ color: 'var(--color-text-3)' }}>
+              style={{ color: 'var(--color-foreground-muted)' }}>
               {t('settings.moresetting.label')}
               {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </Button>

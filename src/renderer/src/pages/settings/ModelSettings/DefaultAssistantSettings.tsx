@@ -164,7 +164,7 @@ const AssistantSettings: FC = () => {
           <p className="m-0 mr-[5px] text-sm">{t('chat.settings.temperature.label')}</p>
           <HelpTooltip
             content={t('chat.settings.temperature.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch
@@ -207,7 +207,7 @@ const AssistantSettings: FC = () => {
           <p className="m-0 mr-[5px] text-sm">{t('chat.settings.top_p.label')}</p>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch
@@ -274,7 +274,7 @@ const AssistantSettings: FC = () => {
           <p className="m-0 mr-[5px] text-sm">{t('chat.settings.max_tokens.label')}</p>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch

@@ -97,7 +97,7 @@ export const AgentLabel = ({ agent, classNames, hideIcon }: AgentLabelProps) => 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
       {!hideIcon && <EmojiIcon emoji={emoji} className={classNames?.avatar} size={24} />}
-      <span className={cn('truncate', 'text-(--color-text)', classNames?.name)}>{agent?.name ?? ''}</span>
+      <span className={cn('truncate', 'text-(--color-foreground)', classNames?.name)}>{agent?.name ?? ''}</span>
     </div>
   )
 }
@@ -111,7 +111,7 @@ export const SessionLabel = ({ session, className }: SessionLabelProps) => {
   const displayName = session?.name ?? session?.id
   return (
     <>
-      <span className={cn('truncate text-(--color-text) text-sm', className)}>{displayName}</span>
+      <span className={cn('truncate text-(--color-foreground) text-sm', className)}>{displayName}</span>
     </>
   )
 }

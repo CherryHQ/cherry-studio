@@ -129,7 +129,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               fontFamily: 'monospace',
               userSelect: 'text',
               marginRight: 20,
-              color: 'var(--color-status-error)'
+              color: 'var(--color-error-base)'
             }}>
             {errorDetails}
           </div>
@@ -146,7 +146,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
           description={
-            <Typography.Paragraph style={{ color: 'var(--color-status-error)' }} ellipsis={{ rows: 3 }}>
+            <Typography.Paragraph style={{ color: 'var(--color-error-base)' }} ellipsis={{ rows: 3 }}>
               {errorDetails}
             </Typography.Paragraph>
           }

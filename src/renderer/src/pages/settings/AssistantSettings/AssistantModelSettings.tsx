@@ -181,11 +181,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               style={{
                 borderRadius: 6,
                 overflow: 'hidden',
-                border: `1px solid ${hasJsonError ? 'var(--color-error)' : 'var(--color-border)'}`
+                border: `1px solid ${hasJsonError ? 'var(--color-error-base)' : 'var(--color-border)'}`
               }}
             />
             {hasJsonError && (
-              <div style={{ color: 'var(--color-error)', fontSize: 12, marginTop: 4 }}>
+              <div style={{ color: 'var(--color-error-base)', fontSize: 12, marginTop: 4 }}>
                 {t('models.json_parse_error')}
               </div>
             )}
@@ -278,7 +278,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             {t('chat.settings.temperature.label')}
             <HelpTooltip
               content={t('chat.settings.temperature.tip')}
-              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
             />
           </Label>
         </RowFlex>
@@ -327,7 +327,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('chat.settings.top_p.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch
@@ -376,7 +376,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             {t('chat.settings.context_count.label')}{' '}
             <HelpTooltip
               content={t('chat.settings.context_count.tip')}
-              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
             />
           </Label>
         </Col>
@@ -426,7 +426,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch
@@ -498,7 +498,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('assistants.settings.max_tool_calls.label')}</Label>
           <HelpTooltip
             content={t('assistants.settings.max_tool_calls.tip')}
-            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-foreground-muted)]' }}
           />
         </RowFlex>
         <Switch

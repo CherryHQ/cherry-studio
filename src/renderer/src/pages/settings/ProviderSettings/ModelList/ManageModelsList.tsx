@@ -157,7 +157,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
                 <Flex className="flex-1 items-center gap-2.5">
                   <ChevronRight
                     size={16}
-                    color="var(--color-text-3)"
+                    color="var(--color-foreground-muted)"
                     strokeWidth={1.5}
                     className={isCollapsed ? '' : 'rotate-90'}
                   />

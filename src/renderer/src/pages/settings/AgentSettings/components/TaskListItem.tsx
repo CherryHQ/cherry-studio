@@ -35,7 +35,7 @@ const IconButton: FC<{
   <Tooltip title={tooltip}>
     <button
       type="button"
-      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-fill-secondary)] ${danger ? 'text-red-500 hover:text-red-600' : 'text-foreground-400 hover:text-foreground'}`}
+      className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-muted)] ${danger ? 'text-red-500 hover:text-red-600' : 'text-foreground-400 hover:text-foreground'}`}
       onClick={onClick}>
       {icon}
     </button>

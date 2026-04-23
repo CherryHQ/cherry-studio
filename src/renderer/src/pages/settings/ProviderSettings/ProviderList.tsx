@@ -380,7 +380,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                 <div className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-sm">
                   <Filter
                     size={14}
-                    className={agentFilterEnabled ? 'text-(--color-primary)' : 'text-(--color-text-3)'}
+                    className={agentFilterEnabled ? 'text-(--color-primary)' : 'text-(--color-foreground-muted)'}
                   />
                 </div>
               </Dropdown>
@@ -423,7 +423,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                 onClick={() => setSelectedProvider(provider)}
                 icon={
                   <div className="flex items-center">
-                    <div className="mr-0.5 flex w-3 cursor-grab items-center justify-center text-(--color-text-3) opacity-0 transition-opacity duration-200 ease-in-out active:cursor-grabbing group-hover:opacity-100">
+                    <div className="mr-0.5 flex w-3 cursor-grab items-center justify-center text-(--color-foreground-muted) opacity-0 transition-opacity duration-200 ease-in-out active:cursor-grabbing group-hover:opacity-100">
                       <GripVertical size={12} />
                     </div>
                     <ProviderAvatar

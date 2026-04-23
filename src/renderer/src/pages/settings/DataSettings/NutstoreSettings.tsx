@@ -169,7 +169,7 @@ const NutstoreSettings: FC = () => {
     if (!nutstoreToken) return null
 
     if (!nutstoreSyncState.lastSyncTime && !nutstoreSyncState.syncing && !nutstoreSyncState.lastSyncError) {
-      return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
@@ -182,7 +182,7 @@ const NutstoreSettings: FC = () => {
           />
         )}
         {nutstoreSyncState.lastSyncTime && (
-          <span style={{ color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--color-foreground-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -235,7 +235,7 @@ const NutstoreSettings: FC = () => {
         <>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <Typography.Text style={{ color: 'var(--color-text-3)' }}>{nutstoreUsername}</Typography.Text>
+            <Typography.Text style={{ color: 'var(--color-foreground-muted)' }}>{nutstoreUsername}</Typography.Text>
           </SettingRow>
 
           <SettingDivider />
