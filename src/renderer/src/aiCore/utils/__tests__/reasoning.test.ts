@@ -522,6 +522,159 @@ describe('reasoning utils', () => {
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({})
     })
+
+    // Mistral models use reasoningEffort with only 'none' | 'high' support
+    describe('Mistral models (mistral-small-2603 and magistral-*)', () => {
+      // Helper: Create a Mistral model
+      const createMistralModel = (id: string): Model => ({
+        id,
+        name: id,
+        provider: 'mistral',
+        group: 'Mistral'
+      })
+
+      // Helper: Create an assistant with specific reasoning_effort setting
+      const createAssistantWithReasoning = (effort: string | undefined): Assistant =>
+        ({
+          id: 'test',
+          name: 'Test',
+          settings: {
+            reasoning_effort: effort as any
+          }
+        }) as Assistant
+
+      describe('mistral-small-2603', () => {
+        const mistralModel = createMistralModel('mistral-small-2603')
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "high"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return { reasoningEffort: "none" } when reasoning_effort is "none"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('none')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'none' })
+        })
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "low" (mapping)', async () => {
+          // Mistral models only support 'none' and 'high', so other values map to 'high'
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('low')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "medium" (mapping)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('medium')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return {} when reasoning_effort is "default"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('default')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} when reasoning_effort is undefined', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = {
+            id: 'test',
+            name: 'Test',
+            settings: {
+              reasoning_effort: undefined
+            }
+          } as Assistant
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('magistral-small-latest', () => {
+        // Magistral models reason natively — they do NOT accept reasoning_effort parameter
+        const magistralModel = createMistralModel('magistral-small-latest')
+
+        it('should return {} for magistral (native reasoning, no parameter)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} for magistral when reasoning_effort is "none"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('none')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('magistral-medium-latest', () => {
+        // Magistral models reason natively — no reasoning_effort parameter accepted
+        const magistralModel = createMistralModel('magistral-medium-latest')
+
+        it('should return {} for magistral-medium (native reasoning)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('xhigh')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} for magistral-medium with auto effort', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('auto')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('edge cases', () => {
+        it('should return {} for non-reasoning Mistral models', async () => {
+          // isReasoningModel returns false by default in the top-level mock
+          const nonReasoningModel = createMistralModel('mistral-large-2407')
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, nonReasoningModel)
+          expect(result).toEqual({})
+        })
+
+        it('should handle model ID with different case', async () => {
+          // getLowerBaseModelName converts to lowercase, so case shouldn't matter
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const upperCaseModel = createMistralModel('MISTRAL-SMALL-2603')
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, upperCaseModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+      })
+    })
   })
 
   describe('getOpenAIReasoningParams', () => {

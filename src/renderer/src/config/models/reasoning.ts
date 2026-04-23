@@ -83,7 +83,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   // Claude 3.7, 4.0, 4.5 reasoning models
   claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
-  claude46: ['low', 'medium', 'high', 'xhigh'] as const
+  claude46: ['low', 'medium', 'high', 'xhigh'] as const,
+  mistral: ['high'] as const
 } as const satisfies ReasoningEffortConfig
 
 // Model type to supported options mapping
@@ -120,7 +121,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
-  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
+  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const,
+  mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const
 } as const
 
 // TODO: add ut
@@ -208,6 +210,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
+  } else if (isMistralReasoningModel(model)) {
+    thinkingModelType = 'mistral'
   }
   return thinkingModelType
 }
@@ -318,7 +322,8 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
   return (
     isSupportedReasoningEffortOpenAIModel(model) ||
     isSupportedReasoningEffortGrokModel(model) ||
-    isSupportedReasoningEffortPerplexityModel(model)
+    isSupportedReasoningEffortPerplexityModel(model) ||
+    isMistralReasoningModel(model)
   )
 }
 
@@ -338,6 +343,14 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   return false
+}
+
+// Mistral Small models with adjustable reasoning (mistral-small-2603+)
+// Note: magistral-* models reason natively and do NOT accept reasoning_effort parameter
+export function isMistralReasoningModel(model?: Model): boolean {
+  if (!model) return false
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('mistral-small-2603')
 }
 
 /**
@@ -760,6 +773,7 @@ export function isReasoningModel(model?: Model): boolean {
     isBaichuanReasoningModel(model) ||
     isKimiReasoningModel(model) ||
     modelId.includes('magistral') ||
+    modelId.includes('mistral-small-2603') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
     modelId.includes('deepseek-v3.2-speciale') ||
