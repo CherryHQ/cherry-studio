@@ -10,9 +10,9 @@ export const SettingContainer = ({
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
   <div
+    data-theme-mode={theme}
     className={cn(
-      'flex flex-1 flex-col overflow-y-scroll px-[18px] py-[15px] [&::-webkit-scrollbar]:hidden',
-      theme === 'dark' ? 'bg-transparent' : 'bg-background-subtle',
+      'flex flex-1 flex-col overflow-y-scroll bg-transparent px-[18px] py-[15px] [&::-webkit-scrollbar]:hidden',
       className
     )}
     {...props}

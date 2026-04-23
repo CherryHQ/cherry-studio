@@ -38,7 +38,9 @@ const SettingsPage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
       </Navbar>
-      <div id="content-container" className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row py-px">
+      <div
+        id="content-container"
+        className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row bg-background-subtle py-px">
         <Scrollbar className="flex min-h-0 min-w-(--settings-width) select-none flex-col border-border border-r-[0.5px] p-2.5">
           <MenuList>
             <MenuItem
@@ -149,8 +151,10 @@ const SettingsPage: FC = () => {
             />
           </MenuList>
         </Scrollbar>
-        <div className="flex h-full min-h-0 flex-1">
-          <Outlet />
+        <div className="flex h-full min-h-0 flex-1 p-2.5">
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-xs border border-border/40 bg-card text-card-foreground shadow-xs">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>
