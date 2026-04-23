@@ -31,7 +31,7 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
-export const CreateModelDtoSchema = z.object({
+export const CreateModelSchema = z.object({
   /** Provider ID */
   providerId: z.string().min(1),
   /** Model ID (used in API calls) */
@@ -65,7 +65,7 @@ export const CreateModelDtoSchema = z.object({
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
-export type CreateModelDto = z.infer<typeof CreateModelDtoSchema>
+export type CreateModelDto = z.infer<typeof CreateModelSchema>
 
 export const MODELS_BATCH_MAX_ITEMS = 100
 
@@ -76,11 +76,11 @@ export const MODELS_BATCH_MAX_ITEMS = 100
  * send `CreateModelDto[]` and always receive `Model[]`, while single-item
  * convenience is handled by higher layers such as renderer hooks.
  */
-export const CreateModelsDtoSchema = z.array(CreateModelDtoSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
-export type CreateModelsDto = z.infer<typeof CreateModelsDtoSchema>
+export const CreateModelsSchema = z.array(CreateModelSchema).min(1).max(MODELS_BATCH_MAX_ITEMS)
+export type CreateModelsDto = z.infer<typeof CreateModelsSchema>
 
 /** DTO for updating an existing model — CreateModelDto minus identity fields, all optional, plus status fields */
-export const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
+export const UpdateModelSchema = CreateModelSchema.omit({
   providerId: true,
   modelId: true,
   presetModelId: true
@@ -92,10 +92,10 @@ export const UpdateModelDtoSchema = CreateModelDtoSchema.omit({
     sortOrder: z.number().int().optional(),
     notes: z.string().optional()
   })
-export type UpdateModelDto = z.infer<typeof UpdateModelDtoSchema>
+export type UpdateModelDto = z.infer<typeof UpdateModelSchema>
 
 /** DTO for resolving raw model IDs against registry presets */
-export const EnrichModelsDtoSchema = z.object({
+export const EnrichModelsSchema = z.object({
   /** Raw model IDs from SDK listModels() */
   models: z.array(
     z.object({
@@ -103,12 +103,12 @@ export const EnrichModelsDtoSchema = z.object({
     })
   )
 })
-export type EnrichModelsDto = z.infer<typeof EnrichModelsDtoSchema>
+export type EnrichModelsDto = z.infer<typeof EnrichModelsSchema>
 
 /**
  * Model API Schema definitions
  */
-export interface ModelSchemas {
+export type ModelSchemas = {
   /**
    * Models collection endpoint
    *

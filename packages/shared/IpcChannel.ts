@@ -2,17 +2,12 @@ export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  // App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_SetLaunchToTray = 'app:set-launch-to-tray',
-  App_SetTray = 'app:set-tray',
-  App_SetTrayOnClose = 'app:set-tray-on-close',
-  // App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
@@ -36,8 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-  // App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
@@ -46,8 +39,6 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
-  // App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
-  // App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -170,45 +161,21 @@ export enum IpcChannel {
   VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
-  // ──────────────────────────────────────────────────────────────
-  // Main-window-specific channels. Handlers live in MainWindowService
-  // and only operate on the main window instance. Wire values use the
-  // `main-window:*` prefix to match the TypeScript symbol semantics —
-  // both main and renderer reference these via the IpcChannel enum,
-  // so the prefix can evolve without any hardcoded-string drift.
-  // ──────────────────────────────────────────────────────────────
+  // MainWindow: handlers in MainWindowService, operate on main window only.
   MainWindow_Reload = 'main-window:reload',
-  MainWindow_SetFullScreen = 'main-window:set-full-screen',
-  MainWindow_IsFullScreen = 'main-window:is-full-screen',
   MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
   MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
   MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
-  MainWindow_Resize = 'main-window:resize',
-  MainWindow_GetSize = 'main-window:get-size',
-  MainWindow_MaximizedChanged = 'main-window:maximized-changed',
+  /**
+   * @deprecated Point-to-point navigation IPC.
+   * Slated for removal in v2 — planned replacement is a unified
+   * `MainWindow_Navigate(path)` channel (or v2 router-level protocol).
+   * Do not add more single-route channels of this shape.
+   */
   MainWindow_NavigateToAbout = 'main-window:navigate-to-about',
+  /** @deprecated See MainWindow_NavigateToAbout above. */
   MainWindow_NavigateToSettings = 'main-window:navigate-to-settings',
 
-  // ──────────────────────────────────────────────────────────────
-  // Window-self-operation channels.
-  //
-  // These target whichever BrowserWindow originated the IPC call
-  // (resolved via BrowserWindow.fromWebContents(event.sender) in
-  // MainWindowService.resolveIpcSenderWindow). Both the Main window
-  // and Detached Tab windows (which share the same preload) use these
-  // for their own titlebar buttons.
-  //
-  // TODO(v2): these overlap with WindowManager_Minimize / Maximize /
-  // Hide / Show / Focus (which also use sender resolution). Consolidate
-  // onto WindowManager_* as a separate migration task — requires
-  // updating preload API targets and removing the MainWindowService
-  // handlers.
-  // ──────────────────────────────────────────────────────────────
-  Windows_Minimize = 'window:minimize',
-  Windows_Maximize = 'window:maximize',
-  Windows_Unmaximize = 'window:unmaximize',
-  Windows_Close = 'window:close',
-  Windows_IsMaximized = 'window:is-maximized',
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   // Tab
@@ -355,8 +322,6 @@ export enum IpcChannel {
 
   DirectoryProcessingPercent = 'directory-processing-percent',
 
-  FullscreenStatusChanged = 'fullscreen-status-changed',
-
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
@@ -371,8 +336,6 @@ export enum IpcChannel {
   Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
   Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
   Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_ActionWindowClose = 'selection:action-window-close',
-  Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
@@ -499,16 +462,19 @@ export enum IpcChannel {
   // WindowManager
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
-  WindowManager_Show = 'window-manager:show',
-  WindowManager_Hide = 'window-manager:hide',
   WindowManager_Minimize = 'window-manager:minimize',
   WindowManager_Maximize = 'window-manager:maximize',
-  WindowManager_Focus = 'window-manager:focus',
+  WindowManager_Unmaximize = 'window-manager:unmaximize',
+  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
+  WindowManager_IsMaximized = 'window-manager:is-maximized',
+  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  // Fired when a managed window is re-used (pooled recycle or singleton reopen).
-  // Event payload: the optional initData passed to open() — present only when the
-  // caller supplied it; main never fires this event for fresh window creation or
-  // when reuse happens without new initData.
+  // All three below are sent only to the originating window's webContents.
+  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
+  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
+  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
+  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
+  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
   WindowManager_Reused = 'window-manager:reused'
 
   // ──────────────────────────────────────────────────────────────

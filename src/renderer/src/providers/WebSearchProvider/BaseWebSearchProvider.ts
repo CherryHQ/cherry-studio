@@ -33,22 +33,22 @@ export default abstract class BaseWebSearchProvider {
 
   public getApiKey() {
     const keys = this.provider.apiKey?.split(',').map((key) => key.trim()) || []
-    const keyName = `web-search-provider:${this.provider.id}:last_used_key`
+    const keyName = `web_search.provider.last_used_key.${this.provider.id}` as const
 
     if (keys.length === 1) {
       return keys[0]
     }
 
-    const lastUsedKey = cacheService.getSharedCasual<string>(keyName)
+    const lastUsedKey = cacheService.getShared(keyName)
     if (lastUsedKey === undefined) {
-      cacheService.setSharedCasual(keyName, keys[0])
+      cacheService.setShared(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    cacheService.setSharedCasual(keyName, nextKey)
+    cacheService.setShared(keyName, nextKey)
 
     return nextKey
   }

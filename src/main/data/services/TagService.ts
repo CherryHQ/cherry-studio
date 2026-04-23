@@ -16,12 +16,12 @@
  *   pattern; TagService reads are scoped to tag-management flows.
  *
  * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
- * Callers deleting tagged entities must invoke `removeEntityTags()` as part of their delete workflow.
+ * Callers deleting tagged entities must invoke `purgeForEntity()` as part of their delete workflow.
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
 import { application } from '@application'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { entityTagTable, type TagSelect, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -35,7 +35,6 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TagService')
 
-type TagRow = typeof tagTable.$inferSelect
 type EntityBinding = SetTagEntitiesDto['entities'][number]
 
 function entityBindingKey(entity: { entityType: string; entityId: string }): string {
@@ -70,7 +69,7 @@ function buildEntityBindingCondition(entities: Array<{ entityType: string; entit
 /**
  * Convert database row to Tag entity
  */
-function rowToTag(row: TagRow): Tag {
+function rowToTag(row: TagSelect): Tag {
   return {
     id: row.id,
     name: row.name,
@@ -296,17 +295,16 @@ export class TagService {
    * Remove all tag associations for a given entity.
    * Must be called by entity services (AssistantService, TopicService, etc.)
    * when deleting an entity, since entity_tag has no FK to entity tables.
+   *
+   * Signature is tx-first to match the polymorphic-purge convention
+   * (see PinService.purgeForEntity).
    */
-  async removeEntityTags(
-    entityType: EntityType,
-    entityId: string,
-    db: Pick<DbType, 'delete'> = this.db
-  ): Promise<void> {
-    await db
+  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
+    await tx
       .delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
-    logger.info('Removed entity tags', { entityType, entityId })
+    logger.info('Purged tags for entity', { entityType, entityId })
   }
 
   /**

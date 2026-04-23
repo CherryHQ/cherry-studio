@@ -6,6 +6,7 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
+import { isEqual } from 'lodash'
 
 const logger = loggerService.withContext('PreferenceService')
 
@@ -71,7 +72,11 @@ export class PreferenceService {
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
       const oldValue = this.cache[key]
 
-      if (oldValue !== value) {
+      // Deep equality filters self-induced IPC echoes: the main-process broadcast
+      // intentionally does NOT exclude the sender (it relies on this gate to drop
+      // own-echoes), so for object/array preferences the payload is a fresh JS
+      // reference even when the value is unchanged.
+      if (!isEqual(oldValue, value)) {
         this.cache[key] = value
         this.notifyChangeListeners(key)
         logger.debug(`Preference ${key} updated to:`, { value })

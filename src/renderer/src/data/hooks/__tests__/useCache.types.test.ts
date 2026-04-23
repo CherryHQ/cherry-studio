@@ -9,9 +9,11 @@
 
 import type {
   ExpandTemplateKey,
+  InferSharedCacheValue,
   InferUseCacheValue,
   IsTemplateKey,
   ProcessKey,
+  SharedCacheKey,
   UseCacheCasualKey,
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
@@ -144,6 +146,39 @@ describe('Template Key Type Utilities', () => {
       expect(isTemplate('entity.cache.${type}_${id}')).toBe(true)
       expect(isTemplate('app.user.avatar')).toBe(false)
       expect(isTemplate('chat.generating')).toBe(false)
+    })
+  })
+
+  describe('SharedCacheKey', () => {
+    it('should include fixed keys', () => {
+      const key: SharedCacheKey = 'chat.web_search.active_searches'
+      expect(key).toBe('chat.web_search.active_searches')
+    })
+
+    it('should match template patterns', () => {
+      const key1: SharedCacheKey = 'web_search.provider.last_used_key.google'
+      const key2: SharedCacheKey = 'ocr.provider.last_used_key.tesseract'
+      expect(key1).toBe('web_search.provider.last_used_key.google')
+      expect(key2).toBe('ocr.provider.last_used_key.tesseract')
+    })
+  })
+
+  describe('InferSharedCacheValue', () => {
+    it('should infer value type for fixed keys', () => {
+      // 'chat.web_search.active_searches' -> CacheActiveSearches
+      expectTypeOf<InferSharedCacheValue<'chat.web_search.active_searches'>>().toMatchTypeOf<Record<string, unknown>>()
+    })
+
+    it('should infer value type for template key instances', () => {
+      const webSearchLastKey: InferSharedCacheValue<'web_search.provider.last_used_key.google'> = 'key-1'
+      const ocrLastKey: InferSharedCacheValue<'ocr.provider.last_used_key.tesseract'> = 'key-2'
+      expectTypeOf(webSearchLastKey).toBeString()
+      expectTypeOf(ocrLastKey).toBeString()
+    })
+
+    it('should return never for unknown keys', () => {
+      type UnknownValue = InferSharedCacheValue<'unknown.shared.key'>
+      expectTypeOf<UnknownValue>().toBeNever()
     })
   })
 })
