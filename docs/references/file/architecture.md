@@ -97,7 +97,7 @@ File Module (src/main/file/)
 Data Module dependencies (src/main/data/)
 ├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 impl]
 ├── FileRefService (data repository, pure DB) — file_ref table      [1a ✅ interface] [1b.1 impl]
-└── DataApi Handler (files.ts) — no fs-side-effect endpoints, optionally carries dangling state  [1a ✅ schema + stub handlers] [1b.1 read endpoints · 1b.3 dangling endpoints]
+└── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers  [1a ✅ schema + stub handlers] [1b.1 read endpoints]
 ```
 
 **Deferred implementation**:
@@ -112,7 +112,7 @@ FileManager is the core submodule of the file module, but is not equivalent to t
 
 - **FileManager** is the **sole public entry point** for the entry management system—responsible for the full lifecycle and content operations of FileEntry. Its public API only accepts `FileEntryId` / `FileHandle`. At startup, it performs an orphan sweep in the background (cleaning up leftover internal UUID files), **without blocking the ready signal**.
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, IPC registration, and instance-scoped caches. Implementation mechanics (dispatch helpers, deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
-- **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via opt-in DataApi handler.
+- **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi).
 - **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache.
 - **ops.ts** is on the same level as FileManager—provides pure FS/path operations that don't depend on the entry system, and is open to the entire main process.
 
@@ -123,7 +123,7 @@ FileManager is the core submodule of the file module, but is not equivalent to t
 | `FileManager` class + public types | **Entire main process** | **Today (Phase 1a):** import public types from `@main/file`. **Planned (Phase 1b+):** resolve the runtime instance via `application.get('FileManager')` once the lifecycle service is implemented |
 | `ops/*` | **Entire main process** | `import { atomicWriteFile } from '@main/file/ops'` (BootConfig, MCP oauth, etc. can use directly) |
 | `watcher/` (`createDirectoryWatcher` factory) | **Entire main process** | Business services call this when they need to watch external directories |
-| `danglingCache` | **Internal to file-module** | External callers read it via DataApi `includeDangling`; never imported directly |
+| `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
 | `internal/*` | **Only FileManager** | All other locations (including `ops/` / `watcher/` within file-module) must not import it |
 
 Boundary enforcement: `src/main/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/file'` cannot reach it. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule as a fallback.
@@ -276,8 +276,12 @@ All operations that can act on any file (managed FileEntry or unmanaged path) **
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
 | `refreshMetadata` | Explicit stat refresh of external snapshot (UI manual refresh button) |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
+| `getDanglingState` / `batchGetDanglingStates` | Query external entry presence (FS-backed via DanglingCache; cold miss triggers a single `fs.stat`). Internal entries always `'present'`. |
+| `getPhysicalPath` / `batchGetPhysicalPaths` | Resolve absolute path for a managed entry (main-side `resolvePhysicalPath`). Intended for agent context / drag-drop / subprocess spawn. Also the input to `toSafeFileUrl` for `<img src>` / `<video src>` rendering. |
 
-**How to obtain dangling state**: not individually exposed via IPC. The DataApi entry query endpoints support the `includeDangling: true` parameter, which the handler fills on demand via DanglingCache (see §4.1).
+**How to obtain dangling state / absolute path**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. See the two `FileEntryId`-only rows above. DataApi's SQL-only boundary is documented in §4.1.1.
+
+**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
 **Operations accepting only FilePath**:
 
@@ -349,85 +353,111 @@ Renderer                              Main
 
 Services inside the main process may directly import and call the data repositories, without going through the DataApi handler.
 
-DataApi endpoints (read-only):
+DataApi endpoints (read-only, SQL-only, fixed-shape):
 
-| Endpoint                  | Method | Purpose                                                       |
-| ------------------------- | ------ | ------------------------------------------------------------- |
-| `/files/entries`          | GET    | FileEntry list (supports origin / trashed / time-range filter; opt-in `includeRefCount` / `includeDangling`) |
-| `/files/entries/:id`      | GET    | Single entry lookup (opt-in `includeRefCount` / `includeDangling`) |
-| `/files/entries/:id/refs` | GET    | All references to a file                                       |
-| `/files/refs/by-source`   | GET    | All files referenced by a business object                      |
+| Endpoint                         | Method | Purpose                                                                 |
+| -------------------------------- | ------ | ----------------------------------------------------------------------- |
+| `/files/entries`                 | GET    | FileEntry list (supports origin / trashed / time-range filters). Fixed shape — no opt-in fields. |
+| `/files/entries/:id`             | GET    | Single entry lookup. Fixed shape.                                       |
+| `/files/entries/ref-counts`      | GET    | Ref-count aggregation for a batch of entry ids (pure SQL JOIN + GROUP BY). |
+| `/files/entries/:id/refs`        | GET    | All references to a file.                                               |
+| `/files/refs/by-source`          | GET    | All files referenced by a business object.                              |
 
-> **DataApi vs File IPC decision criteria**:
-> - **DataApi** = read-only queries, does not change persistent state. DTO shape may differ from DB schema—derived fields, aggregations, and computed columns are allowed; **idempotent read-only side effects** (SQL aggregation, `fs.stat` for dangling, etc.) are allowed. **No mutations of any kind**.
-> - **File IPC** = all mutations (create / rename / delete / move / write / trash), plus reads that are awkward to express as REST (full-file read, dialogs, streams, launching `open` on system programs, etc.)
+> **DataApi vs File IPC decision criteria (strict boundary)**:
+> - **DataApi** = **pure SQL read queries only**. Handlers MUST NOT touch FS, MUST NOT call main-side resolvers (`resolvePhysicalPath`), MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`). The response shape is **fixed per endpoint — no opt-in flags that toggle extra fields**. SQL aggregations (JOIN / GROUP BY / COUNT) are the only allowed "derivation" because they remain DB-layer.
+> - **File IPC** = everything else. All mutations (create / rename / delete / move / write / trash), **and** every read that needs FS IO or main-side computation (content read, dangling probe, path resolution, dialogs, streams, `open`).
+>
+> Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
 
-**List queries for external entries**: DataApi returns the DB snapshot by default (possibly stale) without stat. Consumers needing the **latest snapshot** (refreshed name/ext/size) call File IPC `refreshMetadata` / `read` / `getVersion`; those needing only **whether it currently exists** (dangling) pass `includeDangling: true`.
+**List queries for external entries**: DataApi returns the DB snapshot (possibly stale) without any FS access. Consumers needing the **latest snapshot** (refreshed name/ext/size) call File IPC `refreshMetadata` / `read` / `getVersion`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
 
-### 4.1.1 Opt-in Derived Fields
+### 4.1.1 DataApi Boundary: SQL-Only, Fixed Shape
 
-The entry query on DataApi provides four opt-in fields that collectively address "I need a piece of derived information about a file" in any scenario:
+DataApi handlers are strictly SQL-backed. A handler:
 
-**`includeRefCount`** (pure SQL aggregation):
-- The handler uses `SELECT fileEntryId, COUNT(*) GROUP BY` to aggregate `file_ref`, joined to FileEntry
-- Can be paired with `sortBy: 'refCount'` to sort by reference count
-- Zero FS IO
+- MUST NOT read or `stat` the filesystem
+- MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
+- MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
+- MUST return a fixed shape per endpoint — **no opt-in flags** that toggle extra fields
 
-**`includeDangling`** (FS-backed, safe stat):
-- Handler calls `danglingCache.check(entry)` in parallel; returns synchronously on cache/watcher hit, falls back to a single `fs.stat` on miss
-- Read-only idempotent side effect, compliant with DataApi rules
-- Internal entry is always `'present'`
-- See FileManager Architecture §11 for details
-- **Staleness contract (best-effort)**: `dangling` is an FS-observed **time-varying** value—the watcher may not cover it, and a file may be externally deleted after a cache hit. Consumers **must** allow React Query's default `staleTime` (5min) or shorter to naturally trigger a refresh; **do not** set `staleTime: Infinity`—that equates to the contradictory "I want dangling but refuse to re-check". When the user explicitly refreshes an entry, use File IPC `refreshMetadata(id)` + call `mutate(...)` on the query.
+The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY / COUNT), because that stays in the DB layer.
 
-**`includePath`** (raw absolute path):
-- Handler calls main-side `resolvePhysicalPath(entry)` and returns the absolute path string
-- **Intended uses**: agent context embedding / drag-and-drop to external apps (the `file` field of `webContents.startDrag`) / subprocess spawn / "Open in external editor" UX
-- **NOT intended**: don't cache as a stable identifier (storage layout may change); don't string-concat into shell commands without independent sanitization; don't use this path to bypass FileManager for writes; use `entry.id` when only identity reference is needed
-- **Bound by convention**: the type system cannot prevent a renderer from misusing the string—code review should examine each caller to check "does this caller really need the path string"
+**Where the former opt-in fields live now**:
 
-**`includeUrl`** (file:// URL with safety):
-- Handler calls main-side `resolveSafeUrl(entry)` to produce a `file://` URL; dangerous files (.sh/.bat/.ps1, etc.) return the dirname to prevent accidental double-click execution
-- **Scoped capability**: only serves synchronous rendering of `<img src>` / `<video src>` / `<embed>`; the safety wrap only prevents hover/load side effects in HTML rendering contexts, **not** a general path-safety primitive
-- Do not embed this URL into command-line args, subprocess args, or other non-HTML scenarios—use `includePath` when you need the raw path
-- Keeps the renderer unaware of internal storage layout (id+ext concatenation, userData path); storage format changes don't affect the renderer
+| Former opt-in     | Current home                                                            | Kind                                             |
+|-------------------|-------------------------------------------------------------------------|--------------------------------------------------|
+| `includeRefCount` | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)           |
+| `includeDangling` | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)  |
+| `includePath`     | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                        |
+| `includeUrl`      | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own) |
 
-### 4.1.1.1 On "Main is SoT for path resolution"
+**Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Moving FS / compute side effects to File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
 
-Main as SoT for path resolution means **authority (who defines resolution rules)**—`resolvePhysicalPath` decides how id + ext are concatenated, where userData lives, whether it becomes hash-bucketed in the future, etc. The renderer consumes the string results produced by Main, but does not share authority:
+**Composition in the renderer**: fetch the entry list via DataApi, then call the relevant batch IPC method(s) with the retrieved ids. Wrap the two-step pattern in a dedicated hook (e.g. `useEntriesWithPresence`) so components stay declarative.
+
+**Staleness contract for dangling (best-effort)**: `dangling` is an FS-observed time-varying value — the watcher may not cover every path, and a file may be externally deleted right after a cache hit. Consumers of `getDanglingState` / `batchGetDanglingStates` MUST allow a natural refresh lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a user action). **Do not** cache the result with `staleTime: Infinity` — that equates to the contradictory "I want dangling but refuse to re-check". For user-triggered refresh of a specific entry, call File IPC `refreshMetadata(id)` and invalidate the presence query.
+
+**Safety conventions for raw path / URL (carried over from the opt-in era, still relevant)**:
+
+- **`getPhysicalPath` — NOT intended for**: caching as a stable identifier (storage layout may change); string-concat into shell commands without independent sanitization; bypassing FileManager for writes. Use `entry.id` when identity is all you need.
+- **`toSafeFileUrl` — scoped capability**: the danger-file wrap defends only HTML rendering contexts (`<img src>` / `<video src>` / `<embed>`), not arbitrary string concatenation. Don't compose this URL into command-line args or subprocess arguments — pass the raw `FilePath` from `getPhysicalPath` instead.
+- Both are bound **by convention**; the type system cannot prevent misuse of a `string`. Code review should verify each call site against the intended uses listed here.
+
+### 4.1.1.1 Main Is SoT for Path Resolution
+
+"Main as SoT for path resolution" means **authority (who defines the resolution rule)** — `resolvePhysicalPath` decides how `id + ext` are concatenated, where `userData` lives, whether the layout becomes hash-bucketed in the future, etc. The renderer consumes the string values produced by Main (via File IPC `getPhysicalPath`), but does not share authority:
+
 - When storage layout iterates on the Main side, renderer code needs zero changes
 - The renderer **holds** the string value (locality), but does not **define** the computation rules (authority)
 
-`includePath` / `includeUrl` carry the path string to the renderer process—this lets the renderer complete the "hold the value" step. The spread of **locality** is not the spread of **authority**. The former is a natural consumption relationship; only the latter is an actual tearing-apart of the SoT.
+The spread of **locality** (a path string arriving in the renderer via IPC) is not the spread of **authority** (ownership of the resolution rule). The former is a natural consumption relationship; only the latter would actually tear the SoT apart.
+
+Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/file/urlUtil` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
 
 ### 4.1.2 Typical Renderer Call Flows
 
+The new pattern is **DataApi for SQL-level data + File IPC for enrichments**, composed in the renderer. Each extra enrichment = one more `useQuery` against an IPC method.
+
 ```typescript
-// Case 1: FilesPage sorted by refCount + showing dangling state + file preview
-const { data: entries } = useQuery(fileApi.listEntries, {
-  includeRefCount: true,
-  includeDangling: true,
-  includeUrl: true,
-  sortBy: 'refCount',
-})
-// <img src={entry.url} /> synchronous render
+// Case 1: FilesPage — list + presence + preview URL + ref counts
+const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
+const entryIds = entries?.map(e => e.id) ?? []
 
-// Case 2: Agent compose needs absolute paths
-const { data: entries } = useQuery(fileApi.listEntries, {
-  ids: selectedFileIds,
-  includePath: true,
-})
-const filePaths = entries.map(e => e.path).join('\n')
+const { data: presence } = useQuery(
+  ['fileManager.batchGetDanglingStates', entryIds],
+  () => window.api.fileManager.batchGetDanglingStates(entryIds),
+  { enabled: entryIds.length > 0 }
+)
+const { data: paths } = useQuery(
+  ['fileManager.batchGetPhysicalPaths', entryIds],
+  () => window.api.fileManager.batchGetPhysicalPaths(entryIds),
+  { enabled: entryIds.length > 0 }
+)
+const { data: refCounts } = useQuery(fileApi.refCounts, { entryIds })
+// render (URL computed in-process — no extra IPC):
+//   <img src={paths && toSafeFileUrl(paths[entry.id], entry.ext)} />
+//   dangling: presence?.[entry.id], count: refCounts?.[entry.id]
 
-// Case 3: Simple chat attachment list (no derived fields needed)
+// Case 2: Agent compose — list + absolute paths (same IPC as above, different consumer)
+const { data: entries } = useQuery(fileApi.listEntries, { ids: selectedFileIds })
+const { data: paths } = useQuery(
+  ['fileManager.batchGetPhysicalPaths', selectedFileIds],
+  () => window.api.fileManager.batchGetPhysicalPaths(selectedFileIds)
+)
+const filePaths = selectedFileIds.map(id => paths?.[id]).filter(Boolean).join('\n')
+
+// Case 3: Simple chat attachment list — no enrichment needed
 const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
 ```
 
-Benefits of the layering:
-- DataApi centralizes all read-only queries; consumers gather needed fields in a single query
-- Unwanted fields cost nothing (opt-in)
-- Mutations uniformly go through IPC, cleanly separating "view data" from "change data"
-- The renderer is unaware of internal storage layout; changes to main's storage format don't break the renderer
+Benefits of the split:
+
+- **DataApi is predictable**: one SQL query per endpoint, deterministic cost, cache-friendly
+- **Enrichment cost is explicit** at the call site — every FS/compute hop has a visible `useQuery` next to it
+- **Mutations uniformly go through IPC**, cleanly separating "view data" from "change data"
+- **Renderer is unaware of internal storage layout**; main-side storage changes don't propagate
+
+For patterns that recur across components, encapsulate the composition in a hook (e.g. `useEntriesWithPresence(filter)`) so callers stay declarative without re-introducing opt-in flags.
 
 ### 4.2 FS-Side-Effect Path (File IPC)
 
@@ -472,7 +502,7 @@ Renderer                          Main
 | Role: track external entry presence state (present/missing/unknown)     |
 | State: Map<entryId, DanglingState> + reverse index Map<path, entryIds>  |
 | Updates: watcher events (auto-wired), ops observations, cold-path stat  |
-| Queried by: DataApi handler (on includeDangling=true)                   |
+| Queried by: File IPC getDanglingState / batchGetDanglingStates          |
 +-------------------------------------------------------------------------+
 | DirectoryWatcher  (NOT lifecycle -- consumable primitive)               |
 |                                                                         |
@@ -610,7 +640,8 @@ Renderer                          Main
 
 **Key data flows**:
 
-- **Renderer → Main (read)**: DataApi → Handler → FileEntryService → DB (optionally merges DanglingCache state via opt-in)
+- **Renderer → Main (read, SQL-backed data)**: DataApi → Handler → FileEntryService → DB (pure SQL; no FS, no resolvers)
+- **Renderer → Main (read, FS / compute-backed enrichment)**: File IPC → FileManager → DanglingCache / resolvePhysicalPath (side effects allowed). `file://` URL composition happens in-process on top of the returned path via the shared `toSafeFileUrl` helper — no dedicated IPC.
 - **Renderer → Main (write)**: IPC → FileManager (coordinates DB + ops.ts)
 - **Business Service → file data**: pure DB operations call data repositories directly; FS-involving operations go through FileManager
 - **External directory monitoring**: business services create instances via the `createDirectoryWatcher()` factory and subscribe to the events they care about; the factory internally injects events into DanglingCache (business unaware)
@@ -847,7 +878,7 @@ src/main/file/                        -- file module
 - **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via the unmanaged `ops.remove(path)` operation, which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
 - **External entry DB snapshot may be stale**: list queries return DB values directly; critical paths (read / hash / upload) automatically stat-verify + refresh; UI may provide a manual refresh
-- **Dangling state exposed via DanglingCache + opt-in DataApi param**: not persisted to DB; watcher events + cold-path stat push updates
+- **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
 - **Physical paths are not persisted**: internal is derived from `application.getPath('files', ...)`; external is read from the `externalPath` column
 - **FileRef polymorphism has no FK**: `sourceId` points into different business tables and relies on application-layer cleanup + orphan scanning as fallback
 - **File Module does not do directory import / bidirectional sync**: business modules implement this with DirectoryWatcher + their own mapping tables
@@ -862,6 +893,6 @@ src/main/file/                        -- file module
 | AI provider uploads (after SDK stable)  | Add `FileUploadService` + `file_upload` table; FileEntry structure unchanged; migrate via additive migration |
 | New business reference source           | Add `sourceType` enum value + register `SourceTypeChecker` (compile-time enforced)              |
 | Business module needs to watch external dir | Obtain an instance via `createDirectoryWatcher()` factory; subscribe to events; DanglingCache auto-syncs |
-| Dangling reactivity (real-time push to renderer) | Currently DataApi query-time lookup; future could trigger DataApi invalidation on DanglingCache state changes |
+| Dangling reactivity (real-time push to renderer) | Currently pull-based via File IPC `getDanglingState` + React Query refresh; future could push state changes over IPC so renderer invalidates presence queries on DanglingCache events |
 | Cross-device file sync                  | Out of file_module scope; solved by the application layer or external sync tools (Drive/Dropbox) |
 | Full-text search                        | Currently `ops/search.ts` provides ripgrep-based scanning; persistent indexes managed by businesses like Knowledge |

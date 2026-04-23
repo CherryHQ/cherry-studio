@@ -86,7 +86,7 @@
   - `/files/entries/:id/refs` — 某文件被谁引用
   - `/files/refs/by-source` — 某业务对象引用了哪些文件
 - `sourceType` / `role` 由业务模块在 `SourceTypeChecker` 注册，编译期闭合
-- DataApi `includeRefCount: true` 按需 SQL 聚合计数，不再持久化 `count` 字段（见 `migration-plan.md §2.3`）
+- DataApi 专用端点 `GET /files/entries/ref-counts?entryIds=...` 按需 SQL 聚合计数，不再持久化 `count` 字段（见 `migration-plan.md §2.3`）。注：旧设计曾用 `includeRefCount` opt-in 字段，已废弃——DataApi 边界收紧为纯 SQL + 固定 shape。
 
 **参考**：`file-manager-architecture.md §1.3` / §7（三层 ref 清理）。
 
@@ -206,7 +206,7 @@
   - 定期扫描 `file_ref` 中 `sourceId` 已不存在的行并清理
 - **External dangling 检测**（`DanglingCache`）：
   - 内存反向索引 `Map<path, Set<entryId>>`
-  - Watcher 事件 + 冷路径 stat 兜底，DataApi `includeDangling` 按需暴露
+  - Watcher 事件 + 冷路径 stat 兜底，通过 File IPC `getDanglingState` / `batchGetDanglingStates` 按需暴露（不再走 DataApi——FS 副作用一律走 IPC）
 
 **参考**：`file-manager-architecture.md §7`（三层 ref 清理）、§11（DanglingCache）、`architecture.md §5.1-5.2`（启动时序）。
 
@@ -275,7 +275,8 @@ export type FileEntry = z.infer<typeof FileEntrySchema>
 | 生产者 | 位置 | parse 时机 |
 |---|---|---|
 | `createInternalEntry` / `ensureExternalEntry` / 批量版本 IPC | `FileManager` | 返回前 `FileEntrySchema.parse` |
-| DataApi handler（row → DTO） | `src/main/data/api/handlers/files.ts` | 响应前 `FileEntrySchema.parse`（含 opt-in 派生字段） |
+| DataApi handler（row → DTO） | `src/main/data/api/handlers/files.ts` | 响应前 `FileEntrySchema.parse`；固定 shape，无 opt-in 派生字段 |
+| File IPC enrichment（dangling / path）        | `FileManager` | 通过专用 IPC 返回（`getDanglingState` / `getPhysicalPath` 及其批量版本）；与 DataApi 边界互斥。`file://` URL 不再走 IPC——由共享纯函数 `toSafeFileUrl(path, ext)`（`@shared/file/urlUtil`）在进程内合成 |
 | FileMigrator insert | `src/main/data/migration/v2/migrators/FileMigrator.ts` | 写入前转换并 parse |
 
 renderer 不再在前端拼接 entry 对象，**类型系统层封堵"直接搓 FileMetadata 鸭子对象"的旧式入口**。

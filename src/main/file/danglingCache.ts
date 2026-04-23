@@ -9,8 +9,9 @@
  * - Maintain a best-effort "present / missing / unknown" state per external
  *   FileEntry, populated lazily from `fs.stat` and updated eagerly by
  *   DirectoryWatcher events.
- * - Serve DataApi `includeDangling` queries without blocking on FS IO in the
- *   hot path (cache hit returns synchronously).
+ * - Serve File IPC `getDanglingState` / `batchGetDanglingStates` queries
+ *   without blocking on FS IO in the hot path (cache hit returns synchronously).
+ *   DataApi never reads this cache — DataApi is strict SQL-only.
  * - Emit subscription events so the UI can react to external file
  *   disappearance without polling.
  *

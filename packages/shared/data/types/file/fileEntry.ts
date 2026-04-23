@@ -192,8 +192,10 @@ export type ExternalFileEntry = z.infer<typeof ExternalEntrySchema>
  *
  * Internal entries are always `'present'`.
  *
- * Not persisted in DB. Computed at query time when DataApi caller passes
- * `includeDangling: true`. See [file-manager-architecture.md](../../../../docs/zh/references/file/file-manager-architecture.md#11-dangling-detection).
+ * Not persisted in DB. Queried at runtime via File IPC
+ * `getDanglingState` / `batchGetDanglingStates` — DataApi never exposes dangling
+ * because it requires FS IO (cold-path `fs.stat`) which violates the DataApi
+ * SQL-only boundary. See [file-manager-architecture.md](../../../../docs/zh/references/file/file-manager-architecture.md#11-dangling-detection).
  */
 export const DanglingStateSchema = z.enum(['present', 'missing', 'unknown'])
 export type DanglingState = z.infer<typeof DanglingStateSchema>

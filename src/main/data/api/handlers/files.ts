@@ -31,6 +31,9 @@ export const fileHandlers: {
   '/files/entries/:id': {
     GET: notImplemented('GET /files/entries/:id')
   },
+  '/files/entries/ref-counts': {
+    GET: notImplemented('GET /files/entries/ref-counts')
+  },
   '/files/entries/:id/refs': {
     GET: notImplemented('GET /files/entries/:id/refs')
   },

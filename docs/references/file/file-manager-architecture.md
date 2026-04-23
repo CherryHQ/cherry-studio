@@ -398,7 +398,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 | `'unknown'` | No watcher coverage, no prior stat (or cache was actively cleared) |
 
 **Detection timing**:
-- **Passive**: DataApi handler query with opt-in `includeDangling: true` → `danglingCache.check(entry)`
+- **Passive (pull)**: File IPC `getDanglingState` / `batchGetDanglingStates` query → `danglingCache.check(entry)` (synchronous on cache hit, single `fs.stat` on cold miss). DataApi never reads this cache.
 - **Active push**: when a business module creates a watcher via `createDirectoryWatcher()`, the factory auto-wires add/unlink events into DanglingCache
 - **Side effect**: FileManager's own read/stat/write operations also update the cache on success/failure
 
@@ -775,7 +775,7 @@ WHERE origin = 'external' AND trashedAt IS NULL
 
 The old version batch-stat'd all external entries at startup to build the dangling set. The new version **cut this step**:
 
-1. **Dangling is opt-in query** (`includeDangling` param); most query scenarios don't need it
+1. **Dangling is a pull-only IPC query** (`getDanglingState` / `batchGetDanglingStates`); most query scenarios don't need it, so it's never computed eagerly
 2. **Lazy + Promise.all is fast enough**: on the first dangling query, N stats run in parallel, typically <100ms
 3. **Watcher-covered paths have zero IO**: once a business module (NoteService, etc.) enables a watcher, dangling states for entries under the relevant directory are directly pushed by watcher events—no stat needed
 
@@ -817,7 +817,7 @@ export const danglingCache = new DanglingCache()
 ```
 
 **Role**:
-- Provides a fast query interface for the DataApi handler (opt-in `includeDangling: true`)
+- Provides a fast query interface for File IPC `getDanglingState` / `batchGetDanglingStates` (cache hit returns synchronously; cold miss runs a single `fs.stat`). DataApi never reads this cache — DataApi is pure SQL.
 - Consumes add/unlink events from all watchers (auto-wired via the factory)
 - Consumes observation results from FileManager's own ops (read/stat/write success/failure)
 
@@ -899,22 +899,22 @@ Timing for changes to `pathToEntryIds` (fully self-governed inside file_module, 
 
 ### 11.5 Handler-Side Parallelization
 
-The DataApi handler, when `includeDangling: true`, runs in parallel:
+The File IPC `batchGetDanglingStates` handler fans out over the requested ids in parallel:
 
 ```typescript
-async function attachDangling(entries: FileEntry[]): Promise<FileEntryView[]> {
-  return Promise.all(
-    entries.map(async (e) => ({
-      ...e,
-      dangling: await danglingCache.check(e)
-    }))
+async function batchGetDanglingStates(ids: FileEntryId[]): Promise<Record<FileEntryId, DanglingState>> {
+  const entries = await fileEntryService.batchGetById(ids)
+  const pairs = await Promise.all(
+    entries.map(async (e) => [e.id, await danglingCache.check(e)] as const)
   )
+  return Object.fromEntries(pairs)
 }
 ```
 
 - Cache-hit entries return synchronously (microtask)
 - Only cache-miss external entries go through stat, all in parallel
 - 1000 entries cold-start typically <100ms (libuv threadpool parallel stat)
+- Handler lives behind File IPC, not DataApi — the FS side effect is contained to the IPC channel where side effects are expected
 
 ### 11.6 State Invalidation Policy
 
@@ -949,14 +949,14 @@ If real-time push is needed in the future, DanglingCache state changes may trigg
 | **Cherry tracks external rename** | Not tracked | Best-effort semantics; external rename → dangling → user re-@ |
 | **Snapshot vs realtime stat** | DB stores snapshot; critical path auto-refresh | Zero stat cost for list queries; accept that UI display may be stale (user can refresh manually) |
 | **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; no TTL, event-driven invalidation |
-| **Dangling exposure method** | DataApi opt-in `includeDangling` param | Unified query entry; zero cost by default; parallel stat on demand |
+| **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
 | **Content hash algorithm** | xxhash-128 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s; 128-bit collision resistance is sufficient) |
 | **Does write carry version** | Split into write / writeIfUnchanged | Force the caller to explicitly choose; avoid silent degradation to blind write when version is forgotten |
 | **Atomic write fsync** | On by default | Correctness guarantee takes precedence over performance; Cherry is not a high-throughput scenario |
 | **Trash model** | trashedAt timestamp | parentId unchanged; naturally supports expiry; no system_trash entries |
 | **pending_fs_ops** | Removed | After extreme simplification, orphan sweep suffices to cover crashes |
-| **Startup dangling probe** | Removed | Changed to lazy + Promise.all; stat only on opt-in query |
+| **Startup dangling probe** | Removed | Changed to lazy + Promise.all; stat only when an IPC caller explicitly requests dangling state |
 | **Is Watcher a lifecycle service** | No | DirectoryWatcher is a primitive; business modules `new` it via the factory; file_module doesn't actively watch |
 | **Directory import / bidirectional sync** | Moved out of file_module | Business modules (Knowledge, etc.) implement this with DirectoryWatcher + their own mapping tables |
 | **AI SDK upload cache** | Standalone file_upload table (deferred) | Decoupled from mount / remote; naturally aligns with SharedV4ProviderReference |

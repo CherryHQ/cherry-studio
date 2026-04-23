@@ -193,7 +193,7 @@ See §4 for the shim function specifications.
 
 **决策**：
 
-> **v2 不持久化 count**。`file_entry` 表无 count 列；引用计数由 DataApi handler 在查询时按需聚合 `file_ref` 表得出（opt-in `includeRefCount`）。没有缓存，没有双写，没有 trigger——每次查询都是一次纯 SQL 聚合。
+> **v2 不持久化 count**。`file_entry` 表无 count 列；引用计数由 DataApi 专用端点 `GET /files/entries/ref-counts?entryIds=...` 按需聚合 `file_ref` 表得出。没有缓存，没有双写，没有 trigger——每次查询都是一次纯 SQL 聚合，固定 shape，不再使用 opt-in 参数。
 
 **定性**：引用计数 → `file_ref` 表。旧 `count` 是"这个文件被多少个业务对象引用"的 Dexie-level 数字；v2 由 `file_ref` 表的 `COUNT(*) WHERE fileEntryId = ?` 取代，**完全按需计算**。
 
@@ -321,7 +321,7 @@ ORDER BY ref_count DESC
 | B5  | `src/renderer/src/store/thunk/messageThunk.ts:1849`                                                                                                  | 去掉 updateFileCount 调用，改为 `fileRefService.create({ sourceType: 'chat_message', sourceId, fileEntryId, role })`                                                                                                                          |
 | B6  | `src/renderer/src/store/thunk/messageThunk.ts:607`, `MessagesService.ts:74,83`, `DexieMessageDataSource.ts:204,252,312,349`, `store/knowledge.ts:46` | 清理语义：从 `FileManager.deleteFile(force=false)` 改为 `fileRefService.cleanupBySource(sourceType, sourceId)`；文件本体的"无引用清理"交给 `OrphanRefScanner`                                                                                 |
 | B7  | `src/renderer/src/services/FileAction.ts:45-94` (`handleDelete`)                                                                                     | 评估：是否保留 FilesPage 的"强制删除 + 级联清消息 block"？v2 如果沿用"主动清引用"则 `fileRefService.cleanupByEntry(entryId)` + `FileManager.permanentDelete(entryId)`；message block JSON 侧的 stale 引用由 renderer 侧 UI 过滤 dangling 显示 |
-| B8  | `src/renderer/src/pages/files/FilesPage.tsx:52,54,111`, `FileList.tsx:102`                                                                           | 排序 / 显示 `count` → DataApi query 带 `includeRefCount: true` + `sortBy: 'refCount'`；同一个 query 也可加 `includeDangling: true` 顺带展示失效标记                                                                                           |
+| B8  | `src/renderer/src/pages/files/FilesPage.tsx:52,54,111`, `FileList.tsx:102`                                                                           | 排序 / 显示 `count` → 拉 DataApi `/files/entries/ref-counts?entryIds=...` 取计数，在 renderer 层按 refCount 排序；失效标记走 File IPC `batchGetDanglingStates`（二者都是独立 `useQuery`）                                                                                           |
 | B9  | 所有构造 FileMetadata 字面量时写死 `count: 1` 的位置（§2.3.1 后半表）                                                                                | 字段删除（字段级退役完成后）                                                                                                                                                                                                                  |
 
 **Step C: Schema 清理**
@@ -350,23 +350,32 @@ ORDER BY ref_count DESC
 
 #### 2.3.11 UI 变化
 
-`FilesPage` 当前"按 count 排序"提供的价值是"**热门文件置顶**"。v2 走 **DataApi `includeRefCount`**（纯 SQL 聚合）：
+`FilesPage` 当前"按 count 排序"提供的价值是"**热门文件置顶**"。v2 走 **DataApi 专用端点 `/files/entries/ref-counts`**（纯 SQL 聚合，固定 shape）+ 渲染层组合：
 
 ```typescript
-useQuery(fileApi.listEntries, {
-  includeRefCount: true,
-  includeDangling: true, // 同一次查询顺带拿 dangling 状态
-  sortBy: "refCount",
-  sortOrder: "desc",
-});
-// entry.refCount / entry.dangling 直接可用
+// 1. 拉列表（纯 SQL，无副作用）
+const { data: entries } = useQuery(fileApi.listEntries, { origin: 'internal' })
+const entryIds = entries?.map((e) => e.id) ?? []
+
+// 2. 并行拉 refCount（DataApi 专用端点）与 dangling（File IPC，FS 副作用走 IPC）
+const { data: refCounts } = useQuery(fileApi.refCounts, { entryIds })
+const { data: presence } = useQuery(
+  ['fileManager.batchGetDanglingStates', entryIds],
+  () => window.api.fileManager.batchGetDanglingStates(entryIds),
+  { enabled: entryIds.length > 0 }
+)
+
+// 3. renderer 合并后按 refCount 排序
+const sorted = entries
+  ?.map((e) => ({ ...e, refCount: refCounts?.[e.id] ?? 0, dangling: presence?.[e.id] }))
+  .sort((a, b) => b.refCount - a.refCount)
 ```
 
-DataApi 允许只读幂等副作用，所以 refCount（纯 SQL 聚合）和 dangling（DanglingCache + cache miss 时的 fs.stat）都可以作为 opt-in 字段。消费者一次 query 拿齐。
+DataApi 边界收紧为**纯 SQL + 固定 shape**：aggregation 走专用端点（依然是 DataApi），FS 副作用（DanglingCache + 冷路径 `fs.stat`）一律走 File IPC。消费者两次 `useQuery` 并行组合，成本对调用点显式可见。
 
-`FileList` 的 "$N 引用" 展示：保留此信息对用户有价值（知道哪些文件是被大量复用的），走同一个 `includeRefCount` 参数。
+`FileList` 的 "$N 引用" 展示：保留此信息对用户有价值（知道哪些文件是被大量复用的），同样走 `/files/entries/ref-counts` 端点。
 
-**建议**：`FilesPage` 默认开启 `includeRefCount` 保留现有排序 UX；`includeDangling` 开启后失效文件 UI 可加失效标记。查询成本由 DataApi 聚合 + DanglingCache 命中率决定，冷启动首次 list 可能有 N 次 stat（Promise.all 并行通常 <100ms）。
+**建议**：`FilesPage` 默认同时发起列表 + refCount 两个 query，保留现有排序 UX；dangling 由独立 IPC 查询提供失效标记。冷启动首次 list 的 dangling 冷查可能有 N 次 stat（Promise.all 并行通常 <100ms）——调用点把这个成本明示给开发者，避免隐藏的 IO 副作用。
 
 #### 2.3.12 执行时机
 
@@ -385,7 +394,7 @@ DataApi 允许只读幂等副作用，所以 refCount（纯 SQL 聚合）和 dan
 | FileMigrator 扫 ref 遗漏某源 → post-migration 孤儿文件 | 保守策略：migrator 失败就不删旧 Dexie `files` 表；OrphanRefScanner 延迟启用     |
 | Paintings 迁移延后导致 painting 引用的文件被误删       | `sourceType='painting'` checker 查 PaintingState，painting 迁移前不清理这类引用 |
 | "零 ref 自动删除"UX 变化用户不接受                     | 选项 2 + "最近解除引用"的 Trash 视图补偿；如反馈强烈可做选项 1                  |
-| FilesPage count 排序是否用户常用？未调研               | 先保留 `includeRefCount` 能力；用户反馈驱动是否改默认                           |
+| FilesPage count 排序是否用户常用？未调研               | 先保留 `/files/entries/ref-counts` 端点；用户反馈驱动是否改默认组合             |
 
 ### 2.4 `tokens?` 字段
 
@@ -537,29 +546,28 @@ public getFileType = async (filePath: string): Promise<FileType> => {
 - **只在 `FileManager.getMetadata(handle)` 时触发**——打开文件 / 预览 / 处理路径上；**list 查询不触发**
 - 旧 FileStorage 在**创建**时做 buffer 升级；v2 在**读取时**做。语义微调：文件的 type 不再是"持久化属性"而是"每次 getMetadata 现算的派生"
 
-#### 2.5.4 DataApi 的 type filter 与 includeType
+#### 2.5.4 DataApi 的 type filter（无 includeType opt-in）
 
 `FilesPage` 的 `where('type').equals(...)` 必须有 DataApi 对应：
 
-**方案**：DataApi query 支持 `type` 过滤 + `includeType` opt-in 字段：
+**方案**：DataApi query 仅支持 `type` 过滤（纯 SQL `WHERE ext IN (...)`，作为请求参数；不是 opt-in 输出字段）。**不引入 `includeType` 等派生输出字段**——DataApi 边界收紧为纯 SQL + 固定 shape，派生 type 由 renderer 端通过共享的 `getFileType(ext)` 纯函数现算：
 
 ```typescript
-// DataApi handler（概念代码）
+// DataApi handler（概念代码，纯 SQL）
 async function listEntries(query) {
-  const extFilter = query.type ? extsOf(query.type) : null;
-  const rows = await db
+  const extFilter = query.type ? extsOf(query.type) : null
+  return db
     .select()
     .from(fileEntry)
-    .where(extFilter ? inArray(fileEntry.ext, extFilter) : undefined);
-
-  if (query.includeType) {
-    return rows.map((r) => ({ ...r, type: getFileType(r.ext) })); // ext → type 派生
-  }
-  return rows;
+    .where(extFilter ? inArray(fileEntry.ext, extFilter) : undefined)
 }
+
+// Renderer 侧用共享工具计算 type（纯函数，无 IO）
+import { getFileType } from '@shared/file/types/fileType'
+const type = getFileType(entry.ext)
 ```
 
-DataApi schema 改动（叠加在 §3.1 现有 `includeRefCount` / `includeDangling` 上）：
+DataApi schema 改动：
 
 ```typescript
 '/files/entries': {
@@ -567,8 +575,7 @@ DataApi schema 改动（叠加在 §3.1 现有 `includeRefCount` / `includeDangl
     query: {
       ...
       type?: FileType              // 按 type 过滤（handler 转成 ext 枚举）
-      includeType?: boolean        // response 附加 type 派生字段
-      sortBy?: ... | 'type'         // 可选：按 type 排序（字母序）
+      sortBy?: ... | 'type'         // 可选：按 type 排序（字母序，SQL ORDER BY ext 等价近似）
     }
   }
 }
@@ -576,14 +583,14 @@ DataApi schema 改动（叠加在 §3.1 现有 `includeRefCount` / `includeDangl
 
 **优点**：
 
-- 和 `includeRefCount` / `includeDangling` 对称设计，一致的 opt-in 模式
-- 纯 SQL（`WHERE ext IN (...)`），无副作用
+- 遵守新的 DataApi 纯 SQL + 固定 shape 边界——不引入 opt-in 派生输出
+- `getFileType(ext)` 本身是共享纯函数，renderer 端零成本调用
 - 不需要物化派生列，不需要 SQLite generated column 特性
 
 **代价**：
 
 - list 查询拿不到 buffer-upgraded TEXT（OTHER 的自定义文本扩展名仍显示为 OTHER）
-- 用户体验微降：某些历史 .log/.ini 类文件若无 ext 派生规则覆盖，列表里是 OTHER。用户实际使用（打开、send to chat）时 getMetadata 会给出正确 TEXT
+- 用户体验微降：某些历史 .log/.ini 类文件若无 ext 派生规则覆盖，列表里是 OTHER。用户实际使用（打开、send to chat）时 File IPC `getMetadata` 会给出正确 TEXT
 
 #### 2.5.5 迁移步骤
 
@@ -599,8 +606,8 @@ DataApi schema 改动（叠加在 §3.1 现有 `includeRefCount` / `includeDangl
 
 | #   | 文件                                                            | 改动                                                                                                           |
 | --- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| B1  | `packages/shared/data/api/schemas/files.ts`                     | query 加 `type?: FileType` + `includeType?: boolean`；response type 加 `type?: FileType` opt-in 字段           |
-| B2  | DataApi handler（`src/main/data/api/handlers/files.ts` 或类似） | 实现 `type` 过滤 → `ext IN (...)`；实现 `includeType` → `map(row => ({ ...row, type: getFileType(row.ext) }))` |
+| B1  | `packages/shared/data/api/schemas/files.ts`                     | query 仅加 `type?: FileType`（过滤参数）；response shape 保持固定（`FileEntry`），不加 opt-in 派生字段          |
+| B2  | DataApi handler（`src/main/data/api/handlers/files.ts` 或类似） | 实现 `type` 过滤 → `ext IN (...)`；派生 `type` 由 renderer 端通过共享 `getFileType(ext)` 计算                  |
 
 **Step C: FileManager IPC `getMetadata` 升级**
 
@@ -811,80 +818,86 @@ Main 侧消费者可以直接用 main 的 `resolvePhysicalPath(entry)`（`src/ma
 | `getFileExtension(file.path)`               | `file.ext`                                                                              |
 | OCR `thirdPartyLib(file.path)`              | `fileManager.withTempCopy(entryId, path => thirdPartyLib(path))`                        |
 
-#### 2.6.5 Path resolution 通过 DataApi 统一提供
+#### 2.6.5 Path resolution 通过 File IPC + 共享格式化 util 统一提供
 
-**原则**：Renderer **不知道**内部存储布局（`{id}.{ext}` 拼接方式、userData 路径）。所有 path 来源归到 main 的 `resolvePhysicalPath(entry)`，通过 **DataApi 的 opt-in 字段**暴露给 renderer。
+**原则**：Renderer **不知道**内部存储布局（`{id}.{ext}` 拼接方式、userData 路径）。所有 path 来源归到 main 的 `resolvePhysicalPath(entry)`，通过 **File IPC 专用方法**暴露给 renderer——不走 DataApi，因为 DataApi 边界收紧为纯 SQL + 固定 shape，任何 main-side 计算（resolver 调用）都算越界。
 
-两个 opt-in 字段覆盖所有 renderer 需要 path 的场景：
+**一对 File IPC + 一组共享格式化工具**覆盖所有 renderer 需要 path / URL 的场景：
 
-| Opt-in            | 返回形态                             | 服务场景                                                        |
-| ----------------- | ------------------------------------ | --------------------------------------------------------------- |
-| **`includePath`** | 原始绝对路径字符串                   | C4 agent 上下文、drag-drop、subprocess spawn 等需要 path 的场景 |
-| **`includeUrl`**  | `file://` URL + 危险文件 safety wrap | C1 `<img src>` / `<video src>` 显示                             |
+| 渠道                                                             | 返回形态                             | 服务场景                                                        |
+| ---------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| File IPC `getPhysicalPath` / **`batchGetPhysicalPaths`**         | 原始绝对路径 `FilePath`              | C4 agent 上下文、drag-drop、subprocess spawn；以及作为 `<img src>` URL 的输入 |
+| 共享纯函数 `toSafeFileUrl(path, ext)`（`@shared/file/urlUtil`）  | `file://` URL + 危险文件 safety wrap | C1 `<img src>` / `<video src>` 显示（在 renderer 进程内合成）   |
 
-**DataApi schema 新增字段**：
+**File IPC 接口**（`packages/shared/file/types/ipc.ts` K 段）：
 
 ```typescript
-// packages/shared/data/api/schemas/files.ts
-'/files/entries': {
-  GET: {
-    query: {
-      ...
-      includePath?: boolean   // opt-in: 附加绝对路径
-      includeUrl?: boolean    // opt-in: 附加 file:// URL，危险文件走 safety wrap
-    }
-    response: OffsetPaginationResponse<FileEntryView>
-    // FileEntryView.path?: FilePath
-    // FileEntryView.url?: FileURLString
-  }
+interface FileIpcApi {
+  // ...
+  getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
+  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+  // 注：不再有 getSafeUrl / batchGetSafeUrls —— 参见下方"为什么 URL 不走 IPC"
 }
 ```
 
-Handler 实现：
+**共享 URL 工具**（`packages/shared/file/urlUtil.ts`，纯函数，main + renderer 共用）：
 
 ```typescript
-// 每条 entry 经过 main 的统一路径解析
-const path = includePath ? resolvePhysicalPath(entry) : undefined;
-const url = includeUrl ? "file://" + resolveSafeUrl(entry) : undefined;
+export function isDangerExt(ext: string | null): boolean         // 危险扩展名策略
+export function toFileUrl(path: FilePath): FileURLString         // 跨平台 file:// 编码
+export function toSafeFileUrl(path: FilePath, ext: string | null): FileURLString
+  // = isDangerExt(ext) ? toFileUrl(dirname(path)) : toFileUrl(path)
 ```
 
-**Main 侧基础函数**：
+Handler 实现（只剩 `getPhysicalPath`）：
+
+```typescript
+// main 侧处理：每个 id 经过统一路径解析
+async function batchGetPhysicalPaths(ids: FileEntryId[]) {
+  const entries = await fileEntryService.batchGetById(ids)
+  return Object.fromEntries(entries.map((e) => [e.id, resolvePhysicalPath(e)] as const))
+}
+```
+
+**Main 侧基础函数**（保留不变）：
 
 ```typescript
 // src/main/data/utils/pathResolver.ts (existing)
-export function resolvePhysicalPath(entry): string { ... }  // 绝对路径
-
-// 新增：带 safety 的 URL 包装
-export function resolveSafeUrl(entry): string {
-  const abs = resolvePhysicalPath(entry)
-  return isDangerExt(entry.ext) ? dirname(abs) : abs
-}
+export function resolvePhysicalPath(entry): string { ... }  // 绝对路径（authority 源头）
 ```
 
-**为什么不需要单独的 IPC `resolvePath(handle)` 方法**：
+**为什么 URL 不走 IPC**：`file://` URL 是**对已有 path 做纯字符串格式化** + **危险扩展名的策略判断**。两者都可以放在共享包里作为纯函数暴露：
 
-| 场景                     | 以为需要 IPC | 实际                                                    | 结论    |
-| ------------------------ | ------------ | ------------------------------------------------------- | ------- |
-| Agent compose 需要路径   | ✅           | `useQuery({ ids, includePath: true })` 天然 batch       | DataApi |
-| Drag-drop 拖出 Cherry    | ✅           | 同上（已有 entry 列表）                                 | DataApi |
-| Unmanaged handle 查 path | ✅           | 调用方本来就持有 path（unmanaged 的定义就是"外部路径"） | 无需查  |
-| 单条 entry 查 path       | ✅           | `useQuery(getEntry, { id, includePath: true })`         | DataApi |
+1. **Authority** 仍在 main —— `resolvePhysicalPath` 定义"id + ext 如何拼接、userData 在哪、是否 hash-bucket"
+2. **Formatting** 是 locality —— `toFileUrl` / `toSafeFileUrl` 只接受一个**已经由 main 权威产出的 path string**，不产生新的 authority。同一份 util 在 main / renderer 都能调，无需来回打桩
 
-所有场景都可以归到 DataApi。单独的 IPC `resolvePath` 没有不可替代的价值——**不引入**。
+这样比跨 IPC 暴露 `getSafeUrl` 更薄、表面更小，且 main 将来也能直接 `toSafeFileUrl(path, ext)` 给 `webContents.loadURL` 用，不需要再复制一份逻辑。
 
-**收益**（相比 renderer helper 方案）：
+**为什么 path 还要走 IPC（不纯函数）**：因为 path resolution 依赖 `userData` 位置 + 未来可能的 hash-bucket 等存储布局决策——**那是 authority，必须留在 main**。Renderer 拿到 path 后做的 URL 包装才是 formatting，可以下放。
 
-| 维度                                  | Renderer helper（作废）  | DataApi 统一方案（本方案）        |
-| ------------------------------------- | ------------------------ | --------------------------------- |
-| Renderer 知晓存储布局                 | ✅ 是                    | ❌ 否                             |
-| Main 改存储格式（如 subdir sharding） | renderer 需同步改        | renderer 无感                     |
-| 危险文件 safety 责任                  | 重复在 renderer          | 集中在 main                       |
-| Null byte 安全检查                    | renderer 需补            | `resolvePhysicalPath` 已有        |
-| C1 性能                               | 同步 O(1) 拼接           | 同步（随 query 返回，无额外 IPC） |
-| C4 性能                               | 同步                     | 同步（随 query 返回）             |
-| API 表面                              | renderer 新 service 文件 | DataApi 两个 opt-in 字段          |
+**为什么走 File IPC 而不是 DataApi 的 opt-in 字段**：
 
-Renderer helper 方案已作废。
+旧设计曾用 DataApi `includePath` / `includeUrl` opt-in 字段统一暴露，理由是"和 refCount / dangling 对称，一次 query 拿齐"。但这把**主进程计算**（`resolvePhysicalPath`）藏到 DataApi handler 里，违反了 DataApi 严格的**纯 SQL 交接**边界——DataApi 必须只做 SQL，任何 main-side 副作用（FS stat、resolver 调用、in-memory cache 查询）一律走 File IPC。
+
+新设计把 path 查询搬到 File IPC 的专用批量方法，URL 格式化放到共享纯函数：
+
+- Renderer 两步组合：先 DataApi 拉固定 shape 的 entry 列表，再 File IPC 批量拿 path；需要 URL 就在进程内 `toSafeFileUrl` 合成
+- 每一步 cost 在调用点显式可见（IPC 数量减半 + formatting 无成本）
+- DataApi 响应 shape 保持固定，缓存行为可预测
+
+**收益**（相比 renderer 拼路径 + 旧 DataApi opt-in + 早期 IPC 双方法三套方案）：
+
+| 维度                                  | Renderer helper（作废）  | DataApi opt-in（作废）                     | IPC 双方法 getPath+getSafeUrl（作废） | **本方案：IPC getPath + 共享 util** |
+| ------------------------------------- | ------------------------ | ------------------------------------------ | ------------------------------------- | ----------------------------------- |
+| Renderer 知晓存储布局                 | ✅ 是                    | ❌ 否                                      | ❌ 否                                 | ❌ 否                               |
+| Main 改存储格式                       | renderer 需同步改        | renderer 无感                              | renderer 无感                         | renderer 无感                       |
+| 危险文件 safety 责任                  | 重复在 renderer          | 集中在 main                                | 集中在 main                           | 集中在共享 util（main + renderer 同一份） |
+| Null byte 安全检查                    | renderer 需补            | `resolvePhysicalPath` 已有                 | 同左                                  | 同左                                |
+| DataApi 边界纪律                      | n/a                      | ❌ 破坏                                    | ✅ 遵守                               | ✅ 遵守                             |
+| IPC 表面                              | n/a                      | 0 个（塞进 DataApi）                       | 4 个（path + url 各 2）               | **2 个**（只有 path）              |
+| `<img src>` cost                      | 同步字符串拼接           | 列表 query 内部 map 逐条                   | 独立 `useQuery` + IPC                 | **0 IPC**（path 已有，URL 就地合成）|
+
+Renderer helper 方案、DataApi opt-in 方案、IPC 双方法方案皆已作废。
 
 #### 2.6.6 迁移步骤
 
@@ -892,19 +905,20 @@ Renderer helper 方案已作废。
 
 | #   | 文件                                        | 改动                                                                                                                                |
 | --- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | `src/main/data/utils/pathResolver.ts`       | 已有 `resolvePhysicalPath(entry)`；**新增** `resolveSafeUrl(entry)`（危险文件 → dirname wrap）+ `isDangerExt(ext)` helper           |
-| A2  | `packages/shared/data/api/schemas/files.ts` | query 加 `includePath?: boolean` + `includeUrl?: boolean`；`FileEntryView` 加 `path?: FilePath` + `url?: FileURLString` 字段（branded，Phase 1a C3 收紧）         |
-| A3  | DataApi handler（entry 查询）               | `includePath` → 每条 entry 调 `resolvePhysicalPath(entry)`；`includeUrl` → 每条调 `resolveSafeUrl(entry)` 并 `'file://' + ...` 包装 |
+| A1  | `src/main/data/utils/pathResolver.ts`       | 已有 `resolvePhysicalPath(entry)`；**保持不变**（不再新增 `resolveSafeUrl`——URL 合成下放到共享 util）                             |
+| A2  | `packages/shared/file/urlUtil.ts`（新）    | 共享纯函数：`isDangerExt(ext)` + `toFileUrl(path)`（跨平台 `file://` 编码）+ `toSafeFileUrl(path, ext)`（危险文件 → dirname wrap）  |
+| A3  | `packages/shared/file/types/ipc.ts`         | 声明 File IPC 新增方法：`getPhysicalPath` / `batchGetPhysicalPaths`（均为 managed-entry-only，接受 `FileEntryId`）                  |
+| A4  | File IPC handler（FileManager）             | 实现 `getPhysicalPath` / `batchGetPhysicalPaths`：内部调 `resolvePhysicalPath(entry)`；批量方法内部 `Promise.all` 并返回 `Record<id, path>` |
 
 **Step B: C1 显示 URL 迁移**
 
 | #   | 文件                                  | 改动                                                                                    |
 | --- | ------------------------------------- | --------------------------------------------------------------------------------------- |
-| B1  | `AttachmentPreview.tsx:109, 112, 127` | `'file://' + FileManager.getSafePath(file)` → query 带 `includeUrl:true` 拿 `entry.url` |
+| B1  | `AttachmentPreview.tsx:109, 112, 127` | `'file://' + FileManager.getSafePath(file)` → 独立 `useQuery` 调 File IPC `batchGetPhysicalPaths(ids)` 拿 `FilePath`，渲染时 `toSafeFileUrl(paths[entry.id], entry.ext)` 合成 URL |
 | B2  | `MessageAttachments.tsx:39`           | 同上                                                                                    |
 | B3  | `ImageBlock.tsx:22`                   | 同上                                                                                    |
 
-所有 C1 消费者的上游 query（useQuery / useLiveQuery 等）需要传 `includeUrl: true`。
+所有 C1 消费者组合两个 `useQuery`：DataApi 拉 entry 列表（固定 shape，带 `ext`）+ File IPC `batchGetPhysicalPaths` 批量拿 path。URL 由共享纯函数 `toSafeFileUrl(path, ext)` 就地合成——零额外 IPC。重复使用场景建议包一个 `useEntriesWithUrl(ids)` hook。
 
 **Step C: C2 open/reveal 迁移**
 
@@ -927,7 +941,7 @@ Renderer helper 方案已作废。
 
 | #   | 文件                           | 改动                                                                                             |
 | --- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| E1  | `AgentSessionInputbar.tsx:395` | `files.map(f => f.path)` → DataApi query 带 `includePath: true`，直接 `entries.map(e => e.path)` |
+| E1  | `AgentSessionInputbar.tsx:395` | `files.map(f => f.path)` → 独立 `useQuery` 调 File IPC `batchGetPhysicalPaths(ids)`；`selectedFileIds.map(id => paths[id]).filter(Boolean).join('\n')` |
 
 **Step F: C5 Path 派生消除**
 
@@ -973,17 +987,18 @@ Renderer helper 方案已作废。
 
 C4 的 `AgentSessionInputbar.tsx:395` 当前是 `files.map(f => f.path).join('\n')`——多个文件路径一次拿到。
 
-v2 直接通过 DataApi query 带 `includePath: true` 批量拿：
+v2 走 File IPC 专用批量方法 `batchGetPhysicalPaths`（不走 DataApi——main-side resolver 调用是 DataApi 禁区）：
 
 ```typescript
-const { data: entries } = useQuery(fileApi.listEntries, {
-  ids: selectedFileIds,
-  includePath: true,
-});
-const filePaths = entries.map((e) => e.path).join("\n");
+const { data: paths } = useQuery(
+  ['fileManager.batchGetPhysicalPaths', selectedFileIds],
+  () => window.api.fileManager.batchGetPhysicalPaths(selectedFileIds),
+  { enabled: selectedFileIds.length > 0 }
+)
+const filePaths = selectedFileIds.map((id) => paths?.[id]).filter(Boolean).join('\n')
 ```
 
-**无额外 batch API**——DataApi 本身就是 list 查询，天然 batch。
+IPC 批量方法内部 `Promise.all` 一次 RT 完成——效率等同旧方案，但成本明确落在独立的 `useQuery` 上，不隐藏在列表 query 的 opt-in flag 里。
 
 #### 2.6.9 关键风险
 
@@ -1050,24 +1065,26 @@ const filePaths = entries.map((e) => e.path).join("\n");
 
 这条和 §2.3（count 用 file_ref 取代）+ RFC §10（FileMigrator 设计）一致。
 
-**Q4: Path 暴露到 renderer 的方式** ✅ **已决定**
+**Q4: Path 暴露到 renderer 的方式** ✅ **已决定**（经架构师复核后收紧）
 
-**统一通过 DataApi 两个 opt-in 字段**——renderer 不知道内部存储布局，main 作为 path 的唯一来源。
+**统一通过 File IPC 专用批量方法**——renderer 不知道内部存储布局，main 作为 path 的唯一来源。
 
-- `includePath: true` → `entry.path` 原始绝对路径（agent / drag-drop / subprocess）
-- `includeUrl: true` → `entry.url` `file://` URL + 危险文件 safety wrap（`<img src>` / `<video src>`）
+- `getPhysicalPath` / `batchGetPhysicalPaths` → 原始绝对路径（agent / drag-drop / subprocess）
+- 共享纯函数 `toSafeFileUrl(path, ext)`（`@shared/file/urlUtil`）→ `file://` URL + 危险文件 safety wrap（`<img src>` / `<video src>`），就地合成，无独立 IPC
 
-**无单独 IPC `resolvePath` 方法**——所有需要 path 的场景都能归到 DataApi 的 list / get query。IPC 保持做 mutation + 不便 REST 的操作。
+**为什么不再走 DataApi opt-in**：DataApi 被严格收紧为**纯 SQL + 固定 shape 响应**，任何 main-side 副作用（resolver 调用、FS stat、in-memory cache 查询）都必须走 File IPC。让 DataApi handler 调 `resolvePhysicalPath` 会把 main-side 计算藏到"只读 SQL 接口"里，破坏边界——consumer 无法从端点签名判断这次调用有没有隐性 IO。
 
 **已作废的设计**：
 
 - Renderer-side `entryToFileUrl / entryToAbsolutePath` helper（暴露存储布局给 renderer）
-- IPC `resolvePath(handle)` 方法（和 DataApi `includePath` 功能重复）
+- DataApi `includePath` / `includeUrl` opt-in 字段（把 main-side 计算混入 SQL 接口）
 
 收益：
 
-- API 表面更窄（只有 DataApi opt-in，无独立 IPC）
-- Main 改存储格式（subdir sharding 等）不影响 renderer
+- DataApi 边界纪律明确：看到 DataApi 端点 = 纯 SQL，看到 File IPC 调用 = 可能有副作用
+- Renderer 调用成本可见：每次要 path / url 就写一个独立的 `useQuery`，藏不住
+- Batch 效率等同旧方案（IPC 内部 `Promise.all`）
+- Main 改存储格式（subdir sharding 等）仍然不影响 renderer
 - 危险文件 safety 集中在 main
 - Null byte 检查自然包含
 
@@ -1186,7 +1203,7 @@ export function entryDisplayName(entry: FileEntry): string {
 
 | #   | 文件                                | 改动                                                                                           |
 | --- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| C1  | `FileManager.getFileUrl` (line 148) | 已在 §2.6 `includeUrl` 覆盖，删除旧 helper                                                     |
+| C1  | `FileManager.getFileUrl` (line 148) | 已由 File IPC `getPhysicalPath` + 共享 `toSafeFileUrl(path, ext)` 覆盖，删除旧 helper          |
 | C2  | `KnowledgeService.ts:135`           | `http://file/${file.name}` → `http://file/${entry.id}`（用 id 作为资源标识）                   |
 | C3  | `utils/knowledge.ts:211, 222`       | XML 的 `filename="..."` 用 `entryDisplayName(entry)`                                           |
 | C4  | `KnowledgeSearchItem/hooks.ts:54`   | `href: http://file/${item.file.name}` → `${entry.id}`                                          |

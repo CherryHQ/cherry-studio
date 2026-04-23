@@ -43,9 +43,20 @@ export type URLString = `http://${string}` | `https://${string}`
  * `file://` URL pointing at a local resource.
  *
  * Runtime validation required — the template-literal pattern only provides a
- * type-level hint. Produced by FileManager `getUrl` / DataApi `includeUrl` with
- * a danger-file safety wrap (see `FileEntryView.url`). Keep this distinct from
- * `URLString` (http/https) so signatures can refuse the wrong family.
+ * type-level hint. Produced by the shared pure helper
+ * `toSafeFileUrl(path, ext)` (in `@shared/file/urlUtil`), which composes an
+ * absolute `FilePath` (obtained from File IPC `getPhysicalPath` /
+ * `batchGetPhysicalPaths`) with a danger-file safety wrap (for
+ * `.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc., the URL points at the
+ * containing directory instead of the file).
+ *
+ * Keep this distinct from `URLString` (http/https) so signatures can refuse
+ * the wrong family.
+ *
+ * The safety wrap is scoped to HTML rendering contexts (`<img src>` /
+ * `<video src>` / `<embed>`); it is **not** a general-purpose path-safety
+ * primitive — don't compose this value into shell commands or subprocess args.
+ * Use the raw `FilePath` from `getPhysicalPath` for those cases.
  */
 export type FileURLString = `file://${string}`
 

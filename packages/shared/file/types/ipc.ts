@@ -2,8 +2,13 @@
  * File IPC type contracts
  *
  * Defines the parameter and return types for File IPC operations.
- * All file entry write operations that may affect the filesystem go through
- * File IPC (not DataApi). The handler delegates to FileManager (sole FS owner).
+ *
+ * File IPC is the home for **all** file operations that need FS IO or main-side
+ * computation — both mutations (create / rename / delete / move / write / trash)
+ * and reads that reach past the DB (content read, dangling probe, path resolution,
+ * safe URL, dialogs, streams, `open`). DataApi is kept strictly to pure SQL
+ * queries; anything that would touch `fs.stat`, `resolvePhysicalPath`, or
+ * `DanglingCache` belongs here instead.
  *
  * These types are shared between main (handler implementation) and
  * preload (method signatures exposed to renderer).
@@ -16,10 +21,10 @@
  * - `{ kind: 'unmanaged', path }`  → `ops/*` direct (path-only)
  *
  * Operations that only make sense on FileEntry (trash, rename, refreshMetadata,
- * etc.) take `FileEntryId` directly.
+ * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileHandle } from './handle'
@@ -256,7 +261,7 @@ export interface FileIpcApi {
    * Re-stat external entry and refresh DB snapshot (name/ext/size). No-op for internal.
    * Side effect: updates DanglingCache based on stat result.
    *
-   * Dangling state itself is queried via DataApi (`includeDangling`).
+   * Dangling state itself is queried via `getDanglingState` / `batchGetDanglingStates` (section K).
    */
   refreshMetadata(params: { id: FileEntryId }): Promise<FileEntry>
 
@@ -274,6 +279,77 @@ export interface FileIpcApi {
 
   /** Check if a directory is non-empty. */
   isNotEmptyDir(dirPath: FilePath): Promise<boolean>
+
+  // ─── K. Entry Enrichment (managed-entry only; FS / main-side compute) ───
+  //
+  // These methods replace the former DataApi opt-in fields
+  // (`includeDangling` / `includePath`). DataApi is kept strictly SQL-only;
+  // anything that needs FS IO or main-side resolvers lives here.
+  //
+  // For the `file://` URL that used to be served via `includeUrl`, callers
+  // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
+  // in `@shared/file/urlUtil` — a pure formatting layer over the `FilePath`
+  // returned by `getPhysicalPath`, so it needs no IPC of its own.
+  //
+  // Each method has a single-item and a batch form. Prefer the batch form when
+  // rendering lists — it gives the handler room to parallelize and amortize
+  // cache lookups, and keeps the per-call IPC overhead O(1).
+
+  /**
+   * Query the presence state of an external managed entry (via file_module's
+   * `DanglingCache`). On cache hit, synchronous; on miss, performs a single
+   * `fs.stat` and updates the cache. Internal entries always return `'present'`.
+   *
+   * ## Staleness contract (best-effort)
+   *
+   * `dangling` is an FS-observed time-varying value — the watcher does not
+   * guarantee coverage of every path, and a file may be externally deleted
+   * immediately after a cache hit. Consumers MUST allow a natural refresh
+   * lifecycle (React Query `staleTime` ≤ 5min, or explicit refetch after a
+   * user action). Do NOT cache with `staleTime: Infinity` — that combination
+   * is self-contradictory (asking for dangling while refusing to re-check).
+   *
+   * For user-triggered refresh of a specific entry, call `refreshMetadata(id)`
+   * and invalidate the presence query.
+   */
+  getDanglingState(params: { id: FileEntryId }): Promise<DanglingState>
+
+  /**
+   * Batch form of `getDanglingState`. Each requested id appears in the result
+   * map. Unknown ids map to `'unknown'`.
+   */
+  batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>>
+
+  /**
+   * Resolve the absolute filesystem path of a managed entry. For internal
+   * entries this is `{userData}/files/{id}.{ext}`; for external entries it
+   * returns `entry.externalPath`.
+   *
+   * ## Intended uses
+   *
+   * - Agent context embedding (passing a path string to an LLM prompt)
+   * - Drag-drop to external apps (via `webContents.startDrag`)
+   * - Subprocess spawn / third-party CLI that only accepts path arguments
+   * - "Open in external editor" UX
+   *
+   * ## NOT intended (convention)
+   *
+   * - Do NOT treat this as a stable identifier — storage layout may change.
+   *   Use `entry.id` when identity is all you need.
+   * - Do NOT string-concat into shell commands without independent sanitization.
+   * - Do NOT use this to bypass FileManager for writes — mutations must go
+   *   through File IPC so version / dangling / FS invariants stay consistent.
+   *
+   * Enforced **by convention** (code review gate); the type system cannot
+   * prevent a renderer from misusing a `FilePath` string.
+   */
+  getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
+
+  /**
+   * Batch form of `getPhysicalPath`. Each requested id appears in the result
+   * map. Unknown ids are omitted.
+   */
+  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
 }
 
 // ─── Electron Types ───
