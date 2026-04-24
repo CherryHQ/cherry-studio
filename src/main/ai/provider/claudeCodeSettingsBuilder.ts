@@ -483,9 +483,16 @@ async function buildSystemPrompt(
   }
 
   // Soul mode
+  // Ordering: persona → user intent → channel safety → language directive.
+  // Upstream #14424: without the `session.instructions` slot, Soul Mode
+  // silently dropped any per-session user instructions (only Assistant /
+  // default branches honored them). Keep Soul persona dominant by
+  // appending (not prepending), and keep channel security after so
+  // external-channel safety still wins over user-provided instructions.
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
-    return `${soulPrompt}${channelSecurityBlock}\n\n${langInstruction}`
+    const userInstructions = session.instructions ? `\n\n${session.instructions}` : ''
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}\n\n${langInstruction}`
   }
 
   // Standard mode

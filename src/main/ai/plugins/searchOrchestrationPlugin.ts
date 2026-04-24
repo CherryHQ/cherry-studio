@@ -36,7 +36,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { generateText, type LanguageModel, type ModelMessage } from 'ai'
 
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
-import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 import { extractInfoFromXML, type ExtractResults } from '../utils/extract'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
@@ -183,11 +183,30 @@ export const searchOrchestrationPlugin = (
         const queries = analysis.websearch.question
         const needsSearch = queries && queries.length > 0 && queries[0] !== 'not_needed'
         if (needsSearch) {
-          params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+          params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
             webSearchProviderId,
             analysis.websearch,
             context.requestId
           )
+
+          // Disable the builtin web search tool on later tool-loop steps
+          // once it has been called. Without this gate, models that keep
+          // re-invoking `builtin_web_search` across steps blow up token
+          // usage with duplicated citation payloads (upstream #14466).
+          const prepareStep = params.prepareStep
+          params.prepareStep = async (options) => {
+            const stepConfig = await prepareStep?.(options)
+            const alreadySearched = options.steps.some((step) =>
+              step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
+            )
+            if (!alreadySearched) return stepConfig
+
+            const allowed = stepConfig?.activeTools ?? Object.keys(params.tools!)
+            return {
+              ...stepConfig,
+              activeTools: allowed.filter((toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME)
+            }
+          }
         }
       }
 

@@ -28,6 +28,53 @@ import * as z from 'zod'
 
 const logger = loggerService.withContext('WebSearchTool')
 
+export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
+
+/**
+ * Return just the origin of `url` (`scheme://host[:port]`), or the raw
+ * string if it isn't a valid URL. Used to shorten citation URLs passed
+ * back to the model — saves a lot of tokens on long search result URLs
+ * while keeping the click-through domain recognizable.
+ */
+function getUrlOriginOrFallback(url: string): string {
+  try {
+    return new URL(url).origin
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Cap concurrent searches per-response (upstream #14466). Intent analysers
+ * over-suggest questions; more than 3 rarely adds signal and explodes token
+ * usage.
+ */
+const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
+
+/**
+ * Trim + lowercase-dedupe + cap the intent-extracted question list.
+ * Preserves the `'not_needed'` / `'summarize'` sentinel values — only the
+ * actual-query path applies caps.
+ */
+function normalizeWebSearchQueries(questions: string[]): string[] {
+  if (questions[0] === 'not_needed') {
+    return ['not_needed']
+  }
+
+  const seen = new Set<string>()
+
+  return questions
+    .map((question) => question.trim())
+    .filter((question) => question.length > 0)
+    .filter((question) => {
+      const key = question.toLocaleLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, MAX_BUILTIN_WEB_SEARCH_QUERIES)
+}
+
 /**
  * Build a `web_search` tool pre-configured with intent-extracted queries.
  *
@@ -42,8 +89,13 @@ export const webSearchToolWithPreExtractedKeywords = (
     links?: string[]
   },
   requestId: string
-) =>
-  tool({
+) => {
+  // Cached per-closure so repeated tool executions inside the same
+  // response (e.g. a retry after the model re-invokes the tool) reuse the
+  // first search result instead of spawning another upstream call.
+  let cachedSearchResultsPromise: Promise<WebSearchResponse> | undefined
+
+  return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
 
 This tool has been configured with search parameters based on the conversation context:
@@ -61,14 +113,18 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext }) => {
-      let finalQueries = [...extractedKeywords.question]
+      if (cachedSearchResultsPromise) {
+        return cachedSearchResultsPromise
+      }
+
+      let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
 
       if (additionalContext?.trim()) {
-        finalQueries = [additionalContext.trim()]
+        finalQueries = normalizeWebSearchQueries([additionalContext.trim()])
       }
 
       // Skip when intent analyser said no search is needed.
-      if (finalQueries[0] === 'not_needed' || finalQueries.length === 0) {
+      if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
         return { query: '', results: [] } satisfies WebSearchResponse
       }
 
@@ -86,16 +142,16 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         return { query: 'summaries', results } satisfies WebSearchResponse
       }
 
-      try {
-        return await webSearchService.search({
-          providerId,
-          questions: finalQueries,
-          requestId
+      cachedSearchResultsPromise = webSearchService
+        .search({ providerId, questions: finalQueries, requestId })
+        .catch((error) => {
+          // Drop the cache on failure so a retry can still go through.
+          cachedSearchResultsPromise = undefined
+          logger.error('webSearchService.search failed', error as Error, { providerId, requestId })
+          return { query: finalQueries.join(' | '), results: [] } satisfies WebSearchResponse
         })
-      } catch (error) {
-        logger.error('webSearchService.search failed', error as Error, { providerId, requestId })
-        return { query: finalQueries.join(' | '), results: [] } satisfies WebSearchResponse
-      }
+
+      return cachedSearchResultsPromise
     },
 
     toModelOutput: ({ output: results }) => {
@@ -108,7 +164,9 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         number: index + 1,
         title: result.title,
         content: result.content,
-        url: result.url
+        // Shorten to origin to save tokens — full URL is still available
+        // in the search result payload for UI click-through.
+        url: getUrlOriginOrFallback(result.url)
       }))
 
       const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
@@ -130,6 +188,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
       }
     }
   })
+}
 
 export type WebSearchToolInput = InferToolInput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>
 export type WebSearchToolOutput = InferToolOutput<ReturnType<typeof webSearchToolWithPreExtractedKeywords>>

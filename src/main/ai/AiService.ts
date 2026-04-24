@@ -79,13 +79,20 @@ function mergeTools(base: ToolSet | undefined, extra: ToolSet | undefined): Tool
 /**
  * Resolve the `stopWhen` condition for the inner tool-call loop.
  *
- *   - `enableMaxToolCalls` = false → `undefined` (AI SDK default applies).
- *   - Otherwise, clamp the user-supplied `maxToolCalls` to `[MIN, MAX]`;
- *     invalid / missing values fall back to the schema default.
+ * Always returns a `stepCountIs(N)` — never `undefined`. The AI SDK's own
+ * default is `stepCountIs(1)`, which would cut native tool-use flows off
+ * after the first tool execution (the follow-up model request for the
+ * tool result would never fire — upstream #14478).
+ *
+ *   - `enableMaxToolCalls` = false → use the schema default cap
+ *   - `enableMaxToolCalls` = true  → clamp the user value to [MIN, MAX],
+ *     fall back to the schema default on invalid / missing input
  */
-function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> | undefined {
+function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> {
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
-  if (!enableMaxToolCalls) return undefined
+  if (!enableMaxToolCalls) {
+    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+  }
 
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
