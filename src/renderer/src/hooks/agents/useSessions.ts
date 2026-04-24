@@ -1,48 +1,61 @@
-import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
+import { dataApiService } from '@data/DataApiService'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type {
   AgentSessionEntity,
   CreateAgentSessionResponse,
   CreateSessionForm,
-  GetAgentSessionResponse,
-  ListAgentSessionsResponse
+  GetAgentSessionResponse
 } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { AgentSessionEntity as DataApiSessionEntity } from '@shared/data/api/schemas/agents'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
 
-import { useAgentClient } from './useAgentClient'
 import { useSessionChanged } from './useSessionChanged'
+
+const DEFAULT_SESSION_PAGE_SIZE = 20
+
+// Internal page type using the DataAPI schema entity (configuration: Record<string, unknown>)
+type SessionsPage = {
+  items: DataApiSessionEntity[]
+  total: number
+  limit: number
+  offset: number
+}
 
 export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_PAGE_SIZE) => {
   const { t } = useTranslation()
-  const client = useAgentClient()
 
-  const getKey = (pageIndex: number, previousPageData: ListAgentSessionsResponse | null) => {
-    if (!agentId || !client) return null
-    if (previousPageData && previousPageData.data.length < pageSize) return null
-    return [client.getSessionPaths(agentId).base, pageIndex, pageSize]
+  const getKey = (pageIndex: number, previousPageData: SessionsPage | null) => {
+    if (!agentId) return null
+    if (previousPageData && previousPageData.items.length < pageSize) return null
+    return [`/agents/${agentId}/sessions`, pageIndex, pageSize]
   }
 
-  const fetcher = async ([, pageIndex, pageLimit]: [string, number, number]) => {
-    if (!agentId || !client) throw new Error('No active agent.')
-    return await client.listSessions(agentId, {
-      limit: pageLimit,
-      offset: pageIndex * pageLimit
-    })
+  const fetcher = async ([path, pageIndex, pageLimit]: [string, number, number]) => {
+    return dataApiService.get(path as never, {
+      query: {
+        limit: pageLimit,
+        offset: pageIndex * pageLimit
+      }
+    }) as Promise<SessionsPage>
   }
 
   const { data, error, isLoading, isValidating, mutate, size, setSize } = useSWRInfinite(getKey, fetcher)
 
-  const sessions = useMemo(() => {
+  const sessions = useMemo((): AgentSessionEntity[] => {
     if (!data) return []
-    return data.flatMap((page) => page.data)
+    // Cast DataAPI session entity (configuration: Record<string, unknown>) to renderer
+    // AgentSessionEntity — callers that need typed configuration use AgentConfigurationSchema.parse()
+    return data.flatMap((page) => page.items) as unknown as AgentSessionEntity[]
   }, [data])
 
   const total = useMemo(() => {
     if (!data || data.length === 0) return 0
     return data[data.length - 1].total
   }, [data])
+
   const hasMore = sessions.length < total
   const isLoadingMore = isLoading || (size > 0 && data && typeof data[size - 1] === 'undefined')
 
@@ -59,44 +72,51 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
   // Auto-refresh when IM channel creates/updates sessions
   useSessionChanged(agentId ?? undefined, reload)
 
+  const { trigger: createTrigger } = useMutation('POST', '/agents/:agentId/sessions', {
+    refresh: ({ args }) => [`/agents/${args?.params?.agentId}/sessions`]
+  })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<CreateAgentSessionResponse | null> => {
-      if (!agentId || !client) return null
+      if (!agentId) return null
       try {
-        const result = await client.createSession(agentId, form)
+        const result = await createTrigger({ params: { agentId }, body: form })
         void mutate(
           (prev) => {
             if (!prev || prev.length === 0) {
-              return [{ data: [result], total: 1, limit: pageSize, offset: 0 }]
+              return [{ items: [result], total: 1, limit: pageSize, offset: 0 }]
             }
             const newTotal = prev[0].total + 1
             return prev.map((page, i) => ({
               ...page,
-              data: i === 0 ? [result, ...page.data] : page.data,
+              items: i === 0 ? [result, ...page.items] : page.items,
               total: newTotal
             }))
           },
           { revalidate: false }
         )
-        return result
+        return result as unknown as CreateAgentSessionResponse
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [agentId, client, mutate, pageSize, t]
+    [agentId, createTrigger, mutate, pageSize, t]
   )
 
   const getSession = useCallback(
     async (id: string): Promise<GetAgentSessionResponse | null> => {
-      if (!agentId || !client) return null
+      if (!agentId) return null
       try {
-        const result = await client.getSession(agentId, id)
+        const result = (await dataApiService.get(
+          `/agents/${agentId}/sessions/${id}`
+        )) as unknown as GetAgentSessionResponse
         void mutate(
           (prev) =>
             prev?.map((page) => ({
               ...page,
-              data: page.data.map((session) => (session.id === result.id ? result : session))
+              items: page.items.map((session) =>
+                session.id === result.id ? (result as unknown as DataApiSessionEntity) : session
+              )
             })),
           { revalidate: false }
         )
@@ -106,21 +126,24 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
         return null
       }
     },
-    [agentId, client, mutate, t]
+    [agentId, mutate, t]
   )
 
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId/sessions/:sessionId', {
+    refresh: ({ args }) => [`/agents/${args?.params?.agentId}/sessions`]
+  })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
-      if (!agentId || !client) return false
+      if (!agentId) return false
       try {
-        await client.deleteSession(agentId, id)
+        await deleteTrigger({ params: { agentId, sessionId: id } })
         void mutate(
           (prev) => {
             if (!prev || prev.length === 0) return prev
             const newTotal = prev[0].total - 1
             return prev.map((page) => ({
               ...page,
-              data: page.data.filter((session) => session.id !== id),
+              items: page.items.filter((session) => session.id !== id),
               total: newTotal
             }))
           },
@@ -132,29 +155,31 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
         return false
       }
     },
-    [agentId, client, mutate, t]
+    [agentId, deleteTrigger, mutate, t]
   )
 
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
-      if (!agentId || !client) return
+      if (!agentId) return
       const orderedIds = reorderedList.map((s) => s.id)
       // Optimistic update: replace all pages with single page containing reordered list
       void mutate(
         (prev) => {
           const realTotal = prev && prev.length > 0 ? prev[prev.length - 1].total : reorderedList.length
-          return [{ data: reorderedList, total: realTotal, limit: pageSize, offset: 0 }]
+          return [
+            { items: reorderedList as unknown as DataApiSessionEntity[], total: realTotal, limit: pageSize, offset: 0 }
+          ]
         },
         { revalidate: false }
       )
       try {
-        await client.reorderSessions(agentId, orderedIds)
+        await window.api.agent.reorderSessions(agentId, orderedIds)
       } catch (error) {
         void mutate()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
     },
-    [agentId, client, mutate, pageSize, t]
+    [agentId, mutate, pageSize, t]
   )
 
   return {

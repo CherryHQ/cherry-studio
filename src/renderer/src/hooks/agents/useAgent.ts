@@ -1,48 +1,32 @@
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
-
-import { useApiServer } from '../useApiServer'
-import { useAgentClient } from './useAgentClient'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { GetAgentResponse } from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
+import { useMemo } from 'react'
 
 export const useAgent = (id: string | null) => {
-  const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = client && id ? client.agentPaths.withId(id) : null
-  const { apiServerConfig, apiServerRunning } = useApiServer()
-
-  // Disable SWR fetching until auth is ready
-  const swrKey = apiServerRunning && apiServerConfig.apiKey && id && key ? key : null
-
-  const fetcher = useCallback(async () => {
-    if (!id) {
-      throw new Error(t('agent.get.error.null_id'))
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId', {
+    params: { agentId: id! },
+    enabled: !!id,
+    swrOptions: {
+      // Agent config may be modified externally (e.g. claw MCP tool in main process),
+      // so always revalidate on mount and reduce dedup window to get fresh data.
+      revalidateOnMount: true,
+      dedupingInterval: 2000
     }
-    if (!apiServerConfig.enabled) {
-      throw new Error(t('apiServer.messages.notEnabled'))
-    }
-    if (!client) {
-      throw new Error(t('apiServer.messages.notEnabled'))
-    }
-    const result = await client.getAgent(id)
-    return result
-  }, [apiServerConfig.enabled, client, id, t])
-  const {
-    data,
-    error,
-    isLoading,
-    mutate: revalidate
-  } = useSWR(swrKey, fetcher, {
-    // Agent config may be modified externally (e.g. claw MCP tool in main process),
-    // so always revalidate on mount and reduce dedup window to get fresh data.
-    revalidateOnMount: true,
-    dedupingInterval: 2000
   })
 
-  return {
-    agent: data,
-    error,
-    isLoading,
-    revalidate
-  }
+  // Apply Zod defaults to `configuration` so callers receive a fully-typed
+  // AgentConfiguration (with permission_mode, max_turns, env_vars defaults)
+  // rather than the raw Record<string, unknown> returned by the DataAPI.
+  // Cast to GetAgentResponse for structural compatibility with settings components
+  // (tools field will be undefined — callers use `?? []` fallbacks).
+  const agent = useMemo((): GetAgentResponse | undefined => {
+    if (!data) return undefined
+    return {
+      ...(data as unknown as GetAgentResponse),
+      configuration: data.configuration != null ? AgentConfigurationSchema.parse(data.configuration) : undefined
+    }
+  }, [data])
+
+  return { agent, error, isLoading, revalidate: refetch }
 }
