@@ -116,7 +116,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.context.delete_confirm_title': '确认删除知识库',
           'knowledge_v2.context.rename': '重命名',
           'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`,
-          'knowledge_v2.status.completed': '已完成'
+          'knowledge_v2.status.completed': '就绪'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -147,7 +147,7 @@ describe('DetailHeader', () => {
   it('renders the completed status dot before the status text', () => {
     render(<DetailHeader base={createKnowledgeBase()} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
 
-    const statusText = screen.getByText('已完成')
+    const statusText = screen.getByText('就绪')
     const statusDot = statusText.previousElementSibling
 
     expect(statusDot).toHaveAttribute('aria-hidden', 'true')

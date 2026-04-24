@@ -67,7 +67,7 @@ vi.mock('react-i18next', () => ({
       return (
         (
           {
-            'common.add': '添加',
+            'knowledge_v2.data_source.add_dialog.title': '添加数据源',
             'common.loading': '加载中...',
             'common.cancel': '取消',
             'common.delete': '删除',
@@ -199,7 +199,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加数据源' }))
 
     expect(onAdd).toHaveBeenCalledTimes(1)
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()

@@ -2267,7 +2267,7 @@
     "rename_title": "重命名知识库",
     "search": "搜索知识库",
     "status": {
-      "completed": "已完成",
+      "completed": "就绪",
       "failed": "失败",
       "processing": "处理中"
     },

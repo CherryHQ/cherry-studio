@@ -62,7 +62,7 @@ const KnowledgeBaseRow = ({
           size="sm"
           onClick={() => onSelectBase(base.id)}
           className={cn(
-            'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
+            'h-10.25 min-h-10.25 w-full justify-start gap-2 rounded-md px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
             selected ? 'bg-accent hover:bg-accent hover:text-foreground' : 'hover:bg-accent/60 hover:text-foreground'
           )}>
           <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted/60 text-xs">
