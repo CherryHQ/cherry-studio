@@ -18,7 +18,7 @@ interface BaseNavigatorProps {
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
   onCreateGroup: () => void
-  onCreateBase: () => void
+  onCreateBase: (groupId?: string) => void
   onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
@@ -83,6 +83,7 @@ const BaseNavigator = ({
           onMoveBase={onMoveBase}
           onRenameBase={onRenameBase}
           onRenameGroup={onRenameGroup}
+          onCreateBaseInGroup={onCreateBase}
           onDeleteGroup={onDeleteGroup}
           onDeleteBase={onDeleteBase}
         />

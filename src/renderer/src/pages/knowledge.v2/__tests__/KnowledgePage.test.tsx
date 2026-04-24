@@ -56,7 +56,7 @@ vi.mock('../components/navigator', () => ({
     selectedBaseId: string
     onSelectBase: (baseId: string) => void
     onCreateGroup: () => void
-    onCreateBase: () => void
+    onCreateBase: (groupId?: string) => void
     onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
     onRenameBase: (base: { id: string; name: string }) => void
     onRenameGroup: (group: { id: string; name: string }) => void
@@ -70,7 +70,7 @@ vi.mock('../components/navigator', () => ({
       <button type="button" onClick={onCreateGroup}>
         新建分组
       </button>
-      <button type="button" onClick={onCreateBase}>
+      <button type="button" onClick={() => onCreateBase()}>
         新建知识库
       </button>
       {bases.map((base) => (
@@ -93,6 +93,9 @@ vi.mock('../components/navigator', () => ({
         <div key={group.id}>
           <button type="button" onClick={() => onRenameGroup(group)}>
             RenameGroup {group.name}
+          </button>
+          <button type="button" onClick={() => onCreateBase(group.id)}>
+            CreateBaseInGroup {group.name}
           </button>
           <button type="button" onClick={() => void onDeleteGroup(group.id)}>
             DeleteGroup {group.name}
@@ -207,12 +210,14 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
   default: ({
     open,
     groups,
+    initialGroupId,
     createBase,
     onOpenChange,
     onCreated
   }: {
     open: boolean
     groups: Array<{ id: string; name: string }>
+    initialGroupId?: string
     createBase: (input: {
       name: string
       emoji: string
@@ -226,12 +231,14 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     open ? (
       <div data-testid="create-dialog">
         <div data-testid="create-dialog-groups">{groups.map((group) => group.name).join(',')}</div>
+        <div data-testid="create-dialog-initial-group-id">{initialGroupId}</div>
         <button
           type="button"
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
               emoji: '📚',
+              ...(initialGroupId ? { groupId: initialGroupId } : {}),
               embeddingModelId: 'openai::text-embedding-3-small',
               dimensions: '1536'
             })
@@ -877,6 +884,68 @@ describe('KnowledgePage', () => {
     })
     expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-2')
+  })
+
+  it('opens the create dialog with the selected group id from a group action', async () => {
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚', groupId: 'group-2' })
+    const createBase = vi.fn().mockResolvedValue(createdBase)
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseCreateKnowledgeBase.mockReturnValue({
+      createBase,
+      isCreating: false,
+      createError: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
+
+    expect(screen.getByTestId('create-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+
+    await waitFor(() => {
+      expect(createBase).toHaveBeenCalledWith(expect.objectContaining({ groupId: 'group-2' }))
+    })
+  })
+
+  it('clears the initial group id after closing a grouped create dialog', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' }))
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseCreateKnowledgeBase.mockReturnValue({
+      createBase,
+      isCreating: false,
+      createError: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'CreateBaseInGroup Archive' }))
+    expect(screen.getByTestId('create-dialog-initial-group-id')).toHaveTextContent('group-2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Create' }))
+    fireEvent.click(screen.getByRole('button', { name: '新建知识库' }))
+
+    expect(screen.getByTestId('create-dialog-initial-group-id')).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Create' }))
+
+    await waitFor(() => {
+      expect(createBase).toHaveBeenCalledWith(expect.not.objectContaining({ groupId: expect.any(String) }))
+    })
   })
 
   it('wires move and delete actions to the knowledge base mutation hooks', async () => {

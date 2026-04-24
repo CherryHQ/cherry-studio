@@ -13,7 +13,7 @@ const BaseNavigatorFooter = ({ onCreateBase }: BaseNavigatorFooterProps) => {
         type="button"
         variant="ghost"
         className="h-7.25 min-h-7.25 w-full rounded-lg border border-border/40 border-dashed py-1.25 font-medium text-[0.6875rem] text-muted-foreground shadow-none hover:border-border/70 hover:bg-accent/60 hover:text-foreground"
-        onClick={onCreateBase}>
+        onClick={() => onCreateBase()}>
         <Plus className="size-3" />
         {t('knowledge_v2.add.title')}
       </Button>

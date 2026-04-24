@@ -83,8 +83,8 @@ vi.mock('react-i18next', () => ({
             'knowledge_v2.data_source.filters.file': '文件',
             'knowledge_v2.data_source.filters.note': '笔记',
             'knowledge_v2.data_source.filters.directory': '目录',
-            'knowledge_v2.data_source.filters.url': '链接',
-            'knowledge_v2.data_source.filters.sitemap': '站点地图',
+            'knowledge_v2.data_source.filters.url': '网址',
+            'knowledge_v2.data_source.filters.sitemap': '网站',
             'knowledge_v2.data_source.status.ready': '就绪',
             'knowledge_v2.data_source.status.error': '失败',
             'knowledge_v2.data_source.status.embedding': '向量化中',
@@ -174,8 +174,8 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '站点地图' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '网址' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '网站' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '文件' }))
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()

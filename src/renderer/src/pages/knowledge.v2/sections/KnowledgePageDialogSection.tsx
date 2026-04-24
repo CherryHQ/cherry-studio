@@ -13,6 +13,7 @@ const KnowledgePageDialogSection = () => {
     isAddSourceDialogOpen,
     isCreateBaseDialogOpen,
     isCreateGroupDialogOpen,
+    createBaseInitialGroupId,
     isCreatingBase,
     isCreatingGroup,
     isUpdatingBase,
@@ -68,6 +69,7 @@ const KnowledgePageDialogSection = () => {
         <CreateKnowledgeBaseDialog
           open={isCreateBaseDialogOpen}
           groups={groups}
+          initialGroupId={createBaseInitialGroupId}
           isCreating={isCreatingBase}
           createBase={createBase}
           onOpenChange={handleCreateBaseDialogOpenChange}

@@ -194,7 +194,7 @@ vi.mock('react-i18next', () => ({
         'knowledge_v2.data_source.add_dialog.sources.directory': '目录',
         'knowledge_v2.data_source.add_dialog.sources.file': '文件',
         'knowledge_v2.data_source.add_dialog.sources.note': '笔记',
-        'knowledge_v2.data_source.add_dialog.sources.sitemap': '站点地图',
+        'knowledge_v2.data_source.add_dialog.sources.sitemap': '网站',
         'knowledge_v2.data_source.add_dialog.sources.url': '网址',
         'knowledge_v2.data_source.add_dialog.submit.error': '添加数据源失败',
         'knowledge_v2.data_source.add_dialog.submit.success': '数据源已添加到知识库',
@@ -261,7 +261,7 @@ describe('AddKnowledgeSourceDialog', () => {
     expect(screen.getByRole('tab', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '目录' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '网址' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '站点地图' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '网站' })).toBeInTheDocument()
     expect(screen.getByText('点击选择文件或拖拽到此处')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
@@ -350,7 +350,7 @@ describe('AddKnowledgeSourceDialog', () => {
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
-    fireEvent.click(screen.getByRole('tab', { name: '站点地图' }))
+    fireEvent.click(screen.getByRole('tab', { name: '网站' }))
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText('https://docs.cherry-ai.com/sitemap-pages.xml'), {
       target: { value: 'https://docs.cherry-ai.com/sitemap-pages.xml' }
@@ -406,7 +406,7 @@ describe('AddKnowledgeSourceDialog', () => {
       ])
     })
 
-    fireEvent.click(screen.getByRole('tab', { name: '站点地图' }))
+    fireEvent.click(screen.getByRole('tab', { name: '网站' }))
     fireEvent.change(screen.getByPlaceholderText('https://docs.cherry-ai.com/sitemap-pages.xml'), {
       target: { value: ' https://docs.cherry-ai.com/sitemap-pages.xml ' }
     })

@@ -174,6 +174,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.search': '搜索知识库',
           'knowledge_v2.empty': '暂无知识库',
           'knowledge_v2.groups.add': '新建分组',
+          'knowledge_v2.groups.create_base_here': '在此分组新建',
           'knowledge_v2.groups.delete': '删除分组',
           'knowledge_v2.groups.delete_confirm_description': '删除后，该分组下的知识库将移至未分组。',
           'knowledge_v2.groups.delete_confirm_title': '确认删除分组',
@@ -563,6 +564,33 @@ describe('BaseNavigator', () => {
     await waitFor(() => {
       expect(onDeleteGroup).toHaveBeenCalledWith('group-1')
     })
+  })
+
+  it('opens create knowledge base with the current group id from the group menu', () => {
+    const onCreateBase = vi.fn()
+
+    render(
+      <BaseNavigator
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={onCreateBase}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
+    fireEvent.click(screen.getByRole('button', { name: '在此分组新建' }))
+
+    expect(onCreateBase).toHaveBeenCalledWith('group-1')
   })
 
   it('does not render a trailing group menu button for the synthetic ungrouped section', () => {

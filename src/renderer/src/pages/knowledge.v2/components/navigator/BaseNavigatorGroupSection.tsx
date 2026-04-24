@@ -23,6 +23,7 @@ const BaseNavigatorGroupSection = ({
   onMoveBase,
   onRenameBase,
   onRenameGroup,
+  onCreateBaseInGroup,
   onDeleteGroup,
   onDeleteBase
 }: BaseNavigatorGroupSectionProps) => {
@@ -35,6 +36,7 @@ const BaseNavigatorGroupSection = ({
           group={group}
           itemCount={section.items.length}
           onRenameGroup={onRenameGroup}
+          onCreateBase={onCreateBaseInGroup}
           onDeleteGroup={onDeleteGroup}
         />
       ) : (

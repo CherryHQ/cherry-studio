@@ -2164,7 +2164,7 @@
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "sitemap": "站点地图",
+          "sitemap": "网站",
           "url": "网址"
         },
         "submit": {
@@ -2188,8 +2188,8 @@
         "directory": "目录",
         "file": "文件",
         "note": "笔记",
-        "sitemap": "站点地图",
-        "url": "链接"
+        "sitemap": "网站",
+        "url": "网址"
       },
       "ready_summary": "{{ready}}/{{total}} 就绪",
       "status": {
@@ -2210,6 +2210,7 @@
     },
     "groups": {
       "add": "新建分组",
+      "create_base_here": "在此分组新建",
       "delete": "删除分组",
       "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
       "delete_confirm_title": "确认删除分组",

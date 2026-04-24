@@ -336,4 +336,34 @@ describe('CreateKnowledgeBaseDialog', () => {
       })
     )
   })
+
+  it('submits the initial group id in the request payload', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ groupId: 'group-2' }))
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })]}
+        initialGroupId="group-2"
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        emoji: '📁',
+        groupId: 'group-2',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: '1024'
+      })
+    )
+  })
 })

@@ -1,6 +1,6 @@
 import { Button, MenuDivider, MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -150,6 +150,7 @@ export const KnowledgeGroupRowMenu = ({
   menuPosition,
   onClose,
   onRename,
+  onCreateBase,
   onRequestDelete
 }: KnowledgeGroupRowMenuProps) => {
   const { t } = useTranslation()
@@ -158,6 +159,11 @@ export const KnowledgeGroupRowMenu = ({
     <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
       <MenuList className="gap-0.5">
         <NavigatorRowMenuItem icon={<PencilLine />} label={t('knowledge_v2.context.rename')} onClick={onRename} />
+        <NavigatorRowMenuItem
+          icon={<Plus />}
+          label={t('knowledge_v2.groups.create_base_here')}
+          onClick={onCreateBase}
+        />
         <MenuDivider />
         <NavigatorRowDeleteMenuItem
           icon={<Trash2 />}

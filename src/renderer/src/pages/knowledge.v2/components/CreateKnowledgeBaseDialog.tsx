@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
   groups: Group[]
+  initialGroupId?: string
   isCreating: boolean
   createBase: (input: CreateKnowledgeBaseInput) => Promise<KnowledgeBase>
   onOpenChange: (open: boolean) => void
@@ -40,9 +41,10 @@ const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '
 
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'>
 
-const createInitialInput = (): CreateKnowledgeBaseFormValues => ({
+const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
   emoji: DEFAULT_EMOJI,
+  groupId,
   embeddingModelId: null
 })
 
@@ -142,6 +144,7 @@ const CreateKnowledgeBaseDialogActions = ({
 const CreateKnowledgeBaseDialogRoot = ({
   open,
   groups,
+  initialGroupId,
   isCreating,
   createBase,
   onOpenChange,
@@ -152,17 +155,17 @@ const CreateKnowledgeBaseDialogRoot = ({
     capability: MODEL_CAPABILITY.EMBEDDING,
     enabled: true
   })
-  const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() => createInitialInput())
+  const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() => createInitialInput(initialGroupId))
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
-      setValues(createInitialInput())
+      setValues(createInitialInput(initialGroupId))
       setHasAttemptedSubmit(false)
       setSubmitError(null)
     }
-  }, [open])
+  }, [open, initialGroupId])
 
   const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
     value: model.id,

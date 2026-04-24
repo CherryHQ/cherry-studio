@@ -51,6 +51,7 @@ interface KnowledgePageContextValue {
   isAddSourceDialogOpen: boolean
   isCreateBaseDialogOpen: boolean
   isCreateGroupDialogOpen: boolean
+  createBaseInitialGroupId: string | undefined
   isCreatingBase: boolean
   isCreatingGroup: boolean
   isUpdatingBase: boolean
@@ -59,7 +60,7 @@ interface KnowledgePageContextValue {
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
   openAddSourceDialog: () => void
-  openCreateBaseDialog: () => void
+  openCreateBaseDialog: (groupId?: string) => void
   openCreateGroupDialog: () => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
@@ -98,6 +99,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
+  const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
   const isResizingRef = useRef(false)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
@@ -139,7 +141,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setSelectedBaseId(baseId)
   }, [])
 
-  const openCreateBaseDialog = useCallback(() => {
+  const openCreateBaseDialog = useCallback((groupId?: string) => {
+    setCreateBaseInitialGroupId(groupId)
     setIsCreateBaseDialogOpen(true)
   }, [])
 
@@ -161,6 +164,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleCreateBaseDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateBaseDialogOpen(open)
+
+    if (!open) {
+      setCreateBaseInitialGroupId(undefined)
+    }
   }, [])
 
   const handleAddSourceDialogOpenChange = useCallback((open: boolean) => {
@@ -301,6 +308,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
+      createBaseInitialGroupId,
       isCreatingBase,
       isCreatingGroup,
       isUpdatingBase,
@@ -345,6 +353,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
+      createBaseInitialGroupId,
       isCreatingBase,
       isCreatingGroup,
       isItemsLoading,

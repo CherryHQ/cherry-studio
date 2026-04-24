@@ -8,7 +8,13 @@ import { KnowledgeGroupRowMenu, NavigatorMoreButton } from './NavigatorMenu'
 import type { KnowledgeGroupRowProps } from './types'
 import useContextMenuPosition from './useContextMenuPosition'
 
-const KnowledgeGroupRow = ({ group, itemCount, onRenameGroup, onDeleteGroup }: KnowledgeGroupRowProps) => {
+const KnowledgeGroupRow = ({
+  group,
+  itemCount,
+  onRenameGroup,
+  onCreateBase,
+  onDeleteGroup
+}: KnowledgeGroupRowProps) => {
   const { t } = useTranslation()
   const { contextMenuPosition, closeContextMenu, handleContextMenu, handleMoreButtonClick } = useContextMenuPosition()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -25,6 +31,11 @@ const KnowledgeGroupRow = ({ group, itemCount, onRenameGroup, onDeleteGroup }: K
     closeContextMenu()
     setIsDeleteDialogOpen(true)
   }, [closeContextMenu])
+
+  const handleCreateBase = useCallback(() => {
+    closeContextMenu()
+    onCreateBase(group.id)
+  }, [closeContextMenu, group.id, onCreateBase])
 
   const handleDeleteGroup = useCallback(async () => {
     await onDeleteGroup(group.id)
@@ -50,6 +61,7 @@ const KnowledgeGroupRow = ({ group, itemCount, onRenameGroup, onDeleteGroup }: K
         menuPosition={contextMenuPosition}
         onClose={closeContextMenu}
         onRename={handleRenameGroup}
+        onCreateBase={handleCreateBase}
         onRequestDelete={handleRequestDelete}
       />
 

@@ -15,6 +15,7 @@ const BaseNavigatorContent = ({
   onMoveBase,
   onRenameBase,
   onRenameGroup,
+  onCreateBaseInGroup,
   onDeleteGroup,
   onDeleteBase
 }: BaseNavigatorContentProps) => {
@@ -47,6 +48,7 @@ const BaseNavigatorContent = ({
                 onMoveBase={onMoveBase}
                 onRenameBase={onRenameBase}
                 onRenameGroup={onRenameGroup}
+                onCreateBaseInGroup={onCreateBaseInGroup}
                 onDeleteGroup={onDeleteGroup}
                 onDeleteBase={onDeleteBase}
               />
