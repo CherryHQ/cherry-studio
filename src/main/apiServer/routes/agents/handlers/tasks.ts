@@ -1,6 +1,6 @@
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
-import { taskService } from '@main/services/agents/services/TaskService'
 import type { ListTaskLogsResponse, ListTasksResponse } from '@types'
 import type { Request, Response } from 'express'
 

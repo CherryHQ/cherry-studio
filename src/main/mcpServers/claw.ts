@@ -1,9 +1,9 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
-import { agentService } from '@main/services/agents/services/AgentService'
+import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
-import { channelService } from '@main/services/agents/services/ChannelService'
-import { taskService } from '@main/services/agents/services/TaskService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -333,9 +333,9 @@ class ClawServer {
     const task = await taskService.createTask(this.agentId, {
       name,
       prompt: message,
-      schedule_type: scheduleType,
-      schedule_value: scheduleValue,
-      channel_ids: channelIds && channelIds.length > 0 ? channelIds : undefined
+      scheduleType,
+      scheduleValue,
+      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
     logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
@@ -431,7 +431,7 @@ class ClawServer {
     }))
 
     const result = {
-      agent_id: agent.id,
+      agentId: agent.id,
       name: agent.name,
       model: agent.model,
       supported_channel_types: Object.entries(CHANNEL_CONFIG_SCHEMAS).map(([type, schema]) => ({

@@ -1,27 +1,18 @@
-import { loggerService } from '@logger'
-import { and, eq, inArray } from 'drizzle-orm'
-
-import { BaseService } from '../BaseService'
+import { application } from '@application'
 import {
-  type ChannelConfig,
-  type ChannelRow,
-  channelsTable,
-  channelTaskSubscriptionsTable,
-  type InsertChannelRow
-} from '../database/schema'
+  type AgentChannelRow as ChannelRow,
+  agentChannelTable as channelsTable,
+  agentChannelTaskTable as channelTaskSubscriptionsTable,
+  type InsertAgentChannelRow as InsertChannelRow
+} from '@data/db/schemas/agentChannel'
+import { loggerService } from '@logger'
+import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
+import { DataApiErrorFactory } from '@shared/data/api'
+import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
 
-export class ChannelService extends BaseService {
-  private static instance: ChannelService | null = null
-
-  static getInstance(): ChannelService {
-    if (!ChannelService.instance) {
-      ChannelService.instance = new ChannelService()
-    }
-    return ChannelService.instance
-  }
-
+export class AgentChannelService {
   async createChannel(data: {
     type: ChannelConfig['type']
     name: string
@@ -30,7 +21,7 @@ export class ChannelService extends BaseService {
     isActive?: boolean
     permissionMode?: string
   }): Promise<ChannelRow> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
 
     const insertData: InsertChannelRow = {
       type: data.type,
@@ -44,7 +35,7 @@ export class ChannelService extends BaseService {
     const result = await database.insert(channelsTable).values(insertData).returning()
 
     if (!result[0]) {
-      throw new Error('Failed to create channel')
+      throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
     logger.info('Channel created', { channelId: result[0].id, type: data.type })
@@ -52,19 +43,19 @@ export class ChannelService extends BaseService {
   }
 
   async getChannel(id: string): Promise<ChannelRow | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1)
     return result[0] ?? null
   }
 
   async findBySessionId(sessionId: string): Promise<ChannelRow | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1)
     return result[0] ?? null
   }
 
   async listChannels(filters?: { agentId?: string; type?: string }): Promise<ChannelRow[]> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
 
     const agentCond = filters?.agentId ? eq(channelsTable.agentId, filters.agentId) : undefined
     const typeCond = filters?.type ? eq(channelsTable.type, filters.type) : undefined
@@ -97,7 +88,7 @@ export class ChannelService extends BaseService {
       Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'>
     >
   ): Promise<ChannelRow | null> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.update(channelsTable).set(updates).where(eq(channelsTable.id, id)).returning()
 
     if (!result[0]) {
@@ -109,7 +100,7 @@ export class ChannelService extends BaseService {
   }
 
   async deleteChannel(id: string): Promise<boolean> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const result = await database.delete(channelsTable).where(eq(channelsTable.id, id)).returning()
     if (result.length > 0) {
       logger.info('Channel deleted', { channelId: id })
@@ -120,13 +111,13 @@ export class ChannelService extends BaseService {
   // ---- Task subscription methods ----
 
   async subscribeToTask(channelId: string, taskId: string): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database.insert(channelTaskSubscriptionsTable).values({ channelId, taskId }).onConflictDoNothing()
     logger.info('Channel subscribed to task', { channelId, taskId })
   }
 
   async unsubscribeFromTask(channelId: string, taskId: string): Promise<void> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     await database
       .delete(channelTaskSubscriptionsTable)
       .where(
@@ -136,7 +127,7 @@ export class ChannelService extends BaseService {
   }
 
   async getSubscribedChannels(taskId: string): Promise<ChannelRow[]> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const subs = await database
       .select({ channelId: channelTaskSubscriptionsTable.channelId })
       .from(channelTaskSubscriptionsTable)
@@ -149,7 +140,7 @@ export class ChannelService extends BaseService {
   }
 
   async getSubscribedTasks(channelId: string): Promise<string[]> {
-    const database = await this.getDatabase()
+    const database = application.get('DbService').getDb()
     const subs = await database
       .select({ taskId: channelTaskSubscriptionsTable.taskId })
       .from(channelTaskSubscriptionsTable)
@@ -158,4 +149,4 @@ export class ChannelService extends BaseService {
   }
 }
 
-export const channelService = ChannelService.getInstance()
+export const agentChannelService = new AgentChannelService()
