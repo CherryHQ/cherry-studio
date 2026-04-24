@@ -2557,6 +2557,14 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
     })
 
+    it('should return true for kimi-k2.6', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
+    })
+
+    it('should return true for kimi-k2.6 variants', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.6-preview' }))).toBe(true)
+    })
+
     it('should return false for other kimi models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-preview' }))).toBe(false)
