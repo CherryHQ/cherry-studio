@@ -48,24 +48,43 @@ export class AgentChatContextProvider implements ChatContextProvider {
         .join('\n') || ''
 
     const userMessageId = crypto.randomUUID()
+    const assistantMessageId = crypto.randomUUID()
     const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
     const createdAt = new Date().toISOString()
 
-    // Persist user message to agents DB
-    await agentSessionMessageService.persistUserMessage({
+    // Persist user message and reserve the pending assistant placeholder
+    // atomically so the renderer's `useAgentSessionParts` refresh (triggered
+    // by the upcoming `pending` broadcast) observes both rows together.
+    await agentSessionMessageService.persistExchange({
       sessionId,
       agentSessionId: '',
-      payload: {
-        message: {
-          id: userMessageId,
-          role: 'user',
-          assistantId: session.agentId,
-          topicId: req.topicId,
-          createdAt,
-          status: 'success',
-          data: { parts: userMessageParts }
-        },
-        blocks: []
+      user: {
+        payload: {
+          message: {
+            id: userMessageId,
+            role: 'user',
+            assistantId: session.agentId,
+            topicId: req.topicId,
+            createdAt,
+            status: 'success',
+            data: { parts: userMessageParts }
+          },
+          blocks: []
+        }
+      },
+      assistant: {
+        payload: {
+          message: {
+            id: assistantMessageId,
+            role: 'assistant',
+            assistantId: session.agentId,
+            topicId: req.topicId,
+            createdAt: new Date().toISOString(),
+            status: 'pending',
+            data: { parts: [] }
+          },
+          blocks: []
+        }
       }
     })
 
@@ -91,7 +110,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             trigger: 'submit-message',
             assistantId: session.agentId,
             uniqueModelId,
-            messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
+            messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
+            messageId: assistantMessageId
           }
         }
       ],

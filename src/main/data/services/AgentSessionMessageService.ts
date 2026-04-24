@@ -21,7 +21,7 @@ import type {
   AgentSessionMessageEntity,
   ListOptions
 } from '@types'
-import { and, asc, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -269,30 +269,6 @@ export class AgentSessionMessageService {
 
       return exchangeResult
     })
-  }
-
-  async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
-    try {
-      const database = application.get('DbService').getDb()
-      const rows = await database
-        .select()
-        .from(sessionMessagesTable)
-        .where(eq(sessionMessagesTable.sessionId, sessionId))
-        .orderBy(asc(sessionMessagesTable.createdAt))
-
-      const messages: AgentPersistedMessage[] = []
-      for (const row of rows) {
-        if (row?.content) {
-          messages.push(row.content)
-        }
-      }
-
-      logger.info(`Loaded ${messages.length} messages for session ${sessionId}`)
-      return messages
-    } catch (error) {
-      logger.error('Failed to load session history', error as Error)
-      throw error
-    }
   }
 
   /** Persist a complete user+assistant exchange for headless callers (channels, scheduler). */

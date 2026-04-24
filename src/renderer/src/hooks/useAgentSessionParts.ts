@@ -1,80 +1,85 @@
 /**
  * Agent session history data source — returns CherryUIMessage[] for useChatWithHistory.
  *
- * Reads from agents DB (session_messages table) via AgentMessage_GetHistory IPC.
- * After the blocks→parts data migration, message.data.parts contains CherryMessagePart[].
+ * Backed by DataApi (`/agents/:agentId/sessions/:sessionId/messages`) so
+ * reads go through the shared SWR cache (dedup, revalidation, cross-window
+ * consistency) instead of ad-hoc IPC + local state.
+ *
+ * After the blocks→parts migration each message row's `content` carries
+ * `{ message: { id, role, data: { parts }, status, createdAt }, blocks }` —
+ * we unwrap that shape and project to `CherryUIMessage`.
  */
 
-import { loggerService } from '@logger'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { AgentSessionMessageEntity } from '@renderer/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
-import { IpcChannel } from '@shared/IpcChannel'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 
-const logger = loggerService.withContext('useAgentSessionParts')
+const FETCH_LIMIT = 999
 
-interface AgentPersistedMessage {
-  message: {
-    id: string
-    role: string
-    status?: MessageStatus
+const VALID_STATUS: ReadonlySet<MessageStatus> = new Set(['pending', 'success', 'error', 'paused'])
+
+/**
+ * Minimal shape the renderer needs from `row.content`. The schema stores it
+ * as `z.unknown()` so it stays generic on the service layer; every field is
+ * optional because un-migrated rows or future writers may omit any of them.
+ */
+interface AgentMessageContent {
+  message?: {
+    id?: string
+    role?: string
+    status?: string
     data?: { parts?: CherryMessagePart[] }
     createdAt?: string
-    [key: string]: unknown
   }
-  blocks: unknown[]
 }
 
-// TODO: migrate to dataApi when agent.db
-export function useAgentSessionParts(sessionId: string) {
-  const [messages, setMessages] = useState<CherryUIMessage[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
+  const content = row.content as AgentMessageContent | undefined
+  const msg = content?.message
+  if (!msg?.id) return null
 
-  const load = useCallback(async (): Promise<CherryUIMessage[]> => {
-    try {
-      const history: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
-        IpcChannel.AgentMessage_GetHistory,
-        { sessionId }
-      )
+  const metadata: CherryUIMessage['metadata'] = {}
+  if (msg.createdAt) metadata.createdAt = msg.createdAt
+  if (msg.status && VALID_STATUS.has(msg.status as MessageStatus)) {
+    metadata.status = msg.status as MessageStatus
+  }
 
-      if (!Array.isArray(history)) {
-        setMessages([])
-        return []
-      }
+  return {
+    id: msg.id,
+    role: msg.role as CherryUIMessage['role'],
+    parts: msg.data?.parts ?? [],
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined
+  } as CherryUIMessage
+}
 
-      const uiMessages: CherryUIMessage[] = []
-      for (const item of history) {
-        const msg = item.message
-        if (!msg?.id) continue
-        const metadata: CherryUIMessage['metadata'] = {}
-        if (msg.createdAt) metadata.createdAt = msg.createdAt
-        if (msg.status) metadata.status = msg.status
+export function useAgentSessionParts(agentId: string, sessionId: string) {
+  const { data, isLoading, mutate } = useQuery('/agents/:agentId/sessions/:sessionId/messages', {
+    params: { agentId, sessionId },
+    query: { limit: FETCH_LIMIT },
+    enabled: !!agentId && !!sessionId
+  })
 
-        uiMessages.push({
-          id: msg.id,
-          role: msg.role as CherryUIMessage['role'],
-          parts: (msg.data?.parts ?? []) as CherryUIMessage['parts'],
-          metadata: Object.keys(metadata).length > 0 ? metadata : undefined
-        } as CherryUIMessage)
-      }
-
-      setMessages(uiMessages)
-      return uiMessages
-    } catch (err) {
-      logger.error('Failed to load agent session messages', { sessionId, err })
-      return []
-    } finally {
-      setIsLoading(false)
+  const messages = useMemo<CherryUIMessage[]>(() => {
+    const rows = data?.items ?? []
+    const out: CherryUIMessage[] = []
+    for (const row of rows) {
+      const ui = toUIMessage(row)
+      if (ui) out.push(ui)
     }
-  }, [sessionId])
+    return out
+  }, [data])
 
-  useEffect(() => {
-    setIsLoading(true)
-    void load()
-  }, [load])
-
-  const refresh = useCallback(async () => {
-    return (await load()) ?? []
-  }, [load])
+  const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
+    const refreshed = await mutate()
+    const rows = refreshed?.items ?? []
+    const out: CherryUIMessage[] = []
+    for (const row of rows) {
+      const ui = toUIMessage(row)
+      if (ui) out.push(ui)
+    }
+    return out
+  }, [mutate])
 
   return { messages, isLoading, refresh }
 }

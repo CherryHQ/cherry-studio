@@ -129,7 +129,7 @@ const AgentChatInner = ({
   isMultiSelectMode
 }: InnerProps) => {
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const { messages: uiMessages, isLoading, refresh } = useAgentSessionParts(sessionId)
+  const { messages: uiMessages, isLoading, refresh } = useAgentSessionParts(agentId, sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
 
   // ── Rendering pipeline ────────────────────────────────────────────

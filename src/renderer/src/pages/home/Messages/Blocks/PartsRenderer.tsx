@@ -17,7 +17,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
-import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
+import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { use, useMemo } from 'react'
@@ -188,7 +188,7 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
 
   switch (partType) {
     case 'reasoning': {
-      const reasoningPart = part as { text?: string; providerMetadata?: Record<string, unknown> }
+      const reasoningPart = part as ReasoningUIPart
       const cherryMeta = getCherryMeta(part)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
@@ -202,7 +202,7 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
           key={partId}
           id={partId}
           content={reasoningPart.text || ''}
-          isStreaming={isStreaming}
+          isStreaming={reasoningPart.state === 'streaming'}
           thinkingMs={thinkingMs}
         />
       )
