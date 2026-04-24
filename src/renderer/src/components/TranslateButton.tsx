@@ -4,6 +4,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import { translateText } from '@renderer/services/TranslateService'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -53,7 +54,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       onTranslated(translatedText)
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.toast.error(t('translate.error.failed'))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
     } finally {
       setIsTranslating(false)
     }

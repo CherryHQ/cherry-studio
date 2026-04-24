@@ -2,6 +2,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { translateText } from '@renderer/services/TranslateService'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ModalProps } from 'antd'
 import { Modal } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -113,7 +114,7 @@ const PopupContainer: React.FC<Props> = ({
       }
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.toast.error(t('translate.error.failed'))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
     } finally {
       if (isMounted.current) {
         setIsTranslating(false)
