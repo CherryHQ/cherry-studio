@@ -4,7 +4,8 @@ const {
   mockFindAgentIncludingDeleted,
   mockCreateAgent,
   mockUpdateAgent,
-  mockGetModels,
+  mockProviderList,
+  mockModelList,
   mockListSessions,
   mockCreateSession,
   mockEnsureHeartbeatTask,
@@ -18,7 +19,8 @@ const {
   mockFindAgentIncludingDeleted: vi.fn(),
   mockCreateAgent: vi.fn(),
   mockUpdateAgent: vi.fn(),
-  mockGetModels: vi.fn(),
+  mockProviderList: vi.fn(),
+  mockModelList: vi.fn(),
   mockListSessions: vi.fn(),
   mockCreateSession: vi.fn(),
   mockEnsureHeartbeatTask: vi.fn(),
@@ -49,9 +51,15 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 
-vi.mock('@main/apiServer/services/models', () => ({
-  modelsService: {
-    getModels: mockGetModels
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    list: mockProviderList
+  }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: {
+    list: mockModelList
   }
 }))
 
@@ -103,13 +111,20 @@ describe('bootstrapBuiltinAgents', () => {
   })
 
   it('retries built-in bootstrap when no model is available yet', async () => {
-    // First attempt: no model for either agent → both skip
+    // First attempt: no model for either agent → both skip. Second attempt
+    // (retry): CherryClaw finds a model; CherryAssistant still has none.
     mockFindAgentIncludingDeleted.mockResolvedValue(null)
-    mockGetModels
-      .mockResolvedValueOnce({ data: [] }) // CherryClaw: no model
-      .mockResolvedValueOnce({ data: [] }) // CherryAssistant: no model
-      .mockResolvedValueOnce({ data: [{ id: 'claude-3-5-sonnet' }] }) // CherryClaw retry: model found
-      .mockResolvedValueOnce({ data: [] }) // CherryAssistant retry (if any)
+    // Each bootstrap call does `providerService.list({ endpointType })` then
+    // `modelService.list({ providerId })` for each returned provider. We
+    // simulate "no Anthropic-capable provider at all" by returning [] from
+    // providerService.list (so modelService.list is never called), and
+    // "one provider with one model" on the retry.
+    mockProviderList
+      .mockResolvedValueOnce([]) // CherryClaw: no providers
+      .mockResolvedValueOnce([]) // CherryAssistant: no providers
+      .mockResolvedValueOnce([{ id: 'anthropic' }]) // CherryClaw retry: provider found
+      .mockResolvedValueOnce([]) // CherryAssistant retry: still none
+    mockModelList.mockResolvedValueOnce([{ id: 'claude-3-5-sonnet' }]) // for the retry
 
     const { bootstrapBuiltinAgents } = await import('../BuiltinAgentBootstrap')
 
