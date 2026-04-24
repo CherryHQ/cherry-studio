@@ -84,6 +84,18 @@ export interface AiStreamOpenRequest {
   userMessageParts: CherryMessagePart[]
   /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+  /**
+   * When `true`, Main tags every emitted chunk with its `executionId` (=modelId)
+   * regardless of whether the stream is single- or multi-model. Lets the
+   * renderer run every consumer through the same per-execution overlay
+   * pattern without a "primary (untagged)" subscriber special case.
+   *
+   * Transitional: V2ChatContent opts in to unblock the multi-model regenerate
+   * bug; other consumers (AgentChat, selection, quick-assistant) still rely
+   * on untagged chunks reaching a primary useChat subscriber. Once those
+   * are migrated, the flag goes away and Main tags unconditionally.
+   */
+  alwaysTagExecution?: boolean
 }
 
 /** Subscribe to a topic's stream state. */

@@ -156,23 +156,16 @@ describe('V2ChatContent', () => {
     capturedOnSend = undefined
   })
 
-  it('sends the active branch node as parentAnchorId', async () => {
+  it('sends the active branch node as parentAnchorId and opts into alwaysTagExecution', async () => {
     const sendMessage = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
-      adaptedMessages: [
-        createLegacyMessage('history-user', 'user'),
-        createLegacyMessage('history-assistant', 'assistant')
-      ],
-      partsMap: {},
       sendMessage,
       regenerate: vi.fn(),
       stop: vi.fn(),
-      status: 'ready',
       error: null,
       setMessages: vi.fn(),
-      streamingUIMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       activeExecutionIds: [],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
+      addToolApprovalResponse: vi.fn()
     })
 
     render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -187,35 +180,81 @@ describe('V2ChatContent', () => {
         { text: 'hello' },
         expect.objectContaining({
           body: expect.objectContaining({
-            parentAnchorId: 'branch-a'
+            parentAnchorId: 'branch-a',
+            alwaysTagExecution: true
           })
         })
       )
     })
   })
 
-  it('merges live execution messages into rendered messages', async () => {
-    mockUseChatWithHistory.mockReturnValue({
-      adaptedMessages: [
-        createLegacyMessage('history-user', 'user'),
-        createLegacyMessage('history-assistant', 'assistant')
+  it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
+    // Core architectural contract post-refactor: the rendered list is a
+    // projection of `uiMessages` (DB truth). Overlay from an active
+    // ExecutionStreamCollector updates `partsMap` but never adds entries
+    // to the message list — any streaming bubble must already exist in
+    // uiMessages as a pending placeholder (Main reserves before streaming).
+    mockUseTopicMessagesV2.mockReturnValue({
+      uiMessages: [
+        createUiMessage('history-user', 'user'),
+        createUiMessage('history-assistant', 'assistant'),
+        createUiMessage('pending-placeholder', 'assistant') // reserved by Main
       ],
-      partsMap: {},
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'branch-a'
+    })
+    mockUseChatWithHistory.mockReturnValue({
       sendMessage: vi.fn(),
       regenerate: vi.fn(),
       stop: vi.fn(),
-      status: 'streaming',
       error: null,
       setMessages: vi.fn(),
-      streamingUIMessages: [createUiMessage('history-user', 'user')],
-      activeExecutionIds: ['openai::gpt-4o'],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
+      activeExecutionIds: ['pending-placeholder'] as string[],
+      addToolApprovalResponse: vi.fn()
+    })
+
+    render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+
+    // List reflects uiMessages exactly — no extra `live-*` entry appended.
+    await waitFor(() => {
+      expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant,pending-placeholder')
+    })
+  })
+
+  it('regenerate within multi-model group keeps sibling bubbles in the list', async () => {
+    // Core bug this refactor addresses. Four siblings share the same
+    // parent user; one (gemini) is being regenerated (status=pending,
+    // new DB placeholder). The other three (kimi, claude, original gemini)
+    // stay SUCCESS. The list must contain all four.
+    mockUseTopicMessagesV2.mockReturnValue({
+      uiMessages: [
+        createUiMessage('u-1', 'user'),
+        createUiMessage('gemini-old', 'assistant'),
+        createUiMessage('kimi', 'assistant'),
+        createUiMessage('claude', 'assistant'),
+        createUiMessage('gemini-new-pending', 'assistant')
+      ],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'gemini-new-pending'
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      setMessages: vi.fn(),
+      activeExecutionIds: ['gemini-new-pending'] as string[],
+      addToolApprovalResponse: vi.fn()
     })
 
     render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant,live-openai::gpt-4o')
+      expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')
     })
   })
 })

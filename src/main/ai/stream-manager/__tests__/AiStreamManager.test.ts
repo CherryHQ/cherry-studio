@@ -391,6 +391,18 @@ describe('AiStreamManager', () => {
       mgr.onChunk('b', 'provider-c::model-c', chunk('ho'))
       expect(single.chunkSources).toEqual([undefined])
     })
+
+    it('tags single-model chunks when the opening request sets alwaysTagExecution', () => {
+      const listener = new FakeListener('l:flag')
+      mgr.send({
+        topicId: 'c',
+        models: [{ modelId: 'provider-d::model-d', request: req('c') }],
+        listeners: [listener],
+        alwaysTagExecution: true
+      })
+      mgr.onChunk('c', 'provider-d::model-d', chunk('tagged'))
+      expect(listener.chunkSources).toEqual(['provider-d::model-d'])
+    })
   })
 
   // ── onChunk (multicast) ─────────────────────────────────────────

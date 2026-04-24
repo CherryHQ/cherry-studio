@@ -57,6 +57,12 @@ export interface SendInput {
   userMessage?: Message
   /** Shared group id across executions so parallel responses render as siblings. */
   siblingsGroupId?: number
+  /**
+   * Opt this ActiveStream into unconditional per-execution chunk tagging.
+   * See `ActiveStream.alwaysTagExecution`. Forwarded from the renderer's
+   * `AiStreamOpenRequest.alwaysTagExecution`.
+   */
+  alwaysTagExecution?: boolean
 }
 
 /** Result of `AiStreamManager.send`. */
@@ -271,7 +277,8 @@ export class AiStreamManager extends BaseService {
       // Start in `pending` — the pre-first-chunk window. `onChunk` flips
       // this to `streaming` as soon as any execution produces content.
       status: 'pending',
-      isMultiModel
+      isMultiModel,
+      alwaysTagExecution: input.alwaysTagExecution ?? false
     }
     this.activeStreams.set(input.topicId, stream)
     // The `'pending'` delta is the single "a new ActiveStream just
@@ -366,7 +373,12 @@ export class AiStreamManager extends BaseService {
     // semantic timing (first text, reasoning boundaries) is the job of
     // the listener that cares — see `PersistenceListener.onChunk`.
 
-    const sourceModelId = stream.isMultiModel ? modelId : undefined
+    // Tag with `modelId` for multi-model (so per-execution subscribers can
+    // demux) OR when the request opted in via `alwaysTagExecution`. The
+    // flag is transitional — see `AiStreamOpenRequest.alwaysTagExecution`.
+    // Once all renderer consumers run through per-execution collectors the
+    // flag check goes away and tagging is unconditional.
+    const sourceModelId = stream.isMultiModel || stream.alwaysTagExecution ? modelId : undefined
 
     // Ring-buffer into *this execution's* buffer so a chatty model cannot
     // push a slower model's replay out of a shared topic-level buffer.

@@ -11,7 +11,6 @@ import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { type V2ChatOverrides, V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -21,12 +20,13 @@ import type {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Inputbar from './Inputbar/Inputbar'
 import { PartsProvider, RefreshProvider } from './Messages/Blocks'
 import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
+import { uiToMessage } from './uiToMessage'
 
 const logger = loggerService.withContext('V2ChatContent')
 
@@ -76,6 +76,7 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       initialMessages={uiMessages}
+      uiMessages={uiMessages}
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
@@ -88,7 +89,14 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 // ============================================================================
 
 interface InnerProps extends Props {
+  /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
+  /**
+   * Live DB-backed message list from `useTopicMessagesV2`. Reactive —
+   * re-renders when SWR refreshes. Used as the base for render-time
+   * merge with per-execution streaming overlays.
+   */
+  uiMessages: CherryUIMessage[]
   siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
@@ -100,73 +108,93 @@ const V2ChatContentInner: FC<InnerProps> = ({
   setActiveTopic,
   mainHeight,
   initialMessages,
+  uiMessages,
   siblingsMap,
   refresh,
   activeNodeId
 }) => {
   // const { isMultiSelectMode } = useChatContext(topic)
 
-  const {
-    adaptedMessages,
-    partsMap,
-    sendMessage,
-    regenerate,
-    stop,
-    status,
-    error,
-    setMessages,
-    streamingUIMessages,
-    activeExecutionIds,
-    addToolApprovalResponse
-  } = useChatWithHistory(topic.id, initialMessages, refresh, {
-    assistantId: assistant.id,
-    defaultModelSnapshot: assistant.model
-      ? {
-          id: assistant.model.id,
-          name: assistant.model.name,
-          provider: assistant.model.provider,
-          ...(assistant.model.group && { group: assistant.model.group })
-        }
-      : undefined
-  })
+  const { sendMessage, regenerate, stop, error, setMessages, activeExecutionIds, addToolApprovalResponse } =
+    useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
 
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
 
+  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(
+    () =>
+      assistant.model
+        ? {
+            id: assistant.model.id,
+            name: assistant.model.name,
+            provider: assistant.model.provider,
+            ...(assistant.model.group && { group: assistant.model.group })
+          }
+        : undefined,
+    [assistant.model]
+  )
+
+  // ── Rendering pipeline (DB as source of truth) ─────────────────────
+  //
+  // The renderer message list is a pure projection of `uiMessages` — DB
+  // truth as returned by `useTopicMessagesV2` (already bucketed by
+  // modelId in `flattenBranchMessages`). AI SDK's `useChat.state.messages`
+  // is NOT read here because `regenerate` truncates it in ways that
+  // discard multi-model siblings, breaking the mixed-cohort layout.
+  //
+  // Streaming content for in-flight executions is overlaid into
+  // `partsMap` below — matched by DB placeholder id, which Main uses
+  // as the streaming message id. No list-level overlay is needed
+  // because every in-flight bubble already exists in `uiMessages` as a
+  // `status: 'pending'` row (Main reserves placeholders before the
+  // first chunk, broadcasts 'pending', and refresh lands the row
+  // before LLM latency delivers content).
+  const lastUserIdInBase = useMemo(() => {
+    for (let i = uiMessages.length - 1; i >= 0; i--) {
+      if (uiMessages[i].role === 'user') return uiMessages[i].id
+    }
+    return undefined
+  }, [uiMessages])
+
+  const projectedMessages = useMemo<Message[]>(
+    () =>
+      uiMessages.map((m) =>
+        uiToMessage(m, {
+          assistantId: assistant.id,
+          topicId: topic.id,
+          askIdFallback: lastUserIdInBase,
+          modelFallback: fallbackSnapshot
+        })
+      ),
+    [uiMessages, assistant.id, topic.id, lastUserIdInBase, fallbackSnapshot]
+  )
+
+  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const map: Record<string, CherryMessagePart[]> = {}
+    for (const m of uiMessages) map[m.id] = (m.parts ?? []) as CherryMessagePart[]
+    return map
+  }, [uiMessages])
+
+  // ── Per-execution streaming overlay ────────────────────────────────
+  //
+  // Each `ExecutionStreamCollector` (mounted below per `activeExecutionId`)
+  // surfaces its live `parts` via `handleExecutionMessagesChange`. Main
+  // tags every chunk with the DB placeholder id (see
+  // `alwaysTagExecution: true` in `handleSendV2` / `regenerateWithCapabilities`
+  // bodies + `AiStreamManager.onChunk`), so overlay ids match base ids
+  // directly. `mergedPartsMap` replaces `basePartsMap[id]` with the live
+  // parts for any id currently streaming.
   const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
-  const executionCreatedAtRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     if (activeExecutionIds.length === 0) {
       setExecutionMessagesById({})
-      executionCreatedAtRef.current = {}
       return
     }
-
     const activeSet = new Set<string>(activeExecutionIds)
     setExecutionMessagesById((prev) =>
       Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeSet.has(executionId)))
     )
   }, [activeExecutionIds])
-
-  const currentAnchorUserMessageId = useMemo(() => {
-    for (let index = streamingUIMessages.length - 1; index >= 0; index--) {
-      const message = streamingUIMessages[index]
-      if (message.role === 'user') return message.id
-    }
-
-    for (let index = adaptedMessages.length - 1; index >= 0; index--) {
-      const message = adaptedMessages[index]
-      if (message.role === 'user') return message.id
-    }
-
-    if (!activeNodeId) return undefined
-    // Fall back to the activeNode's own parent from `state.messages`
-    // metadata (parentId is persisted on every `CherryUIMessage` via
-    // `toUIMessage`). Used when there's no visible user message yet —
-    // typically the first frames after opening a topic.
-    const activeNode = streamingUIMessages.find((m) => m.id === activeNodeId)
-    return activeNode?.metadata?.parentId ?? activeNodeId
-  }, [activeNodeId, adaptedMessages, streamingUIMessages])
 
   const handleExecutionMessagesChange = useCallback((executionId: string, messages: CherryUIMessage[]) => {
     setExecutionMessagesById((prev) => ({ ...prev, [executionId]: messages }))
@@ -179,65 +207,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
       delete next[executionId]
       return next
     })
-    delete executionCreatedAtRef.current[executionId]
   }, [])
 
-  const executionOverlayMessages = useMemo<Message[]>(() => {
-    const overlaidMessages: Message[] = []
-
-    for (const executionId of activeExecutionIds) {
-      const messages = executionMessagesById[executionId] ?? []
-      for (const uiMessage of messages) {
-        if (uiMessage.role !== 'assistant') continue
-
-        const createdAt =
-          uiMessage.metadata?.createdAt ??
-          executionCreatedAtRef.current[uiMessage.id] ??
-          (executionCreatedAtRef.current[uiMessage.id] = new Date().toISOString())
-
-        overlaidMessages.push({
-          id: uiMessage.id,
-          role: 'assistant',
-          assistantId: assistant.id,
-          topicId: topic.id,
-          createdAt,
-          askId: currentAnchorUserMessageId,
-          modelId: executionId,
-          status:
-            status === 'submitted'
-              ? AssistantMessageStatus.PENDING
-              : status === 'streaming'
-                ? AssistantMessageStatus.PROCESSING
-                : AssistantMessageStatus.SUCCESS,
-          blocks: []
-        })
-      }
-    }
-
-    return overlaidMessages
-  }, [activeExecutionIds, assistant.id, currentAnchorUserMessageId, executionMessagesById, status, topic.id])
-
-  // Dedupe by id — `useChat.messages` (via `adaptedMessages`) already
-  // surfaces the assistant message for the primary execution during
-  // streaming; overlay entries are only there to cover the *other*
-  // executions in a multi-model turn. Plain spread duplicated ids and
-  // tripped React's "two children with the same key" warning, which in
-  // turn caused lists like `MessageAnchorLine` to render twice.
-  const mergedMessages = useMemo(() => {
-    if (executionOverlayMessages.length === 0) return adaptedMessages
-    const adaptedIds = new Set(adaptedMessages.map((m) => m.id))
-    return [...adaptedMessages, ...executionOverlayMessages.filter((m) => !adaptedIds.has(m.id))]
-  }, [adaptedMessages, executionOverlayMessages])
-
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const nextPartsMap = { ...partsMap }
-    for (const executionId of activeExecutionIds) {
-      for (const uiMessage of executionMessagesById[executionId] ?? []) {
-        nextPartsMap[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
+    const next = { ...basePartsMap }
+    for (const execMessages of Object.values(executionMessagesById)) {
+      for (const uiMessage of execMessages) {
+        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
+          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
+        }
       }
     }
-    return nextPartsMap
-  }, [activeExecutionIds, executionMessagesById, partsMap])
+    return next
+  }, [basePartsMap, executionMessagesById])
 
   // ── Branch-messages cache control ──────────────────────────────────
   //
@@ -384,7 +366,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Clear all messages for the current topic from DataApi and UI. */
   const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = adaptedMessages.find((m: Message) => !m.askId)
+    const rootMsg = projectedMessages.find((m: Message) => !m.askId)
     if (!rootMsg) {
       setMessages([])
       return
@@ -407,7 +389,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       throw err
     }
   }, [
-    adaptedMessages,
+    projectedMessages,
     deleteMessageTrigger,
     messagesCachePath,
     messagesCacheQuery,
@@ -448,14 +430,21 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
-  /** Synchronous capability flags derived from assistant config. */
+  /**
+   * Synchronous capability flags derived from assistant config.
+   * `alwaysTagExecution: true` opts this topic's stream into per-execution
+   * chunk tagging on Main so every streamed chunk lands in the matching
+   * `ExecutionStreamCollector` regardless of single/multi-model. Transport
+   * body threads this through to `AiStreamOpenRequest.alwaysTagExecution`.
+   */
   const capabilityBody = useMemo(
     () => ({
       knowledgeBaseIds: assistant.knowledge_bases?.map((kb) => kb.id),
       enableWebSearch: assistant.enableWebSearch,
       webSearchProviderId: assistant.webSearchProviderId,
       enableUrlContext: assistant.enableUrlContext,
-      enableGenerateImage: assistant.enableGenerateImage
+      enableGenerateImage: assistant.enableGenerateImage,
+      alwaysTagExecution: true
     }),
     [
       assistant.knowledge_bases,
@@ -475,19 +464,27 @@ const V2ChatContentInner: FC<InnerProps> = ({
       // new sibling (same user parent, shared siblingsGroupId) so the
       // group renders as a cross-model comparison.
       //
-      // Main allocates the assistant placeholder id on its own; the renderer
-      // doesn't align ids up-front. `adaptedMessages` renders the streaming
-      // bubble with a synthesised createdAt + default modelSnapshot fallback
-      // until `refresh` on stream-done replaces state with DB truth.
+      // `parentAnchorId` is resolved from `uiMessages` — the target's own
+      // DB `parentId`. Without this, `IpcChatTransport` falls back to
+      // `state.messages.at(-1).id` after AI SDK's truncate, which in a
+      // multi-model fan-out leaves a *sibling* as the last message (AI
+      // SDK treats the flat array as linear) — Main then parents the new
+      // placeholder under that sibling instead of the user message,
+      // producing a chain-extension layout bug instead of a sibling.
+      const parentAnchorId = messageId
+        ? (uiMessages.find((m) => m.id === messageId)?.metadata?.parentId ?? undefined)
+        : undefined
+
       await regenerate({
         messageId,
         body: {
           ...capabilityBody,
+          ...(parentAnchorId && { parentAnchorId }),
           ...(options?.modelId && { mentionedModels: [options.modelId] })
         }
       })
     },
-    [regenerate, capabilityBody]
+    [regenerate, capabilityBody, uiMessages]
   )
 
   /**
@@ -610,7 +607,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     <div
                       className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
                       style={{ color: 'var(--color-text-3)' }}>
-                      [V2] {status} | {mergedMessages.length} msgs
+                      [V2] {projectedMessages.length} msgs
                       {error && <span className="ml-2 text-red-500">{error.message}</span>}
                     </div>
                   )}
@@ -625,7 +622,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     />
                   ))}
 
-                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={mergedMessages} />
+                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={projectedMessages} />
 
                   <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>

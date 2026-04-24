@@ -9,6 +9,12 @@ export interface AiChatRequestBody {
   mentionedModels?: UniqueModelId[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /**
+   * Opt this request's stream into per-execution chunk tagging (see
+   * `AiStreamOpenRequest.alwaysTagExecution`). Threaded through by
+   * `IpcChatTransport.sendMessages` into the `streamOpen` IPC.
+   */
+  alwaysTagExecution?: boolean
 }
 
 export type {

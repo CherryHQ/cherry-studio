@@ -53,7 +53,8 @@ export async function dispatchStreamRequest(
     models: prepared.models,
     listeners: prepared.listeners,
     userMessage: prepared.userMessage,
-    siblingsGroupId: prepared.siblingsGroupId
+    siblingsGroupId: prepared.siblingsGroupId,
+    alwaysTagExecution: req.alwaysTagExecution
   })
 
   return {
