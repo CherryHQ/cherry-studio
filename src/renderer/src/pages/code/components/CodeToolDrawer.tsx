@@ -51,14 +51,14 @@ export function CodeToolDrawer({
   const footer = (
     <>
       {summary && (
-        <div className="flex items-center gap-2 text-[9px] text-muted-foreground/30">
+        <div className="flex items-center gap-2 text-[9px] text-muted-foreground/60">
           <div className="flex items-center gap-1">
             <Cpu size={9} />
             <span>{tool.label}</span>
           </div>
           {summary.model && (
             <>
-              <span className="text-border/30">·</span>
+              <span className="text-border">·</span>
               <div className="flex min-w-0 items-center gap-1 truncate">
                 <Sparkles size={8} />
                 <span className="truncate">{summary.model}</span>
@@ -67,7 +67,7 @@ export function CodeToolDrawer({
           )}
           {summary.terminal && (
             <>
-              <span className="text-border/30">·</span>
+              <span className="text-border">·</span>
               <div className="flex items-center gap-1">
                 <TerminalIcon size={9} />
                 <span>{summary.terminal}</span>
@@ -108,15 +108,13 @@ export function CodeToolDrawer({
 
   return (
     <PageSidePanel open={open} onClose={onClose} header={header} footer={footer} closeLabel={t('common.close')}>
-      <div className="flex items-center gap-3 rounded-2xs border border-border/10 bg-accent/5 p-3">
+      <div className="flex items-center gap-3 rounded-2xs border border-border/40 bg-accent/15 p-3">
         <CliIconBadge tool={tool} size={44} />
         <div className="min-w-0 flex-1">
           <div className="text-[11px] text-foreground">{tool.label}</div>
           {infoTag && (
             <div className="mt-1 flex items-center gap-2">
-              <span className="rounded-4xs bg-accent/40 px-1.5 py-0.5 text-[9px] text-muted-foreground/50">
-                {infoTag}
-              </span>
+              <span className="rounded-4xs bg-accent/50 px-1.5 py-0.5 text-[9px] text-muted-foreground">{infoTag}</span>
             </div>
           )}
         </div>

@@ -457,7 +457,7 @@ const CodeCliPage: FC = () => {
           <div className="flex items-center gap-1.5 text-xs">
             <Code2 size={13} className="text-muted-foreground" strokeWidth={1.6} />
             <span className="text-foreground">{t('code.title')}</span>
-            <span className="ml-1 text-[10px] text-muted-foreground/40">
+            <span className="ml-1 text-[10px] text-muted-foreground">
               {t('code.count', { count: filteredTools.length })}
             </span>
           </div>
@@ -465,13 +465,13 @@ const CodeCliPage: FC = () => {
 
         <div className="px-6 py-2">
           <div className="relative mx-auto max-w-md">
-            <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-3 z-10 text-muted-foreground/40" />
+            <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-3 z-10 text-muted-foreground" />
             <Input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t('code.search_placeholder')}
-              className="h-auto rounded-3xs border-border/50 bg-muted/20 py-1.5 pr-7 pl-8 text-xs shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/30 focus-visible:ring-0"
+              className="h-auto rounded-3xs border-border/60 bg-muted/50 py-1.5 pr-7 pl-8 text-xs shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/30 focus-visible:ring-0"
             />
             {searchTerm && (
               <Button
@@ -536,7 +536,7 @@ const CodeCliPage: FC = () => {
                   <div className="flex items-center gap-2">
                     <ModelAvatar model={item.model} size={12} />
                     <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
-                    <span className="shrink-0 text-[9px] text-muted-foreground/30">
+                    <span className="shrink-0 text-[9px] text-muted-foreground/70">
                       {getFancyProviderName(item.provider)}
                     </span>
                     {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-primary" />}
@@ -558,13 +558,13 @@ const CodeCliPage: FC = () => {
                   removeLabel={t('common.delete')}
                   emptyText={t('common.none')}
                   placeholder={t('code.folder_placeholder')}
-                  renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground/40" />}
+                  renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
                   renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
                   renderItem={(item, isSelected) => (
                     <>
                       <FolderOpen
                         size={11}
-                        className={isSelected ? 'shrink-0 text-primary' : 'shrink-0 text-muted-foreground/40'}
+                        className={isSelected ? 'shrink-0 text-primary' : 'shrink-0 text-muted-foreground'}
                       />
                       <span className="flex-1 truncate font-mono">{item.id}</span>
                       {isSelected && <Check size={11} className="shrink-0 text-primary" />}
@@ -576,7 +576,7 @@ const CodeCliPage: FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => void selectFolder()}
-                className="shrink-0 rounded-3xs border-border/40 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/60 shadow-none hover:bg-accent/40 hover:text-foreground">
+                className="shrink-0 rounded-3xs border-border/40 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground">
                 {t('code.select_folder')}
               </Button>
             </div>
@@ -608,7 +608,7 @@ const CodeCliPage: FC = () => {
                     <FolderOpen size={10} />
                     {t('code.set_custom_path')}
                   </Button>
-                  <span className="truncate text-[10px] text-muted-foreground/50">
+                  <span className="truncate text-[10px] text-muted-foreground/80">
                     {terminalCustomPaths[selectedTerminal]
                       ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                       : t('code.custom_path_required')}
@@ -625,7 +625,7 @@ const CodeCliPage: FC = () => {
               onValueChange={setEnvVars}
               rows={2}
               placeholder={'KEY1=value1\nKEY2=value2'}
-              className="min-h-0 resize-none rounded-3xs border-border/30 px-2.5 py-1.5 font-mono text-[11px] shadow-none placeholder:text-muted-foreground/20 focus-visible:border-border/50 focus-visible:ring-0 md:text-[11px] [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
+              className="min-h-0 resize-none rounded-3xs border-border/60 px-2.5 py-1.5 font-mono text-[11px] shadow-none placeholder:text-muted-foreground/50 focus-visible:border-border/50 focus-visible:ring-0 md:text-[11px] [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
             />
           </div>
 
@@ -639,7 +639,7 @@ const CodeCliPage: FC = () => {
             />
             <Label
               htmlFor="code-cli-auto-update"
-              className="cursor-pointer text-[10px] text-muted-foreground/40 hover:text-foreground/50">
+              className="cursor-pointer text-[10px] text-muted-foreground/70 hover:text-foreground/50">
               {t('code.auto_update_to_latest')}
             </Label>
           </div>
