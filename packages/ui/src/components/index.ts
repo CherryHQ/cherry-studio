@@ -31,9 +31,11 @@ export {
   EntitySelector,
   type EntitySelectorContextMenuFactory,
   type EntitySelectorMultiSelect,
+  type EntitySelectorPopoverContentProps,
   type EntitySelectorProps,
   type EntitySelectorRowContext,
-  type EntitySelectorSearch
+  type EntitySelectorSearch,
+  type EntitySelectorSection
 } from './composites/EntitySelector'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'

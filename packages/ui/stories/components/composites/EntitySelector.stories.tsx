@@ -82,7 +82,10 @@ const meta: Meta<typeof EntitySelector> = {
 }
 
 export default meta
-type Story = StoryObj<typeof meta>
+// Decoupled from the component's generic props because each story uses `render` with its own
+// Demo component — we never pass args through meta, so tying Story to `typeof meta` pins args
+// to `never` and forces a useless `args: {}` on every entry.
+type Story = StoryObj
 
 function DefaultDemo() {
   const [value, setValue] = useState<string>('item-1')
@@ -552,4 +555,65 @@ export const ConsumerManagedSort: Story = {
     }
   },
   render: () => <ConsumerManagedSortDemo />
+}
+
+function WithSectionsDemo() {
+  const [value, setValue] = useState<string>('item-1')
+  const [pinnedIds, setPinnedIds] = useState<string[]>(['item-3'])
+
+  const { pinnedItems, restItems } = useMemo(() => {
+    const pinnedSet = new Set(pinnedIds)
+    const pinned = pinnedIds.map((id) => ITEMS.find((it) => it.id === id)).filter(Boolean) as ExampleItem[]
+    const rest = ITEMS.filter((it) => !pinnedSet.has(it.id))
+    return { pinnedItems: pinned, restItems: rest }
+  }, [pinnedIds])
+
+  const sectionHeader = (label: string) => (
+    <div className="px-3 pt-2 pb-1 text-muted-foreground/50 text-xs">{label}</div>
+  )
+
+  return (
+    <EntitySelector
+      trigger={<Button variant="outline">Open (pinned group)</Button>}
+      sections={[
+        ...(pinnedItems.length > 0 ? [{ key: 'pinned', header: sectionHeader('Pinned'), items: pinnedItems }] : []),
+        { key: 'rest', header: sectionHeader('All'), items: restItems }
+      ]}
+      mode="single"
+      value={value}
+      onChange={(next) => setValue(next as string)}
+      renderItem={(item, ctx) => <ExampleRow item={item} {...ctx} />}
+      renderItemContextMenu={(item, { close }) => {
+        const isPinned = pinnedIds.includes(item.id)
+        return (
+          <div className="min-w-[140px] rounded-md border border-border/60 bg-popover p-1 shadow-md">
+            <button
+              type="button"
+              onClick={() => {
+                setPinnedIds((prev) =>
+                  prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                )
+                close()
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent">
+              {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+              {isPinned ? 'Unpin' : 'Pin'}
+            </button>
+          </div>
+        )
+      }}
+    />
+  )
+}
+
+export const WithSections: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Use `sections` instead of flat `items` when the list needs non-item rows interleaved (e.g. a "Pinned" heading above pinned rows). Headers are presentational — keyboard navigation walks across sections as if flat.'
+      }
+    }
+  },
+  render: () => <WithSectionsDemo />
 }

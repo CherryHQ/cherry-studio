@@ -3,7 +3,9 @@ export type {
   EntityItemBase,
   EntitySelectorContextMenuFactory,
   EntitySelectorMultiSelect,
+  EntitySelectorPopoverContentProps,
   EntitySelectorProps,
   EntitySelectorRowContext,
-  EntitySelectorSearch
+  EntitySelectorSearch,
+  EntitySelectorSection
 } from './types'

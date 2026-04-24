@@ -398,4 +398,105 @@ describe('EntitySelector', () => {
       expect(screen.getByTestId('row-1')).toBeInTheDocument()
     })
   })
+
+  describe('sections', () => {
+    it('renders section headers above their items and hides headers for empty sections', () => {
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          sections={[
+            { key: 'pinned', header: <div data-testid="header-pinned">Pinned</div>, items: [ITEMS[0], ITEMS[1]] },
+            { key: 'empty', header: <div data-testid="header-empty">Empty</div>, items: [] },
+            { key: 'rest', header: <div data-testid="header-rest">Rest</div>, items: [ITEMS[2], ITEMS[4]] }
+          ]}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      expect(screen.getByTestId('header-pinned')).toBeInTheDocument()
+      expect(screen.getByTestId('header-rest')).toBeInTheDocument()
+      expect(screen.queryByTestId('header-empty')).not.toBeInTheDocument()
+      // All non-empty section items are in the DOM
+      expect(screen.getByTestId('row-1')).toBeInTheDocument()
+      expect(screen.getByTestId('row-2')).toBeInTheDocument()
+      expect(screen.getByTestId('row-3')).toBeInTheDocument()
+      expect(screen.getByTestId('row-5')).toBeInTheDocument()
+    })
+
+    it('keyboard navigation walks across sections as if flat', () => {
+      const onChange = vi.fn()
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          sections={[
+            { key: 'a', header: <div>A</div>, items: [ITEMS[0], ITEMS[1]] },
+            { key: 'b', header: <div>B</div>, items: [ITEMS[2], ITEMS[4]] }
+          ]}
+          mode="single"
+          value={null}
+          onChange={onChange}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      const listbox = screen.getByRole('listbox')
+      // Initial active = first enabled (id=1, section A)
+      expect(screen.getByTestId('row-1').parentElement).toHaveAttribute('data-active', 'true')
+      // Walk: 1 → 2 → 3 (crosses into section B) → 5
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' })
+      expect(screen.getByTestId('row-2').parentElement).toHaveAttribute('data-active', 'true')
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' })
+      expect(screen.getByTestId('row-3').parentElement).toHaveAttribute('data-active', 'true')
+      fireEvent.keyDown(listbox, { key: 'ArrowDown' })
+      expect(screen.getByTestId('row-5').parentElement).toHaveAttribute('data-active', 'true')
+      // Enter selects the currently active item (from the 2nd section)
+      fireEvent.keyDown(listbox, { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledWith('5')
+    })
+
+    it('End jumps to the last enabled item across sections', () => {
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          sections={[
+            { key: 'a', items: [ITEMS[0]] },
+            { key: 'b', items: [ITEMS[2], ITEMS[3], ITEMS[4]] } // Delta (id=4) disabled
+          ]}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      const listbox = screen.getByRole('listbox')
+      fireEvent.keyDown(listbox, { key: 'End' })
+      // Last enabled is Epsilon (id=5)
+      expect(screen.getByTestId('row-5').parentElement).toHaveAttribute('data-active', 'true')
+    })
+
+    it('renders emptyState when every section is empty', () => {
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          sections={[
+            { key: 'a', header: <div>A</div>, items: [] },
+            { key: 'b', header: <div>B</div>, items: [] }
+          ]}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          emptyState={<div data-testid="empty">None</div>}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      expect(screen.getByTestId('empty')).toBeInTheDocument()
+      expect(screen.queryByText('A')).not.toBeInTheDocument()
+      expect(screen.queryByText('B')).not.toBeInTheDocument()
+    })
+  })
 })

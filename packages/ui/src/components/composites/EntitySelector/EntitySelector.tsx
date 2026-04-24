@@ -19,30 +19,47 @@ import type { EntityItemBase, EntitySelectorProps } from './types'
 const DEFAULT_MAX_LIST_HEIGHT = 320
 const DEFAULT_WIDTH = 320
 
-export function EntitySelector<T extends EntityItemBase>({
-  open: openProp,
-  onOpenChange,
-  trigger,
-  items,
-  mode,
-  value,
-  onChange,
-  renderItem,
-  search,
-  filterPanel,
-  filterActive,
-  multiSelect,
-  renderItemContextMenu,
-  contextMenuViewportMargin,
-  footer,
-  maxListHeight = DEFAULT_MAX_LIST_HEIGHT,
-  emptyState,
-  loading,
-  loadingState,
-  width = DEFAULT_WIDTH,
-  className,
-  popoverContentProps
-}: EntitySelectorProps<T>) {
+export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorProps<T>) {
+  const {
+    open: openProp,
+    onOpenChange,
+    trigger,
+    mode,
+    value,
+    onChange,
+    renderItem,
+    search,
+    filterPanel,
+    filterActive,
+    multiSelect,
+    renderItemContextMenu,
+    contextMenuViewportMargin,
+    footer,
+    maxListHeight = DEFAULT_MAX_LIST_HEIGHT,
+    emptyState,
+    loading,
+    loadingState,
+    width = DEFAULT_WIDTH,
+    className,
+    popoverContentProps
+  } = props
+  const itemsProp = 'items' in props ? props.items : undefined
+  const sectionsProp = 'sections' in props ? props.sections : undefined
+
+  // Flatten `sections` to a single array for selection/keyboard traversal. Pre-compute each
+  // section's offset into the flat list so the render loop can map (sectionIdx, itemIdx) → flat.
+  const { flatItems, sectionOffsets } = useMemo(() => {
+    if (sectionsProp) {
+      const offsets: number[] = []
+      const flat: T[] = []
+      for (const section of sectionsProp) {
+        offsets.push(flat.length)
+        flat.push(...section.items)
+      }
+      return { flatItems: flat, sectionOffsets: offsets }
+    }
+    return { flatItems: itemsProp ?? [], sectionOffsets: [] }
+  }, [sectionsProp, itemsProp])
   const [internalOpen, setInternalOpen] = useState(false)
   const open = openProp ?? internalOpen
   const setOpen = useCallback(
@@ -79,7 +96,7 @@ export function EntitySelector<T extends EntityItemBase>({
   }, [mode, value])
 
   // ── Keyboard navigation ────────────────────────────────────────────────
-  const firstEnabledIndex = useMemo(() => items.findIndex((it) => !it.disabled), [items])
+  const firstEnabledIndex = useMemo(() => flatItems.findIndex((it) => !it.disabled), [flatItems])
   const [activeIndex, setActiveIndex] = useState<number>(-1)
 
   // When the popover opens or items list changes (e.g. search filtering), reset the active row.
@@ -89,24 +106,24 @@ export function EntitySelector<T extends EntityItemBase>({
       setActiveIndex(-1)
       return
     }
-    const selectedIdx = items.findIndex((it) => selectedSet.has(it.id) && !it.disabled)
+    const selectedIdx = flatItems.findIndex((it) => selectedSet.has(it.id) && !it.disabled)
     setActiveIndex(selectedIdx >= 0 ? selectedIdx : firstEnabledIndex)
     // selectedSet is derived from value+mode; including it directly churns on every parent render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, items, firstEnabledIndex])
+  }, [open, flatItems, firstEnabledIndex])
 
   const step = useCallback(
     (from: number, direction: 1 | -1): number => {
-      if (items.length === 0) return -1
-      const total = items.length
+      if (flatItems.length === 0) return -1
+      const total = flatItems.length
       let i = from
       for (let n = 0; n < total; n++) {
         i = (i + direction + total) % total
-        if (!items[i]?.disabled) return i
+        if (!flatItems[i]?.disabled) return i
       }
       return -1
     },
-    [items]
+    [flatItems]
   )
 
   const handleSelectItem = useCallback(
@@ -143,24 +160,24 @@ export function EntitySelector<T extends EntityItemBase>({
         }
         case 'ArrowUp': {
           event.preventDefault()
-          setActiveIndex((i) => step(i < 0 ? items.length : i, -1))
+          setActiveIndex((i) => step(i < 0 ? flatItems.length : i, -1))
           return
         }
         case 'Home': {
-          if (items.length === 0) return
+          if (flatItems.length === 0) return
           event.preventDefault()
           setActiveIndex(step(-1, 1))
           return
         }
         case 'End': {
-          if (items.length === 0) return
+          if (flatItems.length === 0) return
           event.preventDefault()
           setActiveIndex(step(0, -1))
           return
         }
         case 'Enter': {
           if (activeIndex < 0) return
-          const item = items[activeIndex]
+          const item = flatItems[activeIndex]
           if (!item || item.disabled) return
           event.preventDefault()
           handleSelectItem(item)
@@ -168,27 +185,27 @@ export function EntitySelector<T extends EntityItemBase>({
         }
       }
     },
-    [activeIndex, handleSelectItem, items, step]
+    [activeIndex, handleSelectItem, flatItems, step]
   )
 
   // Keep the active row scrolled into view when activeIndex moves.
   useEffect(() => {
     if (activeIndex < 0) return
-    const item = items[activeIndex]
+    const item = flatItems[activeIndex]
     if (!item) return
     const el = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
     el?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex, items])
+  }, [activeIndex, flatItems])
 
   const activeOptionDomId =
-    activeIndex >= 0 && items[activeIndex] ? `${listboxId}-opt-${items[activeIndex].id}` : undefined
+    activeIndex >= 0 && flatItems[activeIndex] ? `${listboxId}-opt-${flatItems[activeIndex].id}` : undefined
 
   const ctxMenuNode = useMemo(() => {
     if (!renderItemContextMenu || !ctxMenu.position) return null
-    const target = items.find((it) => it.id === ctxMenu.position!.itemId)
+    const target = flatItems.find((it) => it.id === ctxMenu.position!.itemId)
     if (!target) return null
     return renderItemContextMenu(target, { close: ctxMenu.close })
-  }, [renderItemContextMenu, ctxMenu.position, ctxMenu.close, items])
+  }, [renderItemContextMenu, ctxMenu.position, ctxMenu.close, flatItems])
 
   // Popover content props: compose with our overrides without clobbering caller intent.
   const {
@@ -201,6 +218,34 @@ export function EntitySelector<T extends EntityItemBase>({
     style: userStyle,
     ...restPopoverContentProps
   } = popoverContentProps ?? {}
+
+  // Closure-based row renderer — used by both flat `items` and `sections` branches so option-row
+  // plumbing (id, role, keyboard/mouse active state, ctx) stays in one place.
+  const renderOptionRow = (item: T, flatIndex: number) => {
+    const isSelected = selectedSet.has(item.id)
+    const isActive = flatIndex === activeIndex
+    return (
+      <div
+        key={item.id}
+        id={`${listboxId}-opt-${item.id}`}
+        role="option"
+        aria-selected={isSelected}
+        aria-disabled={item.disabled || undefined}
+        data-option-id={item.id}
+        data-active={isActive || undefined}
+        onMouseEnter={() => {
+          if (!item.disabled) setActiveIndex(flatIndex)
+        }}>
+        {renderItem(item, {
+          isSelected,
+          isMultiMode,
+          isActive,
+          onSelect: () => handleSelectItem(item),
+          onContextMenu: renderItemContextMenu ? (e) => ctxMenu.open(e, item.id) : undefined
+        })}
+      </div>
+    )
+  }
 
   return (
     <>
@@ -272,33 +317,24 @@ export function EntitySelector<T extends EntityItemBase>({
             style={{ maxHeight: typeof maxListHeight === 'number' ? `${maxListHeight}px` : maxListHeight }}>
             {loading
               ? (loadingState ?? null)
-              : items.length === 0
+              : flatItems.length === 0
                 ? (emptyState ?? null)
-                : items.map((it, idx) => {
-                    const isSelected = selectedSet.has(it.id)
-                    const isActive = idx === activeIndex
-                    return (
-                      <div
-                        key={it.id}
-                        id={`${listboxId}-opt-${it.id}`}
-                        role="option"
-                        aria-selected={isSelected}
-                        aria-disabled={it.disabled || undefined}
-                        data-option-id={it.id}
-                        data-active={isActive || undefined}
-                        onMouseEnter={() => {
-                          if (!it.disabled) setActiveIndex(idx)
-                        }}>
-                        {renderItem(it, {
-                          isSelected,
-                          isMultiMode,
-                          isActive,
-                          onSelect: () => handleSelectItem(it),
-                          onContextMenu: renderItemContextMenu ? (e) => ctxMenu.open(e, it.id) : undefined
-                        })}
-                      </div>
-                    )
-                  })}
+                : sectionsProp
+                  ? sectionsProp.map((section, sIdx) => {
+                      if (section.items.length === 0) return null
+                      const offset = sectionOffsets[sIdx] ?? 0
+                      return (
+                        <div key={section.key} role="group">
+                          {section.header != null ? (
+                            <div role="presentation" data-entity-section-header={section.key}>
+                              {section.header}
+                            </div>
+                          ) : null}
+                          {section.items.map((it, itemIdx) => renderOptionRow(it, offset + itemIdx))}
+                        </div>
+                      )
+                    })
+                  : flatItems.map((it, idx) => renderOptionRow(it, idx))}
           </div>
 
           {footer ?? null}

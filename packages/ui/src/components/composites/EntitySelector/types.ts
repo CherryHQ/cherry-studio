@@ -34,16 +34,36 @@ export type EntitySelectorSearch = {
 
 export type EntitySelectorPopoverContentProps = Omit<ComponentProps<typeof PopoverContent>, 'children' | 'asChild'>
 
-export type EntitySelectorProps<T extends EntityItemBase> = {
+/**
+ * Named group of items with an optional header node. Use `sections` instead of flat `items` when
+ * the list needs non-item rows interleaved (e.g. a "Pinned" heading above the pinned rows).
+ * Section headers are presentational — they are not focusable, not selectable, and do not
+ * participate in keyboard navigation or active-descendant tracking.
+ * Keyboard navigation walks across all sections in order as if it were a flat list.
+ */
+export type EntitySelectorSection<T extends EntityItemBase> = {
+  /** Stable key for React reconciliation. */
+  key: string
+  /** Rendered immediately before this section's items. Hidden when the section has zero items. */
+  header?: ReactNode
+  items: T[]
+}
+
+// Three-branch union so TS rejects passing BOTH items and sections, while still admitting a
+// zero-arg shape (`{}`) — Storybook's args typing requires a legal default, and callers that
+// omit both fields get an empty list at runtime.
+type EntitySelectorItemsPayload<T extends EntityItemBase> =
+  | { items: T[]; sections?: undefined }
+  | { items?: undefined; sections: EntitySelectorSection<T>[] }
+  | { items?: undefined; sections?: undefined }
+
+type EntitySelectorBaseProps<T extends EntityItemBase> = {
   /** Controlled open state; pair with `onOpenChange`. Omit for uncontrolled. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
 
   /** Trigger node, rendered outside the popover (any clickable element). */
   trigger: ReactNode
-
-  /** Items to show, rendered in the order given. All filtering and sorting is the caller's responsibility. */
-  items: T[]
 
   /** 'single' = single value; 'multi' = array of values. */
   mode: 'single' | 'multi'
@@ -101,3 +121,9 @@ export type EntitySelectorProps<T extends EntityItemBase> = {
    */
   popoverContentProps?: EntitySelectorPopoverContentProps
 }
+
+/**
+ * Exactly one of `items` or `sections` must be provided. `items` is the flat form;
+ * `sections` groups items with optional per-group headers.
+ */
+export type EntitySelectorProps<T extends EntityItemBase> = EntitySelectorBaseProps<T> & EntitySelectorItemsPayload<T>
