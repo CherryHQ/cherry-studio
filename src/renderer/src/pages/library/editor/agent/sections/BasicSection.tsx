@@ -344,13 +344,12 @@ function buildAgentBaseShape({
     id,
     type: 'claude-code',
     model,
-    accessible_paths: accessiblePaths,
+    accessiblePaths,
     mcps: [],
-    allowed_tools: [],
-    slash_commands: [],
+    allowedTools: [],
     configuration: {},
-    created_at: '1970-01-01T00:00:00.000Z',
-    updated_at: '1970-01-01T00:00:00.000Z'
+    createdAt: '1970-01-01T00:00:00.000Z',
+    updatedAt: '1970-01-01T00:00:00.000Z'
   } as unknown as AgentBaseWithId
 }
 

@@ -1,5 +1,5 @@
 import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { AgentConfiguration, AgentDetail, AgentType, SlashCommand } from '@shared/data/types/agent'
+import type { AgentConfiguration, AgentDetail, AgentType } from '@shared/data/types/agent'
 import { FileText, Settings, Shield, SlidersHorizontal, Wrench } from 'lucide-react'
 
 import type { SectionDescriptor } from '../ConfigEditorShell'
@@ -67,7 +67,6 @@ export interface AgentFormState {
   accessiblePaths: string[]
   mcps: string[]
   allowedTools: string[]
-  slashCommands: SlashCommand[]
 
   // configuration.* derived fields we edit in the library UI.
   avatar: string
@@ -152,13 +151,12 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     name: agent?.name ?? '',
     description: agent?.description ?? '',
     model: agent?.model ?? '',
-    planModel: agent?.plan_model ?? '',
-    smallModel: agent?.small_model ?? '',
+    planModel: agent?.planModel ?? '',
+    smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
-    accessiblePaths: [...(agent?.accessible_paths ?? [])],
+    accessiblePaths: [...(agent?.accessiblePaths ?? [])],
     mcps: [...(agent?.mcps ?? [])],
-    allowedTools: [...(agent?.allowed_tools ?? [])],
-    slashCommands: (agent?.slash_commands ?? []).map((c) => ({ ...c })),
+    allowedTools: [...(agent?.allowedTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     maxTurns: asFormMaxTurns(cfg.max_turns),
@@ -200,14 +198,13 @@ export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 
     type,
     name: form.name.trim(),
     model: form.model.trim(),
-    accessible_paths: form.accessiblePaths,
+    accessiblePaths: form.accessiblePaths,
     description: form.description || undefined,
     instructions: form.instructions || undefined,
-    plan_model: form.planModel || undefined,
-    small_model: form.smallModel || undefined,
+    planModel: form.planModel || undefined,
+    smallModel: form.smallModel || undefined,
     mcps: form.mcps.length > 0 ? form.mcps : undefined,
-    allowed_tools: form.allowedTools.length > 0 ? form.allowedTools : undefined,
-    slash_commands: form.slashCommands.length > 0 ? form.slashCommands : undefined,
+    allowedTools: form.allowedTools.length > 0 ? form.allowedTools : undefined,
     configuration: buildConfigurationPayload(form)
   }
 }
@@ -267,11 +264,11 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (baseline.planModel !== next.planModel) {
-    dto.plan_model = next.planModel || undefined
+    dto.planModel = next.planModel || undefined
     dirty = true
   }
   if (baseline.smallModel !== next.smallModel) {
-    dto.small_model = next.smallModel || undefined
+    dto.smallModel = next.smallModel || undefined
     dirty = true
   }
   if (baseline.instructions !== next.instructions) {
@@ -279,7 +276,7 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (!arraysEqual(baseline.accessiblePaths, next.accessiblePaths)) {
-    dto.accessible_paths = next.accessiblePaths
+    dto.accessiblePaths = next.accessiblePaths
     dirty = true
   }
   if (!arraysEqual(baseline.mcps, next.mcps)) {
@@ -287,11 +284,7 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (!arraysEqual(baseline.allowedTools, next.allowedTools)) {
-    dto.allowed_tools = next.allowedTools
-    dirty = true
-  }
-  if (!slashCommandsEqual(baseline.slashCommands, next.slashCommands)) {
-    dto.slash_commands = next.slashCommands
+    dto.allowedTools = next.allowedTools
     dirty = true
   }
 
@@ -338,14 +331,6 @@ export function diffAgentUpdate(
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-function slashCommandsEqual(a: readonly SlashCommand[], b: readonly SlashCommand[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) {
-    if (a[i].command !== b[i].command || (a[i].description ?? '') !== (b[i].description ?? '')) return false
-  }
   return true
 }
 

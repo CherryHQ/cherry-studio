@@ -78,8 +78,8 @@ export function useResourceLibrary({
         tags: [],
         tagRefs: [],
         enabled: true,
-        createdAt: a.created_at,
-        updatedAt: a.updated_at,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
         raw: a
       }
     })

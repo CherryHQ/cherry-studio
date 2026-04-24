@@ -42,10 +42,11 @@ interface Props {
 const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   id: '',
   type: 'claude-code',
-  accessible_paths: [],
+  name: '',
+  accessiblePaths: [],
   model: '',
-  created_at: '',
-  updated_at: '',
+  createdAt: '',
+  updatedAt: '',
   tools: []
 }
 

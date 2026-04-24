@@ -15,30 +15,29 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     name: 'Agent',
     description: '',
     model: 'claude-sonnet-4-5',
-    accessible_paths: [],
+    accessiblePaths: [],
     instructions: '',
     mcps: [],
-    allowed_tools: [],
-    slash_commands: [],
+    allowedTools: [],
     configuration: {},
-    created_at: '2026-04-20T00:00:00.000Z',
-    updated_at: '2026-04-20T00:00:00.000Z',
+    createdAt: '2026-04-20T00:00:00.000Z',
+    updatedAt: '2026-04-20T00:00:00.000Z',
     ...overrides
   }
 }
 
 describe('buildInitialAgentFormState', () => {
-  it('copies snake_case AgentBase fields to camelCase form state', () => {
+  it('copies AgentBase fields to form state', () => {
     const agent = createAgent({
       name: 'Demo',
       description: 'd',
       model: 'm-1',
-      plan_model: 'p-1',
-      small_model: 's-1',
+      planModel: 'p-1',
+      smallModel: 's-1',
       instructions: 'hi',
-      accessible_paths: ['/a', '/b'],
+      accessiblePaths: ['/a', '/b'],
       mcps: ['mcp-1'],
-      allowed_tools: ['Read']
+      allowedTools: ['Read']
     })
     const state = buildInitialAgentFormState(agent)
     expect(state).toMatchObject({
@@ -168,13 +167,13 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('emits the accessible_paths array when list contents change', () => {
-    const agent = createAgent({ accessible_paths: ['/a'] })
+  it('emits the accessiblePaths array when list contents change', () => {
+    const agent = createAgent({ accessiblePaths: ['/a'] })
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, accessiblePaths: ['/a', '/b'] }
 
     const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto?.accessible_paths).toEqual(['/a', '/b'])
+    expect(dto?.accessiblePaths).toEqual(['/a', '/b'])
   })
 
   it('persists the explicit default permission mode when switching back from another mode', () => {

@@ -58,7 +58,6 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
     accessiblePaths: [],
     mcps: [],
     allowedTools: [],
-    slashCommands: [],
     avatar: '',
     permissionMode: '',
     maxTurns: 0,
@@ -79,10 +78,11 @@ describe('ToolsSection', () => {
         agent={{
           id: '',
           type: 'claude-code',
-          accessible_paths: [],
+          name: '',
+          accessiblePaths: [],
           model: '',
-          created_at: '',
-          updated_at: '',
+          createdAt: '',
+          updatedAt: '',
           tools: []
         }}
         form={createForm()}
