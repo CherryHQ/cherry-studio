@@ -1,6 +1,7 @@
 import type { LanguageVarious } from '@types'
 
 export const languageEnglishNameMap: Record<LanguageVarious, string> = {
+  'ar-YE': 'Arabic',
   'de-DE': 'German',
   'el-GR': 'Greek',
   'en-US': 'English',
