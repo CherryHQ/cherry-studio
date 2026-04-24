@@ -50,11 +50,12 @@ export const translateText = async (
     : undefined
 
   // TODO: modify here when aisdk is migrated to main process
-  if (isTranslateLangCode(targetLanguage)) {
+  if (typeof targetLanguage === 'string') {
+    if (!isTranslateLangCode(targetLanguage)) {
+      throw new Error(`Invalid target language: ${targetLanguage}`)
+    }
     const langDto = await dataApiService.get(`/translate/languages/${targetLanguage}`)
     targetLanguage = languageDtoToVo(langDto)
-  } else if (typeof targetLanguage === 'string') {
-    throw new Error(`Invalid target language: ${targetLanguage}`)
   }
   const assistant = await getDefaultTranslateAssistant(targetLanguage, text, assistantSettings)
 
