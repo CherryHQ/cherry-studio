@@ -4,6 +4,7 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
@@ -102,14 +103,19 @@ async function settleAndInvalidate(
   const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
 
   if (rejected.length > 0) {
-    logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, {
-      failures: rejected.map((f) => f.reason)
+    const failures = rejected.map((f) => {
+      const err = toDataApiError(f.reason)
+      return isDataApiError(err)
+        ? { code: err.code, message: err.message }
+        : { code: 'UNKNOWN', message: String(f.reason) }
     })
+    logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, { failures })
     // Resync UI with DB — partial failures leave local state drifting
     await invalidate('/mini-apps')
-    const err = new Error(i18n.t('miniapp.update_partial_failure', { failed: rejected.length, total: results.length }))
-    err.name = 'PartialFailureError'
-    throw err
+    throw DataApiErrorFactory.invalidOperation(
+      `${label}: ${rejected.length} of ${results.length} updates failed`,
+      i18n.t('miniapp.update_partial_failure', { failed: rejected.length, total: results.length })
+    )
   }
 
   return fulfilled.map((r) => r.value)
@@ -117,7 +123,7 @@ async function settleAndInvalidate(
 
 export const useMiniApps = () => {
   // === Data (DataApi) ===
-  const { data, isLoading, mutate: refetch } = useQuery('/mini-apps')
+  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
   // Partition by status in single pass (js-combine-iterations)
@@ -189,21 +195,18 @@ export const useMiniApps = () => {
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
 
-  // Dynamic-path PATCH/DELETE via dataApiService (useMutation requires ConcreteApiPaths, not templates)
+  // Batch PATCH/DELETE via dataApiService (for Promise.allSettled batch ops where
+  // a single template useMutation would share isMutating/error state incorrectly)
   const patchApp = useCallback(
     async (appId: string, body: UpdateMiniAppDto) => {
-      const result = await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
-      await invalidate('/mini-apps')
-      return result
-    },
-    [invalidate]
-  )
-
-  const deleteApp = useCallback(
-    async (appId: string) => {
-      const result = await dataApiService.delete(`/mini-apps/${encodeURIComponent(appId)}`)
-      await invalidate('/mini-apps')
-      return result
+      try {
+        const result = await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
+        await invalidate('/mini-apps')
+        return result
+      } catch (error) {
+        logger.error('Failed to patch mini app', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
     },
     [invalidate]
   )
@@ -213,6 +216,14 @@ export const useMiniApps = () => {
     refresh: ['/mini-apps']
   })
   const { trigger: reorderMiniAppsApi } = useMutation('PATCH', '/mini-apps', {
+    refresh: ['/mini-apps']
+  })
+
+  // Template-path mutations for single-item operations (per DataApi convention)
+  const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
 
@@ -273,29 +284,49 @@ export const useMiniApps = () => {
 
   // === V2-style mutations ===
   const updateAppStatus = useCallback(
-    (appId: string, status: MiniApp['status']) => {
-      return patchApp(appId, { status })
+    async (appId: string, status: MiniApp['status']) => {
+      try {
+        return await patchAppTrigger({ params: { appId }, body: { status } })
+      } catch (error) {
+        logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
     },
-    [patchApp]
+    [patchAppTrigger]
   )
 
   const createCustomMiniApp = useCallback(
-    (dto: CreateMiniAppDto) => {
-      return postMiniApp({ body: dto })
+    async (dto: CreateMiniAppDto) => {
+      try {
+        return await postMiniApp({ body: dto })
+      } catch (error) {
+        logger.error('Failed to create custom mini app', { error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
     },
     [postMiniApp]
   )
 
   const removeCustomMiniApp = useCallback(
-    (appId: string) => {
-      return deleteApp(appId)
+    async (appId: string) => {
+      try {
+        return await deleteAppTrigger({ params: { appId } })
+      } catch (error) {
+        logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
     },
-    [deleteApp]
+    [deleteAppTrigger]
   )
 
   const reorderMiniApps = useCallback(
-    (items: ReorderMiniAppsDto['items']) => {
-      return reorderMiniAppsApi({ body: { items } })
+    async (items: ReorderMiniAppsDto['items']) => {
+      try {
+        return await reorderMiniAppsApi({ body: { items } })
+      } catch (error) {
+        logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
     },
     [reorderMiniAppsApi]
   )
@@ -314,6 +345,7 @@ export const useMiniApps = () => {
     setMiniAppShow,
     setOpenedOneOffMiniApp,
     isLoading,
+    error,
     refetch,
     updateMiniApps,
     updateDisabledMiniApps,

@@ -6,6 +6,7 @@ import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 // import { useRuntime } from '@renderer/hooks/useRuntime'
 import i18n from '@renderer/i18n'
 import { cn, runAsyncFunction } from '@renderer/utils'
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
 const AboutSettings: FC = () => {
+  const { openSmartMiniApp } = useMiniAppPopup()
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
   const [testChannel, setTestChannel] = usePreference('app.dist.test_plan.channel')
@@ -26,7 +28,6 @@ const AboutSettings: FC = () => {
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMinapp } = useMinappPopup()
 
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 

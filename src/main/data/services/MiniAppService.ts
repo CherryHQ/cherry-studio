@@ -13,7 +13,7 @@
  */
 
 import { application } from '@application'
-import { type MiniAppInsert, type MiniAppRegion, type MiniAppSelect } from '@data/db/schemas/miniapp'
+import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniapp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
@@ -35,30 +35,6 @@ const builtinMiniAppMap = new Map<string, BuiltinMiniAppDefinition>(
 const builtinMiniAppDefaultSortOrder = new Map<string, number>(
   ORIGIN_DEFAULT_MINI_APPS.map((app, index) => [app.id, index])
 )
-
-/**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
-
-const VALID_REGIONS = new Set<string>(['CN', 'Global'])
-
-/**
- * Validate and parse supportedRegions from a DB row.
- * Mirrors the write-side validation in MiniAppMappings.toNullableRegions.
- */
-function parseRegions(raw: unknown): ('CN' | 'Global')[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  const regions = raw.filter((r): r is MiniAppRegion => typeof r === 'string' && VALID_REGIONS.has(r))
-  return regions.length > 0 ? regions : undefined
-}
 
 /** Brand a raw DB/app-def string as a MiniAppId. Safe because DB enforces non-empty app_id. */
 function brandId(raw: string): MiniAppId {

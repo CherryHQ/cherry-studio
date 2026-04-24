@@ -4,6 +4,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useRef } from 'react'
@@ -213,9 +214,11 @@ export const useMiniAppPopup = () => {
   const openMiniAppById = useCallback(
     (id: string, keepAlive: boolean = false) => {
       const appDef = allApps.find((app) => app.appId === id)
-      if (appDef) {
-        openMiniApp(appDef, keepAlive)
+      if (!appDef) {
+        logger.warn(`MiniApp not found: ${id}`)
+        throw DataApiErrorFactory.notFound('MiniApp', id)
       }
+      openMiniApp(appDef, keepAlive)
     },
     [allApps, openMiniApp]
   )

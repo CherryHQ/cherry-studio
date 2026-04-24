@@ -4,11 +4,13 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { isDataApiError } from '@shared/data/api'
 import { Input } from 'antd'
 import { Search, SettingsIcon } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import MiniAppSettingsPopup from './MiniAppSettings/MiniAppSettingsPopup'
@@ -17,8 +19,31 @@ import NewAppButton from './NewAppButton'
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { miniapps } = useMiniApps()
+  const { miniapps, isLoading, error } = useMiniApps()
   const { isTopNavbar } = useNavbarPosition()
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Container>
+        <LoadingWrapper>
+          <BeatLoader color="var(--color-text-2)" size={8} />
+        </LoadingWrapper>
+      </Container>
+    )
+  }
+
+  // Error state
+  if (error) {
+    const message = isDataApiError(error) ? error.message : t('common.error')
+    return (
+      <Container>
+        <LoadingWrapper>
+          <ErrorText>{message}</ErrorText>
+        </LoadingWrapper>
+      </Container>
+    )
+  }
 
   const filteredApps = search
     ? miniapps.filter(
@@ -100,6 +125,19 @@ const Container = styled.div`
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+`
+
+const LoadingWrapper = styled.div`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+`
+
+const ErrorText = styled.div`
+  color: var(--color-text-2);
+  font-size: 14px;
 `
 
 const ContentContainer = styled.div`

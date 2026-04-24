@@ -5,6 +5,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
@@ -23,7 +24,7 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
   const { openMiniAppKeepAlive, miniAppsCache } = useMiniAppPopup()
-  const { allApps } = useMiniApps()
+  const { allApps, isLoading, error } = useMiniApps()
   const navigate = useNavigate()
 
   // Remember the initial navbar position when component mounts
@@ -62,7 +63,17 @@ const MiniAppPage: FC = () => {
   }, [appId, allApps, miniAppsCache])
 
   useEffect(() => {
-    // If app not found, redirect to apps list
+    // While data is still loading, don't redirect — app is null because allApps is empty
+    if (isLoading) return
+
+    // If DataApi returned an error, log and redirect
+    if (error) {
+      logger.error('Failed to load mini apps', error instanceof DataApiError ? error : undefined)
+      void navigate({ to: '/app/mini-app' })
+      return
+    }
+
+    // If app not found after loading completes, redirect to apps list
     if (!app) {
       void navigate({ to: '/app/mini-app' })
       return
@@ -85,7 +96,7 @@ const MiniAppPage: FC = () => {
       // Always call to ensure currentMiniAppId stays in sync with the route-changed appId
       openMiniAppKeepAlive(app)
     }
-  }, [app, navigate, openMiniAppKeepAlive, initialIsTopNavbar])
+  }, [app, navigate, openMiniAppKeepAlive, initialIsTopNavbar, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
@@ -155,7 +166,30 @@ const MiniAppPage: FC = () => {
     }
   }, [app, isReady])
 
-  // Early return if conditions not met (all hooks already called)
+  // While loading, show a loading indicator instead of returning null
+  if (isLoading) {
+    return (
+      <ShellContainer>
+        <LoadingMask>
+          <BeatLoader color="var(--color-text-2)" size={8} />
+        </LoadingMask>
+      </ShellContainer>
+    )
+  }
+
+  // Show error state for DataApi errors
+  if (error) {
+    const isNotFound = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+    return (
+      <ShellContainer>
+        <LoadingMask>
+          <ErrorText>{isNotFound ? 'App not found' : 'Failed to load app'}</ErrorText>
+        </LoadingMask>
+      </ShellContainer>
+    )
+  }
+
+  // Early return if no app or not in top navbar mode (all hooks already called)
   if (!app || !initialIsTopNavbar.current) {
     return null
   }
@@ -223,6 +257,11 @@ const LoadingMask = styled.div`
   background: var(--color-background);
   z-index: 4;
   gap: 12px;
+`
+
+const ErrorText = styled.div`
+  color: var(--color-text-2);
+  font-size: 14px;
 `
 
 export default MiniAppPage
