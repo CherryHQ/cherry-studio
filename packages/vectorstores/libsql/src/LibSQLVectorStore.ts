@@ -31,6 +31,20 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
+function toFts5PhraseQuery(query: string): string | null {
+  const trimmedQuery = query.trim()
+
+  if (!trimmedQuery) {
+    return null
+  }
+
+  if (!/[\p{L}\p{N}_]/u.test(trimmedQuery)) {
+    return null
+  }
+
+  return `"${trimmedQuery.replaceAll('"', '""')}"`
+}
+
 function validateMetadataKey(key: string): string {
   if (!SAFE_METADATA_KEY_PATTERN.test(key)) {
     throw new Error(`Invalid metadata filter key: ${key}`)
@@ -583,6 +597,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
       throw new Error('queryStr is required for BM25 mode')
     }
 
+    const matchQuery = toFts5PhraseQuery(query.queryStr)
+
+    if (!matchQuery) {
+      return {
+        nodes: [],
+        similarities: [],
+        ids: []
+      }
+    }
+
     const { where, params } = this.buildWhereClause(query, 'v')
 
     // Use FTS5 for BM25 search
@@ -596,7 +620,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
         ORDER BY score
         LIMIT ${max}
       `,
-      args: toInArgs([...params, query.queryStr])
+      args: toInArgs([...params, matchQuery])
     }
 
     try {

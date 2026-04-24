@@ -923,6 +923,42 @@ describe('LibSQLVectorStore', () => {
       })
     })
 
+    it('should query bm25 mode with punctuation as ordinary user text', async () => {
+      await store.add([
+        new TextNode({
+          text: 'DeepSeek-V3.2 release notes mention node.js, README.md, and C++ usage examples',
+          embedding: [0.7, 0.3],
+          metadata: { category: 'release' }
+        })
+      ])
+
+      const queries = ['DeepSeek-V3.2', 'README.md', 'node.js', 'C++', 'DeepSeek "V3.2"']
+
+      for (const queryStr of queries) {
+        const result = await store.query({
+          queryStr,
+          similarityTopK: 3,
+          mode: 'bm25' as VectorStoreQueryMode
+        })
+
+        expect(result.nodes?.length ?? 0).toBeGreaterThan(0)
+      }
+    })
+
+    it('should return empty bm25 results for punctuation-only user text', async () => {
+      const result = await store.query({
+        queryStr: '...',
+        similarityTopK: 3,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+
+      expect(result).toEqual({
+        nodes: [],
+        similarities: [],
+        ids: []
+      })
+    })
+
     it('should throw error for bm25 mode without queryStr', async () => {
       const query: VectorStoreQuery = {
         queryEmbedding: [0.5, 0.5],
@@ -952,6 +988,25 @@ describe('LibSQLVectorStore', () => {
         const text = node.getContent(MetadataMode.NONE).toLowerCase()
         expect(text.includes('artificial') || text.includes('intelligence') || text.includes('learning')).toBe(true)
       })
+    })
+
+    it('should query hybrid mode with punctuation as ordinary user text', async () => {
+      await store.add([
+        new TextNode({
+          text: 'DeepSeek-V3.2 release notes for hybrid retrieval',
+          embedding: [0.9, 0.1],
+          metadata: { category: 'release' }
+        })
+      ])
+
+      const result = await store.query({
+        queryEmbedding: [0.9, 0.1],
+        queryStr: 'DeepSeek-V3.2',
+        similarityTopK: 2,
+        mode: 'hybrid' as VectorStoreQueryMode
+      })
+
+      expect(result.nodes?.length ?? 0).toBeGreaterThan(0)
     })
 
     it('should throw error for hybrid mode without queryEmbedding', async () => {
