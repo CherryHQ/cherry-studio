@@ -79,6 +79,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
+  deepseek_v4: ['high', 'xhigh'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
   // Claude 3.7, 4.0, 4.5 reasoning models
   claude: ['low', 'medium', 'high'] as const,
@@ -118,6 +119,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
+  deepseek_v4: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
@@ -202,6 +204,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'perplexity'
   } else if (isSupportedThinkingTokenZhipuModel(model)) {
     thinkingModelType = 'zhipu'
+  } else if (isDeepSeekV4PlusModel(model)) {
+    thinkingModelType = 'deepseek_v4'
   } else if (isDeepSeekHybridInferenceModel(model)) {
     thinkingModelType = 'deepseek_hybrid'
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
@@ -630,6 +634,19 @@ export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
   return idResult || nameResult
 }
 
+/**
+ * Matches DeepSeek V4+ models (e.g., deepseek-v4-flash, deepseek-v4-pro, deepseek-v5-xxx).
+ * V4+ models default to thinking enabled and support reasoning_effort: "high" | "max".
+ */
+export const isDeepSeekV4PlusModel = (model: Model) => {
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    // Match deepseek-v{N} where N >= 4, with any optional suffix
+    return /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/.test(modelId)
+  })
+  return idResult || nameResult
+}
+
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
     const modelId = getLowerBaseModelName(model.id)
@@ -647,7 +664,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
       modelId.includes('deepseek-chat')
     )
   })
-  return idResult || nameResult
+  return idResult || nameResult || isDeepSeekV4PlusModel(model)
 }
 
 export const isLingReasoningModel = (model?: Model): boolean => {
