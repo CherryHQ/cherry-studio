@@ -1,3 +1,5 @@
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { MESSAGE_STREAM_TIMEOUT_MS } from '@main/apiServer/config/timeouts'
 import {
@@ -5,7 +7,9 @@ import {
   STREAM_TIMEOUT_REASON,
   type StreamAbortController
 } from '@main/apiServer/utils/createStreamAbortController'
-import { agentService, sessionMessageService, sessionService } from '@main/services/agents'
+import { agentService } from '@main/services/agents'
+import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
+import type { GetAgentSessionResponse } from '@types'
 import type { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerMessagesHandlers')
@@ -22,7 +26,7 @@ const verifyAgentAndSession = async (agentId: string, sessionId: string) => {
     throw { status: 404, code: 'session_not_found', message: 'Session not found' }
   }
 
-  if (session.agent_id !== agentId) {
+  if (session.agentId !== agentId) {
     throw { status: 404, code: 'session_not_found', message: 'Session not found for this agent' }
   }
 
@@ -53,8 +57,8 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       timeoutMs: MESSAGE_STREAM_TIMEOUT_MS
     })
     const { abortController, registerAbortHandler, dispose } = streamController
-    const { stream, completion } = await sessionMessageService.createSessionMessage(
-      session,
+    const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
+      session as GetAgentSessionResponse,
       messageData,
       abortController
     )
@@ -263,23 +267,11 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
 export const deleteMessage = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { agentId, sessionId, messageId: messageIdParam } = req.params
-    const messageId = Number(messageIdParam)
+    const { agentId, sessionId, messageId } = req.params
 
     await verifyAgentAndSession(agentId, sessionId)
 
-    const deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
-
-    if (!deleted) {
-      logger.warn('Session message not found', { agentId, sessionId, messageId })
-      return res.status(404).json({
-        error: {
-          message: 'Message not found for this session',
-          type: 'not_found',
-          code: 'session_message_not_found'
-        }
-      })
-    }
+    await sessionMessageService.deleteSessionMessage(agentId, sessionId, messageId)
 
     logger.info('Session message deleted', { agentId, sessionId, messageId })
     return res.status(204).send()

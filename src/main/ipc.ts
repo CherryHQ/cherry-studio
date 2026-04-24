@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
@@ -24,7 +25,6 @@ import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository } from './services/agents/database'
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
@@ -121,7 +121,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
-      return await agentMessageRepository.persistExchange(payload)
+      return await sessionMessageService.persistExchange(payload)
     } catch (error) {
       logger.error('Failed to persist agent session messages', error as Error)
       throw error
@@ -132,7 +132,7 @@ export async function registerIpc() {
     IpcChannel.AgentMessage_GetHistory,
     async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
       try {
-        return await agentMessageRepository.getSessionHistory(sessionId)
+        return await sessionMessageService.getSessionHistory(sessionId)
       } catch (error) {
         logger.error('Failed to get agent session history', error as Error)
         throw error

@@ -17,7 +17,7 @@ const SessionWorkspaceMeta = ({ agent, session }: SessionWorkspaceMetaProps) => 
     return null
   }
 
-  const firstAccessiblePath = session.accessible_paths?.[0]
+  const firstAccessiblePath = session.accessiblePaths?.[0]
 
   const getLastFolderName = (path: string): string => {
     const trimmedPath = path.replace(/[/\\]+$/, '')

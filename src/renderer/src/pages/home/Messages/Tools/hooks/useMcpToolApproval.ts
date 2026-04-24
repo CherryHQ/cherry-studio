@@ -102,7 +102,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
     const basicApproved = isToolAutoApproved(
       tool,
       mcpServers.find((s) => s.id === tool.serverId),
-      agent?.allowed_tools
+      agent?.allowedTools
     )
     if (basicApproved) return true
     // For hub invoke/exec, use the async-resolved underlying server result
