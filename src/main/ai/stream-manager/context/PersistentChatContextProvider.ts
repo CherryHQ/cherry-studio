@@ -57,13 +57,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const siblingsGroupId = await resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
 
     // 4. Atomically reserve user message + N placeholders in one transaction.
-    //    On any failure SQLite rolls back everything — no compensation logic needed.
-    //
-    //    For single-model turns we honour `req.assistantMessageId` so the
-    //    renderer's `useChat.activeResponse` and the DB placeholder share
-    //    the same UUID. Multi-model turns ignore it — we'd need one id per
-    //    execution, which the renderer doesn't pre-allocate.
-    const assistantIdOverride = !isMultiModel ? req.assistantMessageId : undefined
+    //    On any failure SQLite rolls back everything — no compensation logic
+    //    needed. Main owns all message ids; the renderer reconciles by
+    //    replacing `useChat.state.messages` with the DB snapshot on
+    //    stream-done (see `useChatWithHistory.refreshAndReplace`).
     const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
       topicId: req.topicId,
       userMessage: isRegenerate
@@ -83,8 +80,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             }
           },
       siblingsGroupId,
-      placeholders: models.map((model, index) => ({
-        ...(assistantIdOverride && index === 0 && { id: assistantIdOverride }),
+      placeholders: models.map((model) => ({
         role: 'assistant',
         data: { parts: [] },
         status: 'pending',
