@@ -3,6 +3,13 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -303,7 +310,17 @@ export class MigrationEngine {
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
-      { table: knowledgeBaseTable, name: 'knowledge_base' }
+      { table: knowledgeBaseTable, name: 'knowledge_base' },
+      // Agents-domain tables — child → parent order
+      { table: agentSessionMessageTable, name: 'agent_session_message' },
+      { table: agentChannelTaskTable, name: 'agent_channel_task' },
+      { table: agentTaskRunLogTable, name: 'agent_task_run_log' },
+      { table: agentChannelTable, name: 'agent_channel' },
+      { table: agentTaskTable, name: 'agent_task' },
+      { table: agentSkillTable, name: 'agent_skill' },
+      { table: agentSessionTable, name: 'agent_session' },
+      { table: agentGlobalSkillTable, name: 'agent_global_skill' },
+      { table: agentTable, name: 'agent' }
       // TODO: Add fileTable when created
     ]
 
@@ -331,6 +348,16 @@ export class MigrationEngine {
     await db.delete(translateLanguageTable)
     await db.delete(knowledgeItemTable) // FK → knowledge_base
     await db.delete(knowledgeBaseTable)
+    // Agents-domain cleanup — child → parent order
+    await db.delete(agentSessionMessageTable) // FK → agent_session
+    await db.delete(agentChannelTaskTable) // FK → agent_channel, agent_task
+    await db.delete(agentTaskRunLogTable) // FK → agent_task
+    await db.delete(agentChannelTable) // FK → agent, agent_session
+    await db.delete(agentTaskTable) // FK → agent
+    await db.delete(agentSkillTable) // FK → agent, agent_global_skill
+    await db.delete(agentSessionTable) // FK → agent
+    await db.delete(agentGlobalSkillTable)
+    await db.delete(agentTable)
 
     logger.info('All new architecture tables cleared successfully')
   }

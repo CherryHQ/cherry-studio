@@ -8,6 +8,8 @@
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
  * - {@link useInvalidateCache} - Manual cache invalidation
+ * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
+ * - {@link useWriteCache} - Write to a cache key without revalidating (optimistic overlay)
  * - {@link prefetch} - Warm up cache before user interactions
  *
  * All hooks use SWR under the hood for caching, deduplication, and revalidation.
@@ -21,11 +23,27 @@
  * const { trigger } = useMutation('POST', '/topics', { refresh: ['/topics'] })
  * await trigger({ body: { name: 'New Topic' } })
  *
+ * @example
+ * // Template path + `/*` prefix refresh (delete any topic, invalidate the whole resource tree)
+ * const { trigger } = useMutation('DELETE', '/topics/:topicId', {
+ *   refresh: ({ args }) => ['/topics', `/topics/${args.params.topicId}/*`]
+ * })
+ * await trigger({ params: { topicId: clickedId } })
+ *
  * @see {@link https://swr.vercel.app SWR Documentation}
  */
 
 import { dataApiService } from '@data/DataApiService'
-import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
+import { loggerService } from '@logger'
+import { isDev } from '@renderer/config/constant'
+import type {
+  ApiPath,
+  BodyForPath,
+  ParamsForPath,
+  QueryParamsForPath,
+  ResponseForPath,
+  TemplateApiPaths
+} from '@shared/data/api/apiPaths'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import {
   type CursorPaginationResponse,
@@ -33,12 +51,14 @@ import {
   type PaginationResponse
 } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyedMutator, SWRConfiguration } from 'swr'
-import useSWR, { preload, useSWRConfig } from 'swr'
+import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
+import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration } from 'swr/infinite'
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
+
+const logger = loggerService.withContext('useDataApi')
 
 /**
  * Default SWR configuration shared across all hooks.
@@ -63,11 +83,27 @@ const DEFAULT_SWR_OPTIONS = {
 // ============================================================================
 
 /** Infer item type from paginated response path */
-type InferPaginatedItem<TPath extends ConcreteApiPaths> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<
-  infer T
->
+type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
   ? T
   : unknown
+
+/**
+ * Map a path to the shape of its `params` option.
+ *
+ * - Template paths (literal `keyof ApiSchemas`) whose schema method declares
+ *   `params: {...}` → `params` is required with the declared shape.
+ * - Template paths whose method declares no `params` → `params` is forbidden.
+ * - Pre-resolved concrete paths (like `/providers/abc`) → `params` is always
+ *   forbidden, because the caller already inlined the values.
+ *
+ * Uses `[T] extends [never]` tuple-wrap to disable distributive conditional
+ * evaluation over unions.
+ */
+export type ParamsOption<TPath extends string, TMethod extends string> = TPath extends TemplateApiPaths
+  ? [ParamsForPath<TPath, TMethod>] extends [never]
+    ? { params?: never }
+    : { params: ParamsForPath<TPath, TMethod> }
+  : { params?: never }
 
 /**
  * useQuery result type
@@ -78,7 +114,7 @@ type InferPaginatedItem<TPath extends ConcreteApiPaths> = ResponseForPath<TPath,
  * @property refetch - Trigger a revalidation from the server
  * @property mutate - SWR mutator for advanced cache control (optimistic updates, manual cache manipulation)
  */
-export interface UseQueryResult<TPath extends ConcreteApiPaths> {
+export interface UseQueryResult<TPath extends ApiPath> {
   data?: ResponseForPath<TPath, 'GET'>
   isLoading: boolean
   isRefreshing: boolean
@@ -88,19 +124,47 @@ export interface UseQueryResult<TPath extends ConcreteApiPaths> {
 }
 
 /**
+ * Arguments accepted by the mutation `trigger` function.
+ *
+ * `params` is required for template paths (like `/providers/:providerId`) and
+ * forbidden for pre-resolved concrete paths — the distinction is enforced at
+ * the type level via {@link ParamsOption}.
+ */
+export type TriggerArgs<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> = ParamsOption<
+  TPath,
+  TMethod
+> & {
+  body?: BodyForPath<TPath, TMethod>
+  query?: QueryParamsForPath<TPath, TMethod>
+}
+
+/**
+ * Context passed to a function-form `refresh` callback.
+ */
+export interface RefreshContext<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> {
+  /** The args passed to the current `trigger(...)` call */
+  args: TriggerArgs<TPath, TMethod> | undefined
+  /** The server response from this mutation */
+  result: ResponseForPath<TPath, TMethod>
+}
+
+/**
+ * `refresh` option shape: either a static array of paths (supporting `/*`
+ * prefix matching) or a function computing paths from the trigger args and
+ * server response.
+ */
+export type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> =
+  | ConcreteApiPaths[]
+  | ((ctx: RefreshContext<TPath, TMethod>) => ConcreteApiPaths[])
+
+/**
  * useMutation result type
- * @property trigger - Execute the mutation with optional body and query params
+ * @property trigger - Execute the mutation with optional params, body, query
  * @property isLoading - True while the mutation is in progress
  * @property error - Error object if the last mutation failed
  */
-export interface UseMutationResult<
-  TPath extends ConcreteApiPaths,
-  TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-> {
-  trigger: (data?: {
-    body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath, TMethod>
-  }) => Promise<ResponseForPath<TPath, TMethod>>
+export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'> {
+  trigger: (data?: TriggerArgs<TPath, TMethod>) => Promise<ResponseForPath<TPath, TMethod>>
   isLoading: boolean
   error: Error | undefined
 }
@@ -190,10 +254,14 @@ export interface UsePaginatedQueryResult<T> {
  * // Manual cache update
  * const { data, mutate } = useQuery('/topics')
  * mutate({ ...data, name: 'Updated' }, { revalidate: false })
+ *
+ * @example
+ * // Template path + params (prefer a helper like `providerPath(id)` when the id is stable)
+ * const { data } = useQuery('/providers/:providerId', { params: { providerId } })
  */
-export function useQuery<TPath extends ConcreteApiPaths>(
+export function useQuery<TPath extends ApiPath>(
   path: TPath,
-  options?: {
+  options?: ParamsOption<TPath, 'GET'> & {
     /** Query parameters for filtering, pagination, etc. */
     query?: QueryParamsForPath<TPath, 'GET'>
     /** Disable the request (default: true) */
@@ -202,7 +270,9 @@ export function useQuery<TPath extends ConcreteApiPaths>(
     swrOptions?: SWRConfiguration
   }
 ): UseQueryResult<TPath> {
-  const key = options?.enabled !== false ? buildSWRKey(path, options?.query) : null
+  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const key =
+    options?.enabled !== false ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(key, getFetcher, {
     ...DEFAULT_SWR_OPTIONS,
@@ -257,8 +327,39 @@ export function useQuery<TPath extends ConcreteApiPaths>(
  * const { trigger } = useMutation('PATCH', '/topics/abc', {
  *   optimisticData: { ...topic, starred: true }
  * })
+ *
+ * @example
+ * // `/*` prefix in refresh invalidates all sub-paths of a resource (including unknown ids)
+ * useMutation('DELETE', '/providers/:providerId', {
+ *   refresh: ({ args }) => ['/providers', `/providers/${args.params.providerId}/*`]
+ * })
+ *
+ * @example
+ * // Function-form refresh when the invalidated keys depend on the server response
+ * useMutation('POST', '/messages', {
+ *   refresh: ({ result }) => [`/topics/${result.topicId}/messages`, `/messages/${result.parentId}`]
+ * })
+ *
+ * @remarks
+ * Template paths (e.g., `/topics/:topicId`) share SWR mutation state across all
+ * `params` triggered on the same hook instance. Don't trigger different ids
+ * concurrently from one hook — use per-row instances bound to concrete paths
+ * (e.g., `useMutation('PATCH', providerPath(id))`) when you need parallel writes.
+ *
+ * @remarks
+ * Callback / side-effect ordering after a successful mutation:
+ * 1. Server response resolves.
+ * 2. `refresh` keys are invalidated — covers `useQuery`, `usePaginatedQuery`,
+ *    and `useInfiniteQuery` / `useSWRInfinite` (the infinite caches are
+ *    enumerated explicitly since SWR's filter API skips `$inf$` keys).
+ * 3. `onSuccess` callback runs. Any `useQuery` the callback touches will be
+ *    in "stale, pending revalidation" state — avoid manual optimistic
+ *    `mutate(...)` here as it races with the pending revalidation.
+ * 4. If `optimisticData` was set, the mutated cache key is re-validated.
+ * A thrown `refresh` callback is caught and logged; it does not cause the
+ * `trigger` promise to reject or skip `onSuccess`.
  */
-export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod,
   path: TPath,
   options?: {
@@ -266,8 +367,8 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     onSuccess?: (data: ResponseForPath<TPath, TMethod>) => void
     /** Callback when mutation fails */
     onError?: (error: Error) => void
-    /** API paths to revalidate on success */
-    refresh?: ConcreteApiPaths[]
+    /** API paths to revalidate on success; supports trailing `/*` for prefix match or a function of trigger args/result */
+    refresh?: RefreshOption<TPath, TMethod>
     /** If provided, updates cache immediately (with auto-rollback on error) */
     optimisticData?: ResponseForPath<TPath, TMethod>
     /** Override SWR mutation configuration (fetcher, onSuccess, onError are handled internally) */
@@ -277,7 +378,7 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     >
   }
 ): UseMutationResult<TPath, TMethod> {
-  const { mutate: globalMutate } = useSWRConfig()
+  const { mutate: globalMutate, cache } = useSWRConfig()
 
   // Use ref to avoid stale closure issues with callbacks
   const optionsRef = useRef(options)
@@ -285,68 +386,137 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
     optionsRef.current = options
   }, [options])
 
-  const apiFetcher = createApiFetcher<TPath, TMethod>(method)
+  // Track the params from the most recent in-flight trigger, for dev-mode
+  // concurrency detection on template paths.
+  const inFlightParamsRef = useRef<Record<string, unknown> | null>(null)
 
+  const apiFetcher = createApiFetcher<ConcreteApiPaths, TMethod>(method)
+
+  // Fetcher resolves the template using the arg's `params` so the outgoing
+  // request hits the concrete URL. The SWR mutation key (the template itself)
+  // stays stable across triggers, which is what SWR needs for hook identity.
   const fetcher = async (
-    _key: string,
+    templatePath: string,
     {
       arg
     }: {
       arg?: {
+        params?: Record<string, string | number>
         body?: BodyForPath<TPath, TMethod>
         query?: QueryParamsForPath<TPath, TMethod>
       }
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    return apiFetcher(path, { body: arg?.body, query: arg?.query })
+    const resolvedPath = resolveTemplate(templatePath, arg?.params)
+    return apiFetcher(resolvedPath as ConcreteApiPaths, {
+      body: arg?.body as BodyForPath<ConcreteApiPaths, TMethod>,
+      query: arg?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
+    }) as Promise<ResponseForPath<TPath, TMethod>>
   }
 
+  // SWR mutation state is cached by path; for template paths this means a
+  // single hook instance shares `isMutating`/`error` across all params. See the
+  // "Template paths and concurrent trigger" caveat in the renderer docs.
   const {
     trigger: swrTrigger,
     isMutating,
     error
+    // SWR's MutationFetcher generic over TPath + ExtraArg doesn't infer cleanly
+    // here (our ExtraArg shape mixes schema-derived body/query types), so we
+    // widen the key to `string` for SWR while keeping TPath precision elsewhere.
   } = useSWRMutation(path as string, fetcher, {
     populateCache: false,
     revalidate: false,
-    onSuccess: async (data) => {
-      optionsRef.current?.onSuccess?.(data)
-
-      // Refresh specified keys on success
-      if (optionsRef.current?.refresh?.length) {
-        await globalMutate(createMultiKeyMatcher(optionsRef.current.refresh))
-      }
-    },
-    onError: (error) => optionsRef.current?.onError?.(error),
+    onError: (err) => optionsRef.current?.onError?.(err),
     ...options?.swrOptions
   })
 
-  const trigger = async (data?: {
-    body?: BodyForPath<TPath, TMethod>
-    query?: QueryParamsForPath<TPath, TMethod>
-  }): Promise<ResponseForPath<TPath, TMethod>> => {
+  const trigger = async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
     const opts = optionsRef.current
+    // Capture args in this call's closure so concurrent triggers don't clobber
+    // each other's refresh context (refs would race on overlapping awaits).
+    const capturedArgs = data
+    const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
+    const resolvedPath = resolveTemplate(path, paramsRecord)
     const hasOptimisticData = opts?.optimisticData !== undefined
+
+    // Dev-mode: warn when a single template-hook instance is trigger'd with
+    // different params while a previous call is still in-flight. We check the
+    // ref rather than SWR's `isMutating` because React state updates lag a
+    // render — synchronous bursts (e.g. `Promise.all([trigger(a), trigger(b)])`)
+    // would see stale `isMutating === false` in both closures and the warning
+    // would never fire. The ref is updated synchronously on trigger entry.
+    if (isDev && paramsRecord) {
+      const prev = inFlightParamsRef.current
+      if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
+        logger.warn(
+          `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
+            `In-flight params=${JSON.stringify(prev)}, new params=${JSON.stringify(paramsRecord)}. ` +
+            `isMutating/error state will be shared between the two calls. ` +
+            `Use per-row hook instances with concrete paths (e.g. useMutation('${method}', providerPath(id))) for parallel writes.`
+        )
+      }
+    }
+    inFlightParamsRef.current = paramsRecord ?? null
 
     // Apply optimistic update if optimisticData is provided
     if (hasOptimisticData) {
-      await globalMutate([path], opts.optimisticData, false)
+      await globalMutate([resolvedPath], opts.optimisticData, false)
     }
 
     try {
-      const result = await swrTrigger(data)
+      const result = await swrTrigger({
+        params: paramsRecord,
+        body: capturedArgs?.body,
+        query: capturedArgs?.query
+      } as {
+        params?: Record<string, string | number>
+        body?: BodyForPath<TPath, TMethod>
+        query?: QueryParamsForPath<TPath, TMethod>
+      })
+
+      // Run refresh after the mutation resolves. We do this in `trigger`
+      // itself (not SWR's onSuccess) so args/result are closure-captured
+      // and tied to this specific call.
+      //
+      // Refresh is an after-success side effect, not part of the mutation's
+      // success contract. If a user-provided function-form refresh throws
+      // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
+      // an error, we must NOT propagate it — the server-side mutation has
+      // already succeeded and the caller's `await trigger()` must resolve
+      // accordingly. Log and continue instead.
+      const refreshOpt = opts?.refresh
+      if (refreshOpt) {
+        try {
+          const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
+          if (keys.length > 0) {
+            await invalidatePathPatterns(cache, globalMutate, keys)
+          }
+        } catch (refreshErr) {
+          logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
+            error: refreshErr
+          })
+        }
+      }
+
+      opts?.onSuccess?.(result)
 
       // Revalidate after optimistic update completes
       if (hasOptimisticData) {
-        await globalMutate([path])
+        await globalMutate([resolvedPath])
       }
 
       return result
     } catch (err) {
       // Rollback optimistic update on error
       if (hasOptimisticData) {
-        await globalMutate([path])
+        await globalMutate([resolvedPath])
       }
       throw err
+    } finally {
+      if (inFlightParamsRef.current === paramsRecord) {
+        inFlightParamsRef.current = null
+      }
     }
   }
 
@@ -375,18 +545,28 @@ export function useMutation<TPath extends ConcreteApiPaths, TMethod extends 'POS
  *
  * // Invalidate all cached data
  * await invalidate(true)
+ *
+ * @example
+ * // `/*` prefix invalidates all sub-paths of a resource
+ * await invalidate('/providers/*')
+ * await invalidate(['/providers', '/providers/*'])
+ *
+ * @remarks
+ * Path-based invalidation (string / string[] forms) covers both array-shaped
+ * cache keys and `useSWRInfinite` keys. SWR's filter API skips infinite keys
+ * at the source, so those are enumerated and mutated explicitly.
  */
 export function useInvalidateCache() {
-  const { mutate } = useSWRConfig()
+  const { mutate, cache } = useSWRConfig()
 
   const invalidate = async (keys?: string | string[] | boolean): Promise<void> => {
     if (keys === true || keys === undefined) {
       await mutate(() => true)
-    } else if (typeof keys === 'string') {
-      await mutate(createKeyMatcher(keys))
-    } else if (Array.isArray(keys)) {
-      await mutate(createMultiKeyMatcher(keys))
+      return
     }
+    if (keys === false) return
+    const patterns = typeof keys === 'string' ? [keys] : keys
+    await invalidatePathPatterns(cache, mutate, patterns)
   }
 
   return invalidate
@@ -412,15 +592,113 @@ export function useInvalidateCache() {
  * await prefetch('/messages', { query: { topicId: 'abc', limit: 20 } })
  * // Later, this will be instant:
  * const { data } = useQuery('/messages', { query: { topicId: 'abc', limit: 20 } })
+ *
+ * @example
+ * // Template path + params — produces the same cache key as useQuery('/providers/:id', {...})
+ * await prefetch('/providers/:providerId', { params: { providerId } })
  */
-export function prefetch<TPath extends ConcreteApiPaths>(
+export function prefetch<TPath extends ApiPath>(
   path: TPath,
-  options?: {
+  options?: ParamsOption<TPath, 'GET'> & {
     query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
-  const key = buildSWRKey(path, options?.query)
+  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
   return preload(key, getFetcher)
+}
+
+/**
+ * Hook: snapshot-read a cached GET response WITHOUT subscribing.
+ *
+ * Returns a reader function that peeks the current value of a cache key and
+ * returns `undefined` when the key has not been fetched yet. The reader does
+ * NOT subscribe — calling it does not re-render the component when the cache
+ * entry changes.
+ *
+ * Use this for one-shot reads inside callbacks or optimistic-update reducers
+ * where re-rendering on cache change is explicitly undesirable (e.g.
+ * {@link useMutation} callbacks, drag-and-drop optimistic writes). For
+ * reactive access, use {@link useQuery} instead.
+ *
+ * This hook is the ONLY sanctioned place in the codebase to reach for SWR's
+ * internal key serialization (`unstable_serialize`) and raw cache API — any
+ * other hook that needs non-reactive cache reads must go through here so the
+ * unstable-surface stays confined to a single file.
+ *
+ * @example
+ * // Inside a callback, peek the current collection before computing an
+ * // optimistic overlay.
+ * const readSnapshot = useReadCache()
+ * const handleDrop = (next: Item[]) => {
+ *   const current = readSnapshot<{ items: Item[] }>('/mcp-servers')
+ *   // ...derive optimistic value from current + next
+ * }
+ */
+export function useReadCache() {
+  const { cache } = useSWRConfig()
+
+  return useCallback(
+    <TResponse = unknown>(
+      path: ConcreteApiPaths | TemplateApiPaths,
+      query?: Record<string, unknown>
+    ): TResponse | undefined => {
+      const hasQuery = query !== undefined && Object.keys(query).length > 0
+      const serialized = hasQuery ? unstable_serialize([path, query]) : unstable_serialize([path])
+      const entry = cache.get(serialized)
+      return entry?.data as TResponse | undefined
+    },
+    [cache]
+  )
+}
+
+/**
+ * Hook: write a value into the cache under a GET key WITHOUT triggering a
+ * revalidation.
+ *
+ * Returns a writer function that mirrors {@link useQuery}'s cache-key shape
+ * — pass the same `path` (+ optional `query`) you would to `useQuery` and it
+ * overwrites that entry in-place. This is the sanctioned form of
+ * `mutate(key, value, false)` for the DataApi layer; `useReorder` and any
+ * future hook needing to seed an optimistic overlay go through here instead
+ * of touching `useSWRConfig` directly.
+ *
+ * The write does NOT mark the entry stale and does NOT schedule a fetch —
+ * callers who need a follow-up revalidate use {@link useInvalidateCache} or
+ * rely on {@link useMutation}'s `refresh` option to handle it.
+ *
+ * @example
+ * const writeCache = useWriteCache()
+ * const invalidate = useInvalidateCache()
+ *
+ * // Seed an optimistic value derived from the current cache + user input.
+ * await writeCache('/mcp-servers', nextCollection)
+ * try {
+ *   await patchServer({ body })
+ * } catch (err) {
+ *   // Rollback: force server truth back into cache.
+ *   await invalidate('/mcp-servers')
+ *   throw err
+ * }
+ */
+export function useWriteCache() {
+  const { mutate } = useSWRConfig()
+
+  return useCallback(
+    async <TResponse = unknown>(
+      path: ConcreteApiPaths | TemplateApiPaths,
+      value: TResponse,
+      query?: Record<string, unknown>
+    ): Promise<void> => {
+      const hasQuery = query !== undefined && Object.keys(query).length > 0
+      const key = hasQuery ? [path, query] : [path]
+      // `false` (third arg) tells SWR: overwrite the cached value and skip
+      // revalidation. Critical for optimistic overlays — we want the UI to
+      // see the value immediately without racing with a GET.
+      await mutate(key, value, false)
+    },
+    [mutate]
+  )
 }
 
 // ============================================================================
@@ -458,10 +736,16 @@ export function prefetch<TPath extends ConcreteApiPaths>(
  *   query: { topicId: 'abc' },
  *   limit: 50
  * })
+ *
+ * @example
+ * // Template path: list messages of a specific topic
+ * const { items } = useInfiniteQuery('/topics/:topicId/messages', {
+ *   params: { topicId }
+ * })
  */
-export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
+export function useInfiniteQuery<TPath extends ApiPath>(
   path: TPath,
-  options?: {
+  options?: ParamsOption<TPath, 'GET'> & {
     /** Additional query parameters (cursor/limit are managed internally) */
     query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
     /** Items per page (default: 10) */
@@ -474,6 +758,10 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
 ): UseInfiniteQueryResult<InferPaginatedItem<TPath>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+
+  // Resolve template once per render; key dependencies include the resolved
+  // value so identity changes propagate to SWR cache keys.
+  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
 
   const getKey = useCallback(
     (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
@@ -490,13 +778,13 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
         ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
       }
 
-      return [path, paginationQuery] as [TPath, typeof paginationQuery]
+      return [resolvedPath, paginationQuery] as [string, typeof paginationQuery]
     },
-    [path, options?.query, limit, enabled]
+    [resolvedPath, options?.query, limit, enabled]
   )
 
-  const infiniteFetcher = (key: [TPath, Record<string, unknown>]) => {
-    return getFetcher(key as unknown as [TPath, QueryParamsForPath<TPath, 'GET'>?]) as Promise<
+  const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
+    return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
       CursorPaginationResponse<InferPaginatedItem<TPath>>
     >
   }
@@ -575,10 +863,17 @@ export function useInfiniteQuery<TPath extends ConcreteApiPaths>(
  *   query: { search: searchTerm },
  *   limit: 20
  * })
+ *
+ * @example
+ * // Template path: paginated API keys of a specific provider
+ * const { items } = usePaginatedQuery('/providers/:providerId/api-keys', {
+ *   params: { providerId },
+ *   limit: 20
+ * })
  */
-export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
+export function usePaginatedQuery<TPath extends ApiPath>(
   path: TPath,
-  options?: {
+  options?: ParamsOption<TPath, 'GET'> & {
     /** Additional query parameters (page/limit are managed internally) */
     query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
     /** Items per page (default: 10) */
@@ -605,11 +900,20 @@ export function usePaginatedQuery<TPath extends ConcreteApiPaths>(
     limit
   }
 
+  // Pass params through to useQuery so the template resolves to the same
+  // concrete path (and therefore the same cache key) as a direct useQuery call.
+  // Cast via `unknown` because the discriminated union between
+  // "template path (params required)" and "concrete path (params forbidden)"
+  // cannot be expressed once TPath itself is generic.
   const { data, isLoading, isRefreshing, error, refetch } = useQuery(path, {
-    // Type assertion needed: we're adding pagination params to a partial query type
+    params: options?.params,
     query: queryWithPagination as QueryParamsForPath<TPath, 'GET'>,
     enabled: options?.enabled,
     swrOptions: options?.swrOptions
+  } as unknown as ParamsOption<TPath, 'GET'> & {
+    query?: QueryParamsForPath<TPath, 'GET'>
+    enabled?: boolean
+    swrOptions?: SWRConfiguration
   })
 
   // usePaginatedQuery is only for offset pagination
@@ -711,17 +1015,18 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
 }
 
 /**
- * Build SWR cache key from path and optional query parameters.
+ * Build SWR cache key from resolved path and optional query parameters.
+ *
+ * Path must already be template-resolved (via {@link resolveTemplate}) so that
+ * a `useQuery('/providers/:id', { params: { id: 'abc' } })` call and a caller
+ * passing `'/providers/abc'` directly produce byte-for-byte identical keys.
  *
  * @internal
- * @param path - API endpoint path
+ * @param path - Resolved (concrete) API endpoint path
  * @param query - Optional query parameters
- * @returns Tuple of [path, query?] for SWR cache key
+ * @returns Tuple of [path] or [path, query] for SWR cache key
  */
-function buildSWRKey<TPath extends ConcreteApiPaths, TQuery extends QueryParamsForPath<TPath, 'GET'>>(
-  path: TPath,
-  query?: TQuery
-): [TPath, TQuery?] {
+function buildSWRKey<TQuery extends Record<string, any>>(path: string, query?: TQuery): [string] | [string, TQuery] {
   if (query && Object.keys(query).length > 0) {
     return [path, query]
   }
@@ -744,24 +1049,214 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
 }
 
 /**
- * Create a filter function that matches SWR cache keys by path.
- * Matches both [path] and [path, query] formats.
+ * Validate a refresh pattern in dev mode.
+ *
+ * Enforces:
+ * - Patterns ending with `*` must end with `/*` (complete path segment prefix)
+ * - Prefix must be at least 2 characters after the leading slash (no bare `/*` or `/x*`)
  *
  * @internal
- * @param pathToMatch - The API path to match against cache keys
+ * @throws Error in development mode if pattern is invalid; silent in production
+ */
+function assertValidPattern(pattern: string): void {
+  if (!isDev) return
+  if (pattern.endsWith('*') && !pattern.endsWith('/*')) {
+    const msg = `Invalid refresh pattern "${pattern}": wildcard must be a full path segment (use "/foo/*" not "/foo*")`
+    logger.error(msg)
+    throw new Error(msg)
+  }
+  if (pattern === '/*' || pattern === '*') {
+    const msg = `Invalid refresh pattern "${pattern}": bare wildcard would invalidate unrelated caches`
+    logger.error(msg)
+    throw new Error(msg)
+  }
+}
+
+/**
+ * Create a filter function that matches SWR cache keys by path.
+ *
+ * Matches cache keys in the form [path] or [path, query].
+ *
+ * Pattern semantics:
+ * - `"/providers"` → exact match only `["/providers"]`
+ * - `"/providers/*"` → prefix match all `["/providers/...", ...]`; preserves trailing `/`
+ *   to avoid false positives on sibling resources like `/providers-archived`
+ *
+ * @internal
+ * @param pattern - Path pattern; trailing `/*` enables prefix matching
  * @returns Filter function for use with SWR's mutate
  */
-function createKeyMatcher(pathToMatch: string): (key: unknown) => boolean {
-  return (key) => Array.isArray(key) && key[0] === pathToMatch
+function createKeyMatcher(pattern: string): (key: unknown) => boolean {
+  assertValidPattern(pattern)
+  if (pattern.endsWith('/*')) {
+    const prefix = pattern.slice(0, -1) // keep trailing '/'
+    return (key) => Array.isArray(key) && typeof key[0] === 'string' && key[0].startsWith(prefix)
+  }
+  return (key) => Array.isArray(key) && key[0] === pattern
 }
 
 /**
  * Create a filter function that matches multiple paths.
  *
+ * Supports a mix of exact and prefix (`/*`) patterns. See {@link createKeyMatcher}
+ * for pattern semantics.
+ *
  * @internal
- * @param paths - Array of API paths to match against cache keys
+ * @param patterns - Array of API paths; each may end with `/*` for prefix matching
  * @returns Filter function for use with SWR's mutate
  */
-function createMultiKeyMatcher(paths: string[]): (key: unknown) => boolean {
-  return (key) => Array.isArray(key) && paths.includes(key[0] as string)
+function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
+  patterns.forEach(assertValidPattern)
+  const exact = patterns.filter((p) => !p.endsWith('/*'))
+  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  return (key) => {
+    if (!Array.isArray(key) || typeof key[0] !== 'string') return false
+    const k = key[0]
+    return exact.includes(k) || prefixes.some((prefix) => k.startsWith(prefix))
+  }
+}
+
+// Mirror of SWR's internal INFINITE_PREFIX. Inlined rather than imported from
+// `swr/_internal` (non-stable subpath). Verified in:
+//   node_modules/swr/dist/_internal/constants.js
+//   node_modules/swr/dist/infinite/index.js (key = INFINITE_PREFIX + stableHash(firstPageKey))
+//
+// stableHash of an array is `'@' + stableHash(elem) + ',' ...`; stableHash of
+// a string is `JSON.stringify(s)`. So an infinite cache key whose first-page
+// key is `[path, query]` looks like `'$inf$@"<path>",<rest>,'`.
+const INFINITE_PREFIX = '$inf$'
+
+/**
+ * Extract the API path from an SWR infinite cache key string.
+ *
+ * The first-page key is `[path, ...]`, stableHash'd to `@"<path>",<rest>`.
+ * We scan until the first unescaped `"` — `JSON.stringify` escapes any inner
+ * `"` as `\"`, so a user-supplied param value containing `"` does not break
+ * extraction (whereas a naive `indexOf('"')` would trip on it). Final slice
+ * is `JSON.parse`d to restore the original unescaped string.
+ *
+ * Returns `undefined` for any unrecognized shape so callers can skip rather
+ * than throw. A `useSWRInfinite` consumer whose `getKey` returns a non-array
+ * first-page key (e.g. a bare string) would fall through here.
+ *
+ * @internal
+ */
+function extractInfinitePath(key: string): string | undefined {
+  if (!key.startsWith(INFINITE_PREFIX)) return undefined
+  const openIdx = key.indexOf('@"', INFINITE_PREFIX.length)
+  if (openIdx !== INFINITE_PREFIX.length) return undefined
+  const pathStart = openIdx + 2
+  let i = pathStart
+  while (i < key.length) {
+    const ch = key.charCodeAt(i)
+    if (ch === 0x5c /* '\' */) {
+      i += 2
+      continue
+    }
+    if (ch === 0x22 /* '"' */) {
+      try {
+        return JSON.parse(key.slice(pathStart - 1, i + 1)) as string
+      } catch {
+        return undefined
+      }
+    }
+    i += 1
+  }
+  return undefined
+}
+
+/**
+ * Find every `$inf$`-prefixed cache key whose embedded path matches one of
+ * the patterns. SWR's `mutate(filterFn)` skips infinite keys at the source
+ * (see `internalMutate` in swr internals — `/^\$(inf|sub)\$/` is tested
+ * before the user filter runs), so we have to iterate ourselves.
+ *
+ * @internal
+ */
+function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
+  const exact = patterns.filter((p) => !p.endsWith('/*'))
+  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  const matched: string[] = []
+  for (const key of cache.keys()) {
+    if (typeof key !== 'string' || !key.startsWith(INFINITE_PREFIX)) continue
+    const path = extractInfinitePath(key)
+    if (path === undefined) continue
+    if (exact.includes(path) || prefixes.some((prefix) => path.startsWith(prefix))) {
+      matched.push(key)
+    }
+  }
+  return matched
+}
+
+/**
+ * Invalidate cache entries whose path matches any pattern, covering both
+ * normal SWR keys and `useSWRInfinite` keys. SWR's filter API skips the
+ * latter, so we fan out: filter-based pass for array keys, explicit per-key
+ * mutate for infinite keys (equivalent to
+ * `mutate(unstable_serialize(getKey))`, SWR's documented pattern).
+ *
+ * @internal
+ */
+async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator, patterns: string[]): Promise<void> {
+  await globalMutate(createMultiKeyMatcher(patterns))
+  const infiniteKeys = findMatchingInfiniteKeys(cache, patterns)
+  if (infiniteKeys.length > 0) {
+    await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
+  }
+}
+
+/**
+ * Replace Express-style `:name` and greedy `:name*` placeholders in a path
+ * template with values from `params`.
+ *
+ * This is the single canonical path-replacement point for all data hooks — both
+ * `useQuery`/`useMutation` (via `params` option) and internal key building go
+ * through here. This guarantees a template path + params and a pre-resolved
+ * path (e.g., `providerPath(id)`) produce byte-for-byte identical cache keys.
+ *
+ * Greedy params (`:name*`) consume the rest of the path segment, allowing IDs
+ * that themselves contain `/` (e.g., `/models/:uniqueModelId*` where the id is
+ * `openai:gpt-4/variant`).
+ *
+ * @internal
+ * @throws Error if a placeholder has no corresponding value in `params`
+ */
+function resolveTemplate(path: string, params?: Record<string, string | number>): string {
+  if (!params || !path.includes(':')) return path
+  return path.replace(/:([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
+    const value = params[key]
+    if (value === undefined || value === null) {
+      throw new Error(`Missing param "${key}" for path "${path}"`)
+    }
+    return String(value)
+  })
+}
+
+/**
+ * Internal utilities exposed for unit testing only.
+ *
+ * @internal
+ */
+export const __testing = {
+  get createKeyMatcher() {
+    return createKeyMatcher
+  },
+  get createMultiKeyMatcher() {
+    return createMultiKeyMatcher
+  },
+  get resolveTemplate() {
+    return resolveTemplate
+  },
+  get buildSWRKey() {
+    return buildSWRKey
+  },
+  get extractInfinitePath() {
+    return extractInfinitePath
+  },
+  get findMatchingInfiniteKeys() {
+    return findMatchingInfiniteKeys
+  },
+  get invalidatePathPatterns() {
+    return invalidatePathPatterns
+  }
 }

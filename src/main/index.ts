@@ -19,8 +19,9 @@ import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 
-requireSingleInstance()
+// should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
+requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.
@@ -57,8 +58,7 @@ const startApp = async () => {
   // Legacy monolithic IPC registration — causes timing coupling between
   // bootstrap and IPC readiness. TODO(v2): decompose into per-service
   // ipcHandle/ipcOn inside lifecycle services.
-  const mainWindow = application.get('WindowService').getMainWindow()!
-  await registerIpc(mainWindow, app)
+  await registerIpc()
 }
 
 // Top-level safety net: bootstrap() handles known fatal errors internally

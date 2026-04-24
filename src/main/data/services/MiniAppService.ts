@@ -23,6 +23,8 @@ import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
 
+import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 // Build lookup structures from the shared preset data (id -> appId mapping)
@@ -67,16 +69,16 @@ function brandId(raw: string): MiniAppId {
  * Convert database row to MiniApp entity
  */
 function rowToMiniApp(row: MiniAppSelect): MiniApp {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     appId: brandId(clean.appId),
     kind: clean.kind,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
-    supportedRegions: parseRegions(clean.supportedRegions),
-    createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
-    updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
+    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
+    createdAt: timestampToISO(clean.createdAt),
+    updatedAt: timestampToISO(clean.updatedAt)
   }
 }
 
@@ -98,8 +100,8 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect):
     supportedRegions: def.supportedRegions,
     configuration: undefined,
     nameKey: def.nameKey,
-    createdAt: dbRow?.createdAt ? new Date(dbRow.createdAt).toISOString() : undefined,
-    updatedAt: dbRow?.updatedAt ? new Date(dbRow.updatedAt).toISOString() : undefined
+    createdAt: timestampToISOOrUndefined(dbRow?.createdAt),
+    updatedAt: timestampToISOOrUndefined(dbRow?.updatedAt)
   }
 }
 

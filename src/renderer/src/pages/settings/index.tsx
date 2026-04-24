@@ -34,11 +34,7 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div
-    ref={ref}
-    className={cn('mt-4 select-none font-bold text-[var(--color-text-1)] text-sm', className)}
-    {...props}
-  />
+  <div ref={ref} className={cn('mt-4 select-none font-bold text-(--color-text-1) text-sm', className)} {...props} />
 )
 
 export const SettingDescription = styled.div`
@@ -79,14 +75,14 @@ export const SettingHelpText = styled.div`
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
   <a
-    className={cn('mx-[5px] cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)}
+    className={cn('mx-1.25 cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)}
     {...props}
   />
 )
 
 export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
   margin-bottom: 20px;
-  border-radius: var(--list-item-border-radius);
+  border-radius: var(--radius-2xs);
   border: 0.5px solid var(--color-border);
   padding: 16px;
   background: ${(props) => (props.theme === 'dark' ? '#00000010' : 'var(--color-background)')};

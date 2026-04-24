@@ -10,25 +10,15 @@
  *
  */
 
-import {
-  type ApiFeatures,
-  ApiFeaturesSchema,
-  type ApiKeyEntry,
-  ApiKeyEntrySchema,
-  type AuthConfig,
-  AuthConfigSchema,
-  type EndpointConfig,
-  EndpointConfigSchema,
-  type ProviderSettings,
-  ProviderSettingsSchema
+import type { EndpointType } from '@shared/data/types/model'
+import type {
+  ApiFeatures,
+  ApiKeyEntry,
+  AuthConfig,
+  EndpointConfig,
+  ProviderSettings
 } from '@shared/data/types/provider'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createSchemaFactory } from 'drizzle-zod'
-import * as z from 'zod'
-
-const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
-
-import type { EndpointType } from '@shared/data/types/model'
 
 import { createUpdateTimestamps } from './_columnHelpers'
 
@@ -80,14 +70,3 @@ export const userProviderTable = sqliteTable(
 // Export table type
 export type UserProvider = typeof userProviderTable.$inferSelect
 export type NewUserProvider = typeof userProviderTable.$inferInsert
-
-const jsonColumnOverrides = {
-  endpointConfigs: () => z.record(z.string(), EndpointConfigSchema).nullable(),
-  apiKeys: () => z.array(ApiKeyEntrySchema).nullable(),
-  authConfig: () => AuthConfigSchema.nullable(),
-  apiFeatures: () => ApiFeaturesSchema.nullable(),
-  providerSettings: () => ProviderSettingsSchema.nullable()
-}
-
-export const userProviderInsertSchema = createInsertSchema(userProviderTable, jsonColumnOverrides)
-export const userProviderSelectSchema = createSelectSchema(userProviderTable, jsonColumnOverrides)

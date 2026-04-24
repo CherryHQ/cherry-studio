@@ -1503,11 +1503,23 @@
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "count_one": "{{count}} 个",
+    "count_other": "{{count}} 个",
     "custom_path": "自定义路径",
     "custom_path_error": "设置自定义终端路径失败",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "empty": {
+      "no_match": {
+        "description": "尝试调整搜索关键词",
+        "title": "没有找到匹配的工具"
+      },
+      "no_tool": {
+        "description": "添加 CLI 工具或代码助手开始使用",
+        "title": "暂无代码工具"
+      }
+    },
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
@@ -1517,21 +1529,28 @@
       "bun_required": "请先安装 Bun 环境再启动 CLI 工具",
       "error": "启动失败，请重试",
       "label": "启动",
+      "launched": "已启动",
       "success": "启动成功",
       "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
     },
     "launching": "启动中...",
     "model": "模型",
+    "model_hint": "为 CLI 工具选择要使用的 AI 模型",
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜索 CLI 工具…",
     "select_folder": "选择文件夹",
     "set_custom_path": "设置自定义终端路径",
     "supported_providers": "支持的服务商",
     "terminal": "终端",
+    "terminal_hint": "选择命令执行的终端应用",
     "terminal_placeholder": "选择终端应用",
     "title": "代码工具",
     "update_options": "更新选项",
-    "working_directory": "工作目录"
+    "working_directory": "工作目录",
+    "working_directory_hint": "CLI 工具启动时的工作目录"
   },
   "code_block": {
     "collapse": "收起",
@@ -2535,37 +2554,6 @@
     "xiaoyi": "小艺",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
-    },
-    "clipboard": {
-      "empty": "剪贴板为空"
-    },
-    "feature": {
-      "chat": "回答此问题",
-      "explanation": "解释说明",
-      "summary": "内容总结",
-      "translate": "文本翻译"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 键复制",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "返回",
-      "esc_close": "关闭",
-      "esc_pause": "暂停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "询问 {{model}} 获取帮助...",
-        "title": "你想对下方文字做什么"
-      }
-    },
-    "tooltip": {
-      "pin": "窗口置顶"
-    }
-  },
   "models": {
     "add_parameter": "添加参数",
     "all": "全部",
@@ -3351,6 +3339,37 @@
     "zai": "Z.ai",
     "zhinao": "360 智脑",
     "zhipu": "智谱开放平台"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：如遇到Google登录提示\"不受信任的浏览器\"，请先在小程序列表中的Google小程序中完成账号登录，再在其它小程序使用Google登录"
+    },
+    "clipboard": {
+      "empty": "剪贴板为空"
+    },
+    "feature": {
+      "chat": "回答此问题",
+      "explanation": "解释说明",
+      "summary": "内容总结",
+      "translate": "文本翻译"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 键复制",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "返回",
+      "esc_close": "关闭",
+      "esc_pause": "暂停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "询问 {{model}} 获取帮助...",
+        "title": "你想对下方文字做什么"
+      }
+    },
+    "tooltip": {
+      "pin": "窗口置顶"
+    }
   },
   "restore": {
     "confirm": {
@@ -5459,10 +5478,10 @@
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
-      "mini_window": "快捷助手",
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "press_shortcut": "按下快捷键",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
       "reset_defaults": "重置默认快捷键",
       "reset_defaults_confirm": "确定要重置所有快捷键吗？",
@@ -5921,7 +5940,7 @@
   },
   "tray": {
     "quit": "退出",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "显示窗口"
   },
   "update": {

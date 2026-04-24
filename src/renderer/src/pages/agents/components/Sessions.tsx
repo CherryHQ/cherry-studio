@@ -54,7 +54,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
     }
 
     client
-      .listChannels({ agent_id: agentId })
+      .listChannels({ agentId: agentId })
       .then(({ data }) => {
         const map: Record<string, string> = {}
         for (const ch of data) {

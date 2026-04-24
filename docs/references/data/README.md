@@ -20,9 +20,11 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [API Design Guidelines](./api-design-guidelines.md) - RESTful design rules
 - [Database Patterns](./database-patterns.md) - DB naming, schema patterns
 - [API Types](./api-types.md) - API type system, schemas, error handling
+- [Cache Schema Guide](./cache-schema-guide.md) - Adding new cache keys (fixed and template)
 - [Preference Schema Guide](./preference-schema-guide.md) - Adding new preference keys
 - [Boot Config Schema Guide](./boot-config-schema-guide.md) - Adding new boot config keys
 - [Layered Preset Pattern](./best-practice-layered-preset-pattern.md) - Presets with user overrides
+- [Ordering Guide](./data-ordering-guide.md) - Unified RESTful spec for sortable resources (fractional indexing)
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 - [Database Seeding Guide](./database-seeding-guide.md) - Seeding architecture, version strategies, adding new seeders
 
@@ -97,15 +99,16 @@ Use CacheService when:
 - Data can be **regenerated or lost without user impact**
 - No backup or cross-device synchronization needed
 - Lifecycle is tied to component, window, or app session
+- You need other main-process services to react to cache changes (`subscribeChange` / `subscribeSharedChange`)
 
 **Two sub-categories**:
 1. **Performance cache**: Computed results, API responses, expensive calculations
 2. **UI state cache**: Temporary settings, scroll positions, panel states
 
 **Three tiers based on persistence needs**:
-- `useCache` (memory): Lost on app restart, component-level sharing
-- `useSharedCache` (shared): Cross-window sharing, lost on restart
-- `usePersistCache` (persist): Survives app restarts via localStorage
+- `useCache` (memory): Lost on app restart, per-renderer (no cross-window sync)
+- `useSharedCache` (shared): Cross-window sharing via Main; lost on restart
+- `usePersistCache` (persist): Survives app restart via localStorage (renderer-authoritative; Main only relays IPC sync)
 
 ```typescript
 // Good: Temporary computed results
@@ -233,7 +236,7 @@ const { data: files } = useQuery('/files')
 ### Type Definitions
 - `packages/shared/data/api/` - API type system
 - `packages/shared/data/bootConfig/` - Boot config type definitions and schemas
-- `packages/shared/data/cache/` - Cache type definitions
+- `packages/shared/data/cache/` - Cache type definitions and schemas (`cacheSchemas.ts`, `cacheTypes.ts`, `cacheValueTypes.ts`, `templateKey.ts`)
 - `packages/shared/data/preference/` - Preference type definitions
 
 ### Main Process Implementation

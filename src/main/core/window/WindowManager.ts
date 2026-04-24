@@ -3,7 +3,17 @@ import { join } from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/constant'
-import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  Priority,
+  ServicePhase
+} from '@main/core/lifecycle'
+import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
@@ -15,7 +25,7 @@ import {
   type WindowInfo,
   type WindowOptions
 } from '@main/core/window/types'
-import { getWindowTypeMetadata, mergeWindowConfig, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
+import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell, type TitleBarOverlayOptions } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
@@ -48,7 +58,7 @@ type PoolOp =
 /**
  * Default warmup mode when not explicitly set: 'eager' when the user has
  * expressed an intent to keep windows pre-warmed (`standbySize` or
- * `initialSize` set), otherwise 'lazy' (legacy behavior).
+ * `initialSize` set), otherwise 'lazy'.
  */
 function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
   return (cfg.standbySize ?? 0) > 0 || (cfg.initialSize ?? 0) > 0 ? 'eager' : 'lazy'
@@ -64,7 +74,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see README.md for architecture overview and usage guide
+ * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -81,6 +91,20 @@ export class WindowManager extends BaseService {
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
   private initDataStore = new Map<string, unknown>()
+
+  /**
+   * Runtime overrides and setters for the declarative `behavior` layer
+   * (`hideOnBlur`, `alwaysOnTop`, `macShowInDock`). Exposed as `wm.behavior`;
+   * see {@link BehaviorController} for the full API.
+   *
+   * The host callbacks wire controller ↔ WM in one direction: the controller
+   * can resolve a `ManagedWindow` by id and trigger a Dock recompute, but
+   * knows nothing else about WM internals.
+   */
+  public readonly behavior = new BehaviorController({
+    getManagedWindow: (id) => this.windows.get(id),
+    updateDockVisibility: () => this.updateDockVisibility()
+  })
 
   /** Single GC timer shared across all pools (null when no idle windows exist) */
   private poolGcTimer: ReturnType<typeof setInterval> | null = null
@@ -104,6 +128,31 @@ export class WindowManager extends BaseService {
   private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
+
+  /**
+   * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
+   * `onWindowCreated` + an inline type filter — prefer this when you only care
+   * about one window type, which is the typical consumer pattern.
+   *
+   * Fires exactly once per fresh `BrowserWindow` instance matching `type`;
+   * pool recycles and singleton reopens do NOT re-fire. Returns a `Disposable`
+   * to unsubscribe (usually passed to `this.registerDisposable(...)`).
+   */
+  public onWindowCreatedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowCreated((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
+  /**
+   * Subscribe to window destructions for a specific {@link WindowType}. Fires
+   * when the underlying `BrowserWindow` is truly destroyed — not on pool release.
+   */
+  public onWindowDestroyedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowDestroyed((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
 
   // ─── Lifecycle hooks ───────────────────────────────────────────
 
@@ -187,58 +236,47 @@ export class WindowManager extends BaseService {
       return this.getInitData(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Close, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Close, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.close(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Show, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.show(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Hide, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
-      if (!windowId) return false
-      return this.hide(windowId)
-    })
-
-    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Minimize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.minimize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Maximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
       return this.maximize(windowId)
     })
 
-    this.ipcHandle(IpcChannel.WindowManager_Focus, (event, type?: string) => {
-      const windowId = this.resolveTargetWindowId(event.sender, type)
+    this.ipcHandle(IpcChannel.WindowManager_Unmaximize, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
       if (!windowId) return false
-      return this.focus(windowId)
+      return this.unmaximize(windowId)
     })
-  }
 
-  /**
-   * Resolve target windowId from optional type string or IPC event sender.
-   * - No type: resolve from sender webContents (self)
-   * - With type: must be a valid singleton WindowType
-   */
-  private resolveTargetWindowId(sender: Electron.WebContents, type?: string): string | null {
-    if (type) {
-      if (!VALID_WINDOW_TYPES.has(type)) return null
-      const metadata = getWindowTypeMetadata(type as WindowType)
-      if (metadata.lifecycle !== 'singleton') return null
-      const windows = this.getWindowsByType(type as WindowType)
-      if (windows.length === 0) return null
-      return windows[0].id
-    }
-    return this.getWindowIdByWebContents(sender) ?? null
+    this.ipcHandle(IpcChannel.WindowManager_IsMaximized, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.isMaximized(windowId)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_SetFullScreen, (event, value: boolean) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.setFullScreen(windowId, value)
+    })
+
+    this.ipcHandle(IpcChannel.WindowManager_IsFullScreen, (event) => {
+      const windowId = this.getWindowIdByWebContents(event.sender)
+      if (!windowId) return false
+      return this.isFullScreen(windowId)
+    })
   }
 
   // ─── Public API: Open / Create / Close / Destroy ──────────────
@@ -271,9 +309,9 @@ export class WindowManager extends BaseService {
         // UI updates in the same frame the window is re-activated.
         this.applyReusedInitData(existing, args?.initData)
 
-        // Respect show: false — consumer manages visibility itself.
-        // Only show/focus when show is 'auto' (default) or true.
-        if (metadata.show !== false) {
+        // Respect showMode: 'manual' — consumer manages visibility itself.
+        // Only show/focus when showMode is 'auto' (default) or 'immediate'.
+        if (metadata.showMode !== 'manual') {
           existing.window.show()
           existing.window.focus()
         }
@@ -422,16 +460,37 @@ export class WindowManager extends BaseService {
     return true
   }
 
-  /** Maximize or unmaximize a window (toggle) */
   public maximize(windowId: string): boolean {
     const managed = this.windows.get(windowId)
     if (!managed) return false
-    if (managed.window.isMaximized()) {
-      managed.window.unmaximize()
-    } else {
-      managed.window.maximize()
-    }
+    managed.window.maximize()
     return true
+  }
+
+  public unmaximize(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.unmaximize()
+    return true
+  }
+
+  public isMaximized(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isMaximized()
+  }
+
+  public setFullScreen(windowId: string, value: boolean): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    managed.window.setFullScreen(value)
+    return true
+  }
+
+  public isFullScreen(windowId: string): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed) return false
+    return managed.window.isFullScreen()
   }
 
   public restore(windowId: string): boolean {
@@ -503,16 +562,23 @@ export class WindowManager extends BaseService {
     return this.windows.size
   }
 
+  // ─── Public API: Behavior runtime overrides ───────────────────
+  //
+  // Exposed on `this.behavior` (a {@link BehaviorController} instance);
+  // see behavior.ts for the full API surface. Kept off the flat WindowManager
+  // namespace so the declarative three-layer split (windowOptions / behavior
+  // / quirks) is visible at the call site.
+
   // ─── Public API: Title bar overlay ────────────────────────────
 
   /**
    * Update title bar overlay colors on all windows that have overlay configured.
-   * Only affects window types whose defaultConfig includes titleBarOverlay.
+   * Only affects window types whose windowOptions includes titleBarOverlay.
    */
   public setTitleBarOverlay(options: TitleBarOverlayOptions): void {
     for (const [type, windowIds] of this.windowsByType) {
       const metadata = getWindowTypeMetadata(type)
-      if (!metadata.defaultConfig.titleBarOverlay) continue
+      if (!metadata.windowOptions.titleBarOverlay) continue
       for (const id of windowIds) {
         const managed = this.windows.get(id)
         if (managed && !managed.window.isDestroyed()) {
@@ -560,6 +626,56 @@ export class WindowManager extends BaseService {
   /** Retrieve initialization data for a window */
   public getInitData(windowId: string): unknown | null {
     return this.initDataStore.get(windowId) ?? null
+  }
+
+  /**
+   * Push fresh init data to a single already-open window and notify its
+   * renderer in-place, reusing the same IPC channel (`WindowManager_Reused`)
+   * that pool-recycle and singleton-reopen paths use. The renderer's
+   * `useWindowInitData` hook picks this up without remounting the subtree.
+   *
+   * Use this for "update the already-visible window with new context"
+   * scenarios — e.g. a main-process service reacting to an external event
+   * and wanting the current window to swap its payload. For first-time
+   * creation or recycling, continue using `open({ initData })`.
+   *
+   * Semantics:
+   * - Writes `data` into the init-data store so subsequent `getInitData()`
+   *   calls (devtools reload, lazy child mount) observe the latest value.
+   * - Sends `WindowManager_Reused` to the window's `webContents`.
+   * - Returns `true` if the window exists and is not destroyed, `false`
+   *   otherwise. No throw on miss.
+   *
+   * The signature forbids `undefined` on purpose: unlike the reuse path,
+   * "pushing undefined" has no meaningful semantics here, and silently
+   * no-oping would hide caller bugs.
+   */
+  public pushInitData<T>(windowId: string, data: T): boolean {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return false
+    this.setInitData(windowId, data)
+    managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)
+    return true
+  }
+
+  /**
+   * Push fresh init data to every currently-open window of the given type.
+   * Returns the number of windows that received the event.
+   *
+   * Does NOT filter by visibility — an idle pooled window sitting in the
+   * recycle queue will also receive the event, so when it is next taken
+   * out of the pool its renderer already has the latest payload. If you
+   * need visibility filtering, iterate `getWindows(type)` and call
+   * `pushInitData` selectively.
+   */
+  public pushInitDataToType<T>(type: WindowType, data: T): number {
+    const ids = this.windowsByType.get(type)
+    if (!ids || ids.size === 0) return 0
+    let count = 0
+    for (const id of ids) {
+      if (this.pushInitData(id, data)) count++
+    }
+    return count
   }
 
   // ─── Public API: Pool management ──────────────────────────────
@@ -665,9 +781,11 @@ export class WindowManager extends BaseService {
       // No-op when initData is undefined — we never fire empty Reused events.
       this.applyReusedInitData(candidate, args?.initData)
 
-      // Show recycled window based on metadata
-      const showBehavior = getWindowTypeMetadata(type).show ?? 'auto'
-      if (showBehavior === 'auto' || showBehavior === true) {
+      // Show recycled window based on metadata. 'manual' opts out entirely;
+      // both 'auto' and 'immediate' show + focus on recycle (the immediate vs
+      // ready-to-show distinction only applies to fresh construction).
+      const showMode = getWindowTypeMetadata(type).showMode ?? 'auto'
+      if (showMode !== 'manual') {
         candidate.window.show()
         candidate.window.focus()
       }
@@ -744,7 +862,7 @@ export class WindowManager extends BaseService {
     if (window.isMaximized()) window.unmaximize()
     if (window.isMinimized()) window.restore()
 
-    const config = mergeWindowConfig(type, options)
+    const config = mergeWindowOptions(type, options)
     const { width, height } = config
     const setBoundsMethod = config.useContentSize
       ? (b: Electron.Rectangle) => window.setContentBounds(b)
@@ -789,12 +907,21 @@ export class WindowManager extends BaseService {
       return
     }
 
+    // Clear runtime overrides before the window goes hidden/idle. The three
+    // branches below all call `window.hide()` on this window before either
+    // destroying it or pushing it back to the idle queue — clearing here
+    // ensures (a) no stale override leaks through destroy→cleanupWindowTracking
+    // (already clears, but this is a belt-and-suspenders), and (b) a pool
+    // window reopened later for a different consumer starts from the
+    // registry-declared defaults rather than the previous consumer's pin.
+    this.behavior.clearForWindow(windowId)
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
     // Recycling disabled (recycleMaxSize not configured): destroy the closing window.
-    // In pure standby mode (scenario ②), this preserves the legacy "close destroys,
-    // async replenish keeps one warm" behavior.
+    // In pure standby mode (scenario ②) this still yields "close destroys, async
+    // replenish keeps one warm" because `replenishStandby` fires on the next open.
     if (recycleMax <= 0) {
       if (!managed.window.isDestroyed()) {
         managed.window.hide()
@@ -1046,22 +1173,19 @@ export class WindowManager extends BaseService {
   private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
-    const config = mergeWindowConfig(type, args?.options)
-    const showBehavior = metadata.show ?? 'auto'
+    const config = mergeWindowOptions(type, args?.options)
+    const showMode = metadata.showMode ?? 'auto'
 
-    // Resolve preload path
-    const preloadVariant = metadata.preload ?? 'standard'
-    const preloadPath =
-      preloadVariant === 'standard'
-        ? join(__dirname, '../preload/index.js')
-        : preloadVariant === 'simplest'
-          ? join(__dirname, '../preload/simplest.js')
-          : undefined
+    // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
+    // encoding: omitted → default file, non-empty string → that file, empty
+    // string → no preload (for nodeIntegration:true cases).
+    const preloadName = metadata.preload ?? 'index.js'
+    const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow
     const window = new BrowserWindow({
       ...config,
-      show: showBehavior === true,
+      show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
         ...config.webPreferences
@@ -1090,9 +1214,11 @@ export class WindowManager extends BaseService {
     this.setupWindowListeners(windowId, window)
 
     // Auto-show on ready-to-show (suppressed for pool idle windows).
-    // Windows with show: false opt out entirely — their owner drives visibility
+    // Windows with showMode: 'manual' opt out entirely — their owner drives visibility
     // on its own schedule (see e.g. SelectionService.processAction).
-    if (showBehavior === 'auto' && !suppressAutoShow) {
+    // 'immediate' also skips this path: the window was already shown by the
+    // `show: true` above, and ready-to-show will fire after content loads.
+    if (showMode === 'auto' && !suppressAutoShow) {
       window.once('ready-to-show', () => {
         if (!window.isDestroyed()) window.show()
       })
@@ -1116,10 +1242,24 @@ export class WindowManager extends BaseService {
     // 4. Fire event — domain services inject behavior HERE (before content loads)
     this._onWindowCreated.fire(managedWindow)
 
-    // 4a. Apply declarative platform quirks (method-slot monkey-patches).
+    // 4a. Apply the declarative behavior layer (non-hacky: initial alwaysOnTop
+    // level, initial setVisibleOnAllWorkspaces, blur→hide listener). Pass a
+    // closure that reads the runtime override map for hideOnBlur, so the
+    // behavior module stays free of a reverse WindowManager reference.
+    applyWindowBehavior(
+      managedWindow.window,
+      managedWindow.metadata.behavior,
+      windowId,
+      (id) => this.behavior.getHideOnBlurOverride(id),
+      config
+    )
+
+    // 4b. Apply declarative platform quirks (method-slot monkey-patches).
     // Runs AFTER onWindowCreated so domain-service listeners attach first; the quirk
     // wrappers then transparently apply around any subsequent hide()/show()/close().
-    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks)
+    // Also runs AFTER applyWindowBehavior so the behavior layer's initial setter
+    // calls do not trigger the monkey-patched show/showInactive.
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior)
 
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
@@ -1133,6 +1273,13 @@ export class WindowManager extends BaseService {
     if (metadata.htmlPath) {
       this.loadWindowContent(windowId, window, metadata.htmlPath)
     }
+
+    // 7. Reconcile macOS Dock visibility. A fresh window added to `this.windows`
+    // changes the set of contributing windows; any pre-set per-type override (e.g.
+    // tray-on-launch having called wm.behavior.setMacShowInDockByType(Main, false)
+    // before the first open) is applied here without requiring a separate arg on
+    // createWindow.
+    this.updateDockVisibility()
 
     logger.debug('Window created', { windowId, type })
     return windowId
@@ -1156,10 +1303,40 @@ export class WindowManager extends BaseService {
   // ─── Window event listeners ───────────────────────────────────
 
   private setupWindowListeners(windowId: string, window: BrowserWindow): void {
-    window.on('show', () => this.updateDockVisibility())
-    window.on('hide', () => this.updateDockVisibility())
-    window.on('minimize', () => this.updateDockVisibility())
-    window.on('restore', () => this.updateDockVisibility())
+    // Intentionally no show/hide/minimize/restore triggers for updateDockVisibility.
+    // Dock state tracks window EXISTENCE + per-type override, not visibility — matching
+    // macOS native semantics where Cmd+W (hide) keeps the dock icon, Cmd+Q (destroy) removes it.
+    // The 'closed' handler below triggers updateDockVisibility on destruction; type-override
+    // changes via wm.behavior.setMacShowInDockByType do so explicitly.
+
+    // Forward OS-level window state changes to the window's own webContents so its
+    // renderer chrome (titlebar buttons, fullscreen-aware layout) can stay in sync
+    // with state changes that bypass IPC: double-click titlebar, Win+↑/↓, Windows
+    // Snap, macOS green button, F11, third-party tiling WMs.
+    //
+    // - setupWindowListeners runs exactly once per BrowserWindow lifetime (called
+    //   from createWindow); pooled windows reuse the same instance + listeners on
+    //   recycle, so there is no listener accumulation. The window.on('closed')
+    //   handler below calls window.removeAllListeners() as a final safety net.
+    // - macOS does NOT reliably fire 'maximize'/'unmaximize' (electron#3325, #28699)
+    //   so MaximizedChanged is Win/Linux-effective. Renderer code on macOS should
+    //   treat FullscreenChanged as the source of truth (the green button defaults
+    //   to native fullscreen, which fires reliably).
+    // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
+    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
+    //   semantics is OS-level native fullscreen only.
+    window.on('maximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, true)
+    })
+    window.on('unmaximize', () => {
+      window.webContents.send(IpcChannel.WindowManager_MaximizedChanged, false)
+    })
+    window.on('enter-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, true)
+    })
+    window.on('leave-full-screen', () => {
+      window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
+    })
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {
@@ -1224,6 +1401,10 @@ export class WindowManager extends BaseService {
     }
     this.windows.delete(windowId)
     this.initDataStore.delete(windowId)
+    // Hidden runtime state must not survive the underlying BrowserWindow —
+    // any future open() allocates a fresh windowId anyway, but guarding here
+    // is cheap and keeps the map bounded.
+    this.behavior.clearForWindow(windowId)
   }
 
   // ─── Content loading ──────────────────────────────────────────
@@ -1245,29 +1426,61 @@ export class WindowManager extends BaseService {
   }
 
   // ─── macOS Dock visibility ────────────────────────────────────
-
-  private dockShouldBeVisible = false
+  //
+  // Per-type runtime override for `behavior.macShowInDock` lives on
+  // {@link BehaviorController} (see `this.behavior`). Services call
+  // `wm.behavior.setMacShowInDockByType(type, value)` to express tray-mode
+  // intent; `windowContributesToDock` reads the override via the controller.
 
   /**
-   * Update macOS Dock icon visibility based on visible windows.
-   * Windows with showInDock: false do not affect Dock visibility.
+   * Tracks the Dock icon visibility that WM has committed to, so repeated calls
+   * deduplicate native Dock show/hide invocations. Initialized to `true` because
+   * macOS Electron apps start with the Dock icon visible; the first
+   * `updateDockVisibility()` will correctly transition to `false` when needed
+   * (e.g. tray-on-launch sets the Main override to `false` before window creation).
+   */
+  private dockShouldBeVisible = true
+
+  /**
+   * Whether a managed window currently contributes to "app wants the Dock icon".
+   * Checks, in order:
+   *   - window not destroyed (destroyed windows never contribute)
+   *   - per-type override (if set, wins over registry default)
+   *   - registry's `behavior.macShowInDock` (defaults to true when omitted)
+   *
+   * This predicate is existence-based, not visibility-based — consistent with
+   * native macOS semantics where hiding a window does not remove its app from
+   * the Dock. Apps opt into tray-style "hide Dock when hidden" behavior
+   * explicitly via `wm.behavior.setMacShowInDockByType`.
+   */
+  private windowContributesToDock(managed: ManagedWindow): boolean {
+    if (managed.window.isDestroyed()) return false
+    const typeOverride = this.behavior.getMacShowInDockOverride(managed.type)
+    if (typeOverride !== undefined) return typeOverride
+    return managed.metadata.behavior?.macShowInDock !== false
+  }
+
+  /**
+   * Recompute and sync the macOS Dock icon visibility.
+   *
+   * Triggered by lifecycle events that change the set of contributing windows:
+   *   - window creation (in `createWindow`)
+   *   - window destruction (in the 'closed' listener)
+   *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
+   *
+   * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
    */
   private updateDockVisibility(): void {
     if (!isMac) return
 
-    const hasVisibleDockWindow = Array.from(this.windows.values()).some(
-      (managed) =>
-        managed.metadata.showInDock !== false &&
-        !managed.window.isDestroyed() &&
-        (managed.window.isVisible() || managed.window.isMinimized())
-    )
+    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
-    if (hasVisibleDockWindow && !this.dockShouldBeVisible) {
+    if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true
       void app.dock?.show().then(() => {
         if (!this.dockShouldBeVisible) app.dock?.hide()
       })
-    } else if (!hasVisibleDockWindow && this.dockShouldBeVisible) {
+    } else if (!shouldShow && this.dockShouldBeVisible) {
       this.dockShouldBeVisible = false
       app.dock?.hide()
     }

@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/CommandListPopover.css'
+import './CommandListPopover.css'
 
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useTheme } from '@renderer/context/ThemeProvider'

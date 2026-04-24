@@ -2,6 +2,9 @@ import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 
 export type DbType = LibSQLDatabase
 
+/** Structural alias accepted by both LibSQLDatabase and LibSQLTransaction. */
+export type DbOrTx = Pick<DbType, 'select' | 'update' | 'insert' | 'delete' | 'run' | 'transaction'>
+
 export interface ISeeder {
   /** Unique identifier for seed journal tracking (stored as `seed:<name>` in app_state) */
   readonly name: string

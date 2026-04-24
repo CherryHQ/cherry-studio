@@ -1,13 +1,8 @@
 import { fileProcessingService } from '@data/services/FileProcessingService'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { FileProcessingSchemas } from '@shared/data/api/schemas/fileProcessing'
 import { FileProcessorOverrideSchema } from '@shared/data/presets/file-processing'
-
-type FileProcessingHandler<Path extends keyof FileProcessingSchemas, Method extends ApiMethods<Path>> = ApiHandler<
-  Path,
-  Method
->
 
 function buildValidationErrors(bodyResult: ReturnType<typeof FileProcessorOverrideSchema.safeParse>) {
   if (bodyResult.success) {
@@ -23,11 +18,7 @@ function buildValidationErrors(bodyResult: ReturnType<typeof FileProcessorOverri
   }, {})
 }
 
-export const fileProcessingHandlers: {
-  [Path in keyof FileProcessingSchemas]: {
-    [Method in keyof FileProcessingSchemas[Path]]: FileProcessingHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const fileProcessingHandlers: HandlersFor<FileProcessingSchemas> = {
   '/file-processing/processors': {
     GET: async () => {
       return await fileProcessingService.getProcessors()

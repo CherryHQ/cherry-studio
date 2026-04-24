@@ -26,7 +26,7 @@ const logger = loggerService.withContext('NodeTraceService')
 /**
  * Priority(0) ensures this service initializes before all other WhenReady services (default priority is 100).
  * This is critical because onInit() monkey-patches ipcMain.handle() to inject trace context propagation.
- * The patch must be applied BEFORE other services (e.g. WindowService, SpanCacheService) register
+ * The patch must be applied BEFORE other services (e.g. MainWindowService, SpanCacheService) register
  * their IPC handlers via ipcMain.handle(), otherwise those handlers won't receive trace context
  * from the renderer process.
  */

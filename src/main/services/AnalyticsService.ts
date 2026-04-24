@@ -39,6 +39,11 @@ export class AnalyticsService extends BaseService implements Activatable {
   onActivate(): void {
     const clientId = getClientId()
 
+    if (!application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+      logger.info('Analytics service disabled by user preference')
+      return
+    }
+
     this.client = new AnalyticsClient({
       clientId,
       channel: 'cherry-studio',
@@ -82,8 +87,10 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public async trackAppUpdate(): Promise<void> {
-    // Original code only checks this.client existence, not the preference toggle. Preserving as-is.
-    if (!this.client) return
+    if (!this.client || !application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+      return
+    }
+
     await this.client.trackAppUpdate()
   }
 }

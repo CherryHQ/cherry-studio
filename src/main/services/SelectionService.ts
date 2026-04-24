@@ -214,28 +214,33 @@ export class SelectionService extends BaseService implements Activatable {
 
     const wm = application.get('WindowManager')
 
-    // Inject behavior into newly-created Selection windows.
-    // onWindowCreated fires synchronously before content loads, so listeners here attach
-    // before the renderer can start sending IPC messages.
+    // Inject behavior into newly-created Selection windows. onWindowCreatedByType fires
+    // synchronously before content loads, so listeners here attach before the renderer
+    // can start sending IPC messages.
     this.registerDisposable(
-      wm.onWindowCreated((managed) => {
-        if (managed.type === WindowType.SelectionToolbar) {
-          // Cache the BrowserWindow reference for the ~20 downstream call sites
-          // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
-          this.toolbarWindow = managed.window
-          this.setupToolbarBehavior(managed.window)
-        } else if (managed.type === WindowType.SelectionAction) {
-          //remember the action window size
-          managed.window.on('resized', () => {
-            if (managed.window.isDestroyed()) return
-            if (this.isRemeberWinSize) {
-              this.lastActionWindowSize = {
-                width: managed.window.getBounds().width,
-                height: managed.window.getBounds().height
-              }
+      wm.onWindowCreatedByType(WindowType.SelectionToolbar, ({ window }) => {
+        // Cache the BrowserWindow reference for the ~20 downstream call sites
+        // (showToolbarAtPosition, hideToolbar, processTextSelection, etc.)
+        this.toolbarWindow = window
+        this.setupToolbarBehavior(window)
+      })
+    )
+
+    // Per-instance resized listener for action windows. Must live inside
+    // onWindowCreatedByType — pool recycle paths do not re-fire the event,
+    // so attaching at the open() call site would either miss recycled instances
+    // or accumulate duplicates across reuses.
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
+        mw.window.on('resized', () => {
+          if (mw.window.isDestroyed()) return
+          if (this.isRemeberWinSize) {
+            this.lastActionWindowSize = {
+              width: mw.window.getBounds().width,
+              height: mw.window.getBounds().height
             }
-          })
-        }
+          }
+        })
       })
     )
 
@@ -243,8 +248,8 @@ export class SelectionService extends BaseService implements Activatable {
     // The macOS focus dance on hide/close is handled by the macRestoreFocusOnHide quirk
     // (see WindowManager.applyQuirks) — no subscription needed here.
     this.registerDisposable(
-      wm.onWindowDestroyed((managed) => {
-        if (managed.type === WindowType.SelectionToolbar && managed.id === this.toolbarWindowId) {
+      wm.onWindowDestroyedByType(WindowType.SelectionToolbar, ({ id }) => {
+        if (id === this.toolbarWindowId) {
           this.toolbarWindow = null
           this.toolbarWindowId = null
         }
@@ -466,25 +471,32 @@ export class SelectionService extends BaseService implements Activatable {
     // [Linux Wayland] focusable must be true on Wayland to receive blur events for
     // outside-click hiding. onWindowCreated fires before loadURL(), so setFocusable()
     // here takes effect before the window is shown. The full platform rationale is
-    // documented in windowRegistry.ts under SelectionToolbar's defaultConfig.
+    // documented in windowRegistry.ts under SelectionToolbar's windowOptions.
     if (isLinux) {
       window.setFocusable(this.isLinuxWaylandDisplay)
     }
 
-    // Hide when losing focus
-    window.on('blur', () => {
-      if (window.isVisible()) {
-        this.hideToolbar()
-      }
-    })
+    // Blur → hide is now driven declaratively by WindowManager via
+    // `behavior.hideOnBlur: true` (see windowRegistry.ts). The previous
+    // handler here called `hideToolbar()`, which combined `window.hide()`
+    // with the mouse-key hook cleanup; the hook lifecycle is now bound to
+    // the window's show/hide events below, so a plain `window.hide()` from
+    // WM suffices and all cleanup still runs.
 
-    // Add show/hide event listeners
     window.on('show', () => {
       window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      // Mouse-key hook start tied to visibility rather than to specific call
+      // sites: normal show path, crash-recovery re-open, and any future
+      // caller all inherit this for free.
+      this.startHideByMouseKeyListener()
     })
 
     window.on('hide', () => {
       window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      // Symmetric to the show listener — any path to hidden (business
+      // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
+      // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
+      this.stopHideByMouseKeyListener()
     })
 
     /** uncomment to open dev tools in dev mode */
@@ -543,7 +555,7 @@ export class SelectionService extends BaseService implements Activatable {
        *   It's a strange behavior, so we don't use it for compatibility
        */
       // this.toolbarWindow!.setOpacity(1)
-      this.startHideByMouseKeyListener()
+      // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior.
       return
     }
 
@@ -581,7 +593,8 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] restore the focusable status
     this.toolbarWindow!.setFocusable(true)
 
-    this.startHideByMouseKeyListener()
+    // Mouse-key hook start fires from window.on('show') in setupToolbarBehavior
+    // (showInactive also fires 'show').
 
     return
   }
@@ -592,8 +605,9 @@ export class SelectionService extends BaseService implements Activatable {
   public hideToolbar(): void {
     if (!this.isToolbarAlive()) return
 
-    this.stopHideByMouseKeyListener()
-
+    // Mouse-key hook stop is driven by window.on('hide') in setupToolbarBehavior,
+    // which covers this call site as well as the WM-driven blur → window.hide().
+    //
     // On macOS, the toolbar's hide() call is wrapped by WindowManager's applyQuirks:
     //   - macRestoreFocusOnHide guards focus (setFocusable(false) on all visible windows, restored after 50ms)
     //   - macClearHoverOnHide sends a synthetic mouseMove(-1,-1) to clear any residual hover state
@@ -1305,7 +1319,10 @@ export class SelectionService extends BaseService implements Activatable {
 
     // setFocusable(false) to prevent the action window hide when blur (if auto hide on blur is enabled)
     actionWindow.setFocusable(false)
-    actionWindow.setAlwaysOnTop(true, 'floating')
+    // No explicit level: Electron defaults to 'floating' on macOS, and
+    // SelectionAction's registry intentionally declares no alwaysOnTop.level
+    // (the pin toggle and this show sequence use the same default path).
+    actionWindow.setAlwaysOnTop(true)
 
     // `setVisibleOnAllWorkspaces(true)` will cause the dock icon disappeared
     // just store the dock icon status, and show it again
@@ -1341,32 +1358,19 @@ export class SelectionService extends BaseService implements Activatable {
     }, 50)
   }
 
-  /**
-   * Close an action window via WindowManager.
-   * For pooled windows, WindowManager intercepts the close and hides the window back
-   * into the idle pool. The macRestoreFocusOnHide quirk applies the macOS focus dance
-   * automatically at the hide/close call site.
-   */
-  public closeActionWindow(actionWindow: BrowserWindow): void {
-    if (actionWindow.isDestroyed()) return
-    const wm = application.get('WindowManager')
-    const windowId = wm.getWindowId(actionWindow)
-    if (windowId) {
-      wm.close(windowId)
-    } else {
-      // Fallback for untracked windows (should not happen in normal flow)
-      actionWindow.close()
-    }
-  }
-
-  public minimizeActionWindow(actionWindow: BrowserWindow): void {
-    if (actionWindow.isDestroyed()) return
-    actionWindow.minimize()
-  }
-
   public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
     if (actionWindow.isDestroyed()) return
-    actionWindow.setAlwaysOnTop(isPinned)
+    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
+    // SelectionAction registry entry (currently none) flows automatically.
+    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
+    const wm = application.get('WindowManager')
+    const id = wm.getWindowId(actionWindow)
+    if (id !== undefined) {
+      wm.behavior.setAlwaysOnTop(id, isPinned)
+    } else {
+      // Untracked window (shouldn't happen in the normal pooled flow).
+      actionWindow.setAlwaysOnTop(isPinned)
+    }
   }
 
   /**
@@ -1458,20 +1462,6 @@ export class SelectionService extends BaseService implements Activatable {
       }
       return BrowserWindow.fromWebContents(event.sender)
     }
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowClose, (event) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.closeActionWindow(actionWindow)
-      }
-    })
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowMinimize, (event) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.minimizeActionWindow(actionWindow)
-      }
-    })
 
     this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
       const actionWindow = resolveActionWindow(event)

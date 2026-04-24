@@ -14,7 +14,7 @@ import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 
-import { stripNulls } from './utils'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MCPServerService')
 
@@ -22,13 +22,13 @@ const logger = loggerService.withContext('DataApi:MCPServerService')
  * Convert database row to MCPServer entity
  */
 function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: clean.type as MCPServer['type'],
     installSource: clean.installSource as MCPServer['installSource'],
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

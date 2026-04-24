@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -24,7 +25,7 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'SelectionService'])
+@DependsOn(['MainWindowService', 'SelectionService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
@@ -37,13 +38,8 @@ export class ShortcutService extends BaseService {
     this.registerBuiltInHandlers()
     this.subscribeToPreferenceChanges()
 
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
     this.registerDisposable(windowService.onMainWindowCreated((window) => this.registerForWindow(window)))
-
-    const existingWindow = windowService.getMainWindow()
-    if (existingWindow && !existingWindow.isDestroyed()) {
-      this.registerForWindow(existingWindow)
-    }
   }
 
   protected async onStop() {
@@ -53,42 +49,17 @@ export class ShortcutService extends BaseService {
 
   private registerBuiltInHandlers(): void {
     this.handlers.set('shortcut.general.show_main_window', () => {
-      application.get('WindowService').toggleMainWindow()
+      application.get('MainWindowService').toggleMainWindow()
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      const windowService = application.get('WindowService')
-      let targetWindow = windowService.getMainWindow()
-
-      if (
-        !targetWindow ||
-        targetWindow.isDestroyed() ||
-        targetWindow.isMinimized() ||
-        !targetWindow.isVisible() ||
-        !targetWindow.isFocused()
-      ) {
-        windowService.showMainWindow()
-        targetWindow = windowService.getMainWindow()
-      }
-
-      if (!targetWindow || targetWindow.isDestroyed()) return
-
-      const navigateToSettings = () => {
-        if (!targetWindow || targetWindow.isDestroyed()) return
-        targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
-      }
-
-      if (targetWindow.webContents.isLoadingMainFrame()) {
-        targetWindow.webContents.once('did-finish-load', navigateToSettings)
-        return
-      }
-
-      navigateToSettings()
+      application.get('MainWindowService').showMainWindow()
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.MainWindow_NavigateToSettings)
     })
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
       if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
-      application.get('WindowService').toggleMiniWindow()
+      application.get('QuickAssistantService').toggleQuickAssistant()
     })
 
     this.handlers.set('shortcut.general.zoom_in', (window) => {
@@ -320,10 +291,6 @@ export class ShortcutService extends BaseService {
     accelerator?: string
     hasConflict: boolean
   }): void {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
-      return
-    }
-
-    this.mainWindow.webContents.send(IpcChannel.Shortcut_RegistrationConflict, payload)
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Shortcut_RegistrationConflict, payload)
   }
 }

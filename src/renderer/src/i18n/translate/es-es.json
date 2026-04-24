@@ -1503,11 +1503,23 @@
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Ruta personalizada",
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
@@ -1517,21 +1529,28 @@
       "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
       "error": "Error al iniciar, intente nuevamente",
       "label": "Iniciar",
+      "launched": "[to be translated]:Launched",
       "success": "Inicio exitoso",
       "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
     "model": "modelo",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Seleccionar carpeta",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
-    "working_directory": "directorio de trabajo"
+    "working_directory": "directorio de trabajo",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Replegar",
@@ -2535,37 +2554,6 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
-    },
-    "clipboard": {
-      "empty": "El portapapeles está vacío"
-    },
-    "feature": {
-      "chat": "Responder a esta pregunta",
-      "explanation": "Explicación",
-      "summary": "Resumen del contenido",
-      "translate": "Traducción de texto"
-    },
-    "footer": {
-      "backspace_clear": "Presione Retroceso para borrar",
-      "copy_last_message": "Presione C para copiar",
-      "esc": "Presione ESC {{action}}",
-      "esc_back": "Volver",
-      "esc_close": "Cerrar ventana",
-      "esc_pause": "Pausa"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Pregunta a {{model}} para obtener ayuda...",
-        "title": "¿Qué deseas hacer con el texto de abajo?"
-      }
-    },
-    "tooltip": {
-      "pin": "Fijar en la parte superior"
-    }
-  },
   "models": {
     "add_parameter": "Agregar parámetro",
     "all": "Todo",
@@ -3351,6 +3339,37 @@
     "zai": "Z.ai",
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
+  },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
+    },
+    "clipboard": {
+      "empty": "El portapapeles está vacío"
+    },
+    "feature": {
+      "chat": "Responder a esta pregunta",
+      "explanation": "Explicación",
+      "summary": "Resumen del contenido",
+      "translate": "Traducción de texto"
+    },
+    "footer": {
+      "backspace_clear": "Presione Retroceso para borrar",
+      "copy_last_message": "Presione C para copiar",
+      "esc": "Presione ESC {{action}}",
+      "esc_back": "Volver",
+      "esc_close": "Cerrar ventana",
+      "esc_pause": "Pausa"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Pregunta a {{model}} para obtener ayuda...",
+        "title": "¿Qué deseas hacer con el texto de abajo?"
+      }
+    },
+    "tooltip": {
+      "pin": "Fijar en la parte superior"
+    }
   },
   "restore": {
     "confirm": {
@@ -5459,10 +5478,10 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "press_shortcut": "Presionar atajo",
+      "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
@@ -5921,7 +5940,7 @@
   },
   "tray": {
     "quit": "Salir",
-    "show_mini_window": "Asistente rápido",
+    "show_quick_assistant": "Asistente rápido",
     "show_window": "Mostrar ventana"
   },
   "update": {

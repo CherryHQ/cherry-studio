@@ -1,3 +1,4 @@
+import { IndicatorLight } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -102,7 +103,12 @@ const ApiServerSettings: FC = () => {
       {/* Server Control Panel with integrated configuration */}
       <ServerControlPanel $status={apiServerRunning}>
         <StatusSection>
-          <StatusIndicator $status={apiServerRunning} />
+          <IndicatorLight
+            color={apiServerRunning ? 'green' : '#ef4444'}
+            size={10}
+            animation={apiServerRunning}
+            shadow={apiServerRunning}
+          />
           <StatusContent>
             <StatusText $status={apiServerRunning}>
               {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
@@ -145,13 +151,13 @@ const ApiServerSettings: FC = () => {
               <StopButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : () => handleApiServerToggle(false)}>
-                <Square size={20} style={{ color: 'var(--color-status-error)' }} />
+                <Square size={20} style={{ color: 'var(--cs-error-base)' }} />
               </StopButton>
             ) : (
               <StartButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : () => handleApiServerToggle(true)}>
-                <Play size={20} style={{ color: 'var(--color-status-success)' }} />
+                <Play size={20} style={{ color: 'var(--cs-success-base)' }} />
               </StartButton>
             )}
           </Tooltip>
@@ -222,8 +228,7 @@ const ServerControlPanel = styled.div<{ $status: boolean }>`
   justify-content: space-between;
   padding: 16px 20px;
   border-radius: 8px;
-  background: var(--color-background);
-  border: 1px solid ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-border)')};
+  border: 1px solid ${(props) => (props.$status ? 'var(--color-success-base)' : 'var(--color-border)')};
   transition: all 0.3s ease;
   margin-bottom: 16px;
 `
@@ -232,36 +237,6 @@ const StatusSection = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-`
-
-const StatusIndicator = styled.div<{ $status: boolean }>`
-  position: relative;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-status-error)')};
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-status-error)')};
-    opacity: 0.2;
-    animation: ${(props) => (props.$status ? 'pulse 2s infinite' : 'none')};
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 0.2;
-    }
-    50% {
-      transform: scale(1.5);
-      opacity: 0.1;
-    }
-  }
 `
 
 const StatusContent = styled.div`
@@ -273,7 +248,7 @@ const StatusContent = styled.div`
 const StatusText = styled.div<{ $status: boolean }>`
   font-weight: 600;
   font-size: 14px;
-  color: ${(props) => (props.$status ? 'var(--color-status-success)' : 'var(--color-text-1)')};
+  color: ${(props) => (props.$status ? 'var(--cs-success-base)' : 'var(--color-text-1)')};
   margin: 0;
 `
 
@@ -342,7 +317,7 @@ const ConfigurationField = styled.div`
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  background: var(--color-background);
+  background: var(--card);
   border-radius: 8px;
   border: 1px solid var(--color-border);
 `

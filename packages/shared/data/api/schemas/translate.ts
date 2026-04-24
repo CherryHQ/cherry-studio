@@ -96,7 +96,7 @@ export type UpdateTranslateLanguageDto = z.infer<typeof UpdateTranslateLanguageS
 // API Schema Definitions
 // ============================================================================
 
-export interface TranslateSchemas {
+export type TranslateSchemas = {
   '/translate/histories': {
     /** List translate histories with pagination, search, and star filter */
     GET: {

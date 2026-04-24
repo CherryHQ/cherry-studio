@@ -23,6 +23,7 @@ import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import { addFileLoader } from '@main/knowledge/embedjs/loader'
 import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
@@ -379,8 +380,7 @@ class KnowledgeService {
     let processedFiles = 0
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
       })
@@ -761,8 +761,7 @@ class KnowledgeService {
         logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
         const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
-        const mainWindow = application.get('WindowService').getMainWindow()
-        mainWindow?.webContents.send('file-preprocess-finished', {
+        application.get('WindowManager').broadcastToType(WindowType.Main, 'file-preprocess-finished', {
           itemId: item.id
         })
       } catch (err) {
