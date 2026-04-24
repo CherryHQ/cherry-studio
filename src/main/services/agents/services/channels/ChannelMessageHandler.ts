@@ -2,16 +2,16 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import { application } from '@main/core/application'
 import type { GetAgentSessionResponse, PermissionMode } from '@types'
 
-import { agentService } from '../AgentService'
-import { channelService } from '../ChannelService'
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
-import { sessionService } from '../SessionService'
 import type {
   ChannelAdapter,
   ChannelCommandEvent,
@@ -181,6 +181,14 @@ export class ChannelMessageHandler {
       const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
+        await adapter
+          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.')
+          .catch((err) => {
+            logger.debug('Failed to send session-error notification to channel', {
+              chatId: message.chatId,
+              error: err instanceof Error ? err.message : String(err)
+            })
+          })
         return
       }
 
@@ -189,7 +197,7 @@ export class ChannelMessageHandler {
       // even for sessions created before the setting was changed.
       await this.applyChannelPermissionMode(session, adapter.channelId)
 
-      const workDir = session.accessible_paths[0]
+      const workDir = session.accessiblePaths[0]
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []
@@ -379,6 +387,14 @@ export class ChannelMessageHandler {
         command: command.command,
         error: error instanceof Error ? error.message : String(error)
       })
+      adapter
+        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+        .catch((sendErr) => {
+          logger.debug('Failed to send error notification to channel', {
+            chatId: command.chatId,
+            error: sendErr instanceof Error ? sendErr.message : String(sendErr)
+          })
+        })
     }
   }
 
@@ -478,7 +494,7 @@ export class ChannelMessageHandler {
         if (channelRow && channelRow.sessionId !== session.id) {
           channelService.updateChannel(channelId, { sessionId: session.id }).catch(() => {})
         }
-        return session
+        return session as GetAgentSessionResponse
       }
       // Tracked session gone, clear it
       this.sessionTracker.delete(trackerKey)
@@ -490,7 +506,7 @@ export class ChannelMessageHandler {
       if (existingSession) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
-        return existingSession
+        return existingSession as GetAgentSessionResponse
       }
     }
 
@@ -519,7 +535,7 @@ export class ChannelMessageHandler {
       await channelService.updateChannel(channelId, { sessionId: newSession.id })
       this.sessionTracker.set(trackerKey, newSession.id)
       this.evictSessionTracker()
-      return newSession
+      return newSession as GetAgentSessionResponse
     }
 
     return null
@@ -576,7 +592,7 @@ export class ChannelMessageHandler {
           request: {
             chatId: topicId,
             trigger: 'submit-message',
-            assistantId: session.agent_id,
+            assistantId: session.agentId,
             uniqueModelId,
             messages: [{ id: crypto.randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
           }

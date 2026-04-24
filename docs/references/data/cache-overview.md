@@ -1,151 +1,110 @@
 # Cache System Overview
 
-The Cache system provides a three-tier caching architecture for temporary and regenerable data across the Cherry Studio application.
+Three-tier cache for regenerable data. In-process memory, cross-window shared state, and localStorage-backed persistence.
 
-## Purpose
+## Scope
 
-CacheService handles data that:
-- Can be **regenerated or lost without user impact**
-- Requires no backup or cross-device synchronization
-- Has lifecycle tied to component, window, or app session
+Use Cache for data that:
 
-## Three-Tier Architecture
+- Can be regenerated or lost without user impact
+- Needs no backup or cross-device sync
+- Has lifecycle tied to a component, window, or app session
 
-| Tier              | Scope                       | Persistence           | Use Case                                |
-| ----------------- | --------------------------- | --------------------- | --------------------------------------- |
-| **Memory Cache**  | Component-level             | Lost on app restart   | API responses, computed results         |
-| **Shared Cache**  | Cross-window                | Lost on app restart   | Window state, cross-window coordination |
-| **Persist Cache** | Cross-window + localStorage | Survives app restarts | Recent items, non-critical preferences  |
+For user settings use [Preference](./preference-overview.md); for business data use [DataApi](./data-api-overview.md).
 
-### Memory Cache
-- Fastest access, in-process memory
-- Isolated per renderer process
-- Best for: expensive computations, API response caching
+## Tiers
 
-### Shared Cache
-- Synchronized bidirectionally between Main and all Renderer windows via IPC
-- Main process maintains authoritative copy and provides initialization sync for new windows
-- New windows fetch complete shared cache state from Main on startup
-- Best for: window layouts, shared UI state
+| Tier       | Scope                       | Survives restart | Authority                        | Use for                                 |
+| ---------- | --------------------------- | ---------------- | -------------------------------- | --------------------------------------- |
+| Memory     | Per-process                 | No               | Local to each process            | Computed results, API responses         |
+| Shared     | All renderer windows + Main | No               | Main (relays + conflict sink)    | Cross-window UI state                   |
+| Persist    | All renderer windows        | Yes (localStorage) | Each renderer (Main relays only) | Recent items, non-critical UI state     |
 
-### Persist Cache
-- Backed by localStorage in renderer
-- Main process maintains authoritative copy
-- Best for: recent files, search history, non-critical state
+Persist is renderer-only on disk — `src/main/data/CacheService.ts:477-479` reserves the interface but does not implement storage; Main only forwards `CacheSyncMessage { type: 'persist' }` to peers.
 
-## Key Features
+## Key Types
 
-### TTL (Time To Live) Support
-```typescript
-// Cache with 30-second expiration
-cacheService.set('temp.calculation', result, 30000)
-```
+| Type     | Example schema                       | Call site                                 | Tiers            |
+| -------- | ------------------------------------ | ----------------------------------------- | ---------------- |
+| Fixed    | `'app.user.avatar': string`          | `get('app.user.avatar')`                  | Memory / Shared / Persist |
+| Template | `'scroll.position.${topicId}': number` | `get('scroll.position.t42')`            | Memory / Shared  |
+| Casual   | (none — type argument only)          | `getCasual<T>('my.dynamic.key')`          | Memory only      |
 
-### Hook Reference Tracking
-- Prevents deletion of cache entries while React hooks are subscribed
-- Automatic cleanup when components unmount
+Template keys share one default value across all instances — all `web_search.provider.last_used_key.*` fall back to `''`. Casual keys are blocked at compile time from matching any schema pattern (`UseCacheCasualKey` in `packages/shared/data/cache/cacheSchemas.ts:393`).
 
-### Cross-Window Synchronization
-- Shared and Persist caches sync across all windows
-- Uses IPC broadcast for real-time updates
-- Main process resolves conflicts
+## Design Invariants
 
-### Type Safety
-- **Fixed keys**: Schema-based keys for compile-time checking (e.g., `'app.user.avatar'`)
-- **Template keys**: Dynamic patterns with automatic type inference (e.g., `'scroll.position.${id}'` matches `'scroll.position.topic123'`)
-- **Casual methods**: For completely dynamic keys with manual typing (blocked from using schema-defined keys)
+Non-obvious rules the code enforces; assume them when designing consumers.
 
-Note: Template keys follow the same dot-separated naming pattern as fixed keys. When `${xxx}` is treated as a literal string, the key must match the format: `xxx.yyy.zzz_www`
+1. **Same-value write is a no-op.** Equality via `lodash.isEqual`. No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
+2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value is silent.
+3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire.
+4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/src/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.
+5. **Hooks pin cache entries.** `registerHook` / `unregisterHook` refcount keys; `delete` / `deleteShared` return `false` while any hook is active.
+6. **Persist has no delete.** Persist keys are fixed by schema; the API exposes only `getPersist` / `setPersist` / `hasPersist`.
+7. **TTL uses absolute `expireAt` (Unix ms).** Every process expires the same entry at the same instant, regardless of clock skew in IPC delivery.
+8. **Main-wins convergence.** All cross-window shared writes are serialized through Main; on window init, Main-priority override applies to conflicts with the renderer's pre-sync copy.
+9. **Re-entrant callbacks are safe.** Subscribers may write back into the same key; the `isEqual` short-circuit terminates loops once the value stabilizes. Callback errors are caught and logged without skipping other subscribers.
+10. **Template placeholders are runtime-anonymous.** `${providerId}` and `${foo}` match identical concrete keys. Dynamic segments match `[\w\-]+` only — dots, colons, and non-ASCII are rejected (`packages/shared/data/cache/templateKey.ts:35-46`).
 
-## Data Categories
-
-### Performance Cache (Memory tier)
-- Computed results from expensive operations
-- API response caching
-- Parsed/transformed data
-
-### UI State Cache (Shared tier)
-- Sidebar collapsed state
-- Panel dimensions
-- Scroll positions
-
-### Non-Critical Persistence (Persist tier)
-- Recently used items
-- Search history
-- User-customized but regenerable data
-
-## Architecture Diagram
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Renderer Process                                            │
-│ ┌─────────────┐  ┌──────────────┐  ┌───────────────┐        │
-│ │ useCache    │  │useSharedCache│  │usePersistCache│        │
-│ └──────┬──────┘  └──────┬───────┘  └───────┬───────┘        │
-│        │                │                  │                │
-│        └────────────────┼──────────────────┘                │
-│                         ▼                                   │
-│              ┌─────────────────────┐                        │
-│              │   CacheService      │                        │
-│              │   (Renderer)        │                        │
-│              └──────────┬──────────┘                        │
-└─────────────────────────┼───────────────────────────────────┘
-                          │ IPC (shared/persist only)
-┌─────────────────────────┼───────────────────────────────────┐
-│ Main Process            ▼                                   │
-│              ┌─────────────────────┐                        │
-│              │   CacheService      │                        │
-│              │   (Main)            │                        │
-│              └─────────────────────┘                        │
-│              - Source of truth for shared/persist           │
-│              - Broadcasts updates to all windows            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────── Renderer Process ──────────────────────┐
+│   useCache / useSharedCache / usePersistCache                 │
+│                          │                                    │
+│                          ▼                                    │
+│                   CacheService (Renderer)                     │
+│   - Memory cache (local)                                      │
+│   - Shared cache (local copy; init-synced from Main)          │
+│   - Persist cache (localStorage, authoritative)               │
+└──────────────────────────┬────────────────────────────────────┘
+                           │ IPC: Cache_Sync / Cache_GetAllShared
+┌──────────────────────────▼────────────────────────────────────┐
+│                    CacheService (Main)                        │
+│   - Internal cache (Main-only)                                │
+│   - Shared cache (authoritative; relays to all windows)       │
+│   - Persist: IPC relay only (no Main-side store)              │
+│   - subscribeChange / subscribeSharedChange for Main services │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-## Main vs Renderer Responsibilities
+## Process Responsibilities
 
-### Main Process CacheService
-- Manages internal cache for Main process services
-- Maintains authoritative SharedCache with type-safe access (`getShared`, `setShared`, `hasShared`, `deleteShared`)
-- Provides `getAllShared()` for new window initialization sync
-- Handles IPC requests from renderers and broadcasts updates to all windows
-- Manages TTL expiration using absolute timestamps (`expireAt`) for precise cross-window sync
+| Concern                         | Main                                             | Renderer                                             |
+| ------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| Internal memory cache           | Yes (services' own scratch space)                | Yes (window-local)                                   |
+| Shared cache authority          | Yes                                              | Local copy; writes broadcast via IPC to Main         |
+| Persist cache storage           | No (relay only)                                  | Yes (localStorage, debounced 200ms, flush on unload) |
+| Init sync for new windows       | Serves `getAllShared()`                          | Calls `getAllShared()` on startup                    |
+| `subscribeChange` / `subscribeSharedChange` | Main-only API; template-aware | —                                                    |
+| Hook refcounting                | —                                                | `registerHook` / `unregisterHook`                    |
+| GC (10-min sweep of expired)    | Yes                                              | —                                                    |
 
-Access in main process via lifecycle:
+## API Reference
 
-```typescript
-import { application } from '@application'
+### Renderer
 
-const cacheService = application.get('CacheService')
-cacheService.setShared('window.layout', layoutConfig)
-```
+| Method                                               | Tier    | Key type                |
+| ---------------------------------------------------- | ------- | ----------------------- |
+| `useCache` / `get` / `set` / `has` / `delete` / `hasTTL` | Memory  | Fixed + Template        |
+| `getCasual` / `setCasual` / `hasCasual` / `deleteCasual` / `hasTTLCasual` | Memory | Dynamic only (schema keys blocked) |
+| `useSharedCache` / `getShared` / `setShared` / `hasShared` / `deleteShared` / `hasSharedTTL` | Shared | Fixed + Template |
+| `usePersistCache` / `getPersist` / `setPersist` / `hasPersist` | Persist | Fixed only        |
+| `isSharedCacheReady` / `onSharedCacheReady`          | Shared  | —                       |
+| `getStats(includeDetails?: boolean)`                 | All     | —                       |
 
-### Renderer Process CacheService
-- Manages local memory cache and SharedCache local copy
-- Syncs SharedCache from Main on window initialization (async, non-blocking)
-- Provides ready state tracking via `isSharedCacheReady()` and `onSharedCacheReady()`
-- Broadcasts cache updates to Main for cross-window sync
-- Handles hook subscriptions and updates
-- Local TTL management for memory cache
+### Main
 
-## Usage Summary
+| Method                                               | Tier    | Key type                |
+| ---------------------------------------------------- | ------- | ----------------------- |
+| `get` / `set` / `has` / `delete`                     | Internal | Free-form string        |
+| `getShared` / `setShared` / `hasShared` / `deleteShared` | Shared | Fixed + Template        |
+| `subscribeChange<T>(key, cb)`                        | Internal | Exact key               |
+| `subscribeSharedChange<K>(key, cb)`                  | Shared  | Fixed + Template (fires for every matching concrete instance) |
 
-For detailed code examples and API usage, see [Cache Usage Guide](./cache-usage.md).
+## See Also
 
-### Key Types
-
-| Type         | Example Schema                    | Example Usage                     | Type Inference |
-| ------------ | --------------------------------- | --------------------------------- | -------------- |
-| Fixed key    | `'app.user.avatar': string`       | `get('app.user.avatar')`          | Automatic      |
-| Template key | `'scroll.position.${id}': number` | `get('scroll.position.topic123')` | Automatic      |
-| Casual key   | N/A                               | `getCasual<T>('my.custom.key')`   | Manual         |
-
-### API Reference
-
-| Method                                          | Tier    | Key Type                                |
-| ----------------------------------------------- | ------- | --------------------------------------- |
-| `useCache` / `get` / `set`                      | Memory  | Fixed + Template keys                   |
-| `getCasual` / `setCasual`                       | Memory  | Dynamic keys only (schema keys blocked) |
-| `useSharedCache` / `getShared` / `setShared`    | Shared  | Fixed keys only                         |
-| `getSharedCasual` / `setSharedCasual`           | Shared  | Dynamic keys only (schema keys blocked) |
-| `usePersistCache` / `getPersist` / `setPersist` | Persist | Fixed keys only                         |
+- [Cache Usage](./cache-usage.md) — React hooks, direct API, patterns
+- [Cache Schema Guide](./cache-schema-guide.md) — Adding fixed and template keys
+- Source: `src/main/data/CacheService.ts`, `src/renderer/src/data/CacheService.ts`, `src/renderer/src/data/hooks/useCache.ts`, `packages/shared/data/cache/`

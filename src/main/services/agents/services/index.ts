@@ -1,22 +1,6 @@
-/**
- * Agent Services Module
- *
- * This module provides service classes for managing agents, sessions, and session messages.
- * All services extend BaseService and provide database operations with proper error handling.
- */
-// Service instances (singletons)
-export { agentService } from './AgentService'
 export { schedulerService } from './SchedulerService'
-export { sessionMessageService } from './SessionMessageService'
-export { sessionService } from './SessionService'
-export { taskService } from './TaskService'
-
-// Type definitions for service requests and responses
-export type { AgentEntity, AgentSessionEntity, CreateAgentRequest, UpdateAgentRequest } from '@types'
-export type {
-  AgentSessionMessageEntity,
-  CreateSessionRequest,
-  GetAgentSessionResponse,
-  ListOptions as SessionListOptions,
-  UpdateSessionRequest
-} from '@types'
+export { AgentChannelService, agentChannelService } from '@data/services/AgentChannelService'
+export { AgentService, agentService } from '@data/services/AgentService'
+export { AgentSessionMessageService, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+export { AgentSessionService, agentSessionService } from '@data/services/AgentSessionService'
+export { AgentTaskService, agentTaskService } from '@data/services/AgentTaskService'

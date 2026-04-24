@@ -390,7 +390,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
-    overflow-y: auto;
+    overflow-y: visible;
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);

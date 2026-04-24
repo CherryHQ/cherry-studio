@@ -91,7 +91,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void window.api.setFullScreen(false)
+        void window.api.windowManager.setFullScreen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)

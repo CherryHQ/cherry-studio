@@ -97,10 +97,10 @@ const AgentSessionMessages = ({ agentId, sessionId, adaptedMessages, partsMap, i
 
   // ── Derived topic for MessageGroup ──
 
-  const sessionAssistantId = session?.agent_id ?? agentId
+  const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
-  const sessionCreatedAt = session?.created_at ?? session?.updated_at ?? FALLBACK_TIMESTAMP
-  const sessionUpdatedAt = session?.updated_at ?? session?.created_at ?? FALLBACK_TIMESTAMP
+  const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
+  const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
 
   const derivedTopic = useMemo<Topic>(
     () => ({

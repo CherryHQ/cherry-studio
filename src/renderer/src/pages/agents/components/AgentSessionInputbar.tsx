@@ -73,7 +73,7 @@ const AgentSessionInputbar = ({
     const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
 
     return {
-      id: session.agent_id ?? agentId,
+      id: session.agentId ?? agentId,
       name: session.name ?? 'Agent Session',
       prompt: session.instructions ?? '',
       topics: [],
@@ -91,9 +91,9 @@ const AgentSessionInputbar = ({
     return {
       agentId,
       sessionId,
-      slashCommands: session.slash_commands,
+      slashCommands: session.slashCommands,
       tools: session.tools,
-      accessiblePaths: session.accessible_paths ?? []
+      accessiblePaths: session.accessiblePaths ?? []
     }
   }, [session, agentId, sessionId])
 

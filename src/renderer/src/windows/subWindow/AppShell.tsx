@@ -1,8 +1,9 @@
 import '@renderer/databases'
 
+import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import type { TabType } from '@shared/data/cache/cacheValueTypes'
+import type { SubWindowInitData } from '@shared/types/subWindow'
 import { Activity, useEffect, useRef } from 'react'
 
 import { AppShellTabBar } from '../../components/layout/AppShellTabBar'
@@ -22,38 +23,27 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab, pinTab, unpinTab } =
     useTabs()
   const initialized = useRef(false)
+  const init = useWindowInitData<SubWindowInitData>()
 
-  // Initialize tab from URL parameters
+  // Initialize tab from WindowManager init data (delivered via useWindowInitData).
+  // First render returns `init === null`; the effect re-runs after one IPC round-trip
+  // when the payload arrives. The `initialized` ref still guards against re-entry.
   useEffect(() => {
-    if (initialized.current) return
+    if (!init || initialized.current) return
     initialized.current = true
 
-    const searchParams = new URLSearchParams(window.location.search)
-    const url = searchParams.get('url')
-    const title = searchParams.get('title')
-    const tabId = searchParams.get('tabId')
-    const rawType = searchParams.get('type')
-    const type: TabType = rawType === 'route' || rawType === 'webview' ? rawType : 'route'
-    const isPinned = searchParams.get('isPinned') === 'true'
-
-    if (url && tabId) {
-      // If it's a Pinned Tab, it should already be loaded via usePersistCache
-      // But we need to make sure it's selected
-      if (isPinned) {
-        // Storage sync may take a moment, or it already exists
-        // We try to select it
-        setActiveTab(tabId)
-      } else {
-        // If it's a Normal Tab, we need to manually add it
-        openTab(url, {
-          id: tabId,
-          title: title || undefined,
-          type: type || 'route',
-          forceNew: true
-        })
-      }
+    if (init.isPinned) {
+      // Pinned Tab is already loaded via usePersistCache across windows; just activate.
+      setActiveTab(init.tabId)
+    } else {
+      openTab(init.url, {
+        id: init.tabId,
+        title: init.title,
+        type: init.type || 'route',
+        forceNew: true
+      })
     }
-  }, [openTab, setActiveTab])
+  }, [init, openTab, setActiveTab])
 
   // Close tab in sub window. closeTab handles both pinned and normal tabs correctly.
   // Do NOT call unpinTab before closeTab — unpinTab moves the tab to normalTabs,

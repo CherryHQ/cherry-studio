@@ -9,7 +9,7 @@
  */
 
 import { assistantDataService } from '@data/services/AssistantService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
@@ -17,19 +17,7 @@ import {
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
 
-/**
- * Handler type for a specific assistant endpoint
- */
-type AssistantHandler<Path extends keyof AssistantSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Assistant API handlers implementation
- */
-export const assistantHandlers: {
-  [Path in keyof AssistantSchemas]: {
-    [Method in keyof AssistantSchemas[Path]]: AssistantHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants': {
     GET: async ({ query }) => {
       const parsed = ListAssistantsQuerySchema.parse(query ?? {})

@@ -1,6 +1,6 @@
 import type { AgentType } from '@types'
 
-export type AgentModelField = 'model' | 'plan_model' | 'small_model'
+export type AgentModelField = 'model' | 'planModel' | 'smallModel'
 
 export interface ModelValidationError {
   type: string

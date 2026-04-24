@@ -158,7 +158,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     if (droppedFiles) {
       let supportedFiles = 0
       droppedFiles.forEach((file) => {
-        if (extensions.includes(file.ext)) {
+        if (extensions.includes(file.ext.toLowerCase())) {
           setFiles((prevFiles) => [...prevFiles, file])
           supportedFiles++
         }

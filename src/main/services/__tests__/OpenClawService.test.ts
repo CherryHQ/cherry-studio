@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseCurrentVersion, parseUpdateStatus } from '../utils/openClawParsers'
+import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
 
 // --- Mocks for OpenClawService dependencies ---
 

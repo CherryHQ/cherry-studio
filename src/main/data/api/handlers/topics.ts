@@ -9,7 +9,7 @@
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   CreateTopicSchema,
   SetActiveNodeSchema,
@@ -19,19 +19,7 @@ import {
 
 const logger = loggerService.withContext('DataApi:TopicHandlers')
 
-/**
- * Handler type for a specific topic endpoint
- */
-type TopicHandler<Path extends keyof TopicSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Topic API handlers implementation
- */
-export const topicHandlers: {
-  [Path in keyof TopicSchemas]: {
-    [Method in keyof TopicSchemas[Path]]: TopicHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
       const assistantId = query?.assistantId

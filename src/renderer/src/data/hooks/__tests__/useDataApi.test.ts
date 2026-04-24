@@ -2,7 +2,9 @@ import type * as RendererConstantModule from '@renderer/config/constant'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
-import useSWR, { SWRConfig, unstable_serialize } from 'swr'
+import type { Cache } from 'swr'
+import useSWR, { SWRConfig, unstable_serialize, useSWRConfig } from 'swr'
+import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import { describe, expect, it, vi } from 'vitest'
 
 // Tests exercise the real implementation; the global renderer setup otherwise
@@ -19,7 +21,23 @@ vi.mock('@renderer/config/constant', async (importOriginal) => {
 
 import { __testing, useReadCache, useWriteCache } from '../useDataApi'
 
-const { createKeyMatcher, createMultiKeyMatcher, resolveTemplate, buildSWRKey } = __testing
+const {
+  createKeyMatcher,
+  createMultiKeyMatcher,
+  resolveTemplate,
+  buildSWRKey,
+  extractInfinitePath,
+  findMatchingInfiniteKeys,
+  invalidatePathPatterns
+} = __testing
+
+/**
+ * Build a useSWRInfinite cache key for `[path, query?]`. Uses `swr/infinite`'s
+ * own `unstable_serialize` (not the plain `swr` one — they differ: only the
+ * infinite flavor prepends `$inf$`). Self-validates against SWR's real format.
+ */
+const infKey = (path: string, query?: unknown) =>
+  unstable_serialize_infinite(() => (query === undefined ? [path] : [path, query]))
 
 describe('createKeyMatcher', () => {
   it('exact-matches a plain path against [path] cache keys', () => {
@@ -331,5 +349,137 @@ describe('useWriteCache', () => {
     const first = result.current
     rerender()
     expect(result.current).toBe(first)
+  })
+})
+
+describe('extractInfinitePath', () => {
+  it('extracts path from infinite keys with or without query', () => {
+    expect(extractInfinitePath(infKey('/foo'))).toBe('/foo')
+    expect(extractInfinitePath(infKey('/foo', { x: 1 }))).toBe('/foo')
+    expect(extractInfinitePath(infKey('/translate/histories', { cursor: 'abc', limit: 50 }))).toBe(
+      '/translate/histories'
+    )
+  })
+
+  it('preserves paths containing escaped double quotes', () => {
+    const pathWithQuote = '/items/he said "hi"'
+    expect(extractInfinitePath(infKey(pathWithQuote, { x: 1 }))).toBe(pathWithQuote)
+  })
+
+  it('returns undefined for non-infinite and malformed strings', () => {
+    expect(extractInfinitePath('')).toBeUndefined()
+    expect(extractInfinitePath('$inf$')).toBeUndefined()
+    expect(extractInfinitePath('$inf$"bare"')).toBeUndefined() // missing leading '@'
+    expect(extractInfinitePath('$inf$@bare,')).toBeUndefined() // missing '@"'
+    expect(extractInfinitePath('$inf$@"/no-close,...')).toBeUndefined() // unclosed quote
+    expect(extractInfinitePath('plain-string')).toBeUndefined()
+    expect(extractInfinitePath('@"/foo",')).toBeUndefined() // missing $inf$ prefix
+  })
+})
+
+describe('findMatchingInfiniteKeys', () => {
+  // Seed the real SWR-backed cache via makeWrapper, bypassing any mock Cache
+  // — the Map is what SWR itself uses, so key-shape drift can't hide here.
+  function seed(pairs: Array<[string, unknown]>): Cache {
+    const { cache } = makeWrapper()
+    for (const [k, v] of pairs) cache.set(k, { data: v })
+    return cache as unknown as Cache
+  }
+
+  it('returns exact-pattern matches among infinite keys only', () => {
+    const cache = seed([
+      [infKey('/translate/histories'), undefined],
+      [infKey('/translate/histories', { limit: 50 }), undefined],
+      [infKey('/translate/lang'), undefined],
+      [unstable_serialize(['/translate/histories']), undefined] // non-infinite array key serialized
+    ])
+    expect(findMatchingInfiniteKeys(cache, ['/translate/histories'])).toEqual([
+      infKey('/translate/histories'),
+      infKey('/translate/histories', { limit: 50 })
+    ])
+  })
+
+  it('returns prefix-pattern matches with path-segment boundary', () => {
+    const cache = seed([
+      [infKey('/providers/p1'), undefined],
+      [infKey('/providers/p1/api-keys'), undefined],
+      [infKey('/providers-archived'), undefined],
+      [infKey('/providers-archived/x'), undefined]
+    ])
+    expect(findMatchingInfiniteKeys(cache, ['/providers/*'])).toEqual([
+      infKey('/providers/p1'),
+      infKey('/providers/p1/api-keys')
+    ])
+  })
+
+  it('supports a mix of exact and prefix patterns', () => {
+    const cache = seed([
+      [infKey('/a'), undefined],
+      [infKey('/a', { q: 1 }), undefined],
+      [infKey('/b/child'), undefined],
+      [infKey('/c'), undefined]
+    ])
+    expect(findMatchingInfiniteKeys(cache, ['/a', '/b/*']).sort()).toEqual(
+      [infKey('/a'), infKey('/a', { q: 1 }), infKey('/b/child')].sort()
+    )
+  })
+
+  it('returns [] for empty cache or cache without $inf$ keys', () => {
+    expect(findMatchingInfiniteKeys(seed([]), ['/foo'])).toEqual([])
+    expect(
+      findMatchingInfiniteKeys(
+        seed([
+          ['/providers', undefined], // plain string, not $inf$
+          ['$sub$@"/providers",', undefined] // $sub$, not $inf$
+        ]),
+        ['/providers']
+      )
+    ).toEqual([])
+  })
+})
+
+describe('invalidatePathPatterns with live useSWRInfinite', () => {
+  // These tests assert the end-to-end invariant: when we call
+  // invalidatePathPatterns with a matching path, a live useSWRInfinite hook's
+  // fetcher runs again. This is the only test that proves
+  // `globalMutate(infiniteKeyString)` actually triggers a refetch — without
+  // it, unit tests only prove "we produce the right strings".
+  const getKey = (_pageIndex: number, previousPageData: { nextCursor?: string | null } | null) => {
+    if (previousPageData && !previousPageData.nextCursor) return null
+    return ['/foo', { limit: 10 }]
+  }
+
+  it('triggers useSWRInfinite revalidation for matching paths', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const fetcher = vi.fn(async () => ({ items: [], nextCursor: null }))
+
+    renderHook(() => useSWRInfinite(getKey, fetcher), { wrapper: Wrapper })
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+
+    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/foo'])
+    })
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not refetch when path does not match', async () => {
+    const { Wrapper, cache } = makeWrapper()
+    const fetcher = vi.fn(async () => ({ items: [], nextCursor: null }))
+
+    renderHook(() => useSWRInfinite(getKey, fetcher), { wrapper: Wrapper })
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+
+    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/bar'])
+    })
+
+    // Give any pending revalidation a chance to run — it should not.
+    await new Promise((r) => setTimeout(r, 30))
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })

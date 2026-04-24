@@ -224,19 +224,10 @@ export function buildCapabilityProviderOptions(
     case 'bedrock':
       providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
       break
-    case 'cherryin':
-      providerSpecificOptions = buildCherryInProviderOptions(
-        assistant,
-        model,
-        capabilities,
-        actualProvider,
-        serviceTier,
-        textVerbosity
-      )
-      break
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(assistant, model, capabilities)
       break
+    case 'cherryin':
     case 'newapi':
     case 'aihubmix':
     case SystemProviderIds.gateway:
