@@ -165,11 +165,11 @@ const AboutSettings: FC = () => {
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto bg-background-subtle/70 px-6 py-5 [&::-webkit-scrollbar]:hidden',
+        'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto bg-background-subtle/70 px-5 py-4 [&::-webkit-scrollbar]:hidden',
         theme === ThemeMode.dark ? 'bg-transparent' : 'bg-(--color-background-subtle)'
       )}>
       <AboutGroup theme={theme}>
-        <div className="flex select-none items-center justify-between gap-3 font-bold text-sm">
+        <div className="flex select-none items-center justify-between gap-2 font-bold text-sm">
           <div>{t('settings.about.title')}</div>
           <button
             type="button"
@@ -179,10 +179,10 @@ const AboutSettings: FC = () => {
           </button>
         </div>
 
-        <Divider className="my-2" />
+        <Divider className="my-1.5" />
 
-        <div className="flex flex-wrap items-center justify-between gap-4 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
@@ -191,7 +191,7 @@ const AboutSettings: FC = () => {
                 <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
                   <CircularProgress
                     value={appUpdateState.downloadProgress}
-                    size={84}
+                    size={76}
                     strokeWidth={4}
                     shape="square"
                     className="stroke-transparent"
@@ -199,16 +199,16 @@ const AboutSettings: FC = () => {
                   />
                 </div>
               )}
-              <LogoAvatar logo={AppLogo} size={80} className="rounded-2xl" />
+              <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
             </button>
 
-            <div className="flex min-h-20 flex-col items-start justify-center">
-              <div className="mb-1.25 font-bold text-(--color-foreground) text-xl">{APP_NAME}</div>
+            <div className="flex min-h-[72px] flex-col items-start justify-center">
+              <div className="mb-1 font-bold text-(--color-foreground) text-lg">{APP_NAME}</div>
               <div className="text-(--color-foreground-secondary) text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
-                className="mt-2">
+                className="mt-1.5">
                 <Badge className="cursor-pointer rounded-[10px] border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 font-medium text-cyan-500 text-sm transition-colors hover:bg-cyan-500/15">
                   v{version}
                 </Badge>
@@ -236,13 +236,13 @@ const AboutSettings: FC = () => {
 
         {!isPortable && (
           <>
-            <Divider className="my-4" />
+            <Divider className="my-3" />
             <AboutRow>
               <AboutRowTitle>{t('settings.general.auto_check_update.title')}</AboutRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </AboutRow>
 
-            <Divider className="my-4" />
+            <Divider className="my-3" />
             <AboutRow>
               <AboutRowTitle>{t('settings.general.test_plan.title')}</AboutRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
@@ -252,7 +252,7 @@ const AboutSettings: FC = () => {
 
             {testPlan && (
               <>
-                <Divider className="my-2" />
+                <Divider className="my-1.5" />
                 <AboutRow className="items-start">
                   <AboutRowTitle className="pt-1">{t('settings.general.test_plan.version_options')}</AboutRowTitle>
                   <RadioGroup
@@ -305,49 +305,49 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.website.button')}
           onAction={onOpenDocs}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Rss className="size-4.5" />}
           title={t('settings.about.releases.title')}
           actionLabel={t('settings.about.releases.button')}
           onAction={showReleases}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Globe className="size-4.5" />}
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={() => onOpenWebsite('https://cherry-ai.com')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Github className="size-4.5" />}
           title={t('settings.about.feedback.title')}
           actionLabel={t('settings.about.feedback.button')}
           onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Building2 className="size-4.5" />}
           title={t('settings.about.enterprise.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={showEnterprise}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Mail className="size-4.5" />}
           title={t('settings.about.contact.title')}
           actionLabel={t('settings.about.contact.button')}
           onAction={mailto}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Briefcase className="size-4.5" />}
           title={t('settings.about.careers.title')}
           actionLabel={t('settings.about.careers.button')}
           onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
         />
-        <Divider className="my-4" />
+        <Divider className="my-3" />
         <AboutActionRow
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
@@ -363,7 +363,7 @@ function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode
   return (
     <div
       className={cn(
-        'mb-4 rounded-2xl border border-border/60 bg-background p-5 shadow-xs last:mb-0',
+        'mb-3 rounded-2xl border border-border/60 bg-background p-4 shadow-xs last:mb-0',
         theme === ThemeMode.dark ? 'bg-black/5' : 'bg-(--color-background)'
       )}>
       {children}
@@ -372,7 +372,7 @@ function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode
 }
 
 function AboutRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex min-h-6 items-center justify-between gap-4', className)}>{children}</div>
+  return <div className={cn('flex min-h-6 items-center justify-between gap-3', className)}>{children}</div>
 }
 
 function AboutRowTitle({ children, className }: { children: ReactNode; className?: string }) {
