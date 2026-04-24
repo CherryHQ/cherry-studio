@@ -5,6 +5,7 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -13,11 +14,11 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import { Alert, Spin } from 'antd'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -165,29 +166,9 @@ const AgentChatInner = ({
     return map
   }, [uiMessages])
 
-  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
-
-  useEffect(() => {
-    if (chat.activeExecutionIds.length === 0) {
-      setExecutionMessagesById({})
-      return
-    }
-    const active = new Set<string>(chat.activeExecutionIds)
-    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
-  }, [chat.activeExecutionIds])
-
-  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
-  }, [])
-
-  const handleExecutionDispose = useCallback((executionId: string) => {
-    setExecutionMessagesById((prev) => {
-      if (!(executionId in prev)) return prev
-      const next = { ...prev }
-      delete next[executionId]
-      return next
-    })
-  }, [])
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages(
+    chat.activeExecutionIds
+  )
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }

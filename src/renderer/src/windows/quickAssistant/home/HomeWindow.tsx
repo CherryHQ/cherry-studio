@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
@@ -125,52 +126,31 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
+    useExecutionMessages(activeExecutionIds)
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
+  // Freeze assistants from the just-ended stream(s) into permanent history.
+  // Runs on the same activeExecutionIds transition that wipes the overlay —
+  // so we read the overlay contents BEFORE `useExecutionMessages` clears them
+  // (useEffect ordering: local effects before child-hook effects? no; but
+  // `executionMessagesById` we read here is the pre-clear snapshot of this
+  // render, which is fine because the clear happens in the next commit).
+  const prevActiveCountRef = useRef(activeExecutionIds.length)
   useEffect(() => {
-    if (activeExecutionIds.length === 0) {
-      setExecutionMessagesById((prev) => {
-        if (Object.keys(prev).length === 0) return prev
-        // Freeze finalized assistants into the permanent history before
-        // tearing the collectors down on stream-done.
-        const finalized: CherryUIMessage[] = []
-        for (const msgs of Object.values(prev)) {
-          for (const m of msgs) if (m.role === 'assistant') finalized.push(m)
-        }
-        if (finalized.length) setCompletedAssistants((done) => [...done, ...finalized])
-        return {}
-      })
-      return
+    const wasActive = prevActiveCountRef.current > 0
+    prevActiveCountRef.current = activeExecutionIds.length
+    if (activeExecutionIds.length === 0 && wasActive) {
+      const finalized = collectLiveAssistants(executionMessagesById)
+      if (finalized.length) setCompletedAssistants((done) => [...done, ...finalized])
     }
-    const active = new Set<string>(activeExecutionIds)
-    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
-  }, [activeExecutionIds])
-
-  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
-  }, [])
-
-  const handleExecutionDispose = useCallback((executionId: string) => {
-    setExecutionMessagesById((prev) => {
-      if (!(executionId in prev)) return prev
-      const next = { ...prev }
-      delete next[executionId]
-      return next
-    })
-  }, [])
+  }, [activeExecutionIds, executionMessagesById])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
-  const liveAssistants = useMemo<CherryUIMessage[]>(() => {
-    const out: CherryUIMessage[] = []
-    for (const msgs of Object.values(executionMessagesById)) {
-      for (const m of msgs) if (m.role === 'assistant') out.push(m)
-    }
-    return out
-  }, [executionMessagesById])
+  const liveAssistants = useMemo(() => collectLiveAssistants(executionMessagesById), [executionMessagesById])
 
   const allAssistants = useMemo<CherryUIMessage[]>(
     () => [...completedAssistants, ...liveAssistants],
@@ -246,10 +226,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void stopChat()
     setMessages([])
     setCompletedAssistants([])
-    setExecutionMessagesById({})
+    resetExecutionMessages()
     setFlowError(null)
     setIsPreparing(false)
-  }, [stopChat, setMessages])
+  }, [stopChat, setMessages, resetExecutionMessages])
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')

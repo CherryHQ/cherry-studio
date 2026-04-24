@@ -15,10 +15,11 @@
  *   - `projectedMessages` / `mergedPartsMap` — outputs consumed by
  *     `Messages` / `PartsProvider`
  */
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import { uiToMessage } from '../uiToMessage'
 
@@ -75,34 +76,11 @@ export function useV2RenderingPipeline(
   }, [uiMessages])
 
   // Per-execution streaming overlay. Each mounted `ExecutionStreamCollector`
-  // pushes its `messages` here via `handleExecutionMessagesChange`; ids
-  // match DB placeholder ids directly (Main tags every chunk with the
-  // execution's modelId), so `mergedPartsMap` overlays by id.
-  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
-
-  useEffect(() => {
-    if (activeExecutionIds.length === 0) {
-      setExecutionMessagesById({})
-      return
-    }
-    const activeSet = new Set<string>(activeExecutionIds)
-    setExecutionMessagesById((prev) =>
-      Object.fromEntries(Object.entries(prev).filter(([executionId]) => activeSet.has(executionId)))
-    )
-  }, [activeExecutionIds])
-
-  const handleExecutionMessagesChange = useCallback((executionId: string, messages: CherryUIMessage[]) => {
-    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: messages }))
-  }, [])
-
-  const handleExecutionDispose = useCallback((executionId: string) => {
-    setExecutionMessagesById((prev) => {
-      if (!(executionId in prev)) return prev
-      const next = { ...prev }
-      delete next[executionId]
-      return next
-    })
-  }, [])
+  // pushes its `messages` here; ids match DB placeholder ids directly
+  // (Main tags every chunk with the execution's modelId), so `mergedPartsMap`
+  // overlays by id.
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } =
+    useExecutionMessages(activeExecutionIds)
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }

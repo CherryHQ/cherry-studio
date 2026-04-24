@@ -7,6 +7,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -151,29 +152,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // owns the streaming content. One collector per `activeExecutionId`;
   // we read the streaming assistant message from its internal state.
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
-
-  useEffect(() => {
-    if (activeExecutionIds.length === 0) {
-      setExecutionMessagesById({})
-      return
-    }
-    const active = new Set<string>(activeExecutionIds)
-    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
-  }, [activeExecutionIds])
-
-  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
-  }, [])
-
-  const handleExecutionDispose = useCallback((executionId: string) => {
-    setExecutionMessagesById((prev) => {
-      if (!(executionId in prev)) return prev
-      const next = { ...prev }
-      delete next[executionId]
-      return next
-    })
-  }, [])
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
+    useExecutionMessages(activeExecutionIds)
 
   // Flatten all collectors' assistant messages — in practice there's at
   // most one (single-model translate), but keep the shape generic in case
@@ -223,10 +203,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   const clear = useCallback(() => {
     void stopChat()
-    setExecutionMessagesById({})
+    resetExecutionMessages()
     setCompletionError(null)
     setIsPreparing(false)
-  }, [stopChat])
+  }, [stopChat, resetExecutionMessages])
 
   const fetchResult = useCallback(async () => {
     if (!isTopicReady || !temporaryTopicId || !action.selectedText || !initialized) return

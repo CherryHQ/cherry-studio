@@ -3,6 +3,7 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
@@ -92,29 +93,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   // Per-execution collector pattern (see ActionTranslate for the why).
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
-
-  useEffect(() => {
-    if (activeExecutionIds.length === 0) {
-      setExecutionMessagesById({})
-      return
-    }
-    const active = new Set<string>(activeExecutionIds)
-    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
-  }, [activeExecutionIds])
-
-  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
-    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
-  }, [])
-
-  const handleExecutionDispose = useCallback((executionId: string) => {
-    setExecutionMessagesById((prev) => {
-      if (!(executionId in prev)) return prev
-      const next = { ...prev }
-      delete next[executionId]
-      return next
-    })
-  }, [])
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } =
+    useExecutionMessages(activeExecutionIds)
 
   useEffect(() => {
     if (isPending) {
