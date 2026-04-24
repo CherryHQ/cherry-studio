@@ -13,7 +13,7 @@
 import { messageService } from '@main/data/services/MessageService'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 
-import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
   /** Placeholder assistant message id created before the stream started. */
@@ -41,7 +41,7 @@ export class MessageServiceBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, stats } = input
-    const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
+    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     await messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,

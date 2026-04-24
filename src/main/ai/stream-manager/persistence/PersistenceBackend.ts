@@ -20,10 +20,31 @@
  * never repeat the projection logic.
  */
 
-import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { SemanticTimings, TransportTimings } from '../types'
+
+const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
+
+function isToolPart(part: CherryMessagePart): boolean {
+  const t = part.type
+  return t.startsWith('tool-') || t === 'dynamic-tool'
+}
+
+export function finalizeInterruptedParts(
+  parts: CherryMessagePart[],
+  status: 'success' | 'paused' | 'error'
+): CherryMessagePart[] {
+  if (status === 'success') return parts
+  const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
+  return parts.map((part) => {
+    if (!isToolPart(part)) return part
+    const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
+    if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
+    return { ...toolPart, state: 'output-error', errorText: toolPart.errorText ?? reason } as CherryMessagePart
+  })
+}
 
 /**
  * Merged timings for stats projection. `TransportTimings` comes from the

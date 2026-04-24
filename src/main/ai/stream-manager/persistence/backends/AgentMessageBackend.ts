@@ -11,7 +11,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { buildAgentSessionTopicId } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
-import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
 export interface AgentMessageBackendOptions {
   /** Cherry Studio session id (not the SDK session id). */
@@ -34,7 +34,7 @@ export class AgentMessageBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status } = input
-    const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
+    const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     await agentSessionMessageService.persistAssistantMessage({
       sessionId: this.opts.sessionId,
       agentSessionId: this.opts.agentSessionId ?? '',
