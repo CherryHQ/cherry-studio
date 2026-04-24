@@ -8,12 +8,8 @@ vi.mock('swr/infinite', () => ({
   default: (...args: unknown[]) => swrInfiniteMock(...args)
 }))
 
-// dataApiService.get is invoked through the fetcher we pass to useSWRInfinite.
-// Tests exercise it indirectly by calling the captured getKey / fetcher, so the
-// concrete implementation is not needed here.
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: vi.fn() }
-}))
+// `@data/DataApiService` is already mocked globally in tests/renderer.setup.ts;
+// these tests intercept `useSWRInfinite` directly so the fetcher never runs.
 
 type Page = { items: Array<{ id: string }>; total: number; page: number; limit: number }
 
