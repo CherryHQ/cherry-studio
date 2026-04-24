@@ -57,7 +57,7 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
   }
 
   const handleSubmit = useCallback(
-    async (values: any) => {
+    async (values: { emoji: string; value: string; langCode: string }) => {
       const { emoji, value, langCode } = values
       try {
         if (editingCustomLanguage) {
