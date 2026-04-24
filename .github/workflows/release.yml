@@ -17,9 +17,6 @@ on:
           - windows
           - mac
           - linux
-  push:
-    tags:
-      - v*.*.*
   pull_request_target:
     branches:
       - main
