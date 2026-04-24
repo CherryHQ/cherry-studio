@@ -1491,7 +1491,6 @@
       "unpin": "إلغاء تثبيت الموضوع"
     },
     "translate": "ترجمة",
-    "user": "المستخدم",
     "web_search": {
       "warning": {
         "openai": "الحد الأدنى من جهد التفكير لنموذج GPT-5 لا يدعم البحث عبر الويب."
@@ -2131,6 +2130,112 @@
     },
     "title": "LM Studio"
   },
+  "memory": {
+    "actions": "الإجراءات",
+    "add_failed": "[to be translated]:Failed to add memory",
+    "add_first_memory": "أضف ذاكرتك الأولى",
+    "add_memory": "إضافة ذاكرة",
+    "add_new_user": "إضافة مستخدم جديد",
+    "add_success": "[to be translated]:Memory added successfully",
+    "add_user": "إضافة مستخدم",
+    "add_user_failed": "[to be translated]:Failed to add user",
+    "all_users": "كل المستخدمين",
+    "cannot_delete_default_user": "[to be translated]:Cannot delete the default user",
+    "configure_memory_first": "[to be translated]:Please configure memory settings first",
+    "content": "[to be translated]:Content",
+    "current_user": "[to be translated]:Current User",
+    "custom": "[to be translated]:Custom",
+    "default": "[to be translated]:Default",
+    "default_user": "[to be translated]:Default User",
+    "delete_confirm": "هل أنت متأكد أنك تريد حذف هذه الذاكرة؟",
+    "delete_confirm_content": "هل أنت متأكد أنك تريد حذف {{count}} ذاكرة؟",
+    "delete_confirm_single": "هل أنت متأكد أنك تريد حذف هذه الذاكرة؟",
+    "delete_confirm_title": "[to be translated]:Delete Memories",
+    "delete_failed": "[to be translated]:Failed to delete memory",
+    "delete_selected": "[to be translated]:Delete Selected",
+    "delete_success": "[to be translated]:Memory deleted successfully",
+    "delete_user": "[to be translated]:Delete User",
+    "delete_user_confirm_content": "هل أنت متأكد أنك تريد حذف المستخدم {{user}} وجميع ذكرياته؟",
+    "delete_user_confirm_title": "[to be translated]:Delete User",
+    "delete_user_failed": "[to be translated]:Failed to delete user",
+    "description": "[to be translated]:Memory allows you to store and manage information about your interactions with the assistant. You can add, edit, and delete memories, as well as filter and search through them.",
+    "edit_memory": "[to be translated]:Edit Memory",
+    "embedding_dimensions": "[to be translated]:Embedding Dimensions",
+    "embedding_model": "[to be translated]:Embedding Model",
+    "enable_global_memory_first": "[to be translated]:Please enable global memory first",
+    "end_date": "[to be translated]:End Date",
+    "global_memory": "[to be translated]:Global Memory",
+    "global_memory_description": "[to be translated]:To use memory features, please enable global memory in assistant settings.",
+    "global_memory_disabled_desc": "[to be translated]:To use memory features, please enable global memory in assistant settings first.",
+    "global_memory_disabled_title": "[to be translated]:Global Memory Disabled",
+    "global_memory_enabled": "[to be translated]:Global memory enabled",
+    "go_to_memory_page": "[to be translated]:Go to Memory Page",
+    "initial_memory_content": "[to be translated]:Welcome! This is your first memory.",
+    "llm_model": "[to be translated]:LLM Model",
+    "load_failed": "[to be translated]:Failed to load memories",
+    "loading": "[to be translated]:Loading memories...",
+    "loading_memories": "[to be translated]:Loading memories...",
+    "memories_description": "[to be translated]:Showing {{count}} of {{total}} memories",
+    "memories_reset_success": "تم إعادة تعيين جميع الذكريات لـ {{user}} بنجاح",
+    "memory": "[to be translated]:memory",
+    "memory_content": "[to be translated]:Memory Content",
+    "memory_placeholder": "[to be translated]:Enter memory content...",
+    "new_user_id": "[to be translated]:New User ID",
+    "new_user_id_placeholder": "[to be translated]:Enter a unique user ID",
+    "no_matching_memories": "[to be translated]:No matching memories found",
+    "no_memories": "[to be translated]:No memories yet",
+    "no_memories_description": "[to be translated]:Start by adding your first memory to get started",
+    "not_configured_desc": "[to be translated]:Please configure embedding and LLM models in memory settings to enable memory functionality.",
+    "not_configured_title": "[to be translated]:Memory Not Configured",
+    "pagination_total": "{{start}}-{{end}} من {{total}} العناصر",
+    "please_enter_memory": "[to be translated]:Please enter memory content",
+    "please_select_embedding_model": "[to be translated]:Please select an embedding model",
+    "please_select_llm_model": "[to be translated]:Please select an LLM model",
+    "reset_filters": "[to be translated]:Reset Filters",
+    "reset_memories": "[to be translated]:Reset Memories",
+    "reset_memories_confirm_content": "هل أنت متأكد أنك تريد حذف جميع الذكريات الخاصة بـ {{user}} بشكل دائم؟ هذه العملية لا يمكن التراجع عنها.",
+    "reset_memories_confirm_title": "[to be translated]:Reset All Memories",
+    "reset_memories_failed": "[to be translated]:Failed to reset memories",
+    "reset_user_memories": "[to be translated]:Reset User Memories",
+    "reset_user_memories_confirm_content": "هل أنت متأكد أنك تريد إعادة تعيين جميع الذكريات الخاصة بـ {{user}}؟",
+    "reset_user_memories_confirm_title": "[to be translated]:Reset User Memories",
+    "reset_user_memories_failed": "[to be translated]:Failed to reset user memories",
+    "score": "[to be translated]:Score",
+    "search": "[to be translated]:Search",
+    "search_placeholder": "[to be translated]:Search memories...",
+    "select_embedding_model_placeholder": "[to be translated]:Select Embedding Model",
+    "select_llm_model_placeholder": "[to be translated]:Select LLM Model",
+    "select_user": "[to be translated]:Select User",
+    "settings": "[to be translated]:Settings",
+    "settings_title": "[to be translated]:Memory Settings",
+    "start_date": "[to be translated]:Start Date",
+    "statistics": "[to be translated]:Statistics",
+    "stored_memories": "[to be translated]:Stored Memories",
+    "switch_user": "[to be translated]:Switch User",
+    "switch_user_confirm": "[to be translated]:Switch user context to {{user}}?",
+    "time": "[to be translated]:Time",
+    "title": "[to be translated]:Memories",
+    "total_memories": "[to be translated]:total memories",
+    "try_different_filters": "[to be translated]:Try adjusting your search criteria",
+    "update_failed": "[to be translated]:Failed to update memory",
+    "update_success": "[to be translated]:Memory updated successfully",
+    "user": "[to be translated]:User",
+    "user_created": "[to be translated]:User {{user}} created and switched successfully",
+    "user_deleted": "[to be translated]:User {{user}} deleted successfully",
+    "user_id": "[to be translated]:User ID",
+    "user_id_exists": "[to be translated]:This user ID already exists",
+    "user_id_invalid_chars": "[to be translated]:User ID can only contain letters, numbers, hyphens and underscores",
+    "user_id_placeholder": "[to be translated]:Enter user ID (optional)",
+    "user_id_required": "[to be translated]:User ID is required",
+    "user_id_reserved": "'default-user' محجوز، يرجى استخدام معرّف آخر",
+    "user_id_rules": "[to be translated]:User ID must be unique and contain only letters, numbers, hyphens (-) and underscores (_)",
+    "user_id_too_long": "[to be translated]:User ID cannot exceed 50 characters",
+    "user_management": "[to be translated]:User Management",
+    "user_memories_reset": "تم إعادة تعيين جميع الذكريات لـ {{user}}",
+    "user_switch_failed": "[to be translated]:Failed to switch user",
+    "user_switched": "[to be translated]:User context switched to {{user}}",
+    "users": "[to be translated]:users"
+  },
   "message": {
     "agents": {
       "import": {
@@ -2533,6 +2638,37 @@
     "wps-copilot": "WPS Copilot",
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
+  },
+  "miniwindow": {
+    "alert": {
+      "google_login": "[to be translated]:Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+    },
+    "clipboard": {
+      "empty": "[to be translated]:Clipboard is empty"
+    },
+    "feature": {
+      "chat": "أجب عن هذا السؤال",
+      "explanation": "[to be translated]:Explanation",
+      "summary": "[to be translated]:Content summary",
+      "translate": "[to be translated]:Text translation"
+    },
+    "footer": {
+      "backspace_clear": "[to be translated]:Backspace to clear",
+      "copy_last_message": "[to be translated]:Press C to copy",
+      "esc": "[to be translated]:ESC to {{action}}",
+      "esc_back": "[to be translated]:return",
+      "esc_close": "[to be translated]:close",
+      "esc_pause": "[to be translated]:pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "[to be translated]:Ask {{model}} for help...",
+        "title": "[to be translated]:What do you want to do with this text?"
+      }
+    },
+    "tooltip": {
+      "pin": "[to be translated]:Keep Window on Top"
+    }
   },
   "models": {
     "add_parameter": "أضف مُعامل",
@@ -3319,37 +3455,6 @@
     "zai": "Z.ai",
     "zhinao": "360AI",
     "zhipu": "BigModel"
-  },
-  "quickAssistant": {
-    "alert": {
-      "google_login": "تلميح: إذا ظهرت رسالة 'المتصفح غير موثوق' عند تسجيل الدخول إلى Google، يرجى تسجيل الدخول أولاً عبر تطبيق Google المصغر في قائمة التطبيقات المصغرة، ثم استخدم تسجيل دخول Google في التطبيقات المصغرة الأخرى"
-    },
-    "clipboard": {
-      "empty": "الحافظة فارغة"
-    },
-    "feature": {
-      "chat": "أجب عن هذا السؤال",
-      "explanation": "شرح",
-      "summary": "ملخص المحتوى",
-      "translate": "ترجمة النص"
-    },
-    "footer": {
-      "backspace_clear": "Backspace للمسح",
-      "copy_last_message": "اضغط C للنسخ",
-      "esc": "اضغط ESC لـ {{action}}",
-      "esc_back": "رجوع",
-      "esc_close": "إغلاق",
-      "esc_pause": "إيقاف مؤقت"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "اطلب المساعدة من {{model}}...",
-        "title": "ماذا تريد أن تفعل بهذا النص؟"
-      }
-    },
-    "tooltip": {
-      "pin": "إبقاء النافذة في المقدمة"
-    }
   },
   "restore": {
     "confirm": {
@@ -5449,29 +5554,22 @@
     "shortcuts": {
       "action": "إجراء",
       "actions": "عملية",
-      "bind_first_to_enable": "اربط اختصاراً أولاً لتغيير حالة التفعيل",
       "clear_shortcut": "مسح الاختصار",
       "clear_topic": "مسح الرسائل",
-      "conflict_with": "مستخدم بالفعل من قبل \"{{name}}\"",
       "copy_last_message": "انسخ آخر رسالة",
       "edit_last_user_message": "عدّل آخر رسالة مستخدم",
       "enabled": "فعّل",
       "exit_fullscreen": "اخرج من ملء الشاشة",
       "label": "مفتاح",
+      "mini_window": "[to be translated]:Quick Assistant",
       "new_topic": "موضوع جديد",
-      "occupied_by_other_application": "هذا الاختصار مستخدم بالفعل من قبل النظام أو تطبيق آخر",
       "press_shortcut": "اضغط على الاختصار",
-      "quick_assistant": "المساعد السريع",
       "rename_topic": "أعد تسمية الموضوع",
       "reset_defaults": "استعد الافتراضيات",
       "reset_defaults_confirm": "هل أنت متأكد من إعادة ضبط كافة الاختصارات؟",
-      "reset_defaults_failed": "فشل إعادة ضبط الاختصارات للافتراضيات",
       "reset_to_default": "استعد الافتراضي",
-      "save_failed": "فشل حفظ الاختصار",
-      "save_failed_with_name": "فشل حفظ الاختصار: {{name}}",
       "search_message": "ابحث عن رسالة",
       "search_message_in_chat": "ابحث عن رسالة في الدردشة الحالية",
-      "search_placeholder": "ابحث عن الاختصارات...",
       "select_model": "اختيار النموذج",
       "selection_assistant_select_text": "مساعد التحديد: حدد النص",
       "selection_assistant_toggle": "بدّل مساعد التحديد",
@@ -5479,8 +5577,8 @@
       "show_settings": "افتح الإعدادات",
       "title": "اختصارات لوحة المفاتيح",
       "toggle_new_context": "مسح السياق",
+      "toggle_show_assistants": "[to be translated]:Toggle Assistants",
       "toggle_show_topics": "بدّل المواضيع",
-      "toggle_sidebar": "بدّل الشريط الجانبي",
       "zoom_in": "كبّر",
       "zoom_out": "صغّر",
       "zoom_reset": "استعد مستوى التكبير"
@@ -5748,13 +5846,6 @@
       "title": "تكبير الصفحة"
     }
   },
-  "tab": {
-    "close": "أغلق التبويب",
-    "moveToFirst": "انقل للبداية",
-    "new": "تبويب جديد",
-    "pin": "ثبّت التبويب",
-    "unpin": "ألغِ تثبيت التبويب"
-  },
   "title": {
     "apps": "تطبيقات",
     "code": "برمجة",
@@ -5763,6 +5854,7 @@
     "knowledge": "قاعدة المعرفة",
     "launchpad": "منصة الإطلاق",
     "mcp-servers": "خوادم MCP",
+    "memories": "[to be translated]:Memories",
     "notes": "ملاحظات",
     "openclaw": "OpenClaw",
     "paintings": "رسومات",
@@ -5920,7 +6012,7 @@
   },
   "tray": {
     "quit": "إنهاء",
-    "show_quick_assistant": "المساعد السريع",
+    "show_mini_window": "[to be translated]:Quick Assistant",
     "show_window": "إظهار النافذة"
   },
   "update": {
