@@ -41,7 +41,7 @@ const BuiltinMCPServerList: FC = () => {
   }, [filter, mcpServers, searchText, t])
 
   return (
-    <div className="mb-5 rounded-[24px] bg-card px-4 py-4">
+    <div className="mb-5">
       <div className="mb-3 flex items-center gap-2">
         <SettingTitle className="m-0">{t('settings.mcp.builtinServers')}</SettingTitle>
         <span className="text-muted-foreground text-sm">

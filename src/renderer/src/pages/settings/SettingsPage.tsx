@@ -180,7 +180,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 flex-1 p-2.5 pl-0">
-          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 bg-card bg-muted/10 text-card-foreground shadow-xs">
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 bg-background-subtle/70 text-foreground shadow-xs">
             <Outlet />
           </div>
         </div>

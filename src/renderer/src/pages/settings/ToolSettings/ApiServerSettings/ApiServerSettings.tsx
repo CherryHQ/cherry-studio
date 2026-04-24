@@ -11,7 +11,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import { SettingContainer } from '../..'
+import { SettingContainer, SettingGroup } from '../..'
 
 const { Text, Title } = Typography
 
@@ -167,7 +167,7 @@ const ApiServerSettings: FC = () => {
       </ServerControlPanel>
 
       {/* API Key Configuration */}
-      <ConfigurationField>
+      <SettingGroup>
         <FieldLabel>{t('apiServer.fields.apiKey.label')}</FieldLabel>
         <FieldDescription>{t('apiServer.fields.apiKey.description')}</FieldDescription>
 
@@ -202,7 +202,7 @@ const ApiServerSettings: FC = () => {
             size="middle"
           />
         </AuthHeaderSection>
-      </ConfigurationField>
+      </SettingGroup>
     </Container>
   )
 }
@@ -292,10 +292,6 @@ const StartButton = ({
 )
 
 const StopButton = StartButton
-
-const ConfigurationField = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col gap-2 rounded-lg border border-border bg-card p-4', className)} {...props} />
-)
 
 const FieldLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('m-0 font-medium text-foreground text-sm', className)} {...props} />

@@ -66,7 +66,7 @@ export const SettingGroup = ({
   <div
     className={cn(
       'mb-4 rounded-2xl border border-border/60 bg-background p-5 shadow-xs last:mb-0',
-      theme === 'dark' && 'bg-white/6',
+      theme === 'dark' && 'bg-black/10',
       className
     )}
     {...props}

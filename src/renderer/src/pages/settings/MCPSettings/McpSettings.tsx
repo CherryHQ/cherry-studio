@@ -22,7 +22,7 @@ import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
+import { SettingContainer, SettingDivider, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
@@ -765,7 +765,7 @@ const McpSettings: React.FC = () => {
   return (
     <Container>
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <SettingGroup style={{ marginBottom: 0 }}>
+        <div className="min-h-0">
           <SettingTitle>
             <Flex className="mr-10 items-center justify-between gap-5">
               <Flex className="items-center gap-2">
@@ -804,7 +804,7 @@ const McpSettings: React.FC = () => {
             onChange={(key) => setActiveTab(key as TabKey)}
             style={{ marginTop: 8, backgroundColor: 'transparent' }}
           />
-        </SettingGroup>
+        </div>
       </SettingContainer>
 
       <Modal
