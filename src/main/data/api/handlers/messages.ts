@@ -8,7 +8,7 @@
  */
 
 import { messageService } from '@data/services/MessageService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   BranchMessagesQuerySchema,
   CreateMessageSchema,
@@ -18,19 +18,7 @@ import {
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 
-/**
- * Handler type for a specific message endpoint
- */
-type MessageHandler<Path extends keyof MessageSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Message API handlers implementation
- */
-export const messageHandlers: {
-  [Path in keyof MessageSchemas]: {
-    [Method in keyof MessageSchemas[Path]]: MessageHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
       const q = TreeQuerySchema.parse(query ?? {})
