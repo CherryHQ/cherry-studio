@@ -192,7 +192,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     if (files) {
       let supportedFiles = 0
       files.forEach((file) => {
-        if (extensions.includes(file.ext)) {
+        if (extensions.includes(file.ext.toLowerCase())) {
           setFiles((prevFiles) => [...prevFiles, file])
           supportedFiles++
         }
