@@ -36,32 +36,50 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
 }
 
 /**
- * Heuristic: an assistant sibling group is a **regenerate** cohort (alternate
- * branches produced by retrying the same model) when its members include any
- * duplicate `modelId`. Multi-model cohorts (user @mentioned N distinct models
- * in one turn) have all-distinct `modelId`s and so are excluded.
+ * Bucket an assistant siblings-group (on-path `active` + off-path `siblings`)
+ * by `modelId`. Each bucket = one model's regenerate cohort (1..N siblings
+ * of the same model). Mixed cohorts — user @mentioned N models AND
+ * regenerated one of them — produce N buckets, one per model.
  *
- * This lets us tell apart "show all side-by-side" (multi-model) from "show
- * one with `< i/N >` navigator" (regenerate) without adding a schema field.
- * Missing `modelId`s are treated as distinct (best-effort — assistants always
- * have a model set at reservation, so this is mainly a defensive branch).
+ * Fallback key when `modelId` is missing (legacy / defensive): the member's
+ * own id, guaranteeing a singleton bucket that behaves like a distinct model.
  */
-function isRegenerateGroup(members: SharedMessage[]): boolean {
-  if (members.length < 2) return false
-  const modelIds = members.map((m) => m.modelId).filter((id): id is string => Boolean(id))
-  return new Set(modelIds).size < modelIds.length
+function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, SharedMessage[]> {
+  const buckets = new Map<string, SharedMessage[]>()
+  for (const m of members) {
+    const key = m.modelId ?? m.id
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(m)
+    else buckets.set(key, [m])
+  }
+  return buckets
+}
+
+/** Pick the display member of an off-path model bucket: most recent sibling. */
+function pickLatest(bucket: SharedMessage[]): SharedMessage {
+  let latest = bucket[0]
+  for (let i = 1; i < bucket.length; i++) {
+    if (bucket[i].createdAt.localeCompare(latest.createdAt) > 0) latest = bucket[i]
+  }
+  return latest
 }
 
 /**
  * Flatten a branch response into a renderer-friendly message list.
  *
- * Visibility rule per sibling group:
- * - User siblings: alternate conversation branches — only the active one is
- *   in view; off-path branches are surfaced via the sibling navigator.
- * - Assistant multi-model siblings (all distinct models): all visible; they
- *   render together in `MessageGroup` with a model tab bar.
- * - Assistant regenerate siblings (duplicate models): only the active one is
- *   in view; the rest live off-path and are surfaced via the navigator.
+ * Visibility rules:
+ * - User siblings: alternate branches — only the active one is on the path;
+ *   off-path branches go through the sibling navigator.
+ * - Assistant siblings: bucket by `modelId`. One bubble per distinct model.
+ *   - The bucket containing `item.message` (the on-path / active member)
+ *     is already represented by that push.
+ *   - Every other bucket contributes its most-recent sibling as an
+ *     additional bubble (same askId → same `MessageGroup` tab bar).
+ *
+ * This handles the three shapes uniformly: pure regenerate (1 bucket of N →
+ * 1 bubble), pure multi-model (N buckets of 1 → N bubbles), mixed (N buckets
+ * where at least one has >1 → N bubbles, per-model navigator on the larger
+ * buckets).
  */
 function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
   const result: SharedMessage[] = []
@@ -69,9 +87,12 @@ function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
     result.push(item.message)
     if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
     if (item.message.role === 'user') continue
-    const group = [item.message, ...item.siblingsGroup]
-    if (isRegenerateGroup(group)) continue
-    for (const sibling of item.siblingsGroup) result.push(sibling)
+
+    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
+    for (const bucket of buckets.values()) {
+      if (bucket.some((m) => m.id === item.message.id)) continue
+      result.push(pickLatest(bucket))
+    }
   }
   return result
 }
@@ -82,18 +103,28 @@ function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
  * by `createdAt` so navigator position (`< 2/3 >`) is stable and matches
  * the order in which branches were created.
  *
- * Only groups that the navigator should control are emitted: user sibling
- * groups and assistant regenerate cohorts. Multi-model cohorts use the
- * MessageGroup tab bar instead and are omitted.
+ * - User siblings → one group per `siblings_group_id` (all members).
+ * - Assistant siblings → one group per **(siblings_group_id, modelId)**.
+ *   Only buckets with ≥2 members are emitted; singletons don't need a
+ *   navigator. Means the mixed case surfaces a per-model navigator only
+ *   on the models that were actually regenerated.
  */
 function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[]> {
   const map: Record<string, SharedMessage[]> = {}
   for (const item of items) {
     if (!item.siblingsGroup || item.siblingsGroup.length === 0) continue
-    const group = [item.message, ...item.siblingsGroup].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    if (item.message.role !== 'user' && !isRegenerateGroup(group)) continue
-    for (const member of group) {
-      map[member.id] = group
+
+    if (item.message.role === 'user') {
+      const group = [item.message, ...item.siblingsGroup].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      for (const member of group) map[member.id] = group
+      continue
+    }
+
+    const buckets = bucketAssistantSiblingsByModel([item.message, ...item.siblingsGroup])
+    for (const bucket of buckets.values()) {
+      if (bucket.length < 2) continue
+      bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      for (const member of bucket) map[member.id] = bucket
     }
   }
   return map
