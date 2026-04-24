@@ -11,6 +11,7 @@ import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isDeepSeekHybridInferenceModel,
+  isDeepSeekV4PlusModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isFixedReasoningModel,
@@ -401,6 +402,117 @@ describe('DeepSeek & Thinking Tokens', () => {
   })
 })
 
+describe('DeepSeek V4+ Models', () => {
+  describe('isDeepSeekV4PlusModel', () => {
+    it('matches V4 model IDs with and without suffixes', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v4' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v4-flash' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v4-pro' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v4.1' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v4-pro-preview' }))).toBe(true)
+    })
+
+    it('matches future V5+ and double-digit versions via wildcard regex', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v5' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v5-flash' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v9-pro' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v10' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v42-ultra' }))).toBe(true)
+    })
+
+    it('matches prefixed model IDs from aggregators and agent routes', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'custom-deepseek-v4' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'prefix-deepseek-v4-flash' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'agent/deepseek-v4-pro' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'accounts/fireworks/models/deepseek-v4-pro' }))).toBe(true)
+    })
+
+    it('is case insensitive', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'DeepSeek-V4' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'DEEPSEEK-V4-FLASH' }))).toBe(true)
+    })
+
+    it('falls back to model name when id does not match', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'custom-id', name: 'deepseek-v4-pro' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'custom-id', name: 'DeepSeek-V5' }))).toBe(true)
+    })
+
+    it('rejects V3 and older versions', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v3' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v3.1' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v3.2' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v2' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-v1' }))).toBe(false)
+    })
+
+    it('rejects unrelated model IDs', () => {
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-chat' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek-reasoner' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'gpt-4' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'claude-v4' }))).toBe(false)
+      expect(isDeepSeekV4PlusModel(createModel({ id: '' }))).toBe(false)
+    })
+  })
+
+  describe('isDeepSeekHybridInferenceModel integration', () => {
+    it('includes V4+ models via delegation to isDeepSeekV4PlusModel', () => {
+      expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v4' }))).toBe(true)
+      expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v4-flash' }))).toBe(true)
+      expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v4-pro' }))).toBe(true)
+      expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v5-xxx' }))).toBe(true)
+      expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v4-pro' }))).toBe(
+        true
+      )
+    })
+  })
+
+  describe('getThinkModelType', () => {
+    it('returns deepseek_v4 for V4+ models', () => {
+      expect(getThinkModelType(createModel({ id: 'deepseek-v4' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v4-flash' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v4-pro' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v5' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v10-ultra' }))).toBe('deepseek_v4')
+    })
+
+    it('prioritizes deepseek_v4 over deepseek_hybrid', () => {
+      // V4+ is checked before hybrid; make sure V4 never falls through to hybrid classification.
+      expect(getThinkModelType(createModel({ id: 'deepseek-v4-pro' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v3.1' }))).toBe('deepseek_hybrid')
+    })
+
+    it('is case insensitive', () => {
+      expect(getThinkModelType(createModel({ id: 'DeepSeek-V4' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'DEEPSEEK-V4-PRO' }))).toBe('deepseek_v4')
+    })
+  })
+
+  describe('reasoning effort configuration', () => {
+    it('exposes high and xhigh as the only effort levels', () => {
+      expect(MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4).toEqual(['high', 'xhigh'])
+    })
+
+    it('exposes default, none, high, xhigh as user-facing options', () => {
+      expect(MODEL_SUPPORTED_OPTIONS.deepseek_v4).toEqual(['default', 'none', 'high', 'xhigh'])
+    })
+
+    it('returns correct options from getModelSupportedReasoningEffortOptions for V4+ models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4', provider: 'deepseek' }))).toEqual(
+        ['default', 'none', 'high', 'xhigh']
+      )
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4-flash', provider: 'deepseek' }))
+      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4-pro', provider: 'openrouter' }))
+      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v5', provider: 'deepseek' }))).toEqual(
+        ['default', 'none', 'high', 'xhigh']
+      )
+    })
+  })
+})
+
 describe('Qwen & Gemini thinking coverage', () => {
   it.each([
     'qwen-plus',
@@ -609,6 +721,11 @@ describe('isReasoningModel', () => {
       const model = createModel({ id })
       expect(isFixedReasoningModel(model), `Model ${id} should be reasoning`).toBe(true)
     })
+  })
+
+  // Regression test for mistral-small-2603 reasoning support
+  it('should return true for mistral-small-2603', () => {
+    expect(isReasoningModel(createModel({ id: 'mistral-small-2603' }))).toBe(true)
   })
 
   it('excludes non-fixed reasoning models from isFixedReasoningModel', () => {
@@ -2723,6 +2840,11 @@ describe('Fireworks provider model name normalization', () => {
   it('should detect DeepSeek hybrid inference models from Fireworks', () => {
     expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p2' }))).toBe(true)
     expect(isDeepSeekHybridInferenceModel(createModel({ id: 'accounts/fireworks/models/deepseek-v3p1' }))).toBe(true)
+  })
+
+  it('should classify DeepSeek V4+ models from Fireworks as deepseek_v4', () => {
+    expect(getThinkModelType(createModel({ id: 'accounts/fireworks/models/deepseek-v4-pro' }))).toBe('deepseek_v4')
+    expect(isDeepSeekV4PlusModel(createModel({ id: 'accounts/fireworks/models/deepseek-v4-flash' }))).toBe(true)
   })
 
   it('should detect Kimi reasoning models from Fireworks', () => {
