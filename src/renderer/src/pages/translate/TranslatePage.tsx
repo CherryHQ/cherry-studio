@@ -47,7 +47,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 
 const TranslatePage: FC = () => {
-  // hooks
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
   const detectLanguage = useDetectLang()
@@ -60,7 +59,6 @@ const TranslatePage: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { getLabel } = useLanguages()
 
-  // Preferences
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
   const [prompt] = usePreference('feature.translate.model_prompt')
@@ -70,7 +68,6 @@ const TranslatePage: FC = () => {
   const [isBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
   const [enableMarkdown] = usePreference('feature.translate.page.enable_markdown')
 
-  // states
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
@@ -78,13 +75,11 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // Cache
   const [translatingState, setTranslatingState] = useCache('translate.translating')
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -94,7 +89,6 @@ const TranslatePage: FC = () => {
     setTranslateModel(model)
   }
 
-  // 控制复制行为
   const copy = useCallback(
     async (text: string) => {
       await navigator.clipboard.writeText(text)
@@ -112,7 +106,6 @@ const TranslatePage: FC = () => {
     }
   }, [copy, t, translateOutput])
 
-  // 控制翻译按钮是否可用
   const couldTranslate = useMemo(() => {
     return !(
       !translateInput.trim() ||
@@ -123,7 +116,6 @@ const TranslatePage: FC = () => {
     )
   }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage, translateInput])
 
-  // 校验、检测语言、翻译文本并保存历史记录
   const onTranslate = useCallback(async () => {
     if (!couldTranslate || !translateInput.trim()) return
     if (!translateModel) {
@@ -133,7 +125,6 @@ const TranslatePage: FC = () => {
     if (translatingState.isTranslating || isDetecting) return
 
     try {
-      // 确定源语言
       let actualSourceLanguage: TranslateLangCode
       if (sourceLanguage === 'auto') {
         setIsDetecting(true)
@@ -151,7 +142,6 @@ const TranslatePage: FC = () => {
         actualSourceLanguage = sourceLanguage
       }
 
-      // 确定目标语言
       const result = determineTargetLanguage(actualSourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
       if (!result.success) {
         const errorMessage =
@@ -165,7 +155,6 @@ const TranslatePage: FC = () => {
       }
       const actualTargetLanguage = result.language
 
-      // 翻译
       const abortKey = uuid()
       setTranslatingState({ isTranslating: true, abortKey })
 
@@ -235,7 +224,6 @@ const TranslatePage: FC = () => {
     setIsDetecting
   ])
 
-  // 控制停止翻译
   const onAbort = async () => {
     const { abortKey } = translatingState
     if (!abortKey || !abortKey.trim()) {
@@ -245,7 +233,6 @@ const TranslatePage: FC = () => {
     abortCompletion(abortKey)
   }
 
-  // 控制历史记录点击
   const onHistoryItemClick = (history: TranslateHistory) => {
     setTranslateInput(history.sourceText)
     setTranslateOutput(history.targetText)
@@ -254,6 +241,9 @@ const TranslatePage: FC = () => {
     } else {
       void setSourceLanguage(history.sourceLanguage)
     }
+    // Persisted `null` means the original detection degraded to UNKNOWN (see
+    // `onTranslate` above, where UNKNOWN is coerced to null on save). Restore
+    // the UNKNOWN sentinel in the UI so the selector reflects that state.
     if (history.targetLanguage === null) {
       void setTargetLanguage(UNKNOWN.langCode)
     } else {
@@ -262,7 +252,6 @@ const TranslatePage: FC = () => {
     setHistoryDrawerVisible(false)
   }
 
-  // 控制语言切换按钮
   /** 与自动检测相关的交换条件检查 */
   const couldExchangeAuto = useMemo(
     () =>
@@ -294,8 +283,6 @@ const TranslatePage: FC = () => {
     isEmpty(translateInput) && setTranslateOutput('')
   }, [setTranslateOutput, translateInput])
 
-  // Render markdown content when result or enableMarkdown changes
-  // 控制Markdown渲染
   useEffect(() => {
     if (enableMarkdown && translateOutput) {
       let isMounted = true
@@ -313,7 +300,6 @@ const TranslatePage: FC = () => {
     }
   }, [enableMarkdown, shikiMarkdownIt, translateOutput])
 
-  // 控制Enter触发翻译
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = e.key === 'Enter'
     if (isEnterPressed && !e.nativeEvent.isComposing && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -322,24 +308,32 @@ const TranslatePage: FC = () => {
     }
   }
 
-  // 控制双向滚动
   const handleInputScroll = createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled)
   const handleOutputScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled)
 
-  // 获取目标语言显示
   const getLanguageDisplay = () => {
-    try {
-      if (isBidirectional) {
+    if (isBidirectional) {
+      let sourceLabel: string | undefined
+      let targetLabel: string | undefined
+      try {
+        sourceLabel = getLabel(bidirectionalPair[0])
+        targetLabel = getLabel(bidirectionalPair[1])
+      } catch (error) {
+        // getLabel is expected to be safe (it logs + falls back to UNKNOWN for
+        // invalid codes), so a genuine throw here means bidirectionalPair is in
+        // an unexpected shape — surface it to the user and drop back to the
+        // single-language selector rather than silently rendering a different UI.
+        logger.error('Failed to resolve bidirectional language labels', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+      }
+
+      if (sourceLabel !== undefined && targetLabel !== undefined) {
         return (
           <Flex className="min-w-40 items-center">
-            <BidirectionalLanguageDisplay>
-              {`${getLabel(bidirectionalPair[0])} ⇆ ${getLabel(bidirectionalPair[1])}`}
-            </BidirectionalLanguageDisplay>
+            <BidirectionalLanguageDisplay>{`${sourceLabel} ⇆ ${targetLabel}`}</BidirectionalLanguageDisplay>
           </Flex>
         )
       }
-    } catch (error) {
-      logger.error('Error getting language display:', error as Error)
     }
 
     return (
@@ -353,13 +347,11 @@ const TranslatePage: FC = () => {
     )
   }
 
-  // 控制模型选择器
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
     []
   )
 
-  // 控制token估计
   const tokenCount = useMemo(() => estimateTextTokens(translateInput + prompt), [prompt, translateInput])
 
   const readFile = useCallback(
