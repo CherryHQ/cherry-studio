@@ -11,7 +11,7 @@
  */
 
 import { groupService } from '@data/services/GroupService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { GroupSchemas } from '@shared/data/api/schemas/groups'
 import {
@@ -21,13 +21,7 @@ import {
   UpdateGroupSchema
 } from '@shared/data/api/schemas/groups'
 
-type GroupHandler<Path extends keyof GroupSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const groupHandlers: {
-  [Path in keyof GroupSchemas]: {
-    [Method in keyof GroupSchemas[Path]]: GroupHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const groupHandlers: HandlersFor<GroupSchemas> = {
   '/groups': {
     GET: async ({ query }) => {
       const parsed = ListGroupsQuerySchema.parse(query)

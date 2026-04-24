@@ -7,7 +7,7 @@
  */
 
 import { topicService } from '@data/services/TopicService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   CreateTopicSchema,
   SetActiveNodeSchema,
@@ -15,19 +15,7 @@ import {
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
 
-/**
- * Handler type for a specific topic endpoint
- */
-type TopicHandler<Path extends keyof TopicSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Topic API handlers implementation
- */
-export const topicHandlers: {
-  [Path in keyof TopicSchemas]: {
-    [Method in keyof TopicSchemas[Path]]: TopicHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
