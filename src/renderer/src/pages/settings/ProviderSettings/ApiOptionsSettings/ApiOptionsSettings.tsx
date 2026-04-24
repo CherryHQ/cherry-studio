@@ -1,9 +1,8 @@
-import { ColFlex, Divider, RowFlex, Switch } from '@cherrystudio/ui'
+import { ColFlex, Divider, EditableNumber, RowFlex, Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { type AnthropicCacheControlSettings, type Provider } from '@renderer/types'
 import { isSupportAnthropicPromptCacheProvider } from '@renderer/utils/provider'
-import { InputNumber } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -158,12 +157,12 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
               <span>{t('settings.provider.api.options.anthropic_cache.token_threshold')}</span>
               <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.token_threshold_help')} />
             </RowFlex>
-            <InputNumber
+            <EditableNumber
               min={0}
               max={100000}
               value={cacheSettings.tokenThreshold}
               onChange={(v) => updateCacheSettings({ tokenThreshold: v ?? 0 })}
-              style={{ width: 100 }}
+              className="w-[100px]"
             />
           </RowFlex>
           {cacheSettings.tokenThreshold > 0 && (
@@ -183,12 +182,12 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
                   <span>{t('settings.provider.api.options.anthropic_cache.cache_last_n')}</span>
                   <InfoTooltip title={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')} />
                 </RowFlex>
-                <InputNumber
+                <EditableNumber
                   min={0}
                   max={10}
                   value={cacheSettings.cacheLastNMessages}
                   onChange={(v) => updateCacheSettings({ cacheLastNMessages: v ?? 0 })}
-                  style={{ width: 100 }}
+                  className="w-[100px]"
                 />
               </RowFlex>
             </>

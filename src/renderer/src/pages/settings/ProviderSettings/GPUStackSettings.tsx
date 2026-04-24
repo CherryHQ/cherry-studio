@@ -1,5 +1,5 @@
+import { EditableNumber } from '@cherrystudio/ui'
 import { useGPUStackSettings } from '@renderer/hooks/useGPUStack'
-import { InputNumber } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,10 +14,10 @@ const GPUStackSettings: FC = () => {
   return (
     <div>
       <SettingSubtitle style={{ marginBottom: 5 }}>{t('gpustack.keep_alive_time.title')}</SettingSubtitle>
-      <InputNumber
-        style={{ width: '100%' }}
+      <EditableNumber
+        className="w-full"
         value={keepAliveMinutes}
-        onChange={(e) => setKeepAliveMinutes(Number(e))}
+        onChange={(value) => setKeepAliveMinutes(Number(value))}
         onBlur={() => setKeepAliveTime(keepAliveMinutes)}
         suffix={t('gpustack.keep_alive_time.placeholder')}
         step={5}

@@ -1,4 +1,4 @@
-import { Switch } from '@cherrystudio/ui'
+import { EditableNumber, Switch } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import type {
   AgentBaseWithId,
@@ -6,7 +6,6 @@ import type {
   UpdateAgentBaseForm,
   UpdateAgentFunctionUnion
 } from '@renderer/types'
-import { InputNumber } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,13 +64,13 @@ export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingPr
             }>
             {t('agent.cherryClaw.heartbeat.interval')}
           </SettingsTitle>
-          <InputNumber
+          <EditableNumber
             size="small"
             min={1}
             max={1440}
             value={interval}
             onChange={(val) => val && updateConfig({ heartbeat_interval: val })}
-            style={{ width: 100 }}
+            className="w-[100px]"
             suffix="min"
           />
         </SettingsItem>

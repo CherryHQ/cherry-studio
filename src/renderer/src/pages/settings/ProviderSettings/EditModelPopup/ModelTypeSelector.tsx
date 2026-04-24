@@ -1,8 +1,7 @@
-import { Flex } from '@cherrystudio/ui'
+import { Checkbox, Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import type { ModelCapability, ModelType } from '@renderer/types'
 import { getDifference, uniqueObjectArray } from '@renderer/utils'
-import { Checkbox } from 'antd'
 import type { FC } from 'react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -133,45 +132,67 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
     onUserModified(false)
   }
 
+  const handleCheckedChange = (type: ModelType, checked: boolean) => {
+    if (checked) {
+      handleTypeChange(selectedTypes.includes(type) ? selectedTypes : [...selectedTypes, type])
+      return
+    }
+    handleTypeChange(selectedTypes.filter((selectedType) => selectedType !== type))
+  }
+
+  const typeOptions: Array<{ label: string; value: ModelType; disabled: boolean }> = [
+    {
+      label: t('models.type.vision'),
+      value: 'vision',
+      disabled: isDisabled
+    },
+    {
+      label: t('models.type.websearch'),
+      value: 'web_search',
+      disabled: isDisabled
+    },
+    {
+      label: t('models.type.rerank'),
+      value: 'rerank',
+      disabled: isRerankDisabled
+    },
+    {
+      label: t('models.type.embedding'),
+      value: 'embedding',
+      disabled: isEmbeddingDisabled
+    },
+    {
+      label: t('models.type.reasoning'),
+      value: 'reasoning',
+      disabled: isDisabled
+    },
+    {
+      label: t('models.type.function_calling'),
+      value: 'function_calling',
+      disabled: isDisabled
+    }
+  ]
+
   return (
     <div>
       <Flex className="mb-2 items-center justify-between">
-        <Checkbox.Group
-          value={selectedTypes}
-          onChange={handleTypeChange}
-          options={[
-            {
-              label: t('models.type.vision'),
-              value: 'vision',
-              disabled: isDisabled
-            },
-            {
-              label: t('models.type.websearch'),
-              value: 'web_search',
-              disabled: isDisabled
-            },
-            {
-              label: t('models.type.rerank'),
-              value: 'rerank',
-              disabled: isRerankDisabled
-            },
-            {
-              label: t('models.type.embedding'),
-              value: 'embedding',
-              disabled: isEmbeddingDisabled
-            },
-            {
-              label: t('models.type.reasoning'),
-              value: 'reasoning',
-              disabled: isDisabled
-            },
-            {
-              label: t('models.type.function_calling'),
-              value: 'function_calling',
-              disabled: isDisabled
-            }
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {typeOptions.map((option) => (
+            <label
+              key={option.value}
+              className={`flex items-center gap-2 text-sm ${
+                option.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+              }`}>
+              <Checkbox
+                size="sm"
+                checked={selectedTypes.includes(option.value)}
+                disabled={option.disabled}
+                onCheckedChange={(checked) => handleCheckedChange(option.value, checked === true)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
         {hasUserModified && (
           <Button size="sm" onClick={handleResetTypes}>
             {t('common.reset')}

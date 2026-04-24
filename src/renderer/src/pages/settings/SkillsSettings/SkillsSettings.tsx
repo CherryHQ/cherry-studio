@@ -1,4 +1,4 @@
-import { EmptyState, MenuItem, MenuList, Spinner } from '@cherrystudio/ui'
+import { Checkbox, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -7,7 +7,7 @@ import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/h
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import { Button, Checkbox, Dropdown, Input, message, Modal, Popconfirm, Tag, Tooltip, Typography, Upload } from 'antd'
+import { Button, Dropdown, Input, message, Modal, Popconfirm, Tag, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,

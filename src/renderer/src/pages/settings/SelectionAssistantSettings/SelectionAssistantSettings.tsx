@@ -1,4 +1,4 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,7 +7,6 @@ import { cn } from '@renderer/utils/style'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { Link } from '@tanstack/react-router'
-import { Radio, Slider } from 'antd'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -196,13 +195,22 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group value={triggerMode} onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}>
+              <RadioGroup
+                value={triggerMode}
+                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}
+                className="flex flex-wrap gap-3">
                 <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
-                  <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="selected" />
+                    <span>{t('selection.settings.toolbar.trigger_mode.selected')}</span>
+                  </label>
                 </Tooltip>
                 {isWin && (
                   <Tooltip content={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}>
-                    <Radio value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <RadioGroupItem size="sm" value="ctrlkey" />
+                      <span>{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</span>
+                    </label>
                   </Tooltip>
                 )}
                 <Tooltip
@@ -215,9 +223,12 @@ const SelectionAssistantSettings: FC = () => {
                       </Link>
                     </div>
                   }>
-                  <Radio value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem size="sm" value="shortcut" />
+                    <span>{t('selection.settings.toolbar.trigger_mode.shortcut')}</span>
+                  </label>
                 </Tooltip>
-              </Radio.Group>
+              </RadioGroup>
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -271,14 +282,13 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
-                style={{ width: 100 }}
+                className="w-[100px]"
                 min={20}
                 max={100}
-                reverse
-                value={opacityValue}
-                onChange={setOpacityValue}
-                onChangeComplete={setActionWindowOpacity}
-                tooltip={{ open: false }}
+                inverted
+                value={[opacityValue]}
+                onValueChange={(value) => setOpacityValue(value[0])}
+                onValueCommit={(value) => setActionWindowOpacity(value[0])}
               />
             </SettingRow>
           </SettingGroup>
@@ -301,13 +311,23 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group
+              <RadioGroup
                 value={filterMode ?? 'default'}
-                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}>
-                <Radio value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio>
-                <Radio value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio>
-                <Radio value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio>
-              </Radio.Group>
+                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}
+                className="flex flex-wrap gap-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem size="sm" value="default" />
+                  <span>{t('selection.settings.advanced.filter_mode.default')}</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem size="sm" value="whitelist" />
+                  <span>{t('selection.settings.advanced.filter_mode.whitelist')}</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <RadioGroupItem size="sm" value="blacklist" />
+                  <span>{t('selection.settings.advanced.filter_mode.blacklist')}</span>
+                </label>
+              </RadioGroup>
             </SettingRow>
 
             {filterMode && filterMode !== 'default' && (

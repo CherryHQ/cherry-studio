@@ -1,7 +1,7 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { Input, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
-import { Alert, Radio } from 'antd'
+import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,10 +38,16 @@ const AwsBedrockSettings: FC = () => {
 
       {/* Authentication Type Selector */}
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
-      <Radio.Group value={authType} onChange={(e) => setAuthType(e.target.value)} style={{ marginTop: 5 }}>
-        <Radio value="iam">{t('settings.provider.aws-bedrock.auth_type_iam')}</Radio>
-        <Radio value="apiKey">{t('settings.provider.aws-bedrock.auth_type_api_key')}</Radio>
-      </Radio.Group>
+      <RadioGroup value={authType} onValueChange={setAuthType} className="mt-1.25 flex gap-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <RadioGroupItem size="sm" value="iam" />
+          <span>{t('settings.provider.aws-bedrock.auth_type_iam')}</span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <RadioGroupItem size="sm" value="apiKey" />
+          <span>{t('settings.provider.aws-bedrock.auth_type_api_key')}</span>
+        </label>
+      </RadioGroup>
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</SettingHelpText>
       </SettingHelpTextRow>
