@@ -29,6 +29,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     onChange,
     renderItem,
     search,
+    autoFocusSearch,
     filterPanel,
     filterActive,
     multiSelect,
@@ -215,6 +216,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     onInteractOutside: userOnInteractOutside,
     onKeyDown: userOnKeyDown,
     onEscapeKeyDown: userOnEscapeKeyDown,
+    onOpenAutoFocus: userOnOpenAutoFocus,
     style: userStyle,
     ...restPopoverContentProps
   } = popoverContentProps ?? {}
@@ -281,6 +283,12 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             }
             userOnEscapeKeyDown?.(event)
           }}
+          // Radix auto-focuses the first focusable on open; when the caller opts out via
+          // `autoFocusSearch={false}`, block that path too so their intended initial focus sticks.
+          onOpenAutoFocus={(event) => {
+            if (autoFocusSearch === false) event.preventDefault()
+            userOnOpenAutoFocus?.(event)
+          }}
           className={cn(
             'flex max-h-[var(--radix-popover-content-available-height)] flex-col overflow-hidden rounded-2xs border-border/60 bg-popover p-0 shadow-lg',
             userPopoverClassName,
@@ -288,6 +296,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
           )}>
           <Header
             search={search}
+            autoFocusSearch={autoFocusSearch}
             showFilterButton={showFilterButton}
             filterActive={!!filterActive}
             filterOpen={filterOpen}

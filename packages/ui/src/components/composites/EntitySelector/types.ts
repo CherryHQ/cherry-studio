@@ -75,6 +75,8 @@ type EntitySelectorBaseProps<T extends EntityItemBase> = {
 
   /** Search input config (controlled). Omit to hide the search input entirely. The caller does the filtering. */
   search?: EntitySelectorSearch
+  /** Whether the search input auto-focuses when the popover opens. Default: true. */
+  autoFocusSearch?: boolean
 
   /** Filter panel slot. When provided, the filter toggle button appears inside the search input. */
   filterPanel?: ReactNode

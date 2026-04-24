@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -497,6 +497,45 @@ describe('EntitySelector', () => {
       expect(screen.getByTestId('empty')).toBeInTheDocument()
       expect(screen.queryByText('A')).not.toBeInTheDocument()
       expect(screen.queryByText('B')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('search autofocus', () => {
+    it('focuses the search input when the popover opens', async () => {
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      await waitFor(() => expect(document.activeElement).toBe(input), { timeout: 200 })
+    })
+
+    it('respects autoFocusSearch={false}', async () => {
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
+          autoFocusSearch={false}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      // Give the autofocus timer room to fire — it should not move focus here.
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      expect(document.activeElement).not.toBe(input)
     })
   })
 })
