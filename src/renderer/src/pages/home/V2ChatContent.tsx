@@ -13,7 +13,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
-import { useBranchCacheOps } from './hooks/useBranchCacheOps'
+import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
 import { useV2RenderingPipeline } from './hooks/useV2RenderingPipeline'
 import Inputbar from './Inputbar/Inputbar'
@@ -37,8 +37,8 @@ interface Props {
  * Inner component composes three purpose-built hooks:
  *   - `useV2RenderingPipeline` — projects `uiMessages` into renderer
  *     `Message[]` and overlays per-execution streaming parts.
- *   - `useBranchCacheOps` — optimistic SWR writes + DataApi mutation
- *     triggers for delete / edit / fork / setActiveNode.
+ *   - `useTopicMessagesCache` — optimistic SWR writes + DataApi mutation
+ *     triggers for send / delete / edit / fork / setActiveNode.
  *   - `useV2ChatOverrides` — every write-side handler the
  *     `V2ChatContext` provides to downstream components.
  *
@@ -112,8 +112,8 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
     useV2RenderingPipeline(uiMessages, activeExecutionIds, assistant, topic)
 
-  // Branch-messages optimistic cache + DataApi mutation triggers.
-  const cache = useBranchCacheOps(topic.id)
+  // Topic-messages optimistic cache + DataApi mutation triggers.
+  const cache = useTopicMessagesCache(topic.id)
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
@@ -132,23 +132,31 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      // Main allocates all message ids (user + placeholder(s)) in the
-      // reservation transaction. `useChat` state may race ahead of Main
-      // with its own ids during streaming — `refresh` on stream-done
-      // replaces state with the DB snapshot to reconcile.
-      await sendMessage(
-        { text },
-        {
-          body: {
-            parentAnchorId: activeNodeId ?? undefined,
-            files: options?.files,
-            mentionedModels: options?.mentionedModels,
-            ...capabilityBody
+      await cache.seedOptimisticUser({
+        text,
+        parentId: activeNodeId ?? null,
+        files: options?.files
+      })
+      try {
+        await sendMessage(
+          { text },
+          {
+            body: {
+              parentAnchorId: activeNodeId ?? undefined,
+              files: options?.files,
+              mentionedModels: options?.mentionedModels,
+              ...capabilityBody
+            }
           }
-        }
-      )
+        )
+      } catch (err) {
+        // IPC reject / Main persistence error: drop the phantom bubble
+        // by forcing a revalidation against the server.
+        await cache.rollbackBranch()
+        throw err
+      }
     },
-    [activeNodeId, sendMessage, capabilityBody]
+    [activeNodeId, sendMessage, capabilityBody, cache]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

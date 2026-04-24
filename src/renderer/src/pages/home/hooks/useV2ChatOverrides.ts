@@ -22,7 +22,7 @@ import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
 
-import type { useBranchCacheOps } from './useBranchCacheOps'
+import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
 const logger = loggerService.withContext('useV2ChatOverrides')
 
@@ -35,7 +35,7 @@ interface Params {
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
-  cache: ReturnType<typeof useBranchCacheOps>
+  cache: ReturnType<typeof useTopicMessagesCache>
 }
 
 interface Result {
@@ -58,6 +58,23 @@ export function useV2ChatOverrides(params: Params): Result {
     setActiveNodeTrigger
   } = cache
 
+  /**
+   * Pull DB truth back into `useChat.state.messages`. Optimistic mutations
+   * (delete/edit/clear) update `state.messages` locally via `setMessages`,
+   * but on error rollback they don't auto-revert; and on success the local
+   * projection may still drift from the canonical DB row. Calling this at
+   * the tail of each handler keeps the primary chat state consistent with
+   * what the user sees (which is projected from `uiMessages`).
+   */
+  const syncChatStateFromDB = useCallback(async () => {
+    try {
+      const refreshed = await refresh()
+      setMessages(refreshed)
+    } catch (err) {
+      logger.warn('Failed to sync useChat state from DB', { err })
+    }
+  }, [refresh, setMessages])
+
   const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
     async (id, traceOptions) => {
       const optimisticIds = new Set([id])
@@ -75,18 +92,29 @@ export function useV2ChatOverrides(params: Params): Result {
             setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
           } catch (cascadeErr) {
             await rollbackBranch()
+            await syncChatStateFromDB()
             throw cascadeErr
           }
         } else {
           await rollbackBranch()
+          await syncChatStateFromDB()
           throw err
         }
       }
       // Best-effort: drop span-cache history for the turn we just removed.
       void window.api.trace.cleanHistory(topic.id, traceOptions?.traceId ?? '', traceOptions?.modelName)
+      await syncChatStateFromDB()
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, topic.id]
+    [
+      branchWithoutIds,
+      deleteMessageTrigger,
+      rollbackBranch,
+      seedOptimisticBranch,
+      setMessages,
+      syncChatStateFromDB,
+      topic.id
+    ]
   )
 
   const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(
@@ -100,10 +128,12 @@ export function useV2ChatOverrides(params: Params): Result {
         logger.info('Deleted message group', { id, count: result.deletedIds.length })
       } catch (err) {
         await rollbackBranch()
+        await syncChatStateFromDB()
         throw err
       }
+      await syncChatStateFromDB()
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, syncChatStateFromDB]
   )
 
   const handleClearTopicMessages = useCallback(async () => {
@@ -119,9 +149,19 @@ export function useV2ChatOverrides(params: Params): Result {
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
     } catch (err) {
       await rollbackBranch()
+      await syncChatStateFromDB()
       throw err
     }
-  }, [projectedMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, setMessages, topic.id])
+    await syncChatStateFromDB()
+  }, [
+    projectedMessages,
+    clearBranchCache,
+    deleteMessageTrigger,
+    rollbackBranch,
+    setMessages,
+    syncChatStateFromDB,
+    topic.id
+  ])
 
   const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
     async (messageId, editedParts) => {
@@ -145,10 +185,12 @@ export function useV2ChatOverrides(params: Params): Result {
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
+        await syncChatStateFromDB()
         throw err
       }
+      await syncChatStateFromDB()
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, syncChatStateFromDB]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
