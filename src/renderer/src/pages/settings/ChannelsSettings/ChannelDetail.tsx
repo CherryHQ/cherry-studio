@@ -301,7 +301,7 @@ const ChannelInstanceRow: FC<{
           {statusTag}
         </div>
         <div className="truncate text-foreground-400 text-xs">
-          {agentName && <span className="mr-2 text-blue-400">{agentName}</span>}
+          {agentName && <span className="me-2 text-blue-400">{agentName}</span>}
           {summary}
         </div>
       </div>

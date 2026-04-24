@@ -42,7 +42,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   }
 
   return (
-    <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
+    <NavbarHeader className="home-navbar" style={{ blockSize: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
         {isTopNavbar && showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
@@ -51,13 +51,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </NavbarIcon>
           </Tooltip>
         )}
+
         {isTopNavbar && !showAssistants && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
-            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
+            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginInlineEnd: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
+
         <AnimatePresence initial={false}>
           {!showAssistants && isTopNavbar && (
             <motion.div
@@ -65,12 +67,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 5 }}>
+              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginInlineEnd: 5 }}>
                 <Menu size={18} />
               </NavbarIcon>
             </motion.div>
           )}
         </AnimatePresence>
+
         <ChatNavbarContent assistant={assistant} />
       </div>
     </NavbarHeader>

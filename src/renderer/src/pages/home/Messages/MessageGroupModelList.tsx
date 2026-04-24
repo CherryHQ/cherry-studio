@@ -113,7 +113,7 @@ const Container = styled(HStack)`
   flex: 1;
   overflow: hidden;
   align-items: center;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 `
 
 const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
@@ -151,7 +151,7 @@ const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
 
     /* Base style - default overlapping effect */
     & > * {
-      margin-left: -6px !important;
+      margin-inline-start: -6px !important;
       transition:
         transform 0.18s ease-out,
         margin 0.18s ease-out !important;
@@ -160,25 +160,25 @@ const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
     }
 
     & > *:first-child {
-      margin-left: 0 !important;
+      margin-inline-start: 0 !important;
     }
 
     /* Element before the hovered one */
     & > *:has(+ *:hover) {
-      margin-right: 2px !important;
+      margin-inline-end: 2px !important;
       /* Use transform instead of margin to reduce layout recalculations */
       transform: translateX(-2px);
     }
 
     /* Element after the hovered one */
     & > *:hover + * {
-      margin-left: 5px !important;
+      margin-inline-start: 5px !important;
       /* Avoid transform here to prevent jittering */
     }
 
     /* Second element after the hovered one */
     & > *:hover + * + * {
-      margin-left: -4px !important;
+      margin-inline-start: -4px !important;
     }
   }
 `
@@ -198,8 +198,8 @@ const AvatarWrapper = styled.div<{ $isSelected: boolean }>`
   &:hover {
     transform: translateX(6px) scale(1.15);
     filter: brightness(1.02);
-    margin-left: 8px !important;
-    margin-right: 4px !important;
+    margin-inline-start: 8px !important;
+    margin-inline-end: 4px !important;
   }
 `
 

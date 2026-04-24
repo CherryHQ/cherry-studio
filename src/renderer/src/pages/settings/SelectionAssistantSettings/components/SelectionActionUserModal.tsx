@@ -318,7 +318,7 @@ const DiceButton = styled.div`
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 
   .btn-icon {
     color: var(--color-text-2);

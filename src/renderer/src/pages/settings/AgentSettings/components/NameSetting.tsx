@@ -74,7 +74,7 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
                 void updateName(name)
               }
             }}
-            className="absolute right-0"
+            className="absolute end-0"
             style={{ width: '100%', maxWidth: 'fit-content', textAlign: 'center' }}
           />
         </div>

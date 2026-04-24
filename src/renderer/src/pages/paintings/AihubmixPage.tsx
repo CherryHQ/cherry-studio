@@ -995,7 +995,7 @@ const LeftContainer = styled(Scrollbar)`
   padding: 20px;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 const MainContainer = styled.div`
@@ -1046,7 +1046,7 @@ const ToolbarMenu = styled.div`
 `
 
 const InfoIcon = styled(Info)`
-  margin-left: 5px;
+  margin-inline-start: 5px;
   cursor: help;
   color: var(--color-text-2);
   opacity: 0.6;
@@ -1123,7 +1123,7 @@ const ImagePreview = styled.div`
     content: '点击替换';
     position: absolute;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);

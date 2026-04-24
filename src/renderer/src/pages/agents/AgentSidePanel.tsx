@@ -76,7 +76,7 @@ const TabButton: FC<{ active: boolean; onClick: () => void; children: React.Reac
       'active:scale-[0.98]',
       active ? 'font-semibold text-(--color-text)' : 'font-normal text-(--color-text-secondary)',
       // Underline indicator via pseudo-element
-      'after:-translate-x-1/2 after:-bottom-2 after:absolute after:left-1/2 after:h-0.75 after:rounded-sm after:transition-all after:duration-200 after:ease-in-out',
+      'after:-translate-x-1/2 after:-bottom-2 after:absolute after:start-1/2 after:h-0.75 after:rounded-sm after:transition-all after:duration-200 after:ease-in-out',
       active
         ? 'after:w-7.5 after:bg-(--color-primary)'
         : 'after:w-0 after:bg-(--color-primary) hover:after:w-4 hover:after:bg-(--color-primary-soft)'

@@ -218,16 +218,16 @@ const ServerLogo = styled.img`
   height: 24px;
   border-radius: 4px;
   object-fit: cover;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 `
 
 const ToolbarWrapper = styled.div`
   display: flex;
   align-items: center;
-  margin-left: 8px;
+  margin-inline-start: 8px;
 
   > :first-child {
-    margin-right: 4px;
+    margin-inline-end: 4px;
   }
 `
 

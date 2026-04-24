@@ -804,7 +804,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo shape="square" src={getProviderLogo(dmxapiProvider.id)} size={16} className="ml-1" />
+              <ProviderLogo shape="square" src={getProviderLogo(dmxapiProvider.id)} size={16} className="ms-1" />
             </div>
           </ProviderTitleContainer>
           <ProviderSelect
@@ -1040,7 +1040,7 @@ const LeftContainer = styled(Scrollbar)`
   padding: 20px;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 const MainContainer = styled.div`
@@ -1088,7 +1088,7 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 const InfoIcon = styled(Info)`
-  margin-left: 5px;
+  margin-inline-start: 5px;
   cursor: help;
   color: var(--color-text-2);
   opacity: 0.6;
@@ -1180,7 +1180,7 @@ const LoadTextWrap = styled.div`
 `
 
 const SettingPrice = styled.div`
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--color-primary);
   font-size: 11px;
   font-weight: 500;

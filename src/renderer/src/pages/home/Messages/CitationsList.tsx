@@ -235,11 +235,11 @@ const PreviewIcon = styled.div`
   justify-content: center;
   background: var(--color-background-soft);
   border: 1px solid var(--color-border);
-  margin-left: -8px;
+  margin-inline-start: -8px;
   color: var(--color-text-2);
 
   &:first-child {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
 `
 
@@ -280,7 +280,7 @@ const CopyIconWrapper = styled.div`
   padding: 4px;
   border-radius: 4px;
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 50%;
   transform: translateY(-50%);
   transition: opacity 0.3s ease;

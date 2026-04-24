@@ -420,7 +420,7 @@ const Container = styled.div<{ $overlayPosition: 'static' | 'absolute' }>`
   flex-direction: row;
   position: ${({ $overlayPosition }) => $overlayPosition};
   top: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
-  left: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
+  inset-inline-start: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
   right: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
   z-index: 999;
 `
@@ -431,7 +431,7 @@ const SearchBarContainer = styled.div<{ $position: 'fixed' | 'absolute' | 'stick
   transition: all 0.2s ease;
   position: ${({ $position }) => $position};
   top: 15px;
-  left: 20px;
+  inset-inline-start: 20px;
   right: 20px;
   margin-bottom: 5px;
   padding: 5px 15px;
@@ -475,8 +475,8 @@ const Separator = styled.div`
   width: 1px;
   height: 1.5em;
   background-color: var(--color-border);
-  margin-left: 2px;
-  margin-right: 2px;
+  margin-inline-start: 2px;
+  margin-inline-end: 2px;
   flex: 0 0 auto;
 `
 

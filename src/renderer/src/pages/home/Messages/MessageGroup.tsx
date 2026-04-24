@@ -300,8 +300,8 @@ const GroupContainer = styled.div`
   &.grid {
     padding: 4px 10px;
     .group-menu-bar {
-      margin-left: 0;
-      margin-right: 0;
+      margin-inline-start: 0;
+      margin-inline-end: 0;
     }
   }
   &.multi-select-mode {
@@ -369,13 +369,13 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     }
     .message-content-container {
       flex: 1;
-      padding-left: 0;
+      padding-inline-start: 0;
       max-height: calc(100vh - 350px);
       overflow-y: auto !important;
-      margin-right: -10px;
+      margin-inline-end: -10px;
     }
     .MessageFooter {
-      margin-left: 0;
+      margin-inline-start: 0;
       margin-top: 2px;
       margin-bottom: 2px;
     }
@@ -392,12 +392,12 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     }
     .message-content-container {
       overflow: hidden;
-      padding-left: 0;
+      padding-inline-start: 0;
       flex: 1;
       pointer-events: none;
     }
     .MessageFooter {
-      margin-left: 0;
+      margin-inline-start: 0;
       margin-top: 2px;
       margin-bottom: 2px;
     }
@@ -409,11 +409,11 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     overflow-y: auto;
     cursor: default;
     .message-content-container {
-      padding-left: 0;
+      padding-inline-start: 0;
       pointer-events: auto;
     }
     .MessageFooter {
-      margin-left: 0;
+      margin-inline-start: 0;
     }
   }
   &.fold {

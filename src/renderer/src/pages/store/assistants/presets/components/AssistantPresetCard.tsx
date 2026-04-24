@@ -282,7 +282,7 @@ const AgentCardBackground = styled.div`
   height: 100%;
   position: absolute;
   top: 0;
-  right: -50px;
+  inset-inline-end: -50px;
   font-size: 200px;
   display: flex;
   align-items: center;

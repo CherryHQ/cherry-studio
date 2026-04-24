@@ -311,7 +311,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-default-200 bg-background px-2 py-1 shadow-lg">
+    <div className="pointer-events-auto absolute top-3 end-3 z-50 flex items-center gap-2 rounded-xl border border-default-200 bg-background px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus

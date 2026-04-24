@@ -61,5 +61,5 @@ export default function MessageTool({ block }: Props) {
 //   align-items: center;
 //   gap: 4px;
 //   font-size: 14px;
-//   padding-left: 0;
+//   padding-inline-start: 0;
 // `

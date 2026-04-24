@@ -174,7 +174,7 @@ const KnowledgeSideNav = styled(Scrollbar)`
   flex-direction: column;
 
   width: calc(var(--settings-width) + 100px);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   padding: 12px 10px;
 
   .ant-menu {

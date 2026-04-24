@@ -264,7 +264,7 @@ const TerminalCursor = styled.span<{ $theme: ThemeMode }>`
   height: 16px;
   background: ${(props) => getTerminalStyles(props.$theme).promptColor};
   animation: ${blinkAnimation} 1s infinite;
-  margin-left: 2px;
+  margin-inline-start: 2px;
 `
 
 export default HtmlArtifactsCard

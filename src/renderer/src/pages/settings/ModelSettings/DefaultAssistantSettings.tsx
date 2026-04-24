@@ -400,7 +400,7 @@ const EmojiButtonWrapper = styled.div`
 const Label = styled.p`
   margin: 0;
   font-size: 14px;
-  margin-right: 5px;
+  margin-inline-end: 5px;
 `
 
 const QuestionIcon = styled(QuestionCircleOutlined)`

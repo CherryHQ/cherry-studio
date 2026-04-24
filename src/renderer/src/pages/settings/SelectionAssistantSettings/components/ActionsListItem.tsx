@@ -116,7 +116,7 @@ const ItemLeft = styled.div`
 `
 
 const ItemName = styled.span<{ disabled: boolean }>`
-  margin-left: 8px;
+  margin-inline-start: 8px;
   color: ${(props) => (props.disabled ? 'var(--color-text-3)' : 'var(--color-text-1)')};
 `
 
@@ -132,7 +132,7 @@ const ItemDescription = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: 16px;
+  margin-inline-start: 16px;
   font-size: 12px;
   color: var(--color-text-2);
   opacity: 0.8;

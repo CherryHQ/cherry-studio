@@ -259,7 +259,7 @@ const SideNav = styled.div`
   display: flex;
   flex-direction: column;
   width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   padding: 12px 10px;
   user-select: none;
   gap: 6px;

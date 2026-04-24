@@ -53,7 +53,7 @@ const Container = styled.div`
 
 const CheckboxWrapper = styled.div`
   padding: 22px 0 10px 20px;
-  margin-right: -10px;
+  margin-inline-end: -10px;
   display: flex;
   align-items: flex-start;
 `
@@ -61,7 +61,7 @@ const CheckboxWrapper = styled.div`
 const MessageContent = styled.div<{ isMultiSelectMode: boolean }>`
   flex: 1;
   min-width: 0;
-  ${(props) => props.isMultiSelectMode && 'margin-left: 8px;'}
+  ${(props) => props.isMultiSelectMode && 'margin-inline-start: 8px;'}
 `
 
 export default SelectableMessage

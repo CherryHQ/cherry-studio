@@ -78,7 +78,7 @@ const Container = styled.div`
   align-items: center;
   cursor: pointer;
   .icon {
-    margin-right: 3px;
+    margin-inline-end: 3px;
   }
   @media (max-width: 800px) {
     display: none;
@@ -91,8 +91,8 @@ const Text = styled.div`
 `
 
 const SlashSeparatorSpan = styled.span`
-  margin-left: 2px;
-  margin-right: 2px;
+  margin-inline-start: 2px;
+  margin-inline-end: 2px;
 `
 
 export default TokenCount

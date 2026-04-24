@@ -103,7 +103,7 @@ export const MenuItem = styled.button<{ $danger?: boolean }>`
   background: transparent;
   color: var(--color-text);
   font-size: 14px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background-color 0.15s ease;
   gap: 12px;
@@ -165,7 +165,7 @@ export const MenuItemShortcut = styled.span`
   font-size: 12px;
   color: var(--color-text-3);
   font-family: var(--font-mono);
-  margin-left: auto;
+  margin-inline-start: auto;
 `
 
 /**
@@ -178,7 +178,7 @@ export const DragHandleContainer = styled.div<{ $visible: boolean }>`
   opacity: ${(props) => (props.$visible ? 1 : 0)};
   transition: opacity 0.15s ease;
   position: absolute;
-  left: -60px;
+  inset-inline-start: -60px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;

@@ -365,7 +365,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     if (property.type === 'boolean') {
       return (
         <Checkbox
-          style={{ paddingLeft: 8 }}
+          className="ps-8"
           checked={property.value}
           onChange={(e) => handlePropertyChange(property.key, e.target.checked)}
         />
@@ -529,7 +529,7 @@ const PropertyIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: var(--color-icon);
 `
 
@@ -540,7 +540,7 @@ const PropertyName = styled.div`
   font-family: var(--font-family);
   font-weight: 500;
   color: var(--color-text);
-  margin-right: 12px;
+  margin-inline-end: 12px;
   text-transform: capitalize;
 `
 
@@ -746,8 +746,8 @@ const PropertyActions = styled.div`
   gap: 4px;
   opacity: 0;
   transition: opacity 0.2s;
-  margin-left: auto;
-  margin-right: 4px;
+  margin-inline-start: auto;
+  margin-inline-end: 4px;
 
   ${PropertyRow}:hover & {
     opacity: 1;

@@ -479,7 +479,7 @@ const MessageTitleLabel = styled.div`
   width: 100%;
   gap: 10px;
   padding: 0;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 `
 
 const TitleContent = styled.div`
@@ -498,7 +498,7 @@ const ToolName = styled(Flex)`
 const ActionButtonsContainer = styled.div`
   display: flex;
   gap: 6px;
-  margin-left: auto;
+  margin-inline-start: auto;
   align-items: center;
 `
 

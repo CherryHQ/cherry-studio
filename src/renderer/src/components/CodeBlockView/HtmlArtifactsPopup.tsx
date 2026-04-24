@@ -282,7 +282,7 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
       ? `
     position: fixed !important;
     top: 0 !important;
-    left: 0 !important;
+    inset-inline-start: 0 !important;
     z-index: 10000 !important;
 
     .ant-modal-wrap {
@@ -347,12 +347,12 @@ const ModalHeader = styled.div`
 const HeaderLeft = styled.div<{ $isFullscreen?: boolean }>`
   flex: 1;
   min-width: 0;
-  padding-left: ${(props) => (props.$isFullscreen && isMac ? '65px' : '12px')};
+  padding-inline-start: ${(props) => (props.$isFullscreen && isMac ? '65px' : '12px')};
 `
 
 const HeaderCenter = styled.div`
   position: absolute;
-  left: 50%;
+  inset-inline-start: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
 `
@@ -363,7 +363,7 @@ const HeaderRight = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-right: 12px;
+  padding-inline-end: 12px;
 `
 
 const TitleText = styled(Typography.Text)`

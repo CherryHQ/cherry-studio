@@ -147,7 +147,7 @@ const ImagePreview = styled.div`
     content: '点击替换';
     position: absolute;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
@@ -173,14 +173,14 @@ const UploadImageItem = styled.div`
   width: 45%;
   height: 45%;
   margin-bottom: 5px;
-  margin-right: 5px;
+  margin-inline-end: 5px;
   position: relative;
 `
 
 const DeleteButton = styled.button`
   position: absolute;
   top: 5px;
-  right: 5px;
+  inset-inline-end: 5px;
   background-color: rgba(0, 0, 0, 0.6);
   color: white;
   border: none;

@@ -289,7 +289,7 @@ const MessageContainer = styled.div`
 
 const MessageContentContainer = styled(Scrollbar)`
   max-width: 100%;
-  padding-left: 46px;
+  padding-inline-start: 46px;
   margin-top: 0;
   overflow-y: auto;
 `
@@ -299,7 +299,7 @@ const MessageFooter = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-left: 46px;
+  margin-inline-start: 46px;
   margin-top: 3px;
 `
 

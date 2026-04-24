@@ -77,7 +77,9 @@ const Chat: FC<Props> = (props) => {
       title: t('chat.topics.edit.title'),
       message: '',
       defaultValue: topic.name || '',
-      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+      extraNode: (
+        <div style={{ color: 'var(--color-text-3)', marginBlockStart: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+      )
     })
     if (name && topic.name !== name) {
       const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
@@ -165,7 +167,7 @@ const Chat: FC<Props> = (props) => {
             vertical
             flex={1}
             justify="space-between"
-            style={{ height: mainHeight, width: '100%' }}>
+            style={{ height: mainHeight, inlineSize: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -199,6 +201,7 @@ const Chat: FC<Props> = (props) => {
             </QuickPanelProvider>
           </Main>
         </motion.div>
+
         <AnimatePresence initial={false}>
           {topicPosition === 'right' && showTopics && (
             <motion.div
@@ -207,9 +210,7 @@ const Chat: FC<Props> = (props) => {
               animate={{ width: 'var(--assistants-width)', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{
-                overflow: 'hidden'
-              }}>
+              style={{ overflow: 'hidden' }}>
               <Tabs
                 activeAssistant={assistant}
                 activeTopic={props.activeTopic}
@@ -228,20 +229,21 @@ const Chat: FC<Props> = (props) => {
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
+  block-size: calc(100vh - var(--navbar-height));
   flex: 1;
   overflow: hidden;
+
   [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) - 6px);
+    block-size: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
+    border-start-start-radius: 10px;
+    border-end-start-radius: 10px;
   }
 `
 
 const Main = styled(Flex)`
   [navbar-position='left'] & {
-    height: calc(100vh - var(--navbar-height));
+    block-size: calc(100vh - var(--navbar-height));
   }
   transform: translateZ(0);
   position: relative;

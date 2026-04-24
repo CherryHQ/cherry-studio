@@ -669,7 +669,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-  margin-right: -2px;
+  margin-inline-end: -2px;
 `
 
 export default ProviderSetting

@@ -102,7 +102,7 @@ const SearchEntryPoint = styled.div`
     white-space: normal;
     .chip {
       margin: 0;
-      margin-left: 5px;
+      margin-inline-start: 5px;
     }
   }
 `

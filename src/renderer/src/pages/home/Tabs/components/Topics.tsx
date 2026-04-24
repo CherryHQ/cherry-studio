@@ -791,7 +791,7 @@ const TopicName = styled.div`
   font-size: 13px;
   position: relative;
   flex: 1;
-  text-align: left;
+  text-align: start;
 
   &.animation-reveal {
     -webkit-line-clamp: unset;
@@ -818,7 +818,7 @@ const PendingIndicator = styled.div.attrs({
   width: 5px;
   height: 5px;
   position: absolute;
-  left: 3px;
+  inset-inline-start: 3px;
   top: 15px;
   border-radius: 50%;
   background-color: var(--color-status-warning);
@@ -831,7 +831,7 @@ const FulfilledIndicator = styled.div.attrs({
   width: 5px;
   height: 5px;
   position: absolute;
-  left: 3px;
+  inset-inline-start: 3px;
   top: 15px;
   border-radius: 50%;
   background-color: var(--color-status-success);
@@ -871,7 +871,7 @@ const HeaderRow = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  padding-right: 10px;
+  padding-inline-end: 10px;
   margin-bottom: 8px;
   margin-top: 2px;
 `
@@ -906,7 +906,7 @@ const HeaderIconButton = styled.div`
 const SelectIcon = styled.div`
   display: flex;
   align-items: center;
-  margin-right: 4px;
+  margin-inline-end: 4px;
 
   &.disabled {
     opacity: 0.5;

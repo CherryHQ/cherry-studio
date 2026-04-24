@@ -602,7 +602,7 @@ const NodeHeader = styled.div`
 `
 
 const NodeAvatar = styled.span`
-  margin-right: 10px;
+  margin-inline-end: 10px;
   display: flex;
   align-items: center;
 

@@ -554,7 +554,7 @@ const ModelItem = styled.div`
       content: '';
       display: block;
       position: absolute;
-      left: -1px;
+      inset-inline-start: -1px;
       top: 13%;
       width: 3px;
       height: 74%;
@@ -577,7 +577,7 @@ const ModelItemLeft = styled.div`
   align-items: center;
   width: 100%;
   overflow: hidden;
-  padding-right: 26px;
+  padding-inline-end: 26px;
 
   .anticon {
     min-width: auto;
@@ -611,7 +611,7 @@ const EmptyState = styled.div`
 `
 
 const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?: boolean }>`
-  margin-left: auto;
+  margin-inline-start: auto;
   padding: 0 10px;
   opacity: ${(props) => (props.$isPinned ? 1 : 'inherit')};
   transition: opacity 0.2s;

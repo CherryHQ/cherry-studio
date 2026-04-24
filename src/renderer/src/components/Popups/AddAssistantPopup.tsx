@@ -187,7 +187,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
           autoFocus
-          style={{ paddingLeft: 0 }}
+          className="ps-0"
           variant="borderless"
           size="middle"
         />
@@ -255,7 +255,7 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-mute);
-  margin-right: 2px;
+  margin-inline-end: 2px;
 `
 
 export default class AddAssistantPopup {

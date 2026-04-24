@@ -213,7 +213,7 @@ const Container = styled.div`
 const LogoutCorner = styled.button`
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   display: flex;
   align-items: center;
   justify-content: center;

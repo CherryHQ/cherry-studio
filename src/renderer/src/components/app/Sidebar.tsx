@@ -183,26 +183,26 @@ const Container = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: column;
   align-items: center;
   padding: 8px 0;
-  padding-bottom: 12px;
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
+  padding-block-end: 12px;
+  inline-size: var(--sidebar-width);
+  min-inline-size: var(--sidebar-width);
+  block-size: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'env(titlebar-area-height)' : 0)};
+  margin-block-start: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'env(titlebar-area-height)' : 0)};
 
   .sidebar-avatar {
-    margin-bottom: ${isMac ? '12px' : '12px'};
-    margin-top: ${isMac ? '0px' : '2px'};
+    margin-block-end: ${isMac ? '12px' : '12px'};
+    margin-block-start: ${isMac ? '0px' : '2px'};
     -webkit-app-region: none;
   }
 `
 
 const AvatarImg = styled(Avatar)`
-  width: 31px;
-  height: 31px;
+  inline-size: 31px;
+  block-size: 31px;
   background-color: var(--color-background-soft);
-  margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '0px' : '2px'};
+  margin-block-end: ${isMac ? '12px' : '12px'};
+  margin-block-start: ${isMac ? '0px' : '2px'};
   border: none;
   cursor: pointer;
 `
@@ -222,8 +222,8 @@ const Menus = styled.div`
 `
 
 const Icon = styled.div<{ theme: string }>`
-  width: 35px;
-  height: 35px;
+  inline-size: 35px;
+  block-size: 35px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -268,10 +268,10 @@ const Icon = styled.div<{ theme: string }>`
   &.opened-minapp::after {
     content: '';
     position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
+    inset-inline-start: 0;
+    inset-block-start: 0;
+    inline-size: 100%;
+    block-size: 100%;
     border-radius: inherit;
     opacity: 0.3;
     border: 0.5px solid var(--color-primary);
@@ -293,7 +293,7 @@ const AppsContainer = styled.div`
   align-items: center;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-bottom: 10px;
+  margin-block-end: 10px;
   -webkit-app-region: none;
   &::-webkit-scrollbar {
     display: none;
@@ -301,9 +301,9 @@ const AppsContainer = styled.div`
 `
 
 const Divider = styled.div`
-  width: 50%;
+  inline-size: 50%;
   margin: 8px 0;
-  border-bottom: 0.5px solid var(--color-border);
+  border-block-end: 0.5px solid var(--color-border);
 `
 
 export default Sidebar

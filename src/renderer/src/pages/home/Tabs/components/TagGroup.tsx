@@ -52,7 +52,7 @@ const GroupTitle: FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, ...pro
 
 const GroupTitleName: FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, ...props }) => (
   <div
-    className={cn('mr-1 box-border flex max-w-[50%] truncate px-1 text-[13px] text-[var(--color-text)] leading-6')}
+    className={cn('me-1 box-border flex max-w-[50%] truncate px-1 text-[13px] text-[var(--color-text)] leading-6')}
     {...props}>
     {children}
   </div>
