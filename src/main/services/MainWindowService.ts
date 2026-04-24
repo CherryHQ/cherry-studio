@@ -7,7 +7,8 @@ import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, nativeImage, nativeTheme, shell } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, nativeImage, nativeTheme, shell } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
@@ -457,10 +458,6 @@ export class MainWindowService extends BaseService {
     )
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return null
     return this.mainWindow
-  }
-
-  public getAllWindows(): BrowserWindow[] {
-    return BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed())
   }
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
