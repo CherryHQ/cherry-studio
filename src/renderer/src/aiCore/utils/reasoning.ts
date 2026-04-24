@@ -681,6 +681,10 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
  *   Uses the new adaptive thinking API with effort-based control.
  * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
  *   Uses the classic thinking API with explicit token budget.
+ * - **Non-Anthropic models served via the Claude-compatible endpoint** (Kimi, MiniMax,
+ *   DeepSeek V4+, etc.): `{ thinking: { type: 'enabled', budgetTokens: number }, sendReasoning: true, effort? }`
+ *   `sendReasoning: true` ensures reasoning output is streamed back to the UI.
+ *   `effort` is only added for DeepSeek V4+ (`high` | `xhigh` → `high` | `max`).
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
@@ -754,8 +758,20 @@ export function getAnthropicReasoningParams(
       sendReasoning: true
     }
     // https://api-docs.deepseek.com/guides/thinking_mode
+    // DeepSeek V4+ exposes only 'high' and 'xhigh' as user-facing effort levels
+    // (see MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4); default/none are already
+    // short-circuited earlier in this function. The explicit map avoids silently
+    // downgrading future levels (low/medium/auto) to 'high' — unmapped values are
+    // simply omitted so callers fall back to API defaults instead.
     if (isDeepSeekV4PlusModel(model)) {
-      params.effort = reasoningEffort === 'xhigh' ? 'max' : 'high'
+      const deepSeekV4EffortMap = {
+        high: 'high',
+        xhigh: 'max'
+      } as const
+      const effort = deepSeekV4EffortMap[reasoningEffort as keyof typeof deepSeekV4EffortMap]
+      if (effort) {
+        params.effort = effort
+      }
     }
     // Always include budgetTokens to prevent Claude Agent SDK from converting
     // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
