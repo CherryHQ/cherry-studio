@@ -59,21 +59,18 @@ export class TopicService {
   }
 
   /**
-   * List topics (excludes soft-deleted rows).
-   * Order: pinned first, then pinned order, sort order, then most recently updated.
-   * TODO: add condition
+   * List all non-deleted topics.
+   *
+   * Order: pinned first, then pinned order, sort order, then most recently
+   * updated.
    */
-  async list(assistantId?: string): Promise<Topic[]> {
+  async list(): Promise<Topic[]> {
     const db = application.get('DbService').getDb()
-
-    const where = assistantId
-      ? and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt))
-      : isNull(topicTable.deletedAt)
 
     const rows = await db
       .select()
       .from(topicTable)
-      .where(where)
+      .where(isNull(topicTable.deletedAt))
       .orderBy(
         desc(topicTable.isPinned),
         asc(topicTable.pinnedOrder),

@@ -1,3 +1,4 @@
+import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
@@ -16,23 +17,28 @@ describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
   describe('list', () => {
-    it('returns topics for assistant excluding soft-deleted', async () => {
+    it('returns all non-deleted topics across assistants', async () => {
       const service = new TopicService()
-      const assistantId = 'asst-1'
+      // FK: topic.assistantId → assistant.id — seed both assistants first.
+      await dbh.db.insert(assistantTable).values([
+        { id: 'asst-1', name: 'A', createdAt: 1, updatedAt: 1 },
+        { id: 'asst-2', name: 'B', createdAt: 1, updatedAt: 1 }
+      ])
       await dbh.db.insert(topicTable).values({
         id: 't1',
         name: 'A',
-        assistantId,
+        assistantId: 'asst-1',
         sortOrder: 0,
         isPinned: false,
         pinnedOrder: 0,
         createdAt: 1,
         updatedAt: 100
       })
+      // Soft-deleted row — must be excluded.
       await dbh.db.insert(topicTable).values({
         id: 't2',
         name: 'B',
-        assistantId,
+        assistantId: 'asst-1',
         sortOrder: 1,
         deletedAt: 999,
         isPinned: false,
@@ -40,6 +46,7 @@ describe('TopicService', () => {
         createdAt: 2,
         updatedAt: 200
       })
+      // Different assistant — must still be returned (client filters).
       await dbh.db.insert(topicTable).values({
         id: 't3',
         name: 'Other',
@@ -51,8 +58,8 @@ describe('TopicService', () => {
         updatedAt: 300
       })
 
-      const list = await service.list(assistantId)
-      expect(list.map((t) => t.id).sort()).toEqual(['t1'])
+      const list = await service.list()
+      expect(list.map((t) => t.id).sort()).toEqual(['t1', 't3'])
     })
   })
 

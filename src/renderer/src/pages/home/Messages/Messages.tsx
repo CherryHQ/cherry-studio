@@ -92,10 +92,7 @@ const Messages: React.FC<MessagesProps> = ({
     }
   }, [])
 
-  // `messages` IS the display list — `useTopicMessagesV2` drives pagination
-  // via `useInfiniteQuery` so every loaded message should render. `hasMore`
-  // tracks server-side older pages (not a local display window).
-  const displayMessages = messages
+  const displayMessages = messages.toReversed()
   const hasMore = hasOlder
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置

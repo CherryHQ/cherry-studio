@@ -85,9 +85,8 @@ export type TopicSchemas = {
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    */
   '/topics': {
-    /** List non-deleted topics. Optionally filter by assistant. */
+    /** List non-deleted topics. */
     GET: {
-      query: { assistantId?: string }
       response: Topic[]
     }
     /** Create a new topic (optionally fork from existing node) */

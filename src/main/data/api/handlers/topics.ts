@@ -21,12 +21,8 @@ const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
-    GET: async ({ query }) => {
-      const assistantId = query?.assistantId
-      if (typeof assistantId !== 'string' || assistantId.length === 0) {
-        return await topicService.list()
-      }
-      return await topicService.list(assistantId)
+    GET: async () => {
+      return await topicService.list()
     },
 
     POST: async ({ body }) => {

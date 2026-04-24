@@ -38,14 +38,14 @@ export function mapApiTopicToRendererTopic(t: ApiTopic): RendererTopic {
  */
 export function useTopicsByAssistant(assistantId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery('/topics', {
-    query: assistantId ? { assistantId } : undefined,
     enabled: !!assistantId
   })
 
-  const rendererTopics = useMemo(() => (data ?? []).map(mapApiTopicToRendererTopic), [data])
+  const topics = data?.filter((t) => t.assistantId === assistantId) ?? []
+  const rendererTopics = topics.map(mapApiTopicToRendererTopic)
 
   return {
-    topics: data ?? [],
+    topics,
     rendererTopics,
     isLoading,
     error,
@@ -63,11 +63,9 @@ export function useAllTopics() {
     query: {}
   })
 
-  const rendererTopics = useMemo(() => (data ?? []).map(mapApiTopicToRendererTopic), [data])
-
   return {
     topics: data ?? [],
-    rendererTopics,
+    rendererTopics: data?.map(mapApiTopicToRendererTopic),
     isLoading,
     error,
     refetch,
@@ -139,8 +137,9 @@ export function useTopicMutations() {
 
   const deleteAllTopics = useCallback(
     async (assistantId: string): Promise<void> => {
-      const allTopics = await dataApiService.get('/topics', { query: { assistantId } })
-      await Promise.allSettled(allTopics.map((t) => dataApiService.delete(`/topics/${t.id}`)))
+      const allTopics = await dataApiService.get('/topics')
+      const assistantTopics = allTopics.filter((t) => t.assistantId === assistantId)
+      await Promise.allSettled(assistantTopics.map((t) => dataApiService.delete(`/topics/${t.id}`)))
       await refreshTopics()
     },
     [refreshTopics]
