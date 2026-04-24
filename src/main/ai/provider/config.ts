@@ -294,20 +294,31 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
+  // Prevent empty string slipping through to `@ai-sdk/amazon-bedrock`:
+  //   the SDK uses `options.baseURL != null ? options.baseURL : derivedFromRegion`
+  //   so `""` is treated as a *valid* base URL and every request hits `""/model/...`.
+  //   Same guard for region — empty → malformed `https://bedrock-runtime..amazonaws.com`.
+  //   (Upstream #14425 — hotfix for the renderer-side equivalent.)
+  const baseURL = ctx.baseConfig.baseURL || undefined
+
   if (authConfig?.type === 'iam-aws') {
+    const region = authConfig.region?.trim() || undefined
     return {
       ...base,
       providerSettings: {
         ...ctx.baseConfig,
-        region: authConfig.region,
+        baseURL,
+        region,
         ...(authConfig.accessKeyId && { accessKeyId: authConfig.accessKeyId }),
         ...(authConfig.secretAccessKey && { secretAccessKey: authConfig.secretAccessKey })
       }
     }
   }
 
-  // Fallback: API key auth
-  return { ...base, providerSettings: { ...ctx.baseConfig, region: 'us-east-1' } }
+  // Fallback: API key auth. Region left undefined so SDK falls back to
+  // `us-east-1` on its own — we don't hardcode it, so users aren't silently
+  // forced into the wrong region.
+  return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
 async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
@@ -527,8 +538,27 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
   }
 }
 
+/**
+ * NewAPI baseURL varies by endpoint protocol because the proxy forwards
+ * requests to different upstream SDKs:
+ *   - Gemini  → needs `/v1beta` suffix (matches Google GenAI SDK expectation)
+ *   - Anthropic → no `/v1` suffix (the Anthropic SDK adds it internally)
+ *   - OpenAI and friends → `/v1`
+ */
+function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undefined): string {
+  switch (endpointType) {
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+      return formatApiHost(baseURL, true, 'v1beta')
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+      return formatApiHost(baseURL, false)
+    default:
+      return formatApiHost(baseURL, true)
+  }
+}
+
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
-  const baseURL = formatApiHost(ctx.baseConfig.baseURL, true)
+  const endpointType = ctx.model.endpointTypes?.[0]
+  const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, endpointType)
 
   return {
     providerId: 'newapi',
@@ -536,7 +566,7 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL,
-      endpointType: mapCherryinEndpointType(ctx.model.endpointTypes?.[0]),
+      endpointType: mapCherryinEndpointType(endpointType),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
