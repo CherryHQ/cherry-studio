@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-16T11:13:15.385Z
+ * Generated at: 2026-04-24T09:34:39.927Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -810,7 +810,7 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
   },
   {
     originalKey: 'pinned:models',
-    targetKey: 'app.model.pinned_ids'
+    targetKey: 'model.pinned_ids'
   },
   {
     originalKey: 'translate:markdown:enabled',

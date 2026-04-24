@@ -13,7 +13,7 @@ function wirePreference(stored: string[]) {
     /* spy only */
   })
   mockUsePreference.mockImplementation(((key: string) => {
-    if (key === 'app.model.pinned_ids') return [stored, setSpy]
+    if (key === 'model.pinned_ids') return [stored, setSpy]
     return [null, vi.fn()]
   }) as unknown as typeof mockUsePreference)
   return setSpy

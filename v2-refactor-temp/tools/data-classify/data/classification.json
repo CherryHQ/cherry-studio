@@ -3479,7 +3479,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": "app.model.pinned_ids"
+          "targetKey": "model.pinned_ids"
         },
         {
           "originalKey": "image://avatar",

@@ -59,7 +59,7 @@ function dedupePinnedIds(ids: string[]): UniqueModelId[] {
 }
 
 export function usePinnedModelIds() {
-  const [storedPinnedIds, setPinnedIds] = usePreference('app.model.pinned_ids')
+  const [storedPinnedIds, setPinnedIds] = usePreference('model.pinned_ids')
   // 对齐 v1 usePinnedModels 行为：以"当前已启用的 models"为参照清理悬空 id。
   // Provider/Model 被禁用或删除，其 pin 都会随之失效 —— 与 v1 一致。
   const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
