@@ -484,7 +484,6 @@ const TranslatePage: FC = () => {
       setIsProcessing(true)
       setIsDragging(false)
       const process = async () => {
-        // const supportedFiles = await filterSupportedFiles(_files, extensions)
         const data = await getTextFromDropEvent(e).catch((err) => {
           logger.error('getTextFromDropEvent', err)
           window.toast.error(t('translate.files.error.unknown'))
@@ -504,11 +503,19 @@ const TranslatePage: FC = () => {
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
           if (!file) return
-          void processFile(file)
+          // Await + outer try/catch so OCR / file-read failures don't become
+          // unhandled promise rejections (review #8 in PR #13871).
+          await processFile(file)
         }
       }
-      await process()
-      setIsProcessing(false)
+      try {
+        await process()
+      } catch (err) {
+        logger.error('Drop processing failed', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('translate.files.error.unknown')))
+      } finally {
+        setIsProcessing(false)
+      }
     },
     [getSingleFile, processFile, setIsDragging, setTranslateInput, t, translateInput]
   )
