@@ -4,14 +4,20 @@ import { useTranslation } from 'react-i18next'
 
 interface AddKnowledgeSourceDialogFooterProps {
   activeSource: KnowledgeDataSourceType
+  canSubmit: boolean
+  isSubmitting: boolean
   selectedDirectoryCount: number
   selectedFileCount: number
+  onSubmit: () => void | Promise<void>
 }
 
 const AddKnowledgeSourceDialogFooter = ({
   activeSource,
+  canSubmit,
+  isSubmitting,
   selectedDirectoryCount,
-  selectedFileCount
+  selectedFileCount,
+  onSubmit
 }: AddKnowledgeSourceDialogFooterProps) => {
   const { t } = useTranslation()
 
@@ -40,7 +46,9 @@ const AddKnowledgeSourceDialogFooter = ({
         </DialogClose>
         <Button
           type="button"
-          disabled={selectionCount === 0}
+          disabled={!canSubmit || isSubmitting}
+          loading={isSubmitting}
+          onClick={() => void onSubmit()}
           className="h-6 min-h-6 rounded-md bg-primary px-2.5 text-[11px] text-primary-foreground shadow-none transition-colors hover:bg-primary/90 disabled:opacity-40">
           {t('common.add')}
         </Button>

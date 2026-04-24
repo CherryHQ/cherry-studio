@@ -32,13 +32,6 @@ export class KnowledgeAddRuntime {
     let vectorStore: BaseVectorStore | null = null
 
     try {
-      await runAbortable(this.isStopping, ctx, () =>
-        knowledgeItemService.update(item.id, {
-          status: 'pending',
-          error: null
-        })
-      )
-
       const nodes = await this.indexItem(ctx, base, item)
       const vectorStoreService = application.get('KnowledgeVectorStoreService')
       vectorStore = await runAbortable(this.isStopping, ctx, () => vectorStoreService.createStore(base))

@@ -1,7 +1,10 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAddKnowledgeSourceFile } from '../hooks/useAddKnowledgeSourceFile'
+import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeSourceDialogFooter from './addKnowledgeSourceDialog/AddKnowledgeSourceDialogFooter'
 import AddKnowledgeSourceDialogHeader from './addKnowledgeSourceDialog/AddKnowledgeSourceDialogHeader'
 import AddKnowledgeSourceSourceTabs from './addKnowledgeSourceDialog/AddKnowledgeSourceSourceTabs'
@@ -16,9 +19,11 @@ interface AddKnowledgeSourceDialogProps {
 
 const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDialogProps) => {
   const { t } = useTranslation()
+  const { selectedBaseId } = useKnowledgePage()
   const [activeSource, setActiveSource] = useState(DEFAULT_SOURCE_TYPE)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
+  const { submit: submitFileSource, isSubmitting } = useAddKnowledgeSourceFile(selectedBaseId, selectedFiles)
 
   const resetDialogState = useCallback(() => {
     setActiveSource(DEFAULT_SOURCE_TYPE)
@@ -61,6 +66,33 @@ const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDial
     [onOpenChange, resetDialogState]
   )
 
+  const canSubmit = activeSource === 'file' && selectedFiles.length > 0 && Boolean(selectedBaseId)
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) {
+      return
+    }
+
+    try {
+      await submitFileSource()
+      window.toast.success(
+        t('knowledge_v2.data_source.add_dialog.submit.success', {
+          defaultValue: '文件已添加到知识库'
+        })
+      )
+      handleOpenChange(false)
+    } catch (error) {
+      window.toast.error(
+        formatErrorMessageWithPrefix(
+          error,
+          t('knowledge_v2.data_source.add_dialog.submit.error', {
+            defaultValue: '添加文件数据源失败'
+          })
+        )
+      )
+    }
+  }, [canSubmit, handleOpenChange, submitFileSource, t])
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -82,8 +114,11 @@ const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDial
         />
         <AddKnowledgeSourceDialogFooter
           activeSource={activeSource}
+          canSubmit={canSubmit}
+          isSubmitting={isSubmitting}
           selectedDirectoryCount={selectedDirectories.length}
           selectedFileCount={selectedFiles.length}
+          onSubmit={handleSubmit}
         />
       </DialogContent>
     </Dialog>

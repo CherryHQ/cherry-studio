@@ -176,7 +176,7 @@ describe('KnowledgeOrchestrationService', () => {
     expandSitemapOwnerToCreateItemsMock.mockResolvedValue([])
     createBaseMock.mockResolvedValue(undefined)
     deleteBaseMock.mockResolvedValue(undefined)
-    runtimeAddItemsMock.mockResolvedValue([undefined])
+    runtimeAddItemsMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
     runtimeSearchMock.mockResolvedValue([])
   })
@@ -294,7 +294,7 @@ describe('KnowledgeOrchestrationService', () => {
       items: [createdDirectoryItem, createdFileItem]
     })
 
-    await expect(service.addItems(base.id, [directoryItem.id, noteItem.id])).resolves.toEqual([undefined])
+    await expect(service.addItems(base.id, [directoryItem.id, noteItem.id])).resolves.toBeUndefined()
 
     expect(expandDirectoryOwnerToCreateItemsMock).toHaveBeenCalledWith(directoryItem)
     expect(knowledgeItemCreateManyMock).toHaveBeenCalledWith(base.id, {
@@ -360,7 +360,7 @@ describe('KnowledgeOrchestrationService', () => {
     ])
     knowledgeItemCreateManyMock.mockResolvedValue({ items: [createdUrlItem] })
 
-    await expect(service.addItems(base.id, [sitemapItem.id])).resolves.toEqual([undefined])
+    await expect(service.addItems(base.id, [sitemapItem.id])).resolves.toBeUndefined()
 
     expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
     expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [createdUrlItem])

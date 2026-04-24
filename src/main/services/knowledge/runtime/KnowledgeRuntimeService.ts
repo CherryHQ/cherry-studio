@@ -57,8 +57,27 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStoreService.deleteStore(baseId)
   }
 
-  async addItems(base: KnowledgeBase, items: KnowledgeItem[]) {
-    return await Promise.all(items.map((item) => this.addQueue.enqueue(base, item)))
+  async addItems(base: KnowledgeBase, items: KnowledgeItem[]): Promise<void> {
+    await Promise.all(
+      items.map((item) =>
+        knowledgeItemService.update(item.id, {
+          status: 'pending',
+          error: null
+        })
+      )
+    )
+
+    if (this.isStopping) {
+      await failItems(
+        items.map((item) => item.id),
+        SHUTDOWN_INTERRUPTED_REASON
+      )
+      return
+    }
+
+    for (const item of items) {
+      this.addQueue.enqueue(base, item).catch(() => undefined)
+    }
   }
 
   async deleteItems(base: KnowledgeBase, items: KnowledgeItem[]) {

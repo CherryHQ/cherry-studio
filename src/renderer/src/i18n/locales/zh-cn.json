@@ -2156,6 +2156,10 @@
           "sitemap": "站点地图",
           "url": "网址"
         },
+        "submit": {
+          "error": "添加文件数据源失败",
+          "success": "文件已添加到知识库"
+        },
         "title": "添加数据源",
         "url": {
           "description": "输入网页链接：",

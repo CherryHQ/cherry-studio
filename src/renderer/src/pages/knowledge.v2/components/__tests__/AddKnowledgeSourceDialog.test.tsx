@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddKnowledgeSourceDialog from '../AddKnowledgeSourceDialog'
 
 let mockAcceptedFiles: File[] = []
+const mockSubmitFileSource = vi.fn()
+const mockUseKnowledgePage = vi.fn()
+const mockUseAddKnowledgeSourceFile = vi.fn()
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
@@ -21,6 +25,14 @@ const createMockFile = (name: string, size: number, webkitRelativePath?: string)
 
   return file
 }
+
+vi.mock('../../KnowledgePageProvider', () => ({
+  useKnowledgePage: () => mockUseKnowledgePage()
+}))
+
+vi.mock('../../hooks/useAddKnowledgeSourceFile', () => ({
+  useAddKnowledgeSourceFile: (...args: unknown[]) => mockUseAddKnowledgeSourceFile(...args)
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
@@ -193,41 +205,45 @@ vi.mock('@cherrystudio/ui', async () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      (
-        ({
-          'common.add': '添加',
-          'common.cancel': '取消',
-          'common.close': '关闭',
-          'common.delete': '删除',
-          'knowledge_v2.data_source.add_dialog.directory.description': '递归导入目录中的 PDF, DOCX, MD, XLSX, TXT, CSV',
-          'knowledge_v2.data_source.add_dialog.directory.title': '点击选择目录或拖拽到此处',
-          'knowledge_v2.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
-          'knowledge_v2.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
-          'knowledge_v2.data_source.add_dialog.footer.selected_notes': `已选 ${options?.count ?? 0} 个笔记`,
-          'knowledge_v2.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
-          'knowledge_v2.data_source.add_dialog.note.empty_description':
-            '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。',
-          'knowledge_v2.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
-          'knowledge_v2.data_source.add_dialog.title': '添加数据源',
-          'knowledge_v2.data_source.add_dialog.sources.file': '文件',
-          'knowledge_v2.data_source.add_dialog.sources.note': '笔记',
-          'knowledge_v2.data_source.add_dialog.sources.directory': '目录',
-          'knowledge_v2.data_source.add_dialog.sources.url': '网址',
-          'knowledge_v2.data_source.add_dialog.sources.sitemap': '站点地图',
-          'knowledge_v2.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
-          'knowledge_v2.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
-          'knowledge_v2.data_source.add_dialog.url.description': '输入网页链接：',
-          'knowledge_v2.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-          'knowledge_v2.data_source.add_dialog.url.input_label': '网页地址',
-          'knowledge_v2.data_source.add_dialog.url.placeholder': 'https://example.com/article',
-          'knowledge_v2.data_source.add_dialog.url.title': '导入单个网页',
-          'knowledge_v2.data_source.add_dialog.sitemap.description': '输入 Sitemap 地址：',
-          'knowledge_v2.data_source.add_dialog.sitemap.help': '将读取 Sitemap 中包含的页面并建立索引',
-          'knowledge_v2.data_source.add_dialog.sitemap.placeholder': 'https://docs.cherry-ai.com/sitemap-pages.xml',
-          'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`
-        }) as Record<string, string>
-      )[key] ?? key
+    t: (key: string, options?: { count?: number; defaultValue?: string }) => {
+      const translations = {
+        'common.add': '添加',
+        'common.add_success': '添加成功',
+        'common.cancel': '取消',
+        'common.close': '关闭',
+        'common.delete': '删除',
+        'knowledge_v2.data_source.add_dialog.directory.description': '递归导入目录中的 PDF, DOCX, MD, XLSX, TXT, CSV',
+        'knowledge_v2.data_source.add_dialog.directory.title': '点击选择目录或拖拽到此处',
+        'knowledge_v2.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
+        'knowledge_v2.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
+        'knowledge_v2.data_source.add_dialog.footer.selected_notes': `已选 ${options?.count ?? 0} 个笔记`,
+        'knowledge_v2.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
+        'knowledge_v2.data_source.add_dialog.note.empty_description':
+          '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。',
+        'knowledge_v2.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
+        'knowledge_v2.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
+        'knowledge_v2.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
+        'knowledge_v2.data_source.add_dialog.sitemap.description': '输入 Sitemap 地址：',
+        'knowledge_v2.data_source.add_dialog.sitemap.help': '将读取 Sitemap 中包含的页面并建立索引',
+        'knowledge_v2.data_source.add_dialog.sitemap.placeholder': 'https://docs.cherry-ai.com/sitemap-pages.xml',
+        'knowledge_v2.data_source.add_dialog.sources.directory': '目录',
+        'knowledge_v2.data_source.add_dialog.sources.file': '文件',
+        'knowledge_v2.data_source.add_dialog.sources.note': '笔记',
+        'knowledge_v2.data_source.add_dialog.sources.sitemap': '站点地图',
+        'knowledge_v2.data_source.add_dialog.sources.url': '网址',
+        'knowledge_v2.data_source.add_dialog.submit.error': '添加文件数据源失败',
+        'knowledge_v2.data_source.add_dialog.submit.success': '文件已添加到知识库',
+        'knowledge_v2.data_source.add_dialog.title': '添加数据源',
+        'knowledge_v2.data_source.add_dialog.url.description': '输入网页链接：',
+        'knowledge_v2.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
+        'knowledge_v2.data_source.add_dialog.url.input_label': '网页地址',
+        'knowledge_v2.data_source.add_dialog.url.placeholder': 'https://example.com/article',
+        'knowledge_v2.data_source.add_dialog.url.title': '导入单个网页',
+        'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`
+      } satisfies Record<string, string>
+
+      return translations[key] ?? options?.defaultValue ?? key
+    }
   })
 }))
 
@@ -235,7 +251,42 @@ describe('AddKnowledgeSourceDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setMockAcceptedFiles([])
+    mockUseKnowledgePage.mockReturnValue({
+      selectedBaseId: 'base-1'
+    })
+    mockUseAddKnowledgeSourceFile.mockReturnValue({
+      submit: mockSubmitFileSource,
+      isSubmitting: false,
+      error: undefined
+    })
+    ;(window as any).toast = {
+      success: vi.fn(),
+      error: vi.fn()
+    }
   })
+
+  const renderControlledDialog = (onOpenChange = vi.fn()) => {
+    const DialogHarness = () => {
+      const [open, setOpen] = useState(true)
+
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            重新打开
+          </button>
+          <AddKnowledgeSourceDialog
+            open={open}
+            onOpenChange={(nextOpen) => {
+              setOpen(nextOpen)
+              onOpenChange(nextOpen)
+            }}
+          />
+        </>
+      )
+    }
+
+    return render(<DialogHarness />)
+  }
 
   it('renders the confirmed title, close control, five source tabs, default file content, and disabled add action', () => {
     render(<AddKnowledgeSourceDialog open onOpenChange={vi.fn()} />)
@@ -276,6 +327,7 @@ describe('AddKnowledgeSourceDialog', () => {
     expect(screen.getByText('2 KB')).toBeInTheDocument()
     expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    expect(mockSubmitFileSource).not.toHaveBeenCalled()
     expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(2)
 
     fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0])
@@ -326,12 +378,33 @@ describe('AddKnowledgeSourceDialog', () => {
     expect(screen.getByText('docs')).toBeInTheDocument()
     expect(screen.getByText('reports')).toBeInTheDocument()
     expect(screen.getByText('已选 2 个目录')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     expect(screen.getByText('2 文档 · 3 KB')).toBeInTheDocument()
     expect(screen.getByText('1 文档 · 1 KB')).toBeInTheDocument()
     expect(screen.queryByText('guide.pdf')).not.toBeInTheDocument()
     expect(screen.queryByText('api.md')).not.toBeInTheDocument()
     expect(screen.queryByText('report.csv')).not.toBeInTheDocument()
+  })
+
+  it('keeps add disabled on non-file tabs even when files were already selected on the file tab', () => {
+    render(<AddKnowledgeSourceDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('tab', { name: '网址' }))
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('tab', { name: '站点地图' }))
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('tab', { name: '笔记' }))
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
   it('removes a directory entry when delete is clicked', () => {
@@ -426,5 +499,53 @@ describe('AddKnowledgeSourceDialog', () => {
 
     expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+  })
+
+  it('submits only after confirm, then closes and resets the dialog on success', async () => {
+    const onOpenChange = vi.fn()
+    mockSubmitFileSource.mockResolvedValueOnce(undefined)
+    renderControlledDialog(onOpenChange)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(mockSubmitFileSource).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(mockSubmitFileSource).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+    expect(window.toast.success).toHaveBeenCalledWith('文件已添加到知识库')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重新打开' }))
+
+    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByTestId('knowledge-source-file-list')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+  })
+
+  it('keeps the selected files when file submit fails', async () => {
+    const onOpenChange = vi.fn()
+    mockSubmitFileSource.mockRejectedValueOnce(new Error('runtime failed'))
+    renderControlledDialog(onOpenChange)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(mockSubmitFileSource).toHaveBeenCalledTimes(1)
+    })
+
+    expect(window.toast.error).toHaveBeenCalledWith('添加文件数据源失败: runtime failed')
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('knowledge-source-file-list')).toBeInTheDocument()
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
   })
 })

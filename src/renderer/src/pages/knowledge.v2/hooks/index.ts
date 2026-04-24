@@ -1,3 +1,4 @@
+export { useAddKnowledgeSourceFile } from './useAddKnowledgeSourceFile'
 export { useKnowledgeBases } from './useKnowledgeBases'
 export { useCreateKnowledgeBase } from './useKnowledgeBases'
 export { useDeleteKnowledgeBase } from './useKnowledgeBases'

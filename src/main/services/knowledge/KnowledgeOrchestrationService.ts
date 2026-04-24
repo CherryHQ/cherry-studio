@@ -49,7 +49,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     await runtime.deleteBase(baseId)
   }
 
-  async addItems(baseId: string, itemIds: string[]): Promise<void[]> {
+  async addItems(baseId: string, itemIds: string[]): Promise<void> {
     const [base, items] = await Promise.all([
       knowledgeBaseService.getById(baseId),
       knowledgeItemService.getByIdsInBase(baseId, itemIds)
@@ -70,11 +70,11 @@ export class KnowledgeOrchestrationService extends BaseService {
     const allLeafItems = this.collectIndexableItems([...items, ...expandedLeafItems])
 
     if (allLeafItems.length === 0) {
-      return []
+      return
     }
 
     const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.addItems(base, allLeafItems)
+    await runtime.addItems(base, allLeafItems)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
