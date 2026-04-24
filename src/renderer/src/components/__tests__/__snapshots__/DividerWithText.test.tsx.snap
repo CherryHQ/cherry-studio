@@ -10,7 +10,7 @@ exports[`DividerWithText > should match snapshot 1`] = `
 .c1 {
   font-size: 12px;
   color: var(--color-text-2);
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 
 .c2 {
