@@ -60,14 +60,14 @@ const BuiltinMCPServerList: FC = () => {
       </div>
 
       <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="mb-3">
-        <TabsList className="h-auto rounded-full bg-muted/80 p-1">
-          <TabsTrigger value="all" className="rounded-full px-3 py-1.5 text-sm">
+        <TabsList className="h-auto rounded-full bg-muted/80 p-0.5">
+          <TabsTrigger value="all" className="rounded-full px-2.5 py-1 text-xs">
             {t('models.all')}
           </TabsTrigger>
-          <TabsTrigger value="installed" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="installed" className="rounded-full px-2.5 py-1 text-xs">
             {t('settings.skills.installed')}
           </TabsTrigger>
-          <TabsTrigger value="available" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="available" className="rounded-full px-2.5 py-1 text-xs">
             {t('settings.skills.install')}
           </TabsTrigger>
         </TabsList>

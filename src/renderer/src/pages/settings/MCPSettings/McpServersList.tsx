@@ -171,23 +171,23 @@ const McpServersList: FC = () => {
         </div>
       </div>
       <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
-        <TabsList className="h-auto rounded-full bg-muted/80 p-1">
-          <TabsTrigger value="all" className="rounded-full px-3 py-1.5 text-sm">
+        <TabsList className="h-auto rounded-full bg-muted/80 p-0.5">
+          <TabsTrigger value="all" className="rounded-full px-2.5 py-1 text-xs">
             {t('models.all')}
           </TabsTrigger>
-          <TabsTrigger value="enabled" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="enabled" className="rounded-full px-2.5 py-1 text-xs">
             {t('common.enabled')}
           </TabsTrigger>
-          <TabsTrigger value="disabled" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="disabled" className="rounded-full px-2.5 py-1 text-xs">
             {t('common.disabled')}
           </TabsTrigger>
-          <TabsTrigger value="stdio" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="stdio" className="rounded-full px-2.5 py-1 text-xs">
             STDIO
           </TabsTrigger>
-          <TabsTrigger value="sse" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="sse" className="rounded-full px-2.5 py-1 text-xs">
             SSE
           </TabsTrigger>
-          <TabsTrigger value="builtin" className="rounded-full px-3 py-1.5 text-sm">
+          <TabsTrigger value="builtin" className="rounded-full px-2.5 py-1 text-xs">
             {t('settings.mcp.builtinServers')}
           </TabsTrigger>
         </TabsList>
