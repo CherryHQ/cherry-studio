@@ -1,9 +1,11 @@
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { buildFunctionCallToolName } from '@shared/mcp'
+import type { Tool as McpTool } from '@modelcontextprotocol/sdk/types'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import fs from 'fs'
 import path from 'path'
@@ -146,6 +148,30 @@ export async function validateAgentModels(
   }
 }
 
+/**
+ * Snapshot of an MCP server + its live-listed tools, used by `listMcpTools` /
+ * `prefetchMcpServers`. The server side bits are read from the DB
+ * (`mcpServerService.getById`), tools are fetched from the running MCP client
+ * via `McpService.initClient(server).listTools()`.
+ */
+type McpServerInfo = Pick<MCPServer, 'id' | 'name' | 'type' | 'description'> & {
+  tools: McpTool[]
+}
+
+async function fetchMcpServerInfo(id: string): Promise<McpServerInfo | null> {
+  const server = await mcpServerService.getById(id).catch(() => null)
+  if (!server) return null
+  const client = await application.get('McpService').initClient(server)
+  const { tools } = await client.listTools()
+  return {
+    id: server.id,
+    name: server.name,
+    type: server.type,
+    description: server.description,
+    tools
+  }
+}
+
 export async function listMcpTools(
   agentType: AgentType,
   ids?: string[]
@@ -160,7 +186,7 @@ export async function listMcpTools(
   if (ids && ids.length > 0) {
     for (const id of ids) {
       try {
-        const server = await getMcpApiService().getServerInfo(id)
+        const server = await fetchMcpServerInfo(id)
         if (server) {
           server.tools.forEach((tool) => {
             const canonicalId = buildFunctionCallToolName(server.name, tool.name)
@@ -192,14 +218,12 @@ export async function listMcpTools(
   return { tools, legacyIdMap }
 }
 
-type McpServerInfo = Awaited<ReturnType<ReturnType<typeof getMcpApiService>['getServerInfo']>>
-
-export async function prefetchMcpServers(ids: string[]): Promise<Map<string, McpServerInfo>> {
-  const cache = new Map<string, McpServerInfo>()
+export async function prefetchMcpServers(ids: string[]): Promise<Map<string, McpServerInfo | null>> {
+  const cache = new Map<string, McpServerInfo | null>()
   await Promise.all(
     ids.map(async (id) => {
       try {
-        cache.set(id, await getMcpApiService().getServerInfo(id))
+        cache.set(id, await fetchMcpServerInfo(id))
       } catch (error) {
         logger.warn('Failed to prefetch MCP server', { id, error: error as Error })
         cache.set(id, null)
@@ -212,7 +236,7 @@ export async function prefetchMcpServers(ids: string[]): Promise<Map<string, Mcp
 export function listMcpToolsFromCache(
   agentType: AgentType,
   ids: string[] | undefined,
-  serverCache: Map<string, McpServerInfo>
+  serverCache: Map<string, McpServerInfo | null>
 ): { tools: Tool[]; legacyIdMap: Map<string, string> } {
   const tools: Tool[] = []
   const legacyIdMap = new Map<string, string>()

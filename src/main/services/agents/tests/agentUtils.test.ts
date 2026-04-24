@@ -10,12 +10,6 @@ vi.mock('node:fs', async () => {
   return createNodeFsMock()
 })
 
-const mockMcpApiService = {
-  getServerInfo: vi.fn()
-}
-vi.mock('@main/apiServer/services/mcp', () => ({
-  getMcpApiService: vi.fn(() => mockMcpApiService)
-}))
 
 const mockGetByProviderId = vi.fn()
 vi.mock('@data/services/ProviderService', () => ({
