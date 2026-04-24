@@ -33,10 +33,7 @@ export interface TagItem {
   count: number
 }
 
-export type LibrarySidebarFilter =
-  | { type: 'all' }
-  | { type: 'resource'; resourceType: ResourceType }
-  | { type: 'tag'; tagName: string }
+export type LibrarySidebarFilter = { type: 'resource'; resourceType: ResourceType } | { type: 'tag'; tagName: string }
 
 export interface ResourceTypeUIConfig {
   icon: React.ElementType

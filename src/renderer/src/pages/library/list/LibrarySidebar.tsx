@@ -1,5 +1,4 @@
 import { MenuItem } from '@cherrystudio/ui'
-import { Layers } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,7 +24,6 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
   const { t } = useTranslation()
 
   const isActive = (f: LibrarySidebarFilter) => {
-    if (filter.type === 'all' && f.type === 'all') return true
     if (filter.type === 'resource' && f.type === 'resource') return filter.resourceType === f.resourceType
     if (filter.type === 'tag' && f.type === 'tag') return filter.tagName === f.tagName
     return false
@@ -41,18 +39,6 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
 
       {/* Scrollable */}
       <div className="flex-1 overflow-y-auto px-2.5 pb-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-        {/* All */}
-        <div className="mb-1">
-          <MenuItem
-            size="sm"
-            active={isActive({ type: 'all' })}
-            onClick={() => onFilterChange({ type: 'all' })}
-            icon={<Layers size={12} strokeWidth={1.6} />}
-            label={t('library.sidebar.all_resources')}
-            className={ITEM_CLASS}
-          />
-        </div>
-
         {/* Resource Types */}
         <div className="mb-3">
           {RESOURCE_TYPE_ORDER.map((resourceType) => {

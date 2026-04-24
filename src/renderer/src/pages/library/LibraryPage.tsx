@@ -51,7 +51,10 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export default function LibraryPage() {
   const { t } = useTranslation()
-  const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>({ type: 'all' })
+  const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>({
+    type: 'resource',
+    resourceType: 'agent'
+  })
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
