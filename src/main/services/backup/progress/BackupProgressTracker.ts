@@ -5,7 +5,6 @@
 
 import { loggerService } from '@logger'
 import type { BackupDomain, BackupProgress, RestoreProgress } from '@shared/backup'
-import { EventEmitter } from 'events'
 
 const logger = loggerService.withContext('BackupProgressTracker')
 
@@ -28,40 +27,24 @@ export enum RestorePhase {
   COMPLETE = 'complete'
 }
 
-export class BackupProgressTracker extends EventEmitter {
-  private currentPhase: BackupPhase | RestorePhase
-  private currentDomain: BackupDomain | null
-  private totalItems: number
-  private processedItems: number
-  private totalBytes: bigint
-  private processedBytes: bigint
-  private startTime: number
-
-  private domainsProgress: Map<BackupDomain, { total: number; processed: number }>
-  private errorCount: number
-
-  constructor() {
-    super()
-    this.currentPhase = BackupPhase.INIT
-    this.currentDomain = null
-    this.totalItems = 0
-    this.processedItems = 0
-    this.totalBytes = 0n
-    this.processedBytes = 0n
-    this.startTime = Date.now()
-    this.domainsProgress = new Map()
-    this.errorCount = 0
-  }
+export class BackupProgressTracker {
+  private currentPhase: BackupPhase | RestorePhase = BackupPhase.INIT
+  private currentDomain: BackupDomain | null = null
+  private totalItems = 0
+  private processedItems = 0
+  private totalBytes = 0n
+  private processedBytes = 0n
+  private startTime = Date.now()
+  private domainsProgress = new Map<BackupDomain, { total: number; processed: number }>()
+  private errorCount = 0
 
   setPhase(phase: BackupPhase | RestorePhase): void {
     this.currentPhase = phase
-    this.emit('phaseChange', phase)
   }
 
   setDomain(domain: BackupDomain, totalItems: number): void {
     this.currentDomain = domain
     this.domainsProgress.set(domain, { total: totalItems, processed: 0 })
-    this.emit('domainChange', domain)
   }
 
   incrementItemsProcessed(count: number = 1): void {
@@ -86,7 +69,6 @@ export class BackupProgressTracker extends EventEmitter {
 
   reportError(error: Error): void {
     this.errorCount++
-    this.emit('error', error)
     logger.error('Backup error', error)
   }
 

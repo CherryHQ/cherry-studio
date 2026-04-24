@@ -63,7 +63,7 @@ export class DomainImporter {
 
     let totalImported = 0
     let totalSkipped = 0
-    const totalErrors = 0
+    let totalErrors = 0
 
     await this.liveDb.transaction(async (tx: SqlRunner) => {
       for (const table of tables) {
@@ -71,10 +71,16 @@ export class DomainImporter {
         const result = await this.importTable(tx, table, strategy)
         totalImported += result.imported
         totalSkipped += result.skipped
+        totalErrors += result.errors
       }
     })
 
-    logger.info('Domain import complete', { domain, imported: totalImported, skipped: totalSkipped })
+    logger.info('Domain import complete', {
+      domain,
+      imported: totalImported,
+      skipped: totalSkipped,
+      errors: totalErrors
+    })
     return { imported: totalImported, skipped: totalSkipped, errors: totalErrors }
   }
 
@@ -82,10 +88,11 @@ export class DomainImporter {
     tx: SqlRunner,
     tableName: string,
     strategy: ConflictStrategy
-  ): Promise<{ imported: number; skipped: number }> {
+  ): Promise<{ imported: number; skipped: number; errors: number }> {
     let offset = 0
     let imported = 0
     let skipped = 0
+    let errors = 0
 
     while (true) {
       this.token.throwIfCancelled()
@@ -120,8 +127,13 @@ export class DomainImporter {
         try {
           await tx.run(query)
           imported++
-        } catch {
-          skipped++
+        } catch (err) {
+          if (strategy === ConflictStrategy.SKIP) {
+            skipped++
+          } else {
+            errors++
+            logger.warn('Row insert failed', { table: tableName, error: (err as Error).message })
+          }
         }
       }
 
@@ -129,7 +141,7 @@ export class DomainImporter {
       this.progressTracker.incrementItemsProcessed(batch.rows.length)
     }
 
-    return { imported, skipped }
+    return { imported, skipped, errors }
   }
 
   private remapRow(tableName: string, row: Record<string, unknown>): Record<string, unknown> {

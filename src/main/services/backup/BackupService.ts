@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { BackupOptions, RestoreOptions } from '@shared/backup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
@@ -13,14 +13,16 @@ import { BackupProgressTracker } from './progress/BackupProgressTracker'
 
 const logger = loggerService.withContext('BackupService')
 
+type OperationType = 'backup' | 'restore'
+
 interface ActiveOperation {
+  type: OperationType
   tracker: BackupProgressTracker
   token: CancellationToken
 }
 
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['DbService', 'PreferenceService'])
 export class BackupService extends BaseService {
   private readonly activeOps = new Map<string, ActiveOperation>()
 
@@ -41,7 +43,7 @@ export class BackupService extends BaseService {
         const opId = uuidv4()
         const tracker = new BackupProgressTracker()
         const token = new CancellationToken()
-        this.activeOps.set(opId, { tracker, token })
+        this.activeOps.set(opId, { type: 'backup', tracker, token })
 
         const orchestrator = new ExportOrchestrator(tracker, token)
         orchestrator
@@ -76,7 +78,7 @@ export class BackupService extends BaseService {
         const opId = uuidv4()
         const tracker = new BackupProgressTracker()
         const token = new CancellationToken()
-        this.activeOps.set(opId, { tracker, token })
+        this.activeOps.set(opId, { type: 'restore', tracker, token })
 
         const orchestrator = new ImportOrchestrator(tracker, token)
         orchestrator
@@ -124,10 +126,10 @@ export class BackupService extends BaseService {
   private startProgressBroadcast(): void {
     const interval = setInterval(() => {
       for (const [id, op] of this.activeOps) {
-        const progress = op.tracker.getBackupProgress()
+        const progress = op.type === 'restore' ? op.tracker.getRestoreProgress() : op.tracker.getBackupProgress()
         BrowserWindow.getAllWindows().forEach((win) => {
           if (!win.isDestroyed()) {
-            win.webContents.send('backup-v2:progress', { operationId: id, ...progress })
+            win.webContents.send(IpcChannel.BackupV2_Progress, { operationId: id, ...progress })
           }
         })
       }

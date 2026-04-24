@@ -1,14 +1,11 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 
-export function hashFile(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256')
-    const stream = createReadStream(filePath)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.on('end', () => resolve(hash.digest('hex')))
-    stream.on('error', reject)
-  })
+export async function hashFile(filePath: string): Promise<string> {
+  const hash = createHash('sha256')
+  await pipeline(createReadStream(filePath), hash)
+  return hash.digest('hex')
 }
 
 export function hashBuffer(buffer: Buffer): string {

@@ -1,6 +1,7 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { BackupManifest, ValidationOptions, ValidationResult } from '@shared/backup'
 import { BACKUP_MANIFEST_VERSION, ValidationErrorCode } from '@shared/backup'
@@ -94,7 +95,7 @@ export class BackupValidatorImpl {
   ): Promise<void> {
     const zip = new StreamZip.async({ file: zipPath })
     try {
-      const tempDir = await fsp.mkdtemp(path.join(path.dirname(zipPath), '.validate-'))
+      const tempDir = await fsp.mkdtemp(path.join(application.getPath('feature.backup.temp'), '.validate-'))
       try {
         await zip.extract(null, tempDir)
 

@@ -3,6 +3,7 @@ import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type { BackupOptions, RestoreOptions } from '@shared/backup'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -231,10 +232,10 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
   backupV2: {
-    startBackup: (payload: { outputPath: string; options: unknown }) =>
+    startBackup: (payload: { outputPath: string; options: BackupOptions }) =>
       ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, payload),
     cancelBackup: (payload: { operationId: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_CancelBackup, payload),
-    startRestore: (payload: { zipPath: string; options: unknown }) =>
+    startRestore: (payload: { zipPath: string; options: RestoreOptions }) =>
       ipcRenderer.invoke(IpcChannel.BackupV2_StartRestore, payload),
     cancelRestore: (payload: { operationId: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_CancelRestore, payload),
     validateBackup: (payload: { zipPath: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_ValidateBackup, payload),
@@ -244,8 +245,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.BackupV2_GetRestoreProgress, payload),
     onProgress: (callback: (progress: unknown) => void) => {
       const listener = (_e: unknown, progress: unknown) => callback(progress)
-      ipcRenderer.on('backup-v2:progress', listener)
-      return () => ipcRenderer.off('backup-v2:progress', listener)
+      ipcRenderer.on(IpcChannel.BackupV2_Progress, listener)
+      return () => ipcRenderer.off(IpcChannel.BackupV2_Progress, listener)
     }
   },
   file: {

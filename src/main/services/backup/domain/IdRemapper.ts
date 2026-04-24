@@ -40,16 +40,39 @@ export class IdRemapper {
       const backupRows = await backupClient.execute(`SELECT id FROM "${table}"`)
       if (backupRows.rows.length === 0) continue
 
-      for (const row of backupRows.rows) {
-        const oldId = row.id as string
-        const existing = await liveDb.all(sql`SELECT 1 FROM ${sql.raw(`"${table}"`)} WHERE id = ${oldId}`)
-        if (existing.length > 0) {
+      const allIds = backupRows.rows.map((r) => r.id as string)
+      const existingSet = await this.findExistingIds(liveDb, table, allIds)
+
+      for (const oldId of allIds) {
+        if (existingSet.has(oldId)) {
           this.idMap.set(oldId, isV7 ? uuidv7() : uuidv4())
         }
       }
     }
 
     logger.info('ID remap built', { remapped: this.idMap.size })
+  }
+
+  private async findExistingIds(
+    liveDb: { all(query: ReturnType<typeof sql>): Promise<unknown[]> },
+    table: string,
+    ids: string[]
+  ): Promise<Set<string>> {
+    const BATCH_SIZE = 500
+    const result = new Set<string>()
+
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batch = ids.slice(i, i + BATCH_SIZE)
+      const placeholders = batch.map((id) => sql`${id}`)
+      const rows = await liveDb.all(
+        sql`SELECT id FROM ${sql.raw(`"${table}"`)} WHERE id IN (${sql.join(placeholders, sql.raw(', '))})`
+      )
+      for (const row of rows) {
+        result.add((row as { id: string }).id)
+      }
+    }
+
+    return result
   }
 
   remap(id: string): string {

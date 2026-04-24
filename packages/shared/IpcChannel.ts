@@ -462,6 +462,7 @@ export enum IpcChannel {
   BackupV2_CancelRestore = 'backup-v2:cancel-restore',
   BackupV2_GetRestoreProgress = 'backup-v2:get-restore-progress',
   BackupV2_ValidateBackup = 'backup-v2:validate-backup',
+  BackupV2_Progress = 'backup-v2:progress',
 
   // OpenClaw
   OpenClaw_CheckInstalled = 'openclaw:check-installed',

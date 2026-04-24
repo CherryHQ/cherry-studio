@@ -1,5 +1,5 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,10 +67,9 @@ describe('BackupService', () => {
     vi.clearAllMocks()
   })
 
-  it('is decorated with correct phase and dependencies', async () => {
+  it('is decorated with correct phase', async () => {
     const { BackupService } = await import('../BackupService')
     expect(getPhase(BackupService)).toBe(Phase.WhenReady)
-    expect(getDependencies(BackupService)).toEqual(['DbService', 'PreferenceService'])
   })
 
   it('registers all 7 IPC handlers on init', async () => {
