@@ -81,6 +81,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenMiMoModel: vi.fn(() => false),
     isSupportedReasoningEffortModel: vi.fn(() => false),
     isDeepSeekHybridInferenceModel: vi.fn(() => false),
+    isDeepSeekV4PlusModel: vi.fn(() => false),
     isSupportedReasoningEffortGrokModel: vi.fn(() => false),
     getThinkModelType: vi.fn(() => 'default'),
     isDoubaoSeedAfter251015: vi.fn(() => false),
@@ -828,7 +829,8 @@ describe('reasoning utils', () => {
         thinking: {
           type: 'enabled',
           budgetTokens: expect.any(Number)
-        }
+        },
+        sendReasoning: true
       })
       const thinking = result.thinking as { type: 'enabled'; budgetTokens?: number }
       expect(thinking.budgetTokens).toBeGreaterThanOrEqual(1024)
@@ -868,6 +870,125 @@ describe('reasoning utils', () => {
       const lowThinking = lowResult.thinking as { type: 'enabled'; budgetTokens?: number }
       const highThinking = highResult.thinking as { type: 'enabled'; budgetTokens?: number }
       expect(highThinking.budgetTokens).toBeGreaterThanOrEqual(lowThinking.budgetTokens!)
+    })
+
+    it('should map DeepSeek V4+ xhigh effort to max on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true,
+        effort: 'max'
+      })
+    })
+
+    it('should map DeepSeek V4+ high effort to high on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4',
+        name: 'DeepSeek V4',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true,
+        effort: 'high'
+      })
+    })
+
+    it('should not add effort for DeepSeek V4+ when effort is outside the documented set', async () => {
+      // Guard against silent downgrade: if MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4 ever gains
+      // new levels (low/medium/auto), the explicit effortMap must be extended — otherwise effort
+      // is omitted here rather than being silently mapped to 'high'.
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4',
+        name: 'DeepSeek V4',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'medium', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true
+      })
+      expect(result).not.toHaveProperty('effort')
+    })
+
+    it('should not add effort for non-DeepSeek models on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(false)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'kimi-k2-reasoning',
+        name: 'Kimi K2 Reasoning',
+        provider: 'custom-provider'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true
+      })
+      expect(result).not.toHaveProperty('effort')
     })
   })
 
