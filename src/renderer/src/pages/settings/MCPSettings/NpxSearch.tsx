@@ -148,7 +148,7 @@ const NpxSearch: FC = () => {
               <Card
                 size="small"
                 key={record.name}
-                className="border border-transparent bg-transparent shadow-none transition-colors hover:bg-accent"
+                className="border border-border/60 bg-transparent shadow-none transition-colors hover:bg-accent"
                 style={{
                   borderRadius: 'var(--radius-lg)',
                   backgroundColor: 'transparent',

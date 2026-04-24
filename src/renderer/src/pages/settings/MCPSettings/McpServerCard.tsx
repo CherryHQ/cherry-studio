@@ -233,7 +233,7 @@ const CardContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
   <div
     className={cn(
-      'flex min-h-12 w-full items-center justify-between rounded-xl border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent',
+      'flex min-h-12 w-full items-center justify-between rounded-xl border border-border/60 bg-transparent px-3 py-2 transition-colors hover:bg-accent',
       $isActive ? 'opacity-100' : 'opacity-60',
       className
     )}

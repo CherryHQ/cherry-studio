@@ -80,7 +80,7 @@ const BuiltinMCPServerList: FC = () => {
           return (
             <div
               key={server.id}
-              className="flex min-h-18 items-start gap-3 rounded-xl border border-transparent bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:bg-accent">
+              className="flex min-h-18 items-start gap-3 rounded-xl border border-border/60 bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:bg-accent">
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2 overflow-hidden">
                   <span className="truncate font-semibold text-[15px]">{server.name}</span>

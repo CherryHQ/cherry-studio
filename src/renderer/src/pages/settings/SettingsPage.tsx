@@ -1,5 +1,4 @@
 import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -39,14 +38,9 @@ const SettingsPage: FC = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-      </Navbar>
-      <div
-        id="content-container"
-        className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row bg-background">
-        <div className="flex min-h-0 w-[200px] min-w-[200px] bg-background">
-          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col bg-background p-2.5">
+      <div id="content-container" className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row">
+        <div className="flex min-h-0 w-[200px] min-w-[200px]">
+          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col p-2.5">
             <MenuList className="gap-0.5">
               <div className={sectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
@@ -180,7 +174,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 flex-1 p-2.5 pl-0">
-          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 bg-background-subtle/70 text-foreground shadow-xs">
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 text-foreground">
             <Outlet />
           </div>
         </div>

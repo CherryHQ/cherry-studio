@@ -165,8 +165,7 @@ const AboutSettings: FC = () => {
   return (
     <div
       className={cn(
-        'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto bg-background-subtle/70 px-5 py-4 [&::-webkit-scrollbar]:hidden',
-        theme === ThemeMode.dark ? 'bg-transparent' : 'bg-(--color-background-subtle)'
+        'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden'
       )}>
       <AboutGroup theme={theme}>
         <div className="flex select-none items-center justify-between gap-2 font-bold text-sm">
@@ -363,7 +362,7 @@ function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode
   return (
     <div
       className={cn(
-        'mb-3 rounded-2xl border border-border/60 bg-background p-4 shadow-xs last:mb-0',
+        'mb-3 rounded-2xl border border-border/60 bg-background p-4 last:mb-0',
         theme === ThemeMode.dark ? 'bg-black/5' : 'bg-(--color-background)'
       )}>
       {children}
