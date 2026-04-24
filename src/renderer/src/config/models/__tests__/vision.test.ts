@@ -349,6 +349,15 @@ describe('isVisionModel', () => {
     })
   })
 
+  describe('MiMo Models', () => {
+    it('should identify only the full-modal V2.5 chat model as vision-capable', () => {
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'xiaomi/mimo-v2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5-pro' }))).toBe(false)
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5-tts' }))).toBe(false)
+    })
+  })
+
   describe('Qwen Models', () => {
     it('should return true for Qwen vision models', () => {
       expect(isVisionModel(createModel({ id: 'qwen-vl-max' }))).toBe(true)
