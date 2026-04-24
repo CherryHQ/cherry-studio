@@ -19,12 +19,12 @@ describe('useUpdateLanguage', () => {
     Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
-  it('registers the mutation against PATCH /translate/languages/:langCode with the correct refresh key', () => {
+  it('registers the mutation against the template path with the correct refresh key', () => {
     renderHook(() => useUpdateLanguage('xx-yy'))
 
     expect(mockUseMutation).toHaveBeenCalledWith(
       'PATCH',
-      '/translate/languages/xx-yy',
+      '/translate/languages/:langCode',
       expect.objectContaining({ refresh: ['/translate/languages'] })
     )
   })
@@ -36,6 +36,29 @@ describe('useUpdateLanguage', () => {
     expect(options).not.toHaveProperty('optimisticData')
   })
 
+  it('passes the langCode through trigger params so the SWR key stays stable', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useUpdateLanguage('xx-yy'))
+    await result.current({ value: 'New', emoji: '🌐' })
+
+    expect(triggerSpy).toHaveBeenCalledWith({
+      params: { langCode: 'xx-yy' },
+      body: { value: 'New', emoji: '🌐' }
+    })
+  })
+
+  it('throws fast when triggered with an empty langCode instead of issuing a malformed request', async () => {
+    const triggerSpy = vi.fn()
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useUpdateLanguage(''))
+
+    await expect(result.current({ value: 'New', emoji: '🌐' })).rejects.toThrow(/langCode must be non-empty/)
+    expect(triggerSpy).not.toHaveBeenCalled()
+  })
+
   it('logs + toasts `error.update` + rethrows on failure by default', async () => {
     const failure = new Error('boom')
     const triggerSpy = vi.fn().mockRejectedValue(failure)
@@ -45,7 +68,10 @@ describe('useUpdateLanguage', () => {
     const { result } = renderHook(() => useUpdateLanguage('xx-yy'))
 
     await expect(result.current({ value: 'New', emoji: '🌐' })).rejects.toBe(failure)
-    expect(triggerSpy).toHaveBeenCalledWith({ body: { value: 'New', emoji: '🌐' } })
+    expect(triggerSpy).toHaveBeenCalledWith({
+      params: { langCode: 'xx-yy' },
+      body: { value: 'New', emoji: '🌐' }
+    })
     expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate language', failure)
     expect(toast.error).toHaveBeenCalledWith('t(settings.translate.custom.error.update)')
   })

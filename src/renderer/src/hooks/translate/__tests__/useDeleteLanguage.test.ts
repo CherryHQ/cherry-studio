@@ -19,14 +19,34 @@ describe('useDeleteLanguage', () => {
     Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
-  it('registers the mutation against DELETE /translate/languages/:langCode with the correct refresh key', () => {
+  it('registers the mutation against the template path with the correct refresh key', () => {
     renderHook(() => useDeleteLanguage('xx-yy'))
 
     expect(mockUseMutation).toHaveBeenCalledWith(
       'DELETE',
-      '/translate/languages/xx-yy',
+      '/translate/languages/:langCode',
       expect.objectContaining({ refresh: ['/translate/languages'] })
     )
+  })
+
+  it('passes the langCode through trigger params so the SWR key stays stable', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useDeleteLanguage('xx-yy'))
+    await result.current()
+
+    expect(triggerSpy).toHaveBeenCalledWith({ params: { langCode: 'xx-yy' } })
+  })
+
+  it('throws fast when triggered with an empty langCode instead of issuing a malformed request', async () => {
+    const triggerSpy = vi.fn()
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useDeleteLanguage(''))
+
+    await expect(result.current()).rejects.toThrow(/langCode must be non-empty/)
+    expect(triggerSpy).not.toHaveBeenCalled()
   })
 
   it('emits a success toast on the happy path (per-hook default `showSuccessToast: true`)', async () => {

@@ -15,7 +15,7 @@ type Props = {
   onCancel: () => void
 }
 
-const logger = loggerService.withContext('CustomLanguageModal')
+const logger = loggerService.withContext('TranslateLanguagesModal')
 
 const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguage, onCancel }: Props) => {
   const { t } = useTranslation()
