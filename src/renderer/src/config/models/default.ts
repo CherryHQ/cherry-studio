@@ -606,10 +606,10 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   copilot: [
     {
-      id: 'gpt-4o-mini',
+      id: 'gpt-5-mini',
       provider: 'copilot',
-      name: 'OpenAI GPT-4o-mini',
-      group: 'OpenAI'
+      name: 'gpt-5-mini',
+      group: 'copilot'
     }
   ],
   yi: [
