@@ -4,11 +4,6 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { RefObject } from 'react'
 import React from 'react'
 
-/**
- * Converts a TranslateLanguage DTO (data transfer object) to a TranslateLanguageVo (view object).
- * @param lang - The TranslateLanguage DTO to convert.
- * @returns A TranslateLanguageVo containing the value, langCode, and emoji from the DTO.
- */
 export const languageDtoToVo = (lang: TranslateLanguage): TranslateLanguageVo => {
   return {
     value: lang.value,
