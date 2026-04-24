@@ -88,6 +88,19 @@ type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> e
   : unknown
 
 /**
+ * Infer the full cursor-paginated response type from a path, falling back to
+ * the plain `CursorPaginationResponse<Item>` shape when the schema doesn't
+ * extend the base type. Used to type `mutate` precisely so endpoints that
+ * carry extra top-level fields (e.g. `BranchMessagesResponse.activeNodeId`)
+ * don't need casts at the call site.
+ */
+type InferCursorResponse<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> extends CursorPaginationResponse<
+  InferPaginatedItem<TPath>
+>
+  ? ResponseForPath<TPath, 'GET'>
+  : CursorPaginationResponse<InferPaginatedItem<TPath>>
+
+/**
  * Map a path to the shape of its `params` option.
  *
  * - Template paths (literal `keyof ApiSchemas`) whose schema method declares
@@ -181,7 +194,7 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
  * @property reset - Reset to first page only
  * @property mutate - SWR mutator for advanced cache control
  */
-export interface UseInfiniteQueryResult<T> {
+export interface UseInfiniteQueryResult<T, R extends CursorPaginationResponse<T> = CursorPaginationResponse<T>> {
   items: T[]
   isLoading: boolean
   isRefreshing: boolean
@@ -190,7 +203,7 @@ export interface UseInfiniteQueryResult<T> {
   loadNext: () => void
   refresh: () => void
   reset: () => void
-  mutate: KeyedMutator<CursorPaginationResponse<T>[]>
+  mutate: KeyedMutator<R[]>
 }
 
 /**
@@ -752,12 +765,17 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     limit?: number
     /** Set to false to disable fetching (default: true) */
     enabled?: boolean
+    /**
+     * How pages are concatenated into `items`
+     */
+    pageOrder?: 'as-loaded' | 'reverse-pages'
     /** Override SWR infinite configuration */
     swrOptions?: SWRInfiniteConfiguration
   }
-): UseInfiniteQueryResult<InferPaginatedItem<TPath>> {
+): UseInfiniteQueryResult<InferPaginatedItem<TPath>, InferCursorResponse<TPath>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
+  const pageOrder = options?.pageOrder ?? 'as-loaded'
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
@@ -797,7 +815,11 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   const { error, isLoading, isValidating, mutate, setSize } = swrResult
   const data = swrResult.data as CursorPaginationResponse<InferPaginatedItem<TPath>>[] | undefined
 
-  const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
+  const items = useMemo(() => {
+    if (!data?.length) return []
+    const ordered = pageOrder === 'reverse-pages' ? data.slice().reverse() : data
+    return ordered.flatMap((p) => p.items)
+  }, [data, pageOrder])
 
   const hasNext = useMemo(() => {
     if (!data?.length) return false

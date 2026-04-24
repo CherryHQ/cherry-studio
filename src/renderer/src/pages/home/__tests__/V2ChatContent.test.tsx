@@ -118,7 +118,10 @@ describe('V2ChatContent', () => {
       siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'branch-a'
+      activeNodeId: 'branch-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
     })
 
     mockUseChatWithHistory.mockReturnValue({
@@ -183,7 +186,10 @@ describe('V2ChatContent', () => {
       siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'branch-a'
+      activeNodeId: 'branch-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
     })
     mockUseChatWithHistory.mockReturnValue({
       sendMessage: vi.fn(),

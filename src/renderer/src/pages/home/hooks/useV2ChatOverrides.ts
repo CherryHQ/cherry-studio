@@ -165,17 +165,14 @@ export function useV2ChatOverrides(params: Params): Result {
 
   const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
     async (messageId, editedParts) => {
-      await seedOptimisticBranch((prev) => {
+      await seedOptimisticBranch((items) => {
         const patch = (msg: BranchMessagesResponse['items'][number]['message']) =>
           msg.id === messageId ? { ...msg, data: { ...msg.data, parts: editedParts } } : msg
-        return {
-          ...prev,
-          items: prev.items.map((item) => ({
-            ...item,
-            message: patch(item.message),
-            siblingsGroup: item.siblingsGroup?.map(patch)
-          }))
-        }
+        return items.map((item) => ({
+          ...item,
+          message: patch(item.message),
+          siblingsGroup: item.siblingsGroup?.map(patch)
+        }))
       })
       setMessages((msgs) =>
         msgs.map((m) => (m.id === messageId ? { ...m, parts: editedParts as CherryUIMessage['parts'] } : m))

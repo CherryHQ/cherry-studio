@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -43,15 +42,26 @@ interface MessagesProps {
   onComponentUpdate?(): void
   onFirstUpdate?(): void
   messages: Message[]
+  /** Trigger loading of the next older branch page from the server. */
+  loadOlder?: () => void
+  /** Whether older branch pages remain on the server. */
+  hasOlder?: boolean
 }
 
 const logger = loggerService.withContext('Messages')
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate, onFirstUpdate, messages }) => {
+const Messages: React.FC<MessagesProps> = ({
+  assistant,
+  topic,
+  onComponentUpdate,
+  onFirstUpdate,
+  messages,
+  loadOlder,
+  hasOlder = false
+}) => {
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
-  const [totalDisplayCount, setTotalDisplayCount] = useState<number>(10)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -82,11 +92,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
     }
   }, [])
 
-  const displayMessages = useMemo(
-    () => computeDisplayMessages(messages, 0, totalDisplayCount),
-    [messages, totalDisplayCount]
-  )
-  const hasMore = messages.length > displayMessages.length
+  // `messages` IS the display list — `useTopicMessagesV2` drives pagination
+  // via `useInfiniteQuery` so every loaded message should render. `hasMore`
+  // tracks server-side older pages (not a local display window).
+  const displayMessages = messages
+  const hasMore = hasOlder
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
@@ -106,7 +116,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
       }
 
       await v2Chat?.clearTopicMessages()
-      setTotalDisplayCount(10)
     },
     [v2Chat, topic.id]
   )
@@ -186,17 +195,17 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
   }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore) return
+    if (!hasMore || isLoadingMore || !loadOlder) return
     setIsLoadingMore(true)
     setTimeoutTimer(
       'loadMoreMessages',
       () => {
-        setTotalDisplayCount((prev) => prev + LOAD_MORE_COUNT)
+        loadOlder()
         setIsLoadingMore(false)
       },
       300
     )
-  }, [hasMore, isLoadingMore, setTimeoutTimer])
+  }, [hasMore, isLoadingMore, loadOlder, setTimeoutTimer])
 
   useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)
@@ -283,41 +292,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
   )
 }
 
-const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息的倒序切片
-  if (messages.length - startIndex <= displayCount) {
-    const result: Message[] = []
-    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
-      result.push(messages[i])
-    }
-    return result
-  }
-  const userIdSet = new Set() // 用户消息 id 集合
-  const assistantIdSet = new Set() // 助手消息 askId 集合
-  const displayMessages: Message[] = []
-
-  // 处理单条消息的函数
-  const processMessage = (message: Message) => {
-    if (!message) return
-
-    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
-    const messageId = message.role === 'user' ? message.id : message.askId
-
-    if (!idSet.has(messageId)) {
-      idSet.add(messageId)
-      displayMessages.push(message)
-      return
-    }
-    // 如果是相同 askId 的助手消息，也要显示
-    displayMessages.push(message)
-  }
-
-  // 直接在原数组上倒序遍历，跳过前 startIndex 个，避免全量拷贝和 reverse()
-  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
-    processMessage(messages[i])
-  }
-
-  return displayMessages
-}
+// `computeDisplayMessages` was a client-side windowing helper used when
+// `Messages` synced its own `displayMessages` state from the `messages`
+// prop. With `useInfiniteQuery` driving pagination upstream, `messages`
+// IS the visible list, so the helper was removed.
 
 export default Messages

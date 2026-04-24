@@ -1,5 +1,5 @@
 /**
- * Optimistic-cache helpers for the `/topics/:topicId/messages` SWR key.
+ * Optimistic-cache helpers for the `/topics/:topicId/messages` infinite key.
  *
  * Every write in the chat pipeline that needs to reflect in the branch
  * message list goes through this hook — delete / edit / fork / setActiveNode
@@ -7,26 +7,33 @@
  * happens through `useChat` / IPC).
  *
  * Two parallel stores need to stay in sync for every such write:
- *   (1) the shared SWR cache for `/topics/:id/messages` — read by every
- *       `useTopicMessagesV2` subscriber (including other detached windows),
+ *   (1) the shared SWR infinite cache for `/topics/:id/messages` — read by
+ *       every `useTopicMessagesV2` subscriber (including other detached
+ *       windows),
  *   (2) `useChat.state.messages` — owned by the caller's local instance.
  *
- * This hook owns (1) plus the DataApi mutation triggers. Syncing (2) stays
- * with the caller since it holds `setMessages` from `useChatWithHistory`.
+ * This hook owns (1) via the `mutate` passed in from `useTopicMessagesV2`
+ * (which targets the same infinite cache key). Syncing (2) stays with the
+ * caller since it holds `setMessages` from `useChatWithHistory`.
  */
-import { useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
+import { useMutation } from '@data/hooks/useDataApi'
 import type { FileMetadata } from '@renderer/types'
-import type { BranchMessagesResponse, CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useMemo } from 'react'
+import type {
+  BranchMessage,
+  BranchMessagesResponse,
+  CherryMessagePart,
+  Message as SharedMessage
+} from '@shared/data/types/message'
+import { useCallback } from 'react'
+import type { KeyedMutator } from 'swr'
 
-/** Compute the optimistic branch response with the given ids removed. */
-function branchWithoutIds(prev: BranchMessagesResponse, removedIds: Set<string>): BranchMessagesResponse {
-  const items = prev.items
+/** Drop messages matching `removedIds` from items and sibling groups. */
+function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
+  return items
     .filter((item) => !removedIds.has(item.message.id))
     .map((item) =>
       item.siblingsGroup ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) } : item
     )
-  return { ...prev, items }
 }
 
 /**
@@ -40,7 +47,7 @@ function synthesizeOptimisticUserMessage(params: {
   parentId: string | null
   text: string
   files?: FileMetadata[]
-}): BranchMessagesResponse['items'][number]['message'] {
+}): SharedMessage {
   const parts: CherryMessagePart[] = [{ type: 'text', text: params.text }]
   if (params.files?.length) {
     for (const file of params.files) {
@@ -71,56 +78,78 @@ function synthesizeOptimisticUserMessage(params: {
   }
 }
 
-export function useTopicMessagesCache(topicId: string) {
+export interface UseTopicMessagesCacheParams {
+  topicId: string
+  mutate: KeyedMutator<BranchMessagesResponse[]>
+}
+
+export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
-  const messagesCacheQuery = useMemo(() => ({ limit: 999, includeSiblings: true }), [])
 
-  const readCache = useReadCache()
-  const writeCache = useWriteCache()
-  const invalidateCache = useInvalidateCache()
-
-  /** Write a transformed branch response; caller handles rollback on error. */
+  /**
+   * Apply a transform to every page's `items` — suits delete / edit / patch
+   * operations that don't care which page a target message lives on. The
+   * transform runs once per page with that page's items and returns the new
+   * item list for that page.
+   */
   const seedOptimisticBranch = useCallback(
-    async (transform: (prev: BranchMessagesResponse) => BranchMessagesResponse) => {
-      const prev = readCache<BranchMessagesResponse>(messagesCachePath, messagesCacheQuery)
-      if (!prev) return
-      await writeCache(messagesCachePath, transform(prev), messagesCacheQuery)
+    async (transform: (items: BranchMessage[]) => BranchMessage[]) => {
+      await mutate(
+        (pages) => {
+          if (!pages) return pages
+          return pages.map((page) => ({ ...page, items: transform(page.items) }))
+        },
+        { revalidate: false }
+      )
     },
-    [messagesCachePath, messagesCacheQuery, readCache, writeCache]
+    [mutate]
   )
 
   /**
-   * Seed a synthesized user message as the next on-path item so the bubble
-   * renders immediately after the user clicks send. The real row (allocated
-   * by Main's id reservation) overwrites this entry on the next SWR
-   * revalidation. Returns the temp id for logging / failure tracing.
+   * Seed a synthesized user message as the new activeNode so the bubble
+   * renders immediately after the user clicks send. Appends to the end of
+   * page 0's items (page 0 = newest chunk; within-page oldest→newest order
+   * means "end of page 0" is "newest overall"). The real row (allocated by
+   * Main's id reservation) overwrites this entry on the next revalidation.
    */
   const seedOptimisticUser = useCallback(
     async (params: { text: string; parentId: string | null; files?: FileMetadata[] }): Promise<string | undefined> => {
-      const prev = readCache<BranchMessagesResponse>(messagesCachePath, messagesCacheQuery)
-      if (!prev) return undefined
-      const message = synthesizeOptimisticUserMessage({ ...params, topicId })
-      const next: BranchMessagesResponse = {
-        ...prev,
-        items: [...prev.items, { message }],
-        activeNodeId: message.id
-      }
-      await writeCache(messagesCachePath, next, messagesCacheQuery)
-      return message.id
+      let tempId: string | undefined
+      await mutate(
+        (pages) => {
+          if (!pages?.length) return pages
+          const message = synthesizeOptimisticUserMessage({ ...params, topicId })
+          tempId = message.id
+          const [firstPage, ...rest] = pages
+          return [
+            {
+              ...firstPage,
+              items: [...firstPage.items, { message }],
+              activeNodeId: message.id
+            },
+            ...rest
+          ]
+        },
+        { revalidate: false }
+      )
+      return tempId
     },
-    [messagesCachePath, messagesCacheQuery, readCache, writeCache, topicId]
+    [mutate, topicId]
   )
 
   /** Full rollback: force a revalidation against the server. */
   const rollbackBranch = useCallback(async () => {
-    await invalidateCache(messagesCachePath)
-  }, [invalidateCache, messagesCachePath])
+    await mutate()
+  }, [mutate])
 
-  /** Replace the branch cache with an empty snapshot (clear-topic path). */
+  /** Replace the branch cache with a single empty page. */
   const clearBranchCache = useCallback(async () => {
-    await writeCache(messagesCachePath, { items: [], nextCursor: undefined, activeNodeId: null }, messagesCacheQuery)
-  }, [messagesCachePath, messagesCacheQuery, writeCache])
+    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null }], { revalidate: false })
+  }, [mutate])
 
+  // `useInvalidateCache`'s `invalidatePathPatterns` walks both scalar and
+  // `$inf$`-prefixed cache keys (see `findMatchingInfiniteKeys`), so a
+  // path-based refresh option covers the infinite cache entry too.
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: [messagesCachePath]
   })

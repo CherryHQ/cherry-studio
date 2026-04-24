@@ -1,19 +1,25 @@
 /**
  * V2 hook for loading topic messages from DataApi as CherryUIMessage[].
  *
- * Uses useQuery (DataApi SWR) for standard data fetching. `toUIMessage`
- * projects every persisted field onto `CherryUIMessage.metadata`, so
- * downstream consumers read per-message metadata (model, parent, stats,
+ * Uses `useInfiniteQuery` with `pageOrder: 'reverse-pages'` — the branch
+ * endpoint paginates newest-page-first but keeps within-page items in
+ * oldest→newest order, so reversing page order yields a monotonically
+ * chronological `items` array (root → activeNode) across any number of
+ * loaded pages.
+ *
+ * `toUIMessage` projects every persisted field onto `CherryUIMessage.metadata`
+ * so downstream consumers read per-message metadata (model, parent, stats,
  * status, …) directly from the message object — no parallel metadataMap
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { KeyedMutator } from 'swr'
 
-const FETCH_LIMIT = 999
+const PAGE_SIZE = 50
 
 // ── Converters ──
 
@@ -144,13 +150,36 @@ export interface UseTopicMessagesV2Result {
   isLoading: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  /** Load the next (older) page of branch history. */
+  loadOlder: () => void
+  /** Whether older pages remain on the server. */
+  hasOlder: boolean
+  /**
+   * SWR mutator for the underlying infinite cache entry. Exposed so
+   * `useTopicMessagesCache` can apply optimistic writes via the updater
+   * form (`mutate((pages) => next, { revalidate: false })`).
+   */
+  mutate: KeyedMutator<BranchMessagesResponse[]>
 }
 
 export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
-  const { data, isLoading, mutate } = useQuery(`/topics/${topicId}/messages`, {
-    query: { limit: FETCH_LIMIT, includeSiblings: true },
+  const {
+    items: branchItems,
+    isLoading,
+    mutate,
+    loadNext,
+    hasNext
+  } = useInfiniteQuery('/topics/:topicId/messages', {
+    params: { topicId },
+    query: { includeSiblings: true },
+    limit: PAGE_SIZE,
+    pageOrder: 'reverse-pages',
     swrOptions: { dedupingInterval: 0 }
   })
+
+  // With `pageOrder: 'reverse-pages'`, `branchItems` is monotonically
+  // ordered root → activeNode. The activeNode is the last on-path item.
+  const activeNodeId = branchItems.length > 0 ? branchItems[branchItems.length - 1].message.id : null
 
   // On remount with stale SWR cache, isLoading=false but data is stale.
   // Force a fresh fetch and track readiness so the loading gate blocks until fresh.
@@ -160,22 +189,24 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
     void mutate().then(() => setIsReady(true))
   }, [topicId]) // eslint-disable-line react-hooks/exhaustive-deps -- mutate is stable
 
-  const branchData = data as BranchMessagesResponse | undefined
-
-  const uiMessages = useMemo<CherryUIMessage[]>(() => {
-    if (!branchData?.items) return []
-    return flattenBranchMessages(branchData.items).map(toUIMessage)
-  }, [branchData])
-
-  const siblingsMap = useMemo<Record<string, SharedMessage[]>>(
-    () => (branchData?.items ? buildSiblingsMap(branchData.items) : {}),
-    [branchData]
+  const uiMessages = useMemo<CherryUIMessage[]>(
+    () => flattenBranchMessages(branchItems).map(toUIMessage),
+    [branchItems]
   )
 
+  const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
+
+  // `refresh` revalidates every loaded page and returns the flattened
+  // uiMessages so `useChatWithHistory`'s on-done handler can push DB truth
+  // into `useChat.state.messages`.
   const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
-    const result = (await mutate()) as BranchMessagesResponse | undefined
-    if (!result?.items) return []
-    return flattenBranchMessages(result.items).map(toUIMessage)
+    const refreshed = await mutate()
+    if (!refreshed?.length) return []
+    const allItems = refreshed
+      .slice()
+      .reverse()
+      .flatMap((p) => p.items)
+    return flattenBranchMessages(allItems).map(toUIMessage)
   }, [mutate])
 
   return {
@@ -183,6 +214,9 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
     siblingsMap,
     isLoading: isLoading || !isReady,
     refresh,
-    activeNodeId: branchData?.activeNodeId ?? null
+    activeNodeId,
+    loadOlder: loadNext,
+    hasOlder: hasNext,
+    mutate: mutate
   }
 }

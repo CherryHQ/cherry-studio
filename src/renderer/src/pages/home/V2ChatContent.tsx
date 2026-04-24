@@ -49,7 +49,16 @@ interface Props {
  * the rendering pipeline.
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  const { uiMessages, siblingsMap, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
+  const {
+    uiMessages,
+    siblingsMap,
+    isLoading: isHistoryLoading,
+    refresh,
+    activeNodeId,
+    loadOlder,
+    hasOlder,
+    mutate: messagesCacheMutate
+  } = useTopicMessagesV2(topic.id)
 
   if (isHistoryLoading) {
     return (
@@ -74,6 +83,9 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
+      loadOlder={loadOlder}
+      hasOlder={hasOlder}
+      messagesCacheMutate={messagesCacheMutate}
     />
   )
 }
@@ -90,6 +102,9 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  loadOlder: () => void
+  hasOlder: boolean
+  messagesCacheMutate: ReturnType<typeof useTopicMessagesV2>['mutate']
 }
 
 const V2ChatContentInner: FC<InnerProps> = ({
@@ -101,7 +116,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
   uiMessages,
   siblingsMap,
   refresh,
-  activeNodeId
+  activeNodeId,
+  loadOlder,
+  hasOlder,
+  messagesCacheMutate
 }) => {
   const { sendMessage, regenerate, stop, error, setMessages, activeExecutionIds, addToolApprovalResponse } =
     useChatWithHistory(topic.id, initialMessages, refresh)
@@ -113,7 +131,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     useV2RenderingPipeline(uiMessages, activeExecutionIds, assistant, topic)
 
   // Topic-messages optimistic cache + DataApi mutation triggers.
-  const cache = useTopicMessagesCache(topic.id)
+  const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
@@ -190,7 +208,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     />
                   ))}
 
-                  <Messages key={topic.id} assistant={assistant} topic={topic} messages={projectedMessages} />
+                  <Messages
+                    key={topic.id}
+                    assistant={assistant}
+                    topic={topic}
+                    messages={projectedMessages}
+                    loadOlder={loadOlder}
+                    hasOlder={hasOlder}
+                  />
 
                   <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>
