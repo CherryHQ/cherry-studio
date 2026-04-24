@@ -10,9 +10,9 @@
  */
 
 import { agentService } from '@data/services/AgentService'
-import { sessionMessageService } from '@data/services/SessionMessageService'
-import { sessionService } from '@data/services/SessionService'
-import { taskService } from '@data/services/TaskService'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'

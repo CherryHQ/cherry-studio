@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { AgentChannelRow as ChannelRow } from '@data/db/schemas/agentChannel'
-import { channelService } from '@data/services/ChannelService'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'

@@ -18,8 +18,8 @@ const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 
-vi.mock('@data/services/TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     createTask: mockCreateTask,
     listTasks: mockListTasks,
     deleteTask: mockDeleteTask
@@ -48,8 +48,8 @@ vi.mock('qrcode', () => ({
   default: { toDataURL: mockQRCodeToDataURL }
 }))
 
-vi.mock('@data/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     listChannels: mockListChannels,
     createChannel: mockCreateChannel,
     getChannel: mockGetChannel,

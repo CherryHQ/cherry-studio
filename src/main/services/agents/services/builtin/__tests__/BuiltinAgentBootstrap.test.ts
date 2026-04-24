@@ -42,8 +42,8 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: mockListSessions,
     createSession: mockCreateSession
   }

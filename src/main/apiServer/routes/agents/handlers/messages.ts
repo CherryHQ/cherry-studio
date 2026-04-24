@@ -1,3 +1,5 @@
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { MESSAGE_STREAM_TIMEOUT_MS } from '@main/apiServer/config/timeouts'
 import {
@@ -5,7 +7,7 @@ import {
   STREAM_TIMEOUT_REASON,
   type StreamAbortController
 } from '@main/apiServer/utils/createStreamAbortController'
-import { agentService, sessionMessageService, sessionService } from '@main/services/agents'
+import { agentService } from '@main/services/agents'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
 import type { GetAgentSessionResponse } from '@types'
 import type { Request, Response } from 'express'

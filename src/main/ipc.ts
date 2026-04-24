@@ -3,7 +3,7 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { sessionMessageService } from '@data/services/SessionMessageService'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'

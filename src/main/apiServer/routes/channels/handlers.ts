@@ -1,4 +1,4 @@
-import { channelService } from '@data/services/ChannelService'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import type { Request, Response } from 'express'

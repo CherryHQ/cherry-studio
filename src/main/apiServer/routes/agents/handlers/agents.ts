@@ -1,5 +1,6 @@
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
+import { AgentModelValidationError, agentService } from '@main/services/agents'
 import { channelManager } from '@main/services/agents/services/channels'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { CherryClawConfiguration, ReplaceAgentRequest, UpdateAgentRequest } from '@types'

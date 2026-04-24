@@ -1,12 +1,12 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentTaskTable, type InsertAgentTaskRow } from '@data/db/schemas/agentTask'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import type { CreateTaskRequest } from '@types'
 import { describe, expect, it } from 'vitest'
 
-describe('AgentTaskService', () => {
+describe('TaskService', () => {
   const dbh = setupTestDatabase()
 
   async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
@@ -33,7 +33,7 @@ describe('AgentTaskService', () => {
 
   describe('createTask', () => {
     it('throws notFound when the agent does not exist', async () => {
-      await expect(agentTaskService.createTask('nonexistent-agent-id', baseRequest)).rejects.toMatchObject({
+      await expect(taskService.createTask('nonexistent-agent-id', baseRequest)).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -41,7 +41,7 @@ describe('AgentTaskService', () => {
     it('succeeds and returns the task when agent exists', async () => {
       const { id: agentId } = await insertAgent()
 
-      const task = await agentTaskService.createTask(agentId, baseRequest)
+      const task = await taskService.createTask(agentId, baseRequest)
 
       expect(task).toMatchObject({
         agentId,
@@ -73,8 +73,8 @@ describe('AgentTaskService', () => {
         await dbh.db.insert(agentTaskTable).values(taskRow)
       }
 
-      const page1 = await agentTaskService.listTasks(agentId, { limit: 2, offset: 0 })
-      const page2 = await agentTaskService.listTasks(agentId, { limit: 2, offset: 2 })
+      const page1 = await taskService.listTasks(agentId, { limit: 2, offset: 0 })
+      const page2 = await taskService.listTasks(agentId, { limit: 2, offset: 2 })
 
       expect(page1.tasks).toHaveLength(2)
       expect(page2.tasks).toHaveLength(2)

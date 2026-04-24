@@ -55,8 +55,8 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: listSessionsMock,
     createSession: createSessionMock,
     getSession: getSessionMock,
@@ -66,15 +66,15 @@ vi.mock('@data/services/SessionService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionMessageService', () => ({
-  sessionMessageService: {
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
     listSessionMessages: listSessionMessagesMock,
     deleteSessionMessage: deleteSessionMessageMock
   }
 }))
 
-vi.mock('@data/services/TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     listTasks: listTasksMock,
     createTask: createTaskMock,
     getTask: getTaskMock,

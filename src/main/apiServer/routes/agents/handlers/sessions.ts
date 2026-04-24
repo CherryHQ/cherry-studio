@@ -1,5 +1,6 @@
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { AgentModelValidationError, sessionService } from '@main/services/agents'
+import { AgentModelValidationError } from '@main/services/agents'
 import type { ReplaceSessionRequest } from '@types'
 import type { Request, Response } from 'express'
 

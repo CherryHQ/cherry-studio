@@ -13,8 +13,8 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
     createSession: vi.fn().mockResolvedValue({ id: 'session-1' })
@@ -27,8 +27,8 @@ vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
   }
 }))
 
-vi.mock('@data/services/TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     getDueTasks: vi.fn().mockResolvedValue([]),
     hasActiveTasks: vi.fn().mockResolvedValue(false),
     updateTaskAfterRun: vi.fn(),
@@ -40,8 +40,8 @@ vi.mock('@data/services/TaskService', () => ({
   }
 }))
 
-vi.mock('@data/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     getSubscribedChannels: vi.fn().mockResolvedValue([]),
     updateChannel: vi.fn()
   }
@@ -100,7 +100,7 @@ describe('SchedulerService', () => {
   })
 
   it('restoreSchedulers skips poll loop when no active tasks', async () => {
-    const { taskService } = await import('@data/services/TaskService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(false)
     const service = SchedulerServiceModule.schedulerService
     await service.restoreSchedulers()
@@ -108,7 +108,7 @@ describe('SchedulerService', () => {
   })
 
   it('restoreSchedulers starts poll loop when active tasks exist', async () => {
-    const { taskService } = await import('@data/services/TaskService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(true)
     const service = SchedulerServiceModule.schedulerService
     await service.restoreSchedulers()
@@ -128,9 +128,9 @@ describe('SchedulerService', () => {
   })
 
   it('tick processes due tasks', async () => {
-    const { taskService } = await import('@data/services/TaskService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     const { agentService } = await import('@data/services/AgentService')
-    const { sessionService } = await import('@data/services/SessionService')
+    const { agentSessionService: sessionService } = await import('@data/services/AgentSessionService')
     const { sessionMessageOrchestrator } = await import('@main/services/agents/services/SessionMessageOrchestrator')
 
     const mockTask = {

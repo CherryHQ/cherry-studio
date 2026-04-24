@@ -4,8 +4,3 @@ export { AgentService, agentService } from '@data/services/AgentService'
 export { AgentSessionMessageService, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 export { AgentSessionService, agentSessionService } from '@data/services/AgentSessionService'
 export { AgentTaskService, agentTaskService } from '@data/services/AgentTaskService'
-// Deprecated re-exports for backward compatibility
-export { channelService } from '@data/services/ChannelService'
-export { sessionMessageService } from '@data/services/SessionMessageService'
-export { sessionService } from '@data/services/SessionService'
-export { taskService } from '@data/services/TaskService'

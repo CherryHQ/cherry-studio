@@ -9,7 +9,7 @@
  * Callers: apiServer message handler, SchedulerService, ChannelMessageHandler.
  */
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
-import { sessionMessageService } from '@data/services/SessionMessageService'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import type { AgentStreamEvent } from '@main/services/agents/interfaces/AgentStreamInterface'
 import ClaudeCodeService from '@main/services/agents/services/claudecode'

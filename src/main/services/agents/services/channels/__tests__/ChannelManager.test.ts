@@ -1,4 +1,4 @@
-import { channelService } from '@data/services/ChannelService'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
@@ -17,8 +17,8 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
-vi.mock('@data/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     listChannels: vi.fn().mockResolvedValue([]),
     getChannel: vi.fn(),
     updateChannel: vi.fn()

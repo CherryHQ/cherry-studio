@@ -19,10 +19,10 @@ import type {
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { channelService } from '@data/services/ChannelService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
-import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
@@ -714,7 +714,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   private async resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
     try {
-      const { channelService } = await import('@data/services/ChannelService')
+      const { agentChannelService: channelService } = await import('@data/services/AgentChannelService')
       const channels = await channelService.listChannels({ agentId })
       return channels.find((ch) => ch.sessionId === sessionId)?.id
     } catch {

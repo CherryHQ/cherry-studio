@@ -1,4 +1,4 @@
-import { taskService } from '@data/services/TaskService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import type { ListTaskLogsResponse, ListTasksResponse } from '@types'

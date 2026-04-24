@@ -9,7 +9,7 @@
  * provisioning, skill seeding) lives here — NOT in the DataApi AgentService.
  */
 import { agentService } from '@data/services/AgentService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { modelsService } from '@main/apiServer/services/models'
 import { resolveAccessiblePaths, validateAgentModels } from '@main/services/agents/agentUtils'

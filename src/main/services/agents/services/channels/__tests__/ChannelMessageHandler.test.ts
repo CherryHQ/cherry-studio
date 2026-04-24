@@ -1,6 +1,6 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { channelService } from '@data/services/ChannelService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,8 +24,8 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
     createSession: vi.fn()
@@ -38,8 +38,8 @@ vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
   }
 }))
 
-vi.mock('@data/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     getChannel: vi.fn().mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null)
