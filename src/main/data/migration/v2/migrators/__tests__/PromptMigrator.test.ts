@@ -147,7 +147,7 @@ describe('PromptMigrator', () => {
       expect(result.itemCount).toBe(0)
     })
 
-    it('should return failure when dexie read throws', async () => {
+    it('should surface prepare failures via the error field (not warnings)', async () => {
       const ctx = createMockContext()
       ;(ctx.sources.dexieExport.tableExists as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('read error'))
       const migrator = new PromptMigrator()
@@ -155,7 +155,8 @@ describe('PromptMigrator', () => {
       const result = await migrator.prepare(ctx)
 
       expect(result.success).toBe(false)
-      expect(result.warnings).toContain('read error')
+      expect(result.error).toBe('read error')
+      expect(result.warnings).toBeUndefined()
     })
   })
 
@@ -233,7 +234,7 @@ describe('PromptMigrator', () => {
       expect(progressFn).toHaveBeenCalled()
     })
 
-    it('should return failure when transaction throws', async () => {
+    it('should return failure and reset processedCount to 0 when transaction throws', async () => {
       const phrases = [makePhrase({ id: 'p1', content: 'c1' })]
       const ctx = createMockContext({ tableData: phrases })
       const migrator = new PromptMigrator()
@@ -245,6 +246,63 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('db error')
+      // Rolled-back transaction means zero rows committed — processedCount reflects persisted state.
+      expect(result.processedCount).toBe(0)
+    })
+
+    it('should surface a UNIQUE violation on duplicate Dexie ids and reset processedCount', async () => {
+      const phrases = [makePhrase({ id: 'dup', content: 'first' }), makePhrase({ id: 'dup', content: 'second' })]
+      const ctx = createMockContext({ tableData: phrases })
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      // Simulate UNIQUE(id) violation on the second insert.
+      let insertCount = 0
+      const insertFn = vi.fn().mockImplementation(() => ({
+        values: vi.fn().mockImplementation(() => {
+          insertCount++
+          // Each phrase inserts prompt (odd count) then version (even count). Fail on the 3rd (second prompt).
+          if (insertCount === 3) return Promise.reject(new Error('UNIQUE constraint failed: prompt.id'))
+          return Promise.resolve(undefined)
+        })
+      }))
+
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<void>) => {
+          await fn({ insert: insertFn })
+        }
+      )
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('UNIQUE')
+      expect(result.processedCount).toBe(0)
+    })
+  })
+
+  // ── end-to-end: execute failure then validate ───────────────────
+  describe('execute failure → validate', () => {
+    it('should report count mismatch in validate() when execute rolled back', async () => {
+      const phrases = [makePhrase({ id: 'p1', content: 'c1' })]
+      const ctx = createMockContext({
+        tableData: phrases,
+        // DB reports zero rows because the execute transaction rolled back.
+        promptCount: 0,
+        versionCount: 0
+      })
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('forced rollback'))
+      const executeResult = await migrator.execute(ctx)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.processedCount).toBe(0)
+
+      const validateResult = await migrator.validate(ctx)
+      expect(validateResult.success).toBe(false)
+      expect(validateResult.errors.some((e) => e.key === 'prompt_count_mismatch')).toBe(true)
+      expect(validateResult.stats.targetCount).toBe(0)
     })
   })
 

@@ -1,19 +1,20 @@
 /**
  * Prompt API Handlers
  *
- * Implements all prompt-related API endpoints including:
- * - Prompt CRUD operations
- * - Version history and rollback
+ * All input validation happens here at the IPC trust boundary. Business logic
+ * — version creation, rollback semantics, orderKey computation — lives in
+ * PromptService.
  */
 
 import { promptService } from '@data/services/PromptService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
-  CreatePromptDtoSchema,
+  CreatePromptSchema,
+  PromptIdSchema,
   type PromptSchemas,
-  ReorderPromptsDtoSchema,
-  RollbackPromptDtoSchema,
-  UpdatePromptDtoSchema
+  RollbackPromptSchema,
+  UpdatePromptSchema
 } from '@shared/data/api/schemas/prompts'
 
 type PromptHandler<Path extends keyof PromptSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
@@ -24,44 +25,64 @@ export const promptHandlers: {
   }
 } = {
   '/prompts': {
-    GET: () => {
-      return promptService.getAll()
+    GET: async () => {
+      return await promptService.getAll()
     },
 
-    POST: ({ body }) => {
-      return promptService.create(CreatePromptDtoSchema.parse(body))
-    }
-  },
-
-  '/prompts/reorder': {
-    POST: ({ body }) => {
-      return promptService.reorder(ReorderPromptsDtoSchema.parse(body).orderedIds)
+    POST: async ({ body }) => {
+      const parsed = CreatePromptSchema.parse(body)
+      return await promptService.create(parsed)
     }
   },
 
   '/prompts/:id': {
-    GET: ({ params }) => {
-      return promptService.getById(params.id)
+    GET: async ({ params }) => {
+      const id = PromptIdSchema.parse(params.id)
+      return await promptService.getById(id)
     },
 
-    PATCH: ({ params, body }) => {
-      return promptService.update(params.id, UpdatePromptDtoSchema.parse(body))
+    PATCH: async ({ params, body }) => {
+      const id = PromptIdSchema.parse(params.id)
+      const parsed = UpdatePromptSchema.parse(body)
+      return await promptService.update(id, parsed)
     },
 
-    DELETE: ({ params }) => {
-      return promptService.delete(params.id)
+    DELETE: async ({ params }) => {
+      const id = PromptIdSchema.parse(params.id)
+      await promptService.delete(id)
+      return undefined
     }
   },
 
   '/prompts/:id/versions': {
-    GET: ({ params }) => {
-      return promptService.getVersions(params.id)
+    GET: async ({ params }) => {
+      const id = PromptIdSchema.parse(params.id)
+      return await promptService.getVersions(id)
     }
   },
 
   '/prompts/:id/rollback': {
-    POST: ({ params, body }) => {
-      return promptService.rollback(params.id, RollbackPromptDtoSchema.parse(body))
+    POST: async ({ params, body }) => {
+      const id = PromptIdSchema.parse(params.id)
+      const parsed = RollbackPromptSchema.parse(body)
+      return await promptService.rollback(id, parsed)
+    }
+  },
+
+  '/prompts/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const id = PromptIdSchema.parse(params.id)
+      const anchor = OrderRequestSchema.parse(body)
+      await promptService.reorder(id, anchor)
+      return undefined
+    }
+  },
+
+  '/prompts/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await promptService.reorderBatch(parsed.moves)
+      return undefined
     }
   }
 }

@@ -1,19 +1,14 @@
 /**
- * Prompt migrator - migrates quick phrases from Dexie to SQLite prompt table
- *
- * Data sources:
- *   - Dexie quick_phrases table
- * Target tables:
- *   - prompt (with auto-generated v1 version in prompt_version)
+ * Prompt migrator - migrates quick phrases from Dexie to SQLite prompt table.
  *
  * Mapping:
  *   QuickPhrase.id        → prompt.id
- *   QuickPhrase.title     → prompt.title
+ *   QuickPhrase.title     → prompt.title (fallback 'Untitled')
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
- *   QuickPhrase.order     → prompt.sortOrder
+ *   QuickPhrase.order     → drives relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase.createdAt → prompt.createdAt
  *   QuickPhrase.updatedAt → prompt.updatedAt
- *   (default)             → prompt.currentVersion = 1
+ *   (default)             → prompt.currentVersion = 1, one matching prompt_version(v1)
  */
 
 import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
@@ -22,11 +17,12 @@ import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } fr
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
 
-/** Legacy QuickPhrase shape from Dexie */
+/** Legacy QuickPhrase shape from Dexie. */
 interface LegacyQuickPhrase {
   id: string
   title: string
@@ -44,11 +40,13 @@ export class PromptMigrator extends BaseMigrator {
 
   private promptCount = 0
   private skippedCount = 0
+  private prepareError: string | null = null
   private preparedPhrases: LegacyQuickPhrase[] = []
 
   override reset(): void {
     this.promptCount = 0
     this.skippedCount = 0
+    this.prepareError = null
     this.preparedPhrases = []
   }
 
@@ -81,11 +79,13 @@ export class PromptMigrator extends BaseMigrator {
         warnings: this.skippedCount > 0 ? [`Skipped ${this.skippedCount} invalid quick phrases`] : undefined
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
       logger.error('Prepare failed', error as Error)
+      this.prepareError = message
       return {
         success: false,
         itemCount: 0,
-        warnings: [error instanceof Error ? error.message : String(error)]
+        error: message
       }
     }
   }
@@ -95,37 +95,41 @@ export class PromptMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
+    // Stamp fractional-indexing orderKeys after sorting by the legacy `order`
+    // field so relative ordering is preserved across the migration.
+    const sortedPhrases = [...this.preparedPhrases].sort((a, b) => {
+      const ao = a.order ?? 0
+      const bo = b.order ?? 0
+      return ao - bo
+    })
+    const stamped = assignOrderKeysInSequence(sortedPhrases)
+
     let processedCount = 0
 
     try {
       const db = ctx.db
 
       await db.transaction(async (tx) => {
-        for (let i = 0; i < this.preparedPhrases.length; i++) {
-          const phrase = this.preparedPhrases[i]
-
-          // Insert prompt
+        for (const row of stamped) {
           await tx.insert(promptTable).values({
-            id: phrase.id,
-            title: phrase.title || 'Untitled',
-            content: phrase.content,
+            id: row.id,
+            title: row.title || 'Untitled',
+            content: row.content,
             currentVersion: 1,
-            sortOrder: phrase.order ?? i,
-            createdAt: phrase.createdAt,
-            updatedAt: phrase.updatedAt
+            orderKey: row.orderKey,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt
           })
 
-          // Create v1 version snapshot
           await tx.insert(promptVersionTable).values({
-            promptId: phrase.id,
+            promptId: row.id,
             version: 1,
-            content: phrase.content,
-            createdAt: phrase.createdAt
+            content: row.content,
+            createdAt: row.createdAt
           })
 
           processedCount++
 
-          // Report progress every 10 items
           if (processedCount % 10 === 0 || processedCount === this.promptCount) {
             this.reportProgress(
               Math.round((processedCount / this.promptCount) * 100),
@@ -139,9 +143,10 @@ export class PromptMigrator extends BaseMigrator {
       return { success: true, processedCount }
     } catch (error) {
       logger.error('Execute failed', error as Error)
+      // The transaction rolled back; no partial rows remain committed.
       return {
         success: false,
-        processedCount,
+        processedCount: 0,
         error: error instanceof Error ? error.message : String(error)
       }
     }
@@ -151,12 +156,14 @@ export class PromptMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
     const db = ctx.db
 
+    if (this.prepareError) {
+      errors.push({ key: 'prepare_failed', message: this.prepareError })
+    }
+
     try {
-      // Count prompts in target
       const promptResult = await db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
       const targetCount = promptResult?.count ?? 0
 
-      // Count versions in target
       const versionResult = await db.select({ count: sql<number>`count(*)` }).from(promptVersionTable).get()
       const targetVersionCount = versionResult?.count ?? 0
 
@@ -167,7 +174,6 @@ export class PromptMigrator extends BaseMigrator {
         skippedCount: this.skippedCount
       })
 
-      // promptCount is already the filtered (valid) count
       if (targetCount < this.promptCount) {
         errors.push({
           key: 'prompt_count_mismatch',
@@ -177,7 +183,7 @@ export class PromptMigrator extends BaseMigrator {
         })
       }
 
-      // Each prompt should have exactly one version (v1)
+      // Enforce "at least one version per prompt" — rollback histories may have more.
       if (targetVersionCount < targetCount) {
         errors.push({
           key: 'version_count_mismatch',

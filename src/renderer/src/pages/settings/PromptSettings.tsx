@@ -1,6 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Button, Flex, Spinner } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useReorder } from '@data/hooks/useReorder'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptEditModal from '@renderer/components/PromptEditModal'
@@ -26,12 +27,7 @@ const PromptSettings: FC = () => {
   const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
   const [pendingRollbackVersion, setPendingRollbackVersion] = useState<number | null>(null)
 
-  const {
-    data: promptsList = [],
-    isLoading: isPromptsLoading,
-    error: promptsError,
-    mutate: mutatePrompts
-  } = useQuery('/prompts')
+  const { data: promptsList = [], isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
   const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
   const deletePromptPath: `/prompts/${string}` = `/prompts/${pendingDeletePromptId ?? '__pending__'}`
@@ -68,10 +64,7 @@ const PromptSettings: FC = () => {
     onError: () => window.toast.error(t('message.error.unknown'))
   })
 
-  const { trigger: reorderPrompts } = useMutation('POST', '/prompts/reorder', {
-    refresh: ['/prompts'],
-    onError: () => window.toast.error(t('message.error.unknown'))
-  })
+  const { applyReorderedList } = useReorder('/prompts')
 
   const deletePromptRef = useRef(deletePrompt)
   useEffect(() => {
@@ -139,12 +132,7 @@ const PromptSettings: FC = () => {
 
   const handleUpdateOrder = async (newPrompts: Prompt[]) => {
     if (newPrompts.length === 0) return
-    void mutatePrompts(newPrompts, { revalidate: false })
-    try {
-      await reorderPrompts({ body: { orderedIds: newPrompts.map((p) => p.id) } })
-    } catch {
-      void mutatePrompts()
-    }
+    await applyReorderedList(newPrompts)
   }
 
   const handleShowVersions = (prompt: Prompt) => {

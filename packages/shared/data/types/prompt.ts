@@ -12,7 +12,10 @@ import * as z from 'zod'
 // PromptVariable Schemas
 // ============================================================================
 
-export const PromptVariableInputSchema = z.object({
+/** Upper bound on variables-per-prompt to keep the JSON column bounded. */
+export const PROMPT_VARIABLES_MAX_ITEMS = 50
+
+export const PromptVariableInputSchema = z.strictObject({
   id: z.string().min(1),
   key: z.string().min(1),
   type: z.literal('input'),
@@ -21,7 +24,7 @@ export const PromptVariableInputSchema = z.object({
 })
 
 export const PromptVariableSelectSchema = z
-  .object({
+  .strictObject({
     id: z.string().min(1),
     key: z.string().min(1),
     type: z.literal('select'),
@@ -39,6 +42,7 @@ export const PromptVariableSchema = z.discriminatedUnion('type', [
 
 export const PromptVariablesSchema = z
   .array(PromptVariableSchema)
+  .max(PROMPT_VARIABLES_MAX_ITEMS)
   .refine((vars) => new Set(vars.map((v) => v.id)).size === vars.length, {
     message: 'Variable ids must be unique'
   })
@@ -50,23 +54,29 @@ export const PromptVariablesSchema = z
 // Prompt Schemas
 // ============================================================================
 
-export const PromptSchema = z.object({
-  id: z.string().uuid(),
-  title: z.string(),
-  content: z.string(),
-  currentVersion: z.number().int().min(1),
-  sortOrder: z.number().int().min(0),
+/** Prompt IDs are UUIDv7 from `uuidPrimaryKeyOrdered()`. */
+export const PromptIdSchema = z.uuidv7()
+export const PromptTitleSchema = z.string().trim().min(1).max(256)
+export const PromptContentSchema = z.string().min(1)
+export const PromptVersionNumberSchema = z.number().int().min(1)
+
+/** Complete Prompt entity as returned by the API. */
+export const PromptSchema = z.strictObject({
+  id: PromptIdSchema,
+  title: PromptTitleSchema,
+  content: PromptContentSchema,
+  currentVersion: PromptVersionNumberSchema,
   variables: PromptVariablesSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 
-export const PromptVersionSchema = z.object({
-  id: z.string().uuid(),
-  promptId: z.string().uuid(),
-  version: z.number().int().min(1),
-  content: z.string(),
-  rollbackFrom: z.number().int().min(1).nullable(),
+export const PromptVersionSchema = z.strictObject({
+  id: z.uuidv7(),
+  promptId: PromptIdSchema,
+  version: PromptVersionNumberSchema,
+  content: PromptContentSchema,
+  rollbackFrom: PromptVersionNumberSchema.nullable(),
   variables: PromptVariablesSchema.nullable(),
   createdAt: z.iso.datetime()
 })

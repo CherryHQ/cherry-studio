@@ -3,13 +3,14 @@ CREATE TABLE `prompt` (
 	`title` text NOT NULL,
 	`content` text NOT NULL,
 	`current_version` integer DEFAULT 1 NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
+	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	`variables` text
+	`variables` text,
+	FOREIGN KEY (`id`,`current_version`) REFERENCES `prompt_version`(`prompt_id`,`version`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE INDEX `prompt_sort_order_idx` ON `prompt` (`sort_order`);--> statement-breakpoint
+CREATE INDEX `prompt_order_key_idx` ON `prompt` (`order_key`);--> statement-breakpoint
 CREATE INDEX `prompt_updated_at_idx` ON `prompt` (`updated_at`);--> statement-breakpoint
 CREATE TABLE `prompt_version` (
 	`id` text PRIMARY KEY NOT NULL,

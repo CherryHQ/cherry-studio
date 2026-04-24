@@ -1,81 +1,75 @@
 /**
  * Prompt API Schema definitions
  *
- * Contains all prompt-related endpoints for CRUD and version management.
+ * Contains endpoints for Prompt CRUD, version history, and rollback.
+ * Entity schemas and types live in `@shared/data/types/prompt`.
  */
 
-import type { Prompt, PromptVersion } from '@shared/data/types/prompt'
-import { PromptVariablesSchema } from '@shared/data/types/prompt'
 import * as z from 'zod'
 
+import {
+  type Prompt,
+  PromptIdSchema as SharedPromptIdSchema,
+  PromptSchema,
+  PromptVariablesSchema,
+  type PromptVersion,
+  PromptVersionNumberSchema
+} from '../../types/prompt'
+import type { OrderEndpoints } from './_endpointHelpers'
+
+export const PromptIdSchema = SharedPromptIdSchema
+
 // ============================================================================
-// Zod Schemas for DTOs
+// DTOs
 // ============================================================================
 
-export const CreatePromptDtoSchema = z.object({
-  title: z.string().min(1),
-  content: z.string().min(1),
-  variables: PromptVariablesSchema.nullable().optional()
+/**
+ * DTO for creating a new prompt. `variables` may be omitted; the service
+ * normalizes `undefined` to `null` before persisting. `null` is rejected
+ * at the boundary — omit the field to persist as null.
+ */
+export const CreatePromptSchema = PromptSchema.pick({
+  title: true,
+  content: true
+}).extend({
+  variables: PromptVariablesSchema.optional()
 })
+export type CreatePromptDto = z.infer<typeof CreatePromptSchema>
 
-export const UpdatePromptDtoSchema = z
-  .object({
-    title: z.string().min(1).optional(),
-    content: z.string().min(1).optional(),
-    sortOrder: z.number().int().min(0).optional(),
-    variables: PromptVariablesSchema.nullable().optional()
-  })
-  .refine(
-    (dto) =>
-      dto.title !== undefined ||
-      dto.content !== undefined ||
-      dto.sortOrder !== undefined ||
-      dto.variables !== undefined,
-    {
-      message: 'At least one field is required'
-    }
-  )
+/**
+ * DTO for updating a prompt. All fields optional; the body must contain
+ * at least one field. Omitting `variables` leaves the existing value
+ * untouched; pass an empty array to clear.
+ */
+export const UpdatePromptSchema = CreatePromptSchema.partial().refine(
+  (dto) => dto.title !== undefined || dto.content !== undefined || dto.variables !== undefined,
+  { message: 'At least one field is required' }
+)
+export type UpdatePromptDto = z.infer<typeof UpdatePromptSchema>
 
-export const RollbackPromptDtoSchema = z.object({
-  version: z.number().int().min(1)
+/**
+ * DTO for rolling back to an earlier version. Creates a new version whose
+ * snapshot mirrors the target, preserving the append-only history invariant.
+ */
+export const RollbackPromptSchema = z.strictObject({
+  version: PromptVersionNumberSchema
 })
-
-/** Uses z.string().uuid() because prompt IDs are always UUIDv7 from uuidPrimaryKeyOrdered() */
-export const ReorderPromptsDtoSchema = z.object({
-  orderedIds: z.array(z.string().uuid()).min(1)
-})
-
-// ============================================================================
-// DTO Types (inferred from Zod schemas)
-// ============================================================================
-
-export type CreatePromptDto = z.infer<typeof CreatePromptDtoSchema>
-export type UpdatePromptDto = z.infer<typeof UpdatePromptDtoSchema>
-export type RollbackPromptDto = z.infer<typeof RollbackPromptDtoSchema>
-export type ReorderPromptsDto = z.infer<typeof ReorderPromptsDtoSchema>
+export type RollbackPromptDto = z.infer<typeof RollbackPromptSchema>
 
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
 
-export interface PromptSchemas {
+export type PromptSchemas = {
   '/prompts': {
-    /** Get all prompts */
+    /** List all prompts, ordered by `orderKey` */
     GET: {
       response: Prompt[]
     }
-    /** Create a new prompt */
+    /** Create a new prompt (seeds v1 in prompt_version) */
     POST: {
       body: CreatePromptDto
       response: Prompt
-    }
-  }
-
-  '/prompts/reorder': {
-    /** Reorder prompts by providing ordered IDs */
-    POST: {
-      body: ReorderPromptsDto
-      response: void
     }
   }
 
@@ -85,13 +79,13 @@ export interface PromptSchemas {
       params: { id: string }
       response: Prompt
     }
-    /** Update a prompt (auto-creates version if content changed) */
+    /** Patch a prompt (creates a new version when content changes) */
     PATCH: {
       params: { id: string }
       body: UpdatePromptDto
       response: Prompt
     }
-    /** Delete a prompt and all its versions */
+    /** Delete a prompt and cascade its versions */
     DELETE: {
       params: { id: string }
       response: void
@@ -99,7 +93,7 @@ export interface PromptSchemas {
   }
 
   '/prompts/:id/versions': {
-    /** Get version history for a prompt */
+    /** Get version history for a prompt, newest first */
     GET: {
       params: { id: string }
       response: PromptVersion[]
@@ -107,11 +101,11 @@ export interface PromptSchemas {
   }
 
   '/prompts/:id/rollback': {
-    /** Rollback to a previous version */
+    /** Rollback to a previous version (creates a new version snapshot) */
     POST: {
       params: { id: string }
       body: RollbackPromptDto
       response: Prompt
     }
   }
-}
+} & OrderEndpoints<'/prompts'>

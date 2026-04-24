@@ -212,7 +212,8 @@ export class MigrationEngine {
         // Phase 1: Prepare (includes dry-run validation)
         const prepareResult = await migrator.prepare(context)
         if (!prepareResult.success) {
-          throw new Error(`${migrator.name} prepare failed: ${prepareResult.warnings?.join(', ')}`)
+          const reason = prepareResult.error ?? prepareResult.warnings?.join(', ') ?? 'unknown reason'
+          throw new Error(`${migrator.name} prepare failed: ${reason}`)
         }
 
         logger.info(`${migrator.name} prepare completed`, { itemCount: prepareResult.itemCount })
