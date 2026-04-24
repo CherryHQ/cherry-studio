@@ -12,6 +12,7 @@ import {
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
+  isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
@@ -185,7 +186,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { thinking: { type: 'disabled' } }
     }
 
-    // Deepseek, default behavior is non-thinking
+    // DeepSeek V4+ defaults to thinking enabled, explicitly disable it
+    if (isDeepSeekV4PlusModel(model)) {
+      return { thinking: { type: 'disabled' } }
+    }
+
+    // DeepSeek V3.x hybrid, default behavior is non-thinking
     if (isDeepSeekHybridInferenceModel(model)) {
       return {}
     }
@@ -339,6 +345,15 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
     return {}
+  }
+
+  // DeepSeek V4+ models support reasoning_effort: "high" | "max" alongside thinking control
+  // UI uses "xhigh" which maps to API's "max"; all other effort levels map to "high"
+  if (isDeepSeekV4PlusModel(model)) {
+    return {
+      thinking: { type: 'enabled' as const },
+      reasoning_effort: reasoningEffort === 'xhigh' ? ('max' as OpenAIReasoningEffort) : 'high'
+    }
   }
 
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
