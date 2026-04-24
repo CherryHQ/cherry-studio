@@ -723,6 +723,11 @@ describe('isReasoningModel', () => {
     })
   })
 
+  // Regression test for mistral-small-2603 reasoning support
+  it('should return true for mistral-small-2603', () => {
+    expect(isReasoningModel(createModel({ id: 'mistral-small-2603' }))).toBe(true)
+  })
+
   it('excludes non-fixed reasoning models from isFixedReasoningModel', () => {
     // Models that support thinking tokens or reasoning effort should NOT be fixed reasoning models
     const nonFixedModels = [

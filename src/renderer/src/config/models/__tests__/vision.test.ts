@@ -452,3 +452,29 @@ describe('Gemma 4 Models', () => {
     expect(isVisionModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
   })
 })
+
+describe('Mistral Models', () => {
+  // Regression test for mistral-small-2603 vision support (broken in previous implementation)
+  it('should return true for mistral-small-2603', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-2603' }))).toBe(true)
+  })
+
+  it('should return true for mistral-small-2603 with provider prefix', () => {
+    expect(isVisionModel(createModel({ id: 'mistralai/mistral-small-2603' }))).toBe(true)
+  })
+
+  // Regression check for existing mistral-small variants
+  it('should return true for mistral-small-latest', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-latest' }))).toBe(true)
+  })
+
+  it('should return true for mistral-small-2506', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-2506' }))).toBe(true)
+  })
+
+  // Regression check for pixtral models (dedicated vision models)
+  it('should return true for pixtral models', () => {
+    expect(isVisionModel(createModel({ id: 'pixtral-12b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'pixtral-large' }))).toBe(true)
+  })
+})
