@@ -6,7 +6,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -16,6 +16,7 @@ interface AgentPersistedMessage {
   message: {
     id: string
     role: string
+    status?: MessageStatus
     data?: { parts?: CherryMessagePart[] }
     createdAt?: string
     [key: string]: unknown
@@ -44,15 +45,15 @@ export function useAgentSessionParts(sessionId: string) {
       for (const item of history) {
         const msg = item.message
         if (!msg?.id) continue
+        const metadata: CherryUIMessage['metadata'] = {}
+        if (msg.createdAt) metadata.createdAt = msg.createdAt
+        if (msg.status) metadata.status = msg.status
+
         uiMessages.push({
           id: msg.id,
           role: msg.role as CherryUIMessage['role'],
           parts: (msg.data?.parts ?? []) as CherryUIMessage['parts'],
-          // Agent DB rows don't carry `modelId`/`parentId`/etc yet — we
-          // only populate `createdAt` so `uiToMessage` renders stable
-          // timestamps. Other fields fall back to caller-provided
-          // defaults (agent's model snapshot).
-          metadata: msg.createdAt ? { createdAt: msg.createdAt } : undefined
+          metadata: Object.keys(metadata).length > 0 ? metadata : undefined
         } as CherryUIMessage)
       }
 
