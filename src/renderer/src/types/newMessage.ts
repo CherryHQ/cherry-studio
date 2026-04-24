@@ -208,6 +208,10 @@ export type Message = {
   // UI相关
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   foldSelected?: boolean
+  versionGroupId?: string
+  versionNumber?: number
+  versionSelected?: boolean
+  branchVersionSelections?: Record<string, string>
 
   // 块集合
   blocks: MessageBlock['id'][]

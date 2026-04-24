@@ -31,6 +31,14 @@ interface Props {
   model?: Model
   topic: Topic
   isGroupContextMessage?: boolean
+  messageVersion?: {
+    current: number
+    total: number
+    hasPrev: boolean
+    hasNext: boolean
+  }
+  onSelectPrevVersion?: () => void
+  onSelectNextVersion?: () => void
 }
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
@@ -38,121 +46,161 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
-  const avatar = useAvatar()
-  const { theme } = useTheme()
-  const { userName, sidebarIcons } = useSettings()
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
-  const { agent } = useAgent(activeAgentId)
-  const isAgentView = window.location.hash.startsWith('#/agents')
-  const { t } = useTranslation()
-  const { isBubbleStyle } = useMessageStyle()
-  const { openMinappById } = useMinappPopup()
+const MessageHeader: FC<Props> = memo(
+  ({
+    assistant,
+    model,
+    message,
+    topic,
+    isGroupContextMessage,
+    messageVersion,
+    onSelectPrevVersion,
+    onSelectNextVersion
+  }) => {
+    const avatar = useAvatar()
+    const { theme } = useTheme()
+    const { userName, sidebarIcons } = useSettings()
+    const { chat } = useRuntime()
+    const { activeAgentId } = chat
+    const { agent } = useAgent(activeAgentId)
+    const isAgentView = window.location.hash.startsWith('#/agents')
+    const { t } = useTranslation()
+    const { isBubbleStyle } = useMessageStyle()
+    const { openMinappById } = useMinappPopup()
 
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
+    const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
 
-  const isSelected = selectedMessageIds?.includes(message.id)
+    const isSelected = selectedMessageIds?.includes(message.id)
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
+    const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
 
-  const getUserName = useCallback(() => {
-    if (isLocalAi && message.role !== 'user') {
-      return APP_NAME
-    }
+    const getUserName = useCallback(() => {
+      if (isLocalAi && message.role !== 'user') {
+        return APP_NAME
+      }
 
-    if (isAgentView && message.role === 'assistant') {
-      return agent?.name ?? t('common.unknown')
-    }
+      if (isAgentView && message.role === 'assistant') {
+        return agent?.name ?? t('common.unknown')
+      }
 
-    if (message.role === 'assistant') {
-      return getModelName(model) || getMessageModelId(message) || ''
-    }
+      if (message.role === 'assistant') {
+        return getModelName(model) || getMessageModelId(message) || ''
+      }
 
-    return userName || t('common.you')
-  }, [agent?.name, isAgentView, message, model, t, userName])
+      return userName || t('common.you')
+    }, [agent?.name, isAgentView, message, model, t, userName])
 
-  const isAssistantMessage = message.role === 'assistant'
-  const isUserMessage = message.role === 'user'
-  const showMinappIcon = sidebarIcons.visible.includes('minapp')
+    const isAssistantMessage = message.role === 'assistant'
+    const isUserMessage = message.role === 'user'
+    const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
-  const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
-  const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
+    const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
+    const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
-  const showMiniApp = useCallback(() => {
-    showMinappIcon && model?.provider && openMinappById(model.provider)
-    // because don't need openMinappById to be a dependency
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model?.provider, showMinappIcon])
+    const showMiniApp = useCallback(() => {
+      showMinappIcon && model?.provider && openMinappById(model.provider)
+      // because don't need openMinappById to be a dependency
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [model?.provider, showMinappIcon])
 
-  const userNameJustifyContent = useMemo(() => {
-    if (!isBubbleStyle) return 'flex-start'
-    if (isUserMessage && !isMultiSelectMode) return 'flex-end'
-    return 'flex-start'
-  }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
+    const userNameJustifyContent = useMemo(() => {
+      if (!isBubbleStyle) return 'flex-start'
+      if (isUserMessage && !isMultiSelectMode) return 'flex-end'
+      return 'flex-start'
+    }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
 
-  return (
-    <Container className="message-header">
-      {isAssistantMessage ? (
-        <Avatar
-          src={avatarSource}
-          size={35}
-          style={{
-            borderRadius: '25%',
-            cursor: showMinappIcon ? 'pointer' : 'default',
-            border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
-            filter: theme === 'dark' ? 'invert(0.05)' : undefined
-          }}
-          onClick={showMiniApp}>
-          {avatarName}
-        </Avatar>
-      ) : (
-        <>
-          {isEmoji(avatar) ? (
-            <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
-              {avatar}
-            </EmojiAvatar>
-          ) : (
-            <Avatar
-              src={avatar}
-              size={35}
-              style={{ borderRadius: '25%', cursor: 'pointer' }}
-              onClick={() => UserPopup.show()}
-            />
-          )}
-        </>
-      )}
-      <UserWrap>
-        <HStack alignItems="center" justifyContent={userNameJustifyContent}>
-          <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
-            {username}
-          </UserName>
-          {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
-              <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
-            </Tooltip>
-          )}
-        </HStack>
-        <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
-          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
-          {isBubbleStyle && message.usage !== undefined && (
-            <>
-              |
-              <MessageTokens message={message} />
-            </>
-          )}
-        </InfoWrap>
-      </UserWrap>
-      {isMultiSelectMode && (
-        <Checkbox
-          checked={isSelected}
-          onChange={(e) => handleSelectMessage(message.id, e.target.checked)}
-          style={{ position: 'absolute', right: 0, top: 0 }}
-        />
-      )}
-    </Container>
-  )
-})
+    return (
+      <Container className="message-header">
+        {isAssistantMessage ? (
+          <Avatar
+            src={avatarSource}
+            size={35}
+            style={{
+              borderRadius: '25%',
+              cursor: showMinappIcon ? 'pointer' : 'default',
+              border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+              filter: theme === 'dark' ? 'invert(0.05)' : undefined
+            }}
+            onClick={showMiniApp}>
+            {avatarName}
+          </Avatar>
+        ) : (
+          <>
+            {isEmoji(avatar) ? (
+              <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
+                {avatar}
+              </EmojiAvatar>
+            ) : (
+              <Avatar
+                src={avatar}
+                size={35}
+                style={{ borderRadius: '25%', cursor: 'pointer' }}
+                onClick={() => UserPopup.show()}
+              />
+            )}
+          </>
+        )}
+        <UserWrap>
+          <HStack alignItems="center" justifyContent={userNameJustifyContent}>
+            <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
+              {username}
+            </UserName>
+            {messageVersion && (
+              <VersionNavigator>
+                <VersionButton
+                  aria-label="Previous version"
+                  disabled={!messageVersion.hasPrev}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onSelectPrevVersion?.()
+                  }}
+                  type="button">
+                  {'<'}
+                </VersionButton>
+                <VersionLabel>
+                  {messageVersion.current}/{messageVersion.total}
+                </VersionLabel>
+                <VersionButton
+                  aria-label="Next version"
+                  disabled={!messageVersion.hasNext}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onSelectNextVersion?.()
+                  }}
+                  type="button">
+                  {'>'}
+                </VersionButton>
+              </VersionNavigator>
+            )}
+            {isGroupContextMessage && (
+              <Tooltip title={t('chat.message.useful.tip')}>
+                <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
+              </Tooltip>
+            )}
+          </HStack>
+          <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
+            <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+            {isBubbleStyle && message.usage !== undefined && (
+              <>
+                |
+                <MessageTokens message={message} />
+              </>
+            )}
+          </InfoWrap>
+        </UserWrap>
+        {isMultiSelectMode && (
+          <Checkbox
+            checked={isSelected}
+            onChange={(e) => handleSelectMessage(message.id, e.target.checked)}
+            style={{ position: 'absolute', right: 0, top: 0 }}
+          />
+        )}
+      </Container>
+    )
+  }
+)
 
 MessageHeader.displayName = 'MessageHeader'
 
@@ -188,6 +236,44 @@ const UserName = styled.span<{ isBubbleStyle?: boolean; theme?: string }>`
 const MessageTime = styled.div`
   font-size: 10px;
   color: var(--color-text-3);
+`
+
+const VersionNavigator = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  border: 0.5px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0 2px;
+`
+
+const VersionButton = styled.button`
+  border: none;
+  background: transparent;
+  color: var(--color-text-2);
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+
+  &:hover:not(:disabled) {
+    background: var(--color-hover);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+`
+
+const VersionLabel = styled.span`
+  font-size: 11px;
+  color: var(--color-text-2);
+  min-width: 30px;
+  text-align: center;
 `
 
 export default MessageHeader

@@ -5,7 +5,12 @@ import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
+import {
+  getVersionSelectionUpdates,
+  newMessagesActions,
+  selectMessagesForTopic,
+  selectRawMessagesForTopic
+} from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
   clearTopicMessagesThunk,
@@ -383,15 +388,11 @@ export function useMessageOperations(topic: Topic) {
    */
   const resendUserMessageWithEdit = useCallback(
     async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
-      await editMessageBlocks(message.id, editedBlocks)
-
       const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
       if (!mainTextBlock) {
         logger.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
-
-      await restartTrace(message, mainTextBlock.content)
 
       const fileBlocks = editedBlocks.filter(
         (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
@@ -400,17 +401,9 @@ export function useMessageOperations(topic: Topic) {
       const files = fileBlocks.map((block) => block.file).filter((file) => file !== undefined)
 
       const usage = await estimateUserPromptUsage({ content: mainTextBlock.content, files })
-      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
-        id: message.id,
-        updatedAt: new Date().toISOString(),
-        usage
-      }
-
-      dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates }))
-      // 对于message的修改会在下面的thunk中保存
-      await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
+      await dispatch(resendUserMessageWithEditThunk(topic.id, message, editedBlocks, assistant, usage))
     },
-    [dispatch, editMessageBlocks, topic.id]
+    [dispatch, topic.id]
   )
 
   /**
@@ -443,6 +436,23 @@ export function useMessageOperations(topic: Topic) {
     [dispatch, topic?.id]
   )
 
+  const selectMessageVersion = useCallback(
+    async (message: Message) => {
+      if (!message.versionGroupId) {
+        return
+      }
+
+      const state = store.getState()
+      const rawMessages = selectRawMessagesForTopic(state, topic.id)
+      const selectionUpdates = getVersionSelectionUpdates(rawMessages, message)
+
+      for (const update of selectionUpdates) {
+        await dispatch(updateMessageAndBlocksThunk(topic.id, { id: update.messageId, versionSelected: update.versionSelected }, []))
+      }
+    },
+    [dispatch, topic.id]
+  )
+
   return {
     displayCount,
     deleteMessage,
@@ -459,7 +469,8 @@ export function useMessageOperations(topic: Topic) {
     getTranslationUpdater,
     createTopicBranch,
     editMessageBlocks,
-    removeMessageBlock
+    removeMessageBlock,
+    selectMessageVersion
   }
 }
 

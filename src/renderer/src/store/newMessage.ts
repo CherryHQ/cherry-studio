@@ -35,6 +35,12 @@ export interface MessagesState extends EntityState<Message, string> {
   displayCount: number
 }
 
+export type MessageVersionSelectionMap = Record<string, string>
+
+export function belongsToVersionGroup(message: Message, groupId: string) {
+  return message.role === 'user' && (message.versionGroupId === groupId || (!message.versionGroupId && message.id === groupId))
+}
+
 // 3. Define the Initial State
 const initialState: MessagesState = messagesAdapter.getInitialState({
   messageIdsByTopic: {},
@@ -304,8 +310,92 @@ export const {
   selectEntities: selectMessageEntities // Selects the entity dictionary { id: message }
 } = messagesAdapter.getSelectors(selectMessagesState)
 
-// Custom Selector: Selects messages for a specific topic in order
-export const selectMessagesForTopic = createSelector(
+export function getVersionSelectionMap(messages: Message[]): MessageVersionSelectionMap {
+  const selectedVersions = new Map<string, { id: string; priority: number; versionNumber: number }>()
+
+  messages.forEach((message) => {
+    if (message.role !== 'user' || !message.versionGroupId) {
+      return
+    }
+
+    const nextPriority = message.versionSelected ? 2 : 1
+    const nextVersionNumber = message.versionNumber ?? 1
+    const currentSelection = selectedVersions.get(message.versionGroupId)
+
+    if (
+      !currentSelection ||
+      nextPriority > currentSelection.priority ||
+      (nextPriority === currentSelection.priority && nextVersionNumber >= currentSelection.versionNumber)
+    ) {
+      selectedVersions.set(message.versionGroupId, {
+        id: message.id,
+        priority: nextPriority,
+        versionNumber: nextVersionNumber
+      })
+    }
+  })
+
+  return Object.fromEntries(
+    Array.from(selectedVersions.entries()).map(([groupId, selection]) => [groupId, selection.id])
+  )
+}
+
+export function getVersionSelectionUpdates(messages: Message[], nextMessage: Message) {
+  if (!nextMessage.versionGroupId) {
+    return []
+  }
+
+  const currentSelectedVersion = messages.find(
+    (message) =>
+      message.role === 'user' && message.versionGroupId === nextMessage.versionGroupId && message.versionSelected
+  )
+
+  if (currentSelectedVersion?.id === nextMessage.id) {
+    return []
+  }
+
+  return [
+    ...(currentSelectedVersion ? [{ messageId: currentSelectedVersion.id, versionSelected: false }] : []),
+    { messageId: nextMessage.id, versionSelected: true }
+  ]
+}
+
+function isVisibleInCurrentBranch(
+  message: Message,
+  messageEntities: Record<string, Message | undefined>,
+  selectedVersions: MessageVersionSelectionMap
+) {
+  if (message.role === 'user' && message.versionGroupId) {
+    const selectedVersionId = selectedVersions[message.versionGroupId]
+    if (selectedVersionId && selectedVersionId !== message.id) {
+      return false
+    }
+  }
+
+  if (message.role === 'assistant' && message.askId) {
+    const askMessage = messageEntities[message.askId]
+    if (askMessage?.versionGroupId) {
+      const selectedVersionId = selectedVersions[askMessage.versionGroupId]
+      if (selectedVersionId && selectedVersionId !== askMessage.id) {
+        return false
+      }
+    }
+  }
+
+  const branchSelections = message.branchVersionSelections
+  if (!branchSelections) {
+    return true
+  }
+
+  return Object.entries(branchSelections).every(([groupId, versionId]) => {
+    const selectedVersionId = selectedVersions[groupId]
+    // Keep legacy messages visible when no explicit selection exists for a newly introduced branch group.
+    return !selectedVersionId || selectedVersionId === versionId
+  })
+}
+
+// Custom Selector: Selects raw messages for a specific topic in order
+export const selectRawMessagesForTopic = createSelector(
   [
     selectMessageEntities, // Input 1: Get the dictionary of all messages { id: message }
     (state: RootState, topicId: string) => state.messages.messageIdsByTopic[topicId] // Input 2: Get the ordered IDs for the specific topic
@@ -317,5 +407,17 @@ export const selectMessagesForTopic = createSelector(
     }
     // Map the ordered IDs to the actual message objects from the dictionary
     return topicMessageIds.map((id) => messageEntities[id]).filter((m): m is Message => !!m) // Filter out undefined/null in case of inconsistencies
+  }
+)
+
+// Branch-aware selector: returns only messages on the currently selected path
+export const selectMessagesForTopic = createSelector(
+  [selectRawMessagesForTopic, selectMessageEntities],
+  (rawMessages, messageEntities) => {
+    const selectedVersions = getVersionSelectionMap(rawMessages)
+    if (Object.keys(selectedVersions).length === 0) {
+      return rawMessages
+    }
+    return rawMessages.filter((message) => isVisibleInCurrentBranch(message, messageEntities, selectedVersions))
   }
 )
