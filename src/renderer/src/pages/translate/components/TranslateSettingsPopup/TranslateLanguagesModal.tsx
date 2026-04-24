@@ -4,6 +4,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { useAddLanguage, useUpdateLanguage } from '@renderer/hooks/translate'
 import { useLanguages } from '@renderer/hooks/translate/useLanguages'
 import type { TranslateLanguageVo } from '@renderer/types'
+import { PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { Form, Input, Modal, Popover, Space } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -62,7 +63,7 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
         if (editingCustomLanguage) {
           await updateLanguage({ value, emoji })
         } else {
-          await addLanguage({ value, emoji, langCode })
+          await addLanguage({ value, emoji, langCode: langCode.toLowerCase() })
         }
         onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
       } catch {
@@ -135,21 +136,18 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
           rules={[
             { required: true, message: t('settings.translate.custom.error.langCode.empty') },
             {
-              pattern: /^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/,
-              message: t('settings.translate.custom.error.langCode.invalid')
-            },
-            {
               validator: async (_, value: string) => {
-                logger.silly('validate langCode', { value, langCodeList, editingCustomLanguage })
-                if (editingCustomLanguage) {
-                  if (langCodeList.includes(value) && value !== editingCustomLanguage.langCode) {
-                    throw new Error(t('settings.translate.custom.error.langCode.exists'))
-                  }
-                } else {
-                  const langCode = value.toLowerCase()
-                  if (langCodeList.includes(langCode)) {
-                    throw new Error(t('settings.translate.custom.error.langCode.exists'))
-                  }
+                if (!value) return
+                const normalized = value.toLowerCase()
+                logger.silly('validate langCode', { value, normalized, langCodeList, editingCustomLanguage })
+                if (!PersistedLangCodeSchema.safeParse(normalized).success) {
+                  throw new Error(t('settings.translate.custom.error.langCode.invalid'))
+                }
+                const clashes = editingCustomLanguage
+                  ? langCodeList.includes(normalized) && normalized !== editingCustomLanguage.langCode
+                  : langCodeList.includes(normalized)
+                if (clashes) {
+                  throw new Error(t('settings.translate.custom.error.langCode.exists'))
                 }
               }
             }
