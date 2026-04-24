@@ -72,9 +72,8 @@ function synthesizeOptimisticUserMessage(params: {
 }
 
 export function useTopicMessagesCache(topicId: string) {
-  const messagesCachePath = useMemo(() => `/topics/${topicId}/messages` as const, [topicId])
+  const messagesCachePath = `/topics/${topicId}/messages` as const
   const messagesCacheQuery = useMemo(() => ({ limit: 999, includeSiblings: true }), [])
-  const messagesRefreshKeys = useMemo<`/topics/${string}/messages`[]>(() => [`/topics/${topicId}/messages`], [topicId])
 
   const readCache = useReadCache()
   const writeCache = useWriteCache()
@@ -123,16 +122,16 @@ export function useTopicMessagesCache(topicId: string) {
   }, [messagesCachePath, messagesCacheQuery, writeCache])
 
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
-    refresh: messagesRefreshKeys
+    refresh: [messagesCachePath]
   })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
-    refresh: messagesRefreshKeys
+    refresh: [messagesCachePath]
   })
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
-    refresh: messagesRefreshKeys
+    refresh: [messagesCachePath]
   })
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
-    refresh: messagesRefreshKeys
+    refresh: [messagesCachePath]
   })
 
   return {
