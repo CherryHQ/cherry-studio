@@ -407,6 +407,12 @@ export class WindowManager extends BaseService {
     const managed = this.windows.get(windowId)
     if (!managed) return false
 
+    if (managed.metadata.behavior?.closeToHide) {
+      managed.window.hide()
+      this.updateDockVisibility()
+      return true
+    }
+
     for (const [type, state] of this.pools) {
       if (state.managed.has(windowId)) {
         const metadata = getWindowTypeMetadata(type)
@@ -1344,6 +1350,14 @@ export class WindowManager extends BaseService {
       // Without this, pooled windows' preventDefault stalls will-quit indefinitely.
       if (application.isQuitting) return
 
+      const managed = this.windows.get(windowId)
+      if (managed?.metadata.behavior?.closeToHide) {
+        event.preventDefault()
+        managed.window.hide()
+        this.updateDockVisibility()
+        return
+      }
+
       for (const [type, state] of this.pools) {
         if (state.managed.has(windowId)) {
           const metadata = getWindowTypeMetadata(type)
@@ -1351,9 +1365,9 @@ export class WindowManager extends BaseService {
             if (state.suspended) return // let native close proceed
             event.preventDefault()
             if (state.idle.includes(windowId)) return // already idle
-            const managed = this.windows.get(windowId)
-            if (managed) {
-              this.releaseToPool(windowId, managed, state, metadata.poolConfig, type)
+            const pooledManaged = this.windows.get(windowId)
+            if (pooledManaged) {
+              this.releaseToPool(windowId, pooledManaged, state, metadata.poolConfig, type)
             }
             return
           }

@@ -3,11 +3,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getThemeModeLabel } from '@renderer/i18n/label'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useTabs } from '../../hooks/useTabs'
 import WindowControls from '../WindowControls'
 
 export function useShellTabBarLayout(isDetached: boolean) {
@@ -31,29 +30,12 @@ export function useShellTabBarLayout(isDetached: boolean) {
 export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolean }) {
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
-  const { tabs, activeTabId, openTab, updateTab } = useTabs()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
   const handleSettingsClick = () => {
-    const settingsPath = '/settings/provider'
-    const hasUserTabsInTabBar = tabs.some((tab) => tab.id !== 'home')
-
-    if (!hasUserTabsInTabBar) {
-      openTab(settingsPath, {
-        forceNew: true,
-        title: getDefaultRouteTitle(settingsPath)
-      })
-      return
-    }
-
-    if (activeTabId) {
-      updateTab(activeTabId, {
-        url: settingsPath,
-        title: getDefaultRouteTitle(settingsPath)
-      })
-    }
+    void openSettingsWindow('/settings/provider')
   }
 
   return (

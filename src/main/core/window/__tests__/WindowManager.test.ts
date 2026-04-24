@@ -243,6 +243,13 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/singletonHidden/index.html',
       windowOptions: {}
     },
+    hideOnClose: {
+      type: 'hideOnClose',
+      lifecycle: 'singleton',
+      htmlPath: 'windows/hideOnClose/index.html',
+      windowOptions: {},
+      behavior: { closeToHide: true }
+    },
     alwaysOnTopPool: {
       type: 'alwaysOnTopPool',
       lifecycle: 'pooled',
@@ -396,6 +403,17 @@ describe('WindowManager', () => {
       expect(id2).toBe(id1)
       expect(win.show).not.toHaveBeenCalled()
       expect(win.focus).not.toHaveBeenCalled()
+    })
+
+    it('hides instead of destroying a singleton with behavior.closeToHide', () => {
+      const id = wm.open('hideOnClose' as never)
+      const win = createdWindows[0]
+
+      wm.close(id)
+
+      expect(win.hide).toHaveBeenCalled()
+      expect(win.destroy).not.toHaveBeenCalled()
+      expect(wm.getWindow(id)).toBeDefined()
     })
   })
 
@@ -1332,6 +1350,18 @@ describe('WindowManager', () => {
       win.emit('close', event)
 
       expect(event.preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('prevents native close and hides for windows with behavior.closeToHide', () => {
+      wm.open('hideOnClose' as never)
+      const win = createdWindows[0]
+
+      const event = { preventDefault: vi.fn() }
+      win.emit('close', event)
+
+      expect(event.preventDefault).toHaveBeenCalled()
+      expect(win.hide).toHaveBeenCalled()
+      expect(win.destroy).not.toHaveBeenCalled()
     })
 
     it('does not intercept close for pooled windows when app is quitting', async () => {

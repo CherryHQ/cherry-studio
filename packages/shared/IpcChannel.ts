@@ -460,6 +460,7 @@ export enum IpcChannel {
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
   // WindowManager
+  SettingsWindow_Open = 'settings-window:open',
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
   WindowManager_Minimize = 'window-manager:minimize',

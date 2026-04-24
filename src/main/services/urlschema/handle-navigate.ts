@@ -44,6 +44,11 @@ export function handleNavigateProtocolUrl(url: URL) {
 
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
+  if (fullPath.startsWith('/settings/')) {
+    application.get('SettingsWindowService').open(fullPath)
+    return
+  }
+
   const mainWindow = application.get('MainWindowService').getMainWindow()
 
   if (mainWindow && !mainWindow.isDestroyed()) {

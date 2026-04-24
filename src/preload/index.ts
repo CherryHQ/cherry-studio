@@ -540,6 +540,9 @@ const api = {
     }
   },
   windowManager: {
+    openSettings: (path = '/settings/provider'): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
+
     // Retrieve init data that the main process stored for this window via
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).

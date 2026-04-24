@@ -16,28 +16,38 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-const { windowServiceMock, windowManagerMock, selectionServiceMock, quickAssistantServiceMock, globalShortcutMock } =
-  vi.hoisted(() => ({
-    windowServiceMock: {
-      onMainWindowCreated: vi.fn(),
-      showMainWindow: vi.fn(),
-      toggleMainWindow: vi.fn()
-    },
-    windowManagerMock: {
-      broadcastToType: vi.fn()
-    },
-    selectionServiceMock: {
-      toggleEnabled: vi.fn(),
-      processSelectTextByShortcut: vi.fn()
-    },
-    quickAssistantServiceMock: {
-      toggleQuickAssistant: vi.fn()
-    },
-    globalShortcutMock: {
-      register: vi.fn(),
-      unregister: vi.fn()
-    }
-  }))
+const {
+  windowServiceMock,
+  windowManagerMock,
+  selectionServiceMock,
+  settingsWindowServiceMock,
+  quickAssistantServiceMock,
+  globalShortcutMock
+} = vi.hoisted(() => ({
+  windowServiceMock: {
+    onMainWindowCreated: vi.fn(),
+    showMainWindow: vi.fn(),
+    toggleMainWindow: vi.fn()
+  },
+  windowManagerMock: {
+    open: vi.fn(),
+    broadcastToType: vi.fn()
+  },
+  selectionServiceMock: {
+    toggleEnabled: vi.fn(),
+    processSelectTextByShortcut: vi.fn()
+  },
+  settingsWindowServiceMock: {
+    open: vi.fn()
+  },
+  quickAssistantServiceMock: {
+    toggleQuickAssistant: vi.fn()
+  },
+  globalShortcutMock: {
+    register: vi.fn(),
+    unregister: vi.fn()
+  }
+}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -45,6 +55,7 @@ vi.mock('@application', async () => {
     MainWindowService: windowServiceMock,
     WindowManager: windowManagerMock,
     SelectionService: selectionServiceMock,
+    SettingsWindowService: settingsWindowServiceMock,
     QuickAssistantService: quickAssistantServiceMock
   } as any)
 })
@@ -166,6 +177,18 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+,', expect.any(Function))
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
     expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
+  })
+
+  it('opens the settings window through SettingsWindowService', async () => {
+    await (service as any).onInit()
+
+    const registration = globalShortcutMock.register.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+,'
+    )
+    const handler = registration?.[1] as (() => void) | undefined
+    handler?.()
+
+    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('re-registers only the changed accelerator when shortcut binding changes', async () => {

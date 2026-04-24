@@ -12,6 +12,7 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import UpdateAppButton from '@renderer/pages/home/components/UpdateAppButton'
+import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { tabsService } from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
@@ -215,7 +216,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleSettingsClick = () => {
     hideMinappPopup()
-    void navigate({ to: lastSettingsPath })
+    void openSettingsWindow(lastSettingsPath)
   }
 
   const handleTabClick = (tab: Tab) => {

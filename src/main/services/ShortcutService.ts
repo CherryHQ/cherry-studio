@@ -25,7 +25,7 @@ const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService', 'SelectionService'])
+@DependsOn(['MainWindowService', 'SelectionService', 'SettingsWindowService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
@@ -53,8 +53,7 @@ export class ShortcutService extends BaseService {
     })
 
     this.handlers.set('shortcut.general.show_settings', () => {
-      application.get('MainWindowService').showMainWindow()
-      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.MainWindow_NavigateToSettings)
+      application.get('SettingsWindowService').open('/settings/provider')
     })
 
     this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {

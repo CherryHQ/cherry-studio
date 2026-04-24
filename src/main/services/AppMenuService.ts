@@ -4,7 +4,6 @@ import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, locales } from '@main/utils/language'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import { findShortcutDefinition } from '@shared/shortcuts/definitions'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import { resolveShortcutPreference } from '@shared/shortcuts/utils'
@@ -66,8 +65,7 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              application.get('MainWindowService').showMainWindow()
-              application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.MainWindow_NavigateToAbout)
+              application.get('SettingsWindowService').open('/settings/about')
             }
           },
           { type: 'separator' },

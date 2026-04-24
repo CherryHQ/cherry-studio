@@ -1,0 +1,125 @@
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { BrowserWindow } from 'electron'
+
+const DEFAULT_SETTINGS_PATH = '/settings/provider'
+const PREWARM_DELAY_MS = 1000
+
+const logger = loggerService.withContext('SettingsWindowService')
+
+@Injectable('SettingsWindowService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowManager'])
+export class SettingsWindowService extends BaseService {
+  private readonly configuredWindowIds = new Set<string>()
+  private readonly readyWindowIds = new Set<string>()
+  private prewarmTimer: ReturnType<typeof setTimeout> | null = null
+
+  protected async onInit() {
+    const wm = application.get('WindowManager')
+
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.Settings, ({ id, window }) => {
+        this.setupSettingsWindow(id, window)
+      })
+    )
+
+    this.ipcHandle(IpcChannel.SettingsWindow_Open, (_event, path?: unknown) => {
+      return this.open(path)
+    })
+  }
+
+  protected async onAllReady() {
+    this.prewarmTimer = setTimeout(() => {
+      this.prewarm()
+    }, PREWARM_DELAY_MS)
+
+    this.registerDisposable(() => {
+      if (this.prewarmTimer) {
+        clearTimeout(this.prewarmTimer)
+        this.prewarmTimer = null
+      }
+    })
+  }
+
+  public open(path?: unknown): string {
+    const wm = application.get('WindowManager')
+    const windowId = wm.open(WindowType.Settings, { initData: this.normalizePath(path) })
+    const window = wm.getWindow(windowId)
+
+    if (window) {
+      this.setupSettingsWindow(windowId, window)
+      this.showWhenReady(windowId, window)
+    }
+
+    return windowId
+  }
+
+  public prewarm(): string | null {
+    const wm = application.get('WindowManager')
+
+    if (wm.getWindowsByType(WindowType.Settings).length > 0) {
+      return null
+    }
+
+    try {
+      return wm.open(WindowType.Settings, { initData: DEFAULT_SETTINGS_PATH })
+    } catch (error) {
+      logger.warn('Failed to prewarm settings window', error as Error)
+      return null
+    }
+  }
+
+  private setupSettingsWindow(windowId: string, window: BrowserWindow): void {
+    if (this.configuredWindowIds.has(windowId)) return
+    this.configuredWindowIds.add(windowId)
+    window.setTitle('')
+
+    const onReadyToShow = () => {
+      this.readyWindowIds.add(windowId)
+    }
+    const onClosed = () => {
+      this.configuredWindowIds.delete(windowId)
+      this.readyWindowIds.delete(windowId)
+    }
+    const onPageTitleUpdated = (event: Electron.Event) => {
+      event.preventDefault()
+      window.setTitle('')
+    }
+
+    window.once('ready-to-show', onReadyToShow)
+    window.once('closed', onClosed)
+    window.webContents.on('page-title-updated', onPageTitleUpdated)
+    this.registerDisposable(() => {
+      window.off('ready-to-show', onReadyToShow)
+      window.off('closed', onClosed)
+      window.webContents.off('page-title-updated', onPageTitleUpdated)
+    })
+  }
+
+  private showWhenReady(windowId: string, window: BrowserWindow): void {
+    const showAndFocus = () => {
+      if (window.isDestroyed()) return
+      if (window.isMinimized()) window.restore()
+      window.show()
+      window.focus()
+    }
+
+    if (this.readyWindowIds.has(windowId)) {
+      showAndFocus()
+      return
+    }
+
+    window.once('ready-to-show', showAndFocus)
+  }
+
+  private normalizePath(path: unknown): string {
+    if (typeof path === 'string' && path.startsWith('/settings')) {
+      return path
+    }
+    return DEFAULT_SETTINGS_PATH
+  }
+}

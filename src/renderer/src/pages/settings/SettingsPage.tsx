@@ -37,8 +37,8 @@ const SettingsPage: FC = () => {
   const sectionDividerClassName = 'my-1 bg-transparent'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div id="content-container" className="flex h-[calc(100vh-var(--navbar-height))] min-h-0 flex-1 flex-row">
+    <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-background">
+      <div className="flex min-h-0 flex-1 flex-row">
         <div className="flex min-h-0 w-[200px] min-w-[200px]">
           <Scrollbar className="flex min-h-0 flex-1 select-none flex-col p-2.5">
             <MenuList className="gap-0.5">
@@ -174,7 +174,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 flex-1 p-2.5 pl-0">
-          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 text-foreground">
+          <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border/40 bg-white text-foreground dark:bg-background">
             <Outlet />
           </div>
         </div>
