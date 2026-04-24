@@ -4,6 +4,7 @@ import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  Blocks,
   CalendarClock,
   Cloud,
   Command,
@@ -85,6 +86,13 @@ const SettingsPage: FC = () => {
                 label={t('settings.mcp.title')}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<Blocks />}
+                label={t('settings.plugins.title')}
+                active={isActive('/settings/plugins')}
+                onClick={() => go('/settings/plugins')}
               />
               <MenuItem
                 className={menuItemClassName}

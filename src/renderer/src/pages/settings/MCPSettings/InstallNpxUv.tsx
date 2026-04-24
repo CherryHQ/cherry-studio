@@ -1,19 +1,89 @@
-import { QuestionCircleOutlined } from '@ant-design/icons'
-import { Center, ColFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Badge, Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { cn } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
-import { Alert } from 'antd'
-import { CheckCircle2, Package } from 'lucide-react'
+import { CircleAlert, CircleCheckBig, FolderOpen, Package } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDescription, SettingRow, SettingSubtitle } from '..'
+import { SettingTitle } from '..'
 
 interface Props {
   mini?: boolean
 }
+
+interface DependencyCardProps {
+  actionLabel: string
+  description: string
+  installed: boolean
+  installing: boolean
+  name: string
+  path: string | null
+  onInstall: () => void
+  onOpenPath: () => void
+  t: (key: string) => string
+}
+
+const DependencyCard: FC<DependencyCardProps> = ({
+  actionLabel,
+  description,
+  installed,
+  installing,
+  name,
+  path,
+  onInstall,
+  onOpenPath,
+  t
+}) => (
+  <div
+    className={cn(
+      'flex min-h-0 items-center gap-4 rounded-lg border border-border/80 bg-background px-3.5 py-3 transition-colors',
+      !installed && 'border-warning/30'
+    )}>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="font-semibold text-foreground text-sm">{name}</div>
+        {installed ? (
+          <Badge
+            variant="outline"
+            className="gap-1 rounded-full border-primary/25 bg-primary/8 px-2 py-0.5 text-primary text-xs">
+            <CircleCheckBig className="size-3.5" />
+            {t('settings.skills.installed')}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1 rounded-full border-warning/40 px-2 py-0.5 text-warning text-xs">
+            <CircleAlert className="size-3.5" />
+            {t('settings.mcp.install')}
+          </Badge>
+        )}
+      </div>
+      <div className="mt-1 text-muted-foreground text-xs leading-5">{description}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/75">
+        <span className="truncate">
+          {installed ? path || name : `${name} ${t('settings.mcp.missingDependencies')}`}
+        </span>
+        <button
+          type="button"
+          onClick={onOpenPath}
+          disabled={!path}
+          aria-label={t('settings.skills.directory')}
+          className={cn(
+            'inline-flex items-center transition-colors',
+            path ? 'text-muted-foreground/80 hover:text-foreground' : 'cursor-default text-muted-foreground/40'
+          )}>
+          <FolderOpen className="size-3.5 shrink-0" />
+        </button>
+      </div>
+    </div>
+
+    {!installed && (
+      <Button size="sm" className="shrink-0 rounded-lg shadow-none" onClick={onInstall} disabled={installing}>
+        {installing ? t('settings.mcp.dependenciesInstalling') : actionLabel}
+      </Button>
+    )}
+  </div>
+)
 
 const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [isUvInstalled, setIsUvInstalled] = usePersistCache('feature.mcp.is_uv_installed')
@@ -85,17 +155,16 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
   if (mini) {
     const installed = isUvInstalled && isBunInstalled
+    if (installed) {
+      return null
+    }
+
     return (
       <Button
-        className="nodrag h-9 rounded-full px-3.5 shadow-none"
+        className="nodrag h-9 rounded-full px-2.5 text-destructive shadow-none"
         variant="ghost"
-        onClick={() => navigate({ to: '/settings/mcp/mcp-install' })}>
-        {installed ? (
-          <CheckCircle2 size={15} className="text-emerald-500" />
-        ) : (
-          <Package size={15} className="text-amber-500" />
-        )}
-        {installed ? t('common.completed') : t('settings.mcp.dependenciesInstall')}
+        onClick={() => navigate({ to: '/settings/plugins' })}>
+        <Package size={15} className="text-destructive" />
       </Button>
     )
   }
@@ -106,68 +175,34 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     }
   }
 
-  const onHelp = () => {
-    window.open('https://docs.cherry-ai.com/advanced-basic/mcp', '_blank')
-  }
-
   return (
-    <div className="mb-5 flex flex-col gap-3 pt-12.5">
-      <Alert
-        type={isUvInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--radius-lg)' }}
-        description={
-          <ColFlex>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
-                {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
-              </SettingSubtitle>
-              {!isUvInstalled && (
-                <Button onClick={installUV} disabled={isInstallingUv} size="sm">
-                  {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
-                </Button>
-              )}
-            </SettingRow>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingDescription
-                onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
-                {uvPath}
-              </SettingDescription>
-            </SettingRow>
-          </ColFlex>
-        }
-      />
-      <Alert
-        type={isBunInstalled ? 'success' : 'warning'}
-        style={{ borderRadius: 'var(--radius-lg)' }}
-        description={
-          <ColFlex>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
-                {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
-              </SettingSubtitle>
-              {!isBunInstalled && (
-                <Button onClick={installBun} disabled={isInstallingBun} size="sm">
-                  {isInstallingBun ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
-                </Button>
-              )}
-            </SettingRow>
-            <SettingRow style={{ width: '100%' }}>
-              <SettingDescription
-                onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
-                {bunPath}
-              </SettingDescription>
-            </SettingRow>
-          </ColFlex>
-        }
-      />
-      <Center>
-        <Button variant="ghost" onClick={onHelp}>
-          <QuestionCircleOutlined />
-          {t('settings.mcp.installHelp')}
-        </Button>
-      </Center>
+    <div className="flex flex-col gap-3">
+      <SettingTitle className="px-1 text-base">{t('settings.plugins.title')}</SettingTitle>
+
+      <div className="flex flex-col gap-2">
+        <DependencyCard
+          actionLabel={t('settings.mcp.install')}
+          description={t('settings.plugins.uvDescription')}
+          installed={!!isUvInstalled}
+          installing={isInstallingUv}
+          name="UV"
+          path={uvPath}
+          onInstall={installUV}
+          onOpenPath={openBinariesDir}
+          t={t}
+        />
+        <DependencyCard
+          actionLabel={t('settings.mcp.install')}
+          description={t('settings.plugins.bunDescription')}
+          installed={!!isBunInstalled}
+          installing={isInstallingBun}
+          name="Bun"
+          path={bunPath}
+          onInstall={installBun}
+          onOpenPath={openBinariesDir}
+          t={t}
+        />
+      </div>
     </div>
   )
 }

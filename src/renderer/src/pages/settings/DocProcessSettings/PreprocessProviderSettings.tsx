@@ -16,9 +16,10 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, 
 
 interface Props {
   provider: PreprocessProvider
+  hideHeader?: boolean
 }
 
-const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
+const PreprocessProviderSettings: FC<Props> = ({ provider: _provider, hideHeader = false }) => {
   const { provider: preprocessProvider, updateProvider } = usePreprocessProvider(_provider.id)
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(preprocessProvider.apiKey || '')
@@ -69,18 +70,22 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   return (
     <>
-      <SettingTitle>
-        <Flex className="items-center gap-2">
-          <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-          <span className="font-medium text-sm">{preprocessProvider.name}</span>
-          {officialWebsite && preprocessProviderConfig?.websites && (
-            <Link target="_blank" href={preprocessProviderConfig.websites.official}>
-              <ExportOutlined className="text-[--color-foreground] text-[12px]" />
-            </Link>
-          )}
-        </Flex>
-      </SettingTitle>
-      <Divider className="my-2.5 w-full" />
+      {!hideHeader && (
+        <>
+          <SettingTitle>
+            <Flex className="items-center gap-2">
+              <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
+              <span className="font-medium text-sm">{preprocessProvider.name}</span>
+              {officialWebsite && preprocessProviderConfig?.websites && (
+                <Link target="_blank" href={preprocessProviderConfig.websites.official}>
+                  <ExportOutlined className="text-[--color-foreground] text-[12px]" />
+                </Link>
+              )}
+            </Flex>
+          </SettingTitle>
+          <Divider className="my-2.5 w-full" />
+        </>
+      )}
       {hasObjectKey(preprocessProvider, 'apiKey') && (
         <>
           <SettingSubtitle className="mt-1.25 mb-2.5 flex items-center justify-between">

@@ -1491,7 +1491,7 @@
       "unpin": "Bỏ ghim chủ đề"
     },
     "translate": "Dịch",
-    "user": "[to be translated]:User",
+    "user": "Người dùng",
     "web_search": {
       "warning": {
         "openai": "Mô hình GPT-5 với nỗ lực suy luận tối thiểu không hỗ trợ tìm kiếm web."
@@ -1503,8 +1503,8 @@
     "bun_required_message": "Môi trường Bun là bắt buộc để chạy các công cụ CLI",
     "cli_tool": "Công cụ CLI",
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} mục",
+    "count_other": "{{count}} mục",
     "custom_path": "Đường dẫn tùy chỉnh",
     "custom_path_error": "Falha ao definir caminho personalizado do terminal",
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
@@ -1512,12 +1512,12 @@
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Hãy thử điều chỉnh các từ khóa tìm kiếm của bạn",
+        "title": "Không tìm thấy công cụ phù hợp"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Thêm một công cụ CLI hoặc trợ lý mã để bắt đầu",
+        "title": "Chưa có công cụ lập trình nào"
       }
     },
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
@@ -1529,28 +1529,28 @@
       "bun_required": "Vui lòng cài đặt môi trường Bun trước khi khởi chạy các công cụ CLI",
       "error": "Lancement échoué, veuillez réessayer",
       "label": "Lanzamiento",
-      "launched": "[to be translated]:Launched",
+      "launched": "Đã ra mắt",
       "success": "Khởi chạy thành công",
       "validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc"
     },
     "launching": "Lanzando...",
     "model": "Modelo",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Chọn mô hình AI mà công cụ CLI nên sử dụng",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Chính thức",
+    "official_tools": "Chính thức",
+    "search_placeholder": "Tìm kiếm công cụ CLI…",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Chọn ứng dụng terminal để chạy CLI",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
     "title": "Công cụ mã",
     "update_options": "Tùy chọn Cập nhật",
     "working_directory": "Thư mục làm việc",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Thư mục làm việc mà công cụ CLI khởi chạy trong"
   },
   "code_block": {
     "collapse": "Colapso",
@@ -3341,33 +3341,33 @@
   },
   "quickAssistant": {
     "alert": {
-      "google_login": "[to be translated]:Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng đầu tiên đăng nhập qua ứng dụng nhỏ Google trong danh sách ứng dụng nhỏ, sau đó sử dụng đăng nhập Google trong các ứng dụng nhỏ khác"
     },
     "clipboard": {
-      "empty": "[to be translated]:Clipboard is empty"
+      "empty": "Khay nhớp trống"
     },
     "feature": {
-      "chat": "[to be translated]:Answer this question",
-      "explanation": "[to be translated]:Explanation",
-      "summary": "[to be translated]:Content summary",
-      "translate": "[to be translated]:Text translation"
+      "chat": "Trả lời câu hỏi này",
+      "explanation": "Giải thích",
+      "summary": "Tóm tắt nội dung",
+      "translate": "Dịch văn bản"
     },
     "footer": {
-      "backspace_clear": "[to be translated]:Backspace to clear",
-      "copy_last_message": "[to be translated]:Press C to copy",
-      "esc": "[to be translated]:ESC to {{action}}",
-      "esc_back": "[to be translated]:return",
-      "esc_close": "[to be translated]:close",
-      "esc_pause": "[to be translated]:pause"
+      "backspace_clear": "Nhấn Backspace để xóa",
+      "copy_last_message": "Nhấn C để sao chép",
+      "esc": "ESC để {{action}}",
+      "esc_back": "trả về",
+      "esc_close": "đóng",
+      "esc_pause": "tạm dừng"
     },
     "input": {
       "placeholder": {
-        "empty": "[to be translated]:Ask {{model}} for help...",
-        "title": "[to be translated]:What do you want to do with this text?"
+        "empty": "Hỏi {{model}} để được giúp đỡ...",
+        "title": "Bạn muốn làm gì với văn bản này?"
       }
     },
     "tooltip": {
-      "pin": "[to be translated]:Keep Window on Top"
+      "pin": "Giữ cửa sổ ở trên cùng"
     }
   },
   "restore": {
@@ -4906,11 +4906,11 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "appSettings": "[to be translated]:App Settings",
-      "integrations": "[to be translated]:Integrations",
-      "productivity": "[to be translated]:Productivity",
-      "services": "[to be translated]:Services",
-      "system": "[to be translated]:System"
+      "appSettings": "Cài đặt ứng dụng",
+      "integrations": "Tích hợp",
+      "productivity": "Năng suất",
+      "services": "Dịch vụ",
+      "system": "Hệ thống"
     },
     "messages": {
       "divider": {
@@ -5158,6 +5158,11 @@
         "tip": "Kiểm soát mức độ chi tiết trong đầu ra của mô hình",
         "title": "Tính dài dòng"
       }
+    },
+    "plugins": {
+      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+      "title": "Phần bổ trợ",
+      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
     },
     "privacy": {
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
@@ -5475,29 +5480,29 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
-      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
+      "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
-      "conflict_with": "[to be translated]:Already used by \"{{name}}\"",
+      "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
       "new_topic": "Chủ đề mới",
-      "occupied_by_other_application": "[to be translated]:This shortcut is already used by the system or another application",
+      "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
       "press_shortcut": "Nhấn Phím tắt",
-      "quick_assistant": "[to be translated]:Quick Assistant",
+      "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
-      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
+      "reset_defaults_failed": "Không thể đặt lại phím tắt về mặc định",
       "reset_to_default": "Đặt lại về mặc định",
-      "save_failed": "[to be translated]:Failed to save shortcut",
-      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
+      "save_failed": "Không thể lưu phím tắt",
+      "save_failed_with_name": "Không thể lưu phím tắt: {{name}}",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
-      "search_placeholder": "[to be translated]:Search shortcuts...",
+      "search_placeholder": "Tìm kiếm phím tắt...",
       "select_model": "Chọn Mô hình",
       "selection_assistant_select_text": "Trợ lý Lựa chọn: Chọn Văn bản",
       "selection_assistant_toggle": "Bật Trợ lý Chọn",
@@ -5506,7 +5511,7 @@
       "title": "Phím tắt",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
       "toggle_show_topics": "Chuyển đổi chủ đề",
-      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
+      "toggle_sidebar": "Chuyển đổi thanh bên",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"
@@ -5569,6 +5574,14 @@
         "error": {
           "not_system": "Hệ thống OCR chỉ hỗ trợ Windows và MacOS"
         },
+        "features": {
+          "paddleocr": "[to be translated]:Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "[to be translated]:Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "[to be translated]:Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "[to be translated]:A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "Nhà cung cấp không tồn tại"
@@ -5595,6 +5608,13 @@
         "title": "Dịch vụ OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "[to be translated]:Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "[to be translated]:Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "[to be translated]:Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "[to be translated]:An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "[to be translated]:A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "Mã truy cập của Cộng đồng AI Studio",
           "api_url": "URL API",
@@ -5775,11 +5795,11 @@
     }
   },
   "tab": {
-    "close": "[to be translated]:Close Tab",
-    "moveToFirst": "[to be translated]:Move to First",
-    "new": "[to be translated]:New Tab",
-    "pin": "[to be translated]:Pin Tab",
-    "unpin": "[to be translated]:Unpin Tab"
+    "close": "Đóng Tab",
+    "moveToFirst": "Di chuyển lên đầu",
+    "new": "Thẻ Mới",
+    "pin": "Ghim Tab",
+    "unpin": "Gỡ ghim thẻ"
   },
   "title": {
     "apps": "Ứng dụng",
@@ -5946,7 +5966,7 @@
   },
   "tray": {
     "quit": "Thôi",
-    "show_quick_assistant": "[to be translated]:Quick Assistant",
+    "show_quick_assistant": "Trợ lý Nhanh",
     "show_window": "Hiển thị cửa sổ"
   },
   "update": {

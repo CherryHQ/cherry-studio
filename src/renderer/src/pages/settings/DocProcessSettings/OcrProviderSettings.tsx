@@ -17,9 +17,10 @@ import { OcrTesseractSettings } from './OcrTesseractSettings'
 
 type Props = {
   provider: OcrProvider
+  embedded?: boolean
 }
 
-const OcrProviderSettings = ({ provider }: Props) => {
+const OcrProviderSettings = ({ provider, embedded = false }: Props) => {
   const { theme: themeMode } = useTheme()
   const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
 
@@ -44,6 +45,14 @@ const OcrProviderSettings = ({ provider }: Props) => {
     } else {
       throw new Error('Not supported OCR provider')
     }
+  }
+
+  if (embedded) {
+    return (
+      <ErrorBoundary>
+        <ProviderSettings />
+      </ErrorBoundary>
+    )
   }
 
   return (

@@ -22,6 +22,7 @@ import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/sc
 import { Route as SettingsQuickphraseRouteImport } from './routes/settings/quickphrase'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quickAssistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
+import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
@@ -121,6 +122,11 @@ const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
 const SettingsProviderRoute = SettingsProviderRouteImport.update({
   id: '/provider',
   path: '/provider',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsNotesRoute = SettingsNotesRouteImport.update({
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
@@ -368,6 +375,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
@@ -417,6 +425,7 @@ export interface FileRoutesById {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
+  '/settings/plugins': typeof SettingsPluginsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quickAssistant': typeof SettingsQuickAssistantRoute
   '/settings/quickphrase': typeof SettingsQuickphraseRoute
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
     | '/settings/quickphrase'
@@ -515,6 +525,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/model'
     | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
     | '/settings/quickphrase'
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/notes'
+    | '/settings/plugins'
     | '/settings/provider'
     | '/settings/quickAssistant'
     | '/settings/quickphrase'
@@ -687,6 +699,13 @@ declare module '@tanstack/react-router' {
       path: '/provider'
       fullPath: '/settings/provider'
       preLoaderRoute: typeof SettingsProviderRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/plugins': {
+      id: '/settings/plugins'
+      path: '/plugins'
+      fullPath: '/settings/plugins'
+      preLoaderRoute: typeof SettingsPluginsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/notes': {
@@ -1017,6 +1036,7 @@ interface SettingsRouteChildren {
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotesRoute: typeof SettingsNotesRoute
+  SettingsPluginsRoute: typeof SettingsPluginsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
   SettingsQuickphraseRoute: typeof SettingsQuickphraseRoute
@@ -1039,6 +1059,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotesRoute: SettingsNotesRoute,
+  SettingsPluginsRoute: SettingsPluginsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
   SettingsQuickphraseRoute: SettingsQuickphraseRoute,

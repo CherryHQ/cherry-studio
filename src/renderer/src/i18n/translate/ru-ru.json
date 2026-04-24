@@ -1503,8 +1503,8 @@
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
     "cli_tool": "Инструмент",
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} товар",
+    "count_other": "{{count}} товаров",
     "custom_path": "Пользовательский путь",
     "custom_path_error": "Не удалось задать пользовательский путь терминала",
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
@@ -1512,12 +1512,12 @@
     "description": "Быстро запускает несколько CLI-инструментов для кода, повышая эффективность разработки",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Попробуйте изменить поисковые запросы",
+        "title": "Подходящие инструменты не найдены"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Добавьте инструмент CLI или помощник по коду для начала работы",
+        "title": "Инструментов для кода пока нет"
       }
     },
     "env_vars_help": "Установите переменные окружения для использования при запуске CLI-инструментов. Каждая переменная должна быть на отдельной строке в формате KEY=value",
@@ -1529,28 +1529,28 @@
       "bun_required": "Пожалуйста, установите среду Bun перед запуском CLI-инструментов",
       "error": "Не удалось запустить. Пожалуйста, попробуйте снова",
       "label": "Запуск",
-      "launched": "[to be translated]:Launched",
+      "launched": "Запущен",
       "success": "Запуск успешно завершен",
       "validation_error": "Пожалуйста, заполните все обязательные поля: CLI-инструмент, модель и рабочая директория"
     },
     "launching": "Запуск...",
     "model": "Модель",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Выберите, какую модель ИИ должен использовать инструмент CLI",
     "model_placeholder": "Выберите модель для использования",
     "model_required": "Пожалуйста, выберите модель",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Официальный",
+    "official_tools": "Официальный",
+    "search_placeholder": "Поиск инструментов CLI…",
     "select_folder": "Выберите папку",
     "set_custom_path": "Настройка пользовательского пути терминала",
     "supported_providers": "Поддерживаемые поставщики",
     "terminal": "терминал",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Выберите, в каком терминале запускать CLI",
     "terminal_placeholder": "Выбор приложения терминала",
     "title": "Инструменты кода",
     "update_options": "Параметры обновления",
     "working_directory": "Рабочая директория",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Рабочий каталог, в котором запускается инструмент CLI"
   },
   "code_block": {
     "collapse": "Свернуть",
@@ -4906,11 +4906,11 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "appSettings": "[to be translated]:App Settings",
-      "integrations": "[to be translated]:Integrations",
-      "productivity": "[to be translated]:Productivity",
-      "services": "[to be translated]:Services",
-      "system": "[to be translated]:System"
+      "appSettings": "Настройки приложения",
+      "integrations": "Интеграции",
+      "productivity": "Производительность",
+      "services": "Услуги",
+      "system": "Система"
     },
     "messages": {
       "divider": {
@@ -5158,6 +5158,11 @@
         "tip": "Управление степенью детализации вывода модели",
         "title": "подробность"
       }
+    },
+    "plugins": {
+      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+      "title": "Плагины",
+      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
     },
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
@@ -5569,6 +5574,14 @@
         "error": {
           "not_system": "Системный OCR поддерживается только в Windows и MacOS"
         },
+        "features": {
+          "paddleocr": "[to be translated]:Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "[to be translated]:Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "[to be translated]:Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "[to be translated]:A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "Поставщик не существует"
@@ -5595,6 +5608,13 @@
         "title": "OCR-сервис"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "[to be translated]:Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "[to be translated]:Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "[to be translated]:Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "[to be translated]:An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "[to be translated]:A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "Токен доступа к сообществу AI Studio",
           "api_url": "URL API",

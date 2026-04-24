@@ -5159,6 +5159,11 @@
         "title": "Verbosity"
       }
     },
+    "plugins": {
+      "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
+      "title": "Plugins",
+      "uvDescription": "Python package manager for MCP services and dependency installation."
+    },
     "privacy": {
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
@@ -5569,6 +5574,14 @@
         "error": {
           "not_system": "System OCR only supports Windows and MacOS"
         },
+        "features": {
+          "paddleocr": "Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "The provider does not exist"
@@ -5595,6 +5608,13 @@
         "title": "OCR service"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "Access token of AI Studio Community",
           "api_url": "API URL",

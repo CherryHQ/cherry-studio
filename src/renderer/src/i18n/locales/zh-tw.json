@@ -5159,6 +5159,11 @@
         "title": "詳細程度"
       }
     },
+    "plugins": {
+      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "title": "插件",
+      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名傳送錯誤報告和資料統計",
       "title": "隱私設定"
@@ -5569,6 +5574,14 @@
         "error": {
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
         },
+        "features": {
+          "paddleocr": "[to be translated]:Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "system": {
+            "macos": "[to be translated]:Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
+            "windows": "[to be translated]:Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+          },
+          "tesseract": "[to be translated]:A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "該供應商不存在"
@@ -5595,6 +5608,13 @@
         "title": "OCR 服務"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "[to be translated]:Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
+          "mineru": "[to be translated]:Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
+          "mistral": "[to be translated]:Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
+          "open_mineru": "[to be translated]:An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
+          "paddleocr": "[to be translated]:A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",
           "api_url": "API 網址",

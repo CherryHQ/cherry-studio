@@ -5159,6 +5159,11 @@
         "title": "详细程度"
       }
     },
+    "plugins": {
+      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "title": "插件",
+      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+    },
     "privacy": {
       "enable_privacy_mode": "匿名发送错误报告和数据统计",
       "title": "隐私设置"
@@ -5569,6 +5574,14 @@
         "error": {
           "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
         },
+        "features": {
+          "paddleocr": "中文识别能力更强，适合票据、扫描件和复杂版式图片的文本提取。",
+          "system": {
+            "macos": "使用 macOS 原生 OCR 引擎，开箱即用，适合截图识别和轻量文本提取。",
+            "windows": "使用 Windows 系统 OCR，引擎集成度高，适合本地基础识别场景。"
+          },
+          "tesseract": "经典本地 OCR 方案，支持自定义语言包，适合离线处理和多语言扩展。"
+        },
         "image": {
           "error": {
             "provider_not_found": "该提供商不存在"
@@ -5595,6 +5608,13 @@
         "title": "OCR 服务"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "适合把 PDF 转成更规整的 Markdown 或可编辑文本，方便后续检索与整理。",
+          "mineru": "偏向高质量版面恢复，适合学术论文、表格和公式较多的 PDF 文档。",
+          "mistral": "云端文档理解能力较强，适合结构化提取、多页文档和复杂版式解析。",
+          "open_mineru": "开源部署方案，更适合希望自建服务并自行控制处理链路的场景。",
+          "paddleocr": "轻量且易接入，适合中文文档、扫描件和常见票据类内容的文本提取。"
+        },
         "paddleocr": {
           "aistudio_access_token": "星河社区访问令牌",
           "api_url": "API URL",
