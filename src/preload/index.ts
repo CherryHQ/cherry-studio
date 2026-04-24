@@ -950,6 +950,13 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
+  },
+  agent: {
+    reorderAgents: (orderedIds: string[]) => ipcRenderer.invoke(IpcChannel.Agent_ReorderAgents, orderedIds),
+    reorderSessions: (agentId: string, orderedIds: string[]) =>
+      ipcRenderer.invoke(IpcChannel.Agent_ReorderSessions, agentId, orderedIds),
+    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
+    getModels: (filter: unknown) => ipcRenderer.invoke(IpcChannel.Agent_GetModels, filter)
   }
 }
 

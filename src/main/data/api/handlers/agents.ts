@@ -181,5 +181,33 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
       return skill
     }
+  },
+
+  // Phase 2 will replace these stubs with real channel service calls
+  '/channels': {
+    GET: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    },
+    POST: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    }
+  },
+
+  '/channels/:channelId': {
+    GET: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    },
+    PATCH: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    },
+    DELETE: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    }
+  },
+
+  '/agents/:agentId/tasks/:taskId/logs': {
+    GET: async () => {
+      throw DataApiErrorFactory.internal(new Error('Not implemented — Phase 2'))
+    }
   }
 }

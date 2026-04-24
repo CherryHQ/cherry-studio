@@ -143,7 +143,6 @@ export const ScheduledTaskEntitySchema = z.strictObject({
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
-/** Reserved for a future task-run-log endpoint; not yet exposed in AgentSchemas. */
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.number(),
   taskId: z.string(),
@@ -155,6 +154,53 @@ export const TaskRunLogEntitySchema = z.strictObject({
   error: z.string().nullable().optional()
 })
 export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
+
+// ============================================================================
+// Channel entity schemas
+// ============================================================================
+
+/** ChannelEntitySchema — mirrors AgentChannelRow */
+export const ChannelEntitySchema = z.strictObject({
+  id: z.string(),
+  type: z.enum(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack']),
+  name: z.string(),
+  agentId: z.string().nullable().optional(),
+  sessionId: z.string().nullable().optional(),
+  config: z.record(z.string(), z.unknown()),
+  isActive: z.boolean(),
+  activeChatIds: z.array(z.string()).nullable().optional(),
+  permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan']).nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+})
+export type ChannelEntity = z.infer<typeof ChannelEntitySchema>
+
+/** CHANNEL_MUTABLE_FIELDS — pick-set for DTOs */
+const CHANNEL_MUTABLE_FIELDS = {
+  type: true,
+  name: true,
+  agentId: true,
+  sessionId: true,
+  config: true,
+  isActive: true,
+  activeChatIds: true,
+  permissionMode: true
+} as const
+
+/** CreateChannelSchema — derived via .pick() (Rule C) */
+export const CreateChannelSchema = ChannelEntitySchema.pick(CHANNEL_MUTABLE_FIELDS)
+export type CreateChannelDto = z.infer<typeof CreateChannelSchema>
+
+/** UpdateChannelSchema — partial of CreateChannelSchema */
+export const UpdateChannelSchema = CreateChannelSchema.partial()
+export type UpdateChannelDto = z.infer<typeof UpdateChannelSchema>
+
+/** ChannelListQuerySchema — optional filters */
+export const ChannelListQuerySchema = z.strictObject({
+  agentId: z.string().optional(),
+  type: z.string().optional()
+})
+export type ChannelListQuery = z.infer<typeof ChannelListQuerySchema>
 
 export const InstalledSkillSchema = z.strictObject({
   id: z.string(),
@@ -352,6 +398,44 @@ export type AgentSchemas = {
     GET: {
       params: { skillId: string }
       response: InstalledSkill
+    }
+  }
+
+  /** List all channels, create a new channel */
+  '/channels': {
+    GET: {
+      query?: ChannelListQuery
+      response: ChannelEntity[]
+    }
+    POST: {
+      body: CreateChannelDto
+      response: ChannelEntity
+    }
+  }
+
+  /** Get, update, or delete a specific channel */
+  '/channels/:channelId': {
+    GET: {
+      params: { channelId: string }
+      response: ChannelEntity
+    }
+    PATCH: {
+      params: { channelId: string }
+      body: UpdateChannelDto
+      response: ChannelEntity
+    }
+    DELETE: {
+      params: { channelId: string }
+      response: void
+    }
+  }
+
+  /** List run logs for a specific task (paginated) */
+  '/agents/:agentId/tasks/:taskId/logs': {
+    GET: {
+      params: { agentId: string; taskId: string }
+      query?: ListQuery
+      response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
 }
