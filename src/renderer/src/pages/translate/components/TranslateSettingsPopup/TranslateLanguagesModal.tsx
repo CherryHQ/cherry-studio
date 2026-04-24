@@ -66,8 +66,12 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
           await addLanguage({ value, emoji, langCode: langCode.toLowerCase() })
         }
         onCancel() // Only close the modal on success — failures keep the form state so the user can retry.
-      } catch {
-        // Hooks already log + show error toast; swallow here to keep the modal open.
+      } catch (e) {
+        // Hooks already log + show error toast for their own failures; this
+        // catch exists to keep the modal open on any submit rejection. Log at
+        // debug so non-hook errors (e.g. antd form validator / Zod rejection)
+        // remain traceable instead of silently swallowed.
+        logger.debug('handleSubmit blocked', { error: e as Error })
       }
     },
     [addLanguage, updateLanguage, editingCustomLanguage, onCancel]
