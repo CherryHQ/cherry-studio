@@ -5,8 +5,7 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileMetadata } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
@@ -17,9 +16,8 @@ import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
 
-import { getAssistantById, getAssistantProvider } from './AssistantService'
+import { getAssistantById } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
-import FileManager from './FileManager'
 
 const logger = loggerService.withContext('MessagesService')
 
@@ -34,18 +32,6 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
   return {
     current: contextMsgs.length,
     max: settingContextCount
-  }
-}
-
-/** @deprecated Use safeDeleteFiles instead */
-// 删除列表中的文件
-export async function safeDeleteFiles(filesToDelete: FileMetadata[]): Promise<void> {
-  if (!filesToDelete || filesToDelete.length === 0) return
-
-  try {
-    await FileManager.deleteFiles(filesToDelete)
-  } catch (error) {
-    logger.error('Failed to delete files, may produce orphan files:', error as Error)
   }
 }
 
@@ -97,34 +83,4 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
   }
 
   return title
-}
-
-export function checkRateLimit(assistant: Assistant): boolean {
-  const provider = getAssistantProvider(assistant)
-
-  if (!provider?.rateLimit) {
-    return false
-  }
-
-  const topicId = assistant.topics[0].id
-  const messages = selectMessagesForTopic(store.getState(), topicId)
-
-  if (!messages || messages.length <= 1) {
-    return false
-  }
-
-  const now = Date.now()
-  const lastMessage = messages[messages.length - 1]
-  const lastMessageTime = new Date(lastMessage.createdAt).getTime()
-  const timeDiff = now - lastMessageTime
-  const rateLimitMs = provider.rateLimit * 1000
-
-  if (timeDiff < rateLimitMs) {
-    const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
-
-    window.toast.warning(t('message.warning.rate.limit', { seconds: waitTimeSeconds }))
-    return true
-  }
-
-  return false
 }
