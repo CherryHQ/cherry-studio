@@ -84,7 +84,7 @@ export function useModelSelectorData({
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
   const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
-  const { pinnedIds, togglePin } = usePinnedModelIds()
+  const { isLoading: isPinnedModelsLoading, pinnedIds, refetch: refetchPinnedModels, togglePin } = usePinnedModelIds()
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
@@ -192,6 +192,7 @@ export function useModelSelectorData({
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedIdSet = new Set(pinnedIds)
+    const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const finalModelFilter = (model: Model) => (!showTagFilter || tagFilter(model)) && baseModelFilter(model)
     const duplicateNamesByProvider = new Map<string, Set<string>>(
       sortedProviders.map((provider) => [
@@ -201,14 +202,17 @@ export function useModelSelectorData({
     )
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
-      const pinnedItems = sortedProviders.flatMap((provider) =>
-        searchFilter(provider)
-          .filter(finalModelFilter)
-          .filter((model) => pinnedIdSet.has(model.id))
-          .map((model) =>
-            createModelItem(model, provider, true, duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false)
-          )
-      )
+      const pinnedItems = pinnedIds.flatMap((modelId) => {
+        const model = selectableModelsById.get(modelId)
+        const provider = model ? providerById.get(model.providerId) : undefined
+        if (!model || !provider || !finalModelFilter(model)) {
+          return []
+        }
+
+        return [
+          createModelItem(model, provider, true, duplicateNamesByProvider.get(provider.id)?.has(model.name) ?? false)
+        ]
+      })
 
       if (pinnedItems.length > 0) {
         items.push({
@@ -257,6 +261,7 @@ export function useModelSelectorData({
     baseModelFilter,
     createModelItem,
     pinnedIds,
+    selectableModelsById,
     searchFilter,
     searchText.length,
     showPinnedModels,
@@ -267,10 +272,12 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    isLoading: isProvidersLoading || isModelsLoading,
+    isLoading: isProvidersLoading || isModelsLoading || isPinnedModelsLoading,
+    isPinActionDisabled: isPinnedModelsLoading,
     listItems,
     modelItems,
     pinnedIds,
+    refetchPinnedModels,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,

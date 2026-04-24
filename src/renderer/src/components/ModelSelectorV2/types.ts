@@ -95,9 +95,11 @@ export interface UseModelSelectorDataOptions {
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
   isLoading: boolean
+  isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
-  pinnedIds: string[]
+  pinnedIds: readonly UniqueModelId[]
+  refetchPinnedModels: () => void
   resetTags: () => void
   resolvedSelectedModelIds: UniqueModelId[]
   selectableModelsById: ReadonlyMap<UniqueModelId, Model>

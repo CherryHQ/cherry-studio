@@ -3477,9 +3477,9 @@
           "originalKey": "pinned:models",
           "type": "string[]",
           "defaultValue": [],
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "model.pinned_ids"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "image://avatar",

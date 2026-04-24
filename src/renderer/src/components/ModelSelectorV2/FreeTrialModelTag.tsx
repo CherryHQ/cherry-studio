@@ -1,10 +1,13 @@
 import { CustomTag } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('FreeTrialModelTag')
 
 interface Props {
   model: Model
@@ -40,7 +43,9 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
 
   const navigateToProvider = () => {
     onBeforeNavigate?.()
-    void navigate({ to: '/settings/provider', search: { id: providerId } })
+    navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+      logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+    })
   }
 
   const handleTagClick = (event: MouseEvent) => {

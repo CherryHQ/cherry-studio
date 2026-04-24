@@ -8,7 +8,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-function createMockContext(reduxState: Record<string, unknown> = {}): MigrationContext {
+function createMockContext(
+  reduxState: Record<string, unknown> = {},
+  dexieSettings: Record<string, unknown> = {}
+): MigrationContext {
   const insertValues: unknown[][] = []
 
   const mockTx = {
@@ -24,6 +27,9 @@ function createMockContext(reduxState: Record<string, unknown> = {}): MigrationC
     sources: {
       reduxState: {
         getCategory: vi.fn((cat: string) => reduxState[cat])
+      },
+      dexieSettings: {
+        get: vi.fn((key: string) => dexieSettings[key])
       }
     },
     db: {
@@ -142,6 +148,42 @@ describe('ProviderModelMigrator', () => {
       const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
       const modelInsert = inserted[1] // second insert is the model batch
       expect(modelInsert).toHaveLength(1)
+    })
+
+    it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
+      const ctx = createMockContext(
+        {
+          llm: {
+            providers: [makeProvider('openai', [{ id: 'gpt-4o' }]), makeProvider('anthropic', [{ id: 'claude-3' }])]
+          }
+        },
+        {
+          'pinned:models': [
+            { id: 'gpt-4o', provider: 'openai' },
+            '{"id":"gpt-4o","provider":"openai"}',
+            'anthropic/claude-3',
+            'openai::gpt-4o',
+            'missing::model',
+            ''
+          ]
+        }
+      )
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const pinRows = inserted.flat().filter((row): row is { entityId: string; orderKey: string } => {
+        const pinRow = row as { entityId?: unknown; entityType?: unknown; orderKey?: unknown }
+        return (
+          pinRow.entityType === 'model' && typeof pinRow.entityId === 'string' && typeof pinRow.orderKey === 'string'
+        )
+      })
+
+      expect(pinRows.map((row) => row.entityId)).toEqual(['openai::gpt-4o', 'anthropic::claude-3'])
+      expect(pinRows.every((row) => row.orderKey.length > 0)).toBe(true)
+      expect(pinRows[0].orderKey < pinRows[1].orderKey).toBe(true)
     })
   })
 

@@ -1,133 +1,94 @@
-import type { Model } from '@shared/data/types/model'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import type { Pin } from '@shared/data/types/pin'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePinnedModelIds } from '../usePinnedModelIds'
 
-// mockUsePreference does not re-render consumers when state changes (no subscription),
-// so toggle-style tests bypass state and assert on the set() spy directly.
-function wirePreference(stored: string[]) {
-  const setSpy = vi.fn(async () => {
-    /* spy only */
-  })
-  mockUsePreference.mockImplementation(((key: string) => {
-    if (key === 'model.pinned_ids') return [stored, setSpy]
-    return [null, vi.fn()]
-  }) as unknown as typeof mockUsePreference)
-  return setSpy
+const PIN_A: Pin = {
+  id: '11111111-1111-4111-8111-111111111111',
+  entityType: 'model',
+  entityId: 'openai::gpt-4',
+  orderKey: 'a0',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
 }
 
-function mockModelsData(ids: string[], loading = false) {
-  mockUseQuery.mockImplementation(() => ({
-    data: loading ? undefined : ids.map((id) => ({ id }) as unknown as Model),
-    isLoading: loading,
-    isRefreshing: false,
-    error: undefined,
-    refetch: vi.fn(),
-    mutate: vi.fn()
-  }))
+const PIN_B: Pin = {
+  id: '22222222-2222-4222-8222-222222222222',
+  entityType: 'model',
+  entityId: 'anthropic::claude-3-opus',
+  orderKey: 'a1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+}
+
+function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: boolean } = {}) {
+  const refetch = vi.fn()
+  mockUseQuery.mockImplementation((path: string) => {
+    if (path === '/pins') {
+      return {
+        data: pins,
+        isLoading: options.isLoading ?? false,
+        isRefreshing: options.isRefreshing ?? false,
+        error: undefined,
+        refetch,
+        mutate: vi.fn()
+      }
+    }
+
+    return {
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }
+  })
+
+  return refetch
+}
+
+function wireMutations() {
+  const postTrigger = vi.fn(async () => PIN_A)
+  const deleteTrigger = vi.fn(async () => undefined)
+
+  mockUseMutation.mockImplementation((method: string, path: string, options?: { refresh?: unknown }) => {
+    if (method === 'POST' && path === '/pins') {
+      expect(options?.refresh).toEqual(['/pins'])
+      return { trigger: postTrigger, isLoading: false, error: undefined }
+    }
+
+    if (method === 'DELETE' && path === '/pins/:id') {
+      expect(options?.refresh).toEqual(['/pins'])
+      return { trigger: deleteTrigger, isLoading: false, error: undefined }
+    }
+
+    return { trigger: vi.fn(), isLoading: false, error: undefined }
+  })
+
+  return { postTrigger, deleteTrigger }
 }
 
 describe('usePinnedModelIds', () => {
   beforeEach(() => {
-    MockUsePreferenceUtils.resetMocks()
-    mockUseQuery.mockReset()
+    MockUseDataApiUtils.resetMocks()
   })
 
-  it('returns stored ids verbatim when all are valid UniqueModelIds', () => {
-    wirePreference(['openai::gpt-4', 'anthropic::claude-3-opus'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
+  it('reads model pins from the /pins DataApi endpoint in order', () => {
+    wirePins([PIN_B, PIN_A])
+    wireMutations()
 
     const { result } = renderHook(() => usePinnedModelIds())
 
-    expect(result.current.pinnedIds).toEqual(['openai::gpt-4', 'anthropic::claude-3-opus'])
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { query: { entityType: 'model' } })
+    expect(result.current.pinnedIds).toEqual(['anthropic::claude-3-opus', 'openai::gpt-4'])
   })
 
-  it('dedupes duplicate entries in storage', () => {
-    wirePreference(['openai::gpt-4', 'openai::gpt-4', 'anthropic::claude-3-opus'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
-
-    const { result } = renderHook(() => usePinnedModelIds())
-
-    expect(result.current.pinnedIds).toEqual(['openai::gpt-4', 'anthropic::claude-3-opus'])
-  })
-
-  it('normalizes legacy JSON format (v1 getModelUniqId output)', () => {
-    wirePreference(['{"id":"gpt-4","provider":"openai"}', '{"id":"claude-3-opus","provider":"anthropic"}'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
-
-    const { result } = renderHook(() => usePinnedModelIds())
-
-    expect(result.current.pinnedIds).toEqual(['openai::gpt-4', 'anthropic::claude-3-opus'])
-  })
-
-  it('normalizes legacy provider/modelId slash format', () => {
-    wirePreference(['openai/gpt-4', 'anthropic/claude-3-opus'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
-
-    const { result } = renderHook(() => usePinnedModelIds())
-
-    expect(result.current.pinnedIds).toEqual(['openai::gpt-4', 'anthropic::claude-3-opus'])
-  })
-
-  it('drops empty/invalid entries and keeps the rest', () => {
-    wirePreference(['', 'openai::gpt-4', 'no-separator', 'anthropic::claude-3-opus'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
-
-    const { result } = renderHook(() => usePinnedModelIds())
-
-    expect(result.current.pinnedIds).toEqual(['openai::gpt-4', 'anthropic::claude-3-opus'])
-  })
-
-  it('writes back normalized list when stored legacy data differs from normalized', async () => {
-    const setSpy = wirePreference(['{"id":"gpt-4","provider":"openai"}'])
-    mockModelsData(['openai::gpt-4'])
-
-    renderHook(() => usePinnedModelIds())
-
-    await waitFor(() => {
-      expect(setSpy).toHaveBeenCalledWith(['openai::gpt-4'])
-    })
-  })
-
-  it('does not write back when stored data already matches normalized form', async () => {
-    const setSpy = wirePreference(['openai::gpt-4'])
-    mockModelsData(['openai::gpt-4'])
-
-    renderHook(() => usePinnedModelIds())
-
-    // let effects flush
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    expect(setSpy).not.toHaveBeenCalled()
-  })
-
-  it('prunes orphan ids once models finish loading', async () => {
-    const setSpy = wirePreference(['openai::gpt-4', 'anthropic::deleted-model'])
-    mockModelsData(['openai::gpt-4']) // deleted-model no longer exists
-
-    renderHook(() => usePinnedModelIds())
-
-    await waitFor(() => {
-      expect(setSpy).toHaveBeenCalledWith(['openai::gpt-4'])
-    })
-  })
-
-  it('does not prune while models are still loading', async () => {
-    const setSpy = wirePreference(['openai::gpt-4', 'anthropic::claude-3-opus'])
-    mockModelsData([], true) // loading
-
-    renderHook(() => usePinnedModelIds())
-    await new Promise((resolve) => setTimeout(resolve, 10))
-
-    // Stored values were already normalized form → neither effect should fire.
-    expect(setSpy).not.toHaveBeenCalled()
-  })
-
-  it('togglePin adds a new id at the tail', async () => {
-    const setSpy = wirePreference(['openai::gpt-4'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
+  it('pins an unpinned model through POST /pins', async () => {
+    wirePins([PIN_A])
+    const { postTrigger } = wireMutations()
 
     const { result } = renderHook(() => usePinnedModelIds())
 
@@ -135,12 +96,14 @@ describe('usePinnedModelIds', () => {
       await result.current.togglePin('anthropic::claude-3-opus')
     })
 
-    expect(setSpy).toHaveBeenCalledWith(['openai::gpt-4', 'anthropic::claude-3-opus'])
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: { entityType: 'model', entityId: 'anthropic::claude-3-opus' }
+    })
   })
 
-  it('togglePin removes an existing id', async () => {
-    const setSpy = wirePreference(['openai::gpt-4', 'anthropic::claude-3-opus'])
-    mockModelsData(['openai::gpt-4', 'anthropic::claude-3-opus'])
+  it('unpins an existing model through DELETE /pins/:id with the pin row id', async () => {
+    wirePins([PIN_A, PIN_B])
+    const { deleteTrigger } = wireMutations()
 
     const { result } = renderHook(() => usePinnedModelIds())
 
@@ -148,6 +111,31 @@ describe('usePinnedModelIds', () => {
       await result.current.togglePin('openai::gpt-4')
     })
 
-    expect(setSpy).toHaveBeenCalledWith(['anthropic::claude-3-opus'])
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: PIN_A.id } })
+  })
+
+  it('exposes the /pins refetch callback for on-demand freshness', () => {
+    const refetch = wirePins([PIN_A])
+    wireMutations()
+
+    const { result } = renderHook(() => usePinnedModelIds())
+    result.current.refetch()
+
+    expect(refetch).toHaveBeenCalled()
+  })
+
+  it('does not mutate while pin state is still loading', async () => {
+    wirePins([], { isLoading: true })
+    const { postTrigger, deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => usePinnedModelIds())
+
+    await act(async () => {
+      await result.current.togglePin('openai::gpt-4')
+    })
+
+    expect(result.current.isLoading).toBe(true)
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(deleteTrigger).not.toHaveBeenCalled()
   })
 })

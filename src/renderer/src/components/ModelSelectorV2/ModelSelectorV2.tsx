@@ -12,7 +12,9 @@ import {
 } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { isDev } from '@renderer/config/constant'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
@@ -32,10 +34,13 @@ import { useTranslation } from 'react-i18next'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
 import { ModelTagChip } from './ModelTagChip'
+import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
+
+const logger = loggerService.withContext('ModelSelectorV2')
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
@@ -60,15 +65,30 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function areSelectedIdsEqual(left: readonly UniqueModelId[], right: readonly UniqueModelId[]) {
-  return left.length === right.length && left.every((modelId, index) => modelId === right[index])
-}
-
 function normalizeSelectedIdsFromValue(
   value: ModelSelectorValue,
   selectionType: ModelSelectorSelectionType,
   multiple: boolean
 ): UniqueModelId[] {
+  // Incoherent prop combos (e.g. array value with multiple=false, scalar with
+  // multiple=true) are silently coerced to [] to keep the component robust.
+  // Without telemetry they're invisible to callers — warn in DEV so
+  // misconfigurations surface during development.
+  if (isDev && value !== undefined && value !== null) {
+    const isValueArray = Array.isArray(value)
+    if (multiple && !isValueArray) {
+      logger.warn('normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []', {
+        selectionType,
+        valueType: typeof value
+      })
+    } else if (!multiple && isValueArray) {
+      logger.warn('normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []', {
+        selectionType,
+        valueLength: value.length
+      })
+    }
+  }
+
   if (selectionType === 'id') {
     const candidateIds = multiple
       ? Array.isArray(value)
@@ -110,6 +130,7 @@ function ModelRow({
   onSelect,
   onNavigateBeforeTrial,
   showCheckbox,
+  isPinActionDisabled,
   t
 }: {
   item: ModelSelectorModelItem
@@ -118,6 +139,7 @@ function ModelRow({
   onSelect: (item: ModelSelectorModelItem) => void
   onNavigateBeforeTrial: () => void
   showCheckbox: boolean
+  isPinActionDisabled: boolean
   t: (key: string) => string
 }) {
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
@@ -195,6 +217,7 @@ function ModelRow({
         type="button"
         variant="ghost"
         size="icon-sm"
+        disabled={isPinActionDisabled}
         aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
         className={cn(
           'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
@@ -301,8 +324,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   const {
     availableTags,
     isLoading,
+    isPinActionDisabled,
     listItems,
     modelItems,
+    refetchPinnedModels,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,
@@ -371,13 +396,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectMode) {
-        // 用 rawSelectedModelIds 作为 toggle 基底：保留业务侧存的所有 ID（包括当前 provider 禁用的），
-        // 否则 toggle 一次就会把"暂时不可选"的 ID 静默抹掉
-        const nextSelectedIds = rawSelectedModelIds.includes(item.modelId)
-          ? rawSelectedModelIds.filter((modelId) => modelId !== item.modelId)
-          : [...rawSelectedModelIds, item.modelId]
-
-        emitSelection(nextSelectedIds)
+        emitSelection(computeToggledSelection(rawSelectedModelIds, item.modelId))
         return
       }
 
@@ -394,17 +413,25 @@ export function ModelSelector(props: ModelSelectorProps) {
   const handleNavigateToProviderSettings = useCallback(
     (providerId: string) => {
       setOpen(false)
-      void navigate({ to: '/settings/provider', search: { id: providerId } })
+      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
+        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+      })
     },
     [navigate, setOpen]
   )
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
+      if (isPinActionDisabled) {
+        return
+      }
+
       skipNextFocusScroll.current = true
-      void togglePin(modelId)
+      togglePin(modelId).catch((error) => {
+        logger.error('Failed to toggle model pin', error as Error, { modelId })
+      })
     },
-    [togglePin]
+    [isPinActionDisabled, togglePin]
   )
 
   const handleMultiSelectModeChange = useCallback(
@@ -422,8 +449,8 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
-      const collapsed = resolvedSelectedModelIds.slice(0, 1)
-      if (!areSelectedIdsEqual(collapsed, rawSelectedModelIds)) {
+      const collapsed = computeCollapsedSelection(resolvedSelectedModelIds, rawSelectedModelIds)
+      if (collapsed !== null) {
         emitSelection(collapsed)
       }
     },
@@ -447,6 +474,12 @@ export function ModelSelector(props: ModelSelectorProps) {
     const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
     return () => window.clearTimeout(timer)
   }, [open])
+
+  useEffect(() => {
+    if (open && showPinnedModels) {
+      refetchPinnedModels()
+    }
+  }, [open, refetchPinnedModels, showPinnedModels])
 
   useEffect(() => {
     if (!open) {
@@ -515,6 +548,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             isFocused={focusedItemKey === item.key}
+            isPinActionDisabled={isPinActionDisabled}
             onPin={handleTogglePin}
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
@@ -530,6 +564,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
+      isPinActionDisabled,
       multiple,
       multiSelectMode,
       setFocusedItemKey,

@@ -51,7 +51,13 @@ function makeModel(id: string, providerId: string, overrides: Partial<Model> = {
   } as Model
 }
 
-function wireDeps(opts: { providers: Provider[]; models: Model[]; pinnedIds?: string[]; isModelsLoading?: boolean }) {
+function wireDeps(opts: {
+  providers: Provider[]
+  models: Model[]
+  pinnedIds?: string[]
+  isModelsLoading?: boolean
+  isPinnedModelsLoading?: boolean
+}) {
   mockUseProvidersFn.mockReturnValue({
     providers: opts.providers,
     isLoading: false,
@@ -66,7 +72,9 @@ function wireDeps(opts: { providers: Provider[]; models: Model[]; pinnedIds?: st
     refetch: vi.fn()
   })
   mockUsePinnedModelIdsFn.mockReturnValue({
+    isLoading: opts.isPinnedModelsLoading ?? false,
     pinnedIds: opts.pinnedIds ?? [],
+    refetch: vi.fn(),
     togglePin: vi.fn()
   })
 }
@@ -134,6 +142,33 @@ describe('useModelSelectorData', () => {
       (i): i is ModelSelectorModelItem => i.type === 'model' && i.provider.id === 'openai' && !i.isPinned
     )
     expect(openaiModelRows.map((r) => r.modelId)).toEqual(['openai::gpt-3.5'])
+  })
+
+  it('keeps pinned group rows in pin table order instead of provider order', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('anthropic')],
+      models: [makeModel('gpt-4', 'openai'), makeModel('claude-3', 'anthropic')],
+      pinnedIds: ['anthropic::claude-3', 'openai::gpt-4']
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    const pinnedRows = result.current.listItems.filter(
+      (item): item is ModelSelectorModelItem => item.type === 'model' && item.isPinned
+    )
+    expect(pinnedRows.map((row) => row.modelId)).toEqual(['anthropic::claude-3', 'openai::gpt-4'])
+  })
+
+  it('keeps selector loading until model pins are ready', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')],
+      isPinnedModelsLoading: true
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.isLoading).toBe(true)
   })
 
   it('collapses pinned group back into provider group while searching', () => {

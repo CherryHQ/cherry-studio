@@ -2,7 +2,7 @@
  * Pin Service - handles polymorphic pin CRUD and scoped reorder operations
  *
  * Pins are a non-destructive "promote to top" marker for any entity type
- * listed in the shared `EntityType` enum. Ordering within an entityType bucket
+ * listed in the shared pin target registry. Ordering within an entityType bucket
  * is preserved via a fractional-indexing `orderKey`.
  *
  * USAGE GUIDANCE:
@@ -25,8 +25,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePinDto } from '@shared/data/api/schemas/pins'
-import type { EntityType } from '@shared/data/types/entityType'
-import type { Pin } from '@shared/data/types/pin'
+import { type Pin, PinSchema, type PinTargetType } from '@shared/data/types/pin'
 import { and, asc, eq } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
@@ -34,15 +33,31 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PinService')
 
-function rowToPin(row: PinSelect): Pin {
-  return {
+/**
+ * Parse a raw pin row against the discriminated `PinSchema`. Returns `null`
+ * when the row does not match the current schema (e.g. unknown entityType
+ * left over from a rolled-back migration, a stale test fixture, or a manual
+ * SQL insert). Callers decide whether to skip-and-log (list paths) or 404
+ * (single-row paths) — we never throw from a single bad row in a list read.
+ */
+function rowToPin(row: PinSelect): Pin | null {
+  const parsed = PinSchema.safeParse({
     id: row.id,
-    entityType: row.entityType as EntityType,
+    entityType: row.entityType,
     entityId: row.entityId,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
+  })
+  if (!parsed.success) {
+    logger.warn('Dropping malformed pin row', {
+      id: row.id,
+      entityType: row.entityType,
+      issues: parsed.error.issues
+    })
+    return null
   }
+  return parsed.data
 }
 
 export class PinService {
@@ -53,13 +68,13 @@ export class PinService {
   /**
    * List pins for a given entityType, ordered by orderKey ASC.
    */
-  async listByEntityType(entityType: EntityType): Promise<Pin[]> {
+  async listByEntityType(entityType: PinTargetType): Promise<Pin[]> {
     const rows = await this.db
       .select()
       .from(pinTable)
       .where(eq(pinTable.entityType, entityType))
       .orderBy(asc(pinTable.orderKey))
-    return rows.map(rowToPin)
+    return rows.map(rowToPin).filter((pin): pin is Pin => pin !== null)
   }
 
   /**
@@ -72,7 +87,13 @@ export class PinService {
       throw DataApiErrorFactory.notFound('Pin', id)
     }
 
-    return rowToPin(row)
+    const pin = rowToPin(row)
+    if (!pin) {
+      // Row exists but fails schema (e.g. unknown entityType). Surface as 404
+      // so the caller's happy path stays simple — rowToPin already logged.
+      throw DataApiErrorFactory.notFound('Pin', id)
+    }
+    return pin
   }
 
   /**
@@ -97,7 +118,14 @@ export class PinService {
         .from(pinTable)
         .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
         .limit(1)
-      if (existing) return rowToPin(existing)
+      if (existing) {
+        const existingPin = rowToPin(existing)
+        if (existingPin) return existingPin
+        // Row exists but is malformed — drop-and-replace with a fresh insert
+        // rather than looping forever returning null. This path is only
+        // reachable if someone wrote a bad row out-of-band.
+        await tx.delete(pinTable).where(eq(pinTable.id, existing.id))
+      }
 
       try {
         const inserted = await insertWithOrderKey(
@@ -110,6 +138,11 @@ export class PinService {
           }
         )
         const mapped = rowToPin(inserted as PinSelect)
+        if (!mapped) {
+          // Row we just inserted fails our own schema — that's a hard bug,
+          // not a data-integrity edge case.
+          throw new Error('PinService.pin: freshly inserted row failed PinSchema')
+        }
         logger.info('Created pin', {
           id: mapped.id,
           entityType: mapped.entityType,
@@ -125,7 +158,9 @@ export class PinService {
           .where(and(eq(pinTable.entityType, dto.entityType), eq(pinTable.entityId, dto.entityId)))
           .limit(1)
         if (!winner) throw e
-        return rowToPin(winner)
+        const winnerPin = rowToPin(winner)
+        if (!winnerPin) throw e
+        return winnerPin
       }
     })
   }
@@ -182,7 +217,7 @@ export class PinService {
    * Signature is tx-first (mainstream ORM convention) — mirrors
    * `tagService.purgeForEntity`.
    */
-  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
+  async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: PinTargetType, entityId: string): Promise<void> {
     await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))
 
     logger.info('Purged pins for entity', { entityType, entityId })
