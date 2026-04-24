@@ -44,7 +44,7 @@ describe('PromptService', () => {
       expect(result.variables).toEqual(variables)
 
       const [version] = await dbh.db.select().from(promptVersionTable).where(eq(promptVersionTable.promptId, result.id))
-      expect(JSON.parse(version.variables!)).toEqual(variables)
+      expect(JSON.parse(version.variables)).toEqual(variables)
     })
 
     it('should assign strictly increasing orderKeys on successive creates', async () => {
@@ -128,7 +128,7 @@ describe('PromptService', () => {
         .select()
         .from(promptVersionTable)
         .where(and(eq(promptVersionTable.promptId, p.id), eq(promptVersionTable.version, 2)))
-      expect(JSON.parse(v2.variables!)).toEqual(variables)
+      expect(JSON.parse(v2.variables)).toEqual(variables)
     })
 
     it('should use the DTO variables for the new snapshot when provided', async () => {
@@ -145,7 +145,7 @@ describe('PromptService', () => {
         .select()
         .from(promptVersionTable)
         .where(and(eq(promptVersionTable.promptId, p.id), eq(promptVersionTable.version, 2)))
-      expect(JSON.parse(v2.variables!)).toEqual(next)
+      expect(JSON.parse(v2.variables)).toEqual(next)
     })
   })
 
@@ -161,7 +161,7 @@ describe('PromptService', () => {
       expect(updated.variables).toEqual(next)
       const after = await dbh.db.select().from(promptVersionTable).where(eq(promptVersionTable.promptId, p.id))
       expect(after).toHaveLength(before.length)
-      expect(JSON.parse(after[0].variables!)).toEqual(next)
+      expect(JSON.parse(after[0].variables)).toEqual(next)
     })
   })
 
