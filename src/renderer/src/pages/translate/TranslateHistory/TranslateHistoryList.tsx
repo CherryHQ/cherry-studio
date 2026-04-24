@@ -75,7 +75,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
   const clearHistory = useClearHistory()
 
-  const { items, hasMore, isLoadingMore, error, loadMore } = useTranslateHistories({
+  const { items, hasMore, isLoadingMore, error, loadMore, refresh } = useTranslateHistories({
     search: deferredSearch,
     star: showStared
   })
@@ -176,12 +176,18 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 </div>
               )}
             </div>
-          ) : (
+          ) : error ? (
             <Flex className="flex-1 items-center justify-center">
               <EmptyState
-                preset={error ? 'no-result' : 'no-translate'}
-                description={error ? t('translate.history.error.load') : t('translate.history.empty')}
+                preset="no-result"
+                title={t('translate.history.error.load')}
+                actionLabel={t('common.retry')}
+                onAction={() => void refresh()}
               />
+            </Flex>
+          ) : (
+            <Flex className="flex-1 items-center justify-center">
+              <EmptyState preset="no-translate" description={t('translate.history.empty')} />
             </Flex>
           )}
         </div>
