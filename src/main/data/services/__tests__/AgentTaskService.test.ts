@@ -14,7 +14,9 @@ describe('TaskService', () => {
     await dbh.db.insert(agentTable).values({
       type: 'claude-code',
       name: 'Test Agent',
-      model: 'claude-3-5-sonnet',
+      // `model` is FK-constrained to user_model.id; tests insert NULL to skip
+      // the constraint since they don't exercise model behavior.
+      model: null,
       sortOrder: 0,
       // Soul mode required for createTask to pass assertAutonomous
       configuration: { soul_enabled: true },

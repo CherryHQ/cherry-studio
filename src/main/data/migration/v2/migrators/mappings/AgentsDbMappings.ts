@@ -45,6 +45,28 @@ export type AgentsTableMigrationSpec = {
 }
 
 /**
+ * Build a SQL expression that resolves a legacy model column (storing
+ * `providerId:modelId` strings) into the matching `user_model.id`
+ * (`providerId::modelId`).
+ *
+ * Same lookup shape as `resolveUserModelId` in the runtime write path —
+ * keep them aligned. Unresolvable values become NULL so the FK on
+ * `agent.{model,plan_model,small_model}` / `agent_session.*` holds.
+ *
+ * `user_model` lives in the target (main) database; the legacy importer
+ * attaches the source DB as `agents_legacy`, so unqualified `user_model`
+ * references resolve to the target DB.
+ */
+export function buildUserModelLookupExpr(sourceColumn: string): string {
+  return (
+    `(SELECT user_model.id FROM user_model ` +
+    `WHERE user_model.id = ${sourceColumn} ` +
+    `OR (user_model.provider_id || ':' || user_model.model_id) = ${sourceColumn} ` +
+    `LIMIT 1)`
+  )
+}
+
+/**
  * The order of entries in this array is load-bearing.
  *
  * Several specs use a `whereClause` that filters rows by whether their parent
@@ -68,9 +90,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'description',
       'accessible_paths',
       'instructions',
-      'model',
-      'plan_model',
-      'small_model',
+      // Legacy model values use the "provider:modelId" format. Map them to
+      // user_model.id ("provider::modelId") so the new FK is valid; unresolvable
+      // values become NULL, matching the runtime resolveUserModelId path.
+      { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
+      { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
+      { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       'mcps',
       'allowed_tools',
       'configuration',
@@ -103,9 +128,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'description',
       'accessible_paths',
       'instructions',
-      'model',
-      'plan_model',
-      'small_model',
+      // See comment on the agents → agent spec above.
+      { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
+      { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
+      { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       'mcps',
       'allowed_tools',
       { name: 'slash_commands', expr: 'slash_commands' },

@@ -75,9 +75,15 @@ export const SESSION_MUTABLE_FIELDS = {
   slashCommands: true
 } as const
 
+// `model` is optional on the entity (not on create requests) because it is a
+// FK onto `user_model.id` with ON DELETE SET NULL — after a referenced user
+// model is deleted, the DB column becomes NULL and the row is returned with
+// `model` absent. Create requests still require an explicit model (overridden
+// in `CreateAgentSchema` below).
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: z.enum(['claude-code']),
+  model: ModelIdAtomSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -88,10 +94,13 @@ export const AgentDetailSchema = AgentEntitySchema.extend({
 })
 export type AgentDetail = z.infer<typeof AgentDetailSchema>
 
+// `model` is optional for the same reason it is on `AgentEntitySchema` — see
+// the comment there.
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agentId: z.string(),
   agentType: z.enum(['claude-code']),
+  model: ModelIdAtomSchema.optional(),
   slashCommands: z.array(SlashCommandSchema).optional(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -177,8 +186,13 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
+// Create requests still require an explicit `model` even though the entity
+// allows it to be NULL — a freshly created agent must reference a real
+// user_model. Re-declared here because `pick(AGENT_MUTABLE_FIELDS)` would
+// otherwise inherit the entity's optional model.
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  accessiblePaths: z.array(z.string()).default([])
+  accessiblePaths: z.array(z.string()).default([]),
+  model: ModelIdAtomSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 

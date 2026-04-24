@@ -6,6 +6,7 @@ import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill
 import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { resolveAgentModelIds, resolveUserModelId } from '@data/services/utils/resolveUserModelId'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
@@ -49,15 +50,26 @@ export class AgentService {
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
     const resolvedPaths = computeWorkspacePaths(req.accessiblePaths, id)
 
+    const database = application.get('DbService').getDb()
+
+    // Normalize legacy `providerId:modelId` strings → `user_model.id`
+    // (`providerId::modelId`) so the FK on agent.{model,planModel,smallModel}
+    // is satisfied. Unresolvable values become NULL.
+    const resolvedModels = await resolveAgentModelIds(database, {
+      model: req.model,
+      planModel: req.planModel,
+      smallModel: req.smallModel
+    })
+
     const insertData: InsertAgentRow = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
       instructions: req.instructions || 'You are a helpful assistant.',
-      model: req.model,
-      planModel: req.planModel,
-      smallModel: req.smallModel,
+      model: resolvedModels.model,
+      planModel: resolvedModels.planModel,
+      smallModel: resolvedModels.smallModel,
       mcps: req.mcps ?? null,
       allowedTools: req.allowedTools ?? null,
       configuration: req.configuration ?? null,
@@ -65,7 +77,6 @@ export class AgentService {
       sortOrder: 0
     }
 
-    const database = application.get('DbService').getDb()
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
@@ -174,6 +185,15 @@ export class AgentService {
     }
 
     const database = application.get('DbService').getDb()
+
+    // Normalize legacy `providerId:modelId` strings → `user_model.id` for
+    // any model field that's actually being written, so the FK is satisfied.
+    for (const field of ['model', 'planModel', 'smallModel'] as const) {
+      if (Object.prototype.hasOwnProperty.call(updateData, field)) {
+        const raw = (updateData as Record<string, unknown>)[field] as string | null | undefined
+        ;(updateData as Record<string, unknown>)[field] = await resolveUserModelId(database, raw)
+      }
+    }
 
     const rawRows = await database
       .select()
