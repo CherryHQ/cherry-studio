@@ -1,6 +1,5 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import { Button, Flex, MenuItem, MenuList } from '@cherrystudio/ui'
-import DividerWithText from '@renderer/components/DividerWithText'
+import { Button, Flex, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -8,6 +7,13 @@ import { FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
+  settingsSubmenuSectionTitleClassName
+} from '../shared/menuStyles'
 import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const MCPSettings: FC = () => {
@@ -50,31 +56,33 @@ const MCPSettings: FC = () => {
   return (
     <Flex className="flex-1">
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <Scrollbar className="h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]">
-          <MenuList className="flex min-h-full flex-col p-3 pb-12 [box-sizing:border-box]">
+        <Scrollbar className={settingsSubmenuScrollClassName}>
+          <MenuList className={settingsSubmenuListClassName}>
             <MenuItem
               label={t('settings.mcp.servers', 'MCP Servers')}
               active={activeView === 'servers'}
               onClick={() => navigate({ to: '/settings/mcp/servers' })}
               icon={<McpLogo width={18} height={18} style={{ opacity: 0.8 }} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
-            <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />
+            <MenuDivider className={settingsSubmenuDividerClassName} />
+            <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.discover', 'Discover')}</div>
             <MenuItem
               label={t('settings.mcp.builtinServers', 'Built-in Servers')}
               active={activeView === 'builtin'}
               onClick={() => navigate({ to: '/settings/mcp/builtin' })}
               icon={<Package size={18} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
             <MenuItem
               label={t('settings.mcp.marketplaces', 'Marketplaces')}
               active={activeView === 'marketplaces'}
               onClick={() => navigate({ to: '/settings/mcp/marketplaces' })}
               icon={<ShoppingBag size={18} />}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
-            <DividerWithText text={t('settings.mcp.providers', 'Providers')} style={{ margin: '10px 0 8px 0' }} />
+            <MenuDivider className={settingsSubmenuDividerClassName} />
+            <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.providers', 'Providers')}</div>
             {providers.map((provider) => (
               <MenuItem
                 key={provider.key}
@@ -85,7 +93,7 @@ const MCPSettings: FC = () => {
                   const logo = getMCPProviderLogo(provider.key)
                   return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
                 })()}
-                className="font-medium"
+                className={settingsSubmenuItemClassName}
               />
             ))}
           </MenuList>

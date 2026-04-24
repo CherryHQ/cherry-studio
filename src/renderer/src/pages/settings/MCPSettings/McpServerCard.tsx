@@ -3,16 +3,14 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServerMutations } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
-import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Alert, Space, Tag, Typography } from 'antd'
-import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Alert, Space, Typography } from 'antd'
+import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -23,10 +21,11 @@ const logger = loggerService.withContext('McpServerCard')
 
 interface McpServerCardProps {
   server: MCPServer
+  isEditing?: boolean
   onEdit: () => void
 }
 
-const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
+const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEdit }) => {
   const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
@@ -179,49 +178,49 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   return (
     <ErrorBoundary fallbackComponent={Fallback}>
       <CardContainer $isActive={server.isActive} onClick={onEdit}>
-        <ServerHeader>
+        <ServerMain>
+          <ActiveDot $active={server.isActive} />
           <ServerNameWrapper>
             {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-            <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
+            <ServerNameText
+              ellipsis={{ tooltip: true }}
+              className={server.isActive ? 'text-foreground' : 'text-foreground/45'}>
+              {server.name}
+            </ServerNameText>
+            {version && <InlineMeta>{version}</InlineMeta>}
+            <MetaBadge>{(server.type ?? 'stdio').toUpperCase()}</MetaBadge>
+            {server.installSource === 'builtin' && <MetaBadge>{t('settings.mcp.builtinServers')}</MetaBadge>}
+            {server.provider && <MetaBadge className="bg-primary/8 text-primary">{server.provider}</MetaBadge>}
             {server.providerUrl && (
-              <Button variant="ghost" size="sm" className="rounded-full" onClick={handleOpenUrl} data-no-dnd>
-                <SquareArrowOutUpRight size={14} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 rounded-full px-2 shadow-none"
+                onClick={handleOpenUrl}
+                data-no-dnd>
+                <SquareArrowOutUpRight size={13} />
               </Button>
             )}
           </ServerNameWrapper>
-          <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-            <Switch
-              checked={server.isActive}
-              key={server.id}
-              disabled={isLoading}
-              onCheckedChange={handleToggleActive}
-              data-no-dnd
-            />
-            <Button size="sm" variant="destructive" className="rounded-full" onClick={handleDelete}>
+        </ServerMain>
+        <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
+          {isEditing && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 rounded-full px-2 text-muted-foreground shadow-none hover:text-destructive"
+              onClick={handleDelete}>
               <DeleteIcon size={14} className="lucide-custom" />
             </Button>
-            <Button size="sm" variant="ghost" className="rounded-full" onClick={onEdit} data-no-dnd>
-              <Settings2 size={14} />
-            </Button>
-          </ToolbarWrapper>
-        </ServerHeader>
-        <ServerDescription>{server.description}</ServerDescription>
-        <ServerFooter>
-          {version && (
-            <VersionBadge color="#108ee9">
-              <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
-            </VersionBadge>
           )}
-          <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
-          {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
-          {server.tags
-            ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
-            .map((tag) => (
-              <ServerTag key={tag} color="default">
-                {tag}
-              </ServerTag>
-            ))}
-        </ServerFooter>
+          <Switch
+            checked={server.isActive}
+            key={server.id}
+            disabled={isLoading}
+            onCheckedChange={handleToggleActive}
+            data-no-dnd
+          />
+        </ToolbarWrapper>
       </CardContainer>
     </ErrorBoundary>
   )
@@ -234,59 +233,60 @@ const CardContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
   <div
     className={cn(
-      'mb-1.25 flex h-[125px] w-full flex-col rounded-lg border border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:bg-white/6',
-      $isActive ? 'opacity-100' : 'border-border/80 bg-card/90 dark:bg-white/6',
+      'flex min-h-12 w-full items-center justify-between rounded-xl border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent',
+      $isActive ? 'opacity-100' : 'opacity-60',
       className
     )}
     {...props}
   />
 )
 
-const ServerHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-1.25 flex items-center', className)} {...props} />
+const ServerMain = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex min-w-0 flex-1 items-center gap-3', className)} {...props} />
 )
 
 const ServerNameWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 items-center gap-1 overflow-hidden whitespace-nowrap', className)} {...props} />
+  <div
+    className={cn('flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap', className)}
+    {...props}
+  />
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
-  <Typography.Text className={cn('font-medium text-[15px]', className)} {...props} />
+  <Typography.Text className={cn('font-semibold text-[15px]', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
-  <img className={cn('mr-2 h-6 w-6 rounded object-cover', className)} {...props} />
+  <img className={cn('h-5 w-5 rounded object-cover', className)} {...props} />
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('ml-2 flex items-center [&>*:first-child]:mr-1', className)} {...props} />
+  <div className={cn('ml-4 flex shrink-0 items-center gap-2', className)} {...props} />
 )
 
-const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+const ActiveDot = ({ $active, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
   <div
-    className={cn('line-clamp-3 h-[50px] w-full break-words text-foreground-secondary text-xs', className)}
+    className={cn(
+      'size-2 shrink-0 rounded-full',
+      $active ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.16)]' : 'bg-muted-foreground/35',
+      className
+    )}
     {...props}
   />
 )
 
-const ServerFooter = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar
-    className={cn('mt-2.5 flex min-h-[22px] flex-row items-center justify-start gap-1 overflow-x-auto', className)}
-    style={{ scrollbarWidth: 'none' }}
+const InlineMeta = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('shrink-0 text-muted-foreground text-sm', className)} {...props} />
+)
+
+const MetaBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={cn(
+      'inline-flex shrink-0 items-center rounded-md bg-muted px-2 py-0.5 font-medium text-[12px] text-muted-foreground leading-none',
+      className
+    )}
     {...props}
   />
-)
-
-const ServerTag = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Tag>) => (
-  <Tag className={cn('m-0 rounded-[20px]', className)} {...props} />
-)
-
-const VersionBadge = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Tag>) => (
-  <ServerTag className={cn('max-w-24 font-medium', className)} {...props} />
-)
-
-const VersionText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
-  <Typography.Text className={cn('text-inherit text-white', className)} {...props} />
 )
 
 export default McpServerCard

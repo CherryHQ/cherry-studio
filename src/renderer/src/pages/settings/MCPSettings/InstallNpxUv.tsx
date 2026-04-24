@@ -1,9 +1,10 @@
-import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 import { Center, ColFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useNavigate } from '@tanstack/react-router'
 import { Alert } from 'antd'
+import { CheckCircle2, Package } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,11 +87,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     const installed = isUvInstalled && isBunInstalled
     return (
       <Button
-        className="nodrag rounded-full"
-        variant={installed ? 'default' : 'destructive'}
-        onClick={() => navigate({ to: '/settings/mcp/mcp-install' })}
-        size="icon">
-        {installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+        className="nodrag h-9 rounded-full px-3.5 shadow-none"
+        variant="ghost"
+        onClick={() => navigate({ to: '/settings/mcp/mcp-install' })}>
+        {installed ? (
+          <CheckCircle2 size={15} className="text-emerald-500" />
+        ) : (
+          <Package size={15} className="text-amber-500" />
+        )}
+        {installed ? t('common.completed') : t('settings.mcp.dependenciesInstall')}
       </Button>
     )
   }

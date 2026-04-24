@@ -85,18 +85,22 @@ const McpMarketList: FC = () => {
       <MarketGrid>
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>
-            <MarketHeader>
+            <MarketIconWrap>
               {typeof resource.logo !== 'string' ? (
-                <resource.logo.Avatar size={24} shape="rounded" className="mr-2" />
+                <resource.logo.Avatar size={18} shape="rounded" />
               ) : (
                 <MarketLogo src={resource.logo} alt={`${resource.name} logo`} />
               )}
-              <MarketName>{resource.name}</MarketName>
-              <ExternalLinkIcon>
-                <ExternalLink size={14} />
-              </ExternalLinkIcon>
-            </MarketHeader>
-            <MarketDescription>{t(resource.descriptionKey)}</MarketDescription>
+            </MarketIconWrap>
+            <MarketContent>
+              <MarketHeader>
+                <MarketName>{resource.name}</MarketName>
+                <ExternalLinkIcon>
+                  <ExternalLink size={13} />
+                </ExternalLinkIcon>
+              </MarketHeader>
+              <MarketDescription>{t(resource.descriptionKey)}</MarketDescription>
+            </MarketContent>
           </MarketCard>
         ))}
       </MarketGrid>
@@ -105,25 +109,33 @@ const McpMarketList: FC = () => {
 }
 
 const MarketGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-5 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3', className)} {...props} />
+  <div className={cn('mb-5 flex flex-col gap-2', className)} {...props} />
 )
 
 const MarketCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex h-20 cursor-pointer flex-col rounded-lg border border-border bg-card px-4 py-3 transition-all hover:border-primary hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:bg-white/6',
+      'flex min-h-15 cursor-pointer items-center gap-3 rounded-lg border border-transparent bg-transparent px-3 py-2.5 transition-colors hover:bg-accent',
       className
     )}
     {...props}
   />
 )
 
+const MarketIconWrap = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-5 w-5 shrink-0 items-center justify-center', className)} {...props} />
+)
+
+const MarketContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('min-w-0 flex-1', className)} {...props} />
+)
+
 const MarketHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 flex items-center', className)} {...props} />
+  <div className={cn('flex items-center gap-2', className)} {...props} />
 )
 
 const MarketLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
-  <img className={cn('mr-2 h-6 w-6 rounded object-cover', className)} {...props} />
+  <img className={cn('h-[18px] w-[18px] rounded object-cover', className)} {...props} />
 )
 
 const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -131,12 +143,15 @@ const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 )
 
 const ExternalLinkIcon = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center text-foreground-muted', className)} {...props} />
+  <div className={cn('flex shrink-0 items-center text-foreground-muted', className)} {...props} />
 )
 
 const MarketDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('line-clamp-2 overflow-hidden text-foreground-secondary text-xs leading-[1.4]', className)}
+    className={cn(
+      'mt-0.5 line-clamp-1 overflow-hidden text-[13px] text-foreground-secondary leading-[1.35]',
+      className
+    )}
     {...props}
   />
 )

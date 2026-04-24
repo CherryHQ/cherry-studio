@@ -229,13 +229,13 @@ const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'s
 )
 
 const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 flex flex-col gap-3', className)} {...props} />
+  <div className={cn('mt-2 flex flex-col gap-2', className)} {...props} />
 )
 
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 hover:border-primary dark:bg-white/6',
+      'flex items-center justify-between rounded-lg border border-transparent bg-transparent px-4 py-3 transition-colors hover:bg-accent',
       className
     )}
     {...props}

@@ -1,4 +1,4 @@
-import { Button, EmptyState, Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Button, EmptyState, Sortable, Tabs, TabsList, TabsTrigger, useDndReorder } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -15,7 +15,6 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
 import McpServerCard from './McpServerCard'
 
@@ -25,6 +24,8 @@ const McpServersList: FC = () => {
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
+  const [isEditing, setIsEditing] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'>('all')
 
   const [searchText, _setSearchText] = useState('')
 
@@ -35,15 +36,23 @@ const McpServersList: FC = () => {
   }, [])
 
   const filteredMcpServers = useMemo(() => {
-    if (!searchText.trim()) return mcpServers
-
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
 
     return mcpServers.filter((server) => {
-      const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')}`
+      if (filter === 'enabled' && !server.isActive) return false
+      if (filter === 'disabled' && server.isActive) return false
+      if (filter === 'stdio' && server.type !== 'stdio') return false
+      if (filter === 'sse' && server.type !== 'sse') return false
+      if (filter === 'builtin' && server.installSource !== 'builtin') return false
+
+      if (keywords.length === 0) return true
+
+      const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')} ${server.provider ?? ''}`
       return matchKeywordsInString(keywords, searchTarget)
     })
-  }, [mcpServers, searchText])
+  }, [filter, mcpServers, searchText])
+
+  const activeServerCount = useMemo(() => mcpServers.filter((server) => server.isActive).length, [mcpServers])
 
   const { onSortEnd } = useDndReorder({
     originalList: mcpServers,
@@ -132,29 +141,57 @@ const McpServersList: FC = () => {
       ref={scrollRef}
       className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-3.75 overflow-hidden overflow-y-auto p-5 pt-3.75">
       <div className="flex w-full items-center justify-between [&_h2]:m-0 [&_h2]:text-[22px]">
-        <SettingTitle style={{ gap: 6 }}>
-          <span>{t('settings.mcp.newServer')}</span>
+        <div className="flex items-center gap-3">
+          <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
+          <span className="text-muted-foreground text-sm">
+            {activeServerCount}/{mcpServers.length}
+          </span>
           <CollapsibleSearchBar
             onSearch={setSearchText}
             placeholder={t('settings.mcp.search.placeholder')}
             tooltip={t('settings.mcp.search.tooltip')}
             style={{ borderRadius: 20 }}
           />
-        </SettingTitle>
+        </div>
         <div className="flex items-center gap-2">
           <InstallNpxUv mini />
-          <Button className="rounded-full" onClick={() => EditMcpJsonPopup.show()}>
+          <Button
+            className="h-9 rounded-full px-3.5 shadow-none"
+            variant="ghost"
+            onClick={() => setIsEditing((value) => !value)}>
             <EditIcon size={14} />
-            {t('common.edit')}
+            {isEditing ? t('common.completed') : t('common.edit')}
           </Button>
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button className="rounded-full">
+            <Button className="h-9 rounded-full px-3.5 shadow-none">
               <Plus size={16} />
               {t('common.add')}
             </Button>
           </Dropdown>
         </div>
       </div>
+      <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
+        <TabsList className="h-auto rounded-full bg-muted/80 p-1">
+          <TabsTrigger value="all" className="rounded-full px-3 py-1.5 text-sm">
+            {t('models.all')}
+          </TabsTrigger>
+          <TabsTrigger value="enabled" className="rounded-full px-3 py-1.5 text-sm">
+            {t('common.enabled')}
+          </TabsTrigger>
+          <TabsTrigger value="disabled" className="rounded-full px-3 py-1.5 text-sm">
+            {t('common.disabled')}
+          </TabsTrigger>
+          <TabsTrigger value="stdio" className="rounded-full px-3 py-1.5 text-sm">
+            STDIO
+          </TabsTrigger>
+          <TabsTrigger value="sse" className="rounded-full px-3 py-1.5 text-sm">
+            SSE
+          </TabsTrigger>
+          <TabsTrigger value="builtin" className="rounded-full px-3 py-1.5 text-sm">
+            {t('settings.mcp.builtinServers')}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
       <Sortable
         items={filteredMcpServers}
         itemKey="id"
@@ -163,12 +200,16 @@ const McpServersList: FC = () => {
         horizontal={false}
         listStyle={{ display: 'flex', flexDirection: 'column', width: '100%' }}
         itemStyle={{ width: '100%' }}
-        gap="12px"
+        gap="4px"
         restrictions={{ scrollableAncestor: true }}
         useDragOverlay
         showGhost
         renderItem={(server) => (
-          <McpServerCard server={server} onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })} />
+          <McpServerCard
+            server={server}
+            isEditing={isEditing}
+            onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })}
+          />
         )}
       />
       {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (

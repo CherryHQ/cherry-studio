@@ -3,7 +3,6 @@ import { Center, RowFlex, Spinner } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
@@ -29,7 +28,6 @@ let _searchResults: SearchResult[] = []
 
 const NpxSearch: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
@@ -143,18 +141,19 @@ const NpxSearch: FC = () => {
         </Center>
       )}
       {!searchLoading && (
-        <div className="mx-auto grid w-full max-w-[1200px] flex-1 grid-cols-2 gap-4 overflow-y-auto pr-1">
+        <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (
               <Card
                 size="small"
                 key={record.name}
-                className="border border-border bg-card"
+                className="border border-transparent bg-transparent shadow-none transition-colors hover:bg-accent"
                 style={{
                   borderRadius: 'var(--radius-lg)',
-                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
-                  borderColor: 'var(--border)'
+                  backgroundColor: 'transparent',
+                  borderColor: 'transparent',
+                  boxShadow: 'none'
                 }}
                 title={
                   <Typography.Title level={5} style={{ margin: 0 }} className="selectable">

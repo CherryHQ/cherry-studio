@@ -1,10 +1,12 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Input, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
+import { cn } from '@renderer/utils/style'
 import { Popover, Tag } from 'antd'
-import { Check, Plus } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import type { FC } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '..'
@@ -12,84 +14,156 @@ import { SettingTitle } from '..'
 const BuiltinMCPServerList: FC = () => {
   const { t } = useTranslation()
   const { addMCPServer, mcpServers } = useMCPServers()
+  const [searchText, setSearchText] = useState('')
+  const [filter, setFilter] = useState<'all' | 'installed' | 'available'>('all')
+
+  const installedCount = useMemo(
+    () =>
+      builtinMCPServers.filter((server) => mcpServers.some((existingServer) => existingServer.name === server.name))
+        .length,
+    [mcpServers]
+  )
+
+  const filteredServers = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase()
+
+    return builtinMCPServers.filter((server) => {
+      const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+
+      if (filter === 'installed' && !isInstalled) return false
+      if (filter === 'available' && isInstalled) return false
+
+      if (!keyword) return true
+
+      const description = getBuiltInMcpServerDescriptionLabel(server.name).toLowerCase()
+      return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
+    })
+  }, [filter, mcpServers, searchText, t])
 
   return (
-    <>
-      <SettingTitle style={{ gap: 3, marginBottom: 10 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
-      <div className="mb-5 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
-        {builtinMCPServers.map((server) => {
+    <div className="mb-5 rounded-[24px] bg-card px-4 py-4">
+      <div className="mb-3 flex items-center gap-2">
+        <SettingTitle className="m-0">{t('settings.mcp.builtinServers')}</SettingTitle>
+        <span className="text-muted-foreground text-sm">
+          {installedCount}/{builtinMCPServers.length}
+        </span>
+      </div>
+
+      <div className="relative mb-3">
+        <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
+        <Input
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          placeholder={t('common.search')}
+          className="h-9 rounded-full border-transparent bg-background pl-9 shadow-none"
+        />
+      </div>
+
+      <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="mb-3">
+        <TabsList className="h-auto rounded-full bg-muted/80 p-1">
+          <TabsTrigger value="all" className="rounded-full px-3 py-1.5 text-sm">
+            {t('models.all')}
+          </TabsTrigger>
+          <TabsTrigger value="installed" className="rounded-full px-3 py-1.5 text-sm">
+            {t('settings.skills.installed')}
+          </TabsTrigger>
+          <TabsTrigger value="available" className="rounded-full px-3 py-1.5 text-sm">
+            {t('settings.skills.install')}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-col gap-1">
+        {filteredServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
           return (
             <div
               key={server.id}
-              className="flex h-31.25 cursor-default flex-col rounded-lg border border-border bg-card px-4 py-2.5 transition-all duration-200 ease-in-out hover:border-primary dark:bg-white/6">
-              <div className="mb-1.25 flex items-center">
-                <div className="flex flex-1 items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                  <span className="font-medium text-[15px]">{server.name}</span>
+              className="flex min-h-18 items-start gap-3 rounded-xl border border-transparent bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:bg-accent">
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center gap-2 overflow-hidden">
+                  <span className="truncate font-semibold text-[15px]">{server.name}</span>
+                  <Tag color="warning" style={{ borderRadius: 8, margin: 0, fontWeight: 600 }}>
+                    {t('settings.mcp.builtinServers')}
+                  </Tag>
+                  {server?.shouldConfig && (
+                    <a
+                      href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
+                      target="_blank"
+                      rel="noopener noreferrer">
+                      <Tag color="error" style={{ borderRadius: 8, margin: 0, fontWeight: 600 }}>
+                        {t('settings.mcp.requiresConfig')}
+                      </Tag>
+                    </a>
+                  )}
                 </div>
-                <div className="ml-2 flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={async () => {
-                      if (isInstalled) {
-                        return
-                      }
-
-                      try {
-                        await addMCPServer(server)
-                        window.toast.success(t('settings.mcp.addSuccess'))
-                      } catch {
-                        window.toast.error(t('settings.mcp.addError'))
-                      }
-                    }}
-                    disabled={isInstalled}>
-                    {isInstalled ? <Check size={16} className="text-primary" /> : <Plus size={16} />}
-                  </Button>
+                <Popover
+                  content={
+                    <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-[14px] text-foreground leading-normal">
+                      {getBuiltInMcpServerDescriptionLabel(server.name)}
+                      {server.reference && (
+                        <a
+                          href={server.reference}
+                          className="wrap-break-word mt-2 inline-block max-w-87.5 text-primary no-underline hover:text-primary/80 hover:underline">
+                          {server.reference}
+                        </a>
+                      )}
+                    </div>
+                  }
+                  title={server.name}
+                  trigger="hover"
+                  placement="topLeft"
+                  overlayStyle={{ maxWidth: 400 }}>
+                  <div className="line-clamp-2 cursor-pointer text-muted-foreground text-sm leading-5 hover:text-foreground">
+                    {getBuiltInMcpServerDescriptionLabel(server.name)}
+                  </div>
+                </Popover>
+                <div className="mt-1.5 flex items-center gap-1">
+                  <Tag color="processing" style={{ borderRadius: 8, margin: 0, fontWeight: 500 }}>
+                    {getMcpTypeLabel(server.type ?? 'stdio')}
+                  </Tag>
                 </div>
               </div>
-              <Popover
-                content={
-                  <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-(--color-foreground) text-[14px] leading-normal">
-                    {getBuiltInMcpServerDescriptionLabel(server.name)}
-                    {server.reference && (
-                      <a
-                        href={server.reference}
-                        className="wrap-break-word mt-2 inline-block max-w-87.5 text-(--color-primary) no-underline hover:text-(--color-primary-hover) hover:underline">
-                        {server.reference}
-                      </a>
-                    )}
-                  </div>
-                }
-                title={server.name}
-                trigger="hover"
-                placement="topLeft"
-                overlayStyle={{ maxWidth: 400 }}>
-                <div className="wrap-break-word relative line-clamp-2 w-full cursor-pointer text-(--color-foreground-secondary) text-[12px] hover:text-(--color-foreground)">
-                  {getBuiltInMcpServerDescriptionLabel(server.name)}
-                </div>
-              </Popover>
-              <div className="mt-2.5 flex items-center justify-start gap-1">
-                <Tag color="processing" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                  {getMcpTypeLabel(server.type ?? 'stdio')}
-                </Tag>
-                {server?.shouldConfig && (
-                  <a
-                    href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
-                    target="_blank"
-                    rel="noopener noreferrer">
-                    <Tag color="warning" style={{ borderRadius: 20, margin: 0, fontWeight: 500 }}>
-                      {t('settings.mcp.requiresConfig')}
-                    </Tag>
-                  </a>
-                )}
+              <div className="ml-3 flex shrink-0 items-center self-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-8 rounded-full px-3 text-sm shadow-none hover:shadow-none',
+                    isInstalled ? 'text-muted-foreground' : 'text-muted-foreground'
+                  )}
+                  onClick={async () => {
+                    if (isInstalled) {
+                      return
+                    }
+
+                    try {
+                      await addMCPServer(server)
+                      window.toast.success(t('settings.mcp.addSuccess'))
+                    } catch {
+                      window.toast.error(t('settings.mcp.addError'))
+                    }
+                  }}
+                  disabled={isInstalled}>
+                  {isInstalled ? (
+                    <>
+                      <Check size={14} className="text-primary" />
+                      {t('settings.skills.installed')}
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} />
+                      {t('settings.skills.install')}
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           )
         })}
       </div>
-    </>
+    </div>
   )
 }
 

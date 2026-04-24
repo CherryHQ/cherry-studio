@@ -1,6 +1,5 @@
 import { CloudServerOutlined, CloudSyncOutlined, YuqueOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
-import DividerWithText from '@renderer/components/DividerWithText'
+import { MenuDivider, MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -11,6 +10,12 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer } from '..'
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuSectionTitleClassName
+} from '../shared/menuStyles'
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
@@ -81,10 +86,19 @@ const DataSettings: FC = () => {
 
   return (
     <RowFlex className="flex-1">
-      <MenuList className="flex h-screen min-h-0 w-(--settings-width) flex-col overflow-auto border-border border-r-[0.5px] p-3 pb-12 [box-sizing:border-box] [&_.iconfont]:text-current [&_.iconfont]:leading-4">
-        {menuItems.map((item) =>
+      <MenuList
+        className={`${settingsSubmenuListClassName} h-screen min-h-0 w-(--settings-width) overflow-auto border-border border-r-[0.5px] [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+        {menuItems.map((item, index) =>
           item.isDivider ? (
-            <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} />
+            <div key={item.key}>
+              {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+              <div
+                className={
+                  index === 0 ? `${settingsSubmenuSectionTitleClassName} pt-0` : settingsSubmenuSectionTitleClassName
+                }>
+                {item.text || ''}
+              </div>
+            </div>
           ) : (
             <MenuItem
               key={item.key}
@@ -92,7 +106,7 @@ const DataSettings: FC = () => {
               active={menu === item.key}
               onClick={() => setMenu(item.key)}
               icon={item.icon}
-              className="font-medium"
+              className={settingsSubmenuItemClassName}
             />
           )
         )}
