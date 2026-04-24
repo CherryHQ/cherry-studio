@@ -1,14 +1,23 @@
-import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { Drawer, DrawerContent, DrawerHeader, Flex, RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  EmptyState,
+  Flex,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  RowFlex
+} from '@cherrystudio/ui'
 import PopoverConfirm from '@renderer/components/PopoverConfirm'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useClearHistory, useTranslateHistories } from '@renderer/hooks/translate'
 import type { TranslateHistory } from '@shared/data/types/translate'
 import type { Virtualizer } from '@tanstack/react-virtual'
-import { Empty, Input, Spin } from 'antd'
 import { throttle } from 'lodash'
-import { SearchIcon } from 'lucide-react'
+import { Loader2, SearchIcon, Star, Trash2, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,7 +125,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
               onClick={() => {
                 setShowStared(!showStared)
               }}>
-              {showStared ? <StarFilled /> : <StarOutlined />}
+              <Star size={16} fill={showStared ? 'currentColor' : 'none'} />
             </Button>
           </div>
           {items.length > 0 && (
@@ -125,7 +134,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
               description={t('translate.history.clear_description')}
               onConfirm={clearHistory}>
               <Button variant="ghost" size="sm">
-                <DeleteOutlined />
+                <Trash2 size={14} />
                 {t('translate.history.clear')}
               </Button>
             </PopoverConfirm>
@@ -133,25 +142,26 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
         </DrawerHeader>
         <div className="w-full flex flex-1 flex-col overflow-hidden pr-1 pb-1">
           {/* Search Bar */}
-          <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
-            <Input
-              prefix={
-                <div className="flex justify-center items-center size-7.5 rounded-2xl">
-                  <SearchIcon size={18} />
-                </div>
-              }
-              placeholder={t('translate.history.search.placeholder')}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-              }}
-              allowClear
-              autoFocus
-              spellCheck={false}
-              style={{ paddingLeft: 0, height: '3em' }}
-              variant="borderless"
-              size="middle"
-            />
+          <RowFlex className="border-b border-border px-3">
+            <InputGroup className="h-12 rounded-none border-0 shadow-none focus-within:ring-0 has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-transparent">
+              <InputGroupAddon>
+                <SearchIcon size={18} />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder={t('translate.history.search.placeholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+                spellCheck={false}
+              />
+              {search && (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton size="icon-xs" aria-label={t('common.clear')} onClick={() => setSearch('')}>
+                    <X size={14} />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
           </RowFlex>
 
           {/* Virtual List */}
@@ -162,13 +172,16 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
               </DynamicVirtualList>
               {isLoadingMore && (
                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2">
-                  <Spin size="small" />
+                  <Loader2 size={20} className="animate-spin text-muted-foreground" />
                 </div>
               )}
             </div>
           ) : (
-            <Flex className="items-center justify-center" style={{ flex: 1 }}>
-              <Empty description={error ? t('translate.history.error.load') : t('translate.history.empty')} />
+            <Flex className="flex-1 items-center justify-center">
+              <EmptyState
+                preset={error ? 'no-result' : 'no-translate'}
+                description={error ? t('translate.history.error.load') : t('translate.history.empty')}
+              />
             </Flex>
           )}
         </div>
