@@ -32,6 +32,7 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenKimiModel,
+  isSupportedThinkingTokenMiMoModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
@@ -940,6 +941,13 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
   describe('Hunyuan models', () => {
     it('should return hunyuan for supported Hunyuan models', () => {
       expect(getThinkModelType(createModel({ id: 'hunyuan-a13b' }))).toBe('hunyuan')
+    })
+  })
+
+  describe('MiMo models', () => {
+    it('should return mimo for V2.5 thinking models', () => {
+      expect(getThinkModelType(createModel({ id: 'mimo-v2.5' }))).toBe('mimo')
+      expect(getThinkModelType(createModel({ id: 'mimo-v2.5-pro' }))).toBe('mimo')
     })
   })
 
@@ -2280,6 +2288,19 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       ])
     })
 
+    it('should return correct options for MiMo V2.5 models', () => {
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'mimo-v2.5' }))).toEqual([
+        'default',
+        'none',
+        'auto'
+      ])
+      expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'mimo-v2.5-pro' }))).toEqual([
+        'default',
+        'none',
+        'auto'
+      ])
+    })
+
     it('should return correct options for Zhipu models', () => {
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'glm-4.5' }))).toEqual([
         'default',
@@ -2447,6 +2468,13 @@ describe('isInterleavedThinkingModel', () => {
   })
 
   describe('MiMo models', () => {
+    it('should support thinking control for V2.5 models only on chat models', () => {
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5-pro' }))).toBe(true)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5-tts' }))).toBe(false)
+      expect(isSupportedThinkingTokenMiMoModel(createModel({ id: 'mimo-v2.5-tts-voiceclone' }))).toBe(false)
+    })
+
     it('should return true for mimo-v2-flash', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'mimo-v2-flash' }))).toBe(true)
     })
