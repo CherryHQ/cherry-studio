@@ -1,6 +1,6 @@
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { resolveAgentModelIds, resolveUserModelId } from '@data/services/utils/resolveUserModelId'
+import { resolveAgentModelFieldsInPlace, resolveUserModelId } from '@data/services/utils/resolveUserModelId'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
@@ -35,26 +35,52 @@ describe('resolveUserModelId', () => {
     expect(await resolveUserModelId(dbh.db, 'nonexistent::id')).toBeNull()
   })
 
-  it('resolveAgentModelIds resolves the model triple in parallel', async () => {
-    const main = await seedUserModel('openai', 'gpt-4')
-    const plan = await seedUserModel('anthropic', 'claude-opus-4')
-    const small = await seedUserModel('openai', 'gpt-4o-mini')
+  describe('resolveAgentModelFieldsInPlace', () => {
+    it('rewrites every present model field through resolveUserModelId', async () => {
+      const main = await seedUserModel('openai', 'gpt-4')
+      const plan = await seedUserModel('anthropic', 'claude-opus-4')
+      const small = await seedUserModel('openai', 'gpt-4o-mini')
 
-    const result = await resolveAgentModelIds(dbh.db, {
-      model: 'openai:gpt-4',
-      planModel: plan,
-      smallModel: 'openai:gpt-4o-mini'
+      const target = {
+        model: 'openai:gpt-4',
+        planModel: plan,
+        smallModel: 'openai:gpt-4o-mini',
+        // unrelated fields must be left alone
+        name: 'untouched',
+        sortOrder: 0
+      }
+
+      const result = await resolveAgentModelFieldsInPlace(dbh.db, target)
+
+      expect(result).toBe(target) // same reference (in place)
+      expect(target).toEqual({
+        model: main,
+        planModel: plan,
+        smallModel: small,
+        name: 'untouched',
+        sortOrder: 0
+      })
     })
 
-    expect(result).toEqual({ model: main, planModel: plan, smallModel: small })
-  })
+    it('only touches fields that are present (partial-update safe)', async () => {
+      const main = await seedUserModel('openai', 'gpt-4')
 
-  it('resolveAgentModelIds returns null for missing fields', async () => {
-    const result = await resolveAgentModelIds(dbh.db, {
-      model: undefined,
-      planModel: null,
-      smallModel: 'unknown:foo'
+      const target: Record<string, unknown> = {
+        model: 'openai:gpt-4'
+        // planModel / smallModel intentionally absent
+      }
+
+      await resolveAgentModelFieldsInPlace(dbh.db, target)
+
+      expect(target).toEqual({ model: main })
+      expect(Object.prototype.hasOwnProperty.call(target, 'planModel')).toBe(false)
+      expect(Object.prototype.hasOwnProperty.call(target, 'smallModel')).toBe(false)
     })
-    expect(result).toEqual({ model: null, planModel: null, smallModel: null })
+
+    it('rewrites unresolvable values to null', async () => {
+      const target = { model: 'unknown:foo' }
+      await resolveAgentModelFieldsInPlace(dbh.db, target)
+      expect(target).toEqual({ model: null })
+    })
   })
 })

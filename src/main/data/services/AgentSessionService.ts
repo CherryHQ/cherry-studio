@@ -6,7 +6,7 @@ import {
   type InsertAgentSessionRow as InsertSessionRow
 } from '@data/db/schemas/agentSession'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { resolveAgentModelIds, resolveUserModelId } from '@data/services/utils/resolveUserModelId'
+import { resolveAgentModelFieldsInPlace } from '@data/services/utils/resolveUserModelId'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -81,15 +81,10 @@ export class AgentSessionService {
 
     const db = application.get('DbService').getDb()
 
-    // Normalize legacy `providerId:modelId` strings → `user_model.id` for
-    // any model fields supplied in the request, so the FK is satisfied.
-    // `agent.{model,planModel,smallModel}` already came out of the FK
-    // column, so they're either valid `user_model.id` values or NULL.
-    const requestedModels = await resolveAgentModelIds(db, {
-      model: sessionData.model,
-      planModel: sessionData.planModel,
-      smallModel: sessionData.smallModel
-    })
+    // `sessionData.{model,planModel,smallModel}` may be in legacy
+    // `providerId:modelId` form (from the renderer) — normalize first, then
+    // fall back to the agent's already-FK-valid value.
+    await resolveAgentModelFieldsInPlace(db, sessionData)
 
     const insertData: InsertSessionRow = {
       id,
@@ -99,9 +94,9 @@ export class AgentSessionService {
       description: sessionData.description ?? null,
       accessiblePaths: sessionData.accessiblePaths ?? null,
       instructions: sessionData.instructions ?? null,
-      model: requestedModels.model ?? agent.model ?? null,
-      planModel: requestedModels.planModel ?? agent.planModel ?? null,
-      smallModel: requestedModels.smallModel ?? agent.smallModel ?? null,
+      model: sessionData.model ?? agent.model ?? null,
+      planModel: sessionData.planModel ?? agent.planModel ?? null,
+      smallModel: sessionData.smallModel ?? agent.smallModel ?? null,
       mcps: sessionData.mcps ?? null,
       allowedTools: sessionData.allowedTools ?? null,
       slashCommands: sessionData.slashCommands ?? null,
@@ -205,15 +200,8 @@ export class AgentSessionService {
     }
 
     const database = application.get('DbService').getDb()
-
-    // Normalize legacy `providerId:modelId` strings → `user_model.id` for
-    // any model field that's actually being written, so the FK is satisfied.
-    for (const field of ['model', 'planModel', 'smallModel'] as const) {
-      if (Object.prototype.hasOwnProperty.call(updateData, field)) {
-        const raw = (updateData as Record<string, unknown>)[field] as string | null | undefined
-        ;(updateData as Record<string, unknown>)[field] = await resolveUserModelId(database, raw)
-      }
-    }
+    // Same normalization as createSession — see the comment there.
+    await resolveAgentModelFieldsInPlace(database, updateData)
 
     await withSqliteErrors(
       () => database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id)),

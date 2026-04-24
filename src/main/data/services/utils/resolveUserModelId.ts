@@ -35,15 +35,27 @@ export async function resolveUserModelId(db: DbOrTx, value: string | null | unde
   return row.id
 }
 
-/** Resolve the `model` / `planModel` / `smallModel` triple in parallel. */
-export async function resolveAgentModelIds(
+/** Fields on agent / agent_session whose values are FK-constrained to `user_model.id`. */
+const AGENT_MODEL_FK_FIELDS = ['model', 'planModel', 'smallModel'] as const
+
+/**
+ * Single normalization boundary used by every agent / session write path
+ * (`AgentService.createAgent` / `updateAgent`, `AgentSessionService.createSession`
+ * / `updateSession`). Mutates `target` in place: any FK-constrained model field
+ * present on the object is rewritten through `resolveUserModelId` so the FK
+ * holds. Fields not present on `target` are left untouched, so partial-update
+ * payloads (which only carry the fields the caller is changing) do not
+ * accidentally null out untouched columns.
+ */
+export async function resolveAgentModelFieldsInPlace<T extends Record<string, unknown>>(
   db: DbOrTx,
-  models: { model?: string | null; planModel?: string | null; smallModel?: string | null }
-): Promise<{ model: string | null; planModel: string | null; smallModel: string | null }> {
-  const [model, planModel, smallModel] = await Promise.all([
-    resolveUserModelId(db, models.model),
-    resolveUserModelId(db, models.planModel),
-    resolveUserModelId(db, models.smallModel)
-  ])
-  return { model, planModel, smallModel }
+  target: T
+): Promise<T> {
+  await Promise.all(
+    AGENT_MODEL_FK_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(target, field)).map(async (field) => {
+      const raw = target[field] as string | null | undefined
+      ;(target as Record<string, unknown>)[field] = await resolveUserModelId(db, raw)
+    })
+  )
+  return target
 }
