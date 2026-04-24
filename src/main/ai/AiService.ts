@@ -339,7 +339,7 @@ export interface AiEmbedResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['PreferenceService', 'MCPService'])
+@DependsOn(['PreferenceService', 'McpService'])
 export class AiService extends BaseService {
   private readonly toolRegistry = new ToolRegistry()
   /** Tracks in-flight non-streaming image requests so they can be aborted by id. */

@@ -130,6 +130,19 @@ export class AgentSessionService {
     return rowToSession(result[0])
   }
 
+  /**
+   * Look up a session by its primary key alone, without knowing which agent
+   * owns it. Use this when the session id is the only identifier available
+   * (e.g. streaming dispatch from a topicId like `agent-session:<id>`) — it
+   * saves an O(N-agents) `listSessions()` + per-agent `getSession` scan.
+   */
+  async getById(id: string): Promise<AgentSessionEntity | null> {
+    const database = application.get('DbService').getDb()
+    const result = await database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+    if (!result[0]) return null
+    return rowToSession(result[0])
+  }
+
   async listSessions(
     agentId?: string,
     options: ListOptions = {}

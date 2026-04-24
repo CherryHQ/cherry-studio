@@ -45,7 +45,7 @@ import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
   GroqServiceTiers,
@@ -470,30 +470,6 @@ function buildXAIProviderOptions(
   return { xai: { ...providerOptions } }
 }
 
-/** CherryIn proxy options — dispatches on endpoint type. */
-function buildCherryInProviderOptions(
-  assistant: Assistant,
-  model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
-  actualProvider: Provider,
-  serviceTier: OpenAIServiceTier,
-  textVerbosity: OpenAIVerbosity
-): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
-  const chatEndpoint = actualProvider.defaultChatEndpoint
-  switch (chatEndpoint) {
-    case 'openai-chat-completions':
-      return buildGenericProviderOptions('cherryin', assistant, model, capabilities, actualProvider)
-    case 'openai-responses':
-      return buildOpenAIProviderOptions(assistant, model, capabilities, actualProvider, serviceTier, textVerbosity)
-    case 'anthropic-messages':
-      return buildAnthropicProviderOptions(assistant, model, capabilities)
-    case 'google-generate-content':
-      return buildGeminiProviderOptions(assistant, model, capabilities)
-    default:
-      return buildGenericProviderOptions('cherryin', assistant, model, capabilities, actualProvider)
-  }
-}
-
 /** AWS Bedrock options — reasoning via Anthropic shape + beta headers. */
 function buildBedrockProviderOptions(
   assistant: Assistant,
@@ -547,7 +523,27 @@ function buildGenericProviderOptions(
   return { [providerId]: providerOptions }
 }
 
-/** AI Gateway — maps to the underlying provider family by model kind. */
+/**
+ * AI Gateway — covers CherryIN, NewAPI, AiHubMix, Vercel Gateway.
+ *
+ * Proxy providers annotate `model.endpointTypes[0]` to force a specific
+ * protocol; the returned `providerOptions` key must align with the
+ * language-model class each SDK layer builds, or AI SDK silently drops the
+ * custom options. See:
+ *   - packages/ai-sdk-provider/src/cherryin-provider.ts (createChatModel)
+ *   - src/renderer/src/aiCore/provider/custom/newapi-provider.ts (createChatModel)
+ *
+ *   endpointTypes[0]            | SDK language-model class           | providerOptions key
+ *   ----------------------------+------------------------------------+----------------------
+ *   'anthropic-messages'        | AnthropicMessagesLanguageModel     | anthropic
+ *   'google-generate-content'   | GoogleGenerativeAILanguageModel    | google
+ *   'openai-responses'          | OpenAIResponsesLanguageModel       | openai
+ *   'openai-chat-completions'   | OpenAICompatibleChatLanguageModel  | openai-compatible
+ *   'openai-image-generation'   | OpenAICompatibleChatLanguageModel  | openai-compatible
+ *
+ * Fallback (for untagged models / Vercel Gateway / AiHubMix) dispatches on
+ * model-name heuristics.
+ */
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
@@ -562,6 +558,19 @@ function buildAIGatewayOptions(
   | GoogleGenerativeAIProviderOptions
   | Record<string, unknown>
 > {
+  switch (model.endpointTypes?.[0]) {
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
+      return buildAnthropicProviderOptions(assistant, model, capabilities)
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
+      return buildGeminiProviderOptions(assistant, model, capabilities)
+    case ENDPOINT_TYPE.OPENAI_RESPONSES:
+      return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
+    case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
+    case ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION:
+      return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
+  }
+
+  // Fallback: model-name heuristic (covers Vercel Gateway, AiHubMix, and untagged models)
   if (isAnthropicModel(model)) return buildAnthropicProviderOptions(assistant, model, capabilities)
   if (isOpenAIModel(model))
     return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)

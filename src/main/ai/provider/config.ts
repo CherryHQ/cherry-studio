@@ -8,10 +8,10 @@
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { generateSignature } from '@main/integration/cherryai'
-import { agentService, sessionService } from '@main/services/agents'
-import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
+import { agentSessionService as sessionService } from '@main/services/agents'
 import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
 import { formatOllamaApiHost } from '@shared/ai/provider/utils'
@@ -21,7 +21,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
-import type { AgentSessionEntity } from '@types'
 import { SystemProviderIds } from '@types'
 import { isEmpty } from 'lodash'
 
@@ -497,16 +496,11 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
 
   // Agent session: full session settings from DB
   if (ctx.agentSessionId) {
-    const { agents } = await agentService.listAgents()
-    let session: AgentSessionEntity | null = null
-    for (const agent of agents) {
-      session = await sessionService.getSession(agent.id, ctx.agentSessionId)
-      if (session) break
-    }
+    const session = await sessionService.getById(ctx.agentSessionId)
     if (!session) throw new Error(`Agent session not found: ${ctx.agentSessionId}`)
 
     // Look up last SDK session ID for resume (survives app restart)
-    const lastAgentSessionId = await agentMessageRepository.getLastAgentSessionId(ctx.agentSessionId)
+    const lastAgentSessionId = await agentSessionMessageService.getLastAgentSessionId(ctx.agentSessionId)
     const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider, { lastAgentSessionId })
 
     return {

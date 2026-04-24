@@ -31,7 +31,7 @@ import type {
   OpenAICompletionsStreamOptions,
   OpenAIReasoningSummary,
   OpenAIVerbosity
-} from '@renderer/types/aiCoreTypes'
+} from '@shared/types/aiSdk'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'

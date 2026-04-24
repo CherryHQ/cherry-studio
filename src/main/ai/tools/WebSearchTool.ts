@@ -77,7 +77,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
       // running them through the search provider.
       const links = extractedKeywords.links
       if (finalQueries[0] === 'summarize' && links && links.length > 0) {
-        const settled = await Promise.allSettled(links.map((url) => fetchWebSearchContent(url, false)))
+        const settled = await Promise.allSettled(links.map((url) => fetchWebSearchContent(url)))
         const results: WebSearchResult[] = settled.map((result, index) =>
           result.status === 'fulfilled'
             ? result.value

@@ -1519,11 +1519,10 @@ const migrateConfig = {
   '102': (state: RootState) => {
     try {
       state.settings.openAI = {
-        // @ts-expect-error it's a removed type. migrated on 177
         summaryText: 'off',
         serviceTier: 'auto',
         verbosity: 'medium'
-      }
+      } as unknown as RootState['settings']['openAI']
 
       state.settings.codeExecution = {
         enabled: false,
@@ -1613,11 +1612,10 @@ const migrateConfig = {
       addMiniApp(state, 'google')
       if (!state.settings.openAI) {
         state.settings.openAI = {
-          // @ts-expect-error it's a removed type. migrated on 177
           summaryText: 'off',
           serviceTier: 'auto',
           verbosity: 'medium'
-        }
+        } as unknown as RootState['settings']['openAI']
       }
       return state
     } catch (error) {

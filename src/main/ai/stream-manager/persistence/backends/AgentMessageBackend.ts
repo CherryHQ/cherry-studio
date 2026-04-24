@@ -1,14 +1,14 @@
 /**
  * Agents DB backend — writes assistant turns to the `session_messages`
- * table via `agentMessageRepository`. The user message is persisted by
- * AgentChatContextProvider before streaming starts (not here).
+ * table via `agentSessionMessageService`. The user message is persisted
+ * by AgentChatContextProvider before streaming starts (not here).
  *
  * The listener folds any error into `finalMessage.parts` upstream, so a
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { buildAgentSessionTopicId } from '@main/ai/provider/claudeCodeSettingsBuilder'
-import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
@@ -35,7 +35,7 @@ export class AgentMessageBackend implements PersistenceBackend {
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status } = input
     const parts = (finalMessage?.parts ?? []) as CherryMessagePart[]
-    await agentMessageRepository.persistAssistantMessage({
+    await agentSessionMessageService.persistAssistantMessage({
       sessionId: this.opts.sessionId,
       agentSessionId: this.opts.agentSessionId ?? '',
       payload: {

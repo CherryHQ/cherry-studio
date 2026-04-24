@@ -2,16 +2,16 @@
  * AgentChatContextProvider — owns `agent-session:{id}` topics.
  *
  * Unlike the persistent provider, agent sessions:
- *  - read their state from the agents DB (via agentService / sessionService)
- *  - persist messages through agentMessageRepository, not MessageService
+ *  - read their state from the agents DB (via agentSessionService)
+ *  - persist messages through agentSessionMessageService, not MessageService
  *  - resolve the model from the session record, not the assistant
  *  - always submit a single model (no `@mention` fan-out) and pass a
  *    `userMessage` so `manager.send` injects it into any in-flight
  *    session on this topic.
  */
 
-import { sessionService } from '@main/services/agents'
-import { agentMessageRepository } from '@main/services/agents/database/sessionMessageRepository'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
@@ -36,7 +36,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const session = await sessionService.getById(sessionId)
+    const session = await agentSessionService.getById(sessionId)
     if (!session) throw new Error(`Agent session not found: ${sessionId}`)
 
     const uniqueModelId = parseAgentSessionModel(session.model)
@@ -52,14 +52,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const createdAt = new Date().toISOString()
 
     // Persist user message to agents DB
-    await agentMessageRepository.persistUserMessage({
+    await agentSessionMessageService.persistUserMessage({
       sessionId,
       agentSessionId: '',
       payload: {
         message: {
           id: userMessageId,
           role: 'user',
-          assistantId: session.agent_id,
+          assistantId: session.agentId,
           topicId: req.topicId,
           createdAt,
           status: 'success',
@@ -74,9 +74,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       backend: new AgentMessageBackend({
         sessionId,
-        agentId: session.agent_id,
+        agentId: session.agentId,
         afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(session.agent_id, sessionId, userText, finalMessage)
+          await topicNamingService.maybeRenameAgentSession(session.agentId, sessionId, userText, finalMessage)
         }
       })
     })
@@ -89,7 +89,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           request: {
             chatId: req.topicId,
             trigger: 'submit-message',
-            assistantId: session.agent_id,
+            assistantId: session.agentId,
             uniqueModelId,
             messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }]
           }

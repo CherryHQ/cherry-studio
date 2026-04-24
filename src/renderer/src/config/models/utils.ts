@@ -1,6 +1,6 @@
 import type { Assistant } from '@renderer/types'
 import { type Model } from '@renderer/types'
-import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'
 import { getLowerBaseModelName } from '@renderer/utils'
 import {
   GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,

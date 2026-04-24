@@ -1,7 +1,8 @@
 import { application } from '@application'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { getMcpApiService } from '@main/apiServer/services/mcp'
-import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import fs from 'fs'
@@ -108,33 +109,39 @@ export async function validateAgentModels(
     }
 
     const modelValue = rawValue
-    const validation = await validateModelId(modelValue)
 
-    if (!validation.valid || !validation.provider) {
-      const detail: ModelValidationError = validation.error ?? {
-        type: 'invalid_format',
-        message: 'Unknown model validation error',
-        code: 'validation_error'
-      }
-
-      throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
+    // Parse UniqueModelId and resolve provider
+    let providerId: string
+    try {
+      const parsed = parseUniqueModelId(modelValue as UniqueModelId)
+      providerId = parsed.providerId
+    } catch {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        { type: 'invalid_format', message: `Invalid model format: ${modelValue}`, code: 'invalid_model_format' }
+      )
     }
 
-    const requiresApiKey = !localProvidersWithoutApiKey.includes(validation.provider.id)
+    const provider = await providerService.getByProviderId(providerId).catch(() => null)
+    if (!provider) {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        { type: 'provider_not_found', message: `Provider '${providerId}' not found`, code: 'provider_not_found' }
+      )
+    }
 
-    if (!validation.provider.apiKey) {
-      if (requiresApiKey) {
-        throw new AgentModelValidationError(
-          { agentType, field, model: modelValue },
-          {
-            type: 'invalid_format',
-            message: `Provider '${validation.provider.id}' is missing an API key`,
-            code: 'provider_api_key_missing'
-          }
-        )
-      } else {
-        validation.provider.apiKey = validation.provider.id
-      }
+    const requiresApiKey = !localProvidersWithoutApiKey.includes(provider.id)
+    const hasApiKey = provider.apiKeys?.some((k) => k.isEnabled)
+
+    if (!hasApiKey && requiresApiKey) {
+      throw new AgentModelValidationError(
+        { agentType, field, model: modelValue },
+        {
+          type: 'invalid_format',
+          message: `Provider '${provider.id}' is missing an API key`,
+          code: 'provider_api_key_missing'
+        }
+      )
     }
   }
 }

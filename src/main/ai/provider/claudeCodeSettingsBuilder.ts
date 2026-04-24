@@ -28,6 +28,8 @@ import type {
   SdkPluginConfig,
   SpawnedProcess
 } from '@anthropic-ai/claude-agent-sdk'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -37,9 +39,7 @@ import { application } from '@main/core/application'
 import AssistantServer from '@main/mcpServers/assistant'
 import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
-import { agentService } from '@main/services/agents/services/AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/services/builtin/BuiltinAgentProvisioner'
-import { channelService } from '@main/services/agents/services/ChannelService'
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
@@ -56,9 +56,10 @@ import {
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { GetAgentSessionResponse } from '@types'
+import type { CherryClawConfiguration } from '@types'
 import { app } from 'electron'
 
 import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './claude-code'
@@ -198,12 +199,12 @@ export interface ClaudeCodeSessionOptions {
  * Extracted from ClaudeCodeService.invoke() lines 106-545.
  */
 export async function buildClaudeCodeSessionSettings(
-  session: GetAgentSessionResponse,
+  session: AgentSessionEntity,
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
   // 1. Working directory
-  const cwd = session.accessible_paths[0]
+  const cwd = session.accessiblePaths[0]
   if (!cwd) {
     throw new Error('No accessible paths defined for the agent session')
   }
@@ -212,7 +213,7 @@ export async function buildClaudeCodeSessionSettings(
   const env = await buildEnvironment(provider, session)
 
   // 3. Plugins
-  const plugins = await discoverPlugins(cwd, session.agent_id)
+  const plugins = await discoverPlugins(cwd, session.agentId)
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -233,8 +234,9 @@ export async function buildClaudeCodeSessionSettings(
   const spawnClaudeCodeProcess = buildSpawnProcess()
 
   // 7. MCP servers (session + built-in)
-  const soulEnabled = session.configuration?.soul_enabled === true
-  const isAssistant = (session.configuration as Record<string, unknown> | undefined)?.builtin_role === 'assistant'
+  const sessionConfig = session.configuration as CherryClawConfiguration | undefined
+  const soulEnabled = sessionConfig?.soul_enabled === true
+  const isAssistant = sessionConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, soulEnabled, isAssistant)
 
   // 8. Adjust allowedTools for injected MCP servers
@@ -249,8 +251,8 @@ export async function buildClaudeCodeSessionSettings(
     systemPrompt,
     settingSources: getSettingSources(session),
     includePartialMessages: true,
-    permissionMode: session.configuration?.permission_mode,
-    maxTurns: session.configuration?.max_turns,
+    permissionMode: sessionConfig?.permission_mode,
+    maxTurns: sessionConfig?.max_turns,
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
@@ -263,8 +265,8 @@ export async function buildClaudeCodeSessionSettings(
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
   }
 
-  if (session.accessible_paths.length > 1) {
-    settings.additionalDirectories = session.accessible_paths.slice(1)
+  if (session.accessiblePaths.length > 1) {
+    settings.additionalDirectories = session.accessiblePaths.slice(1)
   }
 
   return settings
@@ -278,7 +280,7 @@ export function resolveClaudeExecutablePath(): string {
 
 async function buildEnvironment(
   _provider: Provider, // retained for API compat; providerId resolved from session.model
-  session: GetAgentSessionResponse
+  session: AgentSessionEntity
 ): Promise<Record<string, string | undefined>> {
   const loginShellEnv = await getLoginShellEnvironment()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
@@ -375,9 +377,10 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
   }
 }
 
-function buildToolPermissions(session: GetAgentSessionResponse, approvalEmitter: ToolApprovalEmitterHolder) {
-  const soulEnabled = session.configuration?.soul_enabled === true
-  const isAssistant = session.configuration?.builtin_role === 'assistant'
+function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: ToolApprovalEmitterHolder) {
+  const sessionConfig = session.configuration as CherryClawConfiguration | undefined
+  const soulEnabled = sessionConfig?.soul_enabled === true
+  const isAssistant = sessionConfig?.builtin_role === 'assistant'
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
     if (opts.signal.aborted) {
@@ -387,8 +390,8 @@ function buildToolPermissions(session: GetAgentSessionResponse, approvalEmitter:
       shouldAutoApprove({
         toolKind: 'claude-agent',
         toolName,
-        agentAllowedTools: session.allowed_tools,
-        permissionMode: session.configuration?.permission_mode
+        agentAllowedTools: session.allowedTools,
+        permissionMode: sessionConfig?.permission_mode
       })
     ) {
       return { behavior: 'allow', updatedInput: input }
@@ -436,7 +439,7 @@ function buildToolPermissions(session: GetAgentSessionResponse, approvalEmitter:
   return {
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
-    allowedTools: session.allowed_tools,
+    allowedTools: session.allowedTools,
     disallowedTools: [
       ...GLOBALLY_DISALLOWED_TOOLS,
       ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
@@ -446,14 +449,14 @@ function buildToolPermissions(session: GetAgentSessionResponse, approvalEmitter:
 }
 
 async function buildSystemPrompt(
-  session: GetAgentSessionResponse,
+  session: AgentSessionEntity,
   cwd: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
-  const agent = await agentService.getAgent(session.agent_id)
-  const agentConfig = agent?.configuration
+  const agent = await agentService.getAgent(session.agentId)
+  const agentConfig = agent?.configuration as CherryClawConfiguration | undefined
   const soulEnabled = agentConfig?.soul_enabled === true
 
-  const builtinRole = (session.configuration as Record<string, unknown> | undefined)?.builtin_role as string | undefined
+  const builtinRole = session.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
 
   // Provision builtin agent workspace
@@ -528,7 +531,7 @@ export function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'
 }
 
 async function buildMcpServers(
-  session: GetAgentSessionResponse,
+  session: AgentSessionEntity,
   soulEnabled: boolean,
   isAssistant: boolean
 ): Promise<Record<string, McpServerConfig> | undefined> {
@@ -556,11 +559,11 @@ async function buildMcpServers(
 
   // 4. Claw — agent autonomy tools (soul mode only)
   if (soulEnabled) {
-    const sourceChannelId = await resolveSourceChannel(session.agent_id, session.id)
-    const clawServer = new ClawServer(session.agent_id, sourceChannelId)
+    const sourceChannelId = await resolveSourceChannel(session.agentId, session.id)
+    const clawServer = new ClawServer(session.agentId, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
     logger.debug('Soul Mode: injected claw MCP server', {
-      agentId: session.agent_id,
+      agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
     })
   }
@@ -570,7 +573,7 @@ async function buildMcpServers(
     const assistantServer = new AssistantServer()
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
-      agentId: session.agent_id,
+      agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
     })
   }
@@ -611,8 +614,8 @@ function adjustAllowedToolsForMcp(
   return result.length > 0 ? result : undefined
 }
 
-function getSettingSources(session: GetAgentSessionResponse): Array<'user' | 'project' | 'local'> {
-  const builtinRole = (session.configuration as Record<string, unknown> | undefined)?.builtin_role
+function getSettingSources(session: AgentSessionEntity): Array<'user' | 'project' | 'local'> {
+  const builtinRole = (session.configuration)?.builtin_role
   return builtinRole ? [] : ['project', 'local']
 }
 

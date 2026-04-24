@@ -47,7 +47,7 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
         serverDisabledAutoApprove: disabledAutoApproveTools
       }),
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
-      const mcpService = application.get('MCPService')
+      const mcpService = application.get('McpService')
       const result: MCPCallToolResponse = await mcpService.callTool({
         server: { id: mcpTool.serverId } as MCPServer,
         name: mcpTool.name,
@@ -96,7 +96,7 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
 export async function registerMcpTools(registry: ToolRegistry, mcpToolIds: string[]): Promise<void> {
   if (mcpToolIds.length === 0) return
 
-  const mcpService = application.get('MCPService')
+  const mcpService = application.get('McpService')
 
   // Group tool IDs by server to batch listTools calls
   const serverToolMap = new Map<string, string[]>()

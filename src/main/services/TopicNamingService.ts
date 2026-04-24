@@ -6,7 +6,7 @@ import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuil
 import { application } from '@main/core/application'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
-import { sessionService } from '@main/services/agents'
+import { agentSessionService as sessionService } from '@main/services/agents'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -285,7 +285,7 @@ export class TopicNamingService {
     // render a topic list, so broadcasting to them would just burn IPC.
     const wm = application.get('WindowManager')
     wm.broadcastToType(WindowType.Main, IpcChannel.Topic_Updated, topic)
-    wm.broadcastToType(WindowType.DetachedTab, IpcChannel.Topic_Updated, topic)
+    wm.broadcastToType(WindowType.SubWindow, IpcChannel.Topic_Updated, topic)
   }
 
   private broadcastAgentSessionUpdated(sessionId: string, agentId: string, name: string): void {
@@ -293,7 +293,7 @@ export class TopicNamingService {
     const payload = { sessionId, agentId, name }
     const wm = application.get('WindowManager')
     wm.broadcastToType(WindowType.Main, IpcChannel.AgentSession_Updated, payload)
-    wm.broadcastToType(WindowType.DetachedTab, IpcChannel.AgentSession_Updated, payload)
+    wm.broadcastToType(WindowType.SubWindow, IpcChannel.AgentSession_Updated, payload)
   }
 }
 
