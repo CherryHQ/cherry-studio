@@ -37,7 +37,7 @@ const LanguageSelect = (props: Props) => {
     [getLabel]
   )
 
-  const labelRender = (props) => {
+  const labelRender: NonNullable<SelectProps['labelRender']> = (props) => {
     const { label } = props
     if (label) {
       return label
