@@ -14,15 +14,15 @@ vi.mock('@renderer/services/ApiService', () => ({
   fetchChatCompletion: (args: any) => fetchChatCompletionMock(args)
 }))
 
-const getDefaultTranslateAssistantMock = vi.fn(async () => ({
+const getDefaultTranslateAssistantMock = vi.fn(async (..._args: unknown[]) => ({
   id: 'translate-assistant',
   content: 'translate this'
 }))
 vi.mock('@renderer/services/AssistantService', () => ({
-  getDefaultTranslateAssistant: (...args: any[]) => getDefaultTranslateAssistantMock(...args)
+  getDefaultTranslateAssistant: (...args: unknown[]) => getDefaultTranslateAssistantMock(...args)
 }))
 
-const readyToAbortMock = vi.fn(() => ({ aborted: false }) as AbortSignal)
+const readyToAbortMock = vi.fn((_key: string) => ({ aborted: false }) as AbortSignal)
 vi.mock('@renderer/utils/abortController', () => ({
   readyToAbort: (key: string) => readyToAbortMock(key)
 }))
