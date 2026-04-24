@@ -58,6 +58,7 @@ import {
   default as ChatGPTo1ModelLogoDark
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
+import ChatGPTImage2ModelLogo from '@renderer/assets/images/models/gpt_image_2.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
 import GPT51ModelLogo from '@renderer/assets/images/models/gpt-5.1.png'
 import GPT51ChatModelLogo from '@renderer/assets/images/models/gpt-5.1-chat.png'
@@ -182,6 +183,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     o1: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o3: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
     o4: isLight ? ChatGPTo1ModelLogo : ChatGPTo1ModelLogoDark,
+    'gpt-image-2': ChatGPTImage2ModelLogo,
     'gpt-image': ChatGPTImageModelLogo,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
