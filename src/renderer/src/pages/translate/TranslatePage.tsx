@@ -184,16 +184,15 @@ const TranslatePage: FC = () => {
         setTimeoutTimer('auto-copy', async () => copy(translated), 100)
       }
 
-      // 保存历史记录 — hook logs the error; we keep the upstream-message toast here.
-      // Auto-detect may legitimately degrade to UNKNOWN (languages not ready, empty
-      // seed, etc.). The persistence layer rejects the 'unknown' sentinel but accepts
-      // null, which matches the existing history shape (see onHistoryItemClick).
+      // Hook logs the error; we keep the upstream-message toast here.
+      // Auto-detect may legitimately degrade to UNKNOWN; useAddHistory coerces
+      // that to null at the persistence boundary.
       try {
         await addHistory({
           sourceText: translateInput,
           targetText: translated,
-          sourceLanguage: actualSourceLanguage === UNKNOWN.langCode ? null : actualSourceLanguage,
-          targetLanguage: actualTargetLanguage === UNKNOWN.langCode ? null : actualTargetLanguage
+          sourceLanguage: actualSourceLanguage,
+          targetLanguage: actualTargetLanguage
         })
       } catch (e) {
         window.toast.error(formatErrorMessageWithPrefix(e, t('translate.history.error.save')))
@@ -241,9 +240,9 @@ const TranslatePage: FC = () => {
     } else {
       void setSourceLanguage(history.sourceLanguage)
     }
-    // Persisted `null` means the original detection degraded to UNKNOWN (see
-    // `onTranslate` above, where UNKNOWN is coerced to null on save). Restore
-    // the UNKNOWN sentinel in the UI so the selector reflects that state.
+    // Persisted `null` means the original detection degraded to UNKNOWN
+    // (useAddHistory coerces UNKNOWN → null at the persistence boundary).
+    // Restore the UNKNOWN sentinel in the UI so the selector reflects that state.
     if (history.targetLanguage === null) {
       void setTargetLanguage(UNKNOWN.langCode)
     } else {

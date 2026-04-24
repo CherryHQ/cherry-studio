@@ -54,4 +54,28 @@ describe('useUpdateHistory', () => {
     await expect(result.current({ star: false })).resolves.toBeUndefined()
     expect(toast.error).toHaveBeenCalled()
   })
+
+  it('coerces the UNKNOWN sentinel to null on provided language fields before calling trigger', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useUpdateHistory('hist-123'))
+
+    await result.current({ sourceLanguage: 'unknown', targetLanguage: 'en-us' })
+
+    expect(triggerSpy).toHaveBeenCalledWith({
+      body: { sourceLanguage: null, targetLanguage: 'en-us' }
+    })
+  })
+
+  it('omits language fields from the body when the caller did not provide them', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useUpdateHistory('hist-123'))
+
+    await result.current({ star: true })
+
+    expect(triggerSpy).toHaveBeenCalledWith({ body: { star: true } })
+  })
 })

@@ -63,4 +63,50 @@ describe('useAddHistory', () => {
     expect(loggerSpy).toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
   })
+
+  it('coerces the UNKNOWN sentinel to null on both language fields before calling trigger', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useAddHistory())
+
+    await result.current({
+      sourceText: 'Hello',
+      targetText: '你好',
+      sourceLanguage: 'unknown',
+      targetLanguage: 'unknown'
+    })
+
+    expect(triggerSpy).toHaveBeenCalledWith({
+      body: {
+        sourceText: 'Hello',
+        targetText: '你好',
+        sourceLanguage: null,
+        targetLanguage: null
+      }
+    })
+  })
+
+  it('passes concrete lang codes and explicit null through unchanged', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useAddHistory())
+
+    await result.current({
+      sourceText: 'Hello',
+      targetText: '你好',
+      sourceLanguage: 'en-us',
+      targetLanguage: null
+    })
+
+    expect(triggerSpy).toHaveBeenCalledWith({
+      body: {
+        sourceText: 'Hello',
+        targetText: '你好',
+        sourceLanguage: 'en-us',
+        targetLanguage: null
+      }
+    })
+  })
 })
