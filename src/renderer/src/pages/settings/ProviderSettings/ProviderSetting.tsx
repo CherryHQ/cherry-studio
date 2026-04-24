@@ -332,6 +332,10 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const hostPreview = () => {
     const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
 
+    if (apiHost.trim().endsWith('#')) {
+      return formattedApiHost
+    }
+
     if (isOllamaProvider(provider)) {
       return formattedApiHost + '/chat'
     }
