@@ -10,7 +10,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
-  AgentBaseSchema,
+  AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
   type AgentSessionEntity,
   type CreateSessionDto,
@@ -196,7 +196,7 @@ export class AgentSessionService {
       updatedAt: Date.now()
     }
 
-    const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
+    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
     for (const field of replaceableEntityFields) {
       if (Object.prototype.hasOwnProperty.call(updates, field)) {
         const value = updates[field as keyof typeof updates]

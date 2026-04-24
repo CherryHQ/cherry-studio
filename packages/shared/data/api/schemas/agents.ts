@@ -40,11 +40,9 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
 // ============================================================================
 
-/** Core mutable fields shared between agent and session rows.
- *  TODO: Replace .extend()-based DTOs below with .pick() from entity schemas
- *  once AGENT_MUTABLE_FIELDS constant is extracted (overposting guard). */
+/** Core mutable fields shared between agent and session rows. */
 export const AgentBaseSchema = z.strictObject({
-  name: AgentNameAtomSchema.optional(),
+  name: AgentNameAtomSchema,
   description: z.string().optional(),
   accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
@@ -56,6 +54,26 @@ export const AgentBaseSchema = z.strictObject({
   configuration: AgentConfigurationSchema.optional()
 })
 export type AgentBase = z.infer<typeof AgentBaseSchema>
+
+/** Pick-set for agent mutable fields — used for DTO derivation and service update logic. */
+export const AGENT_MUTABLE_FIELDS = {
+  name: true,
+  description: true,
+  accessiblePaths: true,
+  instructions: true,
+  model: true,
+  planModel: true,
+  smallModel: true,
+  mcps: true,
+  allowedTools: true,
+  configuration: true
+} as const
+
+/** Pick-set for session mutable fields — superset of AGENT_MUTABLE_FIELDS. */
+export const SESSION_MUTABLE_FIELDS = {
+  ...AGENT_MUTABLE_FIELDS,
+  slashCommands: true
+} as const
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
@@ -156,27 +174,23 @@ export const InstalledSkillSchema = z.strictObject({
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 // ============================================================================
-// Agent DTOs
+// Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
-export const CreateAgentSchema = AgentBaseSchema.extend({
-  type: z.enum(['claude-code']),
-  name: AgentNameAtomSchema,
-  model: ModelIdAtomSchema,
+export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
   accessiblePaths: z.array(z.string()).default([])
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-export const UpdateAgentSchema = AgentBaseSchema.partial()
+// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // ============================================================================
-// Session DTOs
+// Session DTOs (derived via .pick() from AgentSessionEntitySchema — Rule C)
 // ============================================================================
 
-export const CreateSessionSchema = AgentBaseSchema.extend({
-  slashCommands: z.array(SlashCommandSchema).optional()
-}).partial()
+export const CreateSessionSchema = AgentSessionEntitySchema.pick(SESSION_MUTABLE_FIELDS).partial()
 export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 
 export const UpdateSessionSchema = CreateSessionSchema

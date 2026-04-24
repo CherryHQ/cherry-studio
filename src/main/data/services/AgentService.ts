@@ -11,7 +11,7 @@ import { loggerService } from '@logger'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
-  AgentBaseSchema,
+  AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
   type AgentEntity,
   type CreateAgentDto,
@@ -169,7 +169,7 @@ export class AgentService {
       updatedAt: Date.now()
     }
 
-    const replaceableEntityFields = Object.keys(AgentBaseSchema.shape)
+    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
     const shouldReplace = options.replace ?? false
 
     for (const field of replaceableEntityFields) {
