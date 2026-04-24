@@ -12,7 +12,7 @@ export const SettingContainer = ({
   <div
     data-theme-mode={theme}
     className={cn(
-      'flex min-h-0 flex-1 flex-col overflow-y-auto bg-background-subtle/70 px-6 py-5 [&::-webkit-scrollbar]:hidden',
+      'flex min-h-0 flex-1 flex-col overflow-y-auto bg-background-subtle/70 p-4 [&::-webkit-scrollbar]:hidden',
       className
     )}
     {...props}

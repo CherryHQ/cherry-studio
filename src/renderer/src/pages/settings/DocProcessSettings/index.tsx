@@ -8,7 +8,6 @@ import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import type { OcrProvider, PreprocessProvider } from '@renderer/types'
 import { isBuiltinOcrProvider, isImageOcrProvider } from '@renderer/types'
-import { cn } from '@renderer/utils/style'
 import { Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -269,7 +268,7 @@ const DocProcessSettings: FC = () => {
         </Scrollbar>
 
         <Scrollbar className={settingsContentScrollClassName}>
-          <div className={cn(settingsContentBodyClassName, 'py-6')}>
+          <div className={settingsContentBodyClassName}>
             {activeEntry ? (
               <div className="flex w-full flex-col gap-4">
                 <div className="flex items-center justify-between gap-4 px-1">

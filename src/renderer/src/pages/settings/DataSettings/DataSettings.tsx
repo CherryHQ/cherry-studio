@@ -96,7 +96,9 @@ const DataSettings: FC = () => {
                 {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
                 <div
                   className={
-                    index === 0 ? `${settingsSubmenuSectionTitleClassName} pt-0` : settingsSubmenuSectionTitleClassName
+                    index === 0
+                      ? 'px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs'
+                      : settingsSubmenuSectionTitleClassName
                   }>
                   {item.text || ''}
                 </div>

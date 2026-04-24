@@ -8,7 +8,6 @@ import TextBadge from '@renderer/components/TextBadge'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
@@ -32,9 +31,6 @@ import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRo
 import SidebarIconsManager from './DisplaySettings/SidebarIconsManager'
 import {
   settingsContentBodyClassName,
-  settingsContentHeaderClassName,
-  settingsContentHeaderDescriptionClassName,
-  settingsContentHeaderTitleClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
@@ -84,7 +80,6 @@ const CommonSettings: FC = () => {
   const { t } = useTranslation()
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
-  const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
 
@@ -396,10 +391,6 @@ const CommonSettings: FC = () => {
 
   const renderDisplayLanguageSection = () => (
     <>
-      <SectionHeader
-        title={t('settings.general.common.sections.display_language')}
-        description={t('settings.display.title')}
-      />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
         <SettingDivider />
@@ -558,21 +549,8 @@ const CommonSettings: FC = () => {
 
       <SettingGroup theme={theme}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.navbar.title')} <TextBadge text="New" />
+          {t('settings.display.assistant.title')} <TextBadge text="New" />
         </SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.navbar.position.label')}</SettingRowTitle>
-          <Segmented
-            value={navbarPosition}
-            shape="round"
-            onChange={setNavbarPosition}
-            options={[
-              { label: t('settings.display.navbar.position.left'), value: 'left' },
-              { label: t('settings.display.navbar.position.top'), value: 'top' }
-            ]}
-          />
-        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
@@ -624,33 +602,27 @@ const CommonSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      {navbarPosition === 'left' && (
-        <SettingGroup theme={theme}>
-          <SettingTitle
-            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{t('settings.display.sidebar.title')}</span>
-            <ResetButtonWrapper>
-              <Button onClick={handleResetSidebarIcons}>{t('common.reset')}</Button>
-            </ResetButtonWrapper>
-          </SettingTitle>
-          <SettingDivider />
-          <SidebarIconsManager
-            visibleIcons={visibleIcons}
-            invisibleIcons={invisibleIcons}
-            setVisibleIcons={setVisibleIcons}
-            setInvisibleIcons={setInvisibleIcons}
-          />
-        </SettingGroup>
-      )}
+      <SettingGroup theme={theme}>
+        <SettingTitle
+          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{t('settings.display.sidebar.title')}</span>
+          <ResetButtonWrapper>
+            <Button onClick={handleResetSidebarIcons}>{t('common.reset')}</Button>
+          </ResetButtonWrapper>
+        </SettingTitle>
+        <SettingDivider />
+        <SidebarIconsManager
+          visibleIcons={visibleIcons}
+          invisibleIcons={invisibleIcons}
+          setVisibleIcons={setVisibleIcons}
+          setInvisibleIcons={setInvisibleIcons}
+        />
+      </SettingGroup>
     </>
   )
 
   const renderSystemStartupSection = () => (
     <>
-      <SectionHeader
-        title={t('settings.general.common.sections.system_startup')}
-        description={t('settings.launch.title')}
-      />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>
         <SettingDivider />
@@ -760,10 +732,6 @@ const CommonSettings: FC = () => {
 
   const renderPrivacyAdvancedSection = () => (
     <>
-      <SectionHeader
-        title={t('settings.general.common.sections.privacy_advanced')}
-        description={t('settings.privacy.title')}
-      />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
         <SettingDivider />
@@ -830,10 +798,6 @@ const CommonSettings: FC = () => {
 
   const renderCustomCssSection = () => (
     <>
-      <SectionHeader
-        title={t('settings.general.common.sections.custom_css')}
-        description={t('settings.display.custom.css.label')}
-      />
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css.label')}
@@ -908,13 +872,6 @@ const CommonSettings: FC = () => {
     </div>
   )
 }
-
-const SectionHeader = ({ title, description }: { title: string; description?: string }) => (
-  <div className={settingsContentHeaderClassName}>
-    <h1 className={settingsContentHeaderTitleClassName}>{title}</h1>
-    {description && <p className={settingsContentHeaderDescriptionClassName}>{description}</p>}
-  </div>
-)
 
 const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
