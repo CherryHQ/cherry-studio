@@ -307,7 +307,7 @@ describe('agentHandlers', () => {
         query: { limit: 20 }
       } as never)
 
-      expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 20, offset: 0 })
+      expect(listSessionMessagesMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, { limit: 20, offset: 0 })
       expect(result).toEqual({ items: [], total: 0, page: 1 })
     })
 
@@ -319,7 +319,7 @@ describe('agentHandlers', () => {
         query: { page: 2, limit: 10 }
       } as never)
 
-      expect(listSessionMessagesMock).toHaveBeenCalledWith(SESSION_ID, { limit: 10, offset: 10 })
+      expect(listSessionMessagesMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, { limit: 10, offset: 10 })
     })
   })
 
@@ -335,7 +335,7 @@ describe('agentHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteSessionMessageMock).toHaveBeenCalledWith(SESSION_ID, MESSAGE_ID)
+      expect(deleteSessionMessageMock).toHaveBeenCalledWith(AGENT_ID, SESSION_ID, MESSAGE_ID)
     })
   })
 

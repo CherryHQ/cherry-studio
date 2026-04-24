@@ -19,6 +19,7 @@ import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type AgentSchemas,
   CreateAgentSchema,
+  CreateSessionSchema,
   CreateTaskSchema,
   type ListQuery,
   UpdateAgentSchema,
@@ -78,7 +79,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     POST: async ({ params, body }) => {
-      const session = await sessionService.createSession(params.agentId, body ?? {})
+      const parsed = CreateSessionSchema.safeParse(body ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const session = await sessionService.createSession(params.agentId, parsed.data)
       if (!session) {
         throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
       }
@@ -111,14 +114,17 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(query)
-      const { messages, total } = await sessionMessageService.listSessionMessages(params.sessionId, { limit, offset })
+      const { messages, total } = await sessionMessageService.listSessionMessages(params.agentId, params.sessionId, {
+        limit,
+        offset
+      })
       return { items: messages, total, page }
     }
   },
 
   '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
-      await sessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
+      await sessionMessageService.deleteSessionMessage(params.agentId, params.sessionId, params.messageId)
       return undefined
     }
   },

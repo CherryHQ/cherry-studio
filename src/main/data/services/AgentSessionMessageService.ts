@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
@@ -37,10 +38,20 @@ export class AgentSessionMessageService {
   }
 
   async listSessionMessages(
+    agentId: string,
     sessionId: string,
     options: ListOptions = {}
   ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
+
+    // Verify session belongs to the given agent (ownership check)
+    const [session] = await database
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(and(eq(sessionTable.id, sessionId), eq(sessionTable.agentId, agentId)))
+      .limit(1)
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
     const whereClause = eq(sessionMessagesTable.sessionId, sessionId)
 
     const [totalRows, rows] = await Promise.all([
@@ -64,7 +75,7 @@ export class AgentSessionMessageService {
     return { messages, total: totalRows[0].count }
   }
 
-  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
+  async deleteSessionMessage(agentId: string, sessionId: string, messageId: string): Promise<void> {
     if (!/^\d+$/.test(messageId)) {
       throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
     }
@@ -73,6 +84,15 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
     }
     const database = application.get('DbService').getDb()
+
+    // Verify session belongs to the given agent (ownership check)
+    const [session] = await database
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(and(eq(sessionTable.id, sessionId), eq(sessionTable.agentId, agentId)))
+      .limit(1)
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
     const result = await withSqliteErrors(
       () =>
         database
@@ -163,15 +183,19 @@ export class AgentSessionMessageService {
       const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
       const updatedAtMs = Date.now()
 
-      await db
-        .update(sessionMessagesTable)
-        .set({
-          content: payload,
-          metadata: metadataToPersist,
-          agentSessionId: agentSessionToPersist,
-          updatedAt: updatedAtMs
-        })
-        .where(eq(sessionMessagesTable.id, existingRow.id))
+      await withSqliteErrors(
+        () =>
+          db
+            .update(sessionMessagesTable)
+            .set({
+              content: payload,
+              metadata: metadataToPersist,
+              agentSessionId: agentSessionToPersist,
+              updatedAt: updatedAtMs
+            })
+            .where(eq(sessionMessagesTable.id, existingRow.id)),
+        defaultHandlersFor('Message', String(existingRow.id))
+      )
 
       return this.rowToEntity({
         ...existingRow,

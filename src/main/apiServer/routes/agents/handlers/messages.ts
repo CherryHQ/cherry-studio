@@ -271,7 +271,7 @@ export const deleteMessage = async (req: Request, res: Response): Promise<Respon
 
     await verifyAgentAndSession(agentId, sessionId)
 
-    await sessionMessageService.deleteSessionMessage(sessionId, messageId)
+    await sessionMessageService.deleteSessionMessage(agentId, sessionId, messageId)
 
     logger.info('Session message deleted', { agentId, sessionId, messageId })
     return res.status(204).send()

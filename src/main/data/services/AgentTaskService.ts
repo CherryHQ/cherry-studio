@@ -159,25 +159,29 @@ export class AgentTaskService {
     }
 
     const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      await tx.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
-      if (updates.channelIds !== undefined) {
-        await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
-        if (updates.channelIds.length > 0) {
-          const result = await tx
-            .insert(channelTaskSubscriptionsTable)
-            .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
-            .onConflictDoNothing()
-          if (result.rowsAffected !== updates.channelIds.length) {
-            logger.warn('updateTaskById: inserted fewer channel rows than requested', {
-              taskId,
-              requested: updates.channelIds.length,
-              inserted: result.rowsAffected
-            })
+    await withSqliteErrors(
+      () =>
+        database.transaction(async (tx) => {
+          await tx.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+          if (updates.channelIds !== undefined) {
+            await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+            if (updates.channelIds.length > 0) {
+              const result = await tx
+                .insert(channelTaskSubscriptionsTable)
+                .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
+                .onConflictDoNothing()
+              if (result.rowsAffected !== updates.channelIds.length) {
+                logger.warn('updateTaskById: inserted fewer channel rows than requested', {
+                  taskId,
+                  requested: updates.channelIds.length,
+                  inserted: result.rowsAffected
+                })
+              }
+            }
           }
-        }
-      }
-    })
+        }),
+      defaultHandlersFor('Task', taskId)
+    )
 
     logger.info('Task updated', { taskId })
     return this.getTaskWithChannels(taskId)
@@ -486,8 +490,9 @@ export class AgentTaskService {
         return now + 60_000
       }
 
-      // Anchor to scheduled time to prevent drift
-      let next = new Date(task.nextRun!).getTime() + ms
+      // Anchor to scheduled time to prevent drift; fall back to now when nextRun is null (e.g. failed cron parse)
+      if (task.nextRun == null) return now + ms
+      let next = new Date(task.nextRun).getTime() + ms
       while (next <= now) {
         next += ms
       }
