@@ -10,14 +10,14 @@ WindowManager is an `@Injectable()` service (`Phase.WhenReady`, priority 5) regi
 WindowType (enum)
   └─ WindowTypeMetadata (discriminated union on `lifecycle`)
        ├─ { lifecycle: 'default' }
-       ├─ { lifecycle: 'singleton' }
+       ├─ { lifecycle: 'singleton', singletonConfig?: SingletonConfig }
        └─ { lifecycle: 'pooled', poolConfig: PoolConfig }
 
 WindowManager
-  ├─ windows: Map<windowId, ManagedWindow>       ── all tracked windows
-  ├─ windowsByType: Map<WindowType, Set<windowId>> ── type index
-  ├─ pools: Map<WindowType, PoolState>            ── per-type pool runtime state
-  └─ initDataStore: Map<windowId, unknown>        ── one-shot init data
+  ├─ windows: Map<windowId, ManagedWindow>            ── all tracked windows
+  ├─ windowsByType: Map<WindowType, Set<windowId>>    ── type index
+  ├─ warmupStates: Map<WindowType, WarmupState>       ── per-type warmup state (pool + singleton)
+  └─ initDataStore: Map<windowId, unknown>            ── one-shot init data
 ```
 
 ## Three Lifecycle Modes
@@ -86,6 +86,8 @@ const id1 = wm.open(WindowType.Main) // creates
 const id2 = wm.open(WindowType.Main) // shows + focuses, id2 === id1
 ```
 
+**Optional `singletonConfig`**: enable eager pre-warm and/or close→hide with delayed destroy. See [Warmup Mechanics → Singleton Variant](./window-manager-warmup-mechanics.md#singleton-variant).
+
 ### `pooled` — Two-Axis Pool with Active Standby + Passive Recycle
 
 Windows are reused rather than destroyed. The pool has two orthogonal axes:
@@ -114,7 +116,7 @@ WINDOW_TYPE_REGISTRY[WindowType.SelectionAction] = {
 }
 ```
 
-See [Pool Mechanics](./window-manager-pool-mechanics.md) for the full pool configuration matrix, GC timer behavior, warmup strategies, and suspend/resume semantics.
+See [Warmup Mechanics](./window-manager-warmup-mechanics.md) for the full pool configuration matrix, GC timer behavior, warmup strategies, and suspend/resume semantics. Note that the inactivity timer resets on both `open()` and `close()` (via `lastActivityAt`), so a long-held-then-closed window does not immediately trigger a trim.
 
 ## Key Features
 
