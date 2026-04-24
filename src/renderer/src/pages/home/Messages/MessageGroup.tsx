@@ -76,6 +76,23 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     return useful?.id ?? null
   })
 
+  // Re-sync selected/useful ids when the group's membership changes
+  // (e.g., retry adds a new sibling and flips activeNodeId, so the old
+  // selected id falls off-path). Without this, `selectedMessageId` can
+  // point to a message no longer in `messages`, and the fold-mode CSS
+  // renders NOTHING (no wrapper gets the `selected` class) — the whole
+  // group looks empty until the component re-mounts on topic switch.
+  useEffect(() => {
+    const hasSelected = messages.some((m) => m.id === selectedMessageId)
+    if (!hasSelected) {
+      const next = messages.find((m) => getMessageUiFromCache(m.id).foldSelected)?.id ?? messages[0]?.id
+      if (next) setSelectedMessageIdState(next)
+    }
+    if (usefulMessageId && !messages.some((m) => m.id === usefulMessageId)) {
+      setUsefulMessageIdState(null)
+    }
+  }, [messages, selectedMessageId, usefulMessageId])
+
   const setSelectedMessage = useCallback(
     (message: Message) => {
       // 前一个

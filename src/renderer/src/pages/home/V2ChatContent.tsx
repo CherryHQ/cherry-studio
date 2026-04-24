@@ -458,29 +458,33 @@ const V2ChatContentInner: FC<InnerProps> = ({
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
-      // `mentionedModels: [modelId]` takes the mention-model path on the
-      // main side: `resolveModels` prefers the mentioned model over the
-      // assistant default, and the single-model regenerate flow creates a
-      // new sibling (same user parent, shared siblingsGroupId) so the
-      // group renders as a cross-model comparison.
+      // Resolve both `parentAnchorId` and the model from the target's DB
+      // row before calling AI SDK.
       //
-      // `parentAnchorId` is resolved from `uiMessages` — the target's own
-      // DB `parentId`. Without this, `IpcChatTransport` falls back to
-      // `state.messages.at(-1).id` after AI SDK's truncate, which in a
-      // multi-model fan-out leaves a *sibling* as the last message (AI
-      // SDK treats the flat array as linear) — Main then parents the new
-      // placeholder under that sibling instead of the user message,
-      // producing a chain-extension layout bug instead of a sibling.
-      const parentAnchorId = messageId
-        ? (uiMessages.find((m) => m.id === messageId)?.metadata?.parentId ?? undefined)
-        : undefined
+      // `parentAnchorId` — without an explicit value, `IpcChatTransport`
+      // falls back to `state.messages.at(-1).id` after AI SDK's truncate.
+      // In a multi-model fan-out that leaves a *sibling* as the last
+      // message (AI SDK treats the flat array as linear) — Main then
+      // parents the new placeholder under that sibling instead of the
+      // user message, producing a chain-extension layout bug instead of
+      // a true sibling.
+      //
+      // `mentionedModels` — plain retry without `options.modelId` should
+      // regenerate with the *target's* model, not the assistant's
+      // default. Otherwise retrying kimi gets a gemini response (when
+      // the assistant's default is gemini). The explicit `options.modelId`
+      // (set by the mention-model flow) still wins — that's the
+      // "regenerate with a different model" path.
+      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+      const parentAnchorId = target?.metadata?.parentId ?? undefined
+      const regenModelId = options?.modelId ?? (target?.metadata?.modelId as UniqueModelId | undefined)
 
       await regenerate({
         messageId,
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
-          ...(options?.modelId && { mentionedModels: [options.modelId] })
+          ...(regenModelId && { mentionedModels: [regenModelId] })
         }
       })
     },
