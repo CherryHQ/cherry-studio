@@ -130,6 +130,37 @@ class CodeToolsService {
   }
 
   /**
+   * Get the command to execute claude-code.
+   *
+   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
+   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
+   * a JS launcher that locates and spawns the correct platform-specific binary.
+   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
+   */
+  private async getClaudeCodeCommand(bunPath: string): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const cliWrapperPath = path.join(
+      globalInstallDir,
+      'node_modules',
+      '@anthropic-ai',
+      'claude-code',
+      'cli-wrapper.cjs'
+    )
+
+    if (fs.existsSync(cliWrapperPath)) {
+      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
+      return `"${bunPath}" "${cliWrapperPath}"`
+    }
+
+    // Fallback: try to execute the binary directly (works if postinstall ran correctly)
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeTools.claudeCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
+    return `"${executablePath}"`
+  }
+
+  /**
    * Generate opencode.json config file for OpenCode CLI
    * Merge approach:
    * 1. Parse existing config (if any) with JSONC support
@@ -653,11 +684,21 @@ class CodeToolsService {
     if (isInstalled) {
       logger.info(`${cliTool} is installed, getting current version`)
       try {
-        const executableName = await this.getCliExecutableName(cliTool)
-        const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-        const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+        let versionCommand: string
 
-        const { stdout } = await execAsync(`"${executablePath}" --version`, {
+        // claude-code ships a native binary that cannot be executed via Bun.
+        // Use cli-wrapper.cjs (via Bun) to run --version reliably on all platforms.
+        if (cliTool === codeTools.claudeCode) {
+          const bunPath = await this.getBunPath()
+          versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else {
+          const executableName = await this.getCliExecutableName(cliTool)
+          const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+          const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+          versionCommand = `"${executablePath}"`
+        }
+
+        const { stdout } = await execAsync(`${versionCommand} --version`, {
           timeout: 10000
         })
         // Extract version number from output (format may vary by tool)
@@ -919,7 +960,17 @@ class CodeToolsService {
       }
     }
 
-    let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
+    let baseCommand: string
+
+    // claude-code ships a native binary that cannot be executed via Bun.
+    // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
+    if (cliTool === codeTools.claudeCode) {
+      baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (isWin) {
+      baseCommand = `"${executablePath}"`
+    } else {
+      baseCommand = `"${bunPath}" "${executablePath}"`
+    }
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeTools.kimiCli) {

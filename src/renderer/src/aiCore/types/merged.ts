@@ -76,6 +76,8 @@ function buildAppProviderIds(): ProviderIdsMap {
       config.variants.forEach((variant) => {
         // 变体自反映射：'azure-responses' -> 'azure-responses'
         const variantId = `${name}-${variant.suffix}` as KnownAppProviderId // oxlint-disable-line no-unnecessary-type-assertion
+        // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
+        const variantId = `${name}-${variant.suffix}` as KnownAppProviderId
         ;(map as Record<string, KnownAppProviderId>)[variantId] = variantId
       })
     }
