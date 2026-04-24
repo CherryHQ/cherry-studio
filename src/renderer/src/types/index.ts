@@ -551,6 +551,7 @@ export type LanguageVarious =
   | 'ro-RO'
   | 'ru-RU'
   | 'vi-VN'
+  | 'ar-YE'
 
 export type CodeStyleVarious = 'auto' | string
 

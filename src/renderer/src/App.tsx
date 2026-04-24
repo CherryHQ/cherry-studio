@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { loggerService } from '@logger'
+import type { RootState } from '@renderer/store'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
@@ -22,7 +23,7 @@ const logger = loggerService.withContext('App.tsx')
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false
     }
   }
@@ -45,7 +46,6 @@ function AppContent(): React.ReactElement {
   const direction = isRTL(lang) ? 'rtl' : 'ltr'
 
   useEffect(() => {
-    // Apply direction + lang globally
     document.documentElement.setAttribute('dir', direction)
     document.documentElement.setAttribute('lang', lang)
   }, [lang, direction])
@@ -54,7 +54,8 @@ function AppContent(): React.ReactElement {
 
   return (
     <ConfigProvider direction={direction}>
-      <StyleSheetManager direction={direction}>
+      {/* NOTE: removed invalid `direction` prop */}
+      <StyleSheetManager>
         <ThemeProvider>
           <AntdProvider>
             <NotificationProvider>
