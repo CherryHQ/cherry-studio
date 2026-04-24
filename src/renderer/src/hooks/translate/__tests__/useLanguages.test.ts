@@ -91,4 +91,67 @@ describe('useLanguages', () => {
 
     expect(warnSpy).not.toHaveBeenCalled()
   })
+
+  describe('status discriminator', () => {
+    // The status field exists so callers can render distinct UI for loading vs
+    // error vs ready. Inspecting `languages === undefined` alone conflates
+    // loading and failure.
+
+    it("returns status 'loading' while data is undefined and there is no error", () => {
+      mockUseQuery.mockImplementation(
+        () =>
+          ({
+            data: undefined,
+            isLoading: true,
+            isRefreshing: false,
+            error: undefined,
+            refetch: vi.fn(),
+            mutate: vi.fn()
+          }) as any
+      )
+
+      const { result } = renderHook(() => useLanguages())
+
+      expect(result.current.status).toBe('loading')
+      expect(result.current.languages).toBeUndefined()
+    })
+
+    it("returns status 'error' when the query failed and no data is cached", () => {
+      mockUseQuery.mockImplementation(
+        () =>
+          ({
+            data: undefined,
+            isLoading: false,
+            isRefreshing: false,
+            error: new Error('IPC down'),
+            refetch: vi.fn(),
+            mutate: vi.fn()
+          }) as any
+      )
+
+      const { result } = renderHook(() => useLanguages())
+
+      expect(result.current.status).toBe('error')
+      expect(result.current.error?.message).toBe('IPC down')
+    })
+
+    it("returns status 'ready' once languages resolve, even if the list is empty", () => {
+      mockUseQuery.mockImplementation(
+        () =>
+          ({
+            data: [],
+            isLoading: false,
+            isRefreshing: false,
+            error: undefined,
+            refetch: vi.fn(),
+            mutate: vi.fn()
+          }) as any
+      )
+
+      const { result } = renderHook(() => useLanguages())
+
+      expect(result.current.status).toBe('ready')
+      expect(result.current.languages).toEqual([])
+    })
+  })
 })

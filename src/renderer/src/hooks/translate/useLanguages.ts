@@ -15,13 +15,15 @@ const logger = loggerService.withContext('translate/useLanguages')
  * Fetches translate languages from the data API and converts DTOs to view objects.
  *
  * Surfaces load failures both to Sentry (via `logger.error`) and to the user (via
- * a one-shot toast debounced with a ref so SWR retries don't spam). Callers get
- * `error` back so consumers can differentiate "still loading" from "failed to
- * load" — the hook returning `languages: undefined` alone is ambiguous.
+ * a one-shot toast debounced with a ref so SWR retries don't spam).
  *
- * @returns `{ languages, getLabel, getLanguage, error }` — `languages` is
- * `undefined` while loading or on failure; pair it with `error` to tell the two
- * apart.
+ * @returns `{ languages, getLabel, getLanguage, error, status }` —
+ *   - `status` is the discriminator: `'loading'` while the first request is in
+ *     flight, `'error'` if it failed with no cached data, `'ready'` once
+ *     `languages` is resolved (even to an empty list).
+ *   - `languages` is `undefined` while loading or on failure; switch on `status`
+ *     instead of inspecting `languages === undefined` directly so loading and
+ *     failure can be told apart.
  */
 export const useLanguages = () => {
   const { data, error } = useQuery('/translate/languages')
@@ -79,5 +81,11 @@ export const useLanguages = () => {
     [languages]
   )
 
-  return { languages, getLabel, getLanguage, error }
+  // Loading / error / ready discriminator. `error` and `languages` stay
+  // exposed for callers that want the raw values; switching on `status` is
+  // the preferred way to render loading vs failure UI distinctly.
+  const status: 'loading' | 'error' | 'ready' =
+    languages !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
+
+  return { languages, getLabel, getLanguage, error, status }
 }

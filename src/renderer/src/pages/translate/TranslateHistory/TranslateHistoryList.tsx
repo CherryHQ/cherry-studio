@@ -75,7 +75,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
   const clearHistory = useClearHistory()
 
-  const { items, hasMore, isLoadingMore, error, loadMore, refresh } = useTranslateHistories({
+  const { items, hasMore, isLoadingMore, loadMore, refresh, status } = useTranslateHistories({
     search: deferredSearch,
     star: showStared
   })
@@ -176,7 +176,14 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 </div>
               )}
             </div>
-          ) : error ? (
+          ) : status === 'loading' ? (
+            // Show a spinner during the initial fetch instead of falling through
+            // to the empty state, which would briefly flash "no history" before
+            // SWR resolves on first open.
+            <Flex className="flex-1 items-center justify-center">
+              <Loader2 size={20} className="animate-spin text-muted-foreground" />
+            </Flex>
+          ) : status === 'error' ? (
             <Flex className="flex-1 items-center justify-center">
               <EmptyState
                 preset="no-result"

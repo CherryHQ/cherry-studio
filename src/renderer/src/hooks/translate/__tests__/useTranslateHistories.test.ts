@@ -134,4 +134,48 @@ describe('useTranslateHistories', () => {
     expect(result.current.total).toBe(0)
     expect(result.current.hasMore).toBe(false)
   })
+
+  describe('status discriminator', () => {
+    it("returns 'loading' while SWR has neither data nor error", () => {
+      swrInfiniteMock.mockReturnValue({
+        data: undefined,
+        error: undefined,
+        isLoading: true,
+        isValidating: false,
+        mutate: vi.fn(),
+        size: 0,
+        setSize: vi.fn()
+      })
+
+      const { result } = renderHook(() => useTranslateHistories())
+
+      expect(result.current.status).toBe('loading')
+    })
+
+    it("returns 'error' when the request failed without cached data", () => {
+      swrInfiniteMock.mockReturnValue({
+        data: undefined,
+        error: new Error('boom'),
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+        size: 0,
+        setSize: vi.fn()
+      })
+
+      const { result } = renderHook(() => useTranslateHistories())
+
+      expect(result.current.status).toBe('error')
+    })
+
+    it("returns 'ready' once data is resolved, even when the list is empty", () => {
+      const pages: Page[] = [{ items: [], total: 0, page: 1, limit: 20 }]
+      swrInfiniteMock.mockReturnValue(buildSWRState(pages))
+
+      const { result } = renderHook(() => useTranslateHistories())
+
+      expect(result.current.status).toBe('ready')
+      expect(result.current.items).toEqual([])
+    })
+  })
 })

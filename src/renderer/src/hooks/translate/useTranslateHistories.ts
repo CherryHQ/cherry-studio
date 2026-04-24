@@ -95,6 +95,12 @@ export const useTranslateHistories = ({
     await mutate()
   }, [mutate])
 
+  // Loading / error / ready discriminator. Empty `items` is ambiguous on its
+  // own (still loading? load failed? legitimately no records?), so callers
+  // that need to render distinct UI for each state should switch on `status`
+  // rather than inspect `items.length` and `error` separately.
+  const status: 'loading' | 'error' | 'ready' = data !== undefined ? 'ready' : error !== undefined ? 'error' : 'loading'
+
   return {
     items,
     total,
@@ -104,6 +110,7 @@ export const useTranslateHistories = ({
     isValidating,
     error,
     loadMore,
-    refresh
+    refresh,
+    status
   }
 }
