@@ -11,7 +11,6 @@ import {
   FileCode,
   HardDrive,
   Info,
-  MonitorCog,
   Package,
   PictureInPicture2,
   Radio,
@@ -120,16 +119,9 @@ const SettingsPage: FC = () => {
               <MenuItem
                 className={menuItemClassName}
                 icon={<Settings2 />}
-                label={t('settings.general.label')}
-                active={isActive('/settings/general')}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general') || isActive('/settings/display')}
                 onClick={() => go('/settings/general')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<MonitorCog />}
-                label={t('settings.display.title')}
-                active={isActive('/settings/display')}
-                onClick={() => go('/settings/display')}
               />
               <MenuItem
                 className={menuItemClassName}

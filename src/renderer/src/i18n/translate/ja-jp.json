@@ -4575,6 +4575,15 @@
         "button": "バックアップ",
         "title": "データのバックアップと復元"
       },
+      "common": {
+        "sections": {
+          "custom_css": "[to be translated]:Custom CSS",
+          "display_language": "[to be translated]:Display & Language",
+          "privacy_advanced": "[to be translated]:Privacy & Advanced",
+          "system_startup": "[to be translated]:System & Startup"
+        },
+        "title": "[to be translated]:Common Settings"
+      },
       "display": {
         "title": "表示設定"
       },

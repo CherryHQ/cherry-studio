@@ -4575,6 +4575,15 @@
         "button": "备份",
         "title": "数据备份与恢复"
       },
+      "common": {
+        "sections": {
+          "custom_css": "自定义 CSS",
+          "display_language": "显示与语言",
+          "privacy_advanced": "隐私与高级",
+          "system_startup": "系统与启动"
+        },
+        "title": "通用设置"
+      },
       "display": {
         "title": "显示设置"
       },

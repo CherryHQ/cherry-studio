@@ -1,5 +1,22 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Button, EmptyState, Spinner, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Combobox,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input as UIInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  Textarea,
+  Tooltip
+} from '@cherrystudio/ui'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -9,9 +26,20 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { Alert, DatePicker, Input, Modal, Popconfirm, Select, Table, Tag } from 'antd'
+import { DatePicker, Input, Popconfirm, Table, Tag } from 'antd'
 import dayjs from 'dayjs'
-import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarClock,
+  Clock,
+  ExternalLink,
+  History,
+  Maximize2,
+  Pause,
+  Play,
+  Search,
+  Trash2
+} from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
@@ -39,37 +67,42 @@ const TaskChannelSelector: FC<{
 
   return (
     <>
-      <SettingDivider />
-      <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+      <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
         <SettingRowTitle>{t('agent.cherryClaw.tasks.channels.label')}</SettingRowTitle>
-        <Select
-          mode="multiple"
-          size="small"
+        <Combobox
+          multiple
+          size="default"
           className="w-full"
+          width="100%"
           value={channelIds}
           disabled={disabled}
-          onChange={onChange}
+          onChange={(value) => {
+            if (Array.isArray(value)) {
+              onChange(value)
+            }
+          }}
           placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
+          searchPlaceholder={t('agent.cherryClaw.tasks.channels.placeholder')}
+          emptyText={t('common.noData')}
           options={channels.map((ch) => ({
             value: ch.id,
-            label: (
-              <span className="flex items-center gap-1.5">
-                <span
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${ch.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
-                />
-                {ch.name}
-              </span>
-            )
+            label: ch.name,
+            isActive: ch.isActive
           }))}
+          renderOption={(option) => (
+            <span className="flex min-w-0 items-center gap-2">
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+              />
+              <span className="truncate">{option.label}</span>
+            </span>
+          )}
         />
         {hasNoChatIds && (
-          <Alert
-            type="warning"
-            showIcon
-            message={t('agent.cherryClaw.tasks.channels.noActiveChatIds')}
-            className="mt-2"
-            style={{ fontSize: 12 }}
-          />
+          <div className="mt-2 inline-flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/8 px-3 py-2 text-warning text-xs">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            <span>{t('agent.cherryClaw.tasks.channels.noActiveChatIds')}</span>
+          </div>
         )}
       </SettingRow>
     </>
@@ -128,6 +161,16 @@ const TaskDetail: FC<{
       void onUpdate(task.id, updates)
     },
     [task.id, onUpdate]
+  )
+
+  const handlePromptModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && prompt.trim() && prompt !== task.prompt) {
+        saveField({ prompt: prompt.trim() })
+      }
+      setPromptModalOpen(open)
+    },
+    [prompt, saveField, task.prompt]
   )
 
   const formatDateTime = (iso: string | null | undefined) => {
@@ -219,155 +262,172 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
-          <Input
-            size="small"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => name.trim() && name !== task.name && saveField({ name: name.trim() })}
-            disabled={isCompleted}
-          />
-        </SettingRow>
-        <SettingDivider />
-        {agents.length > 1 && (
-          <>
-            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
+        <div className="space-y-5">
+          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
+            <UIInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => name.trim() && name !== task.name && saveField({ name: name.trim() })}
+              disabled={isCompleted}
+            />
+          </SettingRow>
+          {agents.length > 1 && (
+            <>
+              <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
+                <Select
+                  value={agentId}
+                  disabled={isCompleted}
+                  onValueChange={(value) => {
+                    setAgentId(value)
+                    saveField({ agent_id: value })
+                  }}>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+            </>
+          )}
+          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <div className="flex items-center justify-between">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+              {!isCompleted && (
+                <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shadow-none"
+                    onClick={() => setPromptModalOpen(true)}>
+                    <Maximize2 size={13} />
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+            <Textarea.Input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
+              disabled={isCompleted}
+              rows={4}
+              className="min-h-[88px] resize-y px-3 py-2"
+            />
+          </SettingRow>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
               <Select
-                size="small"
-                className="w-full"
-                value={agentId}
+                value={scheduleType}
                 disabled={isCompleted}
-                onChange={(value) => {
-                  setAgentId(value)
-                  saveField({ agent_id: value })
-                }}
-                options={agents.map((a) => ({ value: a.id, label: a.name }))}
-              />
-            </SettingRow>
-            <SettingDivider />
-          </>
-        )}
-        <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <div className="flex items-center justify-between">
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
-            {!isCompleted && (
-              <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
-                <Button variant="ghost" size="icon-sm" onClick={() => setPromptModalOpen(true)}>
-                  <Maximize2 size={13} />
-                </Button>
-              </Tooltip>
-            )}
+                onValueChange={(value: 'cron' | 'interval' | 'once') => {
+                  setScheduleType(value)
+                  setScheduleValue('')
+                  saveField({ schedule_type: value, schedule_value: '' })
+                }}>
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cron">{t('agent.cherryClaw.tasks.scheduleType.cron')}</SelectItem>
+                  <SelectItem value="interval">{t('agent.cherryClaw.tasks.scheduleType.interval')}</SelectItem>
+                  <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
+              {scheduleType === 'cron' && (
+                <UIInput
+                  value={scheduleValue}
+                  onChange={(e) => setScheduleValue(e.target.value)}
+                  onBlur={() =>
+                    scheduleValue.trim() &&
+                    scheduleValue !== task.schedule_value &&
+                    saveField({ schedule_value: scheduleValue.trim() })
+                  }
+                  placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
+                  disabled={isCompleted}
+                />
+              )}
+              {scheduleType === 'interval' && (
+                <div className="relative">
+                  <UIInput
+                    type="number"
+                    min={1}
+                    value={scheduleValue}
+                    onChange={(e) => setScheduleValue(e.target.value)}
+                    onBlur={() =>
+                      scheduleValue.trim() &&
+                      scheduleValue !== task.schedule_value &&
+                      saveField({ schedule_value: scheduleValue.trim() })
+                    }
+                    placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
+                    disabled={isCompleted}
+                    className="pr-10"
+                  />
+                  <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
+                    {t('agent.cherryClaw.tasks.intervalUnit')}
+                  </span>
+                </div>
+              )}
+              {scheduleType === 'once' && (
+                <DatePicker
+                  size="small"
+                  showTime
+                  className="w-full"
+                  value={scheduleValue ? dayjs(scheduleValue) : null}
+                  onChange={(val) => {
+                    if (val) {
+                      const iso = val.toISOString()
+                      setScheduleValue(iso)
+                      saveField({ schedule_value: iso })
+                    }
+                  }}
+                  disabled={isCompleted}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
+              <div className="relative">
+                <UIInput
+                  type="number"
+                  min={1}
+                  value={timeoutMinutes}
+                  onChange={(e) => setTimeoutMinutes(e.target.value)}
+                  onBlur={() => {
+                    const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
+                    const prev = task.timeout_minutes ?? null
+                    if (val !== prev) saveField({ timeout_minutes: val })
+                  }}
+                  placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
+                  disabled={isCompleted}
+                  className="pr-10"
+                />
+                <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
+                  {t('agent.cherryClaw.tasks.intervalUnit')}
+                </span>
+              </div>
+            </div>
           </div>
-          <Input.TextArea
-            size="small"
-            autoSize={{ minRows: 3, maxRows: 8 }}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
+          <TaskChannelSelector
+            channels={channels}
+            channelIds={channelIds}
+            onChange={(value) => {
+              setChannelIds(value)
+              saveField({ channel_ids: value })
+            }}
             disabled={isCompleted}
           />
-        </SettingRow>
-        <SettingDivider />
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
-            <Select
-              size="small"
-              className="w-full"
-              value={scheduleType}
-              disabled={isCompleted}
-              onChange={(value) => {
-                setScheduleType(value)
-                setScheduleValue('')
-                saveField({ schedule_type: value, schedule_value: '' })
-              }}
-              options={[
-                { value: 'cron', label: t('agent.cherryClaw.tasks.scheduleType.cron') },
-                { value: 'interval', label: t('agent.cherryClaw.tasks.scheduleType.interval') },
-                { value: 'once', label: t('agent.cherryClaw.tasks.scheduleType.once') }
-              ]}
-            />
-          </div>
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
-            {scheduleType === 'cron' && (
-              <Input
-                size="small"
-                value={scheduleValue}
-                onChange={(e) => setScheduleValue(e.target.value)}
-                onBlur={() =>
-                  scheduleValue.trim() &&
-                  scheduleValue !== task.schedule_value &&
-                  saveField({ schedule_value: scheduleValue.trim() })
-                }
-                placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
-                disabled={isCompleted}
-              />
-            )}
-            {scheduleType === 'interval' && (
-              <Input
-                size="small"
-                type="number"
-                min={1}
-                value={scheduleValue}
-                onChange={(e) => setScheduleValue(e.target.value)}
-                onBlur={() =>
-                  scheduleValue.trim() &&
-                  scheduleValue !== task.schedule_value &&
-                  saveField({ schedule_value: scheduleValue.trim() })
-                }
-                placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
-                suffix={t('agent.cherryClaw.tasks.intervalUnit')}
-                disabled={isCompleted}
-              />
-            )}
-            {scheduleType === 'once' && (
-              <DatePicker
-                size="small"
-                showTime
-                className="w-full"
-                value={scheduleValue ? dayjs(scheduleValue) : null}
-                onChange={(val) => {
-                  if (val) {
-                    const iso = val.toISOString()
-                    setScheduleValue(iso)
-                    saveField({ schedule_value: iso })
-                  }
-                }}
-                disabled={isCompleted}
-              />
-            )}
-          </div>
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
-            <Input
-              size="small"
-              type="number"
-              min={1}
-              value={timeoutMinutes}
-              onChange={(e) => setTimeoutMinutes(e.target.value)}
-              onBlur={() => {
-                const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
-                const prev = task.timeout_minutes ?? null
-                if (val !== prev) saveField({ timeout_minutes: val })
-              }}
-              placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
-              suffix={t('agent.cherryClaw.tasks.intervalUnit')}
-              disabled={isCompleted}
-            />
-          </div>
         </div>
-        <TaskChannelSelector
-          channels={channels}
-          channelIds={channelIds}
-          onChange={(value) => {
-            setChannelIds(value)
-            saveField({ channel_ids: value })
-          }}
-          disabled={isCompleted}
-        />
       </SettingGroup>
 
       {/* Logs card */}
@@ -377,25 +437,20 @@ const TaskDetail: FC<{
         <TaskLogsInline taskId={task.id} agentId={task.agent_id} />
       </SettingGroup>
 
-      <Modal
-        title={t('agent.cherryClaw.tasks.prompt.label')}
-        open={promptModalOpen}
-        onCancel={() => {
-          if (prompt.trim() && prompt !== task.prompt) {
-            saveField({ prompt: prompt.trim() })
-          }
-          setPromptModalOpen(false)
-        }}
-        footer={null}
-        width={640}>
-        <Input.TextArea
-          autoSize={{ minRows: 12, maxRows: 30 }}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          disabled={isCompleted}
-          style={{ marginTop: 8 }}
-        />
-      </Modal>
+      <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
+          </DialogHeader>
+          <Textarea.Input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            disabled={isCompleted}
+            rows={14}
+            className="min-h-[280px] resize-y px-3 py-2"
+          />
+        </DialogContent>
+      </Dialog>
     </SettingContainer>
   )
 }
@@ -605,145 +660,153 @@ const CreateForm: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.add')}</SettingTitle>
         <SettingDivider />
+        <div className="space-y-5">
+          {agents.length > 1 && (
+            <>
+              <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
+                <Select value={agentId ?? undefined} onValueChange={setAgentId}>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue placeholder={t('agent.cherryClaw.channels.selectAgent')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+            </>
+          )}
 
-        {agents.length > 1 && (
-          <>
-            <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
+          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
+            <UIInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('agent.cherryClaw.tasks.name.placeholder')}
+            />
+          </SettingRow>
+
+          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+            <div className="flex items-center justify-between">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
+              <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
+                <Button variant="ghost" size="icon-sm" className="shadow-none" onClick={() => setPromptModalOpen(true)}>
+                  <Maximize2 size={13} />
+                </Button>
+              </Tooltip>
+            </div>
+            <Textarea.Input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
+              rows={4}
+              className="min-h-[88px] resize-y px-3 py-2"
+            />
+          </SettingRow>
+
+          <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
+            <DialogContent className="sm:max-w-[640px]">
+              <DialogHeader>
+                <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
+              </DialogHeader>
+              <Textarea.Input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
+                rows={14}
+                className="min-h-[280px] resize-y px-3 py-2"
+              />
+            </DialogContent>
+          </Dialog>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
               <Select
-                size="small"
-                className="w-full"
-                value={agentId}
-                onChange={setAgentId}
-                placeholder={t('agent.cherryClaw.channels.selectAgent')}
-                options={agents.map((a) => ({ value: a.id, label: a.name }))}
-              />
-            </SettingRow>
-            <SettingDivider />
-          </>
-        )}
-
-        <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
-          <Input
-            size="small"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('agent.cherryClaw.tasks.name.placeholder')}
-          />
-        </SettingRow>
-        <SettingDivider />
-
-        <SettingRow style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-          <div className="flex items-center justify-between">
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
-            <Tooltip title={t('agent.cherryClaw.tasks.prompt.expand')}>
-              <Button variant="ghost" size="icon-sm" onClick={() => setPromptModalOpen(true)}>
-                <Maximize2 size={13} />
-              </Button>
-            </Tooltip>
+                value={scheduleType}
+                onValueChange={(v: 'cron' | 'interval' | 'once') => {
+                  setScheduleType(v)
+                  setScheduleValue('')
+                }}>
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cron">{t('agent.cherryClaw.tasks.scheduleType.cron')}</SelectItem>
+                  <SelectItem value="interval">{t('agent.cherryClaw.tasks.scheduleType.interval')}</SelectItem>
+                  <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
+              {scheduleType === 'cron' && (
+                <UIInput
+                  value={scheduleValue}
+                  onChange={(e) => setScheduleValue(e.target.value)}
+                  placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
+                />
+              )}
+              {scheduleType === 'interval' && (
+                <div className="relative">
+                  <UIInput
+                    type="number"
+                    min={1}
+                    value={scheduleValue}
+                    onChange={(e) => setScheduleValue(e.target.value)}
+                    placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
+                    className="pr-10"
+                  />
+                  <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
+                    {t('agent.cherryClaw.tasks.intervalUnit')}
+                  </span>
+                </div>
+              )}
+              {scheduleType === 'once' && (
+                <DatePicker
+                  size="small"
+                  showTime
+                  className="w-full"
+                  value={scheduleValue ? dayjs(scheduleValue) : null}
+                  onChange={(val) => {
+                    if (val) {
+                      setScheduleValue(val.toISOString())
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
+              <div className="relative">
+                <UIInput
+                  type="number"
+                  min={1}
+                  value={timeoutMinutes}
+                  onChange={(e) => setTimeoutMinutes(e.target.value)}
+                  placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
+                  className="pr-10"
+                />
+                <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 text-muted-foreground text-xs">
+                  {t('agent.cherryClaw.tasks.intervalUnit')}
+                </span>
+              </div>
+            </div>
           </div>
-          <Input.TextArea
-            size="small"
-            autoSize={{ minRows: 3, maxRows: 8 }}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
-          />
-        </SettingRow>
-        <SettingDivider />
+          <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
 
-        <Modal
-          title={t('agent.cherryClaw.tasks.prompt.label')}
-          open={promptModalOpen}
-          onCancel={() => setPromptModalOpen(false)}
-          footer={null}
-          width={640}>
-          <Input.TextArea
-            autoSize={{ minRows: 12, maxRows: 30 }}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
-            style={{ marginTop: 8 }}
-          />
-        </Modal>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
-            <Select
-              size="small"
-              className="w-full"
-              value={scheduleType}
-              onChange={(v) => {
-                setScheduleType(v)
-                setScheduleValue('')
-              }}
-              options={[
-                { value: 'cron', label: t('agent.cherryClaw.tasks.scheduleType.cron') },
-                { value: 'interval', label: t('agent.cherryClaw.tasks.scheduleType.interval') },
-                { value: 'once', label: t('agent.cherryClaw.tasks.scheduleType.once') }
-              ]}
-            />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onCancel}>
+              {t('agent.cherryClaw.tasks.cancel')}
+            </Button>
+            <Button size="sm" disabled={!isValid} loading={saving} onClick={handleCreate}>
+              {t('agent.cherryClaw.tasks.save')}
+            </Button>
           </div>
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
-            {scheduleType === 'cron' && (
-              <Input
-                size="small"
-                value={scheduleValue}
-                onChange={(e) => setScheduleValue(e.target.value)}
-                placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
-              />
-            )}
-            {scheduleType === 'interval' && (
-              <Input
-                size="small"
-                type="number"
-                min={1}
-                value={scheduleValue}
-                onChange={(e) => setScheduleValue(e.target.value)}
-                placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
-                suffix="min"
-              />
-            )}
-            {scheduleType === 'once' && (
-              <DatePicker
-                size="small"
-                showTime
-                className="w-full"
-                value={scheduleValue ? dayjs(scheduleValue) : null}
-                onChange={(val) => {
-                  if (val) {
-                    setScheduleValue(val.toISOString())
-                  }
-                }}
-              />
-            )}
-          </div>
-          <div>
-            <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
-            <Input
-              size="small"
-              type="number"
-              min={1}
-              value={timeoutMinutes}
-              onChange={(e) => setTimeoutMinutes(e.target.value)}
-              placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
-              suffix="min"
-            />
-          </div>
-        </div>
-        <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
-        <SettingDivider />
-
-        <div className="flex gap-2">
-          <Button size="sm" onClick={onCancel}>
-            {t('agent.cherryClaw.tasks.cancel')}
-          </Button>
-          <Button size="sm" disabled={!isValid} loading={saving} onClick={handleCreate}>
-            {t('agent.cherryClaw.tasks.save')}
-          </Button>
         </div>
       </SettingGroup>
     </SettingContainer>

@@ -4575,6 +4575,15 @@
         "button": "Backup",
         "title": "Data Backup and Recovery"
       },
+      "common": {
+        "sections": {
+          "custom_css": "Custom CSS",
+          "display_language": "Display & Language",
+          "privacy_advanced": "Privacy & Advanced",
+          "system_startup": "System & Startup"
+        },
+        "title": "Common Settings"
+      },
       "display": {
         "title": "Display Settings"
       },
