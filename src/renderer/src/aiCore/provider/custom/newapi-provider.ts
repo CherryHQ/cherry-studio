@@ -68,7 +68,13 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
       baseURL,
       headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),
       fetch: customFetch,
-      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] })
+      supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
+      // NewAPI may route Claude models to Vertex/Bedrock backends, which reject the
+      // `structured-outputs-2025-11-13` beta header added by @ai-sdk/anthropic for
+      // claude-opus-4-6 / claude-sonnet-4-6 / claude-*-4-5 / claude-opus-4-1. Falling
+      // back to function-tool-based structured outputs keeps tool use (incl. MCP) working
+      // across all downstream backends. See issue #14375.
+      supportsNativeStructuredOutput: false
     })
   }
 

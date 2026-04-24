@@ -572,12 +572,15 @@ Cherry Studio has two cache layers with different key shapes and different inval
 
 | Layer | Key shape | Match syntax | Example |
 |---|---|---|---|
-| **Cache** (`useCache`, `useSharedCache`) | Arbitrary string with embedded template segments | `${}` interpolation + regex compiled from template | `cacheService.match('user:${userId}:*')` |
+| **Cache** (`useCache`, `useSharedCache`) | Schema-defined: fixed key or template with `${placeholder}` segments (see [cache-schema-guide.md](./cache-schema-guide.md)) | Concrete key → exact match; template key in `subscribeSharedChange` → regex compiled from template, fires per concrete instance | `subscribeSharedChange('web_search.provider.last_used_key.${providerId}', cb)` |
 | **DataApi** (`useQuery`, `useMutation` refresh, `useInvalidateCache`) | `[path, query?]` tuple with REST-style paths | Exact string match on `key[0]` with optional `/*` prefix | `refresh: ['/providers', '/providers/*']` |
 
 Why the two differ:
 
-- **Cache keys are caller-defined and free-form**: a cache entry could be `user:123:preferences:theme`. Regex matching makes sense because key structure varies by use case.
+- **Cache keys are schema-constrained and dot-separated**: `web_search.provider.last_used_key.google`. Template subscription uses a regex derived from the template (each `${}` → `[\w\-]+`) so a single subscription covers every concrete instance, including ones registered at runtime.
 - **DataApi keys mirror REST resource paths**: `['/providers/abc', { limit: 10 }]`. The structure is rigid (it maps to server routes), so a simple exact-or-prefix matcher is enough and more predictable than regex.
 
-**Implication for reviewers**: don't copy a `${}` template from `useCache` into `refresh` options, or vice versa. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
+**Implication for reviewers**:
+
+- Don't copy a `${}` template from a cache key into `refresh` options. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
+- Cache same-value writes short-circuit via `lodash.isEqual` (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.

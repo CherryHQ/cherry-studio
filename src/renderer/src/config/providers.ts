@@ -21,8 +21,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'CherryIN',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://open.cherryin.net',
-    anthropicApiHost: 'https://open.cherryin.net',
+    apiHost: 'https://open.cherryin.cc',
+    anthropicApiHost: 'https://open.cherryin.cc',
     models: [],
     isSystem: true,
     enabled: true

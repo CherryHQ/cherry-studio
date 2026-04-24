@@ -1,4 +1,4 @@
-import type { SharedCacheKey, SharedCacheSchema } from '@shared/data/cache/cacheSchemas'
+import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { vi } from 'vitest'
 
@@ -78,7 +78,7 @@ export class MockMainCacheService {
 
   // ============ Shared Cache Methods ============
 
-  public getShared = vi.fn(<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined => {
+  public getShared = vi.fn(<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
     const entry = mockSharedCache.get(key)
     if (!entry) return undefined
 
@@ -88,10 +88,10 @@ export class MockMainCacheService {
       return undefined
     }
 
-    return entry.value as SharedCacheSchema[K]
+    return entry.value as InferSharedCacheValue<K>
   })
 
-  public setShared = vi.fn(<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void => {
+  public setShared = vi.fn(<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void => {
     const entry: CacheEntry = {
       value,
       expireAt: ttl ? Date.now() + ttl : undefined
@@ -140,6 +140,27 @@ export class MockMainCacheService {
 
     return true
   })
+
+  // ============ Subscription Methods ============
+  // These are call-tracking stubs — the mock does NOT replicate fire semantics.
+  // Each call returns a fresh vi.fn() unsubscribe stub, useful for verifying
+  // `registerDisposable(cacheService.subscribeChange(...))` wiring in tests.
+
+  public subscribeChange = vi.fn(
+    <T = unknown>(_key: string, _callback: (newValue: T | undefined, oldValue: T | undefined) => void): (() => void) =>
+      vi.fn()
+  )
+
+  public subscribeSharedChange = vi.fn(
+    <K extends SharedCacheKey>(
+      _key: K,
+      _callback: (
+        newValue: InferSharedCacheValue<K> | undefined,
+        oldValue: InferSharedCacheValue<K> | undefined,
+        concreteKey: ProcessKey<K & string>
+      ) => void
+    ): (() => void) => vi.fn()
+  )
 
   // Mock cleanup
   public cleanup = vi.fn((): void => {
@@ -240,7 +261,7 @@ export const MockMainCacheServiceUtils = {
   /**
    * Set shared cache value for testing
    */
-  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number) => {
+  setSharedCacheValue: <K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number) => {
     const entry: CacheEntry = {
       value,
       expireAt: ttl ? Date.now() + ttl : undefined
@@ -251,7 +272,7 @@ export const MockMainCacheServiceUtils = {
   /**
    * Get shared cache value for testing
    */
-  getSharedCacheValue: <K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined => {
+  getSharedCacheValue: <K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
     const entry = mockSharedCache.get(key)
     if (!entry) return undefined
 
@@ -261,7 +282,7 @@ export const MockMainCacheServiceUtils = {
       return undefined
     }
 
-    return entry.value as SharedCacheSchema[K]
+    return entry.value as InferSharedCacheValue<K>
   },
 
   /**
@@ -349,6 +370,8 @@ export const MockMainCacheServiceUtils = {
     setShared: mockInstance.setShared.mock.calls.length,
     hasShared: mockInstance.hasShared.mock.calls.length,
     deleteShared: mockInstance.deleteShared.mock.calls.length,
+    subscribeChange: mockInstance.subscribeChange.mock.calls.length,
+    subscribeSharedChange: mockInstance.subscribeSharedChange.mock.calls.length,
     cleanup: mockInstance.cleanup.mock.calls.length
   })
 }

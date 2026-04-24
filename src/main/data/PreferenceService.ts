@@ -22,6 +22,7 @@ import {
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
 import { BrowserWindow } from 'electron'
+import { isEqual } from 'lodash'
 
 import { preferenceTable } from './db/schemas/preference'
 import type { DbType } from './db/types'
@@ -320,7 +321,7 @@ export class PreferenceService extends BaseService {
     if (!isPreferenceKey(key)) {
       const configKey = toBootConfigKey(key)
       const oldValue = bootConfigService.get(configKey) as UnifiedPreferenceType[K]
-      if (this.isEqual(oldValue, value)) {
+      if (isEqual(oldValue, value)) {
         return
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
@@ -337,7 +338,7 @@ export class PreferenceService extends BaseService {
       const oldValue = this.cache[key]
 
       // Performance optimization: skip update if value hasn't changed
-      if (this.isEqual(oldValue, value)) {
+      if (isEqual(oldValue, value)) {
         return
       }
 
@@ -430,7 +431,7 @@ export class PreferenceService extends BaseService {
       for (const [key, value] of Object.entries(bootConfigUpdates)) {
         const configKey = toBootConfigKey(key)
         const oldValue = bootConfigService.get(configKey)
-        if (!this.isEqual(oldValue, value)) {
+        if (!isEqual(oldValue, value)) {
           // TS cannot correlate UnifiedPreferenceType with BootConfigSchema via prefix stripping
           bootConfigService.set(configKey, value as any)
           allChanges.push([key, value, oldValue])
@@ -450,7 +451,7 @@ export class PreferenceService extends BaseService {
         const oldValue = this.cache[key as PreferenceKeyType]
 
         // Only include keys that actually changed
-        if (!this.isEqual(oldValue, value)) {
+        if (!isEqual(oldValue, value)) {
           actualUpdates[key] = value
           oldValues[key] = oldValue
         } else {
@@ -726,7 +727,11 @@ export class PreferenceService extends BaseService {
       return
     }
 
-    // Send to all affected renderer windows
+    // Sender is intentionally NOT excluded from this broadcast. The sender's own
+    // echo acts as a final-state assertion that keeps its cache consistent under
+    // multi-window write races (without it, an interleaved write from another
+    // window can leave the sender's cache permanently out of sync with the DB).
+    // The receiver filters the no-op via deep equality in its onChanged listener.
     for (const windowId of affectedWindows) {
       try {
         const window = BrowserWindow.fromId(windowId)
@@ -792,46 +797,5 @@ export class PreferenceService extends BaseService {
    */
   public getSubscriptions(): Map<number, Set<string>> {
     return new Map(this.windowSubscriptions)
-  }
-
-  /**
-   * Deep equality check for preference values
-   * Handles primitives, arrays, and plain objects
-   * @param a First value to compare
-   * @param b Second value to compare
-   * @returns True if values are deeply equal, false otherwise
-   */
-  private isEqual(a: any, b: any): boolean {
-    // Handle strict equality (primitives, same reference)
-    if (a === b) return true
-
-    // Handle null/undefined
-    if (a == null || b == null) return a === b
-
-    // Handle different types
-    if (typeof a !== typeof b) return false
-
-    // Handle arrays
-    if (Array.isArray(a) && Array.isArray(b)) {
-      if (a.length !== b.length) return false
-      return a.every((item, index) => this.isEqual(item, b[index]))
-    }
-
-    // Handle objects (plain objects only)
-    if (typeof a === 'object' && typeof b === 'object') {
-      // Check if both are plain objects
-      if (Object.getPrototypeOf(a) !== Object.prototype || Object.getPrototypeOf(b) !== Object.prototype) {
-        return false
-      }
-
-      const keysA = Object.keys(a)
-      const keysB = Object.keys(b)
-
-      if (keysA.length !== keysB.length) return false
-
-      return keysA.every((key) => keysB.includes(key) && this.isEqual(a[key], b[key]))
-    }
-
-    return false
   }
 }

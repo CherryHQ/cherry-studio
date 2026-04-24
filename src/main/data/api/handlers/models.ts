@@ -10,7 +10,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   CreateModelsSchema,
@@ -19,11 +19,6 @@ import {
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-
-/**
- * Handler type for a specific model endpoint
- */
-type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
 
@@ -68,14 +63,7 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
   )
 }
 
-/**
- * Model API handlers implementation
- */
-export const modelHandlers: {
-  [Path in keyof ModelSchemas]: {
-    [Method in keyof ModelSchemas[Path]]: ModelHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
       const parsed = ListModelsQuerySchema.parse(query ?? {})

@@ -4,7 +4,7 @@
 
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { KnowledgeSchemas } from '@shared/data/api/schemas/knowledges'
 import {
   CreateKnowledgeBaseSchema,
@@ -15,13 +15,7 @@ import {
   UpdateKnowledgeItemSchema
 } from '@shared/data/api/schemas/knowledges'
 
-type KnowledgeHandler<Path extends keyof KnowledgeSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const knowledgeHandlers: {
-  [Path in keyof KnowledgeSchemas]: {
-    [Method in keyof KnowledgeSchemas[Path]]: KnowledgeHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
   '/knowledge-bases': {
     GET: async ({ query }) => {
       const parsed = KnowledgeBaseListQuerySchema.parse(query ?? {})

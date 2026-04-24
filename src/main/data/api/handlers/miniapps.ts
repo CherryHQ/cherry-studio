@@ -9,7 +9,7 @@
  */
 
 import { miniappService } from '@data/services/MiniAppService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { MiniappSchemas } from '@shared/data/api/schemas/miniapps'
 import {
   CreateMiniappSchema,
@@ -18,19 +18,7 @@ import {
   UpdateMiniappSchema
 } from '@shared/data/api/schemas/miniapps'
 
-/**
- * Handler type for a specific miniapp endpoint
- */
-type MiniappHandler<Path extends keyof MiniappSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Miniapp API handlers implementation
- */
-export const miniappHandlers: {
-  [Path in keyof MiniappSchemas]: {
-    [Method in keyof MiniappSchemas[Path]]: MiniappHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const miniappHandlers: HandlersFor<MiniappSchemas> = {
   '/miniapps': {
     GET: async ({ query }) => {
       const parsed = ListMiniappsQuerySchema.parse(query ?? {})

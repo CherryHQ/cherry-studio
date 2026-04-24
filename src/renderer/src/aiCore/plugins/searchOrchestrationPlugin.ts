@@ -29,7 +29,7 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
-import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
 
@@ -255,11 +255,28 @@ export const searchOrchestrationPlugin = (
           if (needsSearch) {
             // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
             // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+            params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
               context.requestId
             )
+
+            const prepareStep = params.prepareStep
+            params.prepareStep = async (options) => {
+              const stepConfig = await prepareStep?.(options)
+              const hasWebSearchCall = options.steps.some((step) =>
+                step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
+              )
+
+              return hasWebSearchCall
+                ? {
+                    ...stepConfig,
+                    activeTools: (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
+                      (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
+                    )
+                  }
+                : stepConfig
+            }
           }
         }
 
