@@ -12,7 +12,7 @@ export const SettingContainer = ({
   <div
     data-theme-mode={theme}
     className={cn(
-      'flex flex-1 flex-col overflow-y-scroll bg-background-subtle px-4.5 py-3.75 [&::-webkit-scrollbar]:hidden',
+      'flex min-h-0 flex-1 flex-col overflow-y-auto bg-background-subtle/70 px-6 py-5 [&::-webkit-scrollbar]:hidden',
       className
     )}
     {...props}
@@ -65,7 +65,7 @@ export const SettingGroup = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
   <div
     className={cn(
-      'mb-5 rounded-lg border-[0.5px] border-border bg-background p-4',
+      'mb-4 rounded-2xl border border-border/60 bg-background p-5 shadow-xs last:mb-0',
       theme === 'dark' && 'bg-white/6',
       className
     )}

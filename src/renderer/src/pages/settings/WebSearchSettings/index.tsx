@@ -9,6 +9,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  settingsContentScrollClassName,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
@@ -132,7 +133,7 @@ const WebSearchSettings: FC = () => {
             )}
           </MenuList>
         </Scrollbar>
-        <div className="relative flex flex-1">
+        <div className={`${settingsContentScrollClassName} relative flex`}>
           <Outlet />
         </div>
       </div>

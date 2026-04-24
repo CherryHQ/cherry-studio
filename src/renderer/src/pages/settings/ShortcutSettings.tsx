@@ -1,11 +1,13 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Input, Kbd, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Kbd, MenuItem, MenuList, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getAllShortcutDefaultPreferences, useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import {
@@ -14,11 +16,20 @@ import {
   formatShortcutDisplay,
   isValidShortcut
 } from '@shared/shortcuts/utils'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
+import {
+  settingsContentBodyClassName,
+  settingsContentHeaderClassName,
+  settingsContentHeaderTitleClassName,
+  settingsContentScrollClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from './shared/menuStyles'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
@@ -46,6 +57,22 @@ const usableEndKeys = (code: string): string | null => {
   return null
 }
 
+type ShortcutCategoryKey = 'general' | 'chat' | 'topic' | 'assistant'
+
+const categoryIconMap: Record<ShortcutCategoryKey, ReactNode> = {
+  general: <Keyboard size={16} />,
+  chat: <MessageSquareText size={16} />,
+  topic: <Tags size={16} />,
+  assistant: <Sparkles size={16} />
+}
+
+const definitionCategoryToCategoryKey = (category: string): ShortcutCategoryKey => {
+  if (category === 'general') return 'general'
+  if (category === 'chat') return 'chat'
+  if (category === 'topic') return 'topic'
+  return 'assistant'
+}
+
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -56,11 +83,34 @@ const ShortcutSettings: FC = () => {
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
   const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState<ShortcutCategoryKey>('general')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
+  const categoryMeta = useMemo(
+    () => [
+      { key: 'general' as const, label: t('settings.shortcuts.categories.general') },
+      { key: 'chat' as const, label: t('settings.shortcuts.categories.chat') },
+      { key: 'topic' as const, label: t('settings.shortcuts.categories.topic') },
+      { key: 'assistant' as const, label: t('settings.shortcuts.categories.assistant') }
+    ],
+    [t]
+  )
+
+  const shortcutsByCategory = useMemo(() => {
+    return shortcuts.reduce<Record<ShortcutCategoryKey, typeof shortcuts>>(
+      (acc, shortcut) => {
+        acc[definitionCategoryToCategoryKey(shortcut.definition.category)].push(shortcut)
+        return acc
+      },
+      { general: [], chat: [], topic: [], assistant: [] }
+    )
+  }, [shortcuts])
+
+  const currentCategoryShortcuts = shortcutsByCategory[activeCategory]
+
   const visibleShortcuts = useMemo(() => {
-    const query = searchQuery.toLowerCase()
-    return shortcuts.filter((record) => {
+    const query = searchQuery.toLowerCase().trim()
+    return currentCategoryShortcuts.filter((record) => {
       if (!query) return true
       const display =
         record.preference.binding.length > 0
@@ -68,7 +118,7 @@ const ShortcutSettings: FC = () => {
           : ''
       return record.label.toLowerCase().includes(query) || display.includes(query)
     })
-  }, [searchQuery, shortcuts])
+  }, [currentCategoryShortcuts, searchQuery])
 
   const duplicateBindingLabels = useMemo(() => {
     const lookup = new Map<string, { key: ShortcutPreferenceKey; label: string }>()
@@ -114,6 +164,15 @@ const ShortcutSettings: FC = () => {
       }
     })
   }, [t])
+
+  useEffect(() => {
+    if (currentCategoryShortcuts.length === 0) {
+      const firstAvailable = categoryMeta.find((category) => shortcutsByCategory[category.key].length > 0)
+      if (firstAvailable && firstAvailable.key !== activeCategory) {
+        setActiveCategory(firstAvailable.key)
+      }
+    }
+  }, [activeCategory, categoryMeta, currentCategoryShortcuts.length, shortcutsByCategory])
 
   const handleAddShortcut = (key: ShortcutPreferenceKey) => {
     clearEditingState()
@@ -170,11 +229,9 @@ const ShortcutSettings: FC = () => {
       keys.push(convertKeyToAccelerator(endKey))
     }
 
-    // Always show real-time preview of pressed keys
     setPendingKeys(keys)
 
     if (!isValidShortcut(keys)) {
-      // Clear conflict when user is still pressing modifier keys
       setConflictLabel(null)
       return
     }
@@ -182,7 +239,6 @@ const ShortcutSettings: FC = () => {
     const duplicate = findDuplicateLabel(keys, record.key)
     if (duplicate) {
       setConflictLabel(duplicate)
-      // Clear conflict hint after 2 seconds
       clearTimeoutTimer('conflict-clear')
       setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
       return
@@ -216,6 +272,30 @@ const ShortcutSettings: FC = () => {
     })
   }
 
+  const handleToggleVisibleShortcuts = async (enabled: boolean) => {
+    const updates = visibleShortcuts.reduce(
+      (acc, record) => {
+        if (!record.preference.binding.length) return acc
+        acc[record.key] = {
+          binding: record.preference.binding,
+          enabled
+        }
+        return acc
+      },
+      {} as Record<string, PreferenceShortcutType>
+    )
+
+    if (Object.keys(updates).length === 0) return
+
+    try {
+      clearSystemConflict()
+      await preferenceService.setMultiple(updates)
+    } catch (error) {
+      logger.error(`Failed to toggle shortcuts for category ${activeCategory}`, error as Error)
+      window.toast.error(t('settings.shortcuts.save_failed'))
+    }
+  }
+
   const renderShortcutCell = (record: (typeof shortcuts)[number]) => {
     const isEditing = editingKey === record.key
     const displayKeys = record.preference.binding
@@ -236,7 +316,10 @@ const ShortcutSettings: FC = () => {
             ref={(el) => {
               if (el) inputRefs.current[record.key] = el
             }}
-            className={`h-7 w-36 text-center text-xs ${hasConflict ? 'border-red-500 focus-visible:ring-red-500/50' : ''}`}
+            className={cn(
+              'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
+              hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
+            )}
             value={pendingDisplay}
             placeholder={t('settings.shortcuts.press_shortcut')}
             onKeyDown={(event) => void handleKeyDown(event, record)}
@@ -248,7 +331,7 @@ const ShortcutSettings: FC = () => {
             }}
           />
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -259,11 +342,11 @@ const ShortcutSettings: FC = () => {
     if (displayShortcut) {
       return (
         <div className="relative flex flex-col items-end">
-          <RowFlex className="items-center justify-end gap-1.5">
+          <RowFlex className="items-center justify-end gap-2">
             {isBindingModified && (
               <Tooltip content={t('settings.shortcuts.reset_to_default')}>
                 <UndoOutlined
-                  className="mr-1 cursor-pointer opacity-50 hover:opacity-100"
+                  className="shortcut-undo-icon cursor-pointer text-muted-foreground opacity-70 transition-opacity hover:opacity-100"
                   onClick={() => {
                     void handleResetShortcut(record)
                   }}
@@ -271,19 +354,26 @@ const ShortcutSettings: FC = () => {
               </Tooltip>
             )}
             <RowFlex
-              className={`items-center gap-1 rounded-lg border bg-background-subtle px-2 py-1 ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
+              className={cn(
+                'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
+                hasSystemConflict && 'border-red-500',
+                isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
+              )}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
               {displayKeys.map((key) => (
                 <Kbd
                   key={key}
-                  className="min-w-6 rounded-md border border-border/40 bg-background px-1.5 py-0.5 text-foreground text-xs">
+                  className={cn(
+                    'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
+                    hasSystemConflict && 'border-red-500/60 text-red-500'
+                  )}>
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
               ))}
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictMessage}
             </span>
           )}
@@ -294,12 +384,16 @@ const ShortcutSettings: FC = () => {
     return (
       <div className="relative flex flex-col items-end">
         <span
-          className={`rounded-lg border bg-background-subtle px-3 py-1 text-foreground-muted text-sm ${hasSystemConflict ? 'border-red-500' : 'border-border/40'} ${isEditable ? 'cursor-pointer hover:bg-muted/30' : 'cursor-not-allowed opacity-50'}`}
+          className={cn(
+            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
+            hasSystemConflict && 'border-red-500 text-red-500',
+            isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
+          )}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-0.5 whitespace-nowrap text-red-500 text-xs">
+          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
             {conflictMessage}
           </span>
         )}
@@ -325,44 +419,115 @@ const ShortcutSettings: FC = () => {
     return (
       <div
         key={record.key}
-        className={`grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-3.5 ${isLast ? '' : 'border-white/10 border-b'}`}>
-        <span className="text-sm">{record.label}</span>
-        <div className="flex min-h-8 items-center justify-end">{renderShortcutCell(record)}</div>
-        <span className="flex w-10 justify-end">
+        className={cn(
+          'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
+          !record.preference.enabled && 'opacity-60',
+          !isLast && 'border-border/50 border-b'
+        )}>
+        <div className="min-w-0 pr-2">
+          <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
+        </div>
+        <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
+        <div className="flex justify-end">
           {!record.preference.binding.length ? (
             <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
-              <span className="flex justify-end">{switchNode}</span>
+              <span>{switchNode}</span>
             </Tooltip>
           ) : (
-            <span className="flex justify-end">{switchNode}</span>
+            switchNode
           )}
-        </span>
+        </div>
       </div>
     )
   }
 
   return (
-    <SettingContainer theme={theme}>
-      <SettingGroup theme={theme} style={{ paddingBottom: 0 }}>
-        <SettingTitle>{t('settings.shortcuts.title')}</SettingTitle>
-        <SettingDivider style={{ marginBottom: 0 }} />
-        <div className="py-2">
-          <Input
-            className="max-w-65"
-            placeholder={t('settings.shortcuts.search_placeholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col">
-          {visibleShortcuts.map((record, index) => renderShortcutRow(record, index === visibleShortcuts.length - 1))}
-        </div>
-        <SettingDivider style={{ marginBottom: 0 }} />
-        <RowFlex className="justify-end p-4">
-          <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
-        </RowFlex>
-      </SettingGroup>
-    </SettingContainer>
+    <div className="flex flex-1" data-theme-mode={theme}>
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+        <Scrollbar className={settingsSubmenuScrollClassName}>
+          <MenuList className={settingsSubmenuListClassName}>
+            <div className="px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs">
+              {t('settings.shortcuts.title')}
+            </div>
+            {categoryMeta.map((category) => {
+              const count = shortcutsByCategory[category.key].length
+              const isActive = activeCategory === category.key
+
+              return (
+                <MenuItem
+                  key={category.key}
+                  className={settingsSubmenuItemClassName}
+                  icon={categoryIconMap[category.key]}
+                  active={isActive}
+                  label={category.label}
+                  suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                  onClick={() => {
+                    setActiveCategory(category.key)
+                    setSearchQuery('')
+                  }}
+                />
+              )
+            })}
+          </MenuList>
+        </Scrollbar>
+
+        <Scrollbar className={settingsContentScrollClassName}>
+          <div className={settingsContentBodyClassName}>
+            <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
+              <h1 className={settingsContentHeaderTitleClassName}>
+                {categoryMeta.find((item) => item.key === activeCategory)?.label}
+              </h1>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs shadow-none"
+                  onClick={() => void handleToggleVisibleShortcuts(true)}>
+                  {t('settings.shortcuts.all_enable')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs shadow-none"
+                  onClick={() => void handleToggleVisibleShortcuts(false)}>
+                  {t('settings.shortcuts.all_disable')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 px-2.5 text-primary text-xs shadow-none"
+                  onClick={handleResetAllShortcuts}>
+                  <Undo2 size={13} />
+                  {t('settings.shortcuts.reset')}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <div className="relative w-full">
+                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Input
+                  className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
+                  placeholder={t('settings.shortcuts.search_placeholder')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {visibleShortcuts.length > 0 ? (
+              <div>
+                {visibleShortcuts.map((record, index) =>
+                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
+                )}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+            )}
+          </div>
+        </Scrollbar>
+      </div>
+    </div>
   )
 }
 

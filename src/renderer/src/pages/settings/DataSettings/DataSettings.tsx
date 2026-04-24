@@ -2,6 +2,7 @@ import { CloudServerOutlined, CloudSyncOutlined, YuqueOutlined } from '@ant-desi
 import { MenuDivider, MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
@@ -14,6 +15,7 @@ import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '../shared/menuStyles'
 import BasicDataSettings from './BasicDataSettings'
@@ -86,31 +88,32 @@ const DataSettings: FC = () => {
 
   return (
     <RowFlex className="flex-1">
-      <MenuList
-        className={`${settingsSubmenuListClassName} h-screen min-h-0 w-(--settings-width) overflow-auto border-border border-r-[0.5px] [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
-        {menuItems.map((item, index) =>
-          item.isDivider ? (
-            <div key={item.key}>
-              {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
-              <div
-                className={
-                  index === 0 ? `${settingsSubmenuSectionTitleClassName} pt-0` : settingsSubmenuSectionTitleClassName
-                }>
-                {item.text || ''}
+      <Scrollbar className={`${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+        <MenuList className={settingsSubmenuListClassName}>
+          {menuItems.map((item, index) =>
+            item.isDivider ? (
+              <div key={item.key}>
+                {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+                <div
+                  className={
+                    index === 0 ? `${settingsSubmenuSectionTitleClassName} pt-0` : settingsSubmenuSectionTitleClassName
+                  }>
+                  {item.text || ''}
+                </div>
               </div>
-            </div>
-          ) : (
-            <MenuItem
-              key={item.key}
-              label={item.title || ''}
-              active={menu === item.key}
-              onClick={() => setMenu(item.key)}
-              icon={item.icon}
-              className={settingsSubmenuItemClassName}
-            />
-          )
-        )}
-      </MenuList>
+            ) : (
+              <MenuItem
+                key={item.key}
+                label={item.title || ''}
+                active={menu === item.key}
+                onClick={() => setMenu(item.key)}
+                icon={item.icon}
+                className={settingsSubmenuItemClassName}
+              />
+            )
+          )}
+        </MenuList>
+      </Scrollbar>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}

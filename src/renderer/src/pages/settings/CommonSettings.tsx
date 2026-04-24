@@ -31,6 +31,11 @@ import { useTranslation } from 'react-i18next'
 import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 import SidebarIconsManager from './DisplaySettings/SidebarIconsManager'
 import {
+  settingsContentBodyClassName,
+  settingsContentHeaderClassName,
+  settingsContentHeaderDescriptionClassName,
+  settingsContentHeaderTitleClassName,
+  settingsContentScrollClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
@@ -896,8 +901,8 @@ const CommonSettings: FC = () => {
           </MenuList>
         </Scrollbar>
 
-        <Scrollbar className="flex-1 bg-background-subtle">
-          <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-6 py-5">{renderSectionContent()}</div>
+        <Scrollbar className={settingsContentScrollClassName}>
+          <div className={settingsContentBodyClassName}>{renderSectionContent()}</div>
         </Scrollbar>
       </div>
     </div>
@@ -905,9 +910,9 @@ const CommonSettings: FC = () => {
 }
 
 const SectionHeader = ({ title, description }: { title: string; description?: string }) => (
-  <div className="mb-5">
-    <h1 className="font-semibold text-foreground text-xl">{title}</h1>
-    {description && <p className="mt-1 text-foreground-muted text-sm">{description}</p>}
+  <div className={settingsContentHeaderClassName}>
+    <h1 className={settingsContentHeaderTitleClassName}>{title}</h1>
+    {description && <p className={settingsContentHeaderDescriptionClassName}>{description}</p>}
   </div>
 )
 

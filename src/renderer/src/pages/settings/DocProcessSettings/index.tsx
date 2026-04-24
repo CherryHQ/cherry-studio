@@ -8,12 +8,15 @@ import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import type { OcrProvider, PreprocessProvider } from '@renderer/types'
 import { isBuiltinOcrProvider, isImageOcrProvider } from '@renderer/types'
+import { cn } from '@renderer/utils/style'
 import { Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  settingsContentBodyClassName,
+  settingsContentScrollClassName,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
@@ -265,8 +268,8 @@ const DocProcessSettings: FC = () => {
           </MenuList>
         </Scrollbar>
 
-        <Scrollbar className="flex-1 bg-background-subtle">
-          <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col px-6 py-8">
+        <Scrollbar className={settingsContentScrollClassName}>
+          <div className={cn(settingsContentBodyClassName, 'py-6')}>
             {activeEntry ? (
               <div className="flex w-full flex-col gap-4">
                 <div className="flex items-center justify-between gap-4 px-1">
