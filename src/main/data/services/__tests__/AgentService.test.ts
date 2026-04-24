@@ -35,7 +35,6 @@ vi.mock('@main/services/agents/agentUtils', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...(actual as object),
-    listMcpTools: vi.fn().mockResolvedValue({ tools: [], legacyIdMap: {} }),
     validateAgentModels: vi.fn().mockResolvedValue(undefined),
     resolveAccessiblePaths: vi.fn((paths: string[]) => paths)
   }
