@@ -36,6 +36,7 @@ interface Props {
 
 // Mapping from app locale to emoji-picker-element i18n
 const i18nMap: Record<LanguageVarious, typeof en> = {
+  'ar-YE': en, // fallback to English
   'en-US': en,
   'zh-CN': zh_CN,
   'zh-TW': zh_CN, // Closest available
@@ -53,6 +54,7 @@ const i18nMap: Record<LanguageVarious, typeof en> = {
 // Mapping from app locale to emoji data URL
 // Using CLDR format provides native language search support for all locales
 const dataSourceMap: Record<LanguageVarious, string> = {
+  'ar-YE': dataEN,
   'en-US': dataEN,
   'zh-CN': dataZH,
   'zh-TW': dataZH_HANT,
@@ -70,6 +72,7 @@ const dataSourceMap: Record<LanguageVarious, string> = {
 // Mapping from app locale to emoji-picker-element locale string
 // Must match the data source locale for proper IndexedDB caching
 const localeMap: Record<LanguageVarious, string> = {
+  'ar-YE': 'en',
   'en-US': 'en',
   'zh-CN': 'zh',
   'zh-TW': 'zh-hant',
