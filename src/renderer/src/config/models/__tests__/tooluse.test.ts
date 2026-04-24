@@ -177,6 +177,18 @@ describe('isFunctionCallingModel', () => {
     })
   })
 
+  describe('MiMo V2.5 Models', () => {
+    it('supports function calling for V2.5 chat models', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5', provider: 'mimo' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-pro', provider: 'mimo' }))).toBe(true)
+    })
+
+    it('does not treat V2.5 speech models as function calling chat models', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-tts', provider: 'mimo' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-tts-voiceclone', provider: 'mimo' }))).toBe(false)
+    })
+  })
+
   describe('Doubao Seed 2.0 Models', () => {
     it('should identify doubao-seed-2-0-pro-260215 as function calling model', () => {
       const model: Model = {
