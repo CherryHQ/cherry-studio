@@ -5,7 +5,7 @@ import { useDeleteLanguage, useLanguages } from '@renderer/hooks/translate'
 import type { TranslateLanguageVo } from '@renderer/types'
 import type { TableProps } from 'antd'
 import { Popconfirm, Space, Table } from 'antd'
-import { memo, startTransition, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -56,12 +56,12 @@ const TranslateLanguageSettings = () => {
     })
   }
 
-  const onClickEdit = (target: TranslateLanguageVo) => {
+  const onClickEdit = useCallback((target: TranslateLanguageVo) => {
     startTransition(async () => {
       setEditingLanguage(target)
       setIsModalOpen(true)
     })
-  }
+  }, [])
 
   const onCancel = () => {
     startTransition(async () => {
@@ -91,7 +91,7 @@ const TranslateLanguageSettings = () => {
         }
       }
     ],
-    [t]
+    [t, onClickEdit]
   )
 
   return (
