@@ -1,55 +1,39 @@
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCallback } from 'react'
-import useSWR from 'swr'
-
-import { useApiServer } from '../useApiServer'
-import { requireAgentClient, useAgentClient } from './useAgentClient'
 
 export const useChannels = (type?: string) => {
-  const client = useAgentClient()
-  const { apiServerRunning } = useApiServer()
+  const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
+    query: type ? { type } : undefined
+  })
+  const channels = data ?? []
 
-  const key = apiServerRunning && client ? `${client.channelPaths.base}?type=${type ?? ''}` : null
-
-  const fetcher = useCallback(async () => {
-    const result = await requireAgentClient(client).listChannels(type ? { type } : undefined)
-    return result.data
-  }, [client, type])
-
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
-
+  const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
   const createChannel = useCallback(
     async (channelData: Record<string, unknown>) => {
-      const result = await requireAgentClient(client).createChannel(channelData)
-      void mutate((prev) => [...(prev ?? []), result], false)
-      return result
+      return createTrigger({ body: channelData as never })
     },
-    [client, mutate]
+    [createTrigger]
   )
 
+  const { trigger: updateTrigger } = useMutation('PATCH', '/channels/:channelId', {
+    refresh: ({ args }) => ['/channels', `/channels/${args?.params.channelId}` as never]
+  })
   const updateChannel = useCallback(
     async (id: string, updates: Record<string, unknown>) => {
-      const result = await requireAgentClient(client).updateChannel(id, updates)
-      void mutate((prev) => prev?.map((ch) => (ch.id === id ? result : ch)) ?? [], false)
-      return result
+      return updateTrigger({ params: { channelId: id }, body: updates as never })
     },
-    [client, mutate]
+    [updateTrigger]
   )
 
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/channels/:channelId', {
+    refresh: ['/channels']
+  })
   const deleteChannel = useCallback(
     async (id: string) => {
-      await requireAgentClient(client).deleteChannel(id)
-      void mutate((prev) => prev?.filter((ch) => ch.id !== id) ?? [], false)
+      await deleteTrigger({ params: { channelId: id } })
     },
-    [client, mutate]
+    [deleteTrigger]
   )
 
-  return {
-    channels: data,
-    error,
-    isLoading,
-    mutate,
-    createChannel,
-    updateChannel,
-    deleteChannel
-  }
+  return { channels, error, isLoading, refetch, mutate, createChannel, updateChannel, deleteChannel }
 }

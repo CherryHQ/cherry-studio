@@ -3,17 +3,17 @@ import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { cacheService } from '@renderer/data/CacheService'
-import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
-import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
+import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
+import type { AgentEntity } from '@renderer/types/agent'
 import { useNavigate } from '@tanstack/react-router'
 import { Alert, Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mutate } from 'swr'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -409,7 +409,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const navigate = useNavigate()
-  const { logs, isLoading } = useTaskLogs(taskId)
+  const { logs, isLoading } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
 
   const filteredLogs = useMemo(() => {
@@ -760,8 +760,11 @@ const CreateForm: FC<{
 
 const TasksSettings: FC = () => {
   const { t } = useTranslation()
-  const client = useAgentClient()
   const { channels: rawChannels = [] } = useChannels()
+  const { createTask } = useCreateTask()
+  const { updateTask } = useUpdateTask()
+  const { deleteTask } = useDeleteTask()
+  const { runTask } = useRunTask()
 
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [tasks, setTasks] = useState<ScheduledTaskEntity[]>([])
@@ -784,27 +787,31 @@ const TasksSettings: FC = () => {
   )
 
   const loadData = useCallback(async () => {
-    if (!client) {
-      return
-    }
-
     try {
-      const [tasksRes, agentsRes] = await Promise.all([
-        client.listTasks({ limit: 200 }),
-        client.listAgents({ limit: 100 })
-      ])
-      setTasks(tasksRes.data)
-      setAgents(
-        agentsRes.data
-          .filter((a) => {
-            return a.configuration?.soul_enabled === true || a.configuration?.permission_mode === 'bypassPermissions'
+      const agentsResult = await dataApiService.get('/agents', { query: { limit: 100 } })
+      const agentList = (agentsResult as any).items ?? []
+      const tasksPerAgent = await Promise.all(
+        agentList.map(async (a: AgentEntity) => {
+          const result = await dataApiService.get(`/agents/${a.id}/tasks` as never, {
+            query: { limit: 200 }
           })
-          .map((a) => ({ id: a.id, name: a.name ?? a.id }))
+          return (result as any).items ?? []
+        })
+      )
+      setTasks(tasksPerAgent.flat())
+      setAgents(
+        agentList
+          .filter(
+            (a: AgentEntity) =>
+              (a.configuration as any)?.soul_enabled === true ||
+              (a.configuration as any)?.permission_mode === 'bypassPermissions'
+          )
+          .map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id }))
       )
     } finally {
       setLoading(false)
     }
-  }, [client])
+  }, [])
 
   useEffect(() => {
     void loadData()
@@ -833,68 +840,59 @@ const TasksSettings: FC = () => {
 
   const handleCreate = useCallback(
     async (agentId: string, req: CreateTaskRequest) => {
-      if (!client) {
-        return
+      const created = await createTask(agentId, req)
+      if (created) {
+        setCreating(false)
+        await loadData()
+        setSelectedTaskId(created.id)
       }
-      const created = await client.createTask(agentId, req)
-      setCreating(false)
-      await loadData()
-      setSelectedTaskId(created.id)
     },
-    [client, loadData]
+    [createTask, loadData]
   )
 
   const handleUpdate = useCallback(
     async (taskId: string, updates: UpdateTaskRequest) => {
-      if (!client) {
-        return
-      }
-      await client.updateTask(taskId, updates)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await updateTask(task.agentId, taskId, updates)
       void loadData()
     },
-    [client, loadData]
+    [updateTask, tasks, loadData]
   )
 
   const handleDelete = useCallback(
     async (taskId: string) => {
-      if (!client) {
-        return
-      }
-      await client.deleteTask(taskId)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await deleteTask(task.agentId, taskId)
       if (selectedTaskId === taskId) setSelectedTaskId(null)
       void loadData()
     },
-    [client, selectedTaskId, loadData]
+    [deleteTask, tasks, selectedTaskId, loadData]
   )
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      if (!client) {
-        return
-      }
-      await client.runTask(taskId)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await runTask(task.agentId, taskId)
       void loadData()
-      // Refresh task logs SWR cache so the logs list updates
-      const logsKey = client.taskPaths.logs(taskId)
-      void mutate(logsKey)
       // Task runs asynchronously — refresh again after a delay to capture completion
       setTimeout(() => {
-        void mutate(logsKey)
         void loadData()
       }, 1000)
     },
-    [client, loadData]
+    [runTask, tasks, loadData]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      if (!client) {
-        return
-      }
-      await client.updateTask(taskId, { status: newStatus as 'active' | 'paused' })
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await updateTask(task.agentId, taskId, { status: newStatus as 'active' | 'paused' })
       void loadData()
     },
-    [client, loadData]
+    [updateTask, tasks, loadData]
   )
 
   if (loading) {

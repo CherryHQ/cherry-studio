@@ -346,7 +346,18 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     }
   }, [agentList])
 
-  const channelList = channels ?? []
+  const channelList: ChannelData[] = (channels ?? []).map((ch) => ({
+    id: ch.id,
+    type: ch.type,
+    name: ch.name,
+    agentId: ch.agentId,
+    sessionId: ch.sessionId,
+    config: ch.config,
+    isActive: ch.isActive,
+    permissionMode: ch.permissionMode,
+    createdAt: ch.createdAt ? new Date(ch.createdAt).getTime() : null,
+    updatedAt: ch.updatedAt ? new Date(ch.updatedAt).getTime() : null
+  }))
 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const editingChannel = channelList.find((ch) => ch.id === editingChannelId) ?? null

@@ -5,15 +5,16 @@ import { useTranslation } from 'react-i18next'
 
 type TaskLogsModalProps = {
   open: boolean
+  agentId: string | null
   taskId: string | null
   taskName: string
   onClose: () => void
 }
 
-const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, taskId, taskName, onClose }) => {
+const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, agentId, taskId, taskName, onClose }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const { logs, isLoading } = useTaskLogs(open ? taskId : null)
+  const { logs, isLoading } = useTaskLogs(open ? agentId : null, open ? taskId : null)
 
   const columns = [
     {

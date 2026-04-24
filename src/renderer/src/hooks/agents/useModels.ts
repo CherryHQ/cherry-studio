@@ -1,35 +1,22 @@
 import type { ApiModel, ApiModelsFilter } from '@renderer/types'
-import { merge } from 'lodash'
-import { useCallback } from 'react'
-import useSWR from 'swr'
-
-import { requireAgentClient, useAgentClient } from './useAgentClient'
+import { useEffect, useState } from 'react'
 
 export const useApiModels = (filter?: ApiModelsFilter) => {
-  const client = useAgentClient()
-  // const defaultFilter = { limit: -1 } satisfies ApiModelsFilter
-  const defaultFilter = {} satisfies ApiModelsFilter
-  const finalFilter = merge(filter, defaultFilter)
-  const path = client ? client.getModelsPath(finalFilter) : null
-  const fetcher = useCallback(async () => {
-    const limit = finalFilter.limit || 100
-    let offset = finalFilter.offset || 0
-    const allModels: ApiModel[] = []
-    let total = Infinity
+  const [models, setModels] = useState<ApiModel[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-    while (offset < total) {
-      const pageFilter = { ...finalFilter, limit, offset }
-      const res = await requireAgentClient(client).getModels(pageFilter)
-      allModels.push(...(res.data || []))
-      total = res.total ?? 0
-      offset += limit
-    }
-    return { data: allModels, total }
-  }, [client, finalFilter])
-  const { data, error, isLoading } = useSWR(path, fetcher)
-  return {
-    models: data?.data ?? [],
-    error,
-    isLoading
-  }
+  useEffect(() => {
+    setIsLoading(true)
+    window.api.agent
+      .getModels(filter ?? {})
+      .then((res: any) => {
+        setModels(res.data ?? [])
+        setError(null)
+      })
+      .catch((err: Error) => setError(err))
+      .finally(() => setIsLoading(false))
+  }, [JSON.stringify(filter)]) // stable dep
+
+  return { models, error, isLoading }
 }
