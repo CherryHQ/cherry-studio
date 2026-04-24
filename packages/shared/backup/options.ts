@@ -3,6 +3,8 @@
  * V2 architecture: VACUUM INTO + selective restore
  */
 
+import type { BackupDomain } from './types.js'
+
 export enum ConflictStrategy {
   SKIP = 'skip',
   OVERWRITE = 'overwrite',
@@ -17,10 +19,10 @@ export enum CompressionLevel {
 }
 
 export interface BackupOptions {
+  domains: BackupDomain[]
   includeFiles?: boolean
   includeKnowledgeFiles?: boolean
   compressionLevel?: CompressionLevel
-  onProgress?: (progress: BackupProgress) => void
 }
 
 export interface BackupProgress {
@@ -36,11 +38,10 @@ export interface BackupProgress {
 }
 
 export interface RestoreOptions {
-  domains?: string[]
+  domains?: BackupDomain[]
   conflictStrategy?: ConflictStrategy
   restoreFiles?: boolean
   validateOnly?: boolean
-  onProgress?: (progress: RestoreProgress) => void
 }
 
 export interface RestoreProgress {

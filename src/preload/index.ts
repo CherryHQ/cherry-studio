@@ -230,6 +230,24 @@ const api = {
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
+  backupV2: {
+    startBackup: (payload: { outputPath: string; options: unknown }) =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, payload),
+    cancelBackup: (payload: { operationId: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_CancelBackup, payload),
+    startRestore: (payload: { zipPath: string; options: unknown }) =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_StartRestore, payload),
+    cancelRestore: (payload: { operationId: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_CancelRestore, payload),
+    validateBackup: (payload: { zipPath: string }) => ipcRenderer.invoke(IpcChannel.BackupV2_ValidateBackup, payload),
+    getBackupProgress: (payload: { operationId: string }) =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_GetBackupProgress, payload),
+    getRestoreProgress: (payload: { operationId: string }) =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_GetRestoreProgress, payload),
+    onProgress: (callback: (progress: unknown) => void) => {
+      const listener = (_e: unknown, progress: unknown) => callback(progress)
+      ipcRenderer.on('backup-v2:progress', listener)
+      return () => ipcRenderer.off('backup-v2:progress', listener)
+    }
+  },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
