@@ -1,5 +1,4 @@
 import { application } from '@application'
-import type { ChannelConfig } from '@data/agents/channelConfig'
 import {
   type AgentChannelRow as ChannelRow,
   agentChannelTable as channelsTable,
@@ -7,6 +6,7 @@ import {
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
 import { loggerService } from '@logger'
+import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
 import { DataApiErrorFactory } from '@shared/data/api'
 import { and, eq, inArray } from 'drizzle-orm'
 

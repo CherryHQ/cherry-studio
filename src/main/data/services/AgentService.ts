@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@data/agents/agentIds'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentChannelTable as channelsTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
@@ -9,6 +8,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AgentBaseSchema,
