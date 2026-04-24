@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { AgentSelectorV2 } from '@renderer/components/selectors/v2'
+import { AgentSelectorV2 } from '@renderer/components/Selectors'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
