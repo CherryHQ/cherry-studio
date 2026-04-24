@@ -3730,6 +3730,9 @@
         "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "No text selected to translate"
+        },
         "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
       },
       "window": {

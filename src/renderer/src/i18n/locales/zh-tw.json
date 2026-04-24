@@ -3730,6 +3730,9 @@
         "summary": "請直接以{{language}}回覆，無須任何說明。"
       },
       "translate": {
+        "error": {
+          "no_selected_text": "未選取要翻譯的文字"
+        },
         "smart_translate_tips": "智慧翻譯：內容將優先翻譯為目標語言；內容已是目標語言時，將翻譯為備用語言"
       },
       "window": {
