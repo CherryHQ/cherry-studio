@@ -18,7 +18,7 @@ import {
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { sliceByTokens } from 'tokenx'
 
 import { useLanguages } from './useLanguages'
@@ -182,6 +182,11 @@ export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
 
+  // One-shot UX surface: useLanguages only toasts on SWR error, but a successful
+  // empty-array response (seeder failure / DB corruption) slips past it. Notify
+  // the user once per session so they don't silently keep getting UNKNOWN.
+  const toastedEmptyRef = useRef(false)
+
   const detectLanguage = useCallback(
     async (inputText: string): Promise<TranslateLangCode> => {
       const text = inputText.trim()
@@ -196,10 +201,14 @@ export const useDetectLang = () => {
       }
 
       // No data: endpoint resolved with an empty list. Seeder failure or DB
-      // corruption — `useLanguages` already surfaces load errors, so here we
-      // just log loudly for Sentry and degrade to UNKNOWN.
+      // corruption — log loudly for Sentry and surface a one-shot toast so
+      // the user knows why every translation is coming back as UNKNOWN.
       if (languages.length === 0) {
         logger.error('useDetectLang invoked with an empty language list')
+        if (!toastedEmptyRef.current) {
+          toastedEmptyRef.current = true
+          window.toast?.error(i18n.t('translate.error.languages_load_failed'))
+        }
         return UNKNOWN.langCode
       }
 
