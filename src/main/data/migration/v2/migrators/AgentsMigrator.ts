@@ -16,7 +16,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { transformBlocksToParts } from './mappings/ChatMappings'
+import { normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -343,6 +343,11 @@ export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToP
 
       const { parts } = transformBlocksToParts(blocks)
       message.data = { ...message.data, parts }
+      // Transient statuses (sending/pending/searching/processing) in persisted
+      // rows are interrupted streams — collapse them to 'error' so the renderer
+      // doesn't paint them as still-streaming. Parts are already in terminal
+      // states after transformBlocksToParts.
+      message.status = normalizeStatus(message.status)
       message.blocks = []
       parsed.blocks = []
 

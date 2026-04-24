@@ -234,6 +234,54 @@ describe('transformAgentBlocksToParts', () => {
     expect(second.messagesSkipped).toBe(1)
   })
 
+  it('normalizes transient message.status to error when reshaping blocks', async () => {
+    // A mid-stream row persisted as status: 'pending' with blocks still present —
+    // blocks→parts conversion must collapse the transient status so the renderer
+    // doesn't keep treating it as streaming. ('processing' | 'sending' |
+    // 'searching' share the same fate; one representative case is enough since
+    // normalizeStatus is covered exhaustively in ChatMappings tests.)
+    await seedSession('s-pending')
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId: 's-pending',
+      role: 'assistant',
+      content: {
+        message: { id: 'm', role: 'assistant', status: 'pending', blocks: ['b1'] },
+        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
+      } as any
+    })
+
+    const result = await transformAgentBlocksToParts(dbh.db)
+    expect(result.messagesConverted).toBe(1)
+
+    const [row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-pending'))
+    const content = row.content as { message: { status: string } }
+    expect(content.message.status).toBe('error')
+  })
+
+  it('preserves terminal message.status (success/paused) during reshape', async () => {
+    await seedSession('s-success')
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId: 's-success',
+      role: 'assistant',
+      content: {
+        message: { id: 'm', role: 'assistant', status: 'success', blocks: ['b1'] },
+        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
+      } as any
+    })
+
+    await transformAgentBlocksToParts(dbh.db)
+
+    const [row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-success'))
+    const content = row.content as { message: { status: string } }
+    expect(content.message.status).toBe('success')
+  })
+
   it('tolerates malformed content without aborting the whole transform', async () => {
     await seedSession('s-ok')
     await seedSession('s-bad')
