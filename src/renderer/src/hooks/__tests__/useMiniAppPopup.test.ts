@@ -236,17 +236,15 @@ describe('useMiniAppPopup', () => {
       expect(oneOffMiniApp?.appId).toBe('app2')
     })
 
-    it('should do nothing if app id is not found', async () => {
+    it('should throw DataApiError when app id is not found', async () => {
       const apps = [createMiniApp('app1')]
       MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
       MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
-        result.current.openMiniAppById('nonexistent')
+        expect(() => result.current.openMiniAppById('nonexistent')).toThrow()
       })
-
-      expect(result.current.openedOneOffMiniApp).toBeNull()
     })
 
     it('should open as keep-alive when keepAlive=true', async () => {

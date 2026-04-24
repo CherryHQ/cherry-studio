@@ -312,7 +312,16 @@ describe('useMiniApps', () => {
   // === updateAppStatus ===
 
   describe('updateAppStatus', () => {
-    it('should call patchApp with the new status', async () => {
+    it('should call the patch mutation trigger with the new status', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({ success: true })
+      const { mockUseMutation } = await import('@test-mocks/renderer/useDataApi')
+      mockUseMutation.mockImplementation((method: string, path: string) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
       const apps = [createMiniApp('app1', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
@@ -321,8 +330,7 @@ describe('useMiniApps', () => {
         await result.current.updateAppStatus('app1', 'disabled')
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/app1', { body: { status: 'disabled' } }])
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
     })
   })
 
