@@ -190,7 +190,7 @@
     {
       "targetKey": "feature.translate.mini_window.target_lang",
       "type": "PreferenceTypes.TranslateLangCode",
-      "defaultValue": "en-us",
+      "defaultValue": "zh-cn",
       "status": "classified",
       "description": "TranslateWindow target language"
     }

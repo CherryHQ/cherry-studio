@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-09T07:25:07.750Z
+ * Generated at: 2026-05-09T07:27:59.511Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
