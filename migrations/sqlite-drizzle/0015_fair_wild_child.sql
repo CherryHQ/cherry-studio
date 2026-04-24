@@ -14,8 +14,8 @@ CREATE TABLE `__new_mini_app` (
 	`supported_regions` text,
 	`configuration` text,
 	`name_key` text,
-	`created_at` integer,
-	`updated_at` integer,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
 	CONSTRAINT "mini_app_status_check" CHECK("__new_mini_app"."status" IN ('enabled', 'disabled', 'pinned')),
 	CONSTRAINT "mini_app_kind_check" CHECK("__new_mini_app"."kind" IN ('default', 'custom'))
 );
