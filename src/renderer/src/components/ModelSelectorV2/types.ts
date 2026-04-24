@@ -26,14 +26,17 @@ interface ModelSelectorCommonProps {
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {
-  multiple?: false
+  // Required literal: making `multiple` optional would leave the discriminated
+  // union undiscriminated (undefined satisfies every branch) and force every
+  // downstream narrowing site to re-widen with an `as ModelSelectorValue` cast.
+  multiple: false
   selectionType?: 'model'
   value?: Model
   onSelect: (model: Model | undefined) => void
 }
 
 export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
-  multiple?: false
+  multiple: false
   selectionType: 'id'
   value?: UniqueModelId
   onSelect: (modelId: UniqueModelId | undefined) => void

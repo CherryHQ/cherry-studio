@@ -35,7 +35,7 @@ import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
-import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
+import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
@@ -46,8 +46,6 @@ const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
-
-type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
 
 function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   const nextSelectedIds: UniqueModelId[] = []
@@ -65,52 +63,58 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function normalizeSelectedIdsFromValue(
-  value: ModelSelectorValue,
-  selectionType: ModelSelectorSelectionType,
-  multiple: boolean
-): UniqueModelId[] {
-  // Incoherent prop combos (e.g. array value with multiple=false, scalar with
-  // multiple=true) are silently coerced to [] to keep the component robust.
-  // Without telemetry they're invisible to callers — warn in DEV so
+function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId[] {
+  // Narrow on the discriminator pair directly so each branch operates on the
+  // variant-specific `value` type — no wide `ModelSelectorValue` needed.
+  // Incoherent shapes (e.g. array where a scalar is expected) are still
+  // possible at runtime if a caller ignores TS; we warn in DEV so
   // misconfigurations surface during development.
-  if (isDev && value !== undefined && value !== null) {
-    const isValueArray = Array.isArray(value)
-    if (multiple && !isValueArray) {
+  if (props.multiple) {
+    if (props.selectionType === 'id') {
+      const value = props.value
+      if (isDev && value !== undefined && !Array.isArray(value)) {
+        logger.warn('normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []', {
+          selectionType: 'id',
+          valueType: typeof value
+        })
+      }
+      const ids = Array.isArray(value)
+        ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
+        : []
+      return dedupeSelectedIds(ids)
+    }
+
+    const value = props.value
+    if (isDev && value !== undefined && !Array.isArray(value)) {
       logger.warn('normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []', {
-        selectionType,
+        selectionType: 'model',
         valueType: typeof value
       })
-    } else if (!multiple && isValueArray) {
+    }
+    const modelValues = Array.isArray(value) ? value : []
+    const ids = modelValues.flatMap((candidate) => (candidate?.id ? [candidate.id] : []))
+    return dedupeSelectedIds(ids)
+  }
+
+  if (props.selectionType === 'id') {
+    const value = props.value
+    if (isDev && value !== undefined && Array.isArray(value)) {
       logger.warn('normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []', {
-        selectionType,
+        selectionType: 'id',
         valueLength: value.length
       })
     }
+    return typeof value === 'string' && isUniqueModelId(value) ? dedupeSelectedIds([value]) : []
   }
 
-  if (selectionType === 'id') {
-    const candidateIds = multiple
-      ? Array.isArray(value)
-        ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
-        : []
-      : typeof value === 'string' && isUniqueModelId(value)
-        ? [value]
-        : []
-
-    return dedupeSelectedIds(candidateIds)
+  const value = props.value
+  if (isDev && value !== undefined && Array.isArray(value)) {
+    logger.warn('normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []', {
+      selectionType: 'model',
+      valueLength: value.length
+    })
   }
-
-  const candidateValues = multiple ? (Array.isArray(value) ? value : []) : value && !Array.isArray(value) ? [value] : []
-  const candidateIds = candidateValues.flatMap((candidate) => {
-    if (candidate && typeof candidate === 'object' && 'id' in candidate && candidate.id) {
-      return [candidate.id]
-    }
-
-    return []
-  })
-
-  return dedupeSelectedIds(candidateIds)
+  return value?.id ? dedupeSelectedIds([value.id]) : []
 }
 
 function modelsFromSelectedIds(
@@ -252,10 +256,11 @@ export function ModelSelector(props: ModelSelectorProps) {
   } = props
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const multiple = props.multiple === true
-  const selectionType = props.selectionType ?? 'model'
-  const value = props.value
-  const onSelect = props.onSelect
+  // `multiple` is required-literal on the union, so reading it directly gives
+  // a proper boolean for conditional UI branches. Narrowing to the specific
+  // variant happens at the `onSelect` / `value` touchpoints below (see
+  // `emitSelection` / `normalizeSelectedIdsFromValue`).
+  const multiple = props.multiple
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
   const [searchText, setSearchText] = useState('')
@@ -317,8 +322,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const rawSelectedModelIds = useMemo(
-    () => normalizeSelectedIdsFromValue(value as ModelSelectorValue, selectionType, multiple),
-    [multiple, selectionType, value]
+    () => normalizeSelectedIdsFromValue(props),
+    // Narrowing is driven by the three discriminators — any of them changing
+    // means `props.value` may be typed differently too.
+    [props]
   )
 
   const {
@@ -355,27 +362,27 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
-      if (multiple) {
-        if (selectionType === 'id') {
-          ;(onSelect as (modelIds: UniqueModelId[]) => void)(nextSelectedIds)
+      // Switch on the discriminator pair; TS narrows `props` (and therefore
+      // `props.onSelect`) to the matching variant in each branch. No casts.
+      if (props.multiple) {
+        if (props.selectionType === 'id') {
+          props.onSelect(nextSelectedIds)
           return
         }
 
-        ;(onSelect as (models: Model[]) => void)(modelsFromSelectedIds(nextSelectedIds, selectableModelsById))
+        props.onSelect(modelsFromSelectedIds(nextSelectedIds, selectableModelsById))
         return
       }
 
       const nextSelectedId = nextSelectedIds[0]
-      if (selectionType === 'id') {
-        ;(onSelect as (modelId: UniqueModelId | undefined) => void)(nextSelectedId)
+      if (props.selectionType === 'id') {
+        props.onSelect(nextSelectedId)
         return
       }
 
-      ;(onSelect as (model: Model | undefined) => void)(
-        nextSelectedId ? selectableModelsById.get(nextSelectedId) : undefined
-      )
+      props.onSelect(nextSelectedId ? selectableModelsById.get(nextSelectedId) : undefined)
     },
-    [multiple, onSelect, selectableModelsById, selectionType]
+    [props, selectableModelsById]
   )
 
   const focusItem = useCallback(

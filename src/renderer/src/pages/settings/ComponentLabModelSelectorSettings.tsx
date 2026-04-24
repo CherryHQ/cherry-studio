@@ -133,10 +133,18 @@ const ComponentLabModelSelectorSettings: FC = () => {
     }
 
     if (selectionType === 'id') {
-      return <ModelSelector {...commonProps} selectionType="id" value={selectedIds[0]} onSelect={handleIdSelect} />
+      return (
+        <ModelSelector
+          {...commonProps}
+          multiple={false}
+          selectionType="id"
+          value={selectedIds[0]}
+          onSelect={handleIdSelect}
+        />
+      )
     }
 
-    return <ModelSelector {...commonProps} value={selectedModels[0]} onSelect={handleModelSelect} />
+    return <ModelSelector {...commonProps} multiple={false} value={selectedModels[0]} onSelect={handleModelSelect} />
   }
 
   const currentProps = useMemo(
