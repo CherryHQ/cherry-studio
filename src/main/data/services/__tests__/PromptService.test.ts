@@ -328,6 +328,20 @@ describe('PromptService', () => {
       })
     })
 
+    it('should throw NOT_FOUND when the before anchor does not exist', async () => {
+      const a = await seedPrompt('a', 'a')
+      await expect(promptService.reorder(a.id, { before: PROMPT_ID_MISSING })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should throw NOT_FOUND when the after anchor does not exist', async () => {
+      const a = await seedPrompt('a', 'a')
+      await expect(promptService.reorder(a.id, { after: PROMPT_ID_MISSING })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
     it('should touch only the target row (catch transposition bugs)', async () => {
       const a = await seedPrompt('a', 'a')
       const b = await seedPrompt('b', 'b')
@@ -383,6 +397,18 @@ describe('PromptService', () => {
 
       const ids = (await promptService.getAll()).map((p) => p.id)
       expect(ids).toEqual([c.id, b.id, a.id])
+    })
+
+    it('should throw NOT_FOUND when a move references a missing anchor', async () => {
+      const a = await seedPrompt('a', 'a')
+      const b = await seedPrompt('b', 'b')
+
+      await expect(
+        promptService.reorderBatch([
+          { id: a.id, anchor: { position: 'first' } },
+          { id: b.id, anchor: { before: PROMPT_ID_MISSING } }
+        ])
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 })

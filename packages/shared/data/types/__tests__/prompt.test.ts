@@ -9,8 +9,8 @@ import {
 
 describe('PromptVersionSchema', () => {
   const baseVersion = {
-    id: 'da6dd7d6-8a80-429f-b3ef-e36f96246af8',
-    promptId: '8d0be0c2-7a31-4d30-b2d4-fc4c0df3dd61',
+    id: '019dbeea-3c00-73cb-acba-ec41b092cffa',
+    promptId: '019dbeea-3c01-70e1-b362-63fb55a380f3',
     version: 4,
     content: 'Prompt content',
     variables: null,

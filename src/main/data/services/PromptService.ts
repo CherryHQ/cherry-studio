@@ -60,6 +60,20 @@ function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
   }
 }
 
+/**
+ * Extract any `before`/`after` id referenced by a set of anchors. Reorder
+ * callers feed these into the existence pre-check so that a missing anchor
+ * surfaces as `NOT_FOUND` from the handler, not a 500 from `applyMoves`.
+ */
+function collectAnchorIds(anchors: OrderRequest[]): string[] {
+  const ids: string[] = []
+  for (const anchor of anchors) {
+    if ('before' in anchor) ids.push(anchor.before)
+    if ('after' in anchor) ids.push(anchor.after)
+  }
+  return ids
+}
+
 function rowToVersion(row: typeof promptVersionTable.$inferSelect): PromptVersion {
   return {
     id: row.id,
@@ -184,7 +198,7 @@ export class PromptService {
   /** Move a single prompt relative to an anchor. */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await this.assertPromptsExist(tx, [id])
+      await this.assertPromptsExist(tx, [id, ...collectAnchorIds([anchor])])
       await applyMoves(tx, promptTable, [{ id, anchor }], { pkColumn: promptTable.id })
     })
   }
@@ -193,10 +207,7 @@ export class PromptService {
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
     await this.db.transaction(async (tx) => {
-      await this.assertPromptsExist(
-        tx,
-        moves.map((m) => m.id)
-      )
+      await this.assertPromptsExist(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
       await applyMoves(tx, promptTable, moves, { pkColumn: promptTable.id })
     })
   }

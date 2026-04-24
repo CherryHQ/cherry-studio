@@ -2,7 +2,9 @@
  * Prompt migrator - migrates quick phrases from Dexie to SQLite prompt table.
  *
  * Mapping:
- *   QuickPhrase.id        → prompt.id
+ *   (new uuidv7)          → prompt.id (legacy QuickPhrase.id was uuidv4 and would
+ *                           fail PromptIdSchema's z.uuidv7() validation; nothing
+ *                           external references the old id so we regenerate)
  *   QuickPhrase.title     → prompt.title (fallback 'Untitled')
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
  *   QuickPhrase.order     → drives relative order; stamped as fractional-indexing `orderKey`
@@ -15,6 +17,7 @@ import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
@@ -111,8 +114,12 @@ export class PromptMigrator extends BaseMigrator {
 
       await db.transaction(async (tx) => {
         for (const row of stamped) {
+          // Regenerate id as uuidv7 so it passes PromptIdSchema on the API boundary;
+          // legacy Dexie id is uuidv4 and would be rejected by every :id handler.
+          const promptId = uuidv7()
+
           await tx.insert(promptTable).values({
-            id: row.id,
+            id: promptId,
             title: row.title || 'Untitled',
             content: row.content,
             currentVersion: 1,
@@ -122,7 +129,7 @@ export class PromptMigrator extends BaseMigrator {
           })
 
           await tx.insert(promptVersionTable).values({
-            promptId: row.id,
+            promptId,
             version: 1,
             content: row.content,
             createdAt: row.createdAt

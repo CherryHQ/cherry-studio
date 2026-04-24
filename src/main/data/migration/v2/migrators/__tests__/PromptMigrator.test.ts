@@ -250,13 +250,17 @@ describe('PromptMigrator', () => {
       expect(result.processedCount).toBe(0)
     })
 
-    it('should surface a UNIQUE violation on duplicate Dexie ids and reset processedCount', async () => {
-      const phrases = [makePhrase({ id: 'dup', content: 'first' }), makePhrase({ id: 'dup', content: 'second' })]
+    it('should surface a constraint violation mid-batch and reset processedCount', async () => {
+      const phrases = [
+        makePhrase({ id: 'phrase-a', content: 'first' }),
+        makePhrase({ id: 'phrase-b', content: 'second' })
+      ]
       const ctx = createMockContext({ tableData: phrases })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      // Simulate UNIQUE(id) violation on the second insert.
+      // Simulate a DB-level failure on the second prompt insert to cover
+      // mid-batch rollback paths (any SQLITE_CONSTRAINT, FK mismatch, etc.).
       let insertCount = 0
       const insertFn = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation(() => {
@@ -278,6 +282,35 @@ describe('PromptMigrator', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('UNIQUE')
       expect(result.processedCount).toBe(0)
+    })
+
+    it('should regenerate prompt.id as uuidv7 instead of preserving the legacy uuidv4', async () => {
+      const phrases = [makePhrase({ id: 'legacy-v4-id', content: 'c1' })]
+      const ctx = createMockContext({ tableData: phrases })
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      const insertCalls: Array<Record<string, unknown>> = []
+      const insertFn = vi.fn().mockImplementation(() => ({
+        values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
+          insertCalls.push(val)
+          return Promise.resolve(undefined)
+        })
+      }))
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<void>) => {
+          await fn({ insert: insertFn })
+        }
+      )
+
+      await migrator.execute(ctx)
+
+      const [promptRow, versionRow] = insertCalls
+      const uuidv7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      expect(promptRow.id).toMatch(uuidv7Pattern)
+      expect(promptRow.id).not.toBe('legacy-v4-id')
+      // prompt_version.promptId must match the regenerated prompt.id.
+      expect(versionRow.promptId).toBe(promptRow.id)
     })
   })
 
