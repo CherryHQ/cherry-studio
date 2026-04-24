@@ -4,7 +4,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 
-const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
+const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
 function installMCPServer(server: MCPServer) {
   const mainWindow = application.get('MainWindowService').getMainWindow()
@@ -57,9 +57,9 @@ export function handleMcpProtocolUrl(url: URL) {
 
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
-        logger.debug(`install MCP servers from urlschema: ${stringify}`)
+        logger.debug(`install MCP servers from protocol: ${stringify}`)
         const jsonConfig = JSON.parse(stringify)
-        logger.debug(`install MCP servers from urlschema: ${JSON.stringify(jsonConfig)}`)
+        logger.debug(`install MCP servers from protocol: ${JSON.stringify(jsonConfig)}`)
 
         // support both {mcpServers: [servers]}, [servers] and {server}
         if (jsonConfig.mcpServers) {

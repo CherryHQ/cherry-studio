@@ -8,8 +8,9 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { WindowType } from '@main/core/window/types'
 import { app } from 'electron'
 
-import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
-import { handleMcpProtocolUrl } from './urlschema/mcp-install'
+import { handleMcpProtocolUrl } from './handlers/mcpInstall'
+import { handleNavigateProtocolUrl } from './handlers/navigate'
+import { handleProvidersProtocolUrl } from './handlers/providersImport'
 
 export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
 
@@ -80,6 +81,9 @@ export class ProtocolService extends BaseService {
         return
       case 'providers':
         void handleProvidersProtocolUrl(urlObj)
+        return
+      case 'navigate':
+        handleNavigateProtocolUrl(urlObj)
         return
     }
 

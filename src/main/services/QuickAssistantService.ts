@@ -32,7 +32,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 
-import { isSafeExternalUrl } from './security'
+import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
 const DEFAULT_QUICK_ASSISTANT_WIDTH = 550
 const DEFAULT_QUICK_ASSISTANT_HEIGHT = 400

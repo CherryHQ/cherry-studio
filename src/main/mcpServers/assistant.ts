@@ -72,7 +72,7 @@ const DIAGNOSE_TOOL: Tool = {
       },
       file_path: {
         type: 'string',
-        description: 'Relative file path for read_source action, e.g. src/main/services/MCPService.ts'
+        description: 'Relative file path for read_source action, e.g. src/main/services/mcp/McpService.ts'
       }
     },
     required: ['action']
