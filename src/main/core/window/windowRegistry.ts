@@ -39,6 +39,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
   // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
   // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  //
+  // Intentionally NOT using `singletonConfig` here — MainWindowService's close handler
+  // (see `setupWindowLifecycleEvents`) reads tray preferences at runtime, calls
+  // `application.quit()` on Win/Linux without tray, guards on `isFullScreen()`, and
+  // toggles `setMacShowInDockByType` for tray-mode transitions. None of this is
+  // expressible via `retentionTime`, and forcing it through would regress Win/Linux
+  // "close = quit" semantics. Eager warmup also clashes with the dynamic options +
+  // state-preserving hide→show contract of Step A. See window-manager-warmup-mechanics.md
+  // → Singleton Variant for the declarative alternative and its constraints.
   [WindowType.Main]: {
     type: WindowType.Main,
     lifecycle: 'singleton',

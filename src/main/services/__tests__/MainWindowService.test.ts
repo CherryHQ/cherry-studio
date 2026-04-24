@@ -91,7 +91,7 @@ vi.mock('@main/utils/windowUtil', () => ({
 }))
 
 vi.mock('../ContextMenu', () => ({ contextMenu: { contextMenu: vi.fn() } }))
-vi.mock('../security', () => ({ isSafeExternalUrl: vi.fn(() => false) }))
+vi.mock('../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: vi.fn(() => false) }))
 
 // `?asset` import resolves to a string at build time; in tests we just stub the path.
 vi.mock('../../../../build/icon.png?asset', () => ({ default: '/mock/icon.png' }))

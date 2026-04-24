@@ -51,7 +51,7 @@ import {
   type PaginationResponse
 } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyedMutator, SWRConfiguration } from 'swr'
+import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration } from 'swr/infinite'
 import useSWRInfinite from 'swr/infinite'
@@ -349,7 +349,9 @@ export function useQuery<TPath extends ApiPath>(
  * @remarks
  * Callback / side-effect ordering after a successful mutation:
  * 1. Server response resolves.
- * 2. `refresh` keys are invalidated via `globalMutate`.
+ * 2. `refresh` keys are invalidated — covers `useQuery`, `usePaginatedQuery`,
+ *    and `useInfiniteQuery` / `useSWRInfinite` (the infinite caches are
+ *    enumerated explicitly since SWR's filter API skips `$inf$` keys).
  * 3. `onSuccess` callback runs. Any `useQuery` the callback touches will be
  *    in "stale, pending revalidation" state — avoid manual optimistic
  *    `mutate(...)` here as it races with the pending revalidation.
@@ -376,7 +378,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     >
   }
 ): UseMutationResult<TPath, TMethod> {
-  const { mutate: globalMutate } = useSWRConfig()
+  const { mutate: globalMutate, cache } = useSWRConfig()
 
   // Use ref to avoid stale closure issues with callbacks
   const optionsRef = useRef(options)
@@ -488,7 +490,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         try {
           const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
           if (keys.length > 0) {
-            await globalMutate(createMultiKeyMatcher(keys))
+            await invalidatePathPatterns(cache, globalMutate, keys)
           }
         } catch (refreshErr) {
           logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
@@ -548,18 +550,23 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
  * // `/*` prefix invalidates all sub-paths of a resource
  * await invalidate('/providers/*')
  * await invalidate(['/providers', '/providers/*'])
+ *
+ * @remarks
+ * Path-based invalidation (string / string[] forms) covers both array-shaped
+ * cache keys and `useSWRInfinite` keys. SWR's filter API skips infinite keys
+ * at the source, so those are enumerated and mutated explicitly.
  */
 export function useInvalidateCache() {
-  const { mutate } = useSWRConfig()
+  const { mutate, cache } = useSWRConfig()
 
   const invalidate = async (keys?: string | string[] | boolean): Promise<void> => {
     if (keys === true || keys === undefined) {
       await mutate(() => true)
-    } else if (typeof keys === 'string') {
-      await mutate(createKeyMatcher(keys))
-    } else if (Array.isArray(keys)) {
-      await mutate(createMultiKeyMatcher(keys))
+      return
     }
+    if (keys === false) return
+    const patterns = typeof keys === 'string' ? [keys] : keys
+    await invalidatePathPatterns(cache, mutate, patterns)
   }
 
   return invalidate
@@ -1042,26 +1049,6 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
 }
 
 /**
- * Internal utilities exposed for unit testing only.
- *
- * @internal
- */
-export const __testing = {
-  get createKeyMatcher() {
-    return createKeyMatcher
-  },
-  get createMultiKeyMatcher() {
-    return createMultiKeyMatcher
-  },
-  get resolveTemplate() {
-    return resolveTemplate
-  },
-  get buildSWRKey() {
-    return buildSWRKey
-  }
-}
-
-/**
  * Validate a refresh pattern in dev mode.
  *
  * Enforces:
@@ -1129,6 +1116,95 @@ function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
   }
 }
 
+// Mirror of SWR's internal INFINITE_PREFIX. Inlined rather than imported from
+// `swr/_internal` (non-stable subpath). Verified in:
+//   node_modules/swr/dist/_internal/constants.js
+//   node_modules/swr/dist/infinite/index.js (key = INFINITE_PREFIX + stableHash(firstPageKey))
+//
+// stableHash of an array is `'@' + stableHash(elem) + ',' ...`; stableHash of
+// a string is `JSON.stringify(s)`. So an infinite cache key whose first-page
+// key is `[path, query]` looks like `'$inf$@"<path>",<rest>,'`.
+const INFINITE_PREFIX = '$inf$'
+
+/**
+ * Extract the API path from an SWR infinite cache key string.
+ *
+ * The first-page key is `[path, ...]`, stableHash'd to `@"<path>",<rest>`.
+ * We scan until the first unescaped `"` — `JSON.stringify` escapes any inner
+ * `"` as `\"`, so a user-supplied param value containing `"` does not break
+ * extraction (whereas a naive `indexOf('"')` would trip on it). Final slice
+ * is `JSON.parse`d to restore the original unescaped string.
+ *
+ * Returns `undefined` for any unrecognized shape so callers can skip rather
+ * than throw. A `useSWRInfinite` consumer whose `getKey` returns a non-array
+ * first-page key (e.g. a bare string) would fall through here.
+ *
+ * @internal
+ */
+function extractInfinitePath(key: string): string | undefined {
+  if (!key.startsWith(INFINITE_PREFIX)) return undefined
+  const openIdx = key.indexOf('@"', INFINITE_PREFIX.length)
+  if (openIdx !== INFINITE_PREFIX.length) return undefined
+  const pathStart = openIdx + 2
+  let i = pathStart
+  while (i < key.length) {
+    const ch = key.charCodeAt(i)
+    if (ch === 0x5c /* '\' */) {
+      i += 2
+      continue
+    }
+    if (ch === 0x22 /* '"' */) {
+      try {
+        return JSON.parse(key.slice(pathStart - 1, i + 1)) as string
+      } catch {
+        return undefined
+      }
+    }
+    i += 1
+  }
+  return undefined
+}
+
+/**
+ * Find every `$inf$`-prefixed cache key whose embedded path matches one of
+ * the patterns. SWR's `mutate(filterFn)` skips infinite keys at the source
+ * (see `internalMutate` in swr internals — `/^\$(inf|sub)\$/` is tested
+ * before the user filter runs), so we have to iterate ourselves.
+ *
+ * @internal
+ */
+function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
+  const exact = patterns.filter((p) => !p.endsWith('/*'))
+  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  const matched: string[] = []
+  for (const key of cache.keys()) {
+    if (typeof key !== 'string' || !key.startsWith(INFINITE_PREFIX)) continue
+    const path = extractInfinitePath(key)
+    if (path === undefined) continue
+    if (exact.includes(path) || prefixes.some((prefix) => path.startsWith(prefix))) {
+      matched.push(key)
+    }
+  }
+  return matched
+}
+
+/**
+ * Invalidate cache entries whose path matches any pattern, covering both
+ * normal SWR keys and `useSWRInfinite` keys. SWR's filter API skips the
+ * latter, so we fan out: filter-based pass for array keys, explicit per-key
+ * mutate for infinite keys (equivalent to
+ * `mutate(unstable_serialize(getKey))`, SWR's documented pattern).
+ *
+ * @internal
+ */
+async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator, patterns: string[]): Promise<void> {
+  await globalMutate(createMultiKeyMatcher(patterns))
+  const infiniteKeys = findMatchingInfiniteKeys(cache, patterns)
+  if (infiniteKeys.length > 0) {
+    await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
+  }
+}
+
 /**
  * Replace Express-style `:name` and greedy `:name*` placeholders in a path
  * template with values from `params`.
@@ -1154,4 +1230,33 @@ function resolveTemplate(path: string, params?: Record<string, string | number>)
     }
     return String(value)
   })
+}
+
+/**
+ * Internal utilities exposed for unit testing only.
+ *
+ * @internal
+ */
+export const __testing = {
+  get createKeyMatcher() {
+    return createKeyMatcher
+  },
+  get createMultiKeyMatcher() {
+    return createMultiKeyMatcher
+  },
+  get resolveTemplate() {
+    return resolveTemplate
+  },
+  get buildSWRKey() {
+    return buildSWRKey
+  },
+  get extractInfinitePath() {
+    return extractInfinitePath
+  },
+  get findMatchingInfiniteKeys() {
+    return findMatchingInfiniteKeys
+  },
+  get invalidatePathPatterns() {
+    return invalidatePathPatterns
+  }
 }

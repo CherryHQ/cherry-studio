@@ -105,13 +105,6 @@
       "when": 1776838196467,
       "tag": "0014_hot_ultron",
       "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1776852782768,
-      "tag": "0015_wet_lightspeed",
-      "breakpoints": true
     }
   ],
   "version": "7"

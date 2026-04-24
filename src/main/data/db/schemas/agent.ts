@@ -1,7 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
-import { userModelTable } from './userModel'
 
 export const agentTable = sqliteTable(
   'agent',
@@ -10,14 +9,14 @@ export const agentTable = sqliteTable(
     type: text().notNull(),
     name: text().notNull(),
     description: text(),
-    accessiblePaths: text(),
+    accessiblePaths: text({ mode: 'json' }).$type<string[]>(),
     instructions: text(),
-    model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
-    planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
-    smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
-    mcps: text(),
-    allowedTools: text(),
-    configuration: text(),
+    model: text().notNull(),
+    planModel: text(),
+    smallModel: text(),
+    mcps: text({ mode: 'json' }).$type<string[]>(),
+    allowedTools: text({ mode: 'json' }).$type<string[]>(),
+    configuration: text({ mode: 'json' }).$type<Record<string, unknown>>(),
     sortOrder: integer().notNull().default(0),
     ...createUpdateDeleteTimestamps
   },

@@ -15,8 +15,8 @@ import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
+import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 import { contextMenu } from './ContextMenu'
-import { isSafeExternalUrl } from './security'
 
 const logger = loggerService.withContext('MainWindowService')
 

@@ -14,6 +14,7 @@
  */
 
 import { loggerService } from '@logger'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME } from '@renderer/aiCore/tools/WebSearchTool'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
@@ -176,7 +177,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
         // Handle citation block creation for web search results
-        if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response) {
+        if (toolResponse.tool.name === BUILTIN_WEB_SEARCH_TOOL_NAME && toolResponse.response) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
             {

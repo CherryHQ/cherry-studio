@@ -22,16 +22,10 @@ export const useCreateDefaultSession = (agentId: string | null) => {
       return null
     }
 
-    if (!agent.model) {
-      window.toast.error(t('error.model.not_exists'))
-      return null
-    }
-
     setCreatingSession(true)
     try {
       const session = {
         ...agent,
-        model: agent.model,
         id: undefined,
         name: t('common.unnamed')
       } satisfies CreateSessionForm

@@ -120,8 +120,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
       </div>
       <div className="flex items-center">
         {/* Open External Apps */}
-        {activeSession && activeSession.accessible_paths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessible_paths[0]} className="mr-2" />
+        {activeSession && activeSession.accessiblePaths?.[0] && (
+          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
         <Tools />
       </div>

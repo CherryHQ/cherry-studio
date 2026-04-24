@@ -8,7 +8,7 @@
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   AddProviderApiKeySchema,
   CreateProviderSchema,
@@ -17,19 +17,7 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 
-/**
- * Handler type for a specific provider endpoint
- */
-type ProviderHandler<Path extends keyof ProviderSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Provider API handlers implementation
- */
-export const providerHandlers: {
-  [Path in keyof ProviderSchemas]: {
-    [Method in keyof ProviderSchemas[Path]]: ProviderHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
