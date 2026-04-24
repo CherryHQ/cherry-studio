@@ -1,7 +1,12 @@
 import { Input } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-const UrlSourceContent = () => {
+interface UrlSourceContentProps {
+  value: string
+  onValueChange: (value: string) => void
+}
+
+const UrlSourceContent = ({ value, onValueChange }: UrlSourceContentProps) => {
   const { t } = useTranslation()
 
   return (
@@ -12,6 +17,8 @@ const UrlSourceContent = () => {
         </p>
         <Input
           id="knowledge-source-url-input"
+          value={value}
+          onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('knowledge_v2.data_source.add_dialog.url.placeholder')}
           className="w-full rounded-md border border-border/40 bg-transparent px-2.5 py-1.25 text-[11px] text-foreground outline-none transition-all focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
         />

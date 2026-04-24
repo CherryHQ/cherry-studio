@@ -2132,8 +2132,8 @@
     "data_source": {
       "add_dialog": {
         "directory": {
-          "description": "将递归导入目录下所有支持的文件",
-          "title": "点击选择目录或拖拽到此处"
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
         },
         "footer": {
           "selected_directories": "已选 {{count}} 个目录",
@@ -2157,8 +2157,8 @@
           "url": "网址"
         },
         "submit": {
-          "error": "添加文件数据源失败",
-          "success": "文件已添加到知识库"
+          "error": "添加数据源失败",
+          "success": "数据源已添加到知识库"
         },
         "title": "添加数据源",
         "url": {

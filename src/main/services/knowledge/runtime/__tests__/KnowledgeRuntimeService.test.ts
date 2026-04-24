@@ -18,6 +18,7 @@ const {
   embedManyMock,
   getEmbedModelMock,
   knowledgeItemGetCascadeIdsInBaseMock,
+  knowledgeItemRefreshContainerStatusesMock,
   knowledgeItemUpdateMock,
   loadKnowledgeItemDocumentsMock,
   loggerErrorMock,
@@ -33,6 +34,7 @@ const {
   embedManyMock: vi.fn(),
   getEmbedModelMock: vi.fn(),
   knowledgeItemGetCascadeIdsInBaseMock: vi.fn(),
+  knowledgeItemRefreshContainerStatusesMock: vi.fn(),
   knowledgeItemUpdateMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   loggerErrorMock: vi.fn(),
@@ -76,6 +78,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     getCascadeIdsInBase: knowledgeItemGetCascadeIdsInBaseMock,
+    refreshContainerStatuses: knowledgeItemRefreshContainerStatusesMock,
     update: knowledgeItemUpdateMock
   }
 }))
@@ -216,6 +219,7 @@ describe('KnowledgeRuntimeService', () => {
       ids: []
     })
     knowledgeItemGetCascadeIdsInBaseMock.mockImplementation(async (_baseId, itemIds: string[]) => [...new Set(itemIds)])
+    knowledgeItemRefreshContainerStatusesMock.mockResolvedValue(undefined)
     knowledgeItemUpdateMock.mockImplementation(async (_id, dto) => dto)
     loadKnowledgeItemDocumentsMock.mockImplementation(async (item) => [
       { text: item.id, metadata: { itemId: item.id } }
@@ -428,6 +432,84 @@ describe('KnowledgeRuntimeService', () => {
       status: 'completed',
       error: null
     })
+  })
+
+  it('writes file indexing stages before completion', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = {
+      ...createNoteItem('file-stage'),
+      type: 'file' as const,
+      data: {
+        file: {
+          id: 'file-stage-meta',
+          name: 'file-stage.md',
+          origin_name: 'file-stage.md',
+          path: '/docs/file-stage.md',
+          created_at: '2026-04-08T00:00:00.000Z',
+          size: 10,
+          ext: '.md',
+          type: 'text',
+          count: 1
+        }
+      }
+    }
+
+    await expect(service.addItems(base, [item])).resolves.toBeUndefined()
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, { status: 'completed', error: null })
+    })
+
+    const statuses = knowledgeItemUpdateMock.mock.calls
+      .filter((call) => call[0] === item.id)
+      .map((call) => call[1].status)
+    expect(statuses).toEqual(['pending', 'file_processing', 'embed', 'completed'])
+  })
+
+  it('writes url and note indexing stages before completion', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const urlItem = {
+      ...createNoteItem('url-stage'),
+      type: 'url' as const,
+      data: { url: 'https://example.com', name: 'Example' }
+    }
+    const noteItem = createNoteItem('note-stage')
+
+    await expect(service.addItems(base, [urlItem, noteItem])).resolves.toBeUndefined()
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(urlItem.id, { status: 'completed', error: null })
+      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(noteItem.id, { status: 'completed', error: null })
+    })
+
+    for (const item of [urlItem, noteItem]) {
+      const statuses = knowledgeItemUpdateMock.mock.calls
+        .filter((call) => call[0] === item.id)
+        .map((call) => call[1].status)
+      expect(statuses).toEqual(['pending', 'read', 'embed', 'completed'])
+    }
+  })
+
+  it('refreshes parent containers for every child stage update', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const item = {
+      ...createNoteItem('grouped-note-stage'),
+      groupId: 'dir-parent'
+    }
+
+    await expect(service.addItems(base, [item])).resolves.toBeUndefined()
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateMock).toHaveBeenCalledWith(item.id, { status: 'completed', error: null })
+    })
+
+    expect(knowledgeItemRefreshContainerStatusesMock).toHaveBeenCalledTimes(3)
+    expect(knowledgeItemRefreshContainerStatusesMock).toHaveBeenNthCalledWith(1, ['dir-parent'])
+    expect(knowledgeItemRefreshContainerStatusesMock).toHaveBeenNthCalledWith(2, ['dir-parent'])
+    expect(knowledgeItemRefreshContainerStatusesMock).toHaveBeenNthCalledWith(3, ['dir-parent'])
   })
 
   it('deduplicates add work for the same item', async () => {

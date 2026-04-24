@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 interface AddKnowledgeSourceDialogFooterProps {
   activeSource: KnowledgeDataSourceType
   canSubmit: boolean
+  errorMessage: string
   isSubmitting: boolean
   selectedDirectoryCount: number
   selectedFileCount: number
@@ -14,6 +15,7 @@ interface AddKnowledgeSourceDialogFooterProps {
 const AddKnowledgeSourceDialogFooter = ({
   activeSource,
   canSubmit,
+  errorMessage,
   isSubmitting,
   selectedDirectoryCount,
   selectedFileCount,
@@ -32,26 +34,36 @@ const AddKnowledgeSourceDialogFooter = ({
         : ''
 
   return (
-    <div className="flex shrink-0 items-center justify-between border-border/15 border-t px-4 py-2.5">
-      <span className="text-[9px] text-muted-foreground/30 leading-4">{selectionCount > 0 ? selectionText : ''}</span>
+    <div className="flex shrink-0 flex-col gap-2 border-border/15 border-t px-4 py-2.5">
+      {errorMessage ? (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-accent/30 px-2 py-1 text-[11px] text-destructive leading-4">
+          {errorMessage}
+        </div>
+      ) : null}
 
-      <div className="flex gap-1.5">
-        <DialogClose asChild>
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] text-muted-foreground/30 leading-4">{selectionCount > 0 ? selectionText : ''}</span>
+
+        <div className="flex gap-1.5">
+          <DialogClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-6 min-h-6 rounded-md px-2.5 text-[11px] text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground">
+              {t('common.cancel')}
+            </Button>
+          </DialogClose>
           <Button
             type="button"
-            variant="ghost"
-            className="h-6 min-h-6 rounded-md px-2.5 text-[11px] text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground">
-            {t('common.cancel')}
+            disabled={!canSubmit || isSubmitting}
+            loading={isSubmitting}
+            onClick={() => void onSubmit()}
+            className="h-6 min-h-6 rounded-md bg-primary px-2.5 text-[11px] text-primary-foreground shadow-none transition-colors hover:bg-primary/90 disabled:opacity-40">
+            {t('common.add')}
           </Button>
-        </DialogClose>
-        <Button
-          type="button"
-          disabled={!canSubmit || isSubmitting}
-          loading={isSubmitting}
-          onClick={() => void onSubmit()}
-          className="h-6 min-h-6 rounded-md bg-primary px-2.5 text-[11px] text-primary-foreground shadow-none transition-colors hover:bg-primary/90 disabled:opacity-40">
-          {t('common.add')}
-        </Button>
+        </div>
       </div>
     </div>
   )

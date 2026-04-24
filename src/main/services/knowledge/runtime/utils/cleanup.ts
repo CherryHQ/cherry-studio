@@ -119,6 +119,11 @@ export async function failItems(itemIds: string[], reason: string): Promise<void
       })
     )
   )
+  const parentIds = results.flatMap((result) =>
+    result.status === 'fulfilled' && result.value?.groupId ? [result.value.groupId] : []
+  )
+
+  await knowledgeItemService.refreshContainerStatuses?.(parentIds)
 
   for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') {

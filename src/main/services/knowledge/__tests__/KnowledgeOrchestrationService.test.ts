@@ -7,26 +7,26 @@ const {
   appGetMock,
   createBaseMock,
   deleteBaseMock,
-  runtimeAddItemsMock,
+  processKnowledgeSourcesMock,
   runtimeDeleteItemsMock,
   runtimeSearchMock,
-  expandDirectoryOwnerToCreateItemsMock,
-  expandSitemapOwnerToCreateItemsMock,
   knowledgeBaseGetByIdMock,
-  knowledgeItemCreateManyMock,
-  knowledgeItemGetByIdsInBaseMock
+  knowledgeItemCreateManyInBaseMock,
+  knowledgeItemDeleteMock,
+  knowledgeItemGetByIdsInBaseMock,
+  knowledgeItemUpdateStatusesMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   createBaseMock: vi.fn(),
   deleteBaseMock: vi.fn(),
-  runtimeAddItemsMock: vi.fn(),
+  processKnowledgeSourcesMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
-  expandDirectoryOwnerToCreateItemsMock: vi.fn(),
-  expandSitemapOwnerToCreateItemsMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
-  knowledgeItemCreateManyMock: vi.fn(),
-  knowledgeItemGetByIdsInBaseMock: vi.fn()
+  knowledgeItemCreateManyInBaseMock: vi.fn(),
+  knowledgeItemDeleteMock: vi.fn(),
+  knowledgeItemGetByIdsInBaseMock: vi.fn(),
+  knowledgeItemUpdateStatusesMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -56,17 +56,15 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    createMany: knowledgeItemCreateManyMock,
-    getByIdsInBase: knowledgeItemGetByIdsInBaseMock
+    createManyInBase: knowledgeItemCreateManyInBaseMock,
+    delete: knowledgeItemDeleteMock,
+    getByIdsInBase: knowledgeItemGetByIdsInBaseMock,
+    updateStatuses: knowledgeItemUpdateStatusesMock
   }
 }))
 
-vi.mock('../utils/directory', () => ({
-  expandDirectoryOwnerToCreateItems: expandDirectoryOwnerToCreateItemsMock
-}))
-
-vi.mock('../utils/sitemap', () => ({
-  expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
+vi.mock('../processKnowledgeSources', () => ({
+  processKnowledgeSources: processKnowledgeSourcesMock
 }))
 
 const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
@@ -83,34 +81,6 @@ function createBase() {
   }
 }
 
-function createDirectoryItem() {
-  return {
-    id: 'dir-1',
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'directory' as const,
-    data: { name: 'docs', path: '/docs' },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-function createSitemapItem() {
-  return {
-    id: 'sitemap-1',
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'sitemap' as const,
-    data: { url: 'https://example.com/sitemap.xml', name: 'Example Sitemap' },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
 function createNoteItem(id = 'note-1') {
   return {
     id,
@@ -118,37 +88,15 @@ function createNoteItem(id = 'note-1') {
     groupId: null,
     type: 'note' as const,
     data: { content: `hello ${id}` },
-    status: 'idle' as const,
+    status: 'pending' as const,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
-function createFileItem(id = 'file-1', groupId: string | null = null) {
-  return {
-    id,
-    baseId: 'kb-1',
-    groupId,
-    type: 'file' as const,
-    data: {
-      file: {
-        id: `${id}-meta`,
-        name: `${id}.md`,
-        origin_name: `${id}.md`,
-        path: `/docs/${id}.md`,
-        created_at: '2026-04-08T00:00:00.000Z',
-        size: 10,
-        ext: '.md',
-        type: 'text',
-        count: 1
-      }
-    },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
+async function flushBackgroundTasks() {
+  await new Promise((resolve) => setImmediate(resolve))
 }
 
 describe('KnowledgeOrchestrationService', () => {
@@ -160,7 +108,6 @@ describe('KnowledgeOrchestrationService', () => {
         return {
           createBase: createBaseMock,
           deleteBase: deleteBaseMock,
-          addItems: runtimeAddItemsMock,
           deleteItems: runtimeDeleteItemsMock,
           search: runtimeSearchMock
         }
@@ -170,13 +117,13 @@ describe('KnowledgeOrchestrationService', () => {
     })
 
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeItemCreateManyInBaseMock.mockResolvedValue({ items: [] })
+    knowledgeItemDeleteMock.mockResolvedValue(undefined)
     knowledgeItemGetByIdsInBaseMock.mockResolvedValue([createNoteItem()])
-    knowledgeItemCreateManyMock.mockResolvedValue({ items: [] })
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([])
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValue([])
+    knowledgeItemUpdateStatusesMock.mockResolvedValue([])
     createBaseMock.mockResolvedValue(undefined)
     deleteBaseMock.mockResolvedValue(undefined)
-    runtimeAddItemsMock.mockResolvedValue(undefined)
+    processKnowledgeSourcesMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
     runtimeSearchMock.mockResolvedValue([])
   })
@@ -186,7 +133,7 @@ describe('KnowledgeOrchestrationService', () => {
     expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeRuntimeService'])
   })
 
-  it('registers only the five caller-facing knowledge runtime IPC handlers', async () => {
+  it('registers the caller-facing knowledge runtime IPC handlers', () => {
     const service = new KnowledgeOrchestrationService()
     ;(service as any).onInit()
 
@@ -200,123 +147,53 @@ describe('KnowledgeOrchestrationService', () => {
     ])
   })
 
-  it('rejects invalid create-base IPC payloads before touching services', async () => {
+  it('creates top-level sources as pending, starts background processing, and returns item ids', async () => {
     const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
+    const createdNote = createNoteItem()
+    knowledgeItemCreateManyInBaseMock.mockResolvedValueOnce({ items: [createdNote] })
 
-    const createBaseHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:create-base'
+    const result = await service.addSources('kb-1', [{ type: 'note', data: { content: 'hello note-1' } }])
+    await flushBackgroundTasks()
+
+    expect(result).toEqual({ itemIds: [createdNote.id] })
+    expect(knowledgeItemCreateManyInBaseMock).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'note', data: { content: 'hello note-1' } }],
+      { status: 'pending' }
     )
-    expect(createBaseHandlerCall).toBeDefined()
-    const createBaseHandler = createBaseHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(createBaseHandler({}, { baseId: '' })).rejects.toThrow()
-    await expect(createBaseHandler({}, { baseId: 'kb-1', extra: true })).rejects.toThrow()
-
-    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(createBaseMock).not.toHaveBeenCalled()
+    expect(processKnowledgeSourcesMock).toHaveBeenCalledWith(createBase(), [createdNote])
   })
 
-  it('rejects invalid add-items IPC payloads before touching services', async () => {
+  it('marks accepted pending sources failed when background processing rejects', async () => {
     const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
+    const createdNote = createNoteItem()
+    knowledgeItemCreateManyInBaseMock.mockResolvedValueOnce({ items: [createdNote] })
+    processKnowledgeSourcesMock.mockRejectedValueOnce(new Error('background failed'))
 
-    const addItemsHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:add-items'
-    )
-    expect(addItemsHandlerCall).toBeDefined()
-    const addItemsHandler = addItemsHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: [] })).rejects.toThrow()
-    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: ['note-1', ''] })).rejects.toThrow()
-
-    expect(knowledgeItemGetByIdsInBaseMock).not.toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid search IPC payloads before touching services', async () => {
-    const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
-
-    const searchHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:search'
-    )
-    expect(searchHandlerCall).toBeDefined()
-    const searchHandler = searchHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(searchHandler({}, { baseId: 'kb-1', query: '' })).rejects.toThrow()
-    await expect(searchHandler({}, { baseId: 'kb-1', query: 'hello', extra: true })).rejects.toThrow()
-
-    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(runtimeSearchMock).not.toHaveBeenCalled()
-  })
-
-  it('forwards base lifecycle operations to runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-
-    await expect(service.createBase(base.id)).resolves.toBeUndefined()
-    await expect(service.deleteBase(base.id)).resolves.toBeUndefined()
-
-    expect(createBaseMock).toHaveBeenCalledWith(base)
-    expect(deleteBaseMock).toHaveBeenCalledWith(base.id)
-  })
-
-  it('expands container items, persists children, and only enqueues leaf items', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const directoryItem = createDirectoryItem()
-    const noteItem = createNoteItem('note-leaf')
-    const createdDirectoryItem = {
-      ...createDirectoryItem(),
-      id: 'dir-child',
-      groupId: directoryItem.id,
-      data: { name: 'nested', path: '/docs/nested' }
-    }
-    const createdFileItem = createFileItem('file-child', directoryItem.id)
-
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([directoryItem, noteItem])
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
-      {
-        groupId: directoryItem.id,
-        type: 'directory',
-        data: { name: 'nested', path: '/docs/nested' }
-      },
-      {
-        groupId: directoryItem.id,
-        type: 'file',
-        data: createdFileItem.data
-      }
-    ])
-    knowledgeItemCreateManyMock.mockResolvedValue({
-      items: [createdDirectoryItem, createdFileItem]
+    await expect(service.addSources('kb-1', [{ type: 'note', data: { content: 'hello note-1' } }])).resolves.toEqual({
+      itemIds: [createdNote.id]
     })
+    await flushBackgroundTasks()
 
-    await expect(service.addItems(base.id, [directoryItem.id, noteItem.id])).resolves.toBeUndefined()
-
-    expect(expandDirectoryOwnerToCreateItemsMock).toHaveBeenCalledWith(directoryItem)
-    expect(knowledgeItemCreateManyMock).toHaveBeenCalledWith(base.id, {
-      items: [
-        {
-          groupId: directoryItem.id,
-          type: 'directory',
-          data: { name: 'nested', path: '/docs/nested' }
-        },
-        {
-          groupId: directoryItem.id,
-          type: 'file',
-          data: createdFileItem.data
-        }
-      ]
+    expect(knowledgeItemUpdateStatusesMock).toHaveBeenCalledWith([createdNote.id], {
+      status: 'failed',
+      error: 'background failed'
     })
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [noteItem, createdFileItem])
+  })
+
+  it('deletes runtime data and SQLite roots through orchestration', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const note = createNoteItem()
+    knowledgeItemGetByIdsInBaseMock.mockResolvedValueOnce([note])
+
+    await expect(service.deleteItems('kb-1', [note.id])).resolves.toBeUndefined()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith(createBase(), [note])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(note.id)
   })
 
   it('searches through runtime after resolving the base', async () => {
     const service = new KnowledgeOrchestrationService()
-    const base = createBase()
     const results = [
       {
         pageContent: 'hello',
@@ -326,68 +203,9 @@ describe('KnowledgeOrchestrationService', () => {
         chunkId: 'chunk-1'
       }
     ]
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
     runtimeSearchMock.mockResolvedValue(results)
 
-    await expect(service.search(base.id, 'hello')).resolves.toEqual(results)
-    expect(runtimeSearchMock).toHaveBeenCalledWith(base, 'hello')
-  })
-
-  it('expands sitemap items into urls before enqueueing leaf items', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const sitemapItem = createSitemapItem()
-    const createdUrlItem = {
-      id: 'url-child',
-      baseId: base.id,
-      groupId: sitemapItem.id,
-      type: 'url' as const,
-      data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' },
-      status: 'idle' as const,
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    }
-
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([sitemapItem])
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValue([
-      {
-        groupId: sitemapItem.id,
-        type: 'url',
-        data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' }
-      }
-    ])
-    knowledgeItemCreateManyMock.mockResolvedValue({ items: [createdUrlItem] })
-
-    await expect(service.addItems(base.id, [sitemapItem.id])).resolves.toBeUndefined()
-
-    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [createdUrlItem])
-  })
-
-  it('does not create expanded child items until all expansions succeed', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const directoryItem = createDirectoryItem()
-    const sitemapItem = createSitemapItem()
-
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([directoryItem, sitemapItem])
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
-      {
-        groupId: directoryItem.id,
-        type: 'file',
-        data: createFileItem('file-child', directoryItem.id).data
-      }
-    ])
-    expandSitemapOwnerToCreateItemsMock.mockRejectedValue(new Error('sitemap expansion failed'))
-
-    await expect(service.addItems(base.id, [directoryItem.id, sitemapItem.id])).rejects.toThrow(
-      'sitemap expansion failed'
-    )
-
-    expect(knowledgeItemCreateManyMock).not.toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual(results)
+    expect(runtimeSearchMock).toHaveBeenCalledWith(createBase(), 'hello')
   })
 })

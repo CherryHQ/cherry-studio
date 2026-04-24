@@ -17,6 +17,7 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
+import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   SelectionActionItem,
@@ -354,8 +355,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { baseId }),
     deleteBase: (baseId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
-    addItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, itemIds }),
+    addSources: (baseId: string, items: CreateKnowledgeItemsDto['items']): Promise<{ itemIds: string[] }> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>

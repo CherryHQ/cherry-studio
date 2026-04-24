@@ -5,9 +5,8 @@ import type { ComponentProps } from 'react'
 export type DropzoneOnDrop = NonNullable<ComponentProps<typeof Dropzone>['onDrop']>
 
 export interface DirectoryItem {
-  fileCount: number
   name: string
-  totalSize: number
+  path: string
 }
 
 export interface SourceTabDefinition {

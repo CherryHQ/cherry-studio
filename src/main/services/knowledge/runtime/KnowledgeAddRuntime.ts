@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
@@ -37,12 +37,7 @@ export class KnowledgeAddRuntime {
       vectorStore = await runAbortable(this.isStopping, ctx, () => vectorStoreService.createStore(base))
       const activeVectorStore = vectorStore
       await runAbortable(this.isStopping, ctx, () => activeVectorStore.add(nodes))
-      await runAbortable(this.isStopping, ctx, () =>
-        knowledgeItemService.update(item.id, {
-          status: 'completed',
-          error: null
-        })
-      )
+      await runAbortable(this.isStopping, ctx, () => this.updateItemStatus(item, 'completed'))
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
 
@@ -64,9 +59,25 @@ export class KnowledgeAddRuntime {
     }
 
     const embeddingModel = getEmbedModel(base)
+    // TODO: File Processing
+    if (base.fileProcessorId) {
+      await this.updateItemStatus(item, 'file_processing')
+    }
+    await this.updateItemStatus(item, 'read')
     const documents = await runAbortable(this.isStopping, ctx, () => loadKnowledgeItemDocuments(item, ctx.signal))
     const chunks = await runAbortable(this.isStopping, ctx, () => chunkDocuments(base, item, documents))
+    await this.updateItemStatus(item, 'embed')
     return await runAbortable(this.isStopping, ctx, () => embedDocuments(embeddingModel, chunks, ctx.signal))
+  }
+
+  private async updateItemStatus(item: KnowledgeItem, status: KnowledgeItemStatus, error: string | null = null) {
+    await knowledgeItemService.update(item.id, {
+      status,
+      error
+    })
+    if (item.groupId) {
+      await knowledgeItemService.refreshContainerStatuses([item.groupId])
+    }
   }
 
   private async handleAddItemFailure(
@@ -82,10 +93,7 @@ export class KnowledgeAddRuntime {
     })
 
     try {
-      await knowledgeItemService.update(item.id, {
-        status: 'failed',
-        error: error.message
-      })
+      await this.updateItemStatus(item, 'failed', error.message)
     } catch (persistError) {
       logger.error(
         'Failed to persist knowledge item failure state',

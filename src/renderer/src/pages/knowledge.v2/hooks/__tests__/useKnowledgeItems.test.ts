@@ -149,7 +149,7 @@ describe('useKnowledgeItems', () => {
     expect(result.current.refetch).toBe(refetch)
   })
 
-  it('polls while any item is non-terminal and stops when all terminal', () => {
+  it('polls while any item, including grouped child items, is non-terminal and stops when all terminal', () => {
     mockUseQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -167,6 +167,40 @@ describe('useKnowledgeItems', () => {
     expect(
       refreshInterval({
         items: [
+          {
+            id: 'directory-parent',
+            baseId: 'base-1',
+            groupId: null,
+            type: 'directory',
+            data: { name: 'docs', path: '/docs' },
+            status: 'completed',
+            error: null,
+            createdAt: '2026-04-21T10:00:00+08:00',
+            updatedAt: '2026-04-21T10:00:00+08:00'
+          },
+          {
+            id: 'grouped-file',
+            baseId: 'base-1',
+            groupId: 'directory-parent',
+            type: 'file',
+            data: {
+              file: {
+                id: 'grouped-file-meta',
+                name: 'grouped.md',
+                origin_name: 'grouped.md',
+                path: '/docs/grouped.md',
+                size: 10,
+                ext: '.md',
+                type: 'text',
+                created_at: '2026-04-21T10:00:00+08:00',
+                count: 1
+              }
+            },
+            status: 'embed',
+            error: null,
+            createdAt: '2026-04-21T10:00:00+08:00',
+            updatedAt: '2026-04-21T10:00:00+08:00'
+          },
           {
             id: 'item-pending',
             baseId: 'base-1',

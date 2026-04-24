@@ -1,18 +1,28 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import { CreateKnowledgeItemsSchema } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
-import { expandDirectoryOwnerToCreateItems } from './utils/directory'
-import { expandSitemapOwnerToCreateItems } from './utils/sitemap'
+import { processKnowledgeSources } from './processKnowledgeSources'
+
+const logger = loggerService.withContext('KnowledgeOrchestrationService')
 
 const KnowledgeRuntimeBasePayloadSchema = z
   .object({
     baseId: z.string().trim().min(1)
+  })
+  .strict()
+
+const KnowledgeRuntimeAddSourcesPayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1),
+    items: CreateKnowledgeItemsSchema.shape.items
   })
   .strict()
 
@@ -49,32 +59,17 @@ export class KnowledgeOrchestrationService extends BaseService {
     await runtime.deleteBase(baseId)
   }
 
-  async addItems(baseId: string, itemIds: string[]): Promise<void> {
-    const [base, items] = await Promise.all([
-      knowledgeBaseService.getById(baseId),
-      knowledgeItemService.getByIdsInBase(baseId, itemIds)
-    ])
+  async addSources(baseId: string, items: CreateKnowledgeItemsDto['items']): Promise<{ itemIds: string[] }> {
+    const base = await knowledgeBaseService.getById(baseId)
 
-    const expandedItems = await this.expandItemsToCreateInputs(items)
-    const expandedLeafItems =
-      expandedItems.length === 0
-        ? []
-        : this.collectIndexableItems(
-            (
-              await knowledgeItemService.createMany(baseId, {
-                items: expandedItems
-              })
-            ).items
-          )
+    const createdItems = (
+      await knowledgeItemService.createManyInBase(baseId, items, {
+        status: 'pending'
+      })
+    ).items
 
-    const allLeafItems = this.collectIndexableItems([...items, ...expandedLeafItems])
-
-    if (allLeafItems.length === 0) {
-      return
-    }
-
-    const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.addItems(base, allLeafItems)
+    this.enqueueBackgroundProcessing(base, createdItems)
+    return { itemIds: createdItems.map((item) => item.id) }
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -85,6 +80,7 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     const runtime = application.get('KnowledgeRuntimeService')
     await runtime.deleteItems(base, items)
+    await Promise.all(itemIds.map((itemId) => knowledgeItemService.delete(itemId)))
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
@@ -103,8 +99,8 @@ export class KnowledgeOrchestrationService extends BaseService {
       return await this.deleteBase(baseId)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
-      return await this.addItems(baseId, itemIds)
+      const { baseId, items } = KnowledgeRuntimeAddSourcesPayloadSchema.parse(payload)
+      return await this.addSources(baseId, items)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: unknown) => {
       const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
@@ -116,42 +112,41 @@ export class KnowledgeOrchestrationService extends BaseService {
     })
   }
 
-  private async expandItemsToCreateInputs(items: KnowledgeItem[]): Promise<CreateKnowledgeItemsDto['items']> {
-    const expandedItems: CreateKnowledgeItemsDto['items'] = []
-
-    for (const item of items) {
-      const itemCreateInputs = await this.expandItemToCreateInputs(item)
-      if (itemCreateInputs.length === 0) {
-        continue
-      }
-
-      expandedItems.push(...itemCreateInputs)
-    }
-
-    return expandedItems
+  private enqueueBackgroundProcessing(base: KnowledgeBase, items: KnowledgeItem[]): void {
+    void processKnowledgeSources(base, items).catch(async (error) => {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to process accepted knowledge sources', normalizedError, {
+        baseId: base.id,
+        itemIds: items.map((item) => item.id)
+      })
+      await this.markPendingItemsFailed(items, normalizedError.message)
+    })
   }
 
-  private async expandItemToCreateInputs(item: KnowledgeItem): Promise<CreateKnowledgeItemsDto['items']> {
-    if (item.type === 'directory') {
-      return await expandDirectoryOwnerToCreateItems(item)
+  private async markPendingItemsFailed(items: KnowledgeItem[], error: string): Promise<void> {
+    const pendingItems = items.filter((item) => item.status === 'pending')
+
+    if (pendingItems.length === 0) {
+      return
     }
 
-    if (item.type === 'sitemap') {
-      return await expandSitemapOwnerToCreateItems(item)
+    try {
+      await knowledgeItemService.updateStatuses(
+        pendingItems.map((item) => item.id),
+        {
+          status: 'failed',
+          error
+        }
+      )
+    } catch (persistError) {
+      logger.error(
+        'Failed to persist background knowledge source failure state',
+        persistError instanceof Error ? persistError : new Error(String(persistError)),
+        {
+          itemIds: pendingItems.map((item) => item.id),
+          originalError: error
+        }
+      )
     }
-
-    return []
-  }
-
-  private collectIndexableItems(items: KnowledgeItem[]): KnowledgeItem[] {
-    const leafItems = new Map<string, KnowledgeItem>()
-
-    for (const item of items) {
-      if (item.type === 'file' || item.type === 'url' || item.type === 'note') {
-        leafItems.set(item.id, item)
-      }
-    }
-
-    return [...leafItems.values()]
   }
 }

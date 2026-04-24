@@ -10,15 +10,16 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
+  CreateKnowledgeItemDto,
   CreateKnowledgeItemsDto,
   KnowledgeItemsQuery,
   UpdateKnowledgeItemDto
 } from '@shared/data/api/schemas/knowledges'
-import { getCreateKnowledgeItemsReferenceErrors } from '@shared/data/api/schemas/knowledges'
 import {
   DirectoryItemDataSchema,
   FileItemDataSchema,
   type KnowledgeItem,
+  type KnowledgeItemStatus,
   NoteItemDataSchema,
   SitemapItemDataSchema,
   UrlItemDataSchema
@@ -40,57 +41,15 @@ const KNOWLEDGE_ITEM_DATA_SCHEMAS = {
 
 type PlannedKnowledgeItemInsert = CreateKnowledgeItemsDto['items'][number] & {
   parsedData: CreateKnowledgeItemsDto['items'][number]['data']
-  index: number
+  status?: KnowledgeItemStatus
 }
 
-function getCreateKnowledgeItemGroupingErrors(
-  itemsToCreate: CreateKnowledgeItemsDto['items']
-): Record<string, string[]> {
-  const itemsByRef = new Map(
-    itemsToCreate
-      .filter((item): item is (typeof itemsToCreate)[number] & { ref: string } => typeof item.ref === 'string')
-      .map((item) => [item.ref, item] as const)
-  )
+type CreateKnowledgeItemsOptions = {
+  status?: KnowledgeItemStatus
+}
 
-  for (const item of itemsToCreate) {
-    if (item.ref && item.groupRef === item.ref) {
-      return {
-        groupRef: ['Knowledge item cannot reference itself as group owner']
-      }
-    }
-  }
-
-  const visitState = new Map<string, 'visiting' | 'visited'>()
-
-  const hasCycle = (ref: string): boolean => {
-    const state = visitState.get(ref)
-    if (state === 'visiting') {
-      return true
-    }
-    if (state === 'visited') {
-      return false
-    }
-
-    visitState.set(ref, 'visiting')
-
-    const targetRef = itemsByRef.get(ref)?.groupRef
-    if (targetRef && itemsByRef.has(targetRef) && hasCycle(targetRef)) {
-      return true
-    }
-
-    visitState.set(ref, 'visited')
-    return false
-  }
-
-  for (const ref of itemsByRef.keys()) {
-    if (hasCycle(ref)) {
-      return {
-        groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
-      }
-    }
-  }
-
-  return {}
+type CreateKnowledgeItemInput = CreateKnowledgeItemDto & {
+  status?: KnowledgeItemStatus
 }
 
 function rowToKnowledgeItem(row: typeof knowledgeItemTable.$inferSelect): KnowledgeItem {
@@ -198,20 +157,21 @@ export class KnowledgeItemService {
     }
   }
 
-  async createMany(baseId: string, dto: CreateKnowledgeItemsDto): Promise<{ items: KnowledgeItem[] }> {
+  async createMany(
+    baseId: string,
+    dto: CreateKnowledgeItemsDto,
+    options: CreateKnowledgeItemsOptions = {}
+  ): Promise<{ items: KnowledgeItem[] }> {
     await knowledgeBaseService.getById(baseId)
+    return await this.createManyInBase(baseId, dto.items, options)
+  }
 
-    const referenceErrors = getCreateKnowledgeItemsReferenceErrors(dto.items)
-    if (Object.keys(referenceErrors).length > 0) {
-      throw DataApiErrorFactory.validation(referenceErrors)
-    }
-
-    const groupingErrors = getCreateKnowledgeItemGroupingErrors(dto.items)
-    if (Object.keys(groupingErrors).length > 0) {
-      throw DataApiErrorFactory.validation(groupingErrors)
-    }
-
-    const itemsToCreate = dto.items.map((item, index) => {
+  async createManyInBase(
+    baseId: string,
+    items: CreateKnowledgeItemInput[],
+    options: CreateKnowledgeItemsOptions = {}
+  ): Promise<{ items: KnowledgeItem[] }> {
+    const itemsToCreate = items.map((item, index) => {
       const parsed = KNOWLEDGE_ITEM_DATA_SCHEMAS[item.type].safeParse(item.data)
       if (!parsed.success) {
         throw DataApiErrorFactory.validation({
@@ -222,7 +182,7 @@ export class KnowledgeItemService {
       return {
         ...item,
         parsedData: parsed.data,
-        index
+        status: item.status ?? options.status
       }
     })
 
@@ -239,21 +199,10 @@ export class KnowledgeItemService {
     }
 
     const createdRows = await this.createBatch(baseId, itemsToCreate)
+    const createdItems = createdRows.map((row) => rowToKnowledgeItem(row))
 
-    const items = itemsToCreate.map((item) => {
-      const createdRow = createdRows[item.index]
-      if (!createdRow) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item create result missing for index '${item.index}'`
-        )
-      }
-
-      return rowToKnowledgeItem(createdRow)
-    })
-
-    logger.info('Created knowledge items', { baseId, count: items.length })
-    return { items }
+    logger.info('Created knowledge items', { baseId, count: createdItems.length })
+    return { items: createdItems }
   }
 
   async getById(id: string): Promise<KnowledgeItem> {
@@ -285,6 +234,28 @@ export class KnowledgeItemService {
       `in base '${baseId}'`
     )
 
+    const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
+
+    for (const itemId of uniqueItemIds) {
+      if (!itemsById.has(itemId)) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
+    }
+
+    return uniqueItemIds.map((itemId) => itemsById.get(itemId)!)
+  }
+
+  async getByIds(itemIds: string[]): Promise<KnowledgeItem[]> {
+    const uniqueItemIds = [...new Set(itemIds)]
+
+    if (uniqueItemIds.length === 0) {
+      return []
+    }
+
+    const rows = await awaitKnowledgeItemRead(
+      () => this.db.select().from(knowledgeItemTable).where(inArray(knowledgeItemTable.id, uniqueItemIds)),
+      `'${uniqueItemIds.join(', ')}'`
+    )
     const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
 
     for (const itemId of uniqueItemIds) {
@@ -357,6 +328,49 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  async updateStatuses(
+    itemIds: string[],
+    dto: Pick<UpdateKnowledgeItemDto, 'status' | 'error'>
+  ): Promise<KnowledgeItem[]> {
+    const uniqueItemIds = [...new Set(itemIds)]
+
+    if (uniqueItemIds.length === 0) {
+      return []
+    }
+
+    const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
+    if (dto.status !== undefined) updates.status = dto.status
+    if (dto.error !== undefined) updates.error = dto.error
+
+    if (Object.keys(updates).length === 0) {
+      return await this.getByIds(uniqueItemIds)
+    }
+
+    const rows = await this.db
+      .update(knowledgeItemTable)
+      .set(updates)
+      .where(inArray(knowledgeItemTable.id, uniqueItemIds))
+      .returning()
+    const itemsById = new Map(rows.map((row) => [row.id, rowToKnowledgeItem(row)]))
+
+    for (const itemId of uniqueItemIds) {
+      if (!itemsById.has(itemId)) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
+    }
+
+    logger.info('Updated knowledge item statuses', { count: uniqueItemIds.length, changes: Object.keys(dto) })
+    return uniqueItemIds.map((itemId) => itemsById.get(itemId)!)
+  }
+
+  async refreshContainerStatuses(containerIds: string[]): Promise<void> {
+    const uniqueContainerIds = [...new Set(containerIds)]
+
+    for (const containerId of uniqueContainerIds) {
+      await this.refreshContainerStatus(containerId)
+    }
+  }
+
   async delete(id: string): Promise<void> {
     await this.getById(id)
     await this.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id))
@@ -366,54 +380,24 @@ export class KnowledgeItemService {
   private async createBatch(
     baseId: string,
     itemsToCreate: PlannedKnowledgeItemInsert[]
-  ): Promise<Array<typeof knowledgeItemTable.$inferSelect | undefined>> {
-    const rowsByIndex = new Map<number, typeof knowledgeItemTable.$inferSelect>()
-    const itemsByRef = new Map<string, typeof knowledgeItemTable.$inferSelect>()
+  ): Promise<Array<typeof knowledgeItemTable.$inferSelect>> {
+    if (itemsToCreate.length === 0) {
+      return []
+    }
 
-    await this.db.transaction(async (tx) => {
-      const pendingItems = [...itemsToCreate]
-
-      while (pendingItems.length > 0) {
-        const readyItems = pendingItems.filter((item) => item.groupRef == null || itemsByRef.has(item.groupRef))
-
-        if (readyItems.length === 0) {
-          throw DataApiErrorFactory.dataInconsistent(
-            'KnowledgeItem',
-            `Unable to resolve knowledge item grouping in base '${baseId}'`
-          )
-        }
-
-        for (const item of readyItems) {
-          const groupId = item.groupRef ? (itemsByRef.get(item.groupRef)?.id ?? null) : (item.groupId ?? null)
-          const [row] = await tx
-            .insert(knowledgeItemTable)
-            .values({
-              baseId,
-              groupId,
-              type: item.type,
-              data: item.parsedData,
-              status: 'idle',
-              error: null
-            })
-            .returning()
-
-          rowsByIndex.set(item.index, row)
-
-          if (item.ref) {
-            itemsByRef.set(item.ref, row)
-          }
-        }
-
-        const readyIndices = new Set(readyItems.map((item) => item.index))
-        for (let index = pendingItems.length - 1; index >= 0; index -= 1) {
-          if (readyIndices.has(pendingItems[index].index)) {
-            pendingItems.splice(index, 1)
-          }
-        }
-      }
-    })
-
-    return itemsToCreate.map((item) => rowsByIndex.get(item.index))
+    return await this.db
+      .insert(knowledgeItemTable)
+      .values(
+        itemsToCreate.map((item) => ({
+          baseId,
+          groupId: item.groupId ?? null,
+          type: item.type,
+          data: item.parsedData,
+          status: item.status ?? 'idle',
+          error: null
+        }))
+      )
+      .returning()
   }
 
   private async getExistingGroupIdsInBase(baseId: string, groupIds: string[]): Promise<Set<string>> {
@@ -429,6 +413,57 @@ export class KnowledgeItemService {
       .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueGroupIds)))
 
     return new Set(rows.map((row) => row.id))
+  }
+
+  private async refreshContainerStatus(containerId: string): Promise<void> {
+    const container = await this.getById(containerId)
+    if (container.type !== 'directory' && container.type !== 'sitemap') {
+      return
+    }
+
+    const children = await awaitKnowledgeItemRead(
+      () => this.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.groupId, containerId)),
+      `children of '${containerId}'`
+    )
+
+    if (children.length === 0) {
+      return
+    }
+
+    const failedChild = children.find((child) => child.status === 'failed')
+    const nextStatus: KnowledgeItemStatus = failedChild
+      ? 'failed'
+      : children.every((child) => child.status === 'completed')
+        ? 'completed'
+        : children.some((child) => child.status === 'embed')
+          ? 'embed'
+          : children.some((child) => child.status === 'read')
+            ? 'read'
+            : children.some((child) => child.status === 'file_processing')
+              ? 'file_processing'
+              : 'pending'
+    const nextError = failedChild ? (failedChild.error ?? `Child knowledge item '${failedChild.id}' failed`) : null
+
+    if (container.status === nextStatus && container.error === nextError) {
+      return
+    }
+
+    await this.updateContainerStatus(containerId, nextStatus, nextError)
+    if (container.groupId != null) {
+      await this.refreshContainerStatus(container.groupId)
+    }
+  }
+
+  private async updateContainerStatus(id: string, status: KnowledgeItemStatus, error: string | null): Promise<void> {
+    const [row] = await this.db
+      .update(knowledgeItemTable)
+      .set({ status, error })
+      .where(eq(knowledgeItemTable.id, id))
+      .returning()
+
+    if (!row) {
+      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Knowledge item update result missing for id '${id}'`)
+    }
   }
 }
 

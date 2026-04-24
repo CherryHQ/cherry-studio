@@ -1,20 +1,53 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
+import type { FileMetadata } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAddKnowledgeSourceFile } from '../hooks/useAddKnowledgeSourceFile'
+import { useAddKnowledgeSources } from '../hooks/useAddKnowledgeSources'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeSourceDialogFooter from './addKnowledgeSourceDialog/AddKnowledgeSourceDialogFooter'
 import AddKnowledgeSourceDialogHeader from './addKnowledgeSourceDialog/AddKnowledgeSourceDialogHeader'
 import AddKnowledgeSourceSourceTabs from './addKnowledgeSourceDialog/AddKnowledgeSourceSourceTabs'
 import { DEFAULT_SOURCE_TYPE } from './addKnowledgeSourceDialog/constants'
 import type { DirectoryItem, DropzoneOnDrop } from './addKnowledgeSourceDialog/types'
-import { buildDirectoryItems } from './addKnowledgeSourceDialog/utils/buildDirectoryItems'
 
 interface AddKnowledgeSourceDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+const getDirectoryName = (directoryPath: string) => {
+  const normalizedPath = directoryPath.replace(/[/\\]+$/, '')
+  const name = normalizedPath.split(/[/\\]/).pop()?.trim()
+
+  return name || normalizedPath || directoryPath
+}
+
+const resolveFilePath = (file: File): string | Error => {
+  const filePath = window.api.file.getPathForFile(file)
+
+  if (!filePath) {
+    return new Error(`Failed to resolve a local path for "${file.name}"`)
+  }
+
+  return filePath
+}
+
+const resolveFileMetadata = async (file: File): Promise<FileMetadata> => {
+  const filePath = resolveFilePath(file)
+
+  if (filePath instanceof Error) {
+    return Promise.reject(filePath)
+  }
+
+  const metadata = await window.api.file.get(filePath)
+
+  if (!metadata) {
+    return Promise.reject(new Error(`Failed to read file metadata for "${file.name}"`))
+  }
+
+  return metadata
 }
 
 const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDialogProps) => {
@@ -23,29 +56,57 @@ const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDial
   const [activeSource, setActiveSource] = useState(DEFAULT_SOURCE_TYPE)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
-  const { submit: submitFileSource, isSubmitting } = useAddKnowledgeSourceFile(selectedBaseId, selectedFiles)
+  const [urlValue, setUrlValue] = useState('')
+  const [sitemapValue, setSitemapValue] = useState('')
+  const [submitErrorMessage, setSubmitErrorMessage] = useState('')
+  const { submit: submitKnowledgeSources, isSubmitting: isSubmittingSources } = useAddKnowledgeSources(selectedBaseId)
 
   const resetDialogState = useCallback(() => {
     setActiveSource(DEFAULT_SOURCE_TYPE)
     setSelectedFiles([])
     setSelectedDirectories([])
+    setUrlValue('')
+    setSitemapValue('')
+    setSubmitErrorMessage('')
   }, [])
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
+    setSubmitErrorMessage('')
     setSelectedFiles(acceptedFiles)
   }, [])
 
-  const handleDirectoryDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
-    setSelectedDirectories(buildDirectoryItems(acceptedFiles))
+  const handleDirectorySelect = useCallback(async () => {
+    setSubmitErrorMessage('')
+    const directoryPath = await window.api.file.selectFolder()
+
+    if (!directoryPath) {
+      return
+    }
+
+    setSelectedDirectories((currentDirectories) => {
+      if (currentDirectories.some((directory) => directory.path === directoryPath)) {
+        return currentDirectories
+      }
+
+      return [
+        ...currentDirectories,
+        {
+          name: getDirectoryName(directoryPath),
+          path: directoryPath
+        }
+      ]
+    })
   }, [])
 
   const handleFileRemove = useCallback((fileIndex: number) => {
+    setSubmitErrorMessage('')
     setSelectedFiles((currentFiles) => currentFiles.filter((_, index) => index !== fileIndex))
   }, [])
 
-  const handleDirectoryRemove = useCallback((directoryName: string) => {
+  const handleDirectoryRemove = useCallback((directoryPath: string) => {
+    setSubmitErrorMessage('')
     setSelectedDirectories((currentDirectories) =>
-      currentDirectories.filter((directory) => directory.name !== directoryName)
+      currentDirectories.filter((directory) => directory.path !== directoryPath)
     )
   }, [])
 
@@ -66,32 +127,101 @@ const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDial
     [onOpenChange, resetDialogState]
   )
 
-  const canSubmit = activeSource === 'file' && selectedFiles.length > 0 && Boolean(selectedBaseId)
+  const canSubmit = useMemo(() => {
+    if (!selectedBaseId) {
+      return false
+    }
 
-  const handleSubmit = useCallback(async () => {
+    switch (activeSource) {
+      case 'file':
+        return selectedFiles.length > 0
+      case 'directory':
+        return selectedDirectories.length > 0
+      case 'url':
+        return urlValue.trim().length > 0
+      case 'sitemap':
+        return sitemapValue.trim().length > 0
+      case 'note':
+        return false
+    }
+  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
+
+  const handleSubmit = useCallback(() => {
     if (!canSubmit) {
       return
     }
 
-    try {
-      await submitFileSource()
-      window.toast.success(
-        t('knowledge_v2.data_source.add_dialog.submit.success', {
-          defaultValue: '文件已添加到知识库'
-        })
-      )
-      handleOpenChange(false)
-    } catch (error) {
-      window.toast.error(
-        formatErrorMessageWithPrefix(
-          error,
-          t('knowledge_v2.data_source.add_dialog.submit.error', {
-            defaultValue: '添加文件数据源失败'
-          })
+    setSubmitErrorMessage('')
+
+    const submitPromise = (() => {
+      if (activeSource === 'file') {
+        return Promise.all(selectedFiles.map(resolveFileMetadata)).then((files) =>
+          submitKnowledgeSources(
+            files.map((file) => ({
+              type: 'file' as const,
+              data: { file }
+            }))
+          )
         )
-      )
-    }
-  }, [canSubmit, handleOpenChange, submitFileSource, t])
+      }
+
+      if (activeSource === 'directory') {
+        return submitKnowledgeSources(
+          selectedDirectories.map((directory) => ({
+            type: 'directory' as const,
+            data: {
+              name: directory.name,
+              path: directory.path
+            }
+          }))
+        )
+      }
+
+      if (activeSource === 'url') {
+        const url = urlValue.trim()
+        return submitKnowledgeSources([
+          {
+            type: 'url' as const,
+            data: { url, name: url }
+          }
+        ])
+      }
+
+      if (activeSource === 'sitemap') {
+        const url = sitemapValue.trim()
+        return submitKnowledgeSources([
+          {
+            type: 'sitemap' as const,
+            data: { url, name: url }
+          }
+        ])
+      }
+
+      return Promise.resolve()
+    })()
+
+    void submitPromise
+      .then(() => {
+        handleOpenChange(false)
+      })
+      .catch((error) => {
+        setSubmitErrorMessage(
+          formatErrorMessageWithPrefix(error, t('knowledge_v2.data_source.add_dialog.submit.error'))
+        )
+      })
+  }, [
+    activeSource,
+    canSubmit,
+    handleOpenChange,
+    selectedDirectories,
+    selectedFiles,
+    sitemapValue,
+    submitKnowledgeSources,
+    t,
+    urlValue
+  ])
+
+  const isSubmitting = isSubmittingSources
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -106,15 +236,26 @@ const AddKnowledgeSourceDialog = ({ open, onOpenChange }: AddKnowledgeSourceDial
           activeSource={activeSource}
           selectedDirectories={selectedDirectories}
           selectedFiles={selectedFiles}
-          onDirectoryDrop={handleDirectoryDrop}
+          sitemapValue={sitemapValue}
+          urlValue={urlValue}
           onDirectoryRemove={handleDirectoryRemove}
+          onDirectorySelect={handleDirectorySelect}
           onFileDrop={handleFileDrop}
           onFileRemove={handleFileRemove}
           onSourceChange={setActiveSource}
+          onSitemapValueChange={(value) => {
+            setSubmitErrorMessage('')
+            setSitemapValue(value)
+          }}
+          onUrlValueChange={(value) => {
+            setSubmitErrorMessage('')
+            setUrlValue(value)
+          }}
         />
         <AddKnowledgeSourceDialogFooter
           activeSource={activeSource}
           canSubmit={canSubmit}
+          errorMessage={submitErrorMessage}
           isSubmitting={isSubmitting}
           selectedDirectoryCount={selectedDirectories.length}
           selectedFileCount={selectedFiles.length}

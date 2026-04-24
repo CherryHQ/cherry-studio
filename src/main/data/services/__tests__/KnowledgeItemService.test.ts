@@ -179,28 +179,6 @@ describe('KnowledgeItemService', () => {
       expect(rows).toHaveLength(2)
     })
 
-    it('creates grouped items that reference a batch-local parent by groupRef', async () => {
-      const result = await service.createMany('kb-1', {
-        items: [
-          {
-            ref: 'root',
-            type: 'directory',
-            data: { name: 'files', path: '/tmp/files' }
-          },
-          {
-            groupRef: 'root',
-            type: 'note',
-            data: { content: 'child note' }
-          }
-        ]
-      })
-
-      expect(result.items).toHaveLength(2)
-      const rootItem = result.items.find((i) => i.type === 'directory')!
-      const noteItem = result.items.find((i) => i.type === 'note')!
-      expect(noteItem.groupId).toBe(rootItem.id)
-    })
-
     it('rejects invalid item data with validation error before insert', async () => {
       await expect(
         service.createMany('kb-1', {
@@ -263,77 +241,6 @@ describe('KnowledgeItemService', () => {
         baseId: 'kb-1',
         groupId: 'dir-a',
         type: 'note'
-      })
-    })
-
-    it('accepts multi-level groupRef trees in one batch', async () => {
-      const result = await service.createMany('kb-1', {
-        items: [
-          {
-            ref: 'dir-a',
-            type: 'directory',
-            data: { name: 'a', path: '/a' }
-          },
-          {
-            ref: 'dir-b',
-            groupRef: 'dir-a',
-            type: 'directory',
-            data: { name: 'b', path: '/a/b' }
-          },
-          {
-            groupRef: 'dir-b',
-            type: 'note',
-            data: { content: 'nested note' }
-          }
-        ]
-      })
-
-      expect(result.items).toHaveLength(3)
-      const dirA = result.items.find((i) => i.type === 'directory' && i.data.path === '/a')
-      const dirB = result.items.find((i) => i.type === 'directory' && i.data.path === '/a/b')
-      const note = result.items.find((i) => i.type === 'note')
-      expect(dirA?.groupId).toBeNull()
-      expect(dirB?.groupId).toBe(dirA?.id)
-      expect(note?.groupId).toBe(dirB?.id)
-    })
-
-    it('rejects self-referencing groupRef items', async () => {
-      await expect(
-        service.createMany('kb-1', {
-          items: [
-            {
-              ref: 'self',
-              groupRef: 'self',
-              type: 'note',
-              data: { content: 'self ref' }
-            }
-          ]
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            groupRef: ['Knowledge item cannot reference itself as group owner']
-          }
-        }
-      })
-    })
-
-    it('rejects two-node groupRef cycles', async () => {
-      await expect(
-        service.createMany('kb-1', {
-          items: [
-            { ref: 'a', groupRef: 'b', type: 'note', data: { content: 'A' } },
-            { ref: 'b', groupRef: 'a', type: 'note', data: { content: 'B' } }
-          ]
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            groupRef: ['Knowledge item grouping cannot contain cycles within one request batch']
-          }
-        }
       })
     })
   })
@@ -466,6 +373,134 @@ describe('KnowledgeItemService', () => {
         status: 'completed',
         data: { content: 'updated note' }
       })
+    })
+
+    it('refreshContainerStatuses updates parent container to completed when all children complete', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { name: 'a', path: '/a' }, status: 'pending' })
+      await seedItem({ id: 'child-a', groupId: 'dir-a', type: 'note', data: { content: 'a' }, status: 'completed' })
+      await seedItem({ id: 'child-b', groupId: 'dir-a', type: 'note', data: { content: 'b' }, status: 'pending' })
+
+      await service.update('child-b', { status: 'completed', error: null })
+      await service.refreshContainerStatuses(['dir-a'])
+
+      await expect(service.getById('dir-a')).resolves.toMatchObject({
+        status: 'completed',
+        error: null
+      })
+    })
+
+    it('refreshContainerStatuses updates parent container to failed when any child fails', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { name: 'a', path: '/a' }, status: 'pending' })
+      await seedItem({ id: 'child-a', groupId: 'dir-a', type: 'note', data: { content: 'a' }, status: 'completed' })
+      await seedItem({ id: 'child-b', groupId: 'dir-a', type: 'note', data: { content: 'b' }, status: 'pending' })
+
+      await service.update('child-b', { status: 'failed', error: 'read failed' })
+      await service.refreshContainerStatuses(['dir-a'])
+
+      await expect(service.getById('dir-a')).resolves.toMatchObject({
+        status: 'failed',
+        error: 'read failed'
+      })
+    })
+
+    it('refreshContainerStatuses surfaces child embed status on parent containers', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { name: 'a', path: '/a' }, status: 'completed' })
+      await seedItem({ id: 'child-a', groupId: 'dir-a', type: 'note', data: { content: 'a' }, status: 'completed' })
+      await seedItem({ id: 'child-b', groupId: 'dir-a', type: 'note', data: { content: 'b' }, status: 'pending' })
+
+      await service.update('child-b', { status: 'embed', error: null })
+      await service.refreshContainerStatuses(['dir-a'])
+
+      await expect(service.getById('dir-a')).resolves.toMatchObject({
+        status: 'embed',
+        error: null
+      })
+    })
+
+    it('refreshContainerStatuses surfaces child read and file processing statuses on parent containers', async () => {
+      await seedItem({ id: 'dir-read', type: 'directory', data: { name: 'read', path: '/read' }, status: 'pending' })
+      await seedItem({ id: 'read-child', groupId: 'dir-read', type: 'note', data: { content: 'a' }, status: 'read' })
+      await seedItem({ id: 'dir-file', type: 'directory', data: { name: 'file', path: '/file' }, status: 'pending' })
+      await seedItem({
+        id: 'file-child',
+        groupId: 'dir-file',
+        type: 'file',
+        data: {
+          file: {
+            id: 'file-child-meta',
+            name: 'file.md',
+            origin_name: 'file.md',
+            path: '/file/file.md',
+            created_at: '2026-04-08T00:00:00.000Z',
+            size: 10,
+            ext: '.md',
+            type: 'text',
+            count: 1
+          }
+        },
+        status: 'file_processing'
+      })
+
+      await service.refreshContainerStatuses(['dir-read', 'dir-file'])
+
+      await expect(service.getById('dir-read')).resolves.toMatchObject({ status: 'read', error: null })
+      await expect(service.getById('dir-file')).resolves.toMatchObject({ status: 'file_processing', error: null })
+    })
+
+    it('propagates nested container status changes to the root container', async () => {
+      await seedItem({ id: 'dir-root', type: 'directory', data: { name: 'root', path: '/root' }, status: 'pending' })
+      await seedItem({
+        id: 'dir-child',
+        groupId: 'dir-root',
+        type: 'directory',
+        data: { name: 'child', path: '/root/child' },
+        status: 'pending'
+      })
+      await seedItem({
+        id: 'leaf',
+        groupId: 'dir-child',
+        type: 'note',
+        data: { content: 'leaf' },
+        status: 'pending'
+      })
+
+      await service.update('leaf', { status: 'completed', error: null })
+      await service.refreshContainerStatuses(['dir-child'])
+
+      await expect(service.getById('dir-child')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(service.getById('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
+    it('does not refresh parent containers from update implicitly', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { name: 'a', path: '/a' }, status: 'pending' })
+      await seedItem({ id: 'child-a', groupId: 'dir-a', type: 'note', data: { content: 'a' }, status: 'pending' })
+
+      await service.update('child-a', { status: 'completed', error: null })
+
+      await expect(service.getById('dir-a')).resolves.toMatchObject({ status: 'pending', error: null })
+    })
+
+    it('allows empty containers to be marked completed directly', async () => {
+      await seedItem({ id: 'dir-empty', type: 'directory', data: { name: 'empty', path: '/empty' }, status: 'pending' })
+
+      await service.update('dir-empty', { status: 'completed', error: null })
+
+      await expect(service.getById('dir-empty')).resolves.toMatchObject({
+        status: 'completed',
+        error: null
+      })
+    })
+
+    it('updates multiple statuses without hidden parent aggregation', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { name: 'a', path: '/a' }, status: 'pending' })
+      await seedItem({ id: 'child-a', groupId: 'dir-a', type: 'note', data: { content: 'a' }, status: 'pending' })
+      await seedItem({ id: 'child-b', groupId: 'dir-a', type: 'note', data: { content: 'b' }, status: 'pending' })
+
+      await service.updateStatuses(['child-a', 'child-b'], { status: 'failed', error: 'enqueue failed' })
+
+      await expect(service.getById('child-a')).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(service.getById('child-b')).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(service.getById('dir-a')).resolves.toMatchObject({ status: 'pending', error: null })
     })
   })
 

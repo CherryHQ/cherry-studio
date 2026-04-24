@@ -88,81 +88,31 @@ export {
 
 const CreateKnowledgeItemBaseSchema = z
   .object({
-    ref: z.string().trim().min(1).optional(),
-    groupId: z.string().nullable().optional(),
-    groupRef: z.string().trim().min(1).optional()
+    groupId: z.string().nullable().optional()
   })
   .strict()
-
-type CreateKnowledgeItemReferenceInput = z.input<typeof CreateKnowledgeItemBaseSchema>
-
-function validateCreateKnowledgeItemReferences(item: CreateKnowledgeItemReferenceInput, ctx: z.RefinementCtx): void {
-  if (item.groupId != null && item.groupRef != null) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['groupRef'],
-      message: 'Knowledge items cannot specify both groupId and groupRef'
-    })
-  }
-}
-
-export function getCreateKnowledgeItemsReferenceErrors(
-  items: CreateKnowledgeItemReferenceInput[]
-): Record<string, string[]> {
-  const refs = new Set<string>()
-  const duplicateRefs = new Set<string>()
-  const missingGroupRefs = new Set<string>()
-
-  for (const item of items) {
-    if (item.ref) {
-      if (refs.has(item.ref)) {
-        duplicateRefs.add(item.ref)
-      } else {
-        refs.add(item.ref)
-      }
-    }
-  }
-
-  for (const item of items) {
-    if (item.groupId == null && item.groupRef && !refs.has(item.groupRef)) {
-      missingGroupRefs.add(item.groupRef)
-    }
-  }
-
-  const fieldErrors: Record<string, string[]> = {}
-
-  if (duplicateRefs.size > 0) {
-    fieldErrors.ref = [`Duplicate knowledge item refs in request batch: ${[...duplicateRefs].join(', ')}`]
-  }
-
-  if (missingGroupRefs.size > 0) {
-    fieldErrors.groupRef = [`Knowledge item group ref not found in request batch: ${[...missingGroupRefs].join(', ')}`]
-  }
-
-  return fieldErrors
-}
 
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('file'),
     data: FileItemDataSchema
-  }).superRefine(validateCreateKnowledgeItemReferences),
+  }),
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('url'),
     data: UrlItemDataSchema
-  }).superRefine(validateCreateKnowledgeItemReferences),
+  }),
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('note'),
     data: NoteItemDataSchema
-  }).superRefine(validateCreateKnowledgeItemReferences),
+  }),
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('sitemap'),
     data: SitemapItemDataSchema
-  }).superRefine(validateCreateKnowledgeItemReferences),
+  }),
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('directory'),
     data: DirectoryItemDataSchema
-  }).superRefine(validateCreateKnowledgeItemReferences)
+  })
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
@@ -173,23 +123,9 @@ export const KNOWLEDGE_BASES_DEFAULT_PAGE = 1
 export const KNOWLEDGE_BASES_DEFAULT_LIMIT = 20
 export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
-export const CreateKnowledgeItemsSchema = z
-  .object({
-    items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
-  })
-  .superRefine((value, ctx) => {
-    const fieldErrors = getCreateKnowledgeItemsReferenceErrors(value.items)
-
-    for (const [field, messages] of Object.entries(fieldErrors)) {
-      for (const message of messages) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['items', field],
-          message
-        })
-      }
-    }
-  })
+export const CreateKnowledgeItemsSchema = z.object({
+  items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_ITEMS_MAX_LIMIT)
+})
 export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
 
 export const UpdateKnowledgeItemDataSchema = z.union([

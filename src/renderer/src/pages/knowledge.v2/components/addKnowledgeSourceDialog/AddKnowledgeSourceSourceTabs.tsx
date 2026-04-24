@@ -14,22 +14,30 @@ interface AddKnowledgeSourceSourceTabsProps {
   activeSource: KnowledgeDataSourceType
   selectedDirectories: DirectoryItem[]
   selectedFiles: File[]
-  onDirectoryDrop: DropzoneOnDrop
-  onDirectoryRemove: (directoryName: string) => void
+  sitemapValue: string
+  urlValue: string
+  onDirectoryRemove: (directoryPath: string) => void
+  onDirectorySelect: () => void | Promise<void>
   onFileDrop: DropzoneOnDrop
   onFileRemove: (fileIndex: number) => void
   onSourceChange: (value: KnowledgeDataSourceType) => void
+  onSitemapValueChange: (value: string) => void
+  onUrlValueChange: (value: string) => void
 }
 
 const AddKnowledgeSourceSourceTabs = ({
   activeSource,
   selectedDirectories,
   selectedFiles,
-  onDirectoryDrop,
+  sitemapValue,
+  urlValue,
   onDirectoryRemove,
+  onDirectorySelect,
   onFileDrop,
   onFileRemove,
-  onSourceChange
+  onSourceChange,
+  onSitemapValueChange,
+  onUrlValueChange
 }: AddKnowledgeSourceSourceTabsProps) => {
   const { t } = useTranslation()
 
@@ -43,14 +51,14 @@ const AddKnowledgeSourceSourceTabs = ({
         return (
           <DirectorySourceContent
             directories={selectedDirectories}
-            onDrop={onDirectoryDrop}
             onRemove={onDirectoryRemove}
+            onSelectDirectory={onDirectorySelect}
           />
         )
       case 'url':
-        return <UrlSourceContent />
+        return <UrlSourceContent value={urlValue} onValueChange={onUrlValueChange} />
       case 'sitemap':
-        return <SitemapSourceContent />
+        return <SitemapSourceContent value={sitemapValue} onValueChange={onSitemapValueChange} />
       default:
         return null
     }
