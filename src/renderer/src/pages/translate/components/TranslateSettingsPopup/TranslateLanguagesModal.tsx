@@ -26,7 +26,7 @@ const TranslateLanguagesModal = ({ isOpen, editingLanguage: editingCustomLanguag
   const [emoji, setEmoji] = useState(defaultEmoji)
   const { languages } = useLanguages()
   const addLanguage = useAddLanguage()
-  const updateLanguage = useUpdateLanguage(editingCustomLanguage?.langCode ?? '')
+  const updateLanguage = useUpdateLanguage(editingCustomLanguage?.langCode)
 
   const langCodeList = useMemo(() => {
     return languages?.map((item) => item.langCode) ?? []

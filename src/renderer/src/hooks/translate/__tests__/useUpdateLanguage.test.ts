@@ -49,15 +49,21 @@ describe('useUpdateLanguage', () => {
     })
   })
 
-  it('throws fast when triggered with an empty langCode instead of issuing a malformed request', async () => {
-    const triggerSpy = vi.fn()
-    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+  it.each([
+    ['empty string', ''],
+    ['undefined', undefined]
+  ])(
+    'throws fast when triggered with an unbound langCode (%s) instead of issuing a malformed request',
+    async (_, langCode) => {
+      const triggerSpy = vi.fn()
+      mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
 
-    const { result } = renderHook(() => useUpdateLanguage(''))
+      const { result } = renderHook(() => useUpdateLanguage(langCode))
 
-    await expect(result.current({ value: 'New', emoji: '🌐' })).rejects.toThrow(/langCode must be non-empty/)
-    expect(triggerSpy).not.toHaveBeenCalled()
-  })
+      await expect(result.current({ value: 'New', emoji: '🌐' })).rejects.toThrow(/langCode must be set/)
+      expect(triggerSpy).not.toHaveBeenCalled()
+    }
+  )
 
   it('logs + toasts `error.update` + rethrows on failure by default', async () => {
     const failure = new Error('boom')

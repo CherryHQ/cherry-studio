@@ -18,15 +18,15 @@ const logger = loggerService.withContext('translate/useUpdateLanguage')
  * arguments — a proper fix belongs at the `useMutation` layer and is out of
  * scope here.
  *
- * @param langCode - The language code to update; may be empty at hook init
- *   (e.g. when the consuming modal hasn't entered edit mode yet) — the trigger
- *   throws if called before a real code is bound.
+ * @param langCode - The language code to update; may be `undefined` at hook
+ *   init (e.g. when the consuming modal hasn't entered edit mode yet) — the
+ *   trigger throws if called before a real code is bound.
  * @param options - Feedback options. Per-operation defaults:
  *   - `showSuccessToast: true` — table refreshes are subtle, toast confirms the update
  *   - `showErrorToast: true`
  *   - `rethrowError: true`
  */
-export const useUpdateLanguage = (langCode: string, options?: MutationFeedbackOptions) => {
+export const useUpdateLanguage = (langCode: string | undefined, options?: MutationFeedbackOptions) => {
   const { trigger } = useMutation('PATCH', '/translate/languages/:langCode', {
     refresh: ['/translate/languages']
   })
@@ -34,7 +34,7 @@ export const useUpdateLanguage = (langCode: string, options?: MutationFeedbackOp
   return useMutationFeedback(
     (data: UpdateTranslateLanguageDto) => {
       if (!langCode) {
-        throw new Error('useUpdateLanguage: langCode must be non-empty when triggering update')
+        throw new Error('useUpdateLanguage: langCode must be set when triggering update')
       }
       return trigger({ params: { langCode }, body: data })
     },
