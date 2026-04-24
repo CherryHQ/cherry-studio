@@ -16,7 +16,6 @@ export * from './file'
 export * from './note'
 export type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
@@ -622,25 +621,6 @@ export type GenerateImageResponse = {
 }
 
 export type TranslateLanguageVo = Pick<TranslateLanguage, 'value' | 'langCode' | 'emoji'>
-
-/** @deprecated dexie still using */
-export interface TranslateHistory {
-  id: string
-  sourceText: string
-  targetText: string
-  sourceLanguage: TranslateLangCode
-  targetLanguage: TranslateLangCode
-  createdAt: string
-  star?: boolean
-}
-
-/** @deprecated dexie still using */
-export type CustomTranslateLanguage = {
-  id: string
-  langCode: TranslateLangCode
-  value: string
-  emoji: string
-}
 
 export const AutoDetectionMethods = {
   franc: 'franc',
