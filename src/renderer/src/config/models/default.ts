@@ -2030,22 +2030,28 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   mimo: [
     {
+      id: 'mimo-v2.5',
+      name: 'Mimo V2.5',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
+      id: 'mimo-v2.5-pro',
+      name: 'Mimo V2.5 Pro',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
       id: 'mimo-v2-flash',
       name: 'Mimo V2 Flash',
       provider: 'mimo',
-      group: 'Mimo'
-    },
-    {
-      id: 'mimo-v2-pro',
-      name: 'Mimo V2 Pro',
-      provider: 'mimo',
-      group: 'Mimo'
+      group: 'mimo'
     },
     {
       id: 'mimo-v2-omni',
       name: 'Mimo V2 Omni',
       provider: 'mimo',
-      group: 'Mimo'
+      group: 'mimo'
     }
   ],
   zai: [
