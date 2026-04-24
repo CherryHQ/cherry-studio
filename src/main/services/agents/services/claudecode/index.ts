@@ -954,7 +954,6 @@ class ClaudeCodeService implements AgentServiceInterface {
           })
 
           try {
-            // Get builtin + local slash commands from BaseService
             const existingCommands = await listSlashCommands('claude-code')
 
             // Convert SDK slash_commands (string[]) to SlashCommand[] format

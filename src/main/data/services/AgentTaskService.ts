@@ -10,7 +10,7 @@ import {
   type InsertAgentTaskRunLogRow as InsertTaskRunLogRow
 } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
@@ -51,7 +51,7 @@ export class AgentTaskService {
         database.transaction(async (tx) => {
           const result = await tx.insert(scheduledTasksTable).values(insertData)
           if (result.rowsAffected !== 1) {
-            throw new Error(`Failed to insert task ${id}: rowsAffected=${result.rowsAffected}`)
+            throw DataApiErrorFactory.invalidOperation('insert task', `rowsAffected=${result.rowsAffected}`)
           }
 
           if (req.channelIds?.length) {
@@ -61,7 +61,11 @@ export class AgentTaskService {
               .onConflictDoNothing()
           }
         }),
-      defaultHandlersFor('Task', id)
+      {
+        ...defaultHandlersFor('Task', id),
+        foreignKey: () =>
+          DataApiErrorFactory.invalidOperation('create task', 'referenced agent or channel does not exist')
+      }
     )
 
     logger.info('Task created', { taskId: id, agentId })
@@ -155,29 +159,25 @@ export class AgentTaskService {
     }
 
     const database = application.get('DbService').getDb()
-    await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          await tx.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
-          if (updates.channelIds !== undefined) {
-            await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
-            if (updates.channelIds.length > 0) {
-              const result = await tx
-                .insert(channelTaskSubscriptionsTable)
-                .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
-                .onConflictDoNothing()
-              if (result.rowsAffected !== updates.channelIds.length) {
-                logger.warn('updateTaskById: inserted fewer channel rows than requested', {
-                  taskId,
-                  requested: updates.channelIds.length,
-                  inserted: result.rowsAffected
-                })
-              }
-            }
+    await database.transaction(async (tx) => {
+      await tx.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+      if (updates.channelIds !== undefined) {
+        await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+        if (updates.channelIds.length > 0) {
+          const result = await tx
+            .insert(channelTaskSubscriptionsTable)
+            .values(updates.channelIds.map((channelId) => ({ channelId, taskId })))
+            .onConflictDoNothing()
+          if (result.rowsAffected !== updates.channelIds.length) {
+            logger.warn('updateTaskById: inserted fewer channel rows than requested', {
+              taskId,
+              requested: updates.channelIds.length,
+              inserted: result.rowsAffected
+            })
           }
-        }),
-      defaultHandlersFor('Task', taskId)
-    )
+        }
+      }
+    })
 
     logger.info('Task updated', { taskId })
     return this.getTaskWithChannels(taskId)
@@ -276,38 +276,29 @@ export class AgentTaskService {
     return this.getTaskWithChannels(taskId)
   }
 
-  /**
-   * Convert a TaskRow (camelCase Drizzle properties) to a ScheduledTaskEntity.
-   */
   private rowToEntity(row: TaskRow): ScheduledTaskEntity {
+    const clean = nullsToUndefined(row)
     return {
-      id: row.id,
-      agentId: row.agentId,
-      name: row.name,
-      prompt: row.prompt,
+      ...clean,
       scheduleType: row.scheduleType as ScheduledTaskEntity['scheduleType'],
-      scheduleValue: row.scheduleValue,
-      timeoutMinutes: row.timeoutMinutes,
+      status: row.status as ScheduledTaskEntity['status'],
+      // Preserve T|null contract for nullable timestamp columns
       nextRun: row.nextRun != null ? timestampToISO(row.nextRun) : null,
       lastRun: row.lastRun != null ? timestampToISO(row.lastRun) : null,
       lastResult: row.lastResult ?? null,
-      status: row.status as ScheduledTaskEntity['status'],
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     } as ScheduledTaskEntity
   }
 
-  /**
-   * Convert a TaskRunLogRow to a TaskRunLogEntity.
-   */
   private runLogRowToEntity(row: TaskRunLogRow): TaskRunLogEntity {
+    const clean = nullsToUndefined(row)
     return {
-      id: row.id,
-      taskId: row.taskId,
-      sessionId: row.sessionId ?? null,
+      ...clean,
       runAt: new Date(row.runAt).toISOString(),
-      durationMs: row.durationMs,
       status: row.status as TaskRunLogEntity['status'],
+      // Preserve T|null contract
+      sessionId: row.sessionId ?? null,
       result: row.result ?? null,
       error: row.error ?? null
     }
@@ -386,13 +377,25 @@ export class AgentTaskService {
       updatedAt: Date.now()
     }
 
-    // Mark one-time tasks as completed
     if (nextRun === null) {
       updateData.status = 'completed'
     }
 
     const database = application.get('DbService').getDb()
-    await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+    try {
+      await database.update(scheduledTasksTable).set(updateData).where(eq(scheduledTasksTable.id, taskId))
+    } catch (error) {
+      logger.error('updateTaskAfterRun failed; advancing nextRun to prevent scheduler hot-loop', { taskId, error })
+      // Best-effort: advance nextRun so the task is not re-scheduled immediately.
+      try {
+        await database
+          .update(scheduledTasksTable)
+          .set({ nextRun: Date.now() + 60_000, updatedAt: Date.now() })
+          .where(eq(scheduledTasksTable.id, taskId))
+      } catch (fallbackError) {
+        logger.error('updateTaskAfterRun fallback also failed', { taskId, fallbackError })
+      }
+    }
   }
 
   // --- Task run logs ---

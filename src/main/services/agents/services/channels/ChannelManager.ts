@@ -357,6 +357,13 @@ class ChannelManager {
         type: row.type,
         error: error instanceof Error ? error.message : String(error)
       })
+      const errorStatus: ChannelStatusEvent = {
+        channelId: row.id,
+        connected: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      this.channelStatuses.set(row.id, errorStatus)
+      this.sendToRenderer(IpcChannel.Channel_StatusChange, errorStatus)
     }
   }
 }

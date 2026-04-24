@@ -6,7 +6,7 @@ import {
   type InsertAgentSessionRow as InsertSessionRow
 } from '@data/db/schemas/agentSession'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
@@ -14,7 +14,6 @@ import {
   type AgentConfiguration,
   type AgentSessionEntity,
   type CreateSessionDto,
-  type SlashCommand,
   type UpdateSessionDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
@@ -22,7 +21,7 @@ import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionService')
 
-function rowToAgent(row: Record<string, unknown>): {
+function agentRowToSessionDefaults(row: Record<string, unknown>): {
   type: AgentType
   model: string
   name: string
@@ -35,39 +34,22 @@ function rowToAgent(row: Record<string, unknown>): {
   planModel?: string
   smallModel?: string
 } {
-  const type = (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType
+  const clean = nullsToUndefined(row)
   return {
-    type,
+    ...clean,
+    type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
     model: row.model as string,
-    description: (row.description as string | null) ?? undefined,
-    accessiblePaths: (row.accessiblePaths as string[] | null) ?? [],
-    instructions: (row.instructions as string | null) ?? undefined,
-    planModel: (row.planModel as string | null) ?? undefined,
-    smallModel: (row.smallModel as string | null) ?? undefined,
-    mcps: (row.mcps as string[] | null) ?? undefined,
-    allowedTools: (row.allowedTools as string[] | null) ?? undefined,
-    configuration: (row.configuration as AgentConfiguration | null) ?? undefined
+    accessiblePaths: (row.accessiblePaths as string[] | null) ?? []
   }
 }
 
 function rowToSession(row: SessionRow): AgentSessionEntity {
-  const agentType = (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    agentId: row.agentId,
-    agentType,
-    name: row.name,
-    description: row.description ?? undefined,
+    ...clean,
+    agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
     accessiblePaths: row.accessiblePaths ?? [],
-    instructions: row.instructions ?? undefined,
-    model: row.model,
-    planModel: row.planModel ?? undefined,
-    smallModel: row.smallModel ?? undefined,
-    mcps: row.mcps ?? undefined,
-    allowedTools: row.allowedTools ?? undefined,
-    slashCommands: (row.slashCommands as SlashCommand[] | null) ?? undefined,
-    configuration: (row.configuration as AgentConfiguration) ?? undefined,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -84,7 +66,7 @@ export class AgentSessionService {
     if (!agents[0]) {
       throw DataApiErrorFactory.notFound('Agent', agentId)
     }
-    const agent = rowToAgent(agents[0] as Record<string, unknown>)
+    const agent = agentRowToSessionDefaults(agents[0] as Record<string, unknown>)
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
@@ -121,7 +103,10 @@ export class AgentSessionService {
             .where(eq(sessionsTable.agentId, agentId))
           await tx.insert(sessionsTable).values(insertData)
         }),
-      defaultHandlersFor('Session', id)
+      {
+        ...defaultHandlersFor('Session', id),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent', agentId)
+      }
     )
 
     const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
@@ -224,18 +209,14 @@ export class AgentSessionService {
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
     const database = application.get('DbService').getDb()
-    await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          for (let i = 0; i < orderedIds.length; i++) {
-            await tx
-              .update(sessionsTable)
-              .set({ sortOrder: i })
-              .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
-          }
-        }),
-      {}
-    )
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx
+          .update(sessionsTable)
+          .set({ sortOrder: i })
+          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
+      }
+    })
     logger.info('Sessions reordered', { agentId, count: orderedIds.length })
   }
 

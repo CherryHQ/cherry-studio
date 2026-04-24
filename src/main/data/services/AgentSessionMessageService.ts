@@ -7,7 +7,8 @@ import {
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import type { DbOrTx } from '@data/db/types'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
@@ -64,8 +65,11 @@ export class AgentSessionMessageService {
   }
 
   async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
+    if (!/^\d+$/.test(messageId)) {
+      throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
+    }
     const id = Number.parseInt(messageId, 10)
-    if (!Number.isFinite(id) || id <= 0) {
+    if (id <= 0) {
       throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
     }
     const database = application.get('DbService').getDb()
@@ -82,13 +86,11 @@ export class AgentSessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
+    const clean = nullsToUndefined(row)
     return {
-      id: row.id,
-      sessionId: row.sessionId,
+      ...clean,
       role: row.role as AgentSessionMessageEntity['role'],
-      content: row.content,
       agentSessionId: row.agentSessionId ?? '',
-      metadata: row.metadata ?? undefined,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
@@ -118,12 +120,12 @@ export class AgentSessionMessageService {
   // ── Persistence methods ──────────────────────────────────────────
 
   private async findExistingMessageRow(
+    db: DbOrTx,
     sessionId: string,
     role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
-    const database = application.get('DbService').getDb()
-    const rows = await database
+    const rows = await db
       .select()
       .from(sessionMessagesTable)
       .where(
@@ -139,6 +141,7 @@ export class AgentSessionMessageService {
   }
 
   private async upsertMessage(
+    db: DbOrTx,
     params:
       | (AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string })
       | (AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string })
@@ -153,15 +156,14 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.validation({ id: ['is required'] }, 'Message payload missing id')
     }
 
-    const database = application.get('DbService').getDb()
-    const existingRow = await this.findExistingMessageRow(sessionId, payload.message.role, payload.message.id)
+    const existingRow = await this.findExistingMessageRow(db, sessionId, payload.message.role, payload.message.id)
 
     if (existingRow) {
       const metadataToPersist = metadata ?? existingRow.metadata ?? undefined
       const agentSessionToPersist = agentSessionId || existingRow.agentSessionId || ''
       const updatedAtMs = Date.now()
 
-      await database
+      await db
         .update(sessionMessagesTable)
         .set({
           content: payload,
@@ -188,47 +190,61 @@ export class AgentSessionMessageService {
       metadata
     }
 
-    const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()
+    const [saved] = await db.insert(sessionMessagesTable).values(insertData).returning()
     return this.rowToEntity(saved)
   }
 
   async persistUserMessage(
-    params: AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string }
+    params: AgentMessageUserPersistPayload & { sessionId: string; agentSessionId?: string },
+    db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
-    return this.upsertMessage({ ...params, agentSessionId: params.agentSessionId ?? '' })
+    const database = db ?? application.get('DbService').getDb()
+    return this.upsertMessage(database, { ...params, agentSessionId: params.agentSessionId ?? '' })
   }
 
   async persistAssistantMessage(
-    params: AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string }
+    params: AgentMessageAssistantPersistPayload & { sessionId: string; agentSessionId: string },
+    db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
-    return this.upsertMessage(params)
+    const database = db ?? application.get('DbService').getDb()
+    return this.upsertMessage(database, params)
   }
 
   async persistExchange(params: AgentMessagePersistExchangePayload): Promise<AgentMessagePersistExchangeResult> {
     const { sessionId, agentSessionId, user, assistant } = params
-    const exchangeResult: AgentMessagePersistExchangeResult = {}
+    const database = application.get('DbService').getDb()
 
-    if (user?.payload) {
-      exchangeResult.userMessage = await this.persistUserMessage({
-        sessionId,
-        agentSessionId,
-        payload: user.payload,
-        metadata: user.metadata,
-        createdAt: user.createdAt
-      })
-    }
+    return database.transaction(async (tx) => {
+      const exchangeResult: AgentMessagePersistExchangeResult = {}
 
-    if (assistant?.payload) {
-      exchangeResult.assistantMessage = await this.persistAssistantMessage({
-        sessionId,
-        agentSessionId,
-        payload: assistant.payload,
-        metadata: assistant.metadata,
-        createdAt: assistant.createdAt
-      })
-    }
+      if (user?.payload) {
+        exchangeResult.userMessage = await this.persistUserMessage(
+          {
+            sessionId,
+            agentSessionId,
+            payload: user.payload,
+            metadata: user.metadata,
+            createdAt: user.createdAt
+          },
+          tx
+        )
+      }
 
-    return exchangeResult
+      if (assistant?.payload) {
+        exchangeResult.assistantMessage = await this.persistAssistantMessage(
+          {
+            sessionId,
+            agentSessionId,
+            payload: assistant.payload,
+            metadata: assistant.metadata,
+            createdAt: assistant.createdAt
+          },
+          tx
+        )
+      }
+
+      return exchangeResult
+    })
   }
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {

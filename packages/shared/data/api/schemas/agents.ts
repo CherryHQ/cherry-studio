@@ -234,11 +234,11 @@ export type AgentSchemas = {
   '/agents': {
     GET: {
       query?: ListQuery
-      response: OffsetPaginationResponse<AgentDetail>
+      response: OffsetPaginationResponse<AgentEntity>
     }
     POST: {
       body: CreateAgentDto
-      response: AgentDetail
+      response: AgentEntity
     }
   }
 
@@ -246,12 +246,12 @@ export type AgentSchemas = {
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
-      response: AgentDetail
+      response: AgentEntity
     }
     PATCH: {
       params: { agentId: string }
       body: UpdateAgentDto
-      response: AgentDetail
+      response: AgentEntity
     }
     DELETE: {
       params: { agentId: string }
@@ -264,12 +264,12 @@ export type AgentSchemas = {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionDetail>
+      response: OffsetPaginationResponse<AgentSessionEntity>
     }
     POST: {
       params: { agentId: string }
       body: CreateSessionDto
-      response: AgentSessionDetail
+      response: AgentSessionEntity
     }
   }
 
@@ -277,12 +277,12 @@ export type AgentSchemas = {
   '/agents/:agentId/sessions/:sessionId': {
     GET: {
       params: { agentId: string; sessionId: string }
-      response: AgentSessionDetail
+      response: AgentSessionEntity
     }
     PATCH: {
       params: { agentId: string; sessionId: string }
       body: UpdateSessionDto
-      response: AgentSessionDetail
+      response: AgentSessionEntity
     }
     DELETE: {
       params: { agentId: string; sessionId: string }

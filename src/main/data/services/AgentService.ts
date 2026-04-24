@@ -5,14 +5,13 @@ import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSessio
 import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill'
 import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import type { DbOrTx } from '@data/db/types'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
-  type AgentConfiguration,
   type AgentEntity,
   type CreateAgentDto,
   type UpdateAgentDto
@@ -23,20 +22,11 @@ import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
 const logger = loggerService.withContext('AgentService')
 
 function rowToAgent(row: AgentRow): AgentEntity {
-  const type = (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    type,
-    name: row.name,
-    description: row.description ?? undefined,
+    ...clean,
+    type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     accessiblePaths: row.accessiblePaths ?? [],
-    instructions: row.instructions ?? undefined,
-    model: row.model,
-    planModel: row.planModel ?? undefined,
-    smallModel: row.smallModel ?? undefined,
-    mcps: row.mcps ?? undefined,
-    allowedTools: row.allowedTools ?? undefined,
-    configuration: (row.configuration as AgentConfiguration) ?? undefined,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -193,22 +183,25 @@ export class AgentService {
     const rawOldAgent = rawRows[0]
 
     await withSqliteErrors(
-      () => database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)),
+      () =>
+        database.transaction(async (tx) => {
+          await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+          if (rawOldAgent) {
+            await this.syncSettingsToSessions(tx, id, rawOldAgent, updates)
+          }
+        }),
       defaultHandlersFor('Agent', id)
     )
-
-    if (rawOldAgent) {
-      await this.syncSettingsToSessions(database, id, rawOldAgent, updates)
-    }
 
     return await this.getAgent(id)
   }
 
   /**
    * Sync agent settings to all sessions that haven't been individually customized.
+   * Must be called inside a transaction so agent update and session sync are atomic.
    */
   private async syncSettingsToSessions(
-    database: DbType,
+    tx: DbOrTx,
     agentId: string,
     rawOldAgent: Record<string, unknown>,
     updates: Record<string, unknown>
@@ -221,55 +214,41 @@ export class AgentService {
     })
     if (changedFields.length === 0) return
 
-    try {
-      const sessions = await database.select().from(sessionsTable).where(eq(sessionsTable.agentId, agentId))
+    const sessions = await tx.select().from(sessionsTable).where(eq(sessionsTable.agentId, agentId))
+    if (sessions.length === 0) return
 
-      if (sessions.length === 0) return
+    for (const session of sessions) {
+      const sessionUpdateData: Partial<Record<string, unknown>> = {}
 
-      await database.transaction(async (tx) => {
-        for (const session of sessions) {
-          const sessionUpdateData: Partial<Record<string, unknown>> = {}
+      for (const field of changedFields) {
+        const oldAgentValue = rawOldAgent[field] ?? null
+        const sessionValue = (session as Record<string, unknown>)[field] ?? null
 
-          for (const field of changedFields) {
-            const oldAgentValue = rawOldAgent[field] ?? null
-            const sessionValue = (session as Record<string, unknown>)[field] ?? null
-
-            if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
-              sessionUpdateData[field] = updates[field] ?? null
-            }
-          }
-
-          if (Object.keys(sessionUpdateData).length > 0) {
-            sessionUpdateData.updatedAt = Date.now()
-            await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
-          }
+        if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
+          sessionUpdateData[field] = updates[field] ?? null
         }
-      })
+      }
 
-      logger.info('Synced agent settings to sessions', {
-        agentId,
-        changedFields,
-        sessionCount: sessions.length
-      })
-    } catch (error) {
-      logger.warn('Failed to sync agent settings to sessions', {
-        agentId,
-        error: error instanceof Error ? error.message : String(error)
-      })
+      if (Object.keys(sessionUpdateData).length > 0) {
+        sessionUpdateData.updatedAt = Date.now()
+        await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
+      }
     }
+
+    logger.info('Synced agent settings to sessions', {
+      agentId,
+      changedFields,
+      sessionCount: sessions.length
+    })
   }
 
   async reorderAgents(orderedIds: string[]): Promise<void> {
     const database = application.get('DbService').getDb()
-    await withSqliteErrors(
-      async () =>
-        database.transaction(async (tx) => {
-          for (let i = 0; i < orderedIds.length; i++) {
-            await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
-          }
-        }),
-      defaultHandlersFor('Agent', orderedIds.join(','))
-    )
+    await database.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
+      }
+    })
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 

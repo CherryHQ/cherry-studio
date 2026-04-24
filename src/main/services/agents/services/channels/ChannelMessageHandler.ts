@@ -181,6 +181,14 @@ export class ChannelMessageHandler {
       const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
+        await adapter
+          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.')
+          .catch((err) => {
+            logger.debug('Failed to send session-error notification to channel', {
+              chatId: message.chatId,
+              error: err instanceof Error ? err.message : String(err)
+            })
+          })
         return
       }
 

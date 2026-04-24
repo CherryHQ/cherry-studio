@@ -15,7 +15,7 @@ import { agentSessionService as sessionService } from '@data/services/AgentSessi
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type AgentSchemas,
   CreateAgentSchema,
@@ -25,7 +25,6 @@ import {
   UpdateSessionSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
-type AgentHandler<Path extends keyof AgentSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
 function paginationFromQuery(query?: ListQuery) {
   const page = query?.page ?? 1
@@ -34,11 +33,7 @@ function paginationFromQuery(query?: ListQuery) {
   return { page, limit, offset }
 }
 
-export const agentHandlers: {
-  [Path in keyof AgentSchemas]: {
-    [Method in keyof AgentSchemas[Path]]: AgentHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents': {
     GET: async ({ query }) => {
       const { page, limit, offset } = paginationFromQuery(query)
