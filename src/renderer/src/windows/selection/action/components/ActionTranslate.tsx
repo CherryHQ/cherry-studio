@@ -8,8 +8,10 @@ import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
@@ -134,13 +136,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
 
-  const {
-    messages: chatMessages,
-    status,
-    sendMessage,
-    stop: stopChat,
-    setMessages
-  } = useChat<CherryUIMessage>({
+  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     id: temporaryTopicId ?? 'pending-temp',
     transport: ipcChatTransport,
     experimental_throttle: 50,
@@ -150,25 +146,60 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
   })
 
+  // Primary `useChat` is trigger-only — chunks are tagged with the
+  // execution's modelId by Main, so the per-execution collector below
+  // owns the streaming content. One collector per `activeExecutionId`;
+  // we read the streaming assistant message from its internal state.
+  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+
   useEffect(() => {
-    if (status === 'streaming') {
+    if (activeExecutionIds.length === 0) {
+      setExecutionMessagesById({})
+      return
+    }
+    const active = new Set<string>(activeExecutionIds)
+    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
+  }, [activeExecutionIds])
+
+  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
+    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
+  }, [])
+
+  const handleExecutionDispose = useCallback((executionId: string) => {
+    setExecutionMessagesById((prev) => {
+      if (!(executionId in prev)) return prev
+      const next = { ...prev }
+      delete next[executionId]
+      return next
+    })
+  }, [])
+
+  // Flatten all collectors' assistant messages — in practice there's at
+  // most one (single-model translate), but keep the shape generic in case
+  // the session ever fans out.
+  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
+    for (const execMessages of Object.values(executionMessagesById)) {
+      for (let i = execMessages.length - 1; i >= 0; i--) {
+        if (execMessages[i].role === 'assistant') return execMessages[i]
+      }
+    }
+    return undefined
+  }, [executionMessagesById])
+
+  useEffect(() => {
+    if (isPending) {
       setIsPreparing(false)
       scrollToBottom?.()
     }
-  }, [status, scrollToBottom])
+  }, [isPending, scrollToBottom])
 
-  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
-
-  // Only the latest assistant message is rendered — mapping all chatMessages is wasted work.
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
     () =>
       latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
     [latestAssistantUIMsg]
   )
 
-  // Minimum shape required by MessageContent / PartsRenderer for a single non-attachment assistant turn.
-  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted for
-  // file-attachment parts (absent in temporary topics), so a stable empty string is fine.
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
     return {
@@ -177,28 +208,25 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       assistantId: '',
       topicId: '',
       createdAt: '',
-      status:
-        status === 'streaming' || status === 'submitted'
-          ? AssistantMessageStatus.PROCESSING
-          : AssistantMessageStatus.SUCCESS,
+      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
       blocks: []
     }
-  }, [latestAssistantUIMsg, status])
+  }, [latestAssistantUIMsg, isPending])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
     [latestAssistantUIMsg]
   )
 
-  const isStreaming = status === 'streaming' || status === 'submitted'
+  const isStreaming = isPending
   const error = completionError
 
   const clear = useCallback(() => {
     void stopChat()
-    setMessages([])
+    setExecutionMessagesById({})
     setCompletionError(null)
     setIsPreparing(false)
-  }, [stopChat, setMessages])
+  }, [stopChat])
 
   const fetchResult = useCallback(async () => {
     if (!isTopicReady || !temporaryTopicId || !action.selectedText || !initialized) return
@@ -420,6 +448,16 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
+          {temporaryTopicId &&
+            activeExecutionIds.map((executionId) => (
+              <ExecutionStreamCollector
+                key={executionId}
+                topicId={temporaryTopicId}
+                executionId={executionId}
+                onMessagesChange={handleExecutionMessagesChange}
+                onDispose={handleExecutionDispose}
+              />
+            ))}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>

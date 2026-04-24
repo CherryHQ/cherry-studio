@@ -112,7 +112,7 @@ describe('useChatWithHistory', () => {
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
 
-    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh, { assistantId: 'assistant-1' }))
+    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
 
     await waitFor(() => {
       expect(resumeStream).toHaveBeenCalledTimes(1)

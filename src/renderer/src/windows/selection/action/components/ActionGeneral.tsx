@@ -4,7 +4,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
+import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
@@ -76,12 +78,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
 
-  const {
-    messages: chatMessages,
-    status,
-    sendMessage,
-    stop: stopChat
-  } = useChat<CherryUIMessage>({
+  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
     // Once the temporary topic id arrives, the chat reinitializes with it.
     // Before that we use a stable placeholder so `useChat` doesn't thrash across renders.
     id: temporaryTopicId ?? 'pending-temp',
@@ -93,25 +90,54 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   })
 
+  // Per-execution collector pattern (see ActionTranslate for the why).
+  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+
   useEffect(() => {
-    if (status === 'streaming') {
+    if (activeExecutionIds.length === 0) {
+      setExecutionMessagesById({})
+      return
+    }
+    const active = new Set<string>(activeExecutionIds)
+    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
+  }, [activeExecutionIds])
+
+  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
+    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
+  }, [])
+
+  const handleExecutionDispose = useCallback((executionId: string) => {
+    setExecutionMessagesById((prev) => {
+      if (!(executionId in prev)) return prev
+      const next = { ...prev }
+      delete next[executionId]
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isPending) {
       setIsPreparing(false)
       scrollToBottom?.()
     }
-  }, [status, scrollToBottom])
+  }, [isPending, scrollToBottom])
 
-  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
+  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
+    for (const execMessages of Object.values(executionMessagesById)) {
+      for (let i = execMessages.length - 1; i >= 0; i--) {
+        if (execMessages[i].role === 'assistant') return execMessages[i]
+      }
+    }
+    return undefined
+  }, [executionMessagesById])
 
-  // Only the latest assistant message is rendered — mapping all chatMessages is wasted work.
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
     () =>
       latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
     [latestAssistantUIMsg]
   )
 
-  // Minimum shape required by MessageContent / PartsRenderer for a single non-attachment assistant turn.
-  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted for
-  // file-attachment parts (absent in temporary topics), so a stable empty string is fine.
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
     return {
@@ -120,20 +146,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       assistantId: '',
       topicId: '',
       createdAt: '',
-      status:
-        status === 'streaming' || status === 'submitted'
-          ? AssistantMessageStatus.PROCESSING
-          : AssistantMessageStatus.SUCCESS,
+      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
       blocks: []
     }
-  }, [latestAssistantUIMsg, status])
+  }, [latestAssistantUIMsg, isPending])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
     [latestAssistantUIMsg]
   )
 
-  const isStreaming = status === 'streaming' || status === 'submitted'
+  const isStreaming = isPending
   const error = completionError
 
   const fetchResult = useCallback(() => {
@@ -183,6 +206,16 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
+          {temporaryTopicId &&
+            activeExecutionIds.map((executionId) => (
+              <ExecutionStreamCollector
+                key={executionId}
+                topicId={temporaryTopicId}
+                executionId={executionId}
+                onMessagesChange={handleExecutionMessagesChange}
+                onDispose={handleExecutionDispose}
+              />
+            ))}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>

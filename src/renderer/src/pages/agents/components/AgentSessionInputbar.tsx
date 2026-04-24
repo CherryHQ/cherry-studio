@@ -45,7 +45,14 @@ type Props = {
   sessionId: string
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
-  status: string
+  /**
+   * Whether the session has an active stream on Main (derived from
+   * `useTopicStreamStatus(sessionTopicId)`). Replaces the old
+   * `status: string` prop — with per-execution chunk tagging enabled,
+   * primary `useChat.status` no longer transitions through `streaming`
+   * so it can't drive the UI on its own.
+   */
+  isStreaming: boolean
 }
 
 const AgentSessionInputbar = ({
@@ -53,7 +60,7 @@ const AgentSessionInputbar = ({
   sessionId,
   sendMessage: chatSendMessage,
   stop: chatStop,
-  status: chatStatus
+  isStreaming: isStreamingProp
 }: Props) => {
   const { session } = useSession(agentId, sessionId)
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
@@ -131,7 +138,7 @@ const AgentSessionInputbar = ({
         actionsRef={actionsRef}
         chatSendMessage={chatSendMessage}
         chatStop={chatStop}
-        chatStatus={chatStatus}
+        isStreaming={isStreamingProp}
       />
     </InputbarToolsProvider>
   )
@@ -149,7 +156,7 @@ interface InnerProps {
   }>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
-  chatStatus: Props['status']
+  isStreaming: boolean
 }
 
 const AgentSessionInputbarInner: FC<InnerProps> = ({
@@ -160,7 +167,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
   actionsRef,
   chatSendMessage,
   chatStop,
-  chatStatus
+  isStreaming: isStreamingFromProp
 }) => {
   const { agent: agentBase } = useAgent(agentId)
   const scope = TopicType.Session
@@ -347,7 +354,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
 
   const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
 
-  const isStreaming = chatStatus === 'streaming' || chatStatus === 'submitted'
+  const isStreaming = isStreamingFromProp
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })

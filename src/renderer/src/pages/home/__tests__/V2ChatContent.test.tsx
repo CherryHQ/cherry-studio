@@ -85,18 +85,6 @@ vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
   default: () => null
 }))
 
-function createLegacyMessage(id: string, role: Message['role']): Message {
-  return {
-    id,
-    role,
-    assistantId: 'assistant-1',
-    topicId: 'topic-1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    status: role === 'assistant' ? 'success' : 'success',
-    blocks: []
-  } as Message
-}
-
 function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMessage {
   return {
     id,
@@ -134,20 +122,13 @@ describe('V2ChatContent', () => {
     })
 
     mockUseChatWithHistory.mockReturnValue({
-      adaptedMessages: [
-        createLegacyMessage('history-user', 'user'),
-        createLegacyMessage('history-assistant', 'assistant')
-      ],
-      partsMap: {},
       sendMessage: vi.fn(),
       regenerate: vi.fn(),
       stop: vi.fn(),
-      status: 'ready',
       error: null,
       setMessages: vi.fn(),
-      streamingUIMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       activeExecutionIds: [],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
+      addToolApprovalResponse: vi.fn()
     })
   })
 
@@ -156,7 +137,7 @@ describe('V2ChatContent', () => {
     capturedOnSend = undefined
   })
 
-  it('sends the active branch node as parentAnchorId and opts into alwaysTagExecution', async () => {
+  it('sends the active branch node as parentAnchorId', async () => {
     const sendMessage = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
       sendMessage,
@@ -180,8 +161,7 @@ describe('V2ChatContent', () => {
         { text: 'hello' },
         expect.objectContaining({
           body: expect.objectContaining({
-            parentAnchorId: 'branch-a',
-            alwaysTagExecution: true
+            parentAnchorId: 'branch-a'
           })
         })
       )

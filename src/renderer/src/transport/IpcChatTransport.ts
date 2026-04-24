@@ -45,20 +45,18 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
     const { chatId: topicId, messages, abortSignal, body, trigger } = options
     const mergedBody: Partial<AiChatRequestBody> = { ...this.#defaultBody, ...body }
 
-    // Build listener stream before sending IPC to avoid missing early chunks
     const stream = this.buildListenerStream(topicId, undefined, abortSignal)
 
     const lastMessage = messages.at(-1)
 
-    // Fire the IPC request — AiStreamManager handles dedup, persistence, routing
+    // Fire the IPC request — AiStreamManager handles dedup, persistence, routing.
     window.api.ai
       .streamOpen({
         topicId,
         trigger,
-        parentAnchorId: mergedBody.parentAnchorId || (trigger === 'regenerate-message' ? lastMessage?.id : undefined),
+        parentAnchorId: mergedBody.parentAnchorId,
         userMessageParts: lastMessage ? lastMessage.parts : [],
-        mentionedModelIds: mergedBody.mentionedModels,
-        ...(mergedBody.alwaysTagExecution && { alwaysTagExecution: true })
+        mentionedModelIds: mergedBody.mentionedModels
       })
       .catch((error: unknown) => {
         logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))

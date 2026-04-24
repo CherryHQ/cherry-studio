@@ -47,8 +47,13 @@ export function useAgentSessionParts(sessionId: string) {
         uiMessages.push({
           id: msg.id,
           role: msg.role as CherryUIMessage['role'],
-          parts: (msg.data?.parts ?? []) as CherryUIMessage['parts']
-        })
+          parts: (msg.data?.parts ?? []) as CherryUIMessage['parts'],
+          // Agent DB rows don't carry `modelId`/`parentId`/etc yet — we
+          // only populate `createdAt` so `uiToMessage` renders stable
+          // timestamps. Other fields fall back to caller-provided
+          // defaults (agent's model snapshot).
+          metadata: msg.createdAt ? { createdAt: msg.createdAt } : undefined
+        } as CherryUIMessage)
       }
 
       setMessages(uiMessages)

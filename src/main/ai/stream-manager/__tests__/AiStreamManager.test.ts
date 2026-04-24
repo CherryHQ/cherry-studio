@@ -366,7 +366,8 @@ describe('AiStreamManager', () => {
       }
     })
 
-    it('tags chunks with sourceModelId in multi-model mode (and omits it for single-model)', () => {
+    it('tags every chunk with its sourceModelId (single- and multi-model)', () => {
+      // Multi-model: each chunk carries the model that produced it.
       const multi = new FakeListener('l:multi')
       mgr.send({
         topicId: 'a',
@@ -379,8 +380,9 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-b::model-b', chunk('hi'))
       expect(multi.chunkSources).toEqual(['provider-b::model-b'])
 
-      // Single-model topic: sourceModelId is intentionally omitted so the
-      // renderer's demux doesn't need to special-case the common case.
+      // Single-model: tagging is unconditional now — renderers all run
+      // through per-execution `ExecutionStreamCollector`, which relies
+      // on the modelId tag to demux chunks.
       const single = new FakeListener('l:single')
       startSingle(mgr, {
         topicId: 'b',
@@ -389,16 +391,15 @@ describe('AiStreamManager', () => {
         listeners: [single]
       })
       mgr.onChunk('b', 'provider-c::model-c', chunk('ho'))
-      expect(single.chunkSources).toEqual([undefined])
+      expect(single.chunkSources).toEqual(['provider-c::model-c'])
     })
 
-    it('tags single-model chunks when the opening request sets alwaysTagExecution', () => {
+    it('tags single-model chunks consistently after the transitional flag was removed', () => {
       const listener = new FakeListener('l:flag')
       mgr.send({
         topicId: 'c',
         models: [{ modelId: 'provider-d::model-d', request: req('c') }],
-        listeners: [listener],
-        alwaysTagExecution: true
+        listeners: [listener]
       })
       mgr.onChunk('c', 'provider-d::model-d', chunk('tagged'))
       expect(listener.chunkSources).toEqual(['provider-d::model-d'])
@@ -629,9 +630,9 @@ describe('AiStreamManager', () => {
       expect(response).toEqual({
         status: 'attached',
         bufferedChunks: [
-          { topicId: 'a', executionId: undefined, chunk: { type: 'text-start', id: 'p1' } },
-          { topicId: 'a', executionId: undefined, chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
-          { topicId: 'a', executionId: undefined, chunk: { type: 'text-end', id: 'p1' } }
+          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-start', id: 'p1' } },
+          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
+          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-end', id: 'p1' } }
         ]
       })
     })

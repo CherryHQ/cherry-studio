@@ -257,18 +257,12 @@ export interface ActiveStream {
    */
   status: TopicStreamStatus
 
-  /** Static flag set at creation. Determines whether onChunk includes sourceModelId. */
-  isMultiModel: boolean
-
   /**
-   * When `true`, `onChunk` tags every chunk with `sourceModelId = modelId`
-   * regardless of `isMultiModel`. Carried from the opening request's
-   * `AiStreamOpenRequest.alwaysTagExecution` — a transitional flag used
-   * while renderer consumers migrate to the unified per-execution
-   * rendering pattern. See `AiStreamOpenRequest.alwaysTagExecution`
-   * docstring for rollout plan.
+   * Set at creation. Currently only used by `PreparedDispatch` downstream
+   * (e.g., shaping `AiStreamOpenResponse.executionIds`). `onChunk` no
+   * longer consults it — chunks are always tagged with their `modelId`.
    */
-  alwaysTagExecution: boolean
+  isMultiModel: boolean
 
   /** Grace-period expiry timestamp (ms since epoch). After this point the cleanup timer fires. */
   expiresAt?: number

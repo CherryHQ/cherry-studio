@@ -51,17 +51,12 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
-  const [displayMessages, setDisplayMessages] = useState<Message[]>([])
-  const [hasMore, setHasMore] = useState(false)
+  const [totalDisplayCount, setTotalDisplayCount] = useState<number>(10)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const partsMap = usePartsMap()
-  // Default infinite-scroll window; inlined here — previously delivered
-  // via a topic-level wrapper hook that existed solely to forward a
-  // constant and a few DataApi-backed mutations.
-  const displayCount = 10
   const v2Chat = useV2Chat()
   const { setTimeoutTimer } = useTimer()
 
@@ -87,11 +82,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
     }
   }, [])
 
-  useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
-  }, [messages, displayCount])
+  const displayMessages = useMemo(
+    () => computeDisplayMessages(messages, 0, totalDisplayCount),
+    [messages, totalDisplayCount]
+  )
+  const hasMore = messages.length > displayMessages.length
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
@@ -111,7 +106,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
       }
 
       await v2Chat?.clearTopicMessages()
-      setDisplayMessages([])
+      setTotalDisplayCount(10)
     },
     [v2Chat, topic.id]
   )
@@ -192,21 +187,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, onComponentUpdate
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
-
     setIsLoadingMore(true)
     setTimeoutTimer(
       'loadMoreMessages',
       () => {
-        const currentLength = displayMessages.length
-        const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
-
-        setDisplayMessages((prev) => [...prev, ...newMessages])
-        setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
+        setTotalDisplayCount((prev) => prev + LOAD_MORE_COUNT)
         setIsLoadingMore(false)
       },
       300
     )
-  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+  }, [hasMore, isLoadingMore, setTimeoutTimer])
 
   useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)

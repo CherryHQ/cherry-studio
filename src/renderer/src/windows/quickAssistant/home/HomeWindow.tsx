@@ -4,7 +4,9 @@ import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
+import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
@@ -103,7 +105,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const {
     messages: chatMessages,
-    status,
     sendMessage,
     stop: stopChat,
     setMessages
@@ -117,49 +118,135 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
   })
 
+  // Chunks are routed to the per-execution collector (Main tags every
+  // chunk with its modelId). Primary `useChat.state.messages`
+  // (chatMessages) only receives user messages pushed by `sendMessage` —
+  // no assistant content. We accumulate assistant turns across completed
+  // streams in `completedAssistants` so the multi-turn conversation
+  // renders properly. Cleared on `clear()` together with `setMessages([])`.
+  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const [executionMessagesById, setExecutionMessagesById] = useState<Record<string, CherryUIMessage[]>>({})
+  const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
+
   useEffect(() => {
-    if (status === 'streaming') setIsPreparing(false)
-  }, [status])
+    if (activeExecutionIds.length === 0) {
+      setExecutionMessagesById((prev) => {
+        if (Object.keys(prev).length === 0) return prev
+        // Freeze finalized assistants into the permanent history before
+        // tearing the collectors down on stream-done.
+        const finalized: CherryUIMessage[] = []
+        for (const msgs of Object.values(prev)) {
+          for (const m of msgs) if (m.role === 'assistant') finalized.push(m)
+        }
+        if (finalized.length) setCompletedAssistants((done) => [...done, ...finalized])
+        return {}
+      })
+      return
+    }
+    const active = new Set<string>(activeExecutionIds)
+    setExecutionMessagesById((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => active.has(id))))
+  }, [activeExecutionIds])
+
+  const handleExecutionMessagesChange = useCallback((executionId: string, msgs: CherryUIMessage[]) => {
+    setExecutionMessagesById((prev) => ({ ...prev, [executionId]: msgs }))
+  }, [])
+
+  const handleExecutionDispose = useCallback((executionId: string) => {
+    setExecutionMessagesById((prev) => {
+      if (!(executionId in prev)) return prev
+      const next = { ...prev }
+      delete next[executionId]
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isPending) setIsPreparing(false)
+  }, [isPending])
+
+  const liveAssistants = useMemo<CherryUIMessage[]>(() => {
+    const out: CherryUIMessage[] = []
+    for (const msgs of Object.values(executionMessagesById)) {
+      for (const m of msgs) if (m.role === 'assistant') out.push(m)
+    }
+    return out
+  }, [executionMessagesById])
+
+  const allAssistants = useMemo<CherryUIMessage[]>(
+    () => [...completedAssistants, ...liveAssistants],
+    [completedAssistants, liveAssistants]
+  )
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const map: Record<string, CherryMessagePart[]> = {}
     for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
+    for (const m of allAssistants) map[m.id] = m.parts as CherryMessagePart[]
     return map
-  }, [chatMessages])
+  }, [chatMessages, allAssistants])
 
-  // Minimum shape required by MessageContent / PartsRenderer.
-  // topicId / assistantId / blocks are never read in this codepath; createdAt is only consulted
-  // for file-attachment parts (absent in temporary topics), so a stable empty string is fine.
+  // Interleave user messages (from state.messages) with assistant turns
+  // (accumulated completed + live). The assumption: users and assistants
+  // alternate strictly — user[i] precedes assistant[i]. Temporary topics
+  // are always a clean linear chat, no branches.
   const adaptedMessages = useMemo(() => {
-    const latestAssistantId = chatMessages.findLast((m) => m.role === 'assistant')?.id
-    return chatMessages.map((m) => ({
-      id: m.id,
-      role: m.role as 'user' | 'assistant',
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status:
-        m.role === 'user'
-          ? UserMessageStatus.SUCCESS
-          : m.id === latestAssistantId && (status === 'streaming' || status === 'submitted')
-            ? AssistantMessageStatus.PROCESSING
-            : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }))
-  }, [chatMessages, status])
+    const users = chatMessages.filter((m) => m.role === 'user')
+    const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
+    const out: {
+      id: string
+      role: 'user' | 'assistant'
+      assistantId: string
+      topicId: string
+      createdAt: string
+      status: UserMessageStatus | AssistantMessageStatus
+      blocks: never[]
+    }[] = []
+    const turns = Math.max(users.length, allAssistants.length)
+    for (let i = 0; i < turns; i++) {
+      const u = users[i]
+      if (u) {
+        out.push({
+          id: u.id,
+          role: 'user',
+          assistantId: '',
+          topicId: '',
+          createdAt: '',
+          status: UserMessageStatus.SUCCESS,
+          blocks: []
+        })
+      }
+      const a = allAssistants[i]
+      if (a) {
+        out.push({
+          id: a.id,
+          role: 'assistant',
+          assistantId: '',
+          topicId: '',
+          createdAt: '',
+          status:
+            a.id === latestAssistantId && isPending
+              ? AssistantMessageStatus.PROCESSING
+              : AssistantMessageStatus.SUCCESS,
+          blocks: []
+        })
+      }
+    }
+    return out
+  }, [chatMessages, allAssistants, liveAssistants, isPending])
 
-  const latestAssistantUIMsg = useMemo(() => chatMessages.findLast((m) => m.role === 'assistant'), [chatMessages])
+  const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
     [latestAssistantUIMsg]
   )
 
-  const isStreaming = status === 'streaming' || status === 'submitted'
+  const isStreaming = isPending
 
   const clear = useCallback(() => {
     void stopChat()
     setMessages([])
+    setCompletedAssistants([])
+    setExecutionMessagesById({})
     setFlowError(null)
     setIsPreparing(false)
   }, [stopChat, setMessages])
@@ -379,6 +466,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
+          {temporaryTopicId &&
+            activeExecutionIds.map((executionId) => (
+              <ExecutionStreamCollector
+                key={executionId}
+                topicId={temporaryTopicId}
+                executionId={executionId}
+                onMessagesChange={handleExecutionMessagesChange}
+                onDispose={handleExecutionDispose}
+              />
+            ))}
           <ChatWindow
             route={route}
             assistant={currentAssistant}
