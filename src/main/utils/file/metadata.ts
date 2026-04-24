@@ -10,7 +10,7 @@
 import type { FilePath, FileType } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
-  throw new Error(`ops.metadata.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+  throw new Error(`@main/utils/file/metadata.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
 }
 
 /** Detect file type from extension, with fallback to buffer inspection. */

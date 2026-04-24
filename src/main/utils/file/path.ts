@@ -7,7 +7,7 @@
 import type { FilePath } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
-  throw new Error(`ops.path.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+  throw new Error(`@main/utils/file/path.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
 }
 
 /** Resolve a relative path against a base directory. */

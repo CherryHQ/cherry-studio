@@ -26,7 +26,7 @@
  * In the target implementation, external Main callers will go through the
  * lifecycle-managed singleton via `application.get('FileManager')`. This
  * module currently exposes the type surface only; `internal/*` remains a
- * private implementation area and is not re-exported via `src/main/file/index.ts`.
+ * private implementation area and is not re-exported via `src/main/services/file/index.ts`.
  *
  * See `docs/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
@@ -39,7 +39,7 @@
  *
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
  * variants select the *reference form* — `FileEntryHandle` routes through the
- * entry system, `FilePathHandle` hits `ops/*` directly). Dispatching on
+ * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). Dispatching on
  * `handle.kind` is treated as the IPC adapter's legitimate responsibility
  * (translating request shape), not business orchestration. In the planned
  * lifecycle implementation, `FileManager.onInit()` will register handlers with
@@ -83,9 +83,9 @@
  * - No tracking of external rename/move
  * - `permanentDelete` on an external file_entry removes only the DB row — this
  *   entry-level operation is deliberately decoupled from physical deletion.
- *   Path-level deletion remains available via `ops.remove(path)` (reached
- *   through a `FilePathHandle`), which is an explicit user-facing operation
- *   not tied to any entry id.
+ *   Path-level deletion remains available via `remove(path)` from
+ *   `@main/utils/file/fs` (reached through a `FilePathHandle`), which is an
+ *   explicit user-facing operation not tied to any entry id.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
@@ -231,9 +231,9 @@ export interface IFileManager {
   // - `createInternalEntry` is pure insert — always a new row, new UUID
   // - `ensureExternalEntry` is pure upsert keyed by `externalPath` — idempotent
   //
-  // The original `createEntry({ origin })` umbrella was intentionally split
-  // to keep the public API's name match the actual semantics; see ADR / PR
-  // #13451 review response (A-7).
+  // The two methods are kept separate (rather than a single
+  // `createEntry({ origin })` umbrella) so the public API's name matches the
+  // actual semantics per origin.
 
   /**
    * Create a new Cherry-owned (internal) FileEntry.
@@ -373,7 +373,8 @@ export interface IFileManager {
    * - external: **DB-only** — the user's physical file is left untouched.
    *   Entry-level deletion is deliberately decoupled from physical deletion;
    *   callers that want to also delete the file on disk should invoke the
-   *   path-level `ops.remove(path)` (via a `FilePathHandle`) separately.
+   *   path-level `remove(path)` from `@main/utils/file/fs` (via a
+   *   `FilePathHandle`) separately.
    *
    * For internal, failure to unlink (file already missing, permission denied)
    * is logged but does not block DB deletion — we prefer DB-FS convergence to

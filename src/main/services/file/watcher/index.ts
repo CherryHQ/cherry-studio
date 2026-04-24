@@ -12,9 +12,10 @@
  *   dispose it themselves; the factory transparently forwards events into
  *   the file-module's `DanglingCache` so external-entry presence tracking
  *   stays coherent across all watchers.
- * - **Open to the entire main process.** Like `ops/*`, the watcher primitive
- *   has no entry-system awareness; it is a thin wrapper over `chokidar` with
- *   house conventions (ignore rules, debounce window, event normalization).
+ * - **Open to the entire main process.** Like the `@main/utils/file/*`
+ *   primitives, the watcher has no entry-system awareness; it is a thin
+ *   wrapper over `chokidar` with house conventions (ignore rules, debounce
+ *   window, event normalization).
  *
  * See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md)
  * and RFC §9.5 for the full design.

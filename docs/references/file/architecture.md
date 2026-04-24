@@ -6,7 +6,7 @@
 > - **Current Phase 1a reality (`[1a ✅]`)** — DB schema, shared types, IPC/DataApi contracts, and design constraints that already exist in code
 > - **Planned Phase 1b.x structure (`[1b.1]` / `[1b.2]` / `[1b.3]` / `[1b.4]`)** — the concrete `FileManager extends BaseService` lifecycle-service implementation and its `internal/*` execution layout, delivered incrementally per [RFC §9](../../../v2-refactor-temp/docs/file-manager/rfc-file-manager.md#九分阶段实施计划)
 >
-> When a section describes FileManager as a lifecycle service / facade class, read that as the **target implementation shape**, not as "already fully implemented in this phase". In the current phase, `src/main/file/FileManager.ts` is still contract-first: it exports the public type surface and JSDoc that the later lifecycle implementation must satisfy.
+> When a section describes FileManager as a lifecycle service / facade class, read that as the **target implementation shape**, not as "already fully implemented in this phase". In the current phase, `src/main/services/file/FileManager.ts` is still contract-first: it exports the public type surface and JSDoc that the later lifecycle implementation must satisfy.
 >
 > **Phase badges used below**: `[1a ✅]` already in code · `[1b.1]` read path & repository · `[1b.2]` write path & lifecycle · `[1b.3]` watcher & DanglingCache · `[1b.4]` orphan sweep & FileRefCheckerRegistry.
 >
@@ -41,7 +41,7 @@ An external entry is a persistent record that "the caller expressed the intent t
 ### 1.1 What the File Module Includes
 
 ```
-File Module (src/main/file/)
+File Module (src/main/services/file/)
 │
 ├── index.ts              ← [1a ✅] module barrel; exports only FileManager + public types
 │                           (internal/* is not exported; external imports can't reach it)
@@ -83,18 +83,20 @@ File Module (src/main/file/)
 │     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
 │     └── Queried by DataApi handler; automatically wired by the watcher factory
 │
-├── watcher/              [1a ✅ factory signature] [1b.3 impl]
-│     └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
-│         ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
-│
-└── ops/ (pure functions, sole FS owner, open to the entire main process)  [1a ✅ signatures + JSDoc · 1b.x impls]
-      ├── fs.ts       — basic FS: read / write / stat / copy / move / remove  [1b.1 read/stat · 1b.2 write/atomic]
-      │                 atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream  [1b.2]
-      │                 version: statVersion / contentHash (xxhash-128)  [1b.1 hash · 1b.2 statVersion]
-      ├── shell.ts    — system ops: open / showInFolder  [1b.2]
-      ├── path.ts     — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderInternalStorage · 1b.2 rest]
-      ├── metadata.ts — type detection: getFileType / isTextFile / mimeToExt  [1b.1]
-      └── search.ts   — directory search: listDirectory (ripgrep + fuzzy matching)  [1b.2]
+└── watcher/              [1a ✅ factory signature] [1b.3 impl]
+      └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
+          ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
+
+Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire main process  [1a ✅ signatures + JSDoc · 1b.x impls]
+├── fs.ts         — basic FS: read / write / stat / copy / move / remove  [1b.1 read/stat · 1b.2 write/atomic]
+│                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream  [1b.2]
+│                   version: statVersion / contentHash (xxhash-128)  [1b.1 hash · 1b.2 statVersion]
+├── shell.ts      — system ops: open / showInFolder  [1b.2]
+├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath  [1a ✅ resolvePhysicalPath/getExtSuffix · 1b.1 canonicalizeExternalPath + isUnderInternalStorage · 1b.2 rest]
+├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt  [1b.1]
+├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)  [1b.2]
+├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time
+└── index.ts      — barrel: re-exports `./legacyFile` so cross-module callers can `import from '@main/utils/file'`
 
 Data Module dependencies (src/main/data/)
 ├── FileEntryService (data repository, pure DB) — file_entry table  [1a ✅ interface] [1b.1 impl]
@@ -116,19 +118,19 @@ FileManager is the core submodule of the file module, but is not equivalent to t
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, IPC registration, and instance-scoped caches. Implementation mechanics (dispatch helpers, deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
 - **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi).
 - **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache.
-- **ops.ts** is on the same level as FileManager—provides pure FS/path operations that don't depend on the entry system, and is open to the entire main process.
+- **Pure FS / path primitives** live under `src/main/utils/file/` (imported as `@main/utils/file/fs`, `@main/utils/file/path`, etc.). They do not depend on the entry system and are open to the entire main process.
 
 #### Public / Private Boundaries
 
 | Location | Visibility | Access |
 |---|---|---|
-| `FileManager` class + public types | **Entire main process** | **Today (Phase 1a):** import public types from `@main/file`. **Planned (Phase 1b+):** resolve the runtime instance via `application.get('FileManager')` once the lifecycle service is implemented |
-| `ops/*` | **Entire main process** | `import { atomicWriteFile } from '@main/file/ops'` (BootConfig, MCP oauth, etc. can use directly) |
+| `FileManager` class + public types | **Entire main process** | **Today (Phase 1a):** import public types from `@main/services/file`. **Planned (Phase 1b+):** resolve the runtime instance via `application.get('FileManager')` once the lifecycle service is implemented |
+| Pure FS primitives (`@main/utils/file/{fs,metadata,path,search,shell}`) | **Entire main process** | `import { atomicWriteFile } from '@main/utils/file/fs'` (BootConfig, MCP oauth, etc. can use directly). Shared legacy helpers (`getFileType(ext)`, `sanitizeFilename`, etc.) are barrel-exported from `@main/utils/file` itself. |
 | `watcher/` (`createDirectoryWatcher` factory) | **Entire main process** | Business services call this when they need to watch external directories |
 | `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
-| `internal/*` | **Only FileManager** | All other locations (including `ops/` / `watcher/` within file-module) must not import it |
+| `internal/*` | **Only FileManager** | All other locations (including `@main/utils/file/*` and `watcher/` within the file-module) must not import it |
 
-Boundary enforcement: `src/main/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/file'` cannot reach it. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule as a fallback.
+Boundary enforcement: `src/main/services/file/index.ts` barrel does not re-export `internal/*`; external `import from '@main/services/file'` cannot reach it. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule as a fallback.
 
 ### 1.3 Out of Scope
 
@@ -148,7 +150,7 @@ The following categories are **not** managed by the File Module (no FileEntry is
 
 **Note**: The table above is the boundary for "certain business data does not enter FileManager", not "certain file types don't enter". The same physical file can simultaneously belong to an FS-first business domain AND an external FileEntry (the latter is merely a reference to that path)—these are not mutually exclusive.
 
-These modules manage their own files and may use `node:fs` or `ops/*` directly; they are not bound by the FileManager of the file module.
+These modules manage their own files and may use `node:fs` or `@main/utils/file/*` directly; they are not bound by the FileManager of the file module.
 
 ---
 
@@ -164,7 +166,7 @@ The file module organizes its types along two layers — the **reference layer**
 Reference layer     FileEntryHandle                    FilePathHandle
 (across boundaries) { kind: 'entry', entryId }         { kind: 'path', path }
                           │                                  │
-                          ▼ FileManager.getEntry             ▼ ops.stat + projection
+                          ▼ FileManager.getEntry             ▼ fs.stat + projection
 Data-shape layer    FileEntry                          FileInfo
 (after resolution)  { id, origin, name, ext,           { path, name, ext, size,
                       size, trashedAt, ... }             mime, type, modifiedAt, ... }
@@ -172,7 +174,7 @@ Data-shape layer    FileEntry                          FileInfo
 
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
 
-- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses it and hits `ops/*` directly.
+- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses it and hits the `@main/utils/file/*` primitives directly.
 - **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
 
 The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (dangling updates, version cache, identity-tracked operations); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.
@@ -193,7 +195,7 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 | Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
 | Liveness       | Persistent record — identity + stable projections only     | Live view — re-read from `fs.stat`                        |
 | Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
-| Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `ops.stat(path)` / `toFileInfo(entry)`                    |
+| Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `fs.stat(path)` / `toFileInfo(entry)`                    |
 | Typical use    | FileManager ops, UI management panels, `file_ref` creation | Pure content processors (OCR, hashing, tokenization)      |
 
 **Field overlap is inherent, not redundant**: `name`, `ext`, `type` (and `mime` / `size` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *liveness* of the shared ones:
@@ -239,27 +241,27 @@ Solution: **unified call entry + handler-level dispatch**. FileManager, as the s
 Renderer
   → FileManager.registerIpcHandlers() (unified entry)
     ├── target: FileEntryId → FileManager method (entry coordination: resolve → DB + FS)
-    └── target: FilePath    → ops.ts (direct FS/path ops)
+    └── target: FilePath    → @main/utils/file/* (direct FS/path primitives)
 ```
 
-Other services in the main process can call ops.ts or FileManager directly as needed, without going through IPC.
+Other services in the main process can call the FS primitives (`@main/utils/file/*`) or FileManager directly as needed, without going through IPC.
 
 ### 3.3 IPC Method Categories
 
-All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). Handlers dispatch by `handle.kind` to FileManager (entry branch) or `ops/*` (path branch).
+All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). Handlers dispatch by `handle.kind` to FileManager (entry branch) or the FS primitives (path branch).
 
 **Operations that accept FileHandle (entry + path branches unified)**:
 
 | Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
-| `read` | Read content | ops.read(userDataPath) | ops.read(externalPath) (live) | ops.read(path) |
-| `getMetadata` | Live physical metadata (`fs.stat`) — entry-id batch variant `batchGetMetadata` (id-only, see below) | resolve + ops.stat | ops.stat(externalPath) — **sole live-size source for external** | ops.stat + getFileType |
-| `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | ops.statVersion |
-| `getContentHash` | xxhash-128 | read userData + hash | read externalPath + hash | ops.contentHash |
+| `read` | Read content | read(userDataPath) | read(externalPath) (live) | read(path) |
+| `getMetadata` | Live physical metadata (`fs.stat`) — entry-id batch variant `batchGetMetadata` (id-only, see below) | resolve + stat | stat(externalPath) — **sole live-size source for external** | stat + getFileType |
+| `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
+| `getContentHash` | xxhash-128 | read userData + hash | read externalPath + hash | contentHash |
 | `write` | Atomic write | atomic → userData + DB size update | atomic → externalPath (explicit user edit; no DB size column to touch) | atomic → path |
 | `writeIfUnchanged` | Optimistic concurrent write | same as write plus version check | same | same (caller must getVersion first) |
-| `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `ops.remove`) | ops.remove(path) |
-| `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update (name + externalPath) | ops.rename(path, newPath) |
+| `permanentDelete` | Delete entry | unlink userData + delete from DB | **delete from DB only** (physical file untouched; path-level deletion remains available via a `FilePathHandle` to `remove`) | remove(path) |
+| `rename` | Rename | pure DB (UUID path unchanged) | fs.rename + DB update (name + externalPath) | rename(path, newPath) |
 | `copy` | Copy to a new internal-origin entry | read source + create new internal | read source external + create new internal | read path + create new internal |
 | `open` / `showInFolder` | System ops | resolve + shell | resolve + shell | shell |
 
@@ -301,12 +303,12 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | permanentDelete from Cherry (entry-level) | **Untouched** — only the DB row is deleted; the physical file remains on disk |
 | write / writeIfUnchanged from Cherry | **Overwritten** (atomic write) |
 | Rename from Cherry | **Physically renamed** (the external filename also changes) |
-| `ops.remove(path)` via `FilePathHandle` (path-level) | **Deleted** — this is a deliberate path-level operation, not coupled to any file_entry row |
+| `remove(path)` (from `@main/utils/file/fs`) via `FilePathHandle` (path-level) | **Deleted** — this is a deliberate path-level operation, not coupled to any file_entry row |
 
 **Key principles**:
 - Cherry does not perform automatic / watcher-driven external file modifications
 - Cherry does perform user-explicitly-requested external file modifications (save, rename)
-- **Entry-level deletion (`permanentDelete` on an external file_entry) does NOT touch the physical file** — this decouples "remove from Cherry's tracking" from "destroy on disk". If a user truly wants to delete the physical file, they invoke the path-level `ops.remove(path)` (via a `FilePathHandle`) explicitly, which is not bound to any entry row.
+- **Entry-level deletion (`permanentDelete` on an external file_entry) does NOT touch the physical file** — this decouples "remove from Cherry's tracking" from "destroy on disk". If a user truly wants to delete the physical file, they invoke the path-level `remove(path)` (from `@main/utils/file/fs`, via a `FilePathHandle`) explicitly, which is not bound to any entry row.
 - External entry lifecycle is monotonic (Active → Deleted), with no Trashed state — "remove entry from Cherry's view" always means clearing the DB row + cascading `file_ref` rows
 - **Cherry does not track external file rename/move**—when a file is moved outside of Cherry, the corresponding entry becomes dangling (best-effort semantics); the caller must proactively call `ensureExternalEntry` on the new path to establish a new reference (upsert by path; reuses existing entry if hit)
 
@@ -580,9 +582,9 @@ Renderer                          Main
 | .createInternalEntry() |           |   +-- entry ops ----+                |
 | .read()       |           |   |  (resolve entryId → filePath,    |
 | .trash()      |           |   |   coordinate DB via repository   |
-| .select()     |           |   |   + ops.ts pure functions)       |
+| .select()     |           |   |   + @main/utils/file/* prims)    |
 | .open()  ...  |           |   |                                  |
-|               |           |   +-- path ops ---> ops.ts           |
+|               |           |   +-- path ops ---> @main/utils/file |
 |               |           |   |                 (sole FS owner)  |
 |               |           |   +-- dialog -----> Electron dialog  |
 +---------------+           +--------------------------------------+
@@ -595,7 +597,7 @@ Renderer                          Main
 | FileManager  (Lifecycle Service, WhenReady phase)                       |
 |                                                                         |
 | Role: IPC handler registration, entry coordination, dialog              |
-| FS:   none -- delegates ALL FS operations to ops.ts                     |
+| FS:   none -- delegates ALL FS ops to @main/utils/file/* primitives     |
 | DB:   delegates to FileEntryService / FileRefService (repository)       |
 |       maintains in-memory LRU version cache                             |
 | Own:  Electron dialog API (showOpenDialog/showSaveDialog)               |
@@ -603,7 +605,7 @@ Renderer                          Main
 | Startup Orphan Sweep  (background task inside FileManager)              |
 |                                                                         |
 | Role: clean up internal UUID files not in DB + *.tmp-<uuid> residues    |
-| FS:   via ops.ts                                                        |
+| FS:   via @main/utils/file/*                                            |
 | DB:   read-only DB queries                                              |
 +-------------------------------------------------------------------------+
 | DanglingCache  (file_module singleton, not lifecycle)                   |
@@ -619,11 +621,11 @@ Renderer                          Main
 | Factory: createDirectoryWatcher() auto-wires events into DanglingCache  |
 | Used by: business modules that need directory monitoring                |
 +-------------------------------------------------------------------------+
-| ops/ (pure functions)  *** MODULE-INTERNAL FS OWNER ***                 |
+| @main/utils/file/*  (pure functions)  *** FS OWNER FOR MAIN PROCESS *** |
 |                                                                         |
-| Role: the sole module that imports `fs` / `shell` in file_module        |
-|       atomicWriteFile exports are consumable by OTHER main modules      |
-|       (BootConfig, MCP oauth, etc.) for safe writes                     |
+| Role: the sole modules that import `node:fs` / `electron.shell` for     |
+|       main-process FS ops; consumable by business services, FileManager,|
+|       BootConfig, MCP oauth, etc. (everyone that needs raw FS)          |
 | FS:   all FS ops -- pure path-based, no entry/DB awareness              |
 | DB:   none                                                              |
 +-------------------------------------------------------------------------+
@@ -638,17 +640,17 @@ Renderer                          Main
 
 | Layer                    | Type            | Touches DB     | Touches FS              | Touches Electron API      | Exposed to Renderer |
 | ------------------------ | --------------- | -------------- | ----------------------- | ------------------------- | ------------------- |
-| **FileManager**          | lifecycle       | via repository | **No (via ops.ts)**     | dialog                    | Yes (IPC)           |
-| **DanglingCache**        | singleton       | read-only once at startup | No (cache only; fs via ops) | No                 | Indirect (via DataApi) |
+| **FileManager**          | lifecycle       | via repository | **No (via @main/utils/file/*)** | dialog            | Yes (IPC)           |
+| **DanglingCache**        | singleton       | read-only once at startup | No (cache only; fs via primitives) | No          | Indirect (via DataApi) |
 | **DirectoryWatcher**     | primitive class | No             | Indirect (chokidar)     | No                        | No (used by business modules) |
-| **ops.ts**               | pure functions  | No             | **Yes (sole FS owner)** | shell (open/showInFolder) | No                  |
+| **`@main/utils/file/*`** | pure functions  | No             | **Yes (sole FS owner)** | shell (open/showInFolder) | No                  |
 | **FileEntryService**     | data repository | Yes (direct)   | No                      | No                        | Yes (via DataApi)   |
 | **FileRefService**       | data repository | Yes (direct)   | No                      | No                        | Yes (via DataApi)   |
 
 **Core principles**:
 
-- **ops.ts is the only module that directly `import node:fs`**—all FS operations go through it. Modules outside file_module (BootConfig, MCP oauth, etc.) may import primitives like `atomicWriteFile`
-- **FileManager is the sole entry point for entry operations**—registers IPC handlers, resolves entryId → filePath, coordinates DB (via repository) + FS (via ops.ts)
+- **`@main/utils/file/*` owns all `node:fs` imports**—every main-process FS operation flows through these primitives. Any main module (BootConfig, MCP oauth, business services, etc.) can import them — e.g. `atomicWriteFile` from `@main/utils/file/fs`
+- **FileManager is the sole entry point for entry operations**—registers IPC handlers, resolves entryId → filePath, coordinates DB (via repository) + FS (via `@main/utils/file/*`)
 - **The Renderer never operates on the FS directly**; all FS operations are delegated to Main via IPC
 
 ---
@@ -708,12 +710,13 @@ Renderer                          Main
 |                        |                                          |
 |             all FS ops v                                          |
 |  +-----------------------------------------------------------+    |
-|  | ops.ts  *** FS OWNER (pure functions) ***                 |    |
-|  |  read / write / stat / copy / move / remove / open        |    |
-|  |  atomicWriteFile / atomicWriteIfUnchanged                 |    |
-|  |  createAtomicWriteStream                                  |    |
-|  |  statVersion / contentHash (xxhash-128)                   |    |
-|  |                                                           |    |
+|  | @main/utils/file/*  *** FS OWNER (pure functions) ***     |    |
+|  |  fs.ts:      read / write / stat / copy / move / remove   |    |
+|  |              atomicWriteFile / atomicWriteIfUnchanged     |    |
+|  |              createAtomicWriteStream                      |    |
+|  |              statVersion / contentHash (xxhash-128)       |    |
+|  |  shell.ts:   open / showInFolder                          |    |
+|  |  path.ts / metadata.ts / search.ts                        |    |
 |  |  stateless, pure path-based, open to all main modules     |    |
 |  +-----------------------------------------------------------+    |
 |                                                                   |
@@ -751,7 +754,7 @@ Renderer                          Main
 
 - **Renderer → Main (read, SQL-backed data)**: DataApi → Handler → FileEntryService → DB (pure SQL; no FS, no resolvers)
 - **Renderer → Main (read, FS / compute-backed enrichment)**: File IPC → FileManager → DanglingCache / resolvePhysicalPath (side effects allowed). `file://` URL composition happens in-process on top of the returned path via the shared `toSafeFileUrl` helper — no dedicated IPC.
-- **Renderer → Main (write)**: IPC → FileManager (coordinates DB + ops.ts)
+- **Renderer → Main (write)**: IPC → FileManager (coordinates DB + `@main/utils/file/*` primitives)
 - **Business Service → file data**: pure DB operations call data repositories directly; FS-involving operations go through FileManager
 - **External directory monitoring**: business services create instances via the `createDirectoryWatcher()` factory and subscribe to the events they care about; the factory internally injects events into DanglingCache (business unaware)
 
@@ -834,8 +837,8 @@ BusinessService
     |   +-- for monitoring external directories (NoteService etc. business)
     |   +-- factory auto-wires events into DanglingCache
     |
-    x-- fs.readFile / writeFile / unlink           -> FORBIDDEN for FileEntry paths
-    x-- ops/fs direct on FileEntry-backed paths    -> FORBIDDEN (same reason)
+    x-- fs.readFile / writeFile / unlink                 -> FORBIDDEN for FileEntry paths
+    x-- @main/utils/file/fs direct on FileEntry-backed paths -> FORBIDDEN (same reason)
     x-- FilePathHandle pointing at {userData}/files/{uuid}.{ext}
                                                    -> FORBIDDEN for writes — silently desyncs
                                                        FileEntry.size on internal entries
@@ -844,11 +847,11 @@ BusinessService
 **Why business services are forbidden from directly operating on the physical files backing a FileEntry**:
 
 - **Path opacity**: the physical path is determined by origin (internal = UUID-based; external = user-provided); business services must not assume it
-- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `ops/fs` or a `FilePathHandle` to `{userData}/files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
+- **DB consistency (internal only)**: `FileEntry.size` is authoritative for internal rows and is kept in sync by FileManager's atomic write path. Writing the UUID-backed file directly (via `@main/utils/file/fs` or a `FilePathHandle` to `{userData}/files/...`) leaves the stored `size` stale relative to the physical file — a silent DataApi drift with no type-system guard.
 - **Cache consistency**: FileManager maintains an in-memory `versionCache`; bypassing it leaves `getVersion` returning stale `(mtime, size)` until the next write/reconcile. `writeIfUnchanged` is unaffected (it always re-stats — see [`file-manager-architecture.md §4.4`](./file-manager-architecture.md#44-lru-version-cache)), but UI surfaces that display cached mtime can show stale values.
 - **Atomicity guarantee**: writes must go through FileManager's atomic write path
 
-**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `ops/fs` runtime checks the target path against the internal-storage tree. Legitimate `ops/*` consumers outside file_module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/files/`". Violations are caught by code review.
+**Enforcement model** — this is a **convention-only constraint**: neither the type system nor `@main/utils/file/fs` runtime checks the target path against the internal-storage tree. Legitimate consumers of the primitives outside the file module (BootConfig, MCP oauth, etc.) operate on their own directories and are unaffected; the scope of the rule is specifically "do not point writes at `{userData}/files/`". Violations are caught by code review.
 
 The scope of this constraint is **physical files backing a FileEntry**. Other modules' own files (Knowledge vector index, Agent workspace, MCP config, Notes, etc.) are outside this constraint.
 
@@ -889,7 +892,7 @@ Background (fire-and-forget, non-blocking)
                                     files not in DB + *.tmp-<uuid> residues
 
 Singletons / Primitives (no lifecycle):
-+-- ops.ts                        -- sole FS owner, stateless
++-- @main/utils/file/*            -- sole FS owner, stateless pure functions
 +-- DanglingCache                 -- file_module singleton, populated lazily
 +-- DirectoryWatcher              -- consumable class, created via factory
 
@@ -964,7 +967,7 @@ src/main/data/                        -- data layer (pure DB)
   db/schemas/
     file.ts                           -- file_entry / file_ref
 
-src/main/file/                        -- file module
+src/main/services/file/               -- file module
   FileManager.ts                      -- entry lifecycle + IPC + startup orphan sweep (background)
   orphanSweep.ts                      -- internal helper: UUID file + *.tmp residue cleanup
   danglingCache.ts                    -- singleton: external entry presence state
@@ -973,16 +976,18 @@ src/main/file/                        -- file module
     DirectoryWatcher.ts               -- chokidar wrapper primitive
     factory.ts                        -- createDirectoryWatcher() — auto-wires danglingCache
     index.ts                          -- barrel export
-  ops/                                -- pure functions, FS owner
-    index.ts                          -- barrel export
-    fs.ts                             -- read / write / stat / copy / move / remove
+
+src/main/utils/file/                  -- pure FS primitives, sole FS owner, open to the entire main process
+  index.ts                            -- barrel; re-exports `./legacyFile`
+  fs.ts                               -- read / write / stat / copy / move / remove
                                          atomicWriteFile / atomicWriteIfUnchanged
                                          createAtomicWriteStream
                                          statVersion / contentHash
-    shell.ts                          -- open / showInFolder
-    path.ts                           -- resolvePath / isPathInside / canWrite / isNotEmptyDir
-    metadata.ts                       -- getFileType / isTextFile / mimeToExt
-    search.ts                         -- listDirectory (ripgrep + fuzzy matching)
+  shell.ts                            -- open / showInFolder
+  path.ts                             -- resolvePath / isPathInside / canWrite / isNotEmptyDir
+  metadata.ts                         -- getFileType / isTextFile / mimeToExt
+  search.ts                           -- listDirectory (ripgrep + fuzzy matching)
+  legacyFile.ts                       -- shared helpers: getFileType(ext) / sanitizeFilename / getAllFiles / pathExists / …
 ```
 
 ---
@@ -993,7 +998,7 @@ src/main/file/                        -- file module
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
 - **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
 - **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
-- **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `ops.remove(path)` (reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
+- **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `remove(path)` (from `@main/utils/file/fs`, reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
 - **External entry DB row carries no `size`**: `size` is `null` on every external row by design (enforced by `fe_size_internal_only` CHECK). `name` / `ext` are pure projections of `externalPath` and do not drift. Live `size` / `mtime` are served by File IPC `getMetadata(id)` via `fs.stat`; DataApi never exposes them.
 - **Dangling state exposed via DanglingCache + File IPC query methods** (`getDanglingState` / `batchGetDanglingStates`); never exposed via DataApi: not persisted to DB; watcher events + cold-path stat push updates
@@ -1013,4 +1018,4 @@ src/main/file/                        -- file module
 | Business module needs to watch external dir | Obtain an instance via `createDirectoryWatcher()` factory; subscribe to events; DanglingCache auto-syncs |
 | Dangling reactivity (real-time push to renderer) | Currently pull-based via File IPC `getDanglingState` + React Query refresh; future could push state changes over IPC so renderer invalidates presence queries on DanglingCache events |
 | Cross-device file sync                  | Out of file_module scope; solved by the application layer or external sync tools (Drive/Dropbox) |
-| Full-text search                        | Currently `ops/search.ts` provides ripgrep-based scanning; persistent indexes managed by businesses like Knowledge |
+| Full-text search                        | `@main/utils/file/search` provides ripgrep-based scanning; persistent indexes managed by businesses like Knowledge |

@@ -50,7 +50,7 @@ The `origin` field of each FileEntry defines **content ownership**:
 | origin | Physical location | Ownership | Mutability |
 |---|---|---|---|
 | `internal` | `{userData}/files/{id}.{ext}` | Fully owned by Cherry | Read-write |
-| `external` | Absolute path pointed to by `externalPath` | Owned by user, referenced by Cherry | **Changeable by explicit user action** (write / rename / permanentDelete apply, delegated to ops); Cherry does no automatic/watcher-driven modifications; **does not track external rename/move**—external changes cause the entry to naturally go dangling |
+| `external` | Absolute path pointed to by `externalPath` | Owned by user, referenced by Cherry | **Changeable by explicit user action** (write / rename / permanentDelete apply, delegated to the FS primitives); Cherry does no automatic/watcher-driven modifications; **does not track external rename/move**—external changes cause the entry to naturally go dangling |
 
 **Path uniqueness**: at most one entry can exist for the same `externalPath` **in a non-trashed state**. Implemented via SQLite partial unique index: `UNIQUE(externalPath) WHERE origin='external' AND trashedAt IS NULL`.
 
@@ -188,7 +188,7 @@ A method-by-method audit of FileManager's public API for "does it depend on clas
 | `versionCache` (LRU) | `write` / `writeIfUnchanged` / `getVersion` | **class private field** (held by FileManager instance) |
 | `fileEntryService` / `fileRefService` | All DB operations | container singleton (`application.get(...)`) |
 | `danglingCache` | External-related methods | file-module singleton (module import) |
-| `ops/*` | All FS operations | pure functions, stateless |
+| `@main/utils/file/*` | All FS operations | pure functions, stateless |
 | IPC handler registration handles, orphan sweep handle | lifecycle | managed by `onInit` / `onStop` |
 
 Only **versionCache** and **lifecycle artifacts** are truly bound to the FileManager instance; business methods themselves are stateless.
@@ -196,7 +196,7 @@ Only **versionCache** and **lifecycle artifacts** are truly bound to the FileMan
 #### 1.6.2 Module Layout
 
 ```
-src/main/file/
+src/main/services/file/
 ├── index.ts              ← barrel: exports only FileManager + public types
 ├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache
 ├── internal/             ← private implementation (not re-exported by index.ts; external imports forbidden)
@@ -344,11 +344,11 @@ private registerIpcHandlers() {
 
 | Location | May import | Forbidden to import |
 |---|---|---|
-| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/file` (gets FileManager) / `@main/file/ops` / `@main/file/watcher` | `@main/file/internal/**` |
-| Inside file-module itself (`internal/*`, `ops/*`, `watcher/*`) | May reference each other as needed | Except FileManager, must not import `internal/*` |
+| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/services/file` (gets FileManager) / `@main/utils/file/{fs,path,metadata,search,shell}` / `@main/services/file/watcher` | `@main/services/file/internal/**` |
+| Inside the file module itself (`internal/*`, `watcher/*`) | May reference each other as needed; may also import `@main/utils/file/*` primitives | Except FileManager, must not import `internal/*` |
 | External Node/renderer | N/A (file-module is main-side) | — |
 
-**Boundary enforcement**: the `src/main/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/file`. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule.
+**Boundary enforcement**: the `src/main/services/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/services/file`. If violations are found during Phase 1b implementation, add an ESLint `no-restricted-imports` rule.
 
 #### 1.6.7 Design Trade-offs
 
@@ -454,7 +454,7 @@ Cherry creates no subdirectories under `{userData}/files/`. All internal files a
 
 ### 2.3 Temporary File Handling
 
-Transient processing files (OCR intermediates, PDF pagination, archive extraction, etc.) **do not create FileEntry** and use `ops/fs.ts` primitive operations directly under `{userData}/temp/` (or process-level `os.tmpdir()`). After processing, the business side cleans up or relies on OS mechanisms.
+Transient processing files (OCR intermediates, PDF pagination, archive extraction, etc.) **do not create FileEntry** and use `@main/utils/file/fs` primitives directly under `{userData}/temp/` (or process-level `os.tmpdir()`). After processing, the business side cleans up or relies on OS mechanisms.
 
 ---
 
@@ -482,7 +482,7 @@ The classic "DB snapshot + refresh paths" design produces two symmetric defect c
 
 Making `size` unavailable on the row eliminates both: the renderer cannot read a stale value (there is nothing to read), and the main-side code has no snapshot to maintain. The cost — one extra `fs.stat` per external row when size is actually needed — is localized and observable.
 
-**Paths that used to refresh the snapshot**: `read` / `getVersion` / `getContentHash` on external all still run `fs.stat` as part of their own work (and update DanglingCache as a side effect), but they no longer UPDATE the DB row.
+**Paths that would otherwise need to refresh a snapshot**: `read` / `getVersion` / `getContentHash` on external still run `fs.stat` as part of their own work (and update DanglingCache as a side effect), but they do not write to the DB row — no `size` column exists to refresh.
 
 **Cherry does not track external rename**: after a user mv/rename outside of Cherry, the corresponding entry goes dangling. The user must re-@ inside Cherry to establish a new reference at the new path via `ensureExternalEntry(newPath)`.
 
@@ -557,7 +557,7 @@ writeIfUnchanged(id, data, expectedVersion: FileVersion): Promise<FileVersion>
 
 On conflict, `writeIfUnchanged` throws `StaleVersionError`, and the caller decides on UX after catching (dialog, three-way merge, keep both versions, etc.).
 
-**Behavior on external**: write / writeIfUnchanged / createWriteStream / rename / permanentDelete **all apply**—Cherry supports user-explicitly-triggered external file modifications (editor save, UI rename, user-confirmed delete), delegated to ops primitives like atomic write / fs.rename / ops.remove. Cherry **does not** perform automatic / watcher-driven external file modifications.
+**Behavior on external**: write / writeIfUnchanged / createWriteStream / rename / permanentDelete **all apply**—Cherry supports user-explicitly-triggered external file modifications (editor save, UI rename, user-confirmed delete), delegated to the FS primitives at `@main/utils/file/fs` (atomic write / rename / remove). Cherry **does not** perform automatic / watcher-driven external file modifications.
 
 ### 4.4 LRU Version Cache
 
@@ -602,9 +602,9 @@ createWriteStream(id): Promise<AtomicWriteStream>
 
 Stream writes also follow tmp + rename. The returned `AtomicWriteStream` extends `Writable`; `.close()` triggers fsync + rename + fsync(dir); `.abort()` cancels and unlinks the tmp.
 
-### 5.3 ops.ts External Access
+### 5.3 FS Primitive Access Policy
 
-The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` primitives exported by `ops/fs.ts` **are open to modules outside file_module**. BootConfig / MCP oauth storage / utils/file, etc., uniformly migrate to these, eliminating scattered tmp+rename implementations.
+The `atomicWriteFile` / `atomicWriteIfUnchanged` / `createAtomicWriteStream` primitives exported by `@main/utils/file/fs` **are open to modules outside the file module**. BootConfig, MCP oauth storage, and any other main-process service that needs a safe atomic write imports them directly; scattered ad-hoc tmp+rename implementations are not introduced.
 
 ---
 
@@ -618,11 +618,11 @@ All soft deletes are implemented via the `trashedAt` timestamp, without physical
 |---|---|---|
 | `trash(id)` | None | **None** (DB marks only; user file untouched) |
 | `restore(id)` | None | **None** (DB clears trashedAt) |
-| `permanentDelete(id)` | unlink FS + delete from DB | **ops.remove(externalPath) + delete from DB** |
+| `permanentDelete(id)` | unlink FS + delete from DB | **`remove(externalPath)` (via `@main/utils/file/fs`) + delete from DB** |
 
 **trash / restore only touch DB for both origins**—soft delete is a "reversible temporary hide", at which point FS is not touched to preserve reversibility.
 
-**permanentDelete deletes FS for both origins**—this is an explicit "fully clean up" user action. permanentDelete on external delegates to `ops.remove(externalPath)`, really deleting the user file. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block DB deletion, keeping the DB-FS final state consistent (neither side has it).
+**permanentDelete deletes FS for both origins**—this is an explicit "fully clean up" user action. permanentDelete on external delegates to `remove(externalPath)` (from `@main/utils/file/fs`), really deleting the user file. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block DB deletion, keeping the DB-FS final state consistent (neither side has it).
 
 ### 6.2 Auto Expiry
 
@@ -743,16 +743,16 @@ Mirrors the orphan sweep's observability contract (§10.5) — one record per sc
 
 `DirectoryWatcher` is a **non-lifecycle general FS primitive** (not a service), available for business modules to `new` themselves. It is merely a chokidar wrapper and binds no business semantics.
 
-Placed in `src/main/file/watcher/`, **on the same level as `ops/` but as an independent submodule**. Rationale for the split:
+Placed in `src/main/services/file/watcher/`, as a dedicated submodule of the file module distinct from the pure FS primitives at `@main/utils/file/*`. Rationale for the split:
 
-| Aspect | `ops/` | `watcher/` |
+| Aspect | `@main/utils/file/*` primitives | `watcher/` |
 |---|---|---|
 | Paradigm | Pure functions (stateless) | Stateful class |
 | Lifecycle | None (completes upon call) | Has one (start → running → dispose) |
 | Resource holding | None | FSWatcher instance + pending queues + timers |
-| Consumption contract | `const x = await ops.read(path)` | `const w = new DirectoryWatcher(...); ... w.dispose()` |
+| Consumption contract | `const x = await read(path)` | `const w = new DirectoryWatcher(...); ... w.dispose()` |
 
-Placing a stateful class inside a barrel named "ops" (operations) breaks its pure-function contract. This is the layering between Node.js official `fs.readFile` (function) and `fs.watch` returning an `FSWatcher` instance (class) being merged under the same module due to naming—we explicitly split them apart.
+Grouping a stateful class with pure-function primitives would break the primitives' stateless contract. This mirrors the layering between Node.js official `fs.readFile` (function) and `fs.watch` returning an `FSWatcher` instance (class): functionally related but fundamentally different consumption shapes, so they live in separate submodules.
 
 ### 8.2 API
 
@@ -1071,7 +1071,7 @@ file_module's crash window is very narrow:
 | permanentDelete (internal) | FS unlink → DB delete | Dangling (truly dangling; manifests as read failure) | Naturally discovered on DanglingCache query |
 | copy (internal) | FS copy → DB insert | Orphan file | Orphan sweep |
 | ensureExternalEntry | DB insert / reuse / restore (doesn't touch user file) | None | None |
-| permanentDelete (external) | DB delete + ops.remove | DB deleted but FS not / vice versa; final state "absent" on both sides is fine | Naturally consistent |
+| permanentDelete (external) | DB delete + `remove(externalPath)` | DB deleted but FS not / vice versa; final state "absent" on both sides is fine | Naturally consistent |
 
 No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash residue; the external side naturally doesn't need it (delete failure just leaves it on disk).
 
@@ -1084,7 +1084,7 @@ No WAL / pending_fs_ops table needed. Orphan sweep covers the internal crash res
 DanglingCache is a **singleton** in file_module (not a lifecycle service) that maintains the "latest known on-disk state" for external entries.
 
 ```typescript
-// src/main/file/danglingCache.ts
+// src/main/services/file/danglingCache.ts
 export const danglingCache = new DanglingCache()
 ```
 
@@ -1186,7 +1186,7 @@ private async doStatAndUpdate(
 Business modules **need not be directly aware of DanglingCache**. All watchers must be created via the `createDirectoryWatcher()` factory, which hooks things up internally:
 
 ```typescript
-// src/main/file/watcher/factory.ts
+// src/main/services/file/watcher/factory.ts
 export function createDirectoryWatcher(opts: DirectoryWatcherOptions): DirectoryWatcher {
   const watcher = new DirectoryWatcher(opts)
   watcher.onAdd(({ path }) => danglingCache.onFsEvent(path, 'present'))
@@ -1314,11 +1314,11 @@ These thresholds are heuristic starting points — tune based on real-world tele
 | **Mount abstraction** | Removed | All internal files live flat under `userData/files/`; external is reached directly via `externalPath`; no mount needed |
 | **Origin two-state** | internal/external | Express "Cherry-owned" and "user-owned, Cherry-referenced" respectively; clear semantics |
 | **External read/write permissions** | Explicit user ops may change; Cherry doesn't auto-change | VS Code-style behavior model—change when told to; don't modify behind the scenes |
-| **External operation symmetry** | write/rename/permanentDelete all delegate to ops and take effect; trash/restore touch DB only | Soft delete preserves reversibility (doesn't touch FS); hard delete is the terminal action (really deletes FS) |
+| **External operation symmetry** | write/rename/permanentDelete all delegate to the FS primitives and take effect; trash/restore touch DB only | Soft delete preserves reversibility (doesn't touch FS); hard delete is the terminal action (really deletes FS) |
 | **External identity** | externalPath unique(where not trashed) | At most one active entry at a time for the same path; `ensureExternalEntry` upserts by path |
 | **Cherry tracks external rename** | Not tracked | Best-effort semantics; external rename → dangling → user re-@ |
 | **Snapshot vs realtime stat** | External row stores only identity + stable projections (`name` / `ext` from `externalPath`); live `size` / `mtime` via `getMetadata` on demand | Eliminates stale-snapshot bug class at the type level; cost of the extra `fs.stat` is explicit at the call site instead of hidden behind a DB field |
-| **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / ops / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
+| **Dangling state carrier** | In-memory singleton DanglingCache | Not in DB (avoids bidirectional DB-FS sync); three states `present/missing/unknown`; TTL-based lazy expiration (§11.6, 30 min); refreshed on query / FS observation / watcher; no periodic background sweep — IO cost scales with query frequency, not entry count |
 | **Dangling exposure method** | File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi) | DataApi is pure SQL; FS probe lives in IPC where side effects are expected; zero cost by default; parallel stat on demand |
 | **Watcher → DanglingCache wiring** | Factory auto-wires | Business modules unaware of DanglingCache; a single watcher instance serves business events + dangling tracking |
 | **Content hash algorithm** | xxhash-128 | Optimal cost-performance for non-cryptographic scenarios (~20GB/s; 128-bit collision resistance is sufficient) |

@@ -7,19 +7,20 @@
  *
  * ## Consumer responsibility
  *
- * `ops/fs` is open to the entire main process and performs no entry-awareness
- * checks. Callers MUST NOT use this module (directly or via a `FilePathHandle`)
- * to write or mutate paths under `{userData}/files/` — those back internal-origin
- * `FileEntry` rows whose `size` column is authoritative and kept in sync only by
- * FileManager's atomic write path. Bypassing it silently desyncs
- * `file_entry.size` from disk and leaves `versionCache` stale, with no
- * type-system or runtime guard.
+ * `@main/utils/file/fs` is open to the entire main process and performs no
+ * entry-awareness checks. Callers MUST NOT use this module (directly or via a
+ * `FilePathHandle`) to write or mutate paths under `{userData}/files/` —
+ * those back internal-origin `FileEntry` rows whose `size` column is
+ * authoritative and kept in sync only by FileManager's atomic write path.
+ * Bypassing it silently desyncs `file_entry.size` from disk and leaves
+ * `versionCache` stale, with no type-system or runtime guard.
  *
  * For writes targeting a FileEntry (internal or external), go through
  * `FileManager.write` / `writeIfUnchanged` / `createWriteStream`. Legitimate
- * `ops/*` consumers outside file_module (BootConfig, MCP oauth, user-picked
- * external paths, temporary artifacts, etc.) are unaffected — the rule is
- * specifically "do not point writes at the internal storage tree".
+ * consumers of these primitives outside the file module (BootConfig, MCP
+ * oauth, user-picked external paths, temporary artifacts, etc.) are
+ * unaffected — the rule is specifically "do not point writes at the internal
+ * storage tree".
  *
  * See `docs/references/file/architecture.md §5.2` for the full rationale.
  */
@@ -27,7 +28,7 @@
 import type { FilePath } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
-  throw new Error(`ops.fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
+  throw new Error(`@main/utils/file/fs.${op}: not implemented (Phase 1a stub, implementation lands in Phase 1b)`)
 }
 
 /** Read file content as text with optional encoding detection. */

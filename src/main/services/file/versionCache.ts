@@ -11,7 +11,7 @@
  * - **Per-process, in-memory**. Multiple renderer windows share the main
  *   instance through IPC; there is no cross-process cache coherence.
  * - **Best-effort**, not a source of truth. The authoritative FileVersion is
- *   always `ops.statVersion(path)`; the cache exists to avoid repeating that
+ *   always `statVersion(path)` from `@main/utils/file/fs`; the cache exists to avoid repeating that
  *   stat on hot paths (e.g. successive `read` → `writeIfUnchanged` on the
  *   same entry within a few hundred ms).
  * - Eviction may drop entries at any time; callers must tolerate `get`
