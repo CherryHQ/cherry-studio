@@ -75,8 +75,11 @@ export const promptTable = sqliteTable(
     index('prompt_updated_at_idx').on(t.updatedAt),
     foreignKey({
       name: 'prompt_current_version_fk',
-      columns: [t.id, t.currentVersion],
-      foreignColumns: [promptVersionTable.promptId, promptVersionTable.version]
+      columns: [t.id, t.currentVersion] as [typeof t.id, typeof t.currentVersion],
+      foreignColumns: [promptVersionTable.promptId, promptVersionTable.version] as [
+        typeof promptVersionTable.promptId,
+        typeof promptVersionTable.version
+      ]
     })
   ]
 )

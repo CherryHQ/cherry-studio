@@ -209,7 +209,13 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
   const handleAddModalSave = useCallback(
     async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
       try {
-        await createPrompt({ body: data })
+        await createPrompt({
+          body: {
+            title: data.title,
+            content: data.content,
+            variables: data.variables ?? undefined
+          }
+        })
         setIsAddModalOpen(false)
       } catch {
         // handled by useMutation onError

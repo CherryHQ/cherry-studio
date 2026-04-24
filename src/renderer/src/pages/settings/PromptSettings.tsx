@@ -119,10 +119,15 @@ const PromptSettings: FC = () => {
 
   const handleModalSave = async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
     try {
+      const body = {
+        title: data.title,
+        content: data.content,
+        variables: data.variables ?? (editingPrompt ? [] : undefined)
+      }
       if (editingPrompt) {
-        await updatePrompt({ body: data })
+        await updatePrompt({ body })
       } else {
-        await createPrompt({ body: data })
+        await createPrompt({ body })
       }
       setIsModalOpen(false)
     } catch {
