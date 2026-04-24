@@ -18,11 +18,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { cherryApprovalPredicate } from '@renderer/utils/toolApprovalPredicate'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatStatus } from 'ai'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
@@ -49,16 +48,6 @@ export interface UseChatWithHistoryResult {
   activeExecutionIds: readonly UniqueModelId[]
   initialMessages: CherryUIMessage[]
   /**
-   * Queue a UUID to be consumed by the next `Chat.generateId()` call —
-   * which `makeRequest` uses to seed `activeResponse.state.message.id`
-   * (see `ai/src/ui/chat.ts:659`). Pair with `body.assistantMessageId`
-   * on `sendMessage` so the renderer's activeResponse and the DB
-   * placeholder share the same id, avoiding the duplicate-assistant
-   * bug when the first chunk arrives and AI SDK falls back to
-   * `pushMessage` on id mismatch.
-   */
-  prepareNextAssistantId: (id: string) => void
-  /**
    * AI SDK v6 native tool-approval response. Flips a `ToolUIPart` from
    * `approval-requested` to `approval-responded` on the local message.
    * For Claude Agent approvals the caller must also unblock Main via
@@ -73,24 +62,8 @@ export function useChatWithHistory(
   topicId: string,
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>,
-  context: { assistantId: string }
+  context: { assistantId: string; defaultModelSnapshot?: ModelSnapshot }
 ): UseChatWithHistoryResult {
-  // Single-slot queue for the next id `Chat.generateId()` should return.
-  // `V2ChatContent.handleSendV2` writes a UUID here right before calling
-  // `sendMessage` and also threads it into `body.assistantMessageId`, so
-  // the assistant id ends up identical on three sides: the renderer's
-  // `activeResponse.state.message`, `useChat.state.messages`, and the DB
-  // placeholder row created by Main.
-  const pendingAssistantIdRef = useRef<string | null>(null)
-  const generateId = useCallback(() => {
-    const queued = pendingAssistantIdRef.current
-    if (queued) {
-      pendingAssistantIdRef.current = null
-      return queued
-    }
-    return uuidv4()
-  }, [])
-
   const { messages, setMessages, stop, status, error, sendMessage, regenerate, resumeStream, addToolApprovalResponse } =
     useChat<CherryUIMessage>({
       id: topicId,
@@ -98,15 +71,10 @@ export function useChatWithHistory(
       messages: initialMessages,
       experimental_throttle: 50,
       sendAutomaticallyWhen: cherryApprovalPredicate,
-      generateId,
       onError: (streamError) => {
         logger.error('AI stream error', { topicId, streamError })
       }
     })
-
-  const prepareNextAssistantId = useCallback((id: string) => {
-    pendingAssistantIdRef.current = id
-  }, [])
 
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
@@ -234,6 +202,21 @@ export function useChatWithHistory(
     }
   }, [topicId, refreshAndReplace])
 
+  // AI SDK's `createStreamingUIMessageState` seeds `activeResponse.message`
+  // with `{metadata: undefined}` on regenerate (and send, when the user
+  // push happens before our placeholder microtask) — so the streaming
+  // bubble would otherwise render with no avatar / "Invalid Date" until
+  // the DB refresh on stream-done. We synthesise both fields from the
+  // assistant's default model and a stable per-id timestamp so the UI
+  // stays readable during the streaming window. Refresh replaces this
+  // with DB truth at the end.
+  const synthesizedCreatedAtRef = useRef<Map<string, string>>(new Map())
+  const fallbackSnapshot = context.defaultModelSnapshot
+  const fallbackModelId = useMemo(
+    () => (fallbackSnapshot ? createUniqueModelId(fallbackSnapshot.provider, fallbackSnapshot.id) : undefined),
+    [fallbackSnapshot]
+  )
+
   // ── Adapt UIMessage[] to renderer Message[] ──
   //
   // Every field below comes straight off `uiMsg.metadata`. The branch
@@ -249,19 +232,35 @@ export function useChatWithHistory(
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
       const meta = uiMsg.metadata ?? {}
+
+      const isAssistantStreaming = uiMsg.role === 'assistant' && !meta.createdAt
+      let createdAt = meta.createdAt ?? ''
+      if (isAssistantStreaming) {
+        const cached = synthesizedCreatedAtRef.current.get(uiMsg.id)
+        if (cached) {
+          createdAt = cached
+        } else {
+          createdAt = new Date().toISOString()
+          synthesizedCreatedAtRef.current.set(uiMsg.id, createdAt)
+        }
+      }
+
+      const snapshot = meta.modelSnapshot ?? (isAssistantStreaming ? fallbackSnapshot : undefined)
+      const modelId = meta.modelId ?? (isAssistantStreaming ? fallbackModelId : undefined)
+
       return {
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
-        createdAt: meta.createdAt ?? '',
+        createdAt,
         askId: meta.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
-        modelId: meta.modelId,
+        modelId,
         // `getModelLogo` reads `.provider`, `.id`, `.name` off the model;
         // `modelSnapshot` captures exactly that at reservation time, so
         // it doubles as a minimal `Model` for avatar rendering — stable
         // even if the live provider config later drops this model.
-        model: meta.modelSnapshot ? (meta.modelSnapshot as unknown as Model) : undefined,
+        model: snapshot ? (snapshot as unknown as Model) : undefined,
         siblingsGroupId: meta.siblingsGroupId,
         status:
           uiMsg.role === 'user'
@@ -275,7 +274,7 @@ export function useChatWithHistory(
         blocks: []
       }
     })
-  }, [messages, context.assistantId, topicId, status, latestAssistantMessageId])
+  }, [messages, context.assistantId, topicId, status, latestAssistantMessageId, fallbackSnapshot, fallbackModelId])
 
   // ── PartsMap (direct from messages, no merge) ──
 
@@ -299,7 +298,6 @@ export function useChatWithHistory(
     streamingUIMessages: messages,
     activeExecutionIds,
     initialMessages,
-    prepareNextAssistantId,
     addToolApprovalResponse
   }
 }

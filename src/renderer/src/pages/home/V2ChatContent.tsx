@@ -19,7 +19,7 @@ import type {
   CherryUIMessage,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -117,69 +117,18 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages,
     streamingUIMessages,
     activeExecutionIds,
-    prepareNextAssistantId,
     addToolApprovalResponse
-  } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
-
-  /**
-   * Align the three assistant-id producers for a single-execution turn so
-   * `useChat.activeResponse`, the chunks coming off the stream, and the DB
-   * placeholder row all agree on one UUID:
-   *   1. `prepareNextAssistantId` queues the id for the next
-   *      `Chat.generateId()` call (consumed inside `Chat.makeRequest` when it
-   *      seeds `activeResponse.state.message.id`).
-   *   2. Returned id goes into `body.assistantMessageId`, which the main-side
-   *      `reserveAssistantTurn` honours as the placeholder row's `id`.
-   *
-   * Without this alignment, AI SDK falls back to `pushMessage` on the first
-   * chunk (it sees an unknown id and assumes a brand-new message), producing
-   * two duplicate assistant bubbles — the silent orphan from `activeResponse`
-   * and the real one receiving chunks. Multi-model turns skip this entirely:
-   * each execution gets its own id on Main, so there's nothing to align on
-   * the renderer side.
-   */
-  const allocateSingleAssistantId = useCallback(
-    (isMultiModel: boolean) => {
-      if (isMultiModel) return undefined
-      const id = crypto.randomUUID()
-      prepareNextAssistantId(id)
-      return id
-    },
-    [prepareNextAssistantId]
-  )
-
-  /**
-   * Seed an optimistic assistant placeholder into `useChat.state.messages`
-   * with the full metadata the renderer needs (modelSnapshot, status,
-   * parentId, createdAt). Carrying metadata on the message itself means
-   * `MessageHeader` / `ModelAvatar` / `isMessageProcessing` all light up
-   * immediately instead of falling back to "D" / "Invalid Date" while
-   * `refresh()` catches up. AI SDK's `replaceMessage` on the first chunk
-   * keeps the id stable, so the DB refresh that lands later is a quiet
-   * overwrite — no flicker.
-   */
-  const seedAssistantPlaceholder = useCallback(
-    (opts: { assistantMessageId: string; modelSnapshot?: ModelSnapshot; parentId?: string | null }): void => {
-      const { assistantMessageId, modelSnapshot, parentId } = opts
-      const modelId = modelSnapshot ? createUniqueModelId(modelSnapshot.provider, modelSnapshot.id) : undefined
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMessageId,
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            modelSnapshot,
-            modelId,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            parentId: parentId ?? undefined
-          }
+  } = useChatWithHistory(topic.id, initialMessages, refresh, {
+    assistantId: assistant.id,
+    defaultModelSnapshot: assistant.model
+      ? {
+          id: assistant.model.id,
+          name: assistant.model.name,
+          provider: assistant.model.provider,
+          ...(assistant.model.group && { group: assistant.model.group })
         }
-      ])
-    },
-    [setMessages]
-  )
+      : undefined
+  })
 
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
 
@@ -520,48 +469,25 @@ const V2ChatContentInner: FC<InnerProps> = ({
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
     async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
-      // `mentionedModels: [modelId]` takes the mention-model path on the main
-      // side: `resolveModels` prefers the mentioned model over the assistant
-      // default, and the single-model regenerate flow creates a new sibling
-      // (same user parent, shared siblingsGroupId) so the group renders as a
-      // cross-model comparison.
+      // `mentionedModels: [modelId]` takes the mention-model path on the
+      // main side: `resolveModels` prefers the mentioned model over the
+      // assistant default, and the single-model regenerate flow creates a
+      // new sibling (same user parent, shared siblingsGroupId) so the
+      // group renders as a cross-model comparison.
       //
-      // Regenerate is single-execution: allocate a shared assistant id here
-      // to keep `useChat.activeResponse` and the DB placeholder on the same
-      // UUID. Skipping this step makes AI SDK `pushMessage` on the first
-      // chunk (id mismatch) and the old + new assistant bubbles render side
-      // by side. Multi-model fan-out is never a regenerate today, so the
-      // single-id path always applies.
-      const assistantMessageId = allocateSingleAssistantId(false)
-
-      // Inherit the previous assistant's parentId + modelSnapshot for the
-      // optimistic placeholder. `messageId` (if provided) is the assistant
-      // being regenerated; its metadata carries the right user-message
-      // parent and (unless overridden via `options.modelSnapshot`) the same
-      // model. For the "regenerate last" path (messageId omitted) we leave
-      // both undefined — the upcoming refresh will fill them in.
-      const regenTarget = messageId ? streamingUIMessages.find((m) => m.id === messageId) : undefined
-      const placeholderSnapshot = options?.modelSnapshot ?? regenTarget?.metadata?.modelSnapshot
-      const placeholderParentId = regenTarget?.metadata?.parentId
-
+      // Main allocates the assistant placeholder id on its own; the renderer
+      // doesn't align ids up-front. `adaptedMessages` renders the streaming
+      // bubble with a synthesised createdAt + default modelSnapshot fallback
+      // until `refresh` on stream-done replaces state with DB truth.
       await regenerate({
         messageId,
         body: {
           ...capabilityBody,
-          assistantMessageId,
           ...(options?.modelId && { mentionedModels: [options.modelId] })
         }
       })
-
-      if (assistantMessageId) {
-        seedAssistantPlaceholder({
-          assistantMessageId,
-          modelSnapshot: placeholderSnapshot,
-          parentId: placeholderParentId
-        })
-      }
     },
-    [regenerate, capabilityBody, allocateSingleAssistantId, streamingUIMessages, seedAssistantPlaceholder]
+    [regenerate, capabilityBody]
   )
 
   /**
@@ -649,57 +575,23 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      // Single-model only: pre-generate the assistant UUID and align all
-      // three consumers on it (useChat.activeResponse, useChat.state.messages
-      // after refresh, and the DB placeholder row). Multi-model turns keep
-      // the old path — Main allocates N ids and the overlay renderer owns
-      // per-execution state via `ExecutionStreamCollector`.
-      const isMultiModel = (options?.mentionedModels?.length ?? 0) > 1
-      const assistantMessageId = allocateSingleAssistantId(isMultiModel)
-      void sendMessage(
+      // Main allocates all message ids (user + placeholder(s)) in the
+      // reservation transaction. The renderer's `useChat` state may race
+      // ahead of Main with its own ids during streaming — `refresh` on
+      // stream-done replaces state with the DB snapshot to reconcile.
+      await sendMessage(
         { text },
         {
           body: {
             parentAnchorId: activeNodeId ?? undefined,
             files: options?.files,
             mentionedModels: options?.mentionedModels,
-            assistantMessageId,
             ...capabilityBody
           }
         }
       )
-      // Append an assistant placeholder so the PENDING indicator + model
-      // chrome (avatar, name) show up during the ~20–50ms gap between
-      // click and Main's `pending` broadcast. The id matches Main's
-      // placeholder row, so the later `refresh` + `setMessages(refreshed)`
-      // is an idempotent id-preserving replace.
-      //
-      // The append must wait ONE microtask: `sendMessage` awaits
-      // `convertFileListToFileUIParts` (ai/src/ui/chat.ts:371) before
-      // `pushMessage(user)`, even for text-only turns (async function yields
-      // once). Appending synchronously lands the placeholder *before* the new
-      // user message — `adaptedMessages` then derives its `askId` from the
-      // prior turn's user, flashing the placeholder into the previous
-      // multi-model siblings group until `pending` refresh repairs the order.
-      if (assistantMessageId) {
-        const snapshot: ModelSnapshot | undefined = assistant.model
-          ? {
-              id: assistant.model.id,
-              name: assistant.model.name,
-              provider: assistant.model.provider,
-              ...(assistant.model.group && { group: assistant.model.group })
-            }
-          : undefined
-        queueMicrotask(() => {
-          seedAssistantPlaceholder({
-            assistantMessageId,
-            modelSnapshot: snapshot,
-            parentId: activeNodeId ?? null
-          })
-        })
-      }
     },
-    [activeNodeId, sendMessage, assistant.model, allocateSingleAssistantId, seedAssistantPlaceholder, capabilityBody]
+    [activeNodeId, sendMessage, capabilityBody]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

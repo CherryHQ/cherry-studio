@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import {
   isAutoEnableImageGenerationModel,
   isGenerateImageModel,
@@ -51,6 +52,8 @@ import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
 
+const logger = loggerService.withContext('Inputbar')
+
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -66,7 +69,10 @@ interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
-  onSend: (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => void
+  onSend: (
+    text: string,
+    options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
+  ) => void | Promise<void>
 }
 
 type ProviderActionHandlers = {
@@ -246,19 +252,30 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     const text_ = text.trim()
     if (!text_) return
     setIsSending(true)
-    onSendProp(text_, {
-      files: files.length > 0 ? files : undefined,
-      mentionedModels:
-        mentionedModels.length > 0
-          ? mentionedModels.map((model) =>
-              isUniqueModelId(model.id) ? model.id : createUniqueModelId(model.provider, model.id)
-            )
-          : undefined
-    })
     setText('')
     setFiles([])
     setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
     focusTextarea()
+    // Await `onSendProp` in a try/finally so `isSending` clears on any
+    // terminal state — success path relies on the `pending` broadcast
+    // effect above, but sync/async failures (validation, IPC reject,
+    // transport error) never reach `pending` and would otherwise
+    // strand the input bar in pause mode.
+    try {
+      await onSendProp(text_, {
+        files: files.length > 0 ? files : undefined,
+        mentionedModels:
+          mentionedModels.length > 0
+            ? mentionedModels.map((model) =>
+                isUniqueModelId(model.id) ? model.id : createUniqueModelId(model.provider, model.id)
+              )
+            : undefined
+      })
+    } catch (error) {
+      logger.warn('send failed', { error })
+    } finally {
+      setIsSending(false)
+    }
   }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
   const tokenCountProps = useMemo(() => {

@@ -147,8 +147,7 @@ describe('V2ChatContent', () => {
       setMessages: vi.fn(),
       streamingUIMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       activeExecutionIds: [],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
-      prepareNextAssistantId: vi.fn()
+      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
     })
   })
 
@@ -173,8 +172,7 @@ describe('V2ChatContent', () => {
       setMessages: vi.fn(),
       streamingUIMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       activeExecutionIds: [],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
-      prepareNextAssistantId: vi.fn()
+      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
     })
 
     render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -211,8 +209,7 @@ describe('V2ChatContent', () => {
       setMessages: vi.fn(),
       streamingUIMessages: [createUiMessage('history-user', 'user')],
       activeExecutionIds: ['openai::gpt-4o'],
-      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
-      prepareNextAssistantId: vi.fn()
+      initialMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')]
     })
 
     render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
