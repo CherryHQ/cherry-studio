@@ -6,6 +6,7 @@ import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { updateMessageUiState } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -46,6 +47,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
   const { isMultiSelectMode } = useChatContext(topic)
   const { setTimeoutTimer } = useTimer()
+  const v2Chat = useV2Chat()
 
   const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
 
@@ -101,6 +103,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       updateMessageUiState(message.id, { foldSelected: true })
       setSelectedMessageIdState(message.id)
 
+      // Switch the topic's active branch to this model's sibling, walking
+      // down to its deepest leaf so any descendants this sibling might have
+      // (a conversation continuation rooted on this model's previous
+      // response) become part of the rendered path. Without this, clicking
+      // the tab only flips local `selectedMessageId` — descendants stay
+      // off-path and the user-visible list truncates at this group.
+      if (message.role === 'assistant' && message.id !== selectedMessageId) {
+        void v2Chat?.setActiveNode(message.id, { descend: true })
+      }
+
       setTimeoutTimer(
         'setSelectedMessage',
         () => {
@@ -112,7 +124,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         200
       )
     },
-    [selectedMessageId, setTimeoutTimer]
+    [selectedMessageId, setTimeoutTimer, v2Chat]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
