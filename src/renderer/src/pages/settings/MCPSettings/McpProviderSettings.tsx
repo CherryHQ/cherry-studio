@@ -191,7 +191,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   return (
                     <Button
                       disabled={isAlreadyAdded}
-                      className="ml-2.5"
+                      size="icon-sm"
+                      className="ml-2.5 size-7 min-h-7"
                       onClick={async () => {
                         if (!isAlreadyAdded) {
                           try {
@@ -202,7 +203,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                           }
                         }
                       }}>
-                      {isAlreadyAdded ? <Check size={14} /> : <Plus size={14} />}
+                      {isAlreadyAdded ? <Check size={12} /> : <Plus size={12} />}
                     </Button>
                   )
                 })()}
@@ -234,7 +235,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 hover:border-primary',
+      'flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 hover:border-primary dark:bg-white/6',
       className
     )}
     {...props}

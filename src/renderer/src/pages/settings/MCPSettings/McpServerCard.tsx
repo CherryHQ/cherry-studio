@@ -234,8 +234,8 @@ const CardContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $isActive: boolean }) => (
   <div
     className={cn(
-      'mb-1.25 flex h-[125px] w-full flex-col rounded-lg border border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)]',
-      $isActive ? 'opacity-100' : 'opacity-60',
+      'mb-1.25 flex h-[125px] w-full flex-col rounded-lg border border-border bg-card py-2.5 pr-2.5 pl-4 transition-all hover:border-primary hover:opacity-100 hover:shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:bg-white/6',
+      $isActive ? 'opacity-100' : 'border-border/80 bg-card/90 dark:bg-white/6',
       className
     )}
     {...props}

@@ -306,7 +306,7 @@ const FieldDescription = ({ className, ...props }: React.ComponentPropsWithoutRe
 )
 
 const StyledInput = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Input>) => (
-  <Input className={cn('w-full rounded-md border-[1.5px] border-border', className)} {...props} />
+  <Input className={cn('w-full rounded-md border-[1.5px] border-border bg-background', className)} {...props} />
 )
 
 const InputButtonContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

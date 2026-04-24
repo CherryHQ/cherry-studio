@@ -1,4 +1,5 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { Card } from 'antd'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
@@ -12,6 +13,7 @@ interface McpDescriptionProps {
 
 const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const { shikiMarkdownIt } = useCodeStyle()
   const [loading, setLoading] = useState(false)
   const [mcpInfo, setMcpInfo] = useState<string>('')
@@ -36,7 +38,14 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
 
   return (
     <div className="max-w-[calc(100vw-var(--sidebar-width)-var(--settings-width)-75px)] pt-2">
-      <Card className="border border-border bg-card" loading={loading} style={{ borderRadius: 'var(--radius-lg)' }}>
+      <Card
+        className="border border-border bg-card"
+        loading={loading}
+        style={{
+          borderRadius: 'var(--radius-lg)',
+          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
+          borderColor: 'var(--border)'
+        }}>
         <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
       </Card>
     </div>

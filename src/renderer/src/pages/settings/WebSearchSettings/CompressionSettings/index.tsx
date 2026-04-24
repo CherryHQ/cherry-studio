@@ -1,4 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +11,7 @@ const INPUT_BOX_WIDTH_CUTOFF = '200px'
 const INPUT_BOX_WIDTH_RAG = 'min(350px, 60%)'
 
 const CompressionSettings = () => {
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
@@ -24,7 +26,7 @@ const CompressionSettings = () => {
   }
 
   return (
-    <SettingGroup>
+    <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
       <SettingDivider />
 

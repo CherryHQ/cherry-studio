@@ -3,6 +3,7 @@ import { Center, RowFlex, Spinner } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
@@ -28,6 +29,7 @@ let _searchResults: SearchResult[] = []
 
 const NpxSearch: FC = () => {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
@@ -149,7 +151,11 @@ const NpxSearch: FC = () => {
                 size="small"
                 key={record.name}
                 className="border border-border bg-card"
-                style={{ borderRadius: 'var(--radius-lg)' }}
+                style={{
+                  borderRadius: 'var(--radius-lg)',
+                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
+                  borderColor: 'var(--border)'
+                }}
                 title={
                   <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
                     {record.name}
