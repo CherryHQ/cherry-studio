@@ -38,36 +38,47 @@ export class AgentSessionMessageService {
   async listSessionMessages(
     sessionId: string,
     options: ListOptions = {}
-  ): Promise<{ messages: AgentSessionMessageEntity[] }> {
+  ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
-    const baseQuery = database
-      .select()
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.sessionId, sessionId))
-      .orderBy(sessionMessagesTable.createdAt)
+    const whereClause = eq(sessionMessagesTable.sessionId, sessionId)
 
-    const result =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? await baseQuery.limit(options.limit).offset(options.offset)
-          : await baseQuery.limit(options.limit)
-        : await baseQuery
+    const [totalRows, rows] = await Promise.all([
+      database.select({ count: sql<number>`count(*)` }).from(sessionMessagesTable).where(whereClause),
+      (async () => {
+        const baseQuery = database
+          .select()
+          .from(sessionMessagesTable)
+          .where(whereClause)
+          .orderBy(sessionMessagesTable.createdAt)
+        if (options.limit !== undefined) {
+          return options.offset !== undefined
+            ? baseQuery.limit(options.limit).offset(options.offset)
+            : baseQuery.limit(options.limit)
+        }
+        return baseQuery
+      })()
+    ])
 
-    const messages = result.map((row) => this.rowToEntity(row))
-
-    return { messages }
+    const messages = rows.map((row) => this.rowToEntity(row))
+    return { messages, total: totalRows[0].count }
   }
 
-  async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
+  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
+    const id = Number.parseInt(messageId, 10)
+    if (!Number.isFinite(id) || id <= 0) {
+      throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
+    }
     const database = application.get('DbService').getDb()
     const result = await withSqliteErrors(
       () =>
         database
           .delete(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId))),
-      defaultHandlersFor('Message', String(messageId))
+          .where(and(eq(sessionMessagesTable.id, id), eq(sessionMessagesTable.sessionId, sessionId))),
+      defaultHandlersFor('Message', messageId)
     )
-    return result.rowsAffected > 0
+    if (result.rowsAffected === 0) {
+      throw DataApiErrorFactory.notFound('Message', messageId)
+    }
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {

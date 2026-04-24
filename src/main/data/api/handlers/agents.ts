@@ -115,23 +115,15 @@ export const agentHandlers: {
 
   '/agents/:agentId/sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
-      const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
-      if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      const { limit, offset } = paginationFromQuery(query)
-      return await sessionMessageService.listSessionMessages(params.sessionId, { limit, offset })
+      const { page, limit, offset } = paginationFromQuery(query)
+      const { messages, total } = await sessionMessageService.listSessionMessages(params.sessionId, { limit, offset })
+      return { items: messages, total, page }
     }
   },
 
   '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
-      const sessionExists = await sessionService.sessionExists(params.agentId, params.sessionId)
-      if (!sessionExists) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      const messageId = /^\d+$/.test(params.messageId) ? Number(params.messageId) : NaN
-      if (!Number.isFinite(messageId)) {
-        throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] }, 'Invalid message id')
-      }
-      const deleted = await sessionMessageService.deleteSessionMessage(params.sessionId, messageId)
-      if (!deleted) throw DataApiErrorFactory.notFound('Message', params.messageId)
+      await sessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
     }
   },
@@ -178,8 +170,7 @@ export const agentHandlers: {
         const agent = await agentService.getAgent(query.agentId)
         if (!agent) throw DataApiErrorFactory.notFound('Agent', query.agentId)
       }
-      const skills = await skillService.list(query?.agentId)
-      return { data: skills }
+      return await skillService.list(query?.agentId)
     }
   },
 
