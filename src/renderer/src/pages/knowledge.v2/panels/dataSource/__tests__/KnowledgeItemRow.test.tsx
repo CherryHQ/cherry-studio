@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
@@ -11,6 +12,74 @@ vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
 vi.mock('@renderer/utils', () => ({
   formatFileSize: () => '1 KB'
 }))
+
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const PopoverContext = React.createContext<{
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+  }>({
+    open: false
+  })
+
+  return {
+    Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <button {...props}>{children}</button>
+    ),
+    MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
+      <button {...props}>
+        {icon}
+        {label}
+      </button>
+    ),
+    MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
+    PopoverContent: ({ children }: { children: ReactNode }) => {
+      const { open } = React.use(PopoverContext)
+
+      return open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({
+      children,
+      asChild,
+      onClick
+    }: {
+      children: ReactNode
+      asChild?: boolean
+      onClick?: (event: React.MouseEvent) => void
+    }) => {
+      const { open, onOpenChange } = React.use(PopoverContext)
+
+      if (asChild && React.isValidElement(children)) {
+        const child = children as React.ReactElement<{
+          onClick?: (event: React.MouseEvent) => void
+        }>
+
+        return React.cloneElement(child, {
+          onClick: (event: React.MouseEvent) => {
+            child.props.onClick?.(event)
+            onClick?.(event)
+            onOpenChange?.(!open)
+          }
+        })
+      }
+
+      return (
+        <button type="button" onClick={() => onOpenChange?.(!open)}>
+          {children}
+        </button>
+      )
+    }
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -25,6 +94,11 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.data_source.status.embedding': '向量化中',
           'knowledge_v2.data_source.status.chunking': '分块中',
           'knowledge_v2.data_source.status.pending': '等待中',
+          'knowledge_v2.data_source.actions.preview_source': '预览原文',
+          'knowledge_v2.data_source.actions.view_chunks': '查看 Chunks',
+          'knowledge_v2.data_source.actions.reindex': '重新索引',
+          'knowledge_v2.data_source.actions.delete': '删除',
+          'common.more': '更多',
           'knowledge_v2.rag.file_processing': '文件处理'
         }) as Record<string, string>
       )[key] ?? key
@@ -37,6 +111,8 @@ describe('KnowledgeItemRow', () => {
       <KnowledgeItemRow
         item={createFileItem({ id: 'file-1', originName: '季度报告.pdf', ext: 'PDF' })}
         onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
       />
     )
 
@@ -47,20 +123,39 @@ describe('KnowledgeItemRow', () => {
   })
 
   it('renders the completed status label for ready items', () => {
-    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} onClick={() => undefined} />)
+    render(
+      <KnowledgeItemRow
+        item={createFileItem({ id: 'file-1', status: 'completed' })}
+        onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     expect(screen.getByText('就绪')).toBeInTheDocument()
   })
 
   it('renders the failed status label for failed items', () => {
-    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'failed' })} onClick={() => undefined} />)
+    render(
+      <KnowledgeItemRow
+        item={createFileItem({ id: 'file-1', status: 'failed' })}
+        onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
   })
 
   it('renders the processing status label for in-flight items', () => {
     render(
-      <KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'file_processing' })} onClick={() => undefined} />
+      <KnowledgeItemRow
+        item={createFileItem({ id: 'file-1', status: 'file_processing' })}
+        onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
     )
 
     expect(screen.getByText('文件处理')).toBeInTheDocument()
@@ -69,10 +164,123 @@ describe('KnowledgeItemRow', () => {
   it('calls onClick when the row is clicked', () => {
     const handleClick = vi.fn()
 
-    render(<KnowledgeItemRow item={createUrlItem({ id: 'url-1', name: '产品文档' })} onClick={handleClick} />)
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     fireEvent.click(screen.getByText('产品文档'))
 
     expect(handleClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the more button', () => {
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
+  })
+
+  it('does not call onClick when the more button is clicked', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('opens the more menu with placeholder actions', () => {
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+    expect(screen.getByRole('button', { name: '预览原文' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '查看 Chunks' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+  })
+
+  it('does not call onClick when a more menu action is clicked', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('calls onDelete without calling onClick when the delete action is clicked', () => {
+    const handleClick = vi.fn()
+    const handleDelete = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={handleDelete}
+        onReindex={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    expect(handleDelete).toHaveBeenCalledTimes(1)
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('calls onReindex without calling onClick when the reindex action is clicked', () => {
+    const handleClick = vi.fn()
+    const handleReindex = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={() => undefined}
+        onReindex={handleReindex}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    expect(handleReindex).toHaveBeenCalledTimes(1)
+    expect(handleClick).not.toHaveBeenCalled()
   })
 })

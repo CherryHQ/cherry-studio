@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +13,35 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
     ),
+    ConfirmDialog: ({
+      open,
+      title,
+      description,
+      confirmText,
+      cancelText,
+      onConfirm,
+      onOpenChange
+    }: {
+      open?: boolean
+      title: ReactNode
+      description?: ReactNode
+      confirmText?: string
+      cancelText?: string
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button type="button" onClick={() => void onConfirm?.()}>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
     Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
   }
 })
@@ -40,7 +69,16 @@ vi.mock('react-i18next', () => ({
           {
             'common.add': '添加',
             'common.loading': '加载中...',
+            'common.cancel': '取消',
+            'common.delete': '删除',
+            'common.more': '更多',
             'common.no_results': '暂无结果',
+            'knowledge_v2.data_source.actions.preview_source': '预览原文',
+            'knowledge_v2.data_source.actions.view_chunks': '查看 Chunks',
+            'knowledge_v2.data_source.actions.reindex': '重新索引',
+            'knowledge_v2.data_source.actions.delete': '删除',
+            'knowledge_v2.data_source.delete_confirm_description': '删除后将无法恢复该数据源及其索引数据。',
+            'knowledge_v2.data_source.delete_confirm_title': '确认删除数据源',
             'knowledge_v2.data_source.filters.all': '全部',
             'knowledge_v2.data_source.filters.file': '文件',
             'knowledge_v2.data_source.filters.note': '笔记',
@@ -66,11 +104,13 @@ describe('DataSourcePanel', () => {
   })
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {
-    const { rerender } = render(<DataSourcePanel items={[]} isLoading onAdd={vi.fn()} />)
+    const { rerender } = render(
+      <DataSourcePanel items={[]} isLoading onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />
+    )
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={vi.fn()} />)
+    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />)
 
     expect(screen.getByText('暂无结果')).toBeInTheDocument()
   })
@@ -84,6 +124,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
       />
     )
 
@@ -102,6 +144,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
       />
     )
 
@@ -121,6 +165,8 @@ describe('DataSourcePanel', () => {
         ]}
         isLoading={false}
         onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
       />
     )
 
@@ -148,6 +194,8 @@ describe('DataSourcePanel', () => {
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
       />
     )
 
@@ -155,5 +203,50 @@ describe('DataSourcePanel', () => {
 
     expect(onAdd).toHaveBeenCalledTimes(1)
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
+  })
+
+  it('opens delete confirmation before forwarding row delete actions', async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认删除数据源')
+    expect(screen.getByRole('dialog')).toHaveTextContent('删除后将无法恢复该数据源及其索引数据。')
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    })
+  })
+
+  it('forwards row reindex actions', () => {
+    const onReindex = vi.fn()
+
+    render(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={onReindex}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
   })
 })

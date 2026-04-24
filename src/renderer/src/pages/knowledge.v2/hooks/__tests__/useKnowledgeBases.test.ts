@@ -4,6 +4,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mockRendererLoggerService } from '../../../../../../../tests/__mocks__/RendererLoggerService'
 import {
   useCreateKnowledgeBase,
   useDeleteKnowledgeBase,
@@ -13,10 +14,14 @@ import {
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
+const mockUseInvalidateCache = vi.fn()
+const mockInvalidateCache = vi.fn()
+const mockRuntimeDeleteBase = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
-  useMutation: (...args: unknown[]) => mockUseMutation(...args)
+  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  useInvalidateCache: () => mockUseInvalidateCache()
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
@@ -231,33 +236,50 @@ describe('useUpdateKnowledgeBase', () => {
 })
 
 describe('useDeleteKnowledgeBase', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
+    mockInvalidateCache.mockResolvedValue(undefined)
+    mockRuntimeDeleteBase.mockResolvedValue(undefined)
+    ;(window as any).api = {
+      knowledgeRuntime: {
+        deleteBase: mockRuntimeDeleteBase
+      }
+    }
   })
 
-  it('deletes a knowledge base with the expected params', async () => {
-    const trigger = vi.fn().mockResolvedValue(undefined)
-    const deleteError = new Error('delete failed')
-
-    mockUseMutation.mockReturnValue({
-      trigger,
-      isLoading: true,
-      error: deleteError
-    })
-
+  it('deletes a knowledge base through runtime IPC and refreshes the knowledge base list', async () => {
     const { result } = renderHook(() => useDeleteKnowledgeBase())
 
     await act(async () => {
       await result.current.deleteBase('base-1')
     })
 
-    expect(mockUseMutation).toHaveBeenCalledWith('DELETE', '/knowledge-bases/:id', {
-      refresh: ['/knowledge-bases']
+    expect(mockUseMutation).not.toHaveBeenCalled()
+    expect(mockRuntimeDeleteBase).toHaveBeenCalledWith('base-1')
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(result.current.isDeleting).toBe(false)
+    expect(result.current.deleteError).toBeUndefined()
+  })
+
+  it('keeps delete rejected when runtime IPC fails without refreshing the list', async () => {
+    const deleteError = new Error('delete failed')
+    mockRuntimeDeleteBase.mockRejectedValueOnce(deleteError)
+    const { result } = renderHook(() => useDeleteKnowledgeBase())
+
+    await act(async () => {
+      await expect(result.current.deleteBase('base-1')).rejects.toBe(deleteError)
     })
-    expect(trigger).toHaveBeenCalledWith({
-      params: { id: 'base-1' }
-    })
-    expect(result.current.isDeleting).toBe(true)
+
+    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', {
+      baseId: 'base-1',
+      error: deleteError
+    })
   })
 })

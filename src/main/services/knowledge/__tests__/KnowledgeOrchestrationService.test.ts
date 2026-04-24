@@ -11,6 +11,7 @@ const {
   runtimeDeleteItemsMock,
   runtimeSearchMock,
   knowledgeBaseGetByIdMock,
+  knowledgeBaseDeleteMock,
   knowledgeItemCreateManyInBaseMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetByIdsInBaseMock,
@@ -23,6 +24,7 @@ const {
   runtimeDeleteItemsMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeBaseDeleteMock: vi.fn(),
   knowledgeItemCreateManyInBaseMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetByIdsInBaseMock: vi.fn(),
@@ -50,7 +52,8 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
-    getById: knowledgeBaseGetByIdMock
+    getById: knowledgeBaseGetByIdMock,
+    delete: knowledgeBaseDeleteMock
   }
 }))
 
@@ -76,6 +79,8 @@ function createBase() {
     emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    chunkSize: 1024,
+    chunkOverlap: 200,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -117,6 +122,7 @@ describe('KnowledgeOrchestrationService', () => {
     })
 
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeBaseDeleteMock.mockResolvedValue(undefined)
     knowledgeItemCreateManyInBaseMock.mockResolvedValue({ items: [] })
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
     knowledgeItemGetByIdsInBaseMock.mockResolvedValue([createNoteItem()])
@@ -143,6 +149,7 @@ describe('KnowledgeOrchestrationService', () => {
       'knowledge-runtime:delete-base',
       'knowledge-runtime:add-items',
       'knowledge-runtime:delete-items',
+      'knowledge-runtime:reindex-items',
       'knowledge-runtime:search'
     ])
   })
@@ -190,6 +197,46 @@ describe('KnowledgeOrchestrationService', () => {
 
     expect(runtimeDeleteItemsMock).toHaveBeenCalledWith(createBase(), [note])
     expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(note.id)
+  })
+
+  it('deletes base runtime data before deleting the SQLite base', async () => {
+    const service = new KnowledgeOrchestrationService()
+
+    await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
+
+    expect(deleteBaseMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(deleteBaseMock.mock.invocationCallOrder[0]).toBeLessThan(knowledgeBaseDeleteMock.mock.invocationCallOrder[0])
+  })
+
+  it('does not delete the SQLite base when runtime base deletion fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const deleteError = new Error('vector cleanup failed')
+    deleteBaseMock.mockRejectedValueOnce(deleteError)
+
+    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('reindexes existing items by deleting them before recreating pending sources', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const existingNote = createNoteItem('note-1')
+    const recreatedNote = createNoteItem('note-2')
+    knowledgeItemGetByIdsInBaseMock.mockResolvedValueOnce([existingNote])
+    knowledgeItemCreateManyInBaseMock.mockResolvedValueOnce({ items: [recreatedNote] })
+
+    await expect(service.reindexItems('kb-1', [existingNote.id])).resolves.toEqual({ itemIds: [recreatedNote.id] })
+    await flushBackgroundTasks()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith(createBase(), [existingNote])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(existingNote.id)
+    expect(knowledgeItemCreateManyInBaseMock).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'note', groupId: null, data: existingNote.data }],
+      { status: 'pending' }
+    )
+    expect(processKnowledgeSourcesMock).toHaveBeenCalledWith(createBase(), [recreatedNote])
   })
 
   it('searches through runtime after resolving the base', async () => {

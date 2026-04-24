@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import type { CreateKnowledgeBaseInput } from '../types'
 
@@ -56,16 +56,25 @@ export const useCreateKnowledgeBase = () => {
         throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
+      const body: {
+        name: string
+        emoji: string
+        embeddingModelId: string
+        dimensions: number
+        groupId?: string
+      } = {
+        name,
+        emoji: input.emoji,
+        embeddingModelId,
+        dimensions
+      }
+
+      if (groupId) {
+        body.groupId = groupId
+      }
+
       try {
-        return await createTrigger({
-          body: {
-            name,
-            emoji: input.emoji,
-            ...(groupId ? { groupId } : {}),
-            embeddingModelId,
-            dimensions
-          }
-        })
+        return await createTrigger({ body })
       } catch (error) {
         logger.error('Failed to create knowledge base', {
           name,
@@ -122,29 +131,40 @@ export const useUpdateKnowledgeBase = () => {
 }
 
 export const useDeleteKnowledgeBase = () => {
-  const {
-    trigger: deleteTrigger,
-    isLoading: isDeleting,
-    error: deleteError
-  } = useMutation('DELETE', '/knowledge-bases/:id', {
-    refresh: ['/knowledge-bases']
-  })
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<Error | undefined>()
+  const invalidateCache = useInvalidateCache()
 
   const deleteBase = useCallback(
     async (baseId: string) => {
+      setDeleteError(undefined)
+      setIsDeleting(true)
+
       try {
-        return await deleteTrigger({
-          params: { id: baseId }
-        })
+        await window.api.knowledgeRuntime.deleteBase(baseId)
       } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error('Failed to delete knowledge base')
         logger.error('Failed to delete knowledge base', {
           baseId,
-          error
+          error: normalizedError
         })
-        throw error
+        setDeleteError(normalizedError)
+        setIsDeleting(false)
+        throw normalizedError
       }
+
+      try {
+        await invalidateCache('/knowledge-bases')
+      } catch (invalidateError) {
+        logger.error('Failed to refresh knowledge base list after delete', {
+          baseId,
+          error: invalidateError instanceof Error ? invalidateError : new Error('Failed to refresh knowledge bases')
+        })
+      }
+
+      setIsDeleting(false)
     },
-    [deleteTrigger]
+    [invalidateCache]
   )
 
   return {

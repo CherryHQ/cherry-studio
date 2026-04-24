@@ -40,6 +40,21 @@ const KnowledgeRuntimeSearchPayloadSchema = z
   })
   .strict()
 
+const toCreateKnowledgeItemInput = (item: KnowledgeItem): CreateKnowledgeItemsDto['items'][number] => {
+  switch (item.type) {
+    case 'file':
+      return { type: item.type, groupId: item.groupId, data: item.data }
+    case 'url':
+      return { type: item.type, groupId: item.groupId, data: item.data }
+    case 'note':
+      return { type: item.type, groupId: item.groupId, data: item.data }
+    case 'sitemap':
+      return { type: item.type, groupId: item.groupId, data: item.data }
+    case 'directory':
+      return { type: item.type, groupId: item.groupId, data: item.data }
+  }
+}
+
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeRuntimeService'])
@@ -57,6 +72,7 @@ export class KnowledgeOrchestrationService extends BaseService {
   async deleteBase(baseId: string): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
     await runtime.deleteBase(baseId)
+    await knowledgeBaseService.delete(baseId)
   }
 
   async addSources(baseId: string, items: CreateKnowledgeItemsDto['items']): Promise<{ itemIds: string[] }> {
@@ -83,6 +99,27 @@ export class KnowledgeOrchestrationService extends BaseService {
     await Promise.all(itemIds.map((itemId) => knowledgeItemService.delete(itemId)))
   }
 
+  async reindexItems(baseId: string, itemIds: string[]): Promise<{ itemIds: string[] }> {
+    const [base, items] = await Promise.all([
+      knowledgeBaseService.getById(baseId),
+      knowledgeItemService.getByIdsInBase(baseId, itemIds)
+    ])
+    const recreatedInputs = items.map(toCreateKnowledgeItemInput)
+
+    const runtime = application.get('KnowledgeRuntimeService')
+    await runtime.deleteItems(base, items)
+    await Promise.all(items.map((item) => knowledgeItemService.delete(item.id)))
+
+    const recreatedItems = (
+      await knowledgeItemService.createManyInBase(baseId, recreatedInputs, {
+        status: 'pending'
+      })
+    ).items
+
+    this.enqueueBackgroundProcessing(base, recreatedItems)
+    return { itemIds: recreatedItems.map((item) => item.id) }
+  }
+
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     const base = await knowledgeBaseService.getById(baseId)
     const runtime = application.get('KnowledgeRuntimeService')
@@ -105,6 +142,10 @@ export class KnowledgeOrchestrationService extends BaseService {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: unknown) => {
       const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
       return await this.deleteItems(baseId, itemIds)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ReindexItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+      return await this.reindexItems(baseId, itemIds)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: unknown) => {
       const { baseId, query } = KnowledgeRuntimeSearchPayloadSchema.parse(payload)

@@ -218,10 +218,9 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases/:id', () => {
-    it('should delegate GET/PATCH/DELETE with the path id', async () => {
+    it('should delegate GET/PATCH with the path id', async () => {
       getKnowledgeBaseByIdMock.mockResolvedValueOnce({ id: 'kb-1' })
       updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', name: 'Updated Base' })
-      deleteKnowledgeBaseMock.mockResolvedValueOnce(undefined)
 
       await expect(knowledgeHandlers['/knowledge-bases/:id'].GET({ params: { id: 'kb-1' } })).resolves.toEqual({
         id: 'kb-1'
@@ -237,15 +236,9 @@ describe('knowledgeHandlers', () => {
         name: 'Updated Base'
       })
 
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id'].DELETE({
-          params: { id: 'kb-1' }
-        })
-      ).resolves.toBeUndefined()
-
       expect(getKnowledgeBaseByIdMock).toHaveBeenCalledWith('kb-1')
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', { name: 'Updated Base' })
-      expect(deleteKnowledgeBaseMock).toHaveBeenCalledWith('kb-1')
+      expect(deleteKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
     it('should reject invalid PATCH bodies before calling the service', async () => {

@@ -1,6 +1,7 @@
 import { Button, MenuDivider, MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type {
@@ -9,6 +10,44 @@ import type {
   NavigatorMoreButtonProps,
   NavigatorRowMenuProps
 } from './types'
+
+const NavigatorRowMenuIcon = ({ children }: { children: ReactNode }) => {
+  return <span className="[&_svg]:size-2.75">{children}</span>
+}
+
+const NavigatorRowMenuItem = ({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) => {
+  return (
+    <MenuItem
+      variant="ghost"
+      size="sm"
+      icon={<NavigatorRowMenuIcon>{icon}</NavigatorRowMenuIcon>}
+      label={label}
+      className="gap-2 rounded-md px-2 py-1 font-normal text-[0.6875rem] text-popover-foreground"
+      onClick={onClick}
+    />
+  )
+}
+
+const NavigatorRowDeleteMenuItem = ({
+  icon,
+  label,
+  onClick
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+}) => {
+  return (
+    <MenuItem
+      variant="ghost"
+      size="sm"
+      icon={<NavigatorRowMenuIcon>{icon}</NavigatorRowMenuIcon>}
+      label={label}
+      className="gap-2 rounded-md px-2 py-1 font-normal text-[0.6875rem] text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
+      onClick={onClick}
+    />
+  )
+}
 
 export const NavigatorMoreButton = ({ visible, className, onClick }: NavigatorMoreButtonProps) => {
   const { t } = useTranslation()
@@ -54,7 +93,7 @@ export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorR
         side="bottom"
         sideOffset={8}
         collisionPadding={8}
-        className="w-52 rounded-xl p-2"
+        className="z-300 min-w-32.5 rounded-lg p-1 shadow-xl"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
         {children}
@@ -76,24 +115,18 @@ export const KnowledgeBaseRowMenu = ({
   return (
     <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
       <MenuList className="gap-0.5">
-        <MenuItem
-          variant="ghost"
-          icon={<PencilLine className="size-3.5" />}
-          label={t('knowledge_v2.context.rename')}
-          onClick={onRename}
-        />
+        <NavigatorRowMenuItem icon={<PencilLine />} label={t('knowledge_v2.context.rename')} onClick={onRename} />
 
         {availableGroups.length > 0 ? (
           <>
-            <div className="px-2.5 pt-1 pb-0.5 font-medium text-[0.625rem] text-muted-foreground/70 leading-4">
+            <div className="px-2 pt-1 pb-0.5 text-[0.625rem] text-muted-foreground/70 leading-4">
               {t('knowledge_v2.context.move_to')}
             </div>
 
             {availableGroups.map((group) => (
-              <MenuItem
+              <NavigatorRowMenuItem
                 key={group.id}
-                variant="ghost"
-                icon={<ArrowRightLeft className="size-3.5" />}
+                icon={<ArrowRightLeft />}
                 label={group.name}
                 onClick={() => void onMove(group.id)}
               />
@@ -103,11 +136,9 @@ export const KnowledgeBaseRowMenu = ({
           </>
         ) : null}
 
-        <MenuItem
-          variant="ghost"
-          icon={<Trash2 className="size-3.5" />}
+        <NavigatorRowDeleteMenuItem
+          icon={<Trash2 />}
           label={t('knowledge_v2.context.delete')}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
           onClick={onRequestDelete}
         />
       </MenuList>
@@ -126,18 +157,11 @@ export const KnowledgeGroupRowMenu = ({
   return (
     <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
       <MenuList className="gap-0.5">
-        <MenuItem
-          variant="ghost"
-          icon={<PencilLine className="size-3.5" />}
-          label={t('knowledge_v2.context.rename')}
-          onClick={onRename}
-        />
+        <NavigatorRowMenuItem icon={<PencilLine />} label={t('knowledge_v2.context.rename')} onClick={onRename} />
         <MenuDivider />
-        <MenuItem
-          variant="ghost"
-          icon={<Trash2 className="size-3.5" />}
+        <NavigatorRowDeleteMenuItem
+          icon={<Trash2 />}
           label={t('knowledge_v2.groups.delete')}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
           onClick={onRequestDelete}
         />
       </MenuList>

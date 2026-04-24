@@ -449,7 +449,7 @@ describe('KnowledgeRuntimeService', () => {
           created_at: '2026-04-08T00:00:00.000Z',
           size: 10,
           ext: '.md',
-          type: 'text',
+          type: 'text' as const,
           count: 1
         }
       }

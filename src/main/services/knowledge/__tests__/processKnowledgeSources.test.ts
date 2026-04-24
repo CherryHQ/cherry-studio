@@ -52,6 +52,8 @@ function createBase() {
     emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    chunkSize: 1024,
+    chunkOverlap: 200,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }

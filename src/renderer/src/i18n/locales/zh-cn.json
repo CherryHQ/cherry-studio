@@ -2130,6 +2130,12 @@
       "rename": "重命名"
     },
     "data_source": {
+      "actions": {
+        "delete": "删除",
+        "preview_source": "预览原文",
+        "reindex": "重新索引",
+        "view_chunks": "查看 Chunks"
+      },
       "add_dialog": {
         "directory": {
           "description": "将递归导入文件夹中的支持文件",
@@ -2149,6 +2155,11 @@
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "点击选择文件或拖拽到此处"
         },
+        "sitemap": {
+          "description": "输入 Sitemap 地址：",
+          "help": "将读取 Sitemap 中包含的页面并建立索引",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
         "sources": {
           "directory": "目录",
           "file": "文件",
@@ -2167,14 +2178,11 @@
           "input_label": "网页地址",
           "placeholder": "https://docs.cherry-ai.com/",
           "title": "导入单个网页"
-        },
-        "sitemap": {
-          "description": "输入 Sitemap 地址：",
-          "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
         }
       },
       "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
+      "delete_confirm_title": "确认删除数据源",
       "filters": {
         "all": "全部",
         "directory": "目录",

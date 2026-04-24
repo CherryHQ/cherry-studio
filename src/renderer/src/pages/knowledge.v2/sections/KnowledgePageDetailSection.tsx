@@ -1,5 +1,6 @@
 import DetailHeader from '../components/DetailHeader'
 import DetailTabs from '../components/DetailTabs'
+import { useDeleteKnowledgeItem, useReindexKnowledgeItem } from '../hooks'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
@@ -9,6 +10,7 @@ const KnowledgePageDetailSection = () => {
   const {
     activeTab,
     selectedBase,
+    selectedBaseId,
     selectedBaseItems,
     isItemsLoading,
     setActiveTab,
@@ -16,6 +18,8 @@ const KnowledgePageDetailSection = () => {
     openRenameBaseDialog,
     deleteBase
   } = useKnowledgePage()
+  const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
+  const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
   if (!selectedBase) {
     return null
@@ -28,7 +32,13 @@ const KnowledgePageDetailSection = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === 'data' ? (
-          <DataSourcePanel items={selectedBaseItems} isLoading={isItemsLoading} onAdd={openAddSourceDialog} />
+          <DataSourcePanel
+            items={selectedBaseItems}
+            isLoading={isItemsLoading}
+            onAdd={openAddSourceDialog}
+            onDelete={deleteItem}
+            onReindex={reindexItem}
+          />
         ) : null}
         {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} /> : null}
         {activeTab === 'recall' ? <RecallTestPanel /> : null}

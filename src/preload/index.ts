@@ -359,6 +359,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
+    reindexItems: (baseId: string, itemIds: string[]): Promise<{ itemIds: string[] }> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ReindexItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
   },

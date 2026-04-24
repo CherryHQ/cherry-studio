@@ -10,10 +10,28 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../KnowledgeItemRow', () => ({
-  default: ({ item, onClick }: { item: { id: string }; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
-      {item.id}
-    </button>
+  default: ({
+    item,
+    onClick,
+    onDelete,
+    onReindex
+  }: {
+    item: { id: string }
+    onClick?: () => void
+    onDelete?: () => void
+    onReindex?: () => void
+  }) => (
+    <div>
+      <button type="button" onClick={onClick}>
+        {item.id}
+      </button>
+      <button type="button" onClick={onDelete}>
+        delete-{item.id}
+      </button>
+      <button type="button" onClick={onReindex}>
+        reindex-{item.id}
+      </button>
+    </div>
   )
 }))
 
@@ -31,13 +49,29 @@ vi.mock('react-i18next', () => ({
 
 describe('KnowledgeItemList', () => {
   it('renders the loading state before item rows', () => {
-    render(<KnowledgeItemList items={[]} isLoading onItemClick={() => undefined} />)
+    render(
+      <KnowledgeItemList
+        items={[]}
+        isLoading
+        onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
 
   it('renders the empty state when there are no visible items', () => {
-    render(<KnowledgeItemList items={[]} isLoading={false} onItemClick={() => undefined} />)
+    render(
+      <KnowledgeItemList
+        items={[]}
+        isLoading={false}
+        onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     expect(screen.getByText('暂无结果')).toBeInTheDocument()
   })
@@ -48,6 +82,8 @@ describe('KnowledgeItemList', () => {
         items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
         isLoading={false}
         onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
       />
     )
 
@@ -59,10 +95,56 @@ describe('KnowledgeItemList', () => {
     const handleItemClick = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(<KnowledgeItemList items={[item]} isLoading={false} onItemClick={handleItemClick} />)
+    render(
+      <KnowledgeItemList
+        items={[item]}
+        isLoading={false}
+        onItemClick={handleItemClick}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'note-1' }))
 
     expect(handleItemClick).toHaveBeenCalledWith(item)
+  })
+
+  it('passes onDelete through to the row delete handler', () => {
+    const handleDelete = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <KnowledgeItemList
+        items={[item]}
+        isLoading={false}
+        onItemClick={() => undefined}
+        onDelete={handleDelete}
+        onReindex={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'delete-note-1' }))
+
+    expect(handleDelete).toHaveBeenCalledWith(item)
+  })
+
+  it('passes onReindex through to the row reindex handler', () => {
+    const handleReindex = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <KnowledgeItemList
+        items={[item]}
+        isLoading={false}
+        onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={handleReindex}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
+
+    expect(handleReindex).toHaveBeenCalledWith(item)
   })
 })

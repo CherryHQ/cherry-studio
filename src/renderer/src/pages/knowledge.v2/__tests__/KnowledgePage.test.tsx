@@ -14,7 +14,9 @@ const mockUseUpdateKnowledgeBase = vi.fn()
 const mockUseUpdateKnowledgeGroup = vi.fn()
 const mockUseDeleteKnowledgeGroup = vi.fn()
 const mockUseDeleteKnowledgeBase = vi.fn()
+const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
+const mockUseReindexKnowledgeItem = vi.fn()
 
 vi.mock('../hooks', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -25,7 +27,9 @@ vi.mock('../hooks', () => ({
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup(),
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase(),
-  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId)
+  useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
+  useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
+  useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
 vi.mock('@renderer/components/app/Navbar', () => ({
@@ -148,12 +152,34 @@ vi.mock('../components/DetailTabs', () => ({
 }))
 
 vi.mock('../panels/dataSource/DataSourcePanel', () => ({
-  default: ({ items, isLoading, onAdd }: { items: Array<{ id: string }>; isLoading: boolean; onAdd: () => void }) => (
+  default: ({
+    items,
+    isLoading,
+    onAdd,
+    onDelete,
+    onReindex
+  }: {
+    items: Array<{ id: string }>
+    isLoading: boolean
+    onAdd: () => void
+    onDelete: (item: { id: string }) => void | Promise<void>
+    onReindex: (item: { id: string }) => void | Promise<void>
+  }) => (
     <div>
       <div data-testid="data-source-panel">{`${items.length}:${isLoading ? 'loading' : 'idle'}`}</div>
       <button type="button" onClick={onAdd}>
         Open Add Source
       </button>
+      {items.map((item) => (
+        <div key={item.id}>
+          <button type="button" onClick={() => void onDelete(item)}>
+            DeleteItem {item.id}
+          </button>
+          <button type="button" onClick={() => void onReindex(item)}>
+            Reindex {item.id}
+          </button>
+        </div>
+      ))}
     </div>
   )
 }))
@@ -400,6 +426,16 @@ describe('KnowledgePage', () => {
       error: undefined,
       refetch: vi.fn()
     })
+    mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItem: vi.fn(),
+      isDeleting: false,
+      error: undefined
+    })
+    mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItem: vi.fn(),
+      isReindexing: false,
+      error: undefined
+    })
   })
 
   it('auto-selects the first knowledge base after bases load', async () => {
@@ -495,6 +531,72 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close Add Source' }))
     expect(screen.queryByTestId('add-source-dialog')).not.toBeInTheDocument()
+  })
+
+  it('wires data source delete actions to the selected base delete hook', async () => {
+    const deleteItem = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseDeleteKnowledgeItem.mockReturnValue({
+      deleteItem,
+      isDeleting: false,
+      error: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'DeleteItem item-1' }))
+
+    expect(mockUseDeleteKnowledgeItem).toHaveBeenCalledWith('base-1')
+    expect(deleteItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+  })
+
+  it('wires data source reindex actions to the selected base reindex hook', async () => {
+    const reindexItem = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseReindexKnowledgeItem.mockReturnValue({
+      reindexItem,
+      isReindexing: false,
+      error: undefined
+    })
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reindex item-1' }))
+
+    expect(mockUseReindexKnowledgeItem).toHaveBeenCalledWith('base-1')
+    expect(reindexItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
   })
 
   it('shows the loading state when bases are still loading', () => {

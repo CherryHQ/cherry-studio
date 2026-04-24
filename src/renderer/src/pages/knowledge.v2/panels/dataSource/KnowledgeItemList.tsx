@@ -9,13 +9,19 @@ export interface KnowledgeItemListProps {
   items: KnowledgeItem[]
   isLoading: boolean
   onItemClick: (item: KnowledgeItem) => void
+  onDelete: (item: KnowledgeItem) => void | Promise<unknown>
+  onReindex: (item: KnowledgeItem) => void | Promise<unknown>
 }
 
-const KnowledgeItemList = ({ items, isLoading, onItemClick }: KnowledgeItemListProps) => {
+const KnowledgeItemList = ({ items, isLoading, onItemClick, onDelete, onReindex }: KnowledgeItemListProps) => {
   const { t } = useTranslation()
 
   return (
-    <Scrollbar className={cn('mx-2.5 mb-2.5 min-h-0 flex-1 rounded-lg border border-border/25')}>
+    <Scrollbar
+      className={cn(
+        'mx-2.5 mb-2.5 min-h-0 flex-1 rounded-lg border border-border/25',
+        '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+      )}>
       {isLoading ? (
         <div className="flex h-full items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground/60">
           {t('common.loading')}
@@ -27,7 +33,13 @@ const KnowledgeItemList = ({ items, isLoading, onItemClick }: KnowledgeItemListP
       ) : (
         <div className="divide-y divide-border/15">
           {items.map((item) => (
-            <KnowledgeItemRow key={item.id} item={item} onClick={() => onItemClick(item)} />
+            <KnowledgeItemRow
+              key={item.id}
+              item={item}
+              onClick={() => onItemClick(item)}
+              onDelete={() => onDelete(item)}
+              onReindex={() => onReindex(item)}
+            />
           ))}
         </div>
       )}
