@@ -36,6 +36,8 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 
 export interface PreferenceSchemas {
   default: {
+    // target-key-definitions/complex/complex
+    'agent.pinned_ids': string[]
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
     // redux/settings/autoCheckUpdate
@@ -84,6 +86,8 @@ export interface PreferenceSchemas {
     'assistant.click_to_show_topic': boolean
     // redux/settings/assistantIconType
     'assistant.icon_type': PreferenceTypes.AssistantIconType
+    // target-key-definitions/complex/complex
+    'assistant.pinned_ids': string[]
     // redux/settings/showAssistants
     'assistant.tab.show': boolean
     // redux/settings/assistantsTabSortType
@@ -498,6 +502,7 @@ export interface PreferenceSchemas {
 /* eslint sort-keys: ["error", "asc", {"caseSensitive": true, "natural": false}] */
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
+    'agent.pinned_ids': [],
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,
@@ -522,6 +527,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.zoom_factor': 1,
     'assistant.click_to_show_topic': true,
     'assistant.icon_type': 'emoji',
+    'assistant.pinned_ids': [],
     'assistant.tab.show': true,
     'assistant.tab.sort_type': 'list',
     'chat.code.collapsible': false,

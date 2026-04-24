@@ -144,6 +144,20 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "assistant.pinned_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Pinned assistant IDs shown at the top of the assistant selector list."
+    },
+    {
+      "targetKey": "agent.pinned_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Pinned agent IDs shown at the top of the agent selector list."
     }
   ]
 }
