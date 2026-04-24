@@ -18,19 +18,25 @@ import type { OffsetPaginationResponse } from '../apiTypes'
 // Translate History DTOs & Query
 // ============================================================================
 
-export const CreateTranslateHistorySchema = z.object({
-  /** Non-empty string */
-  sourceText: z.string().min(1),
-  /** Non-empty string */
-  targetText: z.string().min(1),
-  /** Must match PersistedLangCodeSchema; `null` is allowed when detection
-   *  degrades to UNKNOWN. The `'unknown'` UI sentinel is still rejected. */
-  sourceLanguage: PersistedLangCodeSchema.nullable(),
-  /** Must match PersistedLangCodeSchema; `null` is allowed when the target
-   *  is unknown. The `'unknown'` UI sentinel is still rejected. */
-  targetLanguage: PersistedLangCodeSchema.nullable()
-})
-/** DTO for creating a translate history record. */
+export const CreateTranslateHistorySchema = z
+  .object({
+    /** Non-empty string */
+    sourceText: z.string().min(1),
+    /** Non-empty string */
+    targetText: z.string().min(1),
+    /** Must match PersistedLangCodeSchema; `null` is allowed when detection
+     *  degrades to UNKNOWN. The `'unknown'` UI sentinel is still rejected. */
+    sourceLanguage: PersistedLangCodeSchema.nullable(),
+    /** Must match PersistedLangCodeSchema; `null` is allowed when the target
+     *  is unknown. The `'unknown'` UI sentinel is still rejected. */
+    targetLanguage: PersistedLangCodeSchema.nullable()
+  })
+  .strict()
+/**
+ * DTO for creating a translate history record. Uses `.strict()` — unknown
+ * fields (including server-managed `id`/`createdAt`/`updatedAt`/`star`) are
+ * rejected rather than silently stripped, matching `UpdateTranslateHistorySchema`.
+ */
 export type CreateTranslateHistoryDto = z.infer<typeof CreateTranslateHistorySchema>
 
 export const UpdateTranslateHistorySchema = z
@@ -59,14 +65,20 @@ export type UpdateTranslateHistoryDto = z.infer<typeof UpdateTranslateHistorySch
 export const TRANSLATE_HISTORY_DEFAULT_PAGE = 1
 export const TRANSLATE_HISTORY_DEFAULT_LIMIT = 20
 export const TRANSLATE_HISTORY_MAX_LIMIT = 100
+export const TRANSLATE_HISTORY_SEARCH_MAX_LENGTH = 200
 
 export const TranslateHistoryQuerySchema = z.object({
   /** Positive integer, defaults to {@link TRANSLATE_HISTORY_DEFAULT_PAGE} */
   page: z.int().positive().default(TRANSLATE_HISTORY_DEFAULT_PAGE),
   /** Positive integer, max {@link TRANSLATE_HISTORY_MAX_LIMIT}, defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT} */
   limit: z.int().positive().max(TRANSLATE_HISTORY_MAX_LIMIT).default(TRANSLATE_HISTORY_DEFAULT_LIMIT),
-  /** LIKE search on sourceText and targetText (wildcards are escaped) */
-  search: z.string().optional(),
+  /**
+   * LIKE search on sourceText and targetText (wildcards are escaped).
+   * Bounded `[1, TRANSLATE_HISTORY_SEARCH_MAX_LENGTH]` so an empty value can't
+   * widen the query to `LIKE '%%'` (effectively returning everything) and an
+   * unbounded value can't be used to push expensive scans.
+   */
+  search: z.string().min(1).max(TRANSLATE_HISTORY_SEARCH_MAX_LENGTH).optional(),
   /** Filter by starred status */
   star: z.boolean().optional()
 })
@@ -77,15 +89,20 @@ export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
 // Translate Language DTOs
 // ============================================================================
 
-export const CreateTranslateLanguageSchema = z.object({
-  /** Becomes the PK, immutable after creation. Normalized to lowercase before insert. */
-  langCode: PersistedLangCodeSchema,
-  /** Display name, non-empty */
-  value: z.string().min(1),
-  /** Flag emoji */
-  emoji: z.emoji()
-})
-/** DTO for creating a translate language. */
+export const CreateTranslateLanguageSchema = z
+  .object({
+    /** Becomes the PK, immutable after creation. Normalized to lowercase before insert. */
+    langCode: PersistedLangCodeSchema,
+    /** Display name, non-empty */
+    value: z.string().min(1),
+    /** Flag emoji */
+    emoji: z.emoji()
+  })
+  .strict()
+/**
+ * DTO for creating a translate language. Uses `.strict()` — unknown fields
+ * are rejected rather than silently stripped, matching `UpdateTranslateLanguageSchema`.
+ */
 export type CreateTranslateLanguageDto = z.infer<typeof CreateTranslateLanguageSchema>
 
 export const UpdateTranslateLanguageSchema = z
