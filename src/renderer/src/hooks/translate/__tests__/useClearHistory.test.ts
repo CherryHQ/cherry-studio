@@ -55,4 +55,32 @@ describe('useClearHistory', () => {
     expect(loggerSpy).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('t(translate.history.error.clear)')
   })
+
+  it('stays silent on the success path by default', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useClearHistory())
+
+    // Default `showSuccessToast: false` — the list emptying is the feedback,
+    // a redundant toast would just nag.
+    await expect(result.current()).resolves.toBeUndefined()
+    expect(triggerSpy).toHaveBeenCalledWith()
+    expect(loggerSpy).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('emits a success toast when showSuccessToast: true is passed', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue(undefined)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useClearHistory({ showSuccessToast: true }))
+
+    await result.current()
+
+    expect(toast.success).toHaveBeenCalledWith('t(translate.history.success.clear)')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 })

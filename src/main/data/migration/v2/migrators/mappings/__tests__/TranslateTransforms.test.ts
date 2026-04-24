@@ -49,6 +49,23 @@ describe('splitBidirectionalPairForAction', () => {
   it('rejects the "unknown" sentinel (PersistedLangCodeSchema is strict)', () => {
     expect(splitBidirectionalPairForAction({ bidirectionalPair: ['unknown', 'en-us'] })).toEqual({})
   })
+
+  it('rejects whitespace-padded lang codes (no implicit trim)', () => {
+    // The transform only `.toLowerCase()`s — it deliberately doesn't `trim()`,
+    // because legitimate Dexie data shouldn't have padding. Padded values are
+    // a sign of upstream corruption and must not silently pass.
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['  zh-cn  ', 'en-us'] })).toEqual({})
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['zh-cn', '\ten-us\n'] })).toEqual({})
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['zh-cn ', 'en-us'] })).toEqual({})
+  })
+
+  it('rejects overlong strings that do not match the lang code regex', () => {
+    // `[a-z]{2,3}(-[a-z]{2,4})?` caps at 8 characters; anything longer is
+    // either malformed input or a label string that snuck into the lang slot.
+    const overlong = 'a'.repeat(50)
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: [overlong, 'en-us'] })).toEqual({})
+    expect(splitBidirectionalPairForAction({ bidirectionalPair: ['en-us', overlong] })).toEqual({})
+  })
 })
 
 describe('copyTargetLanguageForMiniWindow', () => {
@@ -87,5 +104,17 @@ describe('copyTargetLanguageForMiniWindow', () => {
 
   it('rejects the "unknown" sentinel (PersistedLangCodeSchema is strict)', () => {
     expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'unknown' })).toEqual({})
+  })
+
+  it('rejects whitespace-padded lang codes (no implicit trim)', () => {
+    // Same rationale as splitBidirectionalPairForAction — padded input is a
+    // sign of upstream corruption, not something the migrator should clean up.
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: '  en-us  ' })).toEqual({})
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: '\nen-us' })).toEqual({})
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'en-us\t' })).toEqual({})
+  })
+
+  it('rejects overlong strings that do not match the lang code regex', () => {
+    expect(copyTargetLanguageForMiniWindow({ targetLanguage: 'a'.repeat(50) })).toEqual({})
   })
 })

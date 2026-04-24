@@ -109,4 +109,39 @@ describe('useAddHistory', () => {
       }
     })
   })
+
+  it('returns the trigger result and stays silent on the success path by default', async () => {
+    const created = {
+      id: 'h1',
+      sourceText: 'Hello',
+      targetText: '你好',
+      sourceLanguage: 'en-us',
+      targetLanguage: 'zh-cn'
+    }
+    const triggerSpy = vi.fn().mockResolvedValue(created)
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+    const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useAddHistory())
+
+    // Default `showSuccessToast: false` — success path stays silent so the
+    // history list refresh is the only feedback.
+    await expect(result.current(historyInput)).resolves.toBe(created)
+    expect(triggerSpy).toHaveBeenCalledWith({ body: historyInput })
+    expect(loggerSpy).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('emits a success toast when showSuccessToast: true is passed', async () => {
+    const triggerSpy = vi.fn().mockResolvedValue({ id: 'h1' })
+    mockUseMutation.mockImplementationOnce(() => ({ trigger: triggerSpy, isLoading: false, error: undefined }) as any)
+
+    const { result } = renderHook(() => useAddHistory({ showSuccessToast: true }))
+
+    await result.current(historyInput)
+
+    expect(toast.success).toHaveBeenCalledWith('t(translate.history.success.add)')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 })
