@@ -57,7 +57,7 @@ const TranslatePage: FC = () => {
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
-  const { getLabel } = useLanguages()
+  const { getLabel, languages } = useLanguages()
 
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
@@ -160,9 +160,13 @@ const TranslatePage: FC = () => {
 
       let translated: string
       try {
+        // useLanguages already cached the languages list — pass the VO so
+        // translateText can skip the GET /translate/languages/:code round trip.
+        // Falls back to the string langCode when the list hasn't resolved yet.
+        const targetVo = languages?.find((l) => l.langCode === actualTargetLanguage)
         translated = await translateText(
           translateInput,
-          actualTargetLanguage,
+          targetVo ?? actualTargetLanguage,
           throttle(setTranslateOutput, 100),
           abortKey
         )
@@ -210,6 +214,7 @@ const TranslatePage: FC = () => {
     couldTranslate,
     detectLanguage,
     isBidirectional,
+    languages,
     setTimeoutTimer,
     setTranslateOutput,
     setTranslatingState,

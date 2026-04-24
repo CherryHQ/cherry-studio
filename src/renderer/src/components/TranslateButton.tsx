@@ -25,7 +25,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const [isTranslating, setIsTranslating] = useState(false)
   const [targetLanguage] = usePreference('feature.translate.chat.target_language')
   const [showTranslateConfirm] = usePreference('feature.translate.chat.show_confirm')
-  const { getLabel } = useLanguages()
+  const { getLabel, languages } = useLanguages()
 
   const translateConfirm = () => {
     if (!showTranslateConfirm) {
@@ -50,7 +50,12 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
     setIsTranslating(true)
     try {
-      const translatedText = await translateText(text, targetLanguage)
+      // We already loaded the languages list via useLanguages — pass the VO
+      // directly so translateText doesn't have to round-trip GET /translate/languages/:code.
+      // Fall back to the lang code string if the list hasn't resolved yet,
+      // letting translateText's own fetch path handle it.
+      const targetVo = languages?.find((l) => l.langCode === targetLanguage)
+      const translatedText = await translateText(text, targetVo ?? targetLanguage)
       onTranslated(translatedText)
     } catch (error) {
       logger.error('Translation failed:', error as Error)
