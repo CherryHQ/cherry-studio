@@ -442,7 +442,7 @@ export class ChannelMessageHandler {
     if (channel?.permissionMode && session.configuration) {
       session.configuration = {
         ...session.configuration,
-        permission_mode: channel.permissionMode as PermissionMode
+        permission_mode: channel.permissionMode
       }
     }
   }

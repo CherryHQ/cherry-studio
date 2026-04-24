@@ -90,6 +90,9 @@ vi.mock('@main/services/agents/skills/SkillService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
+vi.mock('@main/services/agents/services/channels', () => ({ channelManager: {} }))
+
 import { agentHandlers } from '../agents'
 
 const AGENT_ID = 'agent_1234567890_abcdefghi'

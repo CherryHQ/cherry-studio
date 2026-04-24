@@ -1,9 +1,9 @@
 import { application } from '@application'
-import type { AgentChannelRow as ChannelRow } from '@data/db/schemas/agentChannel'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
+import type { ChannelEntity as ChannelRow } from '@shared/data/api/schemas/agents'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ChannelAdapter } from './ChannelAdapter'
