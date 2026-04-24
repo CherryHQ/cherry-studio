@@ -31,9 +31,13 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 
-vi.mock('@shared/data/types/model', () => ({
-  createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
-}))
+vi.mock('@shared/data/types/model', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/data/types/model')>()
+  return {
+    ...actual,
+    createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
+  }
+})
 
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 vi.mock('@main/core/application', () => ({
@@ -122,10 +126,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -153,10 +157,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -179,10 +183,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -222,10 +226,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -296,10 +300,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const newSession = {
       id: 'new-session',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -330,10 +334,10 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session1 = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      model: 'openai:gpt-4',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 

@@ -21,9 +21,13 @@ vi.mock('@data/services/AgentSessionService', () => ({
   }
 }))
 
-vi.mock('@shared/data/types/model', () => ({
-  createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
-}))
+vi.mock('@shared/data/types/model', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/data/types/model')>()
+  return {
+    ...actual,
+    createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
+  }
+})
 
 const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
 vi.mock('@main/core/application', () => ({
@@ -172,11 +176,25 @@ describe('SchedulerService', () => {
       sessions: [{ id: 'session-1' }] as any,
       total: 1
     })
-    vi.mocked(sessionService.getSession).mockResolvedValueOnce({
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'agent-1',
-      model: 'openai:gpt-4'
+      model: 'openai::gpt-4'
     } as any)
+
+    // Simulate AiStreamManager completing the execution so the scheduler's
+    // `await executionDone` resolves and the task flow reaches updateTaskAfterRun.
+    mockSend.mockImplementationOnce(
+      ({
+        listeners
+      }: {
+        listeners: Array<{ id: string; onDone?: (r: { status: string }) => void }>
+      }) => {
+        const sentinel = listeners.find((l) => l.id.startsWith('scheduler:'))
+        sentinel?.onDone?.({ status: 'success' })
+        return { mode: 'started', executionIds: [] }
+      }
+    )
 
     const service = SchedulerServiceModule.schedulerService
     service.startLoop()

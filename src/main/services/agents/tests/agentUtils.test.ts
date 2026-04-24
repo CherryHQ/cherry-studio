@@ -17,9 +17,11 @@ vi.mock('@main/apiServer/services/mcp', () => ({
   getMcpApiService: vi.fn(() => mockMcpApiService)
 }))
 
-const mockValidateModelId = vi.fn()
-vi.mock('@main/apiServer/utils', () => ({
-  validateModelId: (...args: unknown[]) => mockValidateModelId(...args)
+const mockGetByProviderId = vi.fn()
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: (...args: unknown[]) => mockGetByProviderId(...args)
+  }
 }))
 
 import { normalizeAllowedTools, resolveAccessiblePaths, validateAgentModels } from '../agentUtils'
@@ -91,66 +93,68 @@ describe('normalizeAllowedTools', () => {
 })
 
 describe('validateAgentModels', () => {
-  it('throws error when regular provider is missing API key', async () => {
-    mockValidateModelId.mockResolvedValue({
-      valid: true,
-      provider: { id: 'openai', apiKey: '' }
-    })
-
+  it('throws when model string is not in UniqueModelId format', async () => {
     await expect(
       validateAgentModels(
         'claude-code' as AgentType,
-        { model: 'openai:gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
+        { model: 'gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
       )
     ).rejects.toThrow(AgentModelValidationError)
   })
 
-  it('does not throw for ollama provider without API key and sets placeholder', async () => {
-    const provider = { id: 'ollama', apiKey: '' }
-    mockValidateModelId.mockResolvedValue({
-      valid: true,
-      provider
-    })
+  it('throws when provider cannot be resolved', async () => {
+    mockGetByProviderId.mockResolvedValue(null)
 
     await expect(
       validateAgentModels(
         'claude-code' as AgentType,
-        { model: 'ollama:llama3' } as Partial<Record<AgentModelField, string | undefined>>
+        { model: 'unknown::gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
       )
-    ).resolves.not.toThrow()
-    expect(provider.apiKey).toBe('ollama')
+    ).rejects.toThrow(AgentModelValidationError)
   })
 
-  it('does not throw for lmstudio provider without API key and sets placeholder', async () => {
-    const provider = { id: 'lmstudio', apiKey: '' }
-    mockValidateModelId.mockResolvedValue({
-      valid: true,
-      provider
-    })
+  it('throws when regular provider has no enabled API keys', async () => {
+    mockGetByProviderId.mockResolvedValue({ id: 'openai', apiKeys: [{ id: 'k1', isEnabled: false }] })
 
     await expect(
       validateAgentModels(
         'claude-code' as AgentType,
-        { model: 'lmstudio:model' } as Partial<Record<AgentModelField, string | undefined>>
+        { model: 'openai::gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
       )
-    ).resolves.not.toThrow()
-    expect(provider.apiKey).toBe('lmstudio')
+    ).rejects.toThrow(AgentModelValidationError)
   })
 
-  it('does not modify API key when provider already has one', async () => {
-    const provider = { id: 'openai', apiKey: 'sk-existing-key' }
-    mockValidateModelId.mockResolvedValue({
-      valid: true,
-      provider
-    })
+  it('does not throw for ollama provider without API key (local provider exempt)', async () => {
+    mockGetByProviderId.mockResolvedValue({ id: 'ollama', apiKeys: [] })
 
     await expect(
       validateAgentModels(
         'claude-code' as AgentType,
-        { model: 'openai:gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
+        { model: 'ollama::llama3' } as Partial<Record<AgentModelField, string | undefined>>
       )
     ).resolves.not.toThrow()
-    expect(provider.apiKey).toBe('sk-existing-key')
+  })
+
+  it('does not throw for lmstudio provider without API key (local provider exempt)', async () => {
+    mockGetByProviderId.mockResolvedValue({ id: 'lmstudio', apiKeys: [] })
+
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'lmstudio::model' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).resolves.not.toThrow()
+  })
+
+  it('passes when provider has an enabled API key', async () => {
+    mockGetByProviderId.mockResolvedValue({ id: 'openai', apiKeys: [{ id: 'k1', isEnabled: true }] })
+
+    await expect(
+      validateAgentModels(
+        'claude-code' as AgentType,
+        { model: 'openai::gpt-4' } as Partial<Record<AgentModelField, string | undefined>>
+      )
+    ).resolves.not.toThrow()
   })
 })
 
