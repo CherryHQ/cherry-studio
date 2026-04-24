@@ -41,8 +41,8 @@ const TranslateSettings: FC<{
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
             <Switch
               checked={enableMarkdown}
-              onCheckedChange={(checked) => {
-                void setEnableMarkdown(checked)
+              onCheckedChange={async (isSelected) => {
+                return await setEnableMarkdown(isSelected)
               }}
             />
           </Flex>
@@ -129,13 +129,13 @@ const TranslateSettings: FC<{
                 <LanguageSelect
                   style={{ flex: 1 }}
                   value={pair[0]}
-                  onChange={(value) => {
+                  onChange={async (value) => {
                     const newPair: TranslateBidirectionalPair = [value, pair[1]]
                     if (newPair[0] === newPair[1]) {
                       window.toast.warning(t('translate.language.same'))
                       return
                     }
-                    void setPair(newPair)
+                    return await setPair(newPair)
                   }}
                 />
                 <span>⇆</span>
