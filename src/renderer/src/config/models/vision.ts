@@ -60,7 +60,8 @@ const visionAllowedModels = [
   'qwen-omni(?:-[\\w-]+)?',
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
-  'mistral-small',
+  'mistral-small-(2506|latest)',
+  'mimo-v2\\.5$',
   'mimo-v2-omni(?:-[\\w-]+)?',
   'glm-5v-turbo'
 ]
