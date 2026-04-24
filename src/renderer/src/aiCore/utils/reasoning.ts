@@ -685,7 +685,11 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): { thinking?: AnthropicProviderOptions['thinking']; effort?: Exclude<AnthropicProviderOptions['effort'], 'xhigh'> } {
+): {
+  thinking?: AnthropicProviderOptions['thinking']
+  effort?: Exclude<AnthropicProviderOptions['effort'], 'xhigh'>
+  sendReasoning?: AnthropicProviderOptions['sendReasoning']
+} {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -742,10 +746,21 @@ export function getAnthropicReasoningParams(
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
     const { maxTokens } = getAssistantSettings(assistant)
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
+      thinking: {
+        type: 'enabled',
+        budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort)
+      },
+      sendReasoning: true
+    }
+    // https://api-docs.deepseek.com/guides/thinking_mode
+    if (isDeepSeekV4PlusModel(model)) {
+      params.effort = reasoningEffort === 'xhigh' ? 'max' : 'high'
+    }
     // Always include budgetTokens to prevent Claude Agent SDK from converting
     // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
     // upstream providers do not support (they only accept 'enabled'/'disabled').
-    return { thinking: { type: 'enabled', budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort) } }
+    return params
   }
 }
 

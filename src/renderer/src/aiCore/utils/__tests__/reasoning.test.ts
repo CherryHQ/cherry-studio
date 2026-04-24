@@ -828,7 +828,8 @@ describe('reasoning utils', () => {
         thinking: {
           type: 'enabled',
           budgetTokens: expect.any(Number)
-        }
+        },
+        sendReasoning: true
       })
       const thinking = result.thinking as { type: 'enabled'; budgetTokens?: number }
       expect(thinking.budgetTokens).toBeGreaterThanOrEqual(1024)

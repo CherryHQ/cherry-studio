@@ -1,0 +1,54 @@
+diff --git a/dist/index.js b/dist/index.js
+index 243aa9c186c2b647bfd307984e3a8ad8d2f00086..14406ffff6acb8a3d38eb338d20da069eee1875a 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -303,7 +303,11 @@ var deepseekLanguageModelOptions = import_v42.z.object({
+    */
+   thinking: import_v42.z.object({
+     type: import_v42.z.enum(["enabled", "disabled"]).optional()
+-  }).optional()
++  }).optional(),
++  /**
++   * Reasoning effort for DeepSeek V4+ models. Accepts `"high"` or `"max"`.
++   */
++  reasoning_effort: import_v42.z.string().optional()
+ });
+ 
+ // src/chat/deepseek-prepare-tools.ts
+@@ -470,7 +474,8 @@ var DeepSeekChatLanguageModel = class {
+         messages,
+         tools: deepseekTools,
+         tool_choice: deepseekToolChoices,
+-        thinking: ((_b = deepseekOptions.thinking) == null ? void 0 : _b.type) != null ? { type: deepseekOptions.thinking.type } : void 0
++        thinking: ((_b = deepseekOptions.thinking) == null ? void 0 : _b.type) != null ? { type: deepseekOptions.thinking.type } : void 0,
++        reasoning_effort: deepseekOptions.reasoning_effort
+       },
+       warnings: [...warnings, ...toolWarnings]
+     };
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6a2d2d14739e3b50faa398ff94092bd5b0ea874d..947eb026b4eecd256c1009be364b35aaa3c2e628 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -292,7 +292,11 @@ var deepseekLanguageModelOptions = z2.object({
+    */
+   thinking: z2.object({
+     type: z2.enum(["enabled", "disabled"]).optional()
+-  }).optional()
++  }).optional(),
++  /**
++   * Reasoning effort for DeepSeek V4+ models. Accepts `"high"` or `"max"`.
++   */
++  reasoning_effort: z2.string().optional()
+ });
+ 
+ // src/chat/deepseek-prepare-tools.ts
+@@ -459,7 +463,8 @@ var DeepSeekChatLanguageModel = class {
+         messages,
+         tools: deepseekTools,
+         tool_choice: deepseekToolChoices,
+-        thinking: ((_b = deepseekOptions.thinking) == null ? void 0 : _b.type) != null ? { type: deepseekOptions.thinking.type } : void 0
++        thinking: ((_b = deepseekOptions.thinking) == null ? void 0 : _b.type) != null ? { type: deepseekOptions.thinking.type } : void 0,
++        reasoning_effort: deepseekOptions.reasoning_effort
+       },
+       warnings: [...warnings, ...toolWarnings]
+     };
