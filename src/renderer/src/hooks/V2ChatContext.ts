@@ -7,7 +7,7 @@
  * consumers use `useV2Chat()`.
  */
 
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
@@ -33,6 +33,14 @@ export interface RegenerateOptions {
    * group becomes a side-by-side comparison of different models.
    */
   modelId?: UniqueModelId
+  /**
+   * Snapshot of the overriding model (`{id, name, provider, group?}`).
+   * Lets the optimistic assistant placeholder render with the right avatar
+   * and model name immediately, without waiting for Main's persisted row
+   * to land. Expected to agree with `modelId` — caller usually has the
+   * full `Model` object on hand and can spread the relevant fields.
+   */
+  modelSnapshot?: ModelSnapshot
 }
 
 export interface V2ChatOverrides {

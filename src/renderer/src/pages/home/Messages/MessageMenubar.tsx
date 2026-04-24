@@ -224,7 +224,12 @@ const MessageMenubar: FC<Props> = (props) => {
       const selectedModel = await SelectChatModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
       const uniqueModelId = `${selectedModel.provider}::${selectedModel.id}` as const
-      await regenerateWithModel(uniqueModelId)
+      await regenerateWithModel(uniqueModelId, {
+        id: selectedModel.id,
+        name: selectedModel.name,
+        provider: selectedModel.provider,
+        ...(selectedModel.group && { group: selectedModel.group })
+      })
     },
     [model, mentionModelFilter, regenerateWithModel]
   )

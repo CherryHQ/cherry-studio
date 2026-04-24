@@ -127,6 +127,28 @@ export interface MessageData {
  * both sides make `statsFromMetadata()` a trivial projection.
  */
 export interface CherryUIMessageMetadata {
+  // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
+  //    response, or seeded locally when pushing a placeholder before the
+  //    first refresh completes). Keeping these on the message itself means
+  //    `adaptedMessages` and every other consumer can read directly from
+  //    `message.metadata` without a parallel `metadataMap` lookup that
+  //    lags behind state.messages.
+  /** `parent_id` of the persisted row; drives `askId` / tree walks. */
+  parentId?: string | null
+  /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
+  siblingsGroupId?: number
+  /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
+  modelId?: string
+  /** Snapshot captured at message creation (`{id, name, provider, group?}`). */
+  modelSnapshot?: ModelSnapshot
+  /** Persistence status: mirrors the DB row's `status` column. */
+  status?: MessageStatus
+
+  /** Creation timestamp (ISO). */
+  createdAt?: string
+
+  // ── Token stats. First four duplicate fields on `stats` so call-sites
+  //    that only need a single counter can skip the nested object.
   /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
   totalTokens?: number
   /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
@@ -138,7 +160,8 @@ export interface CherryUIMessageMetadata {
    * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
    */
   thoughtsTokens?: number
-  createdAt?: string
+  /** Full persisted stats (tokens + durations) when available. */
+  stats?: MessageStats
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */

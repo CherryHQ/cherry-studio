@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import { type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
@@ -45,11 +45,13 @@ export function useMessage(messageId: string, topic: Topic) {
   /**
    * Regenerate this assistant turn using a different model, producing a new
    * sibling in the existing group for side-by-side comparison. Wired to the
-   * `@` (mention model) button on assistant messages.
+   * `@` (mention model) button on assistant messages. Accepts an optional
+   * `modelSnapshot` so the optimistic placeholder can render with the right
+   * avatar + name before Main's persisted row lands.
    */
   const regenerateWithModel = useCallback(
-    async (modelId: UniqueModelId) => {
-      await v2?.regenerate(messageId, { modelId })
+    async (modelId: UniqueModelId, modelSnapshot?: ModelSnapshot) => {
+      await v2?.regenerate(messageId, { modelId, modelSnapshot })
     },
     [messageId, v2]
   )

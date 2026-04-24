@@ -24,7 +24,6 @@ import type { ChatRequestOptions, ChatStatus } from 'ai'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { MessageMetadataMap } from './useTopicMessagesV2'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
@@ -74,8 +73,7 @@ export function useChatWithHistory(
   topicId: string,
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>,
-  context: { assistantId: string },
-  metadataMap: MessageMetadataMap = {}
+  context: { assistantId: string }
 ): UseChatWithHistoryResult {
   // Single-slot queue for the next id `Chat.generateId()` should return.
   // `V2ChatContent.handleSendV2` writes a UUID here right before calling
@@ -136,17 +134,25 @@ export function useChatWithHistory(
 
       resumeInFlightRef.current = (async () => {
         if (reason === 'started-event') {
-          // Only seed state from the DB placeholder row when there's nothing
-          // live yet. Once the stream is already producing chunks,
-          // overwriting `messages` with the DB snapshot (placeholder still
-          // has empty parts) would wipe the in-flight content and reset
-          // the latest assistant to "pending".
-          if (status === 'streaming') {
-            return
-          }
+          // The `pending` broadcast reaches every window subscribed to this
+          // topic — originator and passive observers alike. Both need the
+          // SWR cache refreshed so `metadataMap` picks up the new DB row
+          // (otherwise the placeholder renders with no model / createdAt
+          // and the MessageHeader falls back to "D" / "Invalid Date"). The
+          // difference is what to do with the returned filtered messages:
+          //
+          // - Originator (`submitted`/`streaming`): `useChat` already owns
+          //   an `activeResponse` with the pre-allocated id; overwriting
+          //   `state.messages` with the DB snapshot would detach the
+          //   streaming bubble and trigger a duplicate `pushMessage` on
+          //   the next chunk. Refresh the cache but skip `setMessages`.
+          // - Passive observer (`ready`/`error`): no in-flight response,
+          //   so swap state to the DB snapshot as usual.
           try {
             const refreshed = await refreshRef.current()
-            setMessages(refreshed)
+            if (status !== 'streaming' && status !== 'submitted') {
+              setMessages(refreshed)
+            }
           } catch (err) {
             logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
           }
@@ -229,35 +235,34 @@ export function useChatWithHistory(
   }, [topicId, refreshAndReplace])
 
   // ── Adapt UIMessage[] to renderer Message[] ──
-  // TODO(v2): remove adapedMessages after migrate to new Message type
+  //
+  // Every field below comes straight off `uiMsg.metadata`. The branch
+  // response projects all persisted columns onto it (see
+  // `useTopicMessagesV2.toUIMessage`), and send / regenerate seed the
+  // same shape onto their optimistic placeholders, so there's a single
+  // source of truth per message instead of a parallel `metadataMap`
+  // that lags `state.messages` during streaming.
+  // TODO(v2): remove adaptedMessages after migrating to the new Message
+  // type.
   const adaptedMessages = useMemo<Message[]>(() => {
     let lastUserId: string | undefined
     return messages.map((uiMsg) => {
       if (uiMsg.role === 'user') lastUserId = uiMsg.id
-      const meta = metadataMap[uiMsg.id]
-      // Stats come from DB via metadataMap; during live streaming the
-      // UIMessage carries no stats yet (timings are only computed at
-      // persist time), so `usage` / `metrics` light up when the
-      // `refreshAndReplace` after `onStreamDone` pulls fresh metadata.
-      // TODO: adaptedMessages also doesn't populate `message.model` —
-      // MessageTokens needs it for price calculation. Unrelated to stats
-      // projection; track as a follow-up.
+      const meta = uiMsg.metadata ?? {}
       return {
         id: uiMsg.id,
         role: uiMsg.role,
         assistantId: context.assistantId,
         topicId,
-        createdAt: meta?.createdAt ?? uiMsg.metadata?.createdAt ?? '',
-        askId: meta?.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
-        modelId: meta?.modelId,
-        // Avatar/tooltip consumers (`MessageGroupModelList`,
-        // `ModelAvatar`) read `message.model.{provider,id,name}` via
-        // `getModelLogo`. The persisted `modelSnapshot` captures those
-        // exact fields at reservation time, so it doubles as a minimal
-        // `Model` for rendering — even if the provider config later drops
-        // the model.
-        model: meta?.modelSnapshot ? (meta.modelSnapshot as unknown as Model) : undefined,
-        siblingsGroupId: meta?.siblingsGroupId,
+        createdAt: meta.createdAt ?? '',
+        askId: meta.parentId ?? (uiMsg.role === 'assistant' ? lastUserId : undefined),
+        modelId: meta.modelId,
+        // `getModelLogo` reads `.provider`, `.id`, `.name` off the model;
+        // `modelSnapshot` captures exactly that at reservation time, so
+        // it doubles as a minimal `Model` for avatar rendering — stable
+        // even if the live provider config later drops this model.
+        model: meta.modelSnapshot ? (meta.modelSnapshot as unknown as Model) : undefined,
+        siblingsGroupId: meta.siblingsGroupId,
         status:
           uiMsg.role === 'user'
             ? UserMessageStatus.SUCCESS
@@ -265,21 +270,12 @@ export function useChatWithHistory(
               ? AssistantMessageStatus.PENDING
               : uiMsg.id === latestAssistantMessageId && status === 'streaming'
                 ? AssistantMessageStatus.PROCESSING
-                : // Missing metadata means the row hasn't been refreshed from
-                  // the DB yet — the message was optimistically pushed onto
-                  // `useChat` (send-placeholder or a stream chunk racing ahead
-                  // of `refreshAndReplace`). Treat it as PENDING so write
-                  // actions (edit, delete, branch) stay suppressed via
-                  // `isMessageProcessing` until the DB catches up and hands
-                  // back the real status. Otherwise a user-click on the tiny
-                  // "success-looking" placeholder reaches the server for a
-                  // row that doesn't exist yet.
-                  ((meta?.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.PENDING),
-        ...(meta?.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
+                : ((meta.status as AssistantMessageStatus | undefined) ?? AssistantMessageStatus.PENDING),
+        ...(meta.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
         blocks: []
       }
     })
-  }, [messages, context.assistantId, topicId, status, metadataMap, latestAssistantMessageId])
+  }, [messages, context.assistantId, topicId, status, latestAssistantMessageId])
 
   // ── PartsMap (direct from messages, no merge) ──
 

@@ -13,8 +13,13 @@ import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { BranchMessagesResponse, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type {
+  BranchMessagesResponse,
+  CherryMessagePart,
+  CherryUIMessage,
+  ModelSnapshot
+} from '@shared/data/types/message'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -47,14 +52,7 @@ interface Props {
  *   - PartsContext: history parts + live streaming parts overlay
  */
 const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
-  const {
-    uiMessages,
-    metadataMap,
-    siblingsMap,
-    isLoading: isHistoryLoading,
-    refresh,
-    activeNodeId
-  } = useTopicMessagesV2(topic.id)
+  const { uiMessages, siblingsMap, isLoading: isHistoryLoading, refresh, activeNodeId } = useTopicMessagesV2(topic.id)
 
   // Don't mount the chat instance until history is loaded.
   // ChatSession only reads initialMessages on creation — if we create it
@@ -78,7 +76,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       initialMessages={uiMessages}
-      metadataMap={metadataMap}
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
@@ -92,7 +89,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 
 interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
-  metadataMap: ReturnType<typeof useTopicMessagesV2>['metadataMap']
   siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
@@ -104,7 +100,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   setActiveTopic,
   mainHeight,
   initialMessages,
-  metadataMap,
   siblingsMap,
   refresh,
   activeNodeId
@@ -124,7 +119,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     activeExecutionIds,
     prepareNextAssistantId,
     addToolApprovalResponse
-  } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id }, metadataMap)
+  } = useChatWithHistory(topic.id, initialMessages, refresh, { assistantId: assistant.id })
 
   /**
    * Align the three assistant-id producers for a single-execution turn so
@@ -151,6 +146,39 @@ const V2ChatContentInner: FC<InnerProps> = ({
       return id
     },
     [prepareNextAssistantId]
+  )
+
+  /**
+   * Seed an optimistic assistant placeholder into `useChat.state.messages`
+   * with the full metadata the renderer needs (modelSnapshot, status,
+   * parentId, createdAt). Carrying metadata on the message itself means
+   * `MessageHeader` / `ModelAvatar` / `isMessageProcessing` all light up
+   * immediately instead of falling back to "D" / "Invalid Date" while
+   * `refresh()` catches up. AI SDK's `replaceMessage` on the first chunk
+   * keeps the id stable, so the DB refresh that lands later is a quiet
+   * overwrite — no flicker.
+   */
+  const seedAssistantPlaceholder = useCallback(
+    (opts: { assistantMessageId: string; modelSnapshot?: ModelSnapshot; parentId?: string | null }): void => {
+      const { assistantMessageId, modelSnapshot, parentId } = opts
+      const modelId = modelSnapshot ? createUniqueModelId(modelSnapshot.provider, modelSnapshot.id) : undefined
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            modelSnapshot,
+            modelId,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+            parentId: parentId ?? undefined
+          }
+        }
+      ])
+    },
+    [setMessages]
   )
 
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
@@ -183,8 +211,13 @@ const V2ChatContentInner: FC<InnerProps> = ({
     }
 
     if (!activeNodeId) return undefined
-    return metadataMap[activeNodeId]?.parentId ?? activeNodeId
-  }, [activeNodeId, adaptedMessages, metadataMap, streamingUIMessages])
+    // Fall back to the activeNode's own parent from `state.messages`
+    // metadata (parentId is persisted on every `CherryUIMessage` via
+    // `toUIMessage`). Used when there's no visible user message yet —
+    // typically the first frames after opening a topic.
+    const activeNode = streamingUIMessages.find((m) => m.id === activeNodeId)
+    return activeNode?.metadata?.parentId ?? activeNodeId
+  }, [activeNodeId, adaptedMessages, streamingUIMessages])
 
   const handleExecutionMessagesChange = useCallback((executionId: string, messages: CherryUIMessage[]) => {
     setExecutionMessagesById((prev) => ({ ...prev, [executionId]: messages }))
@@ -486,7 +519,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   /** Regenerate with capability body injected. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
       // `mentionedModels: [modelId]` takes the mention-model path on the main
       // side: `resolveModels` prefers the mentioned model over the assistant
       // default, and the single-model regenerate flow creates a new sibling
@@ -500,6 +533,17 @@ const V2ChatContentInner: FC<InnerProps> = ({
       // by side. Multi-model fan-out is never a regenerate today, so the
       // single-id path always applies.
       const assistantMessageId = allocateSingleAssistantId(false)
+
+      // Inherit the previous assistant's parentId + modelSnapshot for the
+      // optimistic placeholder. `messageId` (if provided) is the assistant
+      // being regenerated; its metadata carries the right user-message
+      // parent and (unless overridden via `options.modelSnapshot`) the same
+      // model. For the "regenerate last" path (messageId omitted) we leave
+      // both undefined — the upcoming refresh will fill them in.
+      const regenTarget = messageId ? streamingUIMessages.find((m) => m.id === messageId) : undefined
+      const placeholderSnapshot = options?.modelSnapshot ?? regenTarget?.metadata?.modelSnapshot
+      const placeholderParentId = regenTarget?.metadata?.parentId
+
       await regenerate({
         messageId,
         body: {
@@ -508,8 +552,16 @@ const V2ChatContentInner: FC<InnerProps> = ({
           ...(options?.modelId && { mentionedModels: [options.modelId] })
         }
       })
+
+      if (assistantMessageId) {
+        seedAssistantPlaceholder({
+          assistantMessageId,
+          modelSnapshot: placeholderSnapshot,
+          parentId: placeholderParentId
+        })
+      }
     },
-    [regenerate, capabilityBody, allocateSingleAssistantId]
+    [regenerate, capabilityBody, allocateSingleAssistantId, streamingUIMessages, seedAssistantPlaceholder]
   )
 
   /**
@@ -616,10 +668,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
           }
         }
       )
-      // Append an empty assistant placeholder so the PENDING indicator shows
-      // during the ~20–50ms gap between click and Main's `pending` broadcast.
-      // The id matches Main's placeholder row, so the later `refresh` +
-      // `setMessages(refreshed)` is an idempotent id-preserving replace.
+      // Append an assistant placeholder so the PENDING indicator + model
+      // chrome (avatar, name) show up during the ~20–50ms gap between
+      // click and Main's `pending` broadcast. The id matches Main's
+      // placeholder row, so the later `refresh` + `setMessages(refreshed)`
+      // is an idempotent id-preserving replace.
       //
       // The append must wait ONE microtask: `sendMessage` awaits
       // `convertFileListToFileUIParts` (ai/src/ui/chat.ts:371) before
@@ -629,12 +682,24 @@ const V2ChatContentInner: FC<InnerProps> = ({
       // prior turn's user, flashing the placeholder into the previous
       // multi-model siblings group until `pending` refresh repairs the order.
       if (assistantMessageId) {
+        const snapshot: ModelSnapshot | undefined = assistant.model
+          ? {
+              id: assistant.model.id,
+              name: assistant.model.name,
+              provider: assistant.model.provider,
+              ...(assistant.model.group && { group: assistant.model.group })
+            }
+          : undefined
         queueMicrotask(() => {
-          setMessages((prev) => [...prev, { id: assistantMessageId, role: 'assistant', parts: [] }])
+          seedAssistantPlaceholder({
+            assistantMessageId,
+            modelSnapshot: snapshot,
+            parentId: activeNodeId ?? null
+          })
         })
       }
     },
-    [activeNodeId, sendMessage, setMessages, allocateSingleAssistantId, capabilityBody]
+    [activeNodeId, sendMessage, assistant.model, allocateSingleAssistantId, seedAssistantPlaceholder, capabilityBody]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

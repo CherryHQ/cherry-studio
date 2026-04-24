@@ -1,12 +1,15 @@
 /**
  * V2 hook for loading topic messages from DataApi as CherryUIMessage[].
  *
- * Uses useQuery (DataApi SWR) for standard data fetching.
- * Returns uiMessages for useChat initialMessages and refresh for post-stream sync.
+ * Uses useQuery (DataApi SWR) for standard data fetching. `toUIMessage`
+ * projects every persisted field onto `CherryUIMessage.metadata`, so
+ * downstream consumers read per-message metadata (model, parent, stats,
+ * status, …) directly from the message object — no parallel metadataMap
+ * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -20,39 +23,17 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
     role: shared.role,
     parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
     metadata: {
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {}),
-      createdAt: shared.createdAt
+      parentId: shared.parentId,
+      siblingsGroupId: shared.siblingsGroupId || undefined,
+      modelId: shared.modelId ?? undefined,
+      modelSnapshot: shared.modelSnapshot ?? undefined,
+      status: shared.status,
+      createdAt: shared.createdAt,
+      stats: shared.stats ?? undefined,
+      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
     }
   }
 }
-
-export interface MessageMetadata {
-  parentId: string | null
-  modelId?: string
-  /**
-   * Captured at message creation (`{id, name, provider, group?}`).
-   * Primary reason to plumb this through: UI avatars + model labels read
-   * `message.model.{provider,id,name}` via `getModelLogo`, and the live
-   * provider config may no longer have this model (e.g. uninstalled
-   * provider). The snapshot is the only stable source.
-   */
-  modelSnapshot?: ModelSnapshot
-  siblingsGroupId?: number
-  createdAt: string
-  status: SharedMessage['status']
-  /**
-   * Persisted stats (tokens + durations). Kept in the metadataMap — not
-   * on `CherryUIMessage.metadata` — because metadata on the UI message
-   * only carries the subset agentLoop's `messageMetadata` callback
-   * writes during streaming (tokens on `finish`), whereas the full
-   * `MessageStats` (including time* fields computed at persist time)
-   * only exists in the DB. Routing through metadataMap keeps the two
-   * sources disjoint and avoids synthesising half-filled stats mid-stream.
-   */
-  stats?: MessageStats
-}
-
-export type MessageMetadataMap = Record<string, MessageMetadata>
 
 /**
  * Heuristic: an assistant sibling group is a **regenerate** cohort (alternate
@@ -122,12 +103,11 @@ function buildSiblingsMap(items: BranchMessage[]): Record<string, SharedMessage[
 
 export interface UseTopicMessagesV2Result {
   uiMessages: CherryUIMessage[]
-  metadataMap: MessageMetadataMap
   /**
    * Map from any sibling member's id to the full ordered sibling group
    * (includes the member itself). Lets the sibling navigator render
-   * `< i/N >` without reconstructing the group from metadataMap. Only
-   * groups with ≥ 2 members are present.
+   * `< i/N >` without reconstructing the group on the fly. Only groups
+   * with ≥ 2 members are present.
    */
   siblingsMap: Record<string, SharedMessage[]>
   isLoading: boolean
@@ -156,33 +136,6 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
     return flattenBranchMessages(branchData.items).map(toUIMessage)
   }, [branchData])
 
-  const metadataMap = useMemo<MessageMetadataMap>(() => {
-    if (!branchData?.items) return {}
-
-    // metadataMap must cover every sibling (not just the active branch) so
-    // lookups for off-path messages (e.g. the navigator resolving a sibling
-    // id) still work.
-    const entries: SharedMessage[] = []
-    for (const item of branchData.items) {
-      entries.push(item.message)
-      if (item.siblingsGroup) entries.push(...item.siblingsGroup)
-    }
-    return Object.fromEntries(
-      entries.map((message) => [
-        message.id,
-        {
-          parentId: message.parentId,
-          modelId: message.modelId ?? undefined,
-          modelSnapshot: message.modelSnapshot ?? undefined,
-          siblingsGroupId: message.siblingsGroupId || undefined,
-          createdAt: message.createdAt,
-          status: message.status,
-          stats: message.stats ?? undefined
-        }
-      ])
-    )
-  }, [branchData])
-
   const siblingsMap = useMemo<Record<string, SharedMessage[]>>(
     () => (branchData?.items ? buildSiblingsMap(branchData.items) : {}),
     [branchData]
@@ -196,7 +149,6 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
 
   return {
     uiMessages,
-    metadataMap,
     siblingsMap,
     isLoading: isLoading || !isReady,
     refresh,

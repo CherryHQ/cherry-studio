@@ -127,17 +127,7 @@ describe('V2ChatContent', () => {
   beforeEach(() => {
     mockUseTopicMessagesV2.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
-      metadataMap: {
-        'history-user': {
-          parentId: null,
-          createdAt: '2026-01-01T00:00:00.000Z'
-        },
-        'history-assistant': {
-          parentId: 'history-user',
-          modelId: 'openai::gpt-4.1',
-          createdAt: '2026-01-01T00:00:00.000Z'
-        }
-      },
+      siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),
       activeNodeId: 'branch-a'
