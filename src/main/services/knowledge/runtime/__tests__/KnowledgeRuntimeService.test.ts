@@ -242,15 +242,23 @@ describe('KnowledgeRuntimeService', () => {
       id_: 'chunk-1',
       metadata: {
         itemId: 'item-1',
-        sourceUrl: 'https://example.com/1'
+        itemType: 'note',
+        source: 'https://example.com/1',
+        name: 'Example 1',
+        chunkIndex: 0,
+        tokenCount: 10
       },
       getContent: vi.fn(() => 'page one')
     }
     const secondNode = {
       id_: 'chunk-2',
       metadata: {
-        itemId: '',
-        sourceUrl: 'https://example.com/2'
+        itemId: 'item-2',
+        itemType: 'note',
+        source: 'https://example.com/2',
+        name: 'Example 2',
+        chunkIndex: 1,
+        tokenCount: 20
       },
       getContent: vi.fn(() => 'page two')
     }
@@ -268,7 +276,11 @@ describe('KnowledgeRuntimeService', () => {
         score: 0.8,
         metadata: {
           itemId: 'item-1',
-          sourceUrl: 'https://example.com/1'
+          itemType: 'note',
+          source: 'https://example.com/1',
+          name: 'Example 1',
+          chunkIndex: 0,
+          tokenCount: 10
         },
         itemId: 'item-1',
         chunkId: 'chunk-1'
@@ -277,10 +289,14 @@ describe('KnowledgeRuntimeService', () => {
         pageContent: 'page two',
         score: 0.6,
         metadata: {
-          itemId: '',
-          sourceUrl: 'https://example.com/2'
+          itemId: 'item-2',
+          itemType: 'note',
+          source: 'https://example.com/2',
+          name: 'Example 2',
+          chunkIndex: 1,
+          tokenCount: 20
         },
-        itemId: undefined,
+        itemId: 'item-2',
         chunkId: 'chunk-2'
       }
     ])
@@ -436,7 +452,7 @@ describe('KnowledgeRuntimeService', () => {
 
   it('writes file indexing stages before completion', async () => {
     const service = new KnowledgeRuntimeService()
-    const base = createBase()
+    const base = { ...createBase(), fileProcessorId: 'builtin::markdown' }
     const item = {
       ...createNoteItem('file-stage'),
       type: 'file' as const,
@@ -464,7 +480,7 @@ describe('KnowledgeRuntimeService', () => {
     const statuses = knowledgeItemUpdateMock.mock.calls
       .filter((call) => call[0] === item.id)
       .map((call) => call[1].status)
-    expect(statuses).toEqual(['pending', 'file_processing', 'embed', 'completed'])
+    expect(statuses).toEqual(['pending', 'file_processing', 'read', 'embed', 'completed'])
   })
 
   it('writes url and note indexing stages before completion', async () => {

@@ -10,31 +10,12 @@ export const prependHistoryQuery = (queries: string[], query: string) => {
 
 export const formatRecallScore = (score: number) => score.toFixed(2)
 
-const getMetadataString = (metadata: Record<string, unknown>, key: string) => {
-  const value = metadata[key]
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
-}
-
-const getFileName = (filePath: string) => filePath.split(/[\\/]/).filter(Boolean).pop()
-
-const getSourceName = (result: KnowledgeSearchResult) => {
-  const fileName = getMetadataString(result.metadata, 'file_name')
-  const filePath = getMetadataString(result.metadata, 'file_path')
-  const source = getMetadataString(result.metadata, 'source')
-
-  return fileName ?? (filePath ? getFileName(filePath) : undefined) ?? source ?? result.chunkId
-}
-
-const getChunkIndex = (metadata: Record<string, unknown>, index: number) => {
-  const chunkIndex = metadata.chunkIndex
-  return typeof chunkIndex === 'number' && Number.isFinite(chunkIndex) ? chunkIndex : index + 1
-}
-
-export const mapRecallResult = (result: KnowledgeSearchResult, index: number): RecallResultItem => {
+export const mapRecallResult = (result: KnowledgeSearchResult): RecallResultItem => {
   return {
-    id: result.chunkId || `${result.itemId ?? 'result'}-${index}`,
-    sourceName: getSourceName(result),
-    chunkIndex: getChunkIndex(result.metadata, index),
+    id: result.chunkId,
+    sourceName: result.metadata.name,
+    chunkIndex: result.metadata.chunkIndex,
+    tokenCount: result.metadata.tokenCount,
     score: result.score,
     content: result.pageContent,
     plainText: result.pageContent

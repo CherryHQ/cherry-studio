@@ -23,8 +23,12 @@ const realSearchResults = [
     pageContent: 'real result from file name',
     score: 0.98,
     metadata: {
-      file_name: '真实文档.pdf',
-      chunkIndex: 3
+      itemId: 'item-1',
+      itemType: 'file',
+      source: '/Users/test/Downloads/真实文档.pdf',
+      name: '真实文档.pdf',
+      chunkIndex: 3,
+      tokenCount: 120
     },
     itemId: 'item-1',
     chunkId: 'chunk-1'
@@ -33,7 +37,12 @@ const realSearchResults = [
     pageContent: 'real result from file path',
     score: 76,
     metadata: {
-      file_path: '/Users/test/Downloads/路径文档.md'
+      itemId: 'item-2',
+      itemType: 'file',
+      source: '/Users/test/Downloads/路径文档.md',
+      name: '路径文档.md',
+      chunkIndex: 2,
+      tokenCount: 80
     },
     itemId: 'item-2',
     chunkId: 'chunk-2'

@@ -245,7 +245,14 @@ describe('KnowledgeOrchestrationService', () => {
       {
         pageContent: 'hello',
         score: 0.9,
-        metadata: { itemId: 'note-1' },
+        metadata: {
+          itemId: 'note-1',
+          itemType: 'note',
+          source: 'note-1',
+          name: 'hello',
+          chunkIndex: 0,
+          tokenCount: 1
+        },
         itemId: 'note-1',
         chunkId: 'chunk-1'
       }

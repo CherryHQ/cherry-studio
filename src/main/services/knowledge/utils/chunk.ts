@@ -1,5 +1,6 @@
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { Document, type Document as VectorStoreDocument, SentenceSplitter } from '@vectorstores/core'
+import { estimateTokenCount } from 'tokenx'
 
 /**
  * Splits source documents into chunked vector-store documents and attaches
@@ -11,7 +12,7 @@ export function chunkDocuments(base: KnowledgeBase, item: KnowledgeItem, documen
     chunkOverlap: base.chunkOverlap
   })
 
-  return documents.flatMap((document, documentIndex) => {
+  return documents.flatMap((document) => {
     const chunks = splitter.splitText(document.text).filter(Boolean)
 
     return chunks.map(
@@ -22,9 +23,8 @@ export function chunkDocuments(base: KnowledgeBase, item: KnowledgeItem, documen
             ...document.metadata,
             itemId: item.id,
             itemType: item.type,
-            sourceDocumentIndex: documentIndex,
             chunkIndex,
-            chunkCount: chunks.length
+            tokenCount: estimateTokenCount(chunk)
           }
         })
     )

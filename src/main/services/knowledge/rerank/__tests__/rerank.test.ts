@@ -50,13 +50,27 @@ function createSearchResults(): KnowledgeSearchResult[] {
     {
       pageContent: 'alpha',
       score: 0.1,
-      metadata: { type: 'text' },
+      metadata: {
+        itemId: 'item-1',
+        itemType: 'note',
+        source: 'note-1',
+        name: 'Note 1',
+        chunkIndex: 0,
+        tokenCount: 1
+      },
       chunkId: 'chunk-1'
     },
     {
       pageContent: 'beta',
       score: 0.2,
-      metadata: { type: 'text' },
+      metadata: {
+        itemId: 'item-2',
+        itemType: 'note',
+        source: 'note-2',
+        name: 'Note 2',
+        chunkIndex: 1,
+        tokenCount: 1
+      },
       chunkId: 'chunk-2'
     }
   ]

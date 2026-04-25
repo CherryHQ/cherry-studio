@@ -147,6 +147,18 @@ export const KnowledgeBaseSchema = z.object({
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
+export const KnowledgeChunkMetadataSchema = z.object({
+  itemId: z.string(),
+  itemType: KnowledgeItemTypeSchema,
+  source: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  chunkIndex: z.number().int().min(0),
+  tokenCount: z.number().int().min(0),
+  extras: z.record(z.string(), z.unknown()).optional()
+})
+export type KnowledgeChunkMetadata = z.infer<typeof KnowledgeChunkMetadataSchema>
+export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source' | 'name' | 'extras'>
+
 const KnowledgeItemBaseSchema = z.object({
   id: z.string(),
   baseId: z.string(),
@@ -191,7 +203,7 @@ export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem
 export const KnowledgeSearchResultSchema = z.object({
   pageContent: z.string(),
   score: z.number(),
-  metadata: z.record(z.string(), z.unknown()),
+  metadata: KnowledgeChunkMetadataSchema,
   itemId: z.string().optional(),
   chunkId: z.string()
 })

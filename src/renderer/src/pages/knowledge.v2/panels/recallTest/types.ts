@@ -7,6 +7,7 @@ export interface RecallResultItem {
   id: string
   sourceName: string
   chunkIndex: number
+  tokenCount: number
   score: number
   content: string
   plainText: string

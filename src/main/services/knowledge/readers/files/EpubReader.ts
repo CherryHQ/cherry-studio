@@ -31,16 +31,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
 
         documents.push(
           new Document({
-            text,
-            metadata: {
-              source: filename,
-              title: epub.metadata.title || filename || '',
-              creator: epub.metadata.creator || '',
-              language: epub.metadata.language || '',
-              chapterId: chapter.id,
-              chapterTitle: chapter.title || `Chapter ${index + 1}`,
-              chapterOrder: index + 1
-            }
+            text
           })
         )
       } catch (error) {

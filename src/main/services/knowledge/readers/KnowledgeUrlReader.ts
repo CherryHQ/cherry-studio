@@ -24,9 +24,7 @@ export async function loadUrlDocuments(
     new Document({
       text: markdown,
       metadata: {
-        itemId: item.id,
-        itemType: item.type,
-        sourceUrl: item.data.url,
+        source: item.data.url,
         name: item.data.name
       }
     })

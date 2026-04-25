@@ -1,7 +1,12 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import {
+  type KnowledgeBase,
+  KnowledgeChunkMetadataSchema,
+  type KnowledgeItem,
+  type KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
@@ -109,13 +114,13 @@ export class KnowledgeRuntimeService extends BaseService {
     })
     const nodes = results.nodes ?? []
     const searchResults = nodes.map((node, index) => {
-      const metadata = node.metadata ?? {}
+      const metadata = KnowledgeChunkMetadataSchema.parse(node.metadata ?? {})
 
       return {
         pageContent: node.getContent(MetadataMode.NONE),
         score: results.similarities[index] ?? 0,
         metadata,
-        itemId: typeof metadata.itemId === 'string' && metadata.itemId.length > 0 ? metadata.itemId : undefined,
+        itemId: metadata.itemId,
         chunkId: node.id_
       }
     })

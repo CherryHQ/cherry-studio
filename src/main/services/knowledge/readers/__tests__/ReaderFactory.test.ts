@@ -241,8 +241,12 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: expectedReader,
-        filePath: `/tmp/sample${ext}`
+        source: `/tmp/sample${ext}`,
+        name: `sample${ext}`,
+        extras: {
+          reader: expectedReader,
+          filePath: `/tmp/sample${ext}`
+        }
       }
     })
   })
@@ -253,8 +257,12 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'text',
-        filePath: '/tmp/sample.log'
+        source: '/tmp/sample.log',
+        name: 'sample.log',
+        extras: {
+          reader: 'text',
+          filePath: '/tmp/sample.log'
+        }
       }
     })
   })
@@ -267,8 +275,12 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(customReaderSpies.drafts).toHaveBeenCalled()
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'drafts',
-        itemId: 'item-1'
+        source: '/tmp/sample.draftsexport',
+        name: 'sample.draftsexport',
+        extras: {
+          reader: 'drafts',
+          itemId: 'item-1'
+        }
       }
     })
   })
@@ -281,8 +293,12 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(customReaderSpies.epub).toHaveBeenCalled()
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'epub',
-        itemId: 'item-1'
+        source: '/tmp/sample.epub',
+        name: 'sample.epub',
+        extras: {
+          reader: 'epub',
+          itemId: 'item-1'
+        }
       }
     })
   })
@@ -301,9 +317,8 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: 'hello world',
       metadata: {
-        itemId: 'note-1',
-        itemType: 'note',
-        sourceUrl: 'https://example.com/note'
+        source: 'https://example.com/note',
+        name: 'hello world'
       }
     })
   })
@@ -328,9 +343,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: '# Example Page\n\nHello knowledge',
       metadata: {
-        itemId: 'url-1',
-        itemType: 'url',
-        sourceUrl: 'https://example.com',
+        source: 'https://example.com',
         name: 'Example'
       }
     })

@@ -1,7 +1,7 @@
 import { getFileExt } from '@main/utils/file'
 import type { FileMetadata } from '@shared/data/types/file'
-import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { type Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
+import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
+import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
 import { JSONReader } from '@vectorstores/readers/json'
@@ -42,5 +42,21 @@ export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<
   }
 
   const reader = createSupportedFileReader(file)
-  return await reader.loadData(file.path)
+  const documents = await reader.loadData(file.path)
+  const sourceMetadata: KnowledgeSourceMetadata = {
+    source: file.path,
+    name: file.origin_name || file.name
+  }
+
+  return documents.map((document) => {
+    const hasExtras = Object.keys(document.metadata ?? {}).length > 0
+
+    return new Document({
+      text: document.text,
+      metadata: {
+        ...sourceMetadata,
+        ...(hasExtras ? { extras: document.metadata } : {})
+      }
+    })
+  })
 }

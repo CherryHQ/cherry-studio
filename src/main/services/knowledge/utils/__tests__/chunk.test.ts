@@ -40,11 +40,11 @@ describe('chunkDocuments', () => {
     const documents = [
       new Document({
         text: 'hello world',
-        metadata: { sourceUrl: 'https://example.com/1' }
+        metadata: { source: 'https://example.com/1', name: 'Example 1', extras: { page: 1 } }
       }),
       new Document({
         text: 'goodbye world',
-        metadata: { sourceUrl: 'https://example.com/2' }
+        metadata: { source: 'https://example.com/2', name: 'Example 2' }
       })
     ]
 
@@ -52,20 +52,22 @@ describe('chunkDocuments', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks[0]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/1',
+      source: 'https://example.com/1',
+      name: 'Example 1',
+      extras: { page: 1 },
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 0,
       chunkIndex: 0,
-      chunkCount: 1
+      tokenCount: expect.any(Number)
     })
     expect(chunks[1]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/2',
+      source: 'https://example.com/2',
+      name: 'Example 2',
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 1,
       chunkIndex: 0,
-      chunkCount: 1
+      tokenCount: expect.any(Number)
     })
+    expect(chunks[0]?.metadata.tokenCount).toBeGreaterThan(0)
   })
 })
