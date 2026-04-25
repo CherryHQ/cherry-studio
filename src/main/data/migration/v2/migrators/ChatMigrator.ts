@@ -640,6 +640,25 @@ export class ChatMigrator extends BaseMigrator {
       oldTopic.name = 'Unnamed Topic' // Default fallback for topics with no name
     }
 
+    // Derive topic timestamps from messages when neither Dexie nor Redux supplied
+    // them. parseTimestamp() falls back to Date.now() on missing input, which
+    // would stamp every "no source timestamp" topic with the migration moment
+    // and flood the top of the topic list. Topic.updatedAt should be at least
+    // its latest message's createdAt, so use that.
+    if (!oldTopic.createdAt || !oldTopic.updatedAt) {
+      const messageMillis = (oldTopic.messages ?? [])
+        .map((m) => (m.createdAt ? Date.parse(m.createdAt) : NaN))
+        .filter((t) => Number.isFinite(t))
+      if (messageMillis.length > 0) {
+        if (!oldTopic.createdAt) {
+          oldTopic.createdAt = new Date(Math.min(...messageMillis)).toISOString()
+        }
+        if (!oldTopic.updatedAt) {
+          oldTopic.updatedAt = new Date(Math.max(...messageMillis)).toISOString()
+        }
+      }
+    }
+
     // Get assistantId from Redux mapping (Dexie topics don't store assistantId);
     // fall back to the seeded default so renderer hooks like
     // `useAssistant(topic.assistantId)` always have a valid id to PATCH against
