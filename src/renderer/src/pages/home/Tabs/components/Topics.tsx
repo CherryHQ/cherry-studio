@@ -16,7 +16,7 @@ import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -73,7 +73,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { rendererTopics: topics } = useTopicsByAssistant(_assistant.id)
+  const { topics: apiTopics } = useTopicsByAssistant(_assistant.id)
+  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
 
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')

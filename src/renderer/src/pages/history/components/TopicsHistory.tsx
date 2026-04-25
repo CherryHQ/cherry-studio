@@ -2,12 +2,12 @@ import { SearchOutlined } from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
 import { Divider, Empty, Segmented } from 'antd'
 import dayjs from 'dayjs'
 import { groupBy, isEmpty, orderBy } from 'lodash'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,7 +24,8 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   const { handleScroll, containerRef } = useScrollPosition('TopicsHistory')
   const [sortType, setSortType] = useState<SortType>('createdAt')
 
-  const { rendererTopics: topics } = useAllTopics()
+  const { topics: apiTopics } = useAllTopics()
+  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
 
   const filteredTopics = topics.filter((topic) => {
     return topic.name.toLowerCase().includes(keywords.toLowerCase())

@@ -21,7 +21,8 @@ let _activeTopicId: string | undefined
  * used to silently switch the user back to an old topic.
  */
 export function useActiveTopic(assistantId: string, topic?: Topic) {
-  const { rendererTopics: topics, isLoading } = useTopicsByAssistant(assistantId)
+  const { topics: apiTopics, isLoading } = useTopicsByAssistant(assistantId)
+  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
   // Holds the last Topic object passed to setActiveTopic, used as fallback when
   // the newly-added topic is not yet in `topics` (SWR still refetching).

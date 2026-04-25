@@ -1,13 +1,6 @@
 import { loggerService } from '@logger'
-import {
-  getThinkModelType,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from '@renderer/config/models'
-import { cacheService } from '@renderer/data/CacheService'
 import { db } from '@renderer/databases'
+import { useReasoningEffortSync } from '@renderer/hooks/useReasoningEffortSync'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -22,9 +15,9 @@ import {
   updateDefaultAssistant
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export function useAssistants() {
@@ -85,12 +78,6 @@ export function useAssistant(id: string) {
 
   const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
-  const settingsRef = useRef(assistant?.settings)
-
-  useEffect(() => {
-    settingsRef.current = assistant?.settings
-  }, [assistant?.settings])
-
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
       assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
@@ -98,49 +85,16 @@ export function useAssistant(id: string) {
     [assistant?.id, dispatch]
   )
 
-  // 当model变化时，同步reasoning effort为模型支持的合法值
-  useEffect(() => {
-    const settings = settingsRef.current
-    if (settings) {
-      const currentReasoningEffort = settings.reasoning_effort
-      const cacheKey = `assistant.reasoning_effort_cache.${assistant.id}` as const
-
-      if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
-        const modelType = getThinkModelType(model)
-        const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
-        if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
-          const cache = cacheService.get(cacheKey) as ThinkingOption | undefined
-          let fallbackOption: ThinkingOption
-
-          if (cache && supportedOptions.includes(cache)) {
-            fallbackOption = cache
-          } else {
-            const enableThinking = currentReasoningEffort !== undefined
-            fallbackOption = enableThinking
-              ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
-              : MODEL_SUPPORTED_OPTIONS[modelType][0]
-          }
-
-          cacheService.set(cacheKey, fallbackOption === 'none' ? undefined : fallbackOption)
-          updateAssistantSettings({
-            reasoning_effort: fallbackOption === 'none' ? undefined : fallbackOption,
-            qwenThinkMode: fallbackOption === 'none' ? undefined : true
-          })
-        } else {
-          // 对于支持的选项, 不再更新 cache.
-        }
-      } else {
-        // 切换到非思考模型时保留cache
-        if (currentReasoningEffort !== undefined) {
-          cacheService.set(cacheKey, currentReasoningEffort)
-        }
-        updateAssistantSettings({
-          reasoning_effort: undefined,
-          qwenThinkMode: undefined
-        })
-      }
-    }
-  }, [model, assistant?.id, updateAssistantSettings])
+  // v2 hook types `reasoning_effort` as plain `string`; the v1 settings shape
+  // narrows it to `ReasoningEffortOption`. Cast the bridge — the v2 hook only
+  // writes values from `MODEL_SUPPORTED_OPTIONS`, all of which are valid v1
+  // `ReasoningEffortOption` members.
+  useReasoningEffortSync(
+    assistant?.id,
+    model,
+    assistant?.settings,
+    updateAssistantSettings as (next: { reasoning_effort?: string; qwenThinkMode?: boolean }) => void
+  )
 
   return {
     assistant: assistantWithModel,

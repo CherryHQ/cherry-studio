@@ -1,7 +1,7 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useAllTopics } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import type { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {
@@ -194,7 +194,8 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
-  const { rendererTopics: allTopics } = useAllTopics()
+  const { topics: apiAllTopics } = useAllTopics()
+  const allTopics = useMemo(() => apiAllTopics.map(mapApiTopicToRendererTopic), [apiAllTopics])
   const storeTopicsMap = useMemo(() => {
     const map = new Map<string, Topic>()
     for (const t of allTopics) {

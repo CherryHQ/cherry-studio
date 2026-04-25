@@ -1,8 +1,10 @@
 /**
  * DataApi-backed topic queries and mutations for v2 chat flows.
  *
- * Prefer these when SQLite is the source of truth; legacy Redux/Dexie topic lists
- * can be merged or replaced incrementally.
+ * Returns the canonical {@link Topic} entity straight from SQLite. The
+ * transitional {@link mapApiTopicToRendererTopic} helper bridges to the v1
+ * renderer shape for callers that haven't migrated yet — it'll be removed
+ * once Phase 2 finishes.
  */
 
 import { dataApiService } from '@data/DataApiService'
@@ -11,19 +13,21 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { loggerService } from '@logger'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicDataApi')
 
-const EMPTY_API_TOPICS: readonly ApiTopic[] = Object.freeze([])
-const EMPTY_RENDERER_TOPICS: readonly RendererTopic[] = Object.freeze([])
+const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
  * Message history is not loaded here — use `useTopicMessagesV2` or `getTopicMessages`.
+ *
+ * @deprecated Transitional adapter — call sites should migrate to read DataApi
+ * `Topic` shape directly (`isPinned` instead of `pinned`, no `messages[]`).
  */
-export function mapApiTopicToRendererTopic(t: ApiTopic): RendererTopic {
+export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
   return {
     id: t.id,
     assistantId: t.assistantId ?? '',
@@ -44,15 +48,10 @@ export function useTopicsByAssistant(assistantId: string | undefined) {
     enabled: !!assistantId
   })
 
-  const topics = useMemo(
-    () => data?.filter((t) => t.assistantId === assistantId) ?? EMPTY_API_TOPICS,
-    [data, assistantId]
-  )
-  const rendererTopics = useMemo(() => topics.map(mapApiTopicToRendererTopic), [topics])
+  const topics = useMemo(() => data?.filter((t) => t.assistantId === assistantId) ?? EMPTY_TOPICS, [data, assistantId])
 
   return {
     topics,
-    rendererTopics,
     isLoading,
     error,
     refetch,
@@ -69,11 +68,8 @@ export function useAllTopics() {
     query: {}
   })
 
-  const rendererTopics = useMemo(() => (data ? data.map(mapApiTopicToRendererTopic) : EMPTY_RENDERER_TOPICS), [data])
-
   return {
-    topics: data ?? EMPTY_API_TOPICS,
-    rendererTopics,
+    topics: data ?? EMPTY_TOPICS,
     isLoading,
     error,
     refetch,
@@ -89,11 +85,8 @@ export function useTopicById(topicId: string | undefined) {
     enabled: !!topicId
   })
 
-  const rendererTopic = useMemo(() => (data ? mapApiTopicToRendererTopic(data) : undefined), [data])
-
   return {
     topic: data,
-    rendererTopic,
     isLoading,
     error,
     refetch,
@@ -120,7 +113,7 @@ export function useTopicMutations() {
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
 
   const createTopic = useCallback(
-    async (dto: CreateTopicDto): Promise<ApiTopic> => {
+    async (dto: CreateTopicDto): Promise<Topic> => {
       const topic = await createTrigger({ body: dto })
       logger.info('Created topic', { id: topic.id })
       return topic
@@ -129,7 +122,7 @@ export function useTopicMutations() {
   )
 
   const updateTopic = useCallback(
-    async (topicId: string, dto: UpdateTopicDto): Promise<ApiTopic> => {
+    async (topicId: string, dto: UpdateTopicDto): Promise<Topic> => {
       const topic = await updateTrigger({ params: { id: topicId }, body: dto })
       logger.info('Updated topic', { id: topicId })
       return topic
@@ -164,7 +157,7 @@ export function useTopicMutations() {
   )
 
   const moveTopic = useCallback(
-    (topicId: string, toAssistantId: string): Promise<ApiTopic> => {
+    (topicId: string, toAssistantId: string): Promise<Topic> => {
       return updateTopic(topicId, { assistantId: toAssistantId })
     },
     [updateTopic]
