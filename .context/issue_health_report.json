@@ -1,681 +1,104 @@
 {
-  "generated_at": "2026-04-23T17:51:28.702112+00:00",
-  "date": "2026-04-23",
-  "summary": {
-    "open_total": 791,
-    "closed_30d": 235,
-    "daily_close_avg": 7.8,
-    "health_score": "MODERATE"
-  },
-  "health_distribution": {
-    "active": {
-      "count": 239,
-      "pct": "30.2%"
-    },
-    "aging": {
-      "count": 398,
-      "pct": "50.3%"
-    },
-    "stale": {
-      "count": 151,
-      "pct": "19.1%"
-    },
-    "zombie": {
-      "count": 3,
-      "pct": "0.4%"
-    }
-  },
-  "issue_type_distribution": {
-    "Bug": 327,
-    "Feature": 309,
-    "__untyped__": 133,
-    "Task": 22
-  },
-  "label_health": {
-    "no_label_count": 92,
-    "no_label_pct": "11.6%",
-    "sample_no_label": [
-      {
-        "number": 14542,
-        "title": "[Bug]: API address input auto-completes to chat/completions even when ending wit",
-        "created_at": "2026-04-23T17:31:26Z",
-        "age_days": 0
-      },
-      {
-        "number": 14537,
-        "title": "Make auto-i18n cover the v2 branch",
-        "created_at": "2026-04-23T13:49:52Z",
-        "age_days": 0
-      },
-      {
-        "number": 14536,
-        "title": "[Bug]: Pre-commit hook skips oxlint, so CI-only lint failures slip through",
-        "created_at": "2026-04-23T13:34:04Z",
-        "age_days": 0
-      },
-      {
-        "number": 14533,
-        "title": "[Feature]: Centralize the translate flow into a shared useTranslate hook",
-        "created_at": "2026-04-23T12:12:35Z",
-        "age_days": 0
-      },
-      {
-        "number": 14521,
-        "title": "[Feature]: place skills with paths without spaces, like `~/.cherrystudio/skills/",
-        "created_at": "2026-04-23T08:52:38Z",
-        "age_days": 0
-      },
-      {
-        "number": 14515,
-        "title": "[Bug]: Symlink created by bun install -g points to claude.exe instead of native ",
-        "created_at": "2026-04-23T06:27:02Z",
-        "age_days": 0
-      },
-      {
-        "number": 14516,
-        "title": "[Feature]: Add support for reusing local codex login credentials (~/.codex/auth.",
-        "created_at": "2026-04-23T06:34:29Z",
-        "age_days": 0
-      },
-      {
-        "number": 14503,
-        "title": "[Bug]: Disabling API auto-attach doesn't work",
-        "created_at": "2026-04-23T01:59:27Z",
-        "age_days": 0
-      },
-      {
-        "number": 14449,
-        "title": "[Bug]: backup fail after update",
-        "created_at": "2026-04-21T10:33:59Z",
-        "age_days": 2
-      },
-      {
-        "number": 14233,
-        "title": "[Feature]: Replace init/register workaround with file watcher for automatic skil",
-        "created_at": "2026-04-13T12:57:24Z",
-        "age_days": 10
-      }
-    ],
-    "top_labels": [
-      {
-        "name": "UI/UX",
-        "count": 206
-      },
-      {
-        "name": "Models",
-        "count": 193
-      },
-      {
-        "name": "feature",
-        "count": 141
-      },
-      {
-        "name": "BUG",
-        "count": 124
-      },
-      {
-        "name": "inactive",
-        "count": 89
-      },
-      {
-        "name": "Assistant",
-        "count": 78
-      },
-      {
-        "name": "MCP",
-        "count": 65
-      },
-      {
-        "name": "Blocked: v2",
-        "count": 61
-      },
-      {
-        "name": "Data",
-        "count": 53
-      },
-      {
-        "name": "needs-repro",
-        "count": 43
-      },
-      {
-        "name": "discussion",
-        "count": 42
-      },
-      {
-        "name": "help wanted",
-        "count": 40
-      },
-      {
-        "name": "RAG",
-        "count": 32
-      },
-      {
-        "name": "Connectivity",
-        "count": 29
-      },
-      {
-        "name": "P3",
-        "count": 29
-      }
+  "generated_at": "2026-04-25T00:00:00Z",
+  "snapshot_date": "2026-04-25",
+  "methodology": "Age-based classification on open issues. Sample: first 100 most-recently-updated open issues.",
+  "total_open_issues": 810,
+  "overall_health": {
+    "score": "MODERATE",
+    "notes": [
+      "High closure rate (240 closed in 30 days) indicates active maintenance",
+      "96 unlabeled issues (11.9%) need triage",
+      "102 issues marked 'inactive' — consider closing or following up",
+      "3 P1 issues open including 1 critical security advisory (GHSA-qmgw-45x4-3626)"
     ]
   },
-  "p1_bugs_recent_7d": [
-    {
-      "number": 14300,
-      "title": "[Bug]: Backup to WebDAV and S3 failed",
-      "labels": [
-        "Data"
-      ],
-      "type": "Bug",
-      "reactions": 5,
-      "comments": 7,
-      "score": 17,
-      "created_at": "2026-04-16T07:39:53Z",
-      "updated_at": "2026-04-23T08:43:09Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14300"
+  "age_distribution": {
+    "methodology": "Calculated from sample of 100 most recently updated open issues",
+    "active_0_7d": {
+      "count": 66,
+      "pct": 66.0,
+      "description": "Recently created or updated, likely actively being worked"
     },
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-      "labels": [
-        "BUG",
-        "MCP"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 13,
-      "score": 17,
-      "created_at": "2025-09-05T08:04:23Z",
-      "updated_at": "2026-04-16T00:56:13Z",
-      "days_since_update": 7,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/9943"
+    "aging_8_30d": {
+      "count": 4,
+      "pct": 4.0,
+      "description": "A few weeks old without recent update"
     },
-    {
-      "number": 12967,
-      "title": "[Bug]: plugin.json not found in .claude-plugin error when install plugin in agent",
-      "labels": [
-        "BUG",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 4,
-      "comments": 8,
-      "score": 16,
-      "created_at": "2026-02-19T16:43:01Z",
-      "updated_at": "2026-04-18T00:49:17Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12967"
+    "stale_31_90d": {
+      "count": 30,
+      "pct": 30.0,
+      "description": "1–3 months old with no recent activity — needs triage"
     },
-    {
-      "number": 13082,
-      "title": "[Bug]: Frequent lag during normal operations",
-      "labels": [
-        "BUG",
-        "Planned",
-        "Performance",
-        "v2"
-      ],
-      "type": "Bug",
-      "reactions": 3,
-      "comments": 5,
-      "score": 11,
-      "created_at": "2026-02-26T14:12:40Z",
-      "updated_at": "2026-04-19T07:45:16Z",
-      "days_since_update": 4,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
-    },
-    {
-      "number": 12890,
-      "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in single-session",
-      "labels": [
-        "BUG",
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 3,
-      "comments": 4,
-      "score": 10,
-      "created_at": "2026-02-12T08:19:33Z",
-      "updated_at": "2026-04-23T12:23:26Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/12890"
-    },
-    {
-      "number": 13543,
-      "title": "[Bug]: gateway exited with code 3221225501",
-      "labels": [
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 6,
-      "score": 10,
-      "created_at": "2026-03-17T08:34:15Z",
-      "updated_at": "2026-04-19T00:55:30Z",
-      "days_since_update": 4,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13543"
-    },
-    {
-      "number": 13578,
-      "title": "[Bug]: cherry studio quit unexpectedly",
-      "labels": [
-        "Performance",
-        "v2"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 5,
-      "score": 9,
-      "created_at": "2026-03-18T02:37:44Z",
-      "updated_at": "2026-04-18T11:06:53Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13578"
-    },
-    {
-      "number": 14449,
-      "title": "[Bug]: backup fail after update",
-      "labels": [],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 4,
-      "score": 8,
-      "created_at": "2026-04-21T10:33:59Z",
-      "updated_at": "2026-04-23T02:36:45Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14449"
-    },
-    {
-      "number": 13660,
-      "title": "[Bug]: The chat interface of Openclaw is malfunctioning.",
-      "labels": [
-        "external",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 4,
-      "score": 8,
-      "created_at": "2026-03-20T08:13:05Z",
-      "updated_at": "2026-04-20T00:53:42Z",
-      "days_since_update": 3,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13660"
-    },
-    {
-      "number": 14373,
-      "title": "[Bug]: Cannot start a new conversation after linking cherry claw to WeChat",
-      "labels": [],
-      "type": "Bug",
-      "reactions": 3,
-      "comments": 1,
-      "score": 7,
-      "created_at": "2026-04-18T10:46:16Z",
-      "updated_at": "2026-04-18T10:51:09Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14373"
-    },
-    {
-      "number": 14342,
-      "title": "[Bug]: Messages sent from Feishu are not received",
-      "labels": [
-        "needs-more-info"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 5,
-      "score": 7,
-      "created_at": "2026-04-17T09:30:25Z",
-      "updated_at": "2026-04-17T09:47:50Z",
-      "days_since_update": 6,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14342"
-    },
-    {
-      "number": 13546,
-      "title": "[Bug]: Failed to start Claude Code",
-      "labels": [
-        "needs-repro",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 3,
-      "score": 7,
-      "created_at": "2026-03-17T09:07:35Z",
-      "updated_at": "2026-04-17T00:53:05Z",
-      "days_since_update": 6,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13546"
-    },
-    {
-      "number": 14468,
-      "title": "[Bug]: 添加code时，cherry未识别newapi的模型供下拉选择",
-      "labels": [
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 4,
-      "score": 6,
-      "created_at": "2026-04-22T04:38:51Z",
-      "updated_at": "2026-04-23T00:40:13Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14468"
-    },
-    {
-      "number": 13624,
-      "title": "[Bug]: Image input persists after model switch",
-      "labels": [
-        "UI/UX"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 2,
-      "score": 6,
-      "created_at": "2026-03-19T07:54:35Z",
-      "updated_at": "2026-04-20T00:53:47Z",
-      "days_since_update": 3,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13624"
-    },
-    {
-      "number": 14362,
-      "title": "[Bug]: 模型列表出现分组乱码情况",
-      "labels": [
-        "UI/UX",
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 3,
-      "comments": 0,
-      "score": 6,
-      "created_at": "2026-04-18T02:14:41Z",
-      "updated_at": "2026-04-18T02:17:00Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14362"
-    },
-    {
-      "number": 13570,
-      "title": "[Bug]: Always return internal server error when making post request to /v1/mcps/{mcp_serve",
-      "labels": [
-        "MCP",
-        "needs-repro",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 2,
-      "score": 6,
-      "created_at": "2026-03-17T20:10:47Z",
-      "updated_at": "2026-04-18T00:48:48Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13570"
-    },
-    {
-      "number": 13595,
-      "title": "[Bug]: Why is the API address still being auto-completed with /chat/completions even after",
-      "labels": [
-        "Connectivity",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 2,
-      "score": 6,
-      "created_at": "2026-03-18T07:37:07Z",
-      "updated_at": "2026-04-18T00:48:33Z",
-      "days_since_update": 5,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13595"
-    },
-    {
-      "number": 13394,
-      "title": "[Bug]: Can not use copilot in openclaw",
-      "labels": [
-        "Models",
-        "inactive",
-        "OpenClaw"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 4,
-      "score": 6,
-      "created_at": "2026-03-11T11:00:59Z",
-      "updated_at": "2026-04-16T00:55:19Z",
-      "days_since_update": 7,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13394"
-    },
-    {
-      "number": 14402,
-      "title": "[Bug]: pdf输入无法识别",
-      "labels": [
-        "needs-repro"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 3,
-      "score": 5,
-      "created_at": "2026-04-20T03:03:33Z",
-      "updated_at": "2026-04-23T16:46:38Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14402"
-    },
-    {
-      "number": 14540,
-      "title": "[Bug]: gpt-2-image error",
-      "labels": [
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 1,
-      "score": 5,
-      "created_at": "2026-04-23T14:25:23Z",
-      "updated_at": "2026-04-23T14:33:08Z",
-      "days_since_update": 0,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14540"
-    }
-  ],
-  "high_engagement": [
-    {
-      "number": 6505,
-      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-      "labels": [
-        "Assistant"
-      ],
-      "type": "Task",
-      "reactions": 9,
-      "comments": 350,
-      "days_since_update": 14
-    },
-    {
-      "number": 5640,
-      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
-      "labels": [
-        "Dev Team"
-      ],
-      "type": "Task",
-      "reactions": 8,
-      "comments": 25,
-      "days_since_update": 82
-    },
-    {
-      "number": 14387,
-      "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persists after di",
-      "labels": [
-        "needs-more-info",
-        "help wanted",
-        "discussion"
-      ],
-      "type": null,
-      "reactions": 16,
-      "comments": 12,
-      "days_since_update": 2
-    },
-    {
-      "number": 9112,
-      "title": "[错误]: 升级时，提示Cherry Studio无法关闭，无法升级",
-      "labels": [
-        "BUG",
-        "inactive"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 26,
-      "days_since_update": 34
-    },
-    {
-      "number": 10918,
-      "title": "[Bug]: Impossible to add a knowledge base",
-      "labels": [
-        "BUG",
-        "RAG"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 20,
-      "days_since_update": 24
-    },
-    {
-      "number": 7488,
-      "title": "[功能]: webdev备份与恢复，建议新增多端修改后自动同步最新状态",
-      "labels": [
-        "feature",
-        "Data",
-        "Blocked: v2"
-      ],
-      "type": "Feature",
-      "reactions": 7,
-      "comments": 13,
-      "days_since_update": 16
-    },
-    {
-      "number": 6972,
-      "title": "[功能]: 允许缓存对话中 markdown 引用的图片到本地",
-      "labels": [
-        "feature",
-        "UI/UX"
-      ],
-      "type": "Feature",
-      "reactions": 1,
-      "comments": 17,
-      "days_since_update": 16
-    },
-    {
-      "number": 11906,
-      "title": "[Feature]: Add video upload support",
-      "labels": [
-        "Planned",
-        "feature",
-        "Blocked: v2"
-      ],
-      "type": "Feature",
-      "reactions": 12,
-      "comments": 6,
-      "days_since_update": 16
-    },
-    {
-      "number": 12079,
-      "title": "[Bug]:  cherry-studio cannot read the file since today",
-      "labels": [
-        "BUG"
-      ],
-      "type": "Bug",
-      "reactions": 3,
-      "comments": 14,
-      "days_since_update": 17
-    },
-    {
-      "number": 6696,
-      "title": "功能请求：重新生成回答时，或者编辑信息时，可以保留以前的信息并允许随时切换。",
-      "labels": [
-        "Planned",
-        "Dev Team",
-        "UI/UX"
-      ],
-      "type": "Feature",
-      "reactions": 8,
-      "comments": 8,
-      "days_since_update": 16
-    },
-    {
-      "number": 3922,
-      "title": "[功能]: 助手作为对话参与者而非话题容器",
-      "labels": [
-        "feature",
-        "Dev Team",
-        "Blocked: v2"
-      ],
-      "type": "Feature",
-      "reactions": 3,
-      "comments": 13,
-      "days_since_update": 16
-    },
-    {
-      "number": 9943,
-      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-      "labels": [
-        "BUG",
-        "MCP"
-      ],
-      "type": "Bug",
-      "reactions": 2,
-      "comments": 13,
-      "days_since_update": 7
-    },
-    {
-      "number": 12618,
-      "title": "[Bug]: Unable to properly configure and use the Anthropic (Claude) API provided ",
-      "labels": [
-        "BUG",
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 14,
-      "days_since_update": 43
-    },
-    {
-      "number": 14027,
-      "title": "[Bug]: Aliyun Bailian Agent Mode Failed",
-      "labels": [
-        "Models"
-      ],
-      "type": "Bug",
-      "reactions": 1,
-      "comments": 13,
-      "days_since_update": 19
-    },
-    {
-      "number": 11953,
-      "title": "📢 [Recruitment] Cherry Studio, Welcoming Fellow Travelers",
-      "labels": [
-        "Dev Team"
-      ],
-      "type": "Task",
-      "reactions": 12,
-      "comments": 2,
-      "days_since_update": 39
-    }
-  ],
-  "closure_velocity": {
-    "closed_30d": 200,
-    "by_recent_day": {
-      "2026-04-23": 17,
-      "2026-04-22": 29,
-      "2026-04-21": 59,
-      "2026-04-20": 2,
-      "2026-04-19": 2,
-      "2026-04-18": 7,
-      "2026-04-17": 6,
-      "2026-04-16": 9,
-      "2026-04-15": 5,
-      "2026-04-14": 4,
-      "2026-04-13": 3,
-      "2026-04-12": 2,
-      "2026-04-11": 9,
-      "2026-04-10": 3
+    "zombie_over_90d": {
+      "count": 0,
+      "pct": 0.0,
+      "description": "Over 3 months old — potential candidates for closure"
     }
   },
+  "bug_health": {
+    "total_open_bugs": 122,
+    "age_distribution_sample_100": {
+      "active_0_7d": 4,
+      "aging_8_30d": 3,
+      "stale_31_90d": 14,
+      "zombie_over_90d": 79
+    },
+    "concern": "79% of sampled bugs are over 90 days old — significant backlog of unresolved bugs"
+  },
+  "no_label_issues": {
+    "total": 96,
+    "pct_of_open": 11.9,
+    "age_distribution_sample_96": {
+      "active_0_7d": 31,
+      "aging_8_30d": 60,
+      "stale_31_90d": 5,
+      "zombie_over_90d": 0
+    },
+    "action": "Triage needed — 60 aging unlabeled issues from 8–30 days ago"
+  },
+  "inactive_issues": {
+    "total": 102,
+    "description": "Issues labeled 'inactive' — no response from author or stalled",
+    "recommendation": "Consider auto-closing after 14 more days of inactivity"
+  },
+  "p1_critical": {
+    "count": 3,
+    "oldest_open_days": 65,
+    "security_issue_open": true,
+    "security_issue_number": 12966,
+    "action_required": "Security advisory GHSA-qmgw-45x4-3626 (#12966) requires immediate triage response"
+  },
+  "closure_rate": {
+    "last_30d": 240,
+    "avg_per_day": 8.0,
+    "peak_days": [
+      {"date": "2026-04-22", "closed": 29},
+      {"date": "2026-04-21", "closed": 28},
+      {"date": "2026-04-23", "closed": 17},
+      {"date": "2026-04-24", "closed": 15},
+      {"date": "2026-04-25", "closed": 10}
+    ]
+  },
   "recommendations": [
-    "92 unlabeled issues (12%) — triage needed",
-    "Apply 'Blocked: v2' label to feature requests deferred to v2 milestone",
-    "Investigate P1 bugs: WebDAV/S3 backup failures, PDF parsing, text selection"
+    {
+      "priority": "CRITICAL",
+      "action": "Respond to security advisory GHSA-qmgw-45x4-3626 on issue #12966 immediately"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Triage 96 unlabeled issues — add at minimum bug/feature/question labels"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Review 102 'inactive' issues for closure eligibility"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Address 79 zombie bugs (>90d) — close duplicates, add to backlog, or fix"
+    },
+    {
+      "priority": "LOW",
+      "action": "Investigate #13608 (mimo streaming) and #13193 (Azure OpenAI regression) — both P1"
+    }
   ]
 }

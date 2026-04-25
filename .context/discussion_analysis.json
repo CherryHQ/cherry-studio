@@ -1,6 +1,22 @@
 {
-  "generated_at": "2026-04-23T17:51:28.702112+00:00",
-  "date": "2026-04-23",
-  "data_note": "Discussions data not available via MCP GraphQL in this run. Run with gh CLI to populate.",
-  "total_discussions": 0
+  "generated_at": "2026-04-25T00:00:00Z",
+  "snapshot_date": "2026-04-25",
+  "data_source": "GitHub Discussions (GraphQL API not available via MCP — partial data)",
+  "note": "Discussion data requires GraphQL API access. This file is a skeleton pending Conductor/Actions integration with full GraphQL token.",
+  "summary": {
+    "total_discussions_fetched": 0,
+    "answered": 0,
+    "unanswered": 0,
+    "categories": []
+  },
+  "top_discussions_by_upvotes": [],
+  "unanswered_discussions": [],
+  "recent_activity": {
+    "last_7d_new": "N/A",
+    "last_30d_new": "N/A"
+  },
+  "action_items": [
+    "Configure GraphQL token in Conductor/GitHub Actions to enable discussion data fetch",
+    "Run: gh api graphql -f query='{ repository(owner:\"CherryHQ\",name:\"cherry-studio\") { discussions(first:100) { nodes { number title createdAt updatedAt answer { author { login } } } } } }'"
+  ]
 }

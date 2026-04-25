@@ -1,571 +1,85 @@
 {
-  "generated_at": "2026-04-23T17:51:28.702112+00:00",
-  "date": "2026-04-23",
-  "branch": "v2",
-  "summary": {
-    "open_prs": 57,
-    "open_ready": 39,
-    "open_draft": 18,
-    "closed_fetched_100": 100,
-    "velocity_note": "v2 closed PRs merged field unreliable via REST; using closed state"
+  "generated_at": "2026-04-25T00:00:00Z",
+  "snapshot_date": "2026-04-25",
+  "v2_branch_overview": {
+    "branch": "v2",
+    "status": "active_development",
+    "policy": "All new features, refactoring, optimizations. New features accepted after current features fully refactored.",
+    "main_freeze": "main branch under code freeze since 2026-04-03. Only hotfix/* accepted."
   },
-  "open_ready_for_review": [
+  "open_prs": {
+    "total": 62,
+    "draft": 20,
+    "ready_for_review": 42,
+    "top_contributors": [
+      {"login": "DeJeune", "open_prs": 15, "role": "Core maintainer"},
+      {"login": "EurFelux", "open_prs": 12, "role": "Contributor"},
+      {"login": "zhangjiadi225", "open_prs": 5, "role": "Contributor"},
+      {"login": "404-Page-Found", "open_prs": 4, "role": "Contributor"},
+      {"login": "kovsu", "open_prs": 3, "role": "Contributor"},
+      {"login": "LWWZH", "open_prs": 3, "role": "Contributor"},
+      {"login": "vaayne", "open_prs": 2, "role": "Contributor"},
+      {"login": "kangfenmao", "open_prs": 2, "role": "Lead maintainer"},
+      {"login": "jidan745le", "open_prs": 2, "role": "Contributor"},
+      {"login": "Raymond8196", "open_prs": 2, "role": "Contributor"}
+    ]
+  },
+  "merged_prs_last_30d": {
+    "total": 45,
+    "period": "2026-03-26 to 2026-04-25",
+    "activity_by_date": {
+      "2026-04-10": 9,
+      "2026-03-31": 6,
+      "2026-04-20": 4,
+      "2026-04-16": 3,
+      "2026-04-21": 2,
+      "2026-04-17": 2,
+      "2026-04-13": 2,
+      "2026-04-07": 2,
+      "2026-04-05": 2,
+      "2026-04-04": 2
+    },
+    "avg_merges_per_week": 11.25,
+    "notable_recent_merges": [
+      {
+        "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
+        "category": "AI Core refactor",
+        "significance": "Major architecture change - new streaming pipeline"
+      },
+      {
+        "title": "refactor(agents-data-api): migrate agents domain to DataApi — remove BaseService, database/ shims, SkillRepositories",
+        "category": "Agents subsystem refactor",
+        "significance": "DataApi migration, removes legacy patterns"
+      }
+    ]
+  },
+  "known_blocked_areas": [
     {
-      "number": 14428,
-      "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseServ",
-      "author": "vaayne",
-      "scope": "other",
-      "type": "other",
-      "days_old": 3,
-      "updated_at": "2026-04-23T16:21:02Z"
+      "area": "Redux store slices",
+      "status": "BLOCKED",
+      "note": "No new slices or state shape changes until v2.0.0"
     },
     {
-      "number": 13451,
-      "title": "feat(file): Add schema and foundation for new file module",
-      "author": "EurFelux",
-      "scope": "file",
-      "type": "feat",
-      "days_old": 40,
-      "updated_at": "2026-04-23T15:58:27Z"
+      "area": "Dexie (IndexedDB) schema",
+      "status": "BLOCKED",
+      "note": "No schema changes until v2.0.0"
     },
     {
-      "number": 14464,
-      "title": "fix: preserve referenced models during v2 migration",
-      "author": "kovsu",
-      "scope": "other",
-      "type": "fix",
-      "days_old": 1,
-      "updated_at": "2026-04-23T15:12:27Z"
-    },
-    {
-      "number": 13871,
-      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 da",
-      "author": "EurFelux",
-      "scope": "translate",
-      "type": "refactor",
-      "days_old": 25,
-      "updated_at": "2026-04-23T14:44:06Z"
-    },
-    {
-      "number": 14429,
-      "title": "refactor(agents-db): FK-link agent/session model columns to user_model",
-      "author": "DeJeune",
-      "scope": "agents-db",
-      "type": "refactor",
-      "days_old": 3,
-      "updated_at": "2026-04-23T14:43:36Z"
-    },
-    {
-      "number": 13968,
-      "title": "feat(v2): add main-side file processing backend",
-      "author": "eeee0717",
-      "scope": "v2",
-      "type": "feat",
-      "days_old": 21,
-      "updated_at": "2026-04-23T10:12:06Z"
-    },
-    {
-      "number": 14490,
-      "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
-      "author": "zhangjiadi225",
-      "scope": "model-selector-v2",
-      "type": "feat",
-      "days_old": 1,
-      "updated_at": "2026-04-23T08:56:04Z"
-    },
-    {
-      "number": 14443,
-      "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
-      "author": "kangfenmao",
-      "scope": "websearch-settings",
-      "type": "refactor",
-      "days_old": 2,
-      "updated_at": "2026-04-23T08:05:33Z"
-    },
-    {
-      "number": 13430,
-      "title": "refactor(data): migrate QuickPhrase to Prompt with version management",
-      "author": "zhangjiadi225",
-      "scope": "data",
-      "type": "refactor",
-      "days_old": 41,
-      "updated_at": "2026-04-23T03:32:14Z"
-    },
-    {
-      "number": 14489,
-      "title": "feat(notify): support image and file attachments across channels",
-      "author": "DeJeune",
-      "scope": "notify",
-      "type": "feat",
-      "days_old": 1,
-      "updated_at": "2026-04-22T13:29:39Z"
-    },
-    {
-      "number": 14477,
-      "title": "feat(topics): Add sorting methods to topics page",
-      "author": "LWWZH",
-      "scope": "topics",
-      "type": "feat",
-      "days_old": 1,
-      "updated_at": "2026-04-22T08:27:25Z"
-    },
-    {
-      "number": 14456,
-      "title": "feat: add session-based prompt cache expiration reminder per conversation",
-      "author": "LWWZH",
-      "scope": "other",
-      "type": "feat",
-      "days_old": 1,
-      "updated_at": "2026-04-21T22:24:34Z"
-    },
-    {
-      "number": 14049,
-      "title": "refactor(miniapp): migrate to v2 data layer",
-      "author": "chengcheng84",
-      "scope": "miniapp",
-      "type": "refactor",
-      "days_old": 18,
-      "updated_at": "2026-04-21T11:46:00Z"
-    },
-    {
-      "number": 13589,
-      "title": "feat(v2): migrate PR12258 proxy api server into v2 api gateway",
-      "author": "FactrueSolin",
-      "scope": "v2",
-      "type": "feat",
-      "days_old": 36,
-      "updated_at": "2026-04-21T10:21:47Z"
-    },
-    {
-      "number": 12519,
-      "title": "refactor: replace antd Input/TextArea with Shadcn UI components",
-      "author": "SherlockShemol",
-      "scope": "other",
-      "type": "refactor",
-      "days_old": 94,
-      "updated_at": "2026-04-21T10:21:47Z"
-    },
-    {
-      "number": 14033,
-      "title": "feat(selection): add screenshot-to-translate action with OCR",
-      "author": "404-Page-Found",
-      "scope": "selection",
-      "type": "feat",
-      "days_old": 19,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 14065,
-      "title": "fix(mcp): clear OAuth token when deleting MCP server",
-      "author": "404-Page-Found",
-      "scope": "mcp",
-      "type": "fix",
-      "days_old": 17,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13989,
-      "title": "[topic] Reuse assistant markdown heading for topic naming (v2)",
-      "author": "404-Page-Found",
-      "scope": "other",
-      "type": "other",
-      "days_old": 20,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 14102,
-      "title": "fix: allow sending messages when QuickPanel is open with @ in content",
-      "author": "404-Page-Found",
-      "scope": "other",
-      "type": "fix",
-      "days_old": 15,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 14135,
-      "title": "feat(websearch): add toggle to disable prefilling search keywords in …",
-      "author": "karuboniru",
-      "scope": "websearch",
-      "type": "feat",
-      "days_old": 14,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13870,
-      "title": "refactor(tool-permissions): migrate Redux store to SharedCache with main-process",
-      "author": "DeJeune",
-      "scope": "tool-permissions",
-      "type": "refactor",
-      "days_old": 26,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13687,
-      "title": "chore: migrate to vite 8",
-      "author": "EurFelux",
-      "scope": "other",
-      "type": "chore",
-      "days_old": 33,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 10929,
-      "title": "refactor: Migrate to tiptap markdown",
-      "author": "Copilot",
-      "scope": "other",
-      "type": "refactor",
-      "days_old": 182,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 11054,
-      "title": "feat: reset default model",
-      "author": "EurFelux",
-      "scope": "other",
-      "type": "feat",
-      "days_old": 175,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 11878,
-      "title": "feat(ui): toast",
-      "author": "EurFelux",
-      "scope": "ui",
-      "type": "feat",
-      "days_old": 132,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 12060,
-      "title": "feat: context menu",
-      "author": "DeJeune",
-      "scope": "other",
-      "type": "feat",
-      "days_old": 123,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13856,
-      "title": "feat(process-manager): add ProcessManager with unified lifecycle, events, and se",
-      "author": "DeJeune",
-      "scope": "process-manager",
-      "type": "feat",
-      "days_old": 27,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13561,
-      "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design",
-      "author": "DeJeune",
-      "scope": "ui",
-      "type": "refactor",
-      "days_old": 37,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13312,
-      "title": "feat(data): add note metadata DataApi and cache schemas for v2 migration",
-      "author": "DeJeune",
-      "scope": "data",
-      "type": "feat",
-      "days_old": 45,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 13173,
-      "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
-      "author": "DeJeune",
-      "scope": "renderer",
-      "type": "refactor",
-      "days_old": 51,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 12506,
-      "title": "feat(import): add Claude conversation importer",
-      "author": "linxule",
-      "scope": "import",
-      "type": "feat",
-      "days_old": 95,
-      "updated_at": "2026-04-21T10:21:46Z"
-    },
-    {
-      "number": 14357,
-      "title": "feat(memory): pluggable memory provider system with Hindsight integration",
-      "author": "kwisser",
-      "scope": "memory",
-      "type": "feat",
-      "days_old": 5,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14064,
-      "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh cher",
-      "author": "EurFelux",
-      "scope": "other",
-      "type": "feat",
-      "days_old": 17,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14351,
-      "title": "refactor(translate): rebuild translate page on @cherrystudio/ui",
-      "author": "zhangjiadi225",
-      "scope": "translate",
-      "type": "refactor",
-      "days_old": 6,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14262,
-      "title": "feat(minapp): add category-based display with cross-category drag-and-drop",
-      "author": "Sisyphe42",
-      "scope": "minapp",
-      "type": "feat",
-      "days_old": 8,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14261,
-      "title": "feat(anthropic): improve prompt caching with incremental strategy and cached tok",
-      "author": "TakotsuboChen",
-      "scope": "anthropic",
-      "type": "feat",
-      "days_old": 8,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14218,
-      "title": "feat: Insert message",
-      "author": "JorkeyLiu",
-      "scope": "other",
-      "type": "feat",
-      "days_old": 10,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14178,
-      "title": "refactor(copilot): separate business logic from IPC handler signatures",
-      "author": "DeJeune",
-      "scope": "copilot",
-      "type": "refactor",
-      "days_old": 12,
-      "updated_at": "2026-04-21T10:21:45Z"
-    },
-    {
-      "number": 14146,
-      "title": "feat(layout): add split-view infrastructure for multi-pane tabs",
-      "author": "DeJeune",
-      "scope": "layout",
-      "type": "feat",
-      "days_old": 14,
-      "updated_at": "2026-04-21T10:21:45Z"
+      "area": "Files with @deprecated v2.0.0 header",
+      "status": "BUG_FIX_ONLY",
+      "note": "Feature PRs blocked. Bug fixes only."
     }
   ],
-  "open_drafts": [
-    {
-      "number": 14071,
-      "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
-      "author": "DeJeune",
-      "scope": "ai",
-      "days_old": 17
-    },
-    {
-      "number": 14442,
-      "title": "feat(library): add v2 resource library page with assistant tag &amp; search APIs",
-      "author": "zhangjiadi225",
-      "scope": "library",
-      "days_old": 2
-    },
-    {
-      "number": 10090,
-      "title": "[WIP] feat: terminal",
-      "author": "EurFelux",
-      "scope": "other",
-      "days_old": 225
-    },
-    {
-      "number": 10699,
-      "title": "feat: video generation",
-      "author": "EurFelux",
-      "scope": "other",
-      "days_old": 192
-    },
-    {
-      "number": 10874,
-      "title": "feat: one-click fix mermaid error",
-      "author": "EurFelux",
-      "scope": "other",
-      "days_old": 183
-    },
-    {
-      "number": 10912,
-      "title": "refactor: i18n",
-      "author": "EurFelux",
-      "scope": "other",
-      "days_old": 182
-    },
-    {
-      "number": 10933,
-      "title": "feat: show enabled provider only",
-      "author": "EurFelux",
-      "scope": "other",
-      "days_old": 181
-    },
-    {
-      "number": 11420,
-      "title": "feat: Model &amp; Provider Catalog",
-      "author": "DeJeune",
-      "scope": "other",
-      "days_old": 151
-    },
-    {
-      "number": 12150,
-      "title": "refactor(files): File Management System Architecture",
-      "author": "EurFelux",
-      "scope": "files",
-      "days_old": 118
-    },
-    {
-      "number": 13547,
-      "title": "refactor: redesign v2 migration window UI with shadcn components",
-      "author": "kovsu",
-      "scope": "other",
-      "days_old": 37
-    },
-    {
-      "number": 13517,
-      "title": "feat: integrate json-render for interactive UI in chat",
-      "author": "DeJeune",
-      "scope": "other",
-      "days_old": 38
-    },
-    {
-      "number": 13238,
-      "title": "feat(data): add provider/model data API and catalog core",
-      "author": "DeJeune",
-      "scope": "data",
-      "days_old": 49
-    },
-    {
-      "number": 12659,
-      "title": "feat(backup): add v2 backup system refactor plan document",
-      "author": "GeorgeDong32",
-      "scope": "backup",
-      "days_old": 83
-    },
-    {
-      "number": 14410,
-      "title": "feat: show installed state for skill search results",
-      "author": "kovsu",
-      "scope": "other",
-      "days_old": 3
-    },
-    {
-      "number": 14313,
-      "title": "feat(data): migrate paintings to v2 data architecture",
-      "author": "jidan745le",
-      "scope": "data",
-      "days_old": 7
-    },
-    {
-      "number": 14160,
-      "title": "feat: migrate agents data access to data api",
-      "author": "vaayne",
-      "scope": "other",
-      "days_old": 13
-    },
-    {
-      "number": 14096,
-      "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init",
-      "author": "DeJeune",
-      "scope": "other",
-      "days_old": 16
-    },
-    {
-      "number": 14125,
-      "title": "refactor(renderer): ProviderSettings v2 migration + ClassifiableModel compat lay",
-      "author": "jidan745le",
-      "scope": "renderer",
-      "days_old": 15
-    }
+  "active_refactor_areas": [
+    "Agents subsystem (src/main/services/agents/) — DataApi migration",
+    "AI Core (packages/aiCore/) — streaming pipeline v2",
+    "Legacy middleware pipeline (src/renderer/src/aiCore/) — deprecated, migrating to packages/aiCore"
   ],
-  "contributor_activity": {
-    "DeJeune": 15,
-    "EurFelux": 12,
-    "zhangjiadi225": 4,
-    "404-Page-Found": 4,
-    "kovsu": 3,
-    "vaayne": 2,
-    "LWWZH": 2,
-    "jidan745le": 2,
-    "eeee0717": 1,
-    "kangfenmao": 1,
-    "chengcheng84": 1,
-    "FactrueSolin": 1,
-    "SherlockShemol": 1,
-    "karuboniru": 1,
-    "Copilot": 1
+  "velocity": {
+    "open_prs": 62,
+    "merged_last_30d": 45,
+    "throughput_ratio": "0.73 merged per open PR (healthy)",
+    "draft_ratio": "32% of open PRs are drafts (work in progress)"
   },
-  "scope_breakdown_open": {
-    "other": 23,
-    "data": 4,
-    "translate": 2,
-    "v2": 2,
-    "ui": 2,
-    "renderer": 2,
-    "file": 1,
-    "ai": 1,
-    "agents-db": 1,
-    "model-selector-v2": 1,
-    "websearch-settings": 1,
-    "notify": 1,
-    "topics": 1,
-    "library": 1,
-    "miniapp": 1
-  },
-  "commit_type_breakdown_open": {
-    "feat": 33,
-    "refactor": 16,
-    "other": 3,
-    "fix": 3,
-    "chore": 1,
-    "perf": 1
-  },
-  "scope_breakdown_closed": {
-    "other": 37,
-    "data": 14,
-    "v2": 10,
-    "migration": 10,
-    "sidebar": 5,
-    "ui": 5,
-    "V2": 2,
-    "provider-settings": 1,
-    "code": 1,
-    "settings": 1,
-    "data-api": 1,
-    "agents": 1,
-    "gemini": 1,
-    "tabs": 1,
-    "renderer": 1
-  },
-  "commit_type_breakdown_closed": {
-    "feat": 39,
-    "fix": 26,
-    "refactor": 25,
-    "other": 5,
-    "docs": 4,
-    "chore": 1
-  },
-  "roadmap_themes": [
-    "Data layer migration",
-    "UI / shadcn migration",
-    "Sidebar & tab system",
-    "MCP & Agent SDK",
-    "Knowledge base & files",
-    "Provider / Model registry",
-    "AI streaming pipeline",
-    "Settings & preferences",
-    "Memory & context"
-  ]
+  "health_assessment": "ACTIVE — v2 development proceeding at good velocity. 45 merges in 30 days across multiple contributors. Key architecture refactors (AI streaming, agents DataApi) actively landing."
 }
