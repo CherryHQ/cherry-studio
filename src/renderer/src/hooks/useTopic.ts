@@ -8,26 +8,19 @@ import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import type { Message, Topic } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-let _activeTopicId: string | undefined
-
-/**
- * Manages the currently-selected topic across the home page.
- * Keeps a transient `pendingTopic` for optimistic creation so SWR-refresh
- * delays don't bounce the UI back to an old topic.
- */
 export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean } = {}) {
   const { autoPickFirst = true } = options
   const { topics: apiTopics, isLoading } = useAllTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
-  const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
+  const [activeTopicId, setActiveTopicId] = useState<string | undefined>(
+    () => topic?.id ?? cacheService.get('topic.active')?.id
+  )
   // Holds the last Topic object passed to setActiveTopic, used as fallback when
   // the newly-added topic is not yet in `topics` (SWR still refetching).
-  const [pendingTopic, setPendingTopic] = useState<Topic | undefined>(topic)
+  const [pendingTopic, setPendingTopic] = useState<Topic | undefined>(
+    () => topic ?? cacheService.get('topic.active') ?? undefined
+  )
 
-  // Pick up a topic supplied later (e.g. an async-leased temporary topic) the
-  // moment it arrives — without this, an undefined-then-defined `topic` prop
-  // never becomes active because both `useState` initializers fired with
-  // undefined on first render.
   useEffect(() => {
     if (!topic) return
     setActiveTopicId((prev) => prev ?? topic.id)
@@ -41,8 +34,6 @@ export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
   }, [activeTopicId, topics, pendingTopic, autoPickFirst])
-
-  _activeTopicId = activeTopicId
 
   const setActiveTopic = useCallback((next: Topic) => {
     setActiveTopicId((prev) => (prev === next.id ? prev : next.id))

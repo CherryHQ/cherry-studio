@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -21,8 +22,6 @@ import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
-let _appLaunchTempTopicUsed = false
-
 /** Synthesise a renderer Topic shape from a freshly-leased temporary id. */
 function buildPendingTemporaryTopic(id: string, assistantId: string): Topic {
   const nowIso = new Date().toISOString()
@@ -45,12 +44,10 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
 
-  // Capture the first-launch decision once on mount so re-renders don't see
-  // the flag flip after we set it inside the same render pass.
   const [shouldUseTemporary] = useState(() => {
     if (state?.topic) return false
-    if (_appLaunchTempTopicUsed) return false
-    _appLaunchTempTopicUsed = true
+    if (cacheService.get('topic.home.first_launch_temp_used')) return false
+    cacheService.set('topic.home.first_launch_temp_used', true)
     return true
   })
 

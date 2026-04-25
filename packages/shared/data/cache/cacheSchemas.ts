@@ -130,6 +130,7 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+  'topic.home.first_launch_temp_used': boolean
 
   // Agent management
   'agent.active_id': string | null
@@ -210,6 +211,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.active': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
+  'topic.home.first_launch_temp_used': false,
 
   // Agent management
   'agent.active_id': null,

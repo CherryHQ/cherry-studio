@@ -155,12 +155,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
-      // HomePage only wires `onPersistTemporaryTopic` when this V2ChatContent
-      // is currently displaying its first-launch temporary topic. Calling it
-      // migrates that topic into SQLite under the same UUID *before* the
-      // message hits the transport, so the regular `/topics/:id/messages`
-      // path persists the user's first message. Idempotent — once persisted,
-      // subsequent calls inside the same lease are no-ops.
       if (onPersistTemporaryTopic) {
         try {
           await onPersistTemporaryTopic()
