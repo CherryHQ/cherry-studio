@@ -2562,6 +2562,14 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
     })
 
+    it('should return true for kimi-k2.6', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
+    })
+
+    it('should return true for kimi-k2.6 variants', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2.6-preview' }))).toBe(true)
+    })
+
     it('should return false for other kimi models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'kimi-k2-preview' }))).toBe(false)
@@ -2691,14 +2699,27 @@ describe('Kimi Models', () => {
         expect(isKimiReasoningModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
       })
 
+      it('should recognize kimi-k2.6', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
+      })
+
+      it('should recognize future K2.x and K3+ variants', () => {
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k2.7' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k3' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k3.5' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'kimi-k4' }))).toBe(true)
+      })
+
       it('should handle model IDs with slashes', () => {
         expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2-thinking' }))).toBe(true)
         expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(true)
       })
 
       it('should handle case insensitivity', () => {
         expect(isKimiReasoningModel(createModel({ id: 'KIMI-K2-THINKING' }))).toBe(true)
         expect(isKimiReasoningModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+        expect(isKimiReasoningModel(createModel({ id: 'Kimi-K2.6' }))).toBe(true)
       })
     })
 
@@ -2751,14 +2772,28 @@ describe('Kimi Models', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
       })
 
+      it('should recognize kimi-k2.6', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
+      })
+
+      it('should recognize future K2.x and K3+ variants', () => {
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.7' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k3' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k3.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k4' }))).toBe(true)
+      })
+
       it('should handle model IDs with provider prefixes', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'openrouter/kimi-k2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(true)
       })
 
       it('should handle case insensitivity', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'KIMI-K2.5' }))).toBe(true)
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'Kimi-K2.5' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'KIMI-K2.6' }))).toBe(true)
+        expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'Kimi-K2.6' }))).toBe(true)
       })
     })
 

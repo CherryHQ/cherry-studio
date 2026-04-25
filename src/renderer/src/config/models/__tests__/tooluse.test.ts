@@ -139,6 +139,7 @@ describe('isFunctionCallingModel', () => {
   it('supports kimi models through kimi-k2 regex match', () => {
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2-0711-preview', provider: 'moonshot' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2.6', provider: 'moonshot' }))).toBe(true)
   })
 
   it('supports deepseek models through deepseek regex match', () => {
