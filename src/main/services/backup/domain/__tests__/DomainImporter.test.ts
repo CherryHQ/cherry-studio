@@ -142,4 +142,63 @@ describe('DomainImporter', () => {
     const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
     expect(sqlStr).toContain('ON CONFLICT DO UPDATE SET')
   })
+
+  it('remaps assistant_id in topic rows using snake_case column name', async () => {
+    const oldAssistantId = 'old-assistant-uuid'
+    const newAssistantId = 'new-assistant-uuid'
+    const rows = [{ id: 'topic-1', group_id: null, active_node_id: null, assistant_id: oldAssistantId, name: 'test' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => (id === oldAssistantId ? newAssistantId : id))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.TOPICS, ConflictStrategy.RENAME)
+
+    expect(remapper.remap).toHaveBeenCalledWith(oldAssistantId)
+    const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
+    expect(sqlStr).toContain(newAssistantId)
+  })
+
+  it('remaps snake_case FK columns for assistant junction tables', async () => {
+    const oldAssistantId = 'old-a-id'
+    const newAssistantId = 'new-a-id'
+    const oldMcpId = 'old-mcp-id'
+    const newMcpId = 'new-mcp-id'
+    const rows = [{ assistant_id: oldAssistantId, mcp_server_id: oldMcpId }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute
+      .mockResolvedValueOnce({ rows })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => {
+      if (id === oldAssistantId) return newAssistantId
+      if (id === oldMcpId) return newMcpId
+      return id
+    })
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.ASSISTANTS, ConflictStrategy.RENAME)
+
+    expect(remapper.remap).toHaveBeenCalledWith(oldAssistantId)
+    expect(remapper.remap).toHaveBeenCalledWith(oldMcpId)
+  })
 })

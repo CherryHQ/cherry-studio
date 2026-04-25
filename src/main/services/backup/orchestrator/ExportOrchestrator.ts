@@ -131,16 +131,26 @@ export class ExportOrchestrator {
       const fileIds = await collectReferencedFiles(backupClient, this.token)
       if (fileIds.size > 0 && fs.existsSync(sourceDir)) {
         await fsp.mkdir(filesDir, { recursive: true })
+        const fileMap = await this.buildFileIdMap(sourceDir)
         for (const fileId of fileIds) {
           this.token.throwIfCancelled()
-          const sourcePath = path.join(sourceDir, fileId)
-          if (fs.existsSync(sourcePath)) {
-            await fsp.cp(sourcePath, path.join(filesDir, fileId), { recursive: true })
+          const actualName = fileMap.get(fileId)
+          if (actualName) {
+            await fsp.cp(path.join(sourceDir, actualName), path.join(filesDir, actualName), { recursive: true })
           }
         }
         logger.info('Copied referenced files', { count: fileIds.size })
       }
     }
+  }
+
+  private async buildFileIdMap(sourceDir: string): Promise<Map<string, string>> {
+    const entries = await fsp.readdir(sourceDir)
+    const map = new Map<string, string>()
+    for (const entry of entries) {
+      map.set(path.parse(entry).name, entry)
+    }
+    return map
   }
 
   private async collectKnowledgeBases(

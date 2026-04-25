@@ -96,12 +96,6 @@ describe('DomainRegistry', () => {
       expect(IMPORT_ORDER[0]).toBe(BackupDomain.PREFERENCES)
     })
 
-    it('has TOPICS before KNOWLEDGE (FK dependency)', () => {
-      const topicsIdx = IMPORT_ORDER.indexOf(BackupDomain.TOPICS)
-      const knowledgeIdx = IMPORT_ORDER.indexOf(BackupDomain.KNOWLEDGE)
-      expect(topicsIdx).toBeLessThan(knowledgeIdx)
-    })
-
     it('covers all BackupDomain values', () => {
       const allDomains = new Set(Object.values(BackupDomain))
       const ordered = new Set(IMPORT_ORDER)
@@ -110,16 +104,69 @@ describe('DomainRegistry', () => {
       }
     })
 
-    it('has PROVIDERS before ASSISTANTS', () => {
-      const providersIdx = IMPORT_ORDER.indexOf(BackupDomain.PROVIDERS)
-      const assistantsIdx = IMPORT_ORDER.indexOf(BackupDomain.ASSISTANTS)
-      expect(providersIdx).toBeLessThan(assistantsIdx)
+    it('respects all FK dependencies', () => {
+      const idx = (d: BackupDomain) => IMPORT_ORDER.indexOf(d)
+
+      // topic.assistant_id -> assistant.id
+      expect(idx(BackupDomain.ASSISTANTS)).toBeLessThan(idx(BackupDomain.TOPICS))
+      // assistant_knowledge_base.knowledge_base_id -> knowledge_base.id
+      expect(idx(BackupDomain.KNOWLEDGE)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
+      // assistant.model_id -> user_model.id (PROVIDERS)
+      expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
+      // assistant_mcp_server.mcp_server_id -> mcp_server.id
+      expect(idx(BackupDomain.MCP_SERVERS)).toBeLessThan(idx(BackupDomain.ASSISTANTS))
+      // topic.group_id -> group.id (TAGS_GROUPS)
+      expect(idx(BackupDomain.TAGS_GROUPS)).toBeLessThan(idx(BackupDomain.TOPICS))
+      // message.model_id -> user_model.id (PROVIDERS)
+      expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.TOPICS))
+      // knowledge_base.embedding_model_id -> user_model.id (PROVIDERS)
+      expect(idx(BackupDomain.PROVIDERS)).toBeLessThan(idx(BackupDomain.KNOWLEDGE))
+    })
+  })
+
+  describe('DOMAIN_TABLE_MAP intra-domain ordering', () => {
+    it('has translate_language before translate_history (FK: history -> language)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.TRANSLATE_HISTORY]
+      expect(tables.indexOf('translate_language')).toBeLessThan(tables.indexOf('translate_history'))
     })
 
-    it('has MCP_SERVERS before ASSISTANTS', () => {
-      const mcpIdx = IMPORT_ORDER.indexOf(BackupDomain.MCP_SERVERS)
-      const assistantsIdx = IMPORT_ORDER.indexOf(BackupDomain.ASSISTANTS)
-      expect(mcpIdx).toBeLessThan(assistantsIdx)
+    it('has topic before message (FK: message.topic_id -> topic.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.TOPICS]
+      expect(tables.indexOf('topic')).toBeLessThan(tables.indexOf('message'))
+    })
+
+    it('has knowledge_base before knowledge_item (FK: item.base_id -> base.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.KNOWLEDGE]
+      expect(tables.indexOf('knowledge_base')).toBeLessThan(tables.indexOf('knowledge_item'))
+    })
+
+    it('has assistant before junction tables (FK: junction -> assistant.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.ASSISTANTS]
+      expect(tables.indexOf('assistant')).toBeLessThan(tables.indexOf('assistant_mcp_server'))
+      expect(tables.indexOf('assistant')).toBeLessThan(tables.indexOf('assistant_knowledge_base'))
+    })
+
+    it('has user_provider before user_model (FK: model.provider_id -> provider.provider_id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.PROVIDERS]
+      expect(tables.indexOf('user_provider')).toBeLessThan(tables.indexOf('user_model'))
+    })
+
+    it('has agent parent tables before child tables (FK dependencies)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.AGENTS]
+      const i = (t: string) => tables.indexOf(t)
+      expect(i('agent')).toBeLessThan(i('agent_session'))
+      expect(i('agent')).toBeLessThan(i('agent_task'))
+      expect(i('agent')).toBeLessThan(i('agent_channel'))
+      expect(i('agent_global_skill')).toBeLessThan(i('agent_skill'))
+      expect(i('agent_channel')).toBeLessThan(i('agent_channel_task'))
+      expect(i('agent_task')).toBeLessThan(i('agent_channel_task'))
+      expect(i('agent_session')).toBeLessThan(i('agent_session_message'))
+      expect(i('agent_task')).toBeLessThan(i('agent_task_run_log'))
+    })
+
+    it('has tag before entity_tag (FK: entity_tag.tag_id -> tag.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.TAGS_GROUPS]
+      expect(tables.indexOf('tag')).toBeLessThan(tables.indexOf('entity_tag'))
     })
   })
 })

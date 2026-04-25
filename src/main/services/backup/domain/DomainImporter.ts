@@ -18,25 +18,26 @@ const logger = loggerService.withContext('DomainImporter')
 const BATCH_SIZE = 500
 
 const FK_REMAP_RULES: Record<string, string[]> = {
-  topic: ['id', 'group_id', 'active_node_id'],
+  topic: ['id', 'group_id', 'active_node_id', 'assistant_id'],
   message: ['id', 'parent_id', 'topic_id'],
   entity_tag: ['tag_id', 'entity_id'],
   knowledge_item: ['id', 'base_id', 'group_id'],
   tag: ['id'],
   group: ['id'],
   pin: ['id', 'entity_id'],
+  translate_history: ['id'],
   knowledge_base: ['id'],
   mcp_server: ['id'],
   assistant: ['id'],
-  assistant_mcp_server: ['assistantId', 'mcpServerId'],
-  assistant_knowledge_base: ['assistantId', 'knowledgeBaseId'],
+  assistant_mcp_server: ['assistant_id', 'mcp_server_id'],
+  assistant_knowledge_base: ['assistant_id', 'knowledge_base_id'],
   agent: ['id'],
   agent_global_skill: ['id'],
-  agent_channel: ['id', 'agentId'],
-  agent_skill: ['agentId', 'skillId'],
-  agent_session: ['agentId'],
-  agent_task: ['agentId'],
-  agent_channel_task: ['channelId']
+  agent_channel: ['id', 'agent_id'],
+  agent_skill: ['agent_id', 'skill_id'],
+  agent_session: ['agent_id'],
+  agent_task: ['agent_id'],
+  agent_channel_task: ['channel_id']
 }
 
 export class DomainImporter {
@@ -160,7 +161,7 @@ export class DomainImporter {
     tx: SqlRunner,
     row: Record<string, unknown>
   ): Promise<Record<string, unknown>> {
-    const providerId = row.provider_id ?? row.id
+    const providerId = row.provider_id
     if (!providerId) return row
 
     try {
