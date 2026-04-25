@@ -637,6 +637,7 @@ export class ChatMigrator extends BaseMigrator {
     // Fallback: If name is still empty after merge, use a default name
     // This handles cases where both Dexie and Redux have empty names (ancient version bug)
     if (!oldTopic.name) {
+      // TODO: i18n
       oldTopic.name = 'Unnamed Topic' // Default fallback for topics with no name
     }
 
