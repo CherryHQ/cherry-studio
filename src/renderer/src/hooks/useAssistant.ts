@@ -30,7 +30,7 @@ export function useAssistant(id: string) {
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
-      if (!assistant) return
+      if (!id || !assistant) return
       void patchAssistant(id, {
         settings: { ...assistant.settings, ...settings }
       })
@@ -42,9 +42,13 @@ export function useAssistant(id: string) {
     assistant,
     model,
     setModel: (next: Model) => {
+      if (!id) return
       void patchAssistant(id, { modelId: createUniqueModelId(next.provider, next.id) })
     },
-    updateAssistant: (patch: UpdateAssistantDto) => patchAssistant(id, patch),
+    updateAssistant: (patch: UpdateAssistantDto) => {
+      if (!id) return Promise.resolve(undefined)
+      return patchAssistant(id, patch)
+    },
     updateAssistantSettings
   }
 }

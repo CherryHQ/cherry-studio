@@ -56,6 +56,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -313,11 +314,15 @@ export class ChatMigrator extends BaseMigrator {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
-      // Load valid assistant IDs for FK validation (set by AssistantMigrator)
-      this.validAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
-      if (!this.validAssistantIds) {
+      // Load valid assistant IDs for FK validation (set by AssistantMigrator).
+      // Always include DEFAULT_ASSISTANT_ID — the seeder guarantees that row
+      // exists post-migration, so it's a safe FK target for orphan-fallback.
+      const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
+      if (!sharedAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
+      this.validAssistantIds = new Set(sharedAssistantIds)
+      this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       this.validModelIds = ctx.db?.select
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
@@ -635,14 +640,25 @@ export class ChatMigrator extends BaseMigrator {
       oldTopic.name = 'Unnamed Topic' // Default fallback for topics with no name
     }
 
-    // Get assistantId from Redux mapping (Dexie topics don't store assistantId)
-    // Fall back to oldTopic.assistantId in case Dexie did store it (defensive)
-    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || ''
+    // Get assistantId from Redux mapping (Dexie topics don't store assistantId);
+    // fall back to the seeded default so renderer hooks like
+    // `useAssistant(topic.assistantId)` always have a valid id to PATCH against
+    // (a `null` / `''` here used to drive `PATCH /assistants/` infinite loops
+    // from `useReasoningEffortSync` on freshly migrated branches).
+    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || DEFAULT_ASSISTANT_ID
 
-    // Validate assistantId FK — clear if orphaned (transformTopic coerces '' to null via || null)
-    if (resolvedAssistantId && this.validAssistantIds && !this.validAssistantIds.has(resolvedAssistantId)) {
-      logger.warn(`Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not found in assistant table, clearing`)
-      resolvedAssistantId = ''
+    // Validate assistantId FK — fall back to default if orphaned. validAssistantIds
+    // always includes DEFAULT_ASSISTANT_ID (added in execute()), so this branch
+    // never strands a topic without an FK target.
+    if (
+      resolvedAssistantId !== DEFAULT_ASSISTANT_ID &&
+      this.validAssistantIds &&
+      !this.validAssistantIds.has(resolvedAssistantId)
+    ) {
+      logger.warn(
+        `Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not in assistant table, falling back to default`
+      )
+      resolvedAssistantId = DEFAULT_ASSISTANT_ID
       this.orphanedAssistantTopics++
     }
 

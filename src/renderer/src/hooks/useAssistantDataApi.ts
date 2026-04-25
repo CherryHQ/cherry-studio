@@ -92,6 +92,9 @@ export function useAssistantMutations() {
 
   const updateAssistant = useCallback(
     async (id: string, dto: UpdateAssistantDto): Promise<Assistant> => {
+      if (!id) {
+        throw new Error('updateAssistant called with empty id; refusing to issue PATCH /assistants/')
+      }
       const updated = await updateTrigger({ params: { id }, body: dto })
       logger.info('Updated assistant', { id })
       return updated
