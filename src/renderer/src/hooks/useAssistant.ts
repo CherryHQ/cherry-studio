@@ -1,7 +1,7 @@
 import { useAssistantApiById, useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
 import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
 import type { AssistantSettings, Model } from '@renderer/types'
-import { reconcileReasoningEffortForModel } from '@renderer/utils/reasoningEffort'
+import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
@@ -44,9 +44,12 @@ export function useAssistant(id: string) {
     model,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      const reconcile = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
+      const reasoning = reconcileReasoningEffortForModel(next, assistant.settings.reasoning_effort, id)
+      const webSearch = reconcileWebSearchForModel(next, assistant.settings)
       const settingsPatch =
-        extraSettings || reconcile ? { ...assistant.settings, ...extraSettings, ...reconcile } : undefined
+        extraSettings || reasoning || webSearch
+          ? { ...assistant.settings, ...extraSettings, ...reasoning, ...webSearch }
+          : undefined
       void patchAssistant(
         id,
         settingsPatch

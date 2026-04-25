@@ -20,7 +20,7 @@ import { SettingRow } from '@renderer/pages/settings'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { reconcileReasoningEffortForModel } from '@renderer/utils/reasoningEffort'
+import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
@@ -225,16 +225,17 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const onSelectModel = useCallback(async () => {
     const selectedModel = await SelectChatModelPopup.show({ model: defaultModel, filter: modelFilter })
     if (selectedModel) {
-      const reconcile = reconcileReasoningEffortForModel(
+      const reasoning = reconcileReasoningEffortForModel(
         selectedModel,
         assistant.settings.reasoning_effort,
         assistant.id
       )
+      const webSearch = reconcileWebSearchForModel(selectedModel, assistant.settings)
       updateAssistant(
-        reconcile
+        reasoning || webSearch
           ? {
               modelId: createUniqueModelId(selectedModel.provider, selectedModel.id),
-              settings: { ...assistant.settings, ...reconcile }
+              settings: { ...assistant.settings, ...reasoning, ...webSearch }
             }
           : { modelId: createUniqueModelId(selectedModel.provider, selectedModel.id) }
       )

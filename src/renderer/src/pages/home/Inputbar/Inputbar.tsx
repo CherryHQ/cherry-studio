@@ -1,13 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import {
-  isGenerateImageModel,
-  isGenerateImageModels,
-  isVisionModel,
-  isVisionModels,
-  isWebSearchModel
-} from '@renderer/config/models'
+import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -401,14 +395,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     }
     setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
   }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
-
-  useEffect(() => {
-    if (!assistant) return
-    if (!v1Model || isWebSearchModel(v1Model)) return
-    if (assistant.settings.enableWebSearch) {
-      void updateAssistant({ settings: { ...assistant.settings, enableWebSearch: false } })
-    }
-  }, [assistant, v1Model, updateAssistant])
 
   if (isMultiSelectMode) {
     return null

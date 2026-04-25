@@ -1,22 +1,28 @@
 /**
- * Compute the reasoning_effort patch needed when switching to `nextModel`.
+ * Pure reconciliation utilities for "switching to a new model" mutations.
  *
- * Returns `null` if no patch is needed (current value already supported, or
- * already unset for a non-thinking model). Otherwise returns the partial
- * settings to merge into the same mutation that writes the new modelId, so
- * a single PATCH atomically swaps the model + reconciles the reasoning
- * effort. This replaces the legacy `useReasoningEffortSync` effect, which
- * fired on every SWR revalidate and was the source of a no-op-PATCH loop.
+ * Consumers (`useAssistant.setModel`, settings pages) call these to compute
+ * the partial settings patch needed when the model changes, then merge the
+ * patch into ONE atomic PATCH that also writes the new modelId. The
+ * predecessor effect-driven design (e.g. `useReasoningEffortSync`,
+ * `Inputbar`'s `enableWebSearch` reset) watched SWR data and emitted a
+ * second PATCH out-of-band — every SWR revalidate re-fired the effect,
+ * making no-op PATCHes routine and validation failures self-sustaining.
+ *
+ * Returning `null` from a reconcile fn means "current value is fine, no
+ * patch needed". Callers compose multiple reconcile fns and only emit a
+ * settings patch when at least one returned non-null.
  */
 import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
+  isWebSearchModel,
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
-import type { Model as V1Model, ThinkingOption } from '@renderer/types'
+import type { AssistantSettings, Model as V1Model, ThinkingOption } from '@renderer/types'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
@@ -57,4 +63,13 @@ export function reconcileReasoningEffortForModel(
     reasoning_effort: undefined,
     qwenThinkMode: undefined
   }
+}
+
+export function reconcileWebSearchForModel(
+  nextModel: V1Model,
+  current: Pick<AssistantSettings, 'enableWebSearch'>
+): { enableWebSearch: false } | null {
+  if (!current.enableWebSearch) return null
+  if (isWebSearchModel(nextModel)) return null
+  return { enableWebSearch: false }
 }
