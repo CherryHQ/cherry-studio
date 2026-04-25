@@ -26,6 +26,7 @@ const {
   rerankKnowledgeSearchResultsMock,
   vectorStoreAddMock,
   vectorStoreDeleteMock,
+  vectorStoreDeleteByIdAndExternalIdMock,
   vectorStoreListByExternalIdMock,
   vectorStoreQueryMock
 } = vi.hoisted(() => ({
@@ -43,6 +44,7 @@ const {
   rerankKnowledgeSearchResultsMock: vi.fn(),
   vectorStoreAddMock: vi.fn(),
   vectorStoreDeleteMock: vi.fn(),
+  vectorStoreDeleteByIdAndExternalIdMock: vi.fn(),
   vectorStoreListByExternalIdMock: vi.fn(),
   vectorStoreQueryMock: vi.fn()
 }))
@@ -210,12 +212,14 @@ describe('KnowledgeRuntimeService', () => {
     createVectorStoreMock.mockResolvedValue({
       add: vectorStoreAddMock,
       delete: vectorStoreDeleteMock,
+      deleteByIdAndExternalId: vectorStoreDeleteByIdAndExternalIdMock,
       listByExternalId: vectorStoreListByExternalIdMock,
       query: vectorStoreQueryMock
     })
     deleteVectorStoreMock.mockResolvedValue(undefined)
     vectorStoreAddMock.mockResolvedValue(undefined)
     vectorStoreDeleteMock.mockResolvedValue(undefined)
+    vectorStoreDeleteByIdAndExternalIdMock.mockResolvedValue(undefined)
     vectorStoreListByExternalIdMock.mockResolvedValue([])
     vectorStoreQueryMock.mockResolvedValue({
       nodes: [],
@@ -366,6 +370,16 @@ describe('KnowledgeRuntimeService', () => {
 
     expect(createVectorStoreMock).toHaveBeenCalledWith(base)
     expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith('item-1')
+  })
+
+  it('deletes one item chunk without listing remaining chunks', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+
+    await expect(service.deleteItemChunk(base, 'item-1', 'chunk-1')).resolves.toBeUndefined()
+
+    expect(vectorStoreDeleteByIdAndExternalIdMock).toHaveBeenCalledWith('chunk-1', 'item-1')
+    expect(vectorStoreListByExternalIdMock).not.toHaveBeenCalled()
   })
 
   it('fails search when embedMany returns an empty embedding result', async () => {

@@ -1,5 +1,5 @@
 import type { KnowledgeItemChunk } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,7 @@ import KnowledgeItemChunkDetailPanel from '../KnowledgeItemChunkDetailPanel'
 import { createFileItem } from './testUtils'
 
 const listItemChunksMock = vi.fn()
+const deleteItemChunkMock = vi.fn()
 
 const chunks: KnowledgeItemChunk[] = [
   {
@@ -41,6 +42,37 @@ vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <button {...props}>{children}</button>
   ),
+  ConfirmDialog: ({
+    open,
+    title,
+    description,
+    confirmText,
+    cancelText,
+    onConfirm,
+    onOpenChange,
+    confirmLoading
+  }: {
+    open?: boolean
+    title: ReactNode
+    description?: ReactNode
+    confirmText?: string
+    cancelText?: string
+    onConfirm?: () => void | Promise<void>
+    onOpenChange?: (open: boolean) => void
+    confirmLoading?: boolean
+  }) =>
+    open ? (
+      <div role="dialog">
+        <div>{title}</div>
+        <div>{description}</div>
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          {cancelText}
+        </button>
+        <button type="button" disabled={confirmLoading} onClick={() => void onConfirm?.()}>
+          {confirmText}
+        </button>
+      </div>
+    ) : null,
   Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <div {...props}>{children}</div>
   )
@@ -76,7 +108,11 @@ vi.mock('react-i18next', () => ({
             'common.edit': '编辑',
             'common.expand': '展开',
             'common.loading': '加载中',
+            'common.cancel': '取消',
             'knowledge_v2.data_source.empty_description': '暂无数据源',
+            'knowledge_v2.data_source.chunk_delete_confirm_description':
+              '删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。',
+            'knowledge_v2.data_source.chunk_delete_confirm_title': '确认删除 Chunk',
             'knowledge_v2.data_source.filters.file': '文件',
             'knowledge_v2.rag.tokens_unit': 'tokens',
             'knowledge_v2.data_source.status.ready': '就绪'
@@ -91,11 +127,13 @@ describe('KnowledgeItemChunkDetailPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     listItemChunksMock.mockResolvedValue(chunks)
+    deleteItemChunkMock.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         knowledgeRuntime: {
-          listItemChunks: listItemChunksMock
+          listItemChunks: listItemChunksMock,
+          deleteItemChunk: deleteItemChunkMock
         }
       }
     })
@@ -138,6 +176,64 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     })
     expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(chunks.length)
     expect(screen.getAllByRole('button', { name: '展开' })).toHaveLength(chunks.length)
+  })
+
+  it('opens a confirmation dialog before deleting a chunk', async () => {
+    render(
+      <KnowledgeItemChunkDetailPanel
+        item={createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf' })}
+        onBack={() => undefined}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(`${chunks.length} chunks`)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0])
+
+    expect(deleteItemChunkMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认删除 Chunk')
+    expect(screen.getByRole('dialog')).toHaveTextContent('删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。')
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(deleteItemChunkMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0])
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(deleteItemChunkMock).toHaveBeenCalledWith('base-1', 'file-1', 'chunk-1')
+    })
+    expect(screen.getByText('1 chunks')).toBeInTheDocument()
+    expect(screen.queryByText('真实 chunk 内容一')).not.toBeInTheDocument()
+    expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
+  })
+
+  it('keeps existing chunks and shows an error when chunk deletion fails', async () => {
+    deleteItemChunkMock.mockRejectedValueOnce(new Error('delete failed'))
+
+    render(
+      <KnowledgeItemChunkDetailPanel
+        item={createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf' })}
+        onBack={() => undefined}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(`${chunks.length} chunks`)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0])
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('delete failed')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
+    expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
   })
 
   it('renders an empty state when the item has no chunks', async () => {

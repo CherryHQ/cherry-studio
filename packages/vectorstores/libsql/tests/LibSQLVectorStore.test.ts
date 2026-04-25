@@ -1173,6 +1173,73 @@ describe('LibSQLVectorStore', () => {
     })
   })
 
+  describe('chunk deletion', () => {
+    it('should delete one chunk by id, external_id, and collection only', async () => {
+      store.setCollection('collection-a')
+      await store.add([
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'first chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 2 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        }),
+        new TextNode({
+          id_: 'chunk-2',
+          text: 'second chunk',
+          embedding: [0.2, 0.3],
+          metadata: { itemId: 'item-1', chunkIndex: 1, tokenCount: 2 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      const otherCollectionStore = new LibSQLVectorStore({
+        client,
+        tableName: 'test_embeddings',
+        dimensions: 2,
+        collection: 'collection-b'
+      })
+      await otherCollectionStore.add([
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'other collection chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      await store.deleteByIdAndExternalId('chunk-1', 'item-1')
+
+      const rows = await client.execute(
+        'SELECT id, external_id, collection FROM test_embeddings ORDER BY collection, id'
+      )
+      expect(rows.rows).toHaveLength(2)
+      expect(rows.rows[0]).toMatchObject({ id: 'chunk-2', external_id: 'item-1', collection: 'collection-a' })
+      expect(rows.rows[1]).toMatchObject({ id: 'chunk-1', external_id: 'item-1', collection: 'collection-b' })
+    })
+
+    it('should remove a deleted chunk from bm25 search', async () => {
+      const node = new TextNode({
+        id_: 'chunk-bm25-delete',
+        text: 'delete this exact chunk',
+        embedding: [0.5, 0.6],
+        metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 4 },
+        relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+      })
+
+      await store.add([node])
+      await store.deleteByIdAndExternalId('chunk-bm25-delete', 'item-1')
+
+      const result = await store.query({
+        queryStr: 'delete exact',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).not.toContain('chunk-bm25-delete')
+    })
+  })
+
   describe('listByExternalId', () => {
     it('should list documents by external_id in chunk order without embeddings', async () => {
       await store.add([

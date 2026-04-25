@@ -1,19 +1,19 @@
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 import { libSqlVectorStoreProvider } from './providers/LibSqlVectorStoreProvider'
+import type { KnowledgeVectorStore } from './types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
 @Injectable('KnowledgeVectorStoreService')
 @ServicePhase(Phase.WhenReady)
 export class KnowledgeVectorStoreService extends BaseService {
-  private instanceCache = new Map<string, BaseVectorStore>()
+  private instanceCache = new Map<string, KnowledgeVectorStore>()
 
-  async createStore(base: KnowledgeBase): Promise<BaseVectorStore> {
+  async createStore(base: KnowledgeBase): Promise<KnowledgeVectorStore> {
     if (this.instanceCache.has(base.id)) {
       logger.debug('Reusing cached vector store', { baseId: base.id })
       return this.instanceCache.get(base.id)!
@@ -22,7 +22,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     // Cache is keyed only by base.id because store-shaping config is treated as immutable
     // for an existing knowledge base. If embedding model / dimensions change, callers must
     // migrate into a new knowledge base instead of mutating the existing one in place.
-    const store = await libSqlVectorStoreProvider.create(base)
+    const store = (await libSqlVectorStoreProvider.create(base)) as KnowledgeVectorStore
     this.instanceCache.set(base.id, store)
     logger.info('Created vector store', {
       baseId: base.id,
@@ -32,7 +32,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     return store
   }
 
-  async getStoreIfExists(base: KnowledgeBase): Promise<BaseVectorStore | undefined> {
+  async getStoreIfExists(base: KnowledgeBase): Promise<KnowledgeVectorStore | undefined> {
     const cachedStore = this.instanceCache.get(base.id)
     if (cachedStore) {
       logger.debug('Using cached vector store from getStoreIfExists', { baseId: base.id })
@@ -82,7 +82,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private closeStoreInstance(store: BaseVectorStore | undefined): void {
+  private closeStoreInstance(store: KnowledgeVectorStore | undefined): void {
     if (!store) {
       return
     }

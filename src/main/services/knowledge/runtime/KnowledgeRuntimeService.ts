@@ -18,6 +18,21 @@ import { KnowledgeAddRuntime } from './KnowledgeAddRuntime'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { DELETE_INTERRUPTED_REASON, SHUTDOWN_INTERRUPTED_REASON } from './utils/taskRuntime'
 
+const mapChunkDocument = (chunk: {
+  id_: string
+  metadata: unknown
+  getContent: (mode?: MetadataMode) => string
+}): KnowledgeItemChunk => {
+  const metadata = KnowledgeChunkMetadataSchema.parse(chunk.metadata ?? {})
+
+  return {
+    id: chunk.id_,
+    itemId: metadata.itemId,
+    content: chunk.getContent(MetadataMode.NONE),
+    metadata
+  }
+}
+
 @Injectable('KnowledgeRuntimeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService'])
@@ -135,21 +150,15 @@ export class KnowledgeRuntimeService extends BaseService {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const vectorStore = await vectorStoreService.createStore(base)
 
-    if (!('listByExternalId' in vectorStore) || typeof vectorStore.listByExternalId !== 'function') {
-      throw new Error('Knowledge vector store does not support listing item chunks')
-    }
-
     const chunks = await vectorStore.listByExternalId(itemId)
 
-    return chunks.map((chunk) => {
-      const metadata = KnowledgeChunkMetadataSchema.parse(chunk.metadata ?? {})
+    return chunks.map(mapChunkDocument)
+  }
 
-      return {
-        id: chunk.id_,
-        itemId: metadata.itemId,
-        content: chunk.getContent(MetadataMode.NONE),
-        metadata
-      }
-    })
+  async deleteItemChunk(base: KnowledgeBase, itemId: string, chunkId: string): Promise<void> {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const vectorStore = await vectorStoreService.createStore(base)
+
+    await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
   }
 }

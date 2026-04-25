@@ -52,6 +52,14 @@ const KnowledgeRuntimeItemChunksPayloadSchema = z
   })
   .strict()
 
+const KnowledgeRuntimeDeleteItemChunkPayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1),
+    itemId: z.string().trim().min(1),
+    chunkId: z.string().trim().min(1)
+  })
+  .strict()
+
 const toCreateKnowledgeItemInput = (item: KnowledgeItem): CreateKnowledgeItemsDto['items'][number] => {
   switch (item.type) {
     case 'file':
@@ -147,6 +155,15 @@ export class KnowledgeOrchestrationService extends BaseService {
     return await runtime.listItemChunks(base, itemId)
   }
 
+  async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
+    const [base] = await Promise.all([
+      knowledgeBaseService.getById(baseId),
+      knowledgeItemService.getByIdsInBase(baseId, [itemId])
+    ])
+    const runtime = application.get('KnowledgeRuntimeService')
+    return await runtime.deleteItemChunk(base, itemId, chunkId)
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
       const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
@@ -175,6 +192,10 @@ export class KnowledgeOrchestrationService extends BaseService {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_ListItemChunks, async (_, payload: unknown) => {
       const { baseId, itemId } = KnowledgeRuntimeItemChunksPayloadSchema.parse(payload)
       return await this.listItemChunks(baseId, itemId)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItemChunk, async (_, payload: unknown) => {
+      const { baseId, itemId, chunkId } = KnowledgeRuntimeDeleteItemChunkPayloadSchema.parse(payload)
+      return await this.deleteItemChunk(baseId, itemId, chunkId)
     })
   }
 

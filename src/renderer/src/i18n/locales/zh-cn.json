@@ -2181,6 +2181,8 @@
         }
       },
       "chunks_count": "{{count}} chunks",
+      "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
+      "chunk_delete_confirm_title": "确认删除 Chunk",
       "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
       "delete_confirm_title": "确认删除数据源",
       "filters": {

@@ -9,6 +9,7 @@ const {
   deleteBaseMock,
   processKnowledgeSourcesMock,
   runtimeDeleteItemsMock,
+  runtimeDeleteItemChunkMock,
   runtimeListItemChunksMock,
   runtimeSearchMock,
   knowledgeBaseGetByIdMock,
@@ -23,6 +24,7 @@ const {
   deleteBaseMock: vi.fn(),
   processKnowledgeSourcesMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
+  runtimeDeleteItemChunkMock: vi.fn(),
   runtimeListItemChunksMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -116,6 +118,7 @@ describe('KnowledgeOrchestrationService', () => {
           createBase: createBaseMock,
           deleteBase: deleteBaseMock,
           deleteItems: runtimeDeleteItemsMock,
+          deleteItemChunk: runtimeDeleteItemChunkMock,
           listItemChunks: runtimeListItemChunksMock,
           search: runtimeSearchMock
         }
@@ -134,6 +137,7 @@ describe('KnowledgeOrchestrationService', () => {
     deleteBaseMock.mockResolvedValue(undefined)
     processKnowledgeSourcesMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
+    runtimeDeleteItemChunkMock.mockResolvedValue(undefined)
     runtimeListItemChunksMock.mockResolvedValue([])
     runtimeSearchMock.mockResolvedValue([])
   })
@@ -155,7 +159,8 @@ describe('KnowledgeOrchestrationService', () => {
       'knowledge-runtime:delete-items',
       'knowledge-runtime:reindex-items',
       'knowledge-runtime:search',
-      'knowledge-runtime:list-item-chunks'
+      'knowledge-runtime:list-item-chunks',
+      'knowledge-runtime:delete-item-chunk'
     ])
   })
 
@@ -292,5 +297,15 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeItemGetByIdsInBaseMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(runtimeListItemChunksMock).toHaveBeenCalledWith(createBase(), 'note-1')
+  })
+
+  it('deletes an item chunk through runtime after resolving base and item ownership', async () => {
+    const service = new KnowledgeOrchestrationService()
+
+    await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).resolves.toBeUndefined()
+
+    expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeItemGetByIdsInBaseMock).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(runtimeDeleteItemChunkMock).toHaveBeenCalledWith(createBase(), 'note-1', 'chunk-1')
   })
 })

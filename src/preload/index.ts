@@ -362,7 +362,9 @@ const api = {
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query }),
     listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId })
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId }),
+    deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItemChunk, { baseId, itemId, chunkId })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>

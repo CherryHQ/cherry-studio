@@ -351,6 +351,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
     await this.clientInstance.execute(statement)
   }
 
+  async deleteByIdAndExternalId(chunkId: string, refDocId: string): Promise<void> {
+    await this.ensureInitialized()
+
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `DELETE FROM ${this.tableName} WHERE id = ? AND external_id = ? ${collectionCriteria}`
+    const args = this.collection.length ? [chunkId, refDocId, this.collection] : [chunkId, refDocId]
+    const statement: InStatement = { sql, args: toInArgs(args) }
+    await this.clientInstance.execute(statement)
+  }
+
   private normalizeEmbeddingOrThrow(embedding: number[] | undefined, nodeId: string): Float32Array {
     if (!embedding || embedding.length === 0) {
       throw new Error(`Missing embedding for node ${nodeId}`)

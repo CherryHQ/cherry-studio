@@ -1,4 +1,4 @@
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatFileSize } from '@renderer/utils'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
@@ -26,14 +26,19 @@ const getKnowledgeItemSizeMeta = (item: KnowledgeItem) => {
 const KnowledgeItemChunkActionButton = ({
   label,
   className,
-  children
+  children,
+  disabled,
+  onClick
 }: {
   label: string
   className?: string
   children: ReactNode
+  disabled?: boolean
+  onClick?: () => void
 }) => {
-  const stopPlaceholderAction = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
+    onClick?.()
   }
 
   return (
@@ -45,13 +50,22 @@ const KnowledgeItemChunkActionButton = ({
         'size-4 min-h-4 rounded p-0 text-muted-foreground/25 shadow-none transition-colors hover:bg-accent hover:text-foreground',
         className
       )}
-      onClick={stopPlaceholderAction}>
+      disabled={disabled}
+      onClick={handleClick}>
       {children}
     </Button>
   )
 }
 
-const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
+const KnowledgeItemChunkCard = ({
+  chunk,
+  isDeleting,
+  onDelete
+}: {
+  chunk: KnowledgeItemChunk
+  isDeleting: boolean
+  onDelete: (chunk: KnowledgeItemChunk) => void
+}) => {
   const { t } = useTranslation()
 
   return (
@@ -67,7 +81,11 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
           <KnowledgeItemChunkActionButton label={t('common.edit')}>
             <Pencil className="size-2" />
           </KnowledgeItemChunkActionButton>
-          <KnowledgeItemChunkActionButton label={t('common.delete')} className="hover:bg-red-500/10 hover:text-red-500">
+          <KnowledgeItemChunkActionButton
+            label={t('common.delete')}
+            className="hover:bg-red-500/10 hover:text-red-500"
+            disabled={isDeleting}
+            onClick={() => onDelete(chunk)}>
             <Trash2 className="size-2" />
           </KnowledgeItemChunkActionButton>
           <KnowledgeItemChunkActionButton label={t('common.expand')}>
@@ -96,6 +114,8 @@ const KnowledgeItemChunkDetailPanel = ({ item, onBack }: KnowledgeItemChunkDetai
   const [chunks, setChunks] = useState<KnowledgeItemChunk[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [deletingChunkId, setDeletingChunkId] = useState<string | null>(null)
+  const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
   const { icon, suffix, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
   const sizeMeta = getKnowledgeItemSizeMeta(item)
@@ -134,6 +154,31 @@ const KnowledgeItemChunkDetailPanel = ({ item, onBack }: KnowledgeItemChunkDetai
     }
   }, [item.baseId, item.id])
 
+  const handleRequestDeleteChunk = (chunk: KnowledgeItemChunk) => {
+    setPendingDeleteChunk(chunk)
+  }
+
+  const handleConfirmDeleteChunk = async () => {
+    const chunk = pendingDeleteChunk
+    if (!chunk) {
+      return
+    }
+
+    setDeletingChunkId(chunk.id)
+    setError(null)
+
+    try {
+      await window.api.knowledgeRuntime.deleteItemChunk(item.baseId, item.id, chunk.id)
+      setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
+      setPendingDeleteChunk(null)
+    } catch (chunkError) {
+      setError(chunkError instanceof Error ? chunkError : new Error(String(chunkError)))
+    } finally {
+      setDeletingChunkId(null)
+      setPendingDeleteChunk(null)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-border/15 border-b px-3 py-2">
@@ -168,14 +213,34 @@ const KnowledgeItemChunkDetailPanel = ({ item, onBack }: KnowledgeItemChunkDetai
         {!isLoading && !error && chunks.length === 0 ? (
           <KnowledgeItemChunkState>{t('knowledge_v2.data_source.empty_description')}</KnowledgeItemChunkState>
         ) : null}
-        {!isLoading && !error && chunks.length > 0 ? (
+        {!isLoading && chunks.length > 0 ? (
           <div className="space-y-1.5">
             {chunks.map((chunk) => (
-              <KnowledgeItemChunkCard key={chunk.id} chunk={chunk} />
+              <KnowledgeItemChunkCard
+                key={chunk.id}
+                chunk={chunk}
+                isDeleting={deletingChunkId === chunk.id}
+                onDelete={handleRequestDeleteChunk}
+              />
             ))}
           </div>
         ) : null}
       </Scrollbar>
+      <ConfirmDialog
+        open={Boolean(pendingDeleteChunk)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteChunk(null)
+          }
+        }}
+        title={t('knowledge_v2.data_source.chunk_delete_confirm_title')}
+        description={t('knowledge_v2.data_source.chunk_delete_confirm_description')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={Boolean(deletingChunkId)}
+        onConfirm={handleConfirmDeleteChunk}
+      />
     </div>
   )
 }
