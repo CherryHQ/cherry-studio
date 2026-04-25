@@ -626,6 +626,16 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
+    // Skip topics with no messages. v1 surfaced an empty topic on first
+    // launch (and on every "new topic" click that the user then abandoned),
+    // so a freshly-migrated DB ends up dotted with empty conversations the
+    // user never typed into. They have no usable timestamp source anyway —
+    // their only outcome would be cluttering the topic list. Topics that
+    // matter to the user have at least one message.
+    if (!Array.isArray(oldTopic.messages) || oldTopic.messages.length === 0) {
+      return null
+    }
+
     // Merge topic metadata from Redux (name, pinned, etc.)
     // Dexie topics may have stale or missing metadata; Redux is authoritative for these fields
     const topicMeta = this.topicMetaLookup.get(oldTopic.id)
