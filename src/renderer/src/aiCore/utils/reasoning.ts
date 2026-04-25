@@ -213,6 +213,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
 
+    // Mistral Small models: reasoningEffort 'none'
+    if (modelId.includes('mistral-small-2603')) {
+      return { reasoningEffort: 'none' }
+    }
+
     logger.warn(`Model ${model.id} doesn't match any disable reasoning behavior. Fallback to empty reasoning param.`)
     return {}
   }
@@ -503,6 +508,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         reasoningEffort: supportedOptions?.[0]
       }
     }
+  }
+
+  // Mistral Small models use reasoningEffort with 'none' | 'high'
+  if (modelId.includes('mistral-small-2603')) {
+    return { reasoningEffort: 'high' }
   }
 
   // gemini series, openai compatible api
