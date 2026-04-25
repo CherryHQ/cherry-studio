@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getEditableImageInput } from '../imageEditInput'
 
