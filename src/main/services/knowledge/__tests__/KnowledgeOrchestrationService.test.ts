@@ -9,6 +9,7 @@ const {
   deleteBaseMock,
   processKnowledgeSourcesMock,
   runtimeDeleteItemsMock,
+  runtimeListItemChunksMock,
   runtimeSearchMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseDeleteMock,
@@ -22,6 +23,7 @@ const {
   deleteBaseMock: vi.fn(),
   processKnowledgeSourcesMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
+  runtimeListItemChunksMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
@@ -114,6 +116,7 @@ describe('KnowledgeOrchestrationService', () => {
           createBase: createBaseMock,
           deleteBase: deleteBaseMock,
           deleteItems: runtimeDeleteItemsMock,
+          listItemChunks: runtimeListItemChunksMock,
           search: runtimeSearchMock
         }
       }
@@ -131,6 +134,7 @@ describe('KnowledgeOrchestrationService', () => {
     deleteBaseMock.mockResolvedValue(undefined)
     processKnowledgeSourcesMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
+    runtimeListItemChunksMock.mockResolvedValue([])
     runtimeSearchMock.mockResolvedValue([])
   })
 
@@ -150,7 +154,8 @@ describe('KnowledgeOrchestrationService', () => {
       'knowledge-runtime:add-items',
       'knowledge-runtime:delete-items',
       'knowledge-runtime:reindex-items',
-      'knowledge-runtime:search'
+      'knowledge-runtime:search',
+      'knowledge-runtime:list-item-chunks'
     ])
   })
 
@@ -261,5 +266,31 @@ describe('KnowledgeOrchestrationService', () => {
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual(results)
     expect(runtimeSearchMock).toHaveBeenCalledWith(createBase(), 'hello')
+  })
+
+  it('lists item chunks through runtime after resolving base and item ownership', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const chunks = [
+      {
+        id: 'chunk-1',
+        itemId: 'note-1',
+        content: 'hello',
+        metadata: {
+          itemId: 'note-1',
+          itemType: 'note',
+          source: 'note-1',
+          name: 'hello',
+          chunkIndex: 0,
+          tokenCount: 1
+        }
+      }
+    ]
+    runtimeListItemChunksMock.mockResolvedValueOnce(chunks)
+
+    await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual(chunks)
+
+    expect(knowledgeBaseGetByIdMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeItemGetByIdsInBaseMock).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(runtimeListItemChunksMock).toHaveBeenCalledWith(createBase(), 'note-1')
   })
 })

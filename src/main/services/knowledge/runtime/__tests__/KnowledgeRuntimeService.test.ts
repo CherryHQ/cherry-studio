@@ -26,6 +26,7 @@ const {
   rerankKnowledgeSearchResultsMock,
   vectorStoreAddMock,
   vectorStoreDeleteMock,
+  vectorStoreListByExternalIdMock,
   vectorStoreQueryMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -42,6 +43,7 @@ const {
   rerankKnowledgeSearchResultsMock: vi.fn(),
   vectorStoreAddMock: vi.fn(),
   vectorStoreDeleteMock: vi.fn(),
+  vectorStoreListByExternalIdMock: vi.fn(),
   vectorStoreQueryMock: vi.fn()
 }))
 
@@ -208,11 +210,13 @@ describe('KnowledgeRuntimeService', () => {
     createVectorStoreMock.mockResolvedValue({
       add: vectorStoreAddMock,
       delete: vectorStoreDeleteMock,
+      listByExternalId: vectorStoreListByExternalIdMock,
       query: vectorStoreQueryMock
     })
     deleteVectorStoreMock.mockResolvedValue(undefined)
     vectorStoreAddMock.mockResolvedValue(undefined)
     vectorStoreDeleteMock.mockResolvedValue(undefined)
+    vectorStoreListByExternalIdMock.mockResolvedValue([])
     vectorStoreQueryMock.mockResolvedValue({
       nodes: [],
       similarities: [],
@@ -314,6 +318,54 @@ describe('KnowledgeRuntimeService', () => {
       alpha: undefined
     })
     expect(rerankKnowledgeSearchResultsMock).not.toHaveBeenCalled()
+  })
+
+  it('lists item chunks from the vector store', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const firstChunk = {
+      id_: 'chunk-1',
+      metadata: {
+        itemId: 'item-1',
+        itemType: 'note',
+        source: 'item-1',
+        name: 'Note title',
+        chunkIndex: 0,
+        tokenCount: 12
+      },
+      getContent: vi.fn(() => 'first chunk content')
+    }
+    const secondChunk = {
+      id_: 'chunk-2',
+      metadata: {
+        itemId: 'item-1',
+        itemType: 'note',
+        source: 'item-1',
+        name: 'Note title',
+        chunkIndex: 1,
+        tokenCount: 8
+      },
+      getContent: vi.fn(() => 'second chunk content')
+    }
+    vectorStoreListByExternalIdMock.mockResolvedValueOnce([firstChunk, secondChunk])
+
+    await expect(service.listItemChunks(base, 'item-1')).resolves.toEqual([
+      {
+        id: 'chunk-1',
+        itemId: 'item-1',
+        content: 'first chunk content',
+        metadata: firstChunk.metadata
+      },
+      {
+        id: 'chunk-2',
+        itemId: 'item-1',
+        content: 'second chunk content',
+        metadata: secondChunk.metadata
+      }
+    ])
+
+    expect(createVectorStoreMock).toHaveBeenCalledWith(base)
+    expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith('item-1')
   })
 
   it('fails search when embedMany returns an empty embedding result', async () => {

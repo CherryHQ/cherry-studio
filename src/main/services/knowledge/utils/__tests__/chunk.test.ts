@@ -65,7 +65,7 @@ describe('chunkDocuments', () => {
       name: 'Example 2',
       itemId: 'item-1',
       itemType: 'note',
-      chunkIndex: 0,
+      chunkIndex: 1,
       tokenCount: expect.any(Number)
     })
     expect(chunks[0]?.metadata.tokenCount).toBeGreaterThan(0)

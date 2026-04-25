@@ -758,4 +758,39 @@ export class LibSQLVectorStore extends BaseVectorStore {
     })
     return results.rows.length > 0
   }
+
+  async listByExternalId(refDocId: string): Promise<Document<Metadata>[]> {
+    await this.ensureInitialized()
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `SELECT id, external_id, document, metadata FROM ${this.tableName}
+                 WHERE external_id = ? ${collectionCriteria}
+                 ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER), id`
+    const params = this.collection.length ? [refDocId, this.collection] : [refDocId]
+    const results = await this.clientInstance.execute({
+      sql,
+      args: toInArgs(params)
+    })
+
+    return results.rows.map((row) => {
+      const metadata = this.parseJson<Metadata>(
+        row.metadata as Metadata | string | null | undefined,
+        {},
+        {
+          field: 'metadata',
+          rowId: String(row.id ?? '')
+        }
+      )
+      const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
+
+      if (externalId && metadata.itemId === undefined) {
+        metadata.itemId = externalId
+      }
+
+      return new Document({
+        id_: String(row.id),
+        text: String(row.document || ''),
+        metadata
+      })
+    })
+  }
 }

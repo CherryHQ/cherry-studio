@@ -11,22 +11,25 @@ export function chunkDocuments(base: KnowledgeBase, item: KnowledgeItem, documen
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap
   })
+  let chunkIndex = 0
 
   return documents.flatMap((document) => {
     const chunks = splitter.splitText(document.text).filter(Boolean)
 
-    return chunks.map(
-      (chunk, chunkIndex) =>
-        new Document({
-          text: chunk,
-          metadata: {
-            ...document.metadata,
-            itemId: item.id,
-            itemType: item.type,
-            chunkIndex,
-            tokenCount: estimateTokenCount(chunk)
-          }
-        })
-    )
+    return chunks.map((chunk) => {
+      const currentChunkIndex = chunkIndex
+      chunkIndex += 1
+
+      return new Document({
+        text: chunk,
+        metadata: {
+          ...document.metadata,
+          itemId: item.id,
+          itemType: item.type,
+          chunkIndex: currentChunkIndex,
+          tokenCount: estimateTokenCount(chunk)
+        }
+      })
+    })
   })
 }

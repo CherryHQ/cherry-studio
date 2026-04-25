@@ -113,6 +113,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -129,6 +130,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -142,6 +144,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -155,6 +158,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -170,6 +174,7 @@ describe('KnowledgeItemRow', () => {
         onClick={handleClick}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -185,6 +190,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -200,6 +206,7 @@ describe('KnowledgeItemRow', () => {
         onClick={handleClick}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -215,6 +222,7 @@ describe('KnowledgeItemRow', () => {
         onClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -235,12 +243,34 @@ describe('KnowledgeItemRow', () => {
         onClick={handleClick}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('calls onViewChunks without calling onClick when the view chunks action is clicked', () => {
+    const handleClick = vi.fn()
+    const handleViewChunks = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', name: '产品文档' })}
+        onClick={handleClick}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+        onViewChunks={handleViewChunks}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看 Chunks' }))
+
+    expect(handleViewChunks).toHaveBeenCalledTimes(1)
     expect(handleClick).not.toHaveBeenCalled()
   })
 
@@ -254,6 +284,7 @@ describe('KnowledgeItemRow', () => {
         onClick={handleClick}
         onDelete={handleDelete}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -274,6 +305,7 @@ describe('KnowledgeItemRow', () => {
         onClick={handleClick}
         onDelete={() => undefined}
         onReindex={handleReindex}
+        onViewChunks={() => undefined}
       />
     )
 

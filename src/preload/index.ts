@@ -26,7 +26,10 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeItemChunk,
+  KnowledgeSearchResult as KnowledgeVectorSearchResult
+} from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -357,7 +360,9 @@ const api = {
     reindexItems: (baseId: string, itemIds: string[]): Promise<{ itemIds: string[] }> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ReindexItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query }),
+    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>

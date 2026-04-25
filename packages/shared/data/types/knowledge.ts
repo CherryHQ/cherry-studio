@@ -208,3 +208,11 @@ export const KnowledgeSearchResultSchema = z.object({
   chunkId: z.string()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
+
+export const KnowledgeItemChunkSchema = z.object({
+  id: z.string(),
+  itemId: z.string(),
+  content: z.string(),
+  metadata: KnowledgeChunkMetadataSchema
+})
+export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>

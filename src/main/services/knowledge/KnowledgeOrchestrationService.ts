@@ -5,7 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import { CreateKnowledgeItemsSchema } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type {
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeItemChunk,
+  KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
@@ -37,6 +42,13 @@ const KnowledgeRuntimeSearchPayloadSchema = z
   .object({
     baseId: z.string().trim().min(1),
     query: z.string().trim().min(1).max(1000)
+  })
+  .strict()
+
+const KnowledgeRuntimeItemChunksPayloadSchema = z
+  .object({
+    baseId: z.string().trim().min(1),
+    itemId: z.string().trim().min(1)
   })
   .strict()
 
@@ -126,6 +138,15 @@ export class KnowledgeOrchestrationService extends BaseService {
     return await runtime.search(base, query)
   }
 
+  async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
+    const [base] = await Promise.all([
+      knowledgeBaseService.getById(baseId),
+      knowledgeItemService.getByIdsInBase(baseId, [itemId])
+    ])
+    const runtime = application.get('KnowledgeRuntimeService')
+    return await runtime.listItemChunks(base, itemId)
+  }
+
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
       const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
@@ -150,6 +171,10 @@ export class KnowledgeOrchestrationService extends BaseService {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: unknown) => {
       const { baseId, query } = KnowledgeRuntimeSearchPayloadSchema.parse(payload)
       return await this.search(baseId, query)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ListItemChunks, async (_, payload: unknown) => {
+      const { baseId, itemId } = KnowledgeRuntimeItemChunksPayloadSchema.parse(payload)
+      return await this.listItemChunks(baseId, itemId)
     })
   }
 

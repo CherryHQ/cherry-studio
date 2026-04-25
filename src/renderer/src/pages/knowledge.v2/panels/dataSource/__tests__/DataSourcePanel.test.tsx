@@ -226,6 +226,27 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).toHaveBeenCalledWith(item)
   })
 
+  it('forwards view chunks menu actions to the item chunk detail handler', () => {
+    const onItemClick = vi.fn()
+    const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
+
+    render(
+      <DataSourcePanel
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看 Chunks' }))
+
+    expect(onItemClick).toHaveBeenCalledWith(item)
+  })
+
   it('opens delete confirmation before forwarding row delete actions', async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined)
 

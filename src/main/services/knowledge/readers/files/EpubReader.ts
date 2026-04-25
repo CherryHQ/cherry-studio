@@ -20,7 +20,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
     const documents: Document<Metadata>[] = []
     const failedChapterIds: string[] = []
 
-    for (const [index, chapter] of chapters.entries()) {
+    for (const chapter of chapters) {
       try {
         const content = await epub.getChapter(chapter.id)
         const text = stripHtml(content)

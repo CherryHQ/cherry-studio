@@ -14,12 +14,14 @@ vi.mock('../KnowledgeItemRow', () => ({
     item,
     onClick,
     onDelete,
-    onReindex
+    onReindex,
+    onViewChunks
   }: {
     item: { id: string }
     onClick?: () => void
     onDelete?: () => void
     onReindex?: () => void
+    onViewChunks?: () => void
   }) => (
     <div>
       <button type="button" onClick={onClick}>
@@ -30,6 +32,9 @@ vi.mock('../KnowledgeItemRow', () => ({
       </button>
       <button type="button" onClick={onReindex}>
         reindex-{item.id}
+      </button>
+      <button type="button" onClick={onViewChunks}>
+        chunks-{item.id}
       </button>
     </div>
   )
@@ -56,6 +61,7 @@ describe('KnowledgeItemList', () => {
         onItemClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -70,6 +76,7 @@ describe('KnowledgeItemList', () => {
         onItemClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -84,6 +91,7 @@ describe('KnowledgeItemList', () => {
         onItemClick={() => undefined}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -102,6 +110,7 @@ describe('KnowledgeItemList', () => {
         onItemClick={handleItemClick}
         onDelete={() => undefined}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -121,6 +130,7 @@ describe('KnowledgeItemList', () => {
         onItemClick={() => undefined}
         onDelete={handleDelete}
         onReindex={() => undefined}
+        onViewChunks={() => undefined}
       />
     )
 
@@ -140,11 +150,32 @@ describe('KnowledgeItemList', () => {
         onItemClick={() => undefined}
         onDelete={() => undefined}
         onReindex={handleReindex}
+        onViewChunks={() => undefined}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
 
     expect(handleReindex).toHaveBeenCalledWith(item)
+  })
+
+  it('passes onViewChunks through to the row view chunks handler', () => {
+    const handleViewChunks = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <KnowledgeItemList
+        items={[item]}
+        isLoading={false}
+        onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onReindex={() => undefined}
+        onViewChunks={handleViewChunks}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chunks-note-1' }))
+
+    expect(handleViewChunks).toHaveBeenCalledWith(item)
   })
 })

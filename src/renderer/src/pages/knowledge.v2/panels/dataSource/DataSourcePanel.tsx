@@ -49,6 +49,7 @@ const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onRei
         onItemClick={handleItemClick}
         onDelete={setPendingDeleteItem}
         onReindex={onReindex}
+        onViewChunks={handleItemClick}
       />
       <ConfirmDialog
         open={Boolean(pendingDeleteItem)}

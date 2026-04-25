@@ -1172,4 +1172,92 @@ describe('LibSQLVectorStore', () => {
       expect(await store.exists('item-collection')).toBe(false)
     })
   })
+
+  describe('listByExternalId', () => {
+    it('should list documents by external_id in chunk order without embeddings', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-2',
+          text: 'second chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 1, tokenCount: 2 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        }),
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'first chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 2 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        }),
+        new TextNode({
+          id_: 'other-chunk',
+          text: 'other item chunk',
+          embedding: [0.5, 0.6],
+          metadata: { itemId: 'item-2', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-2',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks.map((chunk) => chunk.id_)).toEqual(['chunk-1', 'chunk-2'])
+      expect(chunks.map((chunk) => chunk.getContent(MetadataMode.NONE))).toEqual(['first chunk', 'second chunk'])
+      expect(chunks.map((chunk) => chunk.metadata.chunkIndex)).toEqual([0, 1])
+      expect(() => chunks[0]?.getEmbedding()).toThrow('Embedding not set')
+    })
+
+    it('should respect collection when listing documents', async () => {
+      store.setCollection('collection-a')
+      await store.add([
+        new TextNode({
+          id_: 'collection-a-chunk',
+          text: 'collection a chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      store.setCollection('collection-b')
+      await store.add([
+        new TextNode({
+          id_: 'collection-b-chunk',
+          text: 'collection b chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks.map((chunk) => chunk.id_)).toEqual(['collection-b-chunk'])
+    })
+  })
 })

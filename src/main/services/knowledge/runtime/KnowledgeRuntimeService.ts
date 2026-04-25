@@ -5,6 +5,7 @@ import {
   type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
+  type KnowledgeItemChunk,
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { MetadataMode } from '@vectorstores/core'
@@ -128,5 +129,27 @@ export class KnowledgeRuntimeService extends BaseService {
       return await rerankKnowledgeSearchResults(base, query, searchResults)
     }
     return searchResults
+  }
+
+  async listItemChunks(base: KnowledgeBase, itemId: string): Promise<KnowledgeItemChunk[]> {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const vectorStore = await vectorStoreService.createStore(base)
+
+    if (!('listByExternalId' in vectorStore) || typeof vectorStore.listByExternalId !== 'function') {
+      throw new Error('Knowledge vector store does not support listing item chunks')
+    }
+
+    const chunks = await vectorStore.listByExternalId(itemId)
+
+    return chunks.map((chunk) => {
+      const metadata = KnowledgeChunkMetadataSchema.parse(chunk.metadata ?? {})
+
+      return {
+        id: chunk.id_,
+        itemId: metadata.itemId,
+        content: chunk.getContent(MetadataMode.NONE),
+        metadata
+      }
+    })
   }
 }

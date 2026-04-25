@@ -14,6 +14,7 @@ export interface KnowledgeItemRowProps {
   onClick: () => void
   onDelete: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
+  onViewChunks: () => void
 }
 
 const KnowledgeItemRowIcon = ({ icon, iconClassName }: DataSourceIconMeta) => {
@@ -141,12 +142,14 @@ const KnowledgeItemDeleteMenuItem = ({
 
 const KnowledgeItemRowMenuItems = ({
   onDelete,
+  onPreviewSource,
   onReindex,
-  onSelect
+  onViewChunks
 }: {
   onDelete: (event: MouseEvent<HTMLButtonElement>) => void
+  onPreviewSource: (event: MouseEvent<HTMLButtonElement>) => void
   onReindex: (event: MouseEvent<HTMLButtonElement>) => void
-  onSelect: (event: MouseEvent<HTMLButtonElement>) => void
+  onViewChunks: (event: MouseEvent<HTMLButtonElement>) => void
 }) => {
   const { t } = useTranslation()
 
@@ -155,12 +158,12 @@ const KnowledgeItemRowMenuItems = ({
       <KnowledgeItemActionMenuItem
         icon={<BookOpen />}
         label={t('knowledge_v2.data_source.actions.preview_source')}
-        onClick={onSelect}
+        onClick={onPreviewSource}
       />
       <KnowledgeItemActionMenuItem
         icon={<Eye />}
         label={t('knowledge_v2.data_source.actions.view_chunks')}
-        onClick={onSelect}
+        onClick={onViewChunks}
       />
       <KnowledgeItemActionMenuItem
         icon={<RefreshCw />}
@@ -178,16 +181,24 @@ const KnowledgeItemRowMenuItems = ({
 
 const KnowledgeItemRowMoreMenu = ({
   onDelete,
-  onReindex
+  onReindex,
+  onViewChunks
 }: {
   onDelete: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
+  onViewChunks: () => void
 }) => {
   const [isOpen, setIsOpen] = useState(false)
 
-  const handleSelect = (event: MouseEvent<HTMLButtonElement>) => {
+  const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
+  }
+
+  const handleViewChunks = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    setIsOpen(false)
+    onViewChunks()
   }
 
   const handleReindex = (event: MouseEvent<HTMLButtonElement>) => {
@@ -216,13 +227,18 @@ const KnowledgeItemRowMoreMenu = ({
         onClick={(event) => event.stopPropagation()}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
-        <KnowledgeItemRowMenuItems onDelete={handleDelete} onReindex={handleReindex} onSelect={handleSelect} />
+        <KnowledgeItemRowMenuItems
+          onDelete={handleDelete}
+          onPreviewSource={handlePreviewSource}
+          onReindex={handleReindex}
+          onViewChunks={handleViewChunks}
+        />
       </PopoverContent>
     </Popover>
   )
 }
 
-const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex }: KnowledgeItemRowProps) => {
+const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex, onViewChunks }: KnowledgeItemRowProps) => {
   const {
     i18n: { language }
   } = useTranslation()
@@ -235,7 +251,7 @@ const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex }: KnowledgeItemR
       <KnowledgeItemRowIcon {...icon} />
       <KnowledgeItemRowContent id={item.id} title={title} suffix={suffix} metaParts={metaParts} />
       <KnowledgeItemRowStatus status={status} />
-      <KnowledgeItemRowMoreMenu onDelete={onDelete} onReindex={onReindex} />
+      <KnowledgeItemRowMoreMenu onDelete={onDelete} onReindex={onReindex} onViewChunks={onViewChunks} />
     </div>
   )
 }

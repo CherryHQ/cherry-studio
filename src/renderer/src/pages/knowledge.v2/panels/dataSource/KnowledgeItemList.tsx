@@ -11,9 +11,17 @@ export interface KnowledgeItemListProps {
   onItemClick: (item: KnowledgeItem) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onViewChunks: (item: KnowledgeItem) => void
 }
 
-const KnowledgeItemList = ({ items, isLoading, onItemClick, onDelete, onReindex }: KnowledgeItemListProps) => {
+const KnowledgeItemList = ({
+  items,
+  isLoading,
+  onItemClick,
+  onDelete,
+  onReindex,
+  onViewChunks
+}: KnowledgeItemListProps) => {
   const { t } = useTranslation()
 
   return (
@@ -39,6 +47,7 @@ const KnowledgeItemList = ({ items, isLoading, onItemClick, onDelete, onReindex 
               onClick={() => onItemClick(item)}
               onDelete={() => onDelete(item)}
               onReindex={() => onReindex(item)}
+              onViewChunks={() => onViewChunks(item)}
             />
           ))}
         </div>
