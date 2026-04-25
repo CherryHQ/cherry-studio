@@ -18,6 +18,7 @@ export const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
   overflow-x: hidden;
+  overflow-anchor: none;
   z-index: 1;
   position: relative;
 `
