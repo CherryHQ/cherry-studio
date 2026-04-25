@@ -106,7 +106,7 @@ export class DomainImporter {
       const colList = columns.map((c) => `"${c}"`).join(', ')
 
       let conflictClause = ''
-      if (strategy === ConflictStrategy.SKIP) {
+      if (strategy === ConflictStrategy.SKIP || strategy === ConflictStrategy.RENAME) {
         conflictClause = ' ON CONFLICT DO NOTHING'
       } else if (strategy === ConflictStrategy.OVERWRITE) {
         const updates = columns.map((c) => `"${c}" = excluded."${c}"`).join(', ')

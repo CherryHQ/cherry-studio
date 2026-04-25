@@ -1,0 +1,145 @@
+import { BackupDomain, ConflictStrategy } from '@shared/backup'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    })
+  }
+}))
+
+function flattenSqlChunks(obj: unknown): string {
+  if (!obj || typeof obj !== 'object') return String(obj ?? '')
+  const record = obj as Record<string, unknown>
+  if ('value' in record && Array.isArray(record.value)) {
+    return (record.value as string[]).join('')
+  }
+  if ('queryChunks' in record && Array.isArray(record.queryChunks)) {
+    return (record.queryChunks as unknown[]).map(flattenSqlChunks).join('')
+  }
+  return '?'
+}
+
+describe('DomainImporter', () => {
+  const createMockBackupClient = (rows: Record<string, unknown>[] = []) => ({
+    execute: vi.fn().mockResolvedValue({ rows })
+  })
+
+  const createMockLiveDb = () => {
+    const mockTx = {
+      run: vi.fn().mockResolvedValue(undefined),
+      all: vi.fn().mockResolvedValue([])
+    }
+    return {
+      run: vi.fn(),
+      all: vi.fn(),
+      transaction: vi.fn().mockImplementation(async (fn) => fn(mockTx)),
+      _tx: mockTx
+    }
+  }
+
+  const createMockRemapper = () => ({
+    remap: vi.fn().mockImplementation((id: string) => id),
+    buildMap: vi.fn(),
+    getMap: vi.fn().mockReturnValue(new Map())
+  })
+
+  const createMockTracker = () => ({
+    incrementItemsProcessed: vi.fn(),
+    setPhase: vi.fn(),
+    setDomain: vi.fn(),
+    setTotals: vi.fn()
+  })
+
+  const createMockToken = () => ({
+    isCancelled: false,
+    cancel: vi.fn(),
+    throwIfCancelled: vi.fn()
+  })
+
+  let DomainImporter: typeof import('../DomainImporter').DomainImporter
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const mod = await import('../DomainImporter')
+    DomainImporter = mod.DomainImporter
+  })
+
+  it('returns zero counts for domains with no tables', async () => {
+    const importer = new DomainImporter(
+      createMockBackupClient() as never,
+      createMockLiveDb() as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+    const result = await importer.importDomain(BackupDomain.FILE_STORAGE, ConflictStrategy.SKIP)
+    expect(result).toEqual({ imported: 0, skipped: 0, errors: 0 })
+  })
+
+  it('uses ON CONFLICT DO NOTHING for SKIP strategy', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.SKIP)
+
+    expect(liveDb._tx.run).toHaveBeenCalled()
+    const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
+    expect(sqlStr).toContain('ON CONFLICT DO NOTHING')
+  })
+
+  it('uses ON CONFLICT DO NOTHING for RENAME strategy (safety net)', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.RENAME)
+
+    expect(liveDb._tx.run).toHaveBeenCalled()
+    const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
+    expect(sqlStr).toContain('ON CONFLICT DO NOTHING')
+  })
+
+  it('uses ON CONFLICT DO UPDATE for OVERWRITE strategy', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.OVERWRITE)
+
+    expect(liveDb._tx.run).toHaveBeenCalled()
+    const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
+    expect(sqlStr).toContain('ON CONFLICT DO UPDATE SET')
+  })
+})

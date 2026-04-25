@@ -13,7 +13,7 @@ import { pathToFileURL } from 'url'
 
 import type { CancellationToken } from '../CancellationToken'
 import { DomainImporter } from '../domain/DomainImporter'
-import { IMPORT_ORDER } from '../domain/DomainRegistry'
+import { DOMAIN_TABLE_MAP, IMPORT_ORDER } from '../domain/DomainRegistry'
 import { IdRemapper } from '../domain/IdRemapper'
 import { FileRestorer } from '../files/FileRestorer'
 import { type BackupProgressTracker, RestorePhase } from '../progress/BackupProgressTracker'
@@ -41,6 +41,19 @@ export class ImportOrchestrator {
       const manifest = await this.readManifest(tempDir)
       await this.verifyChecksums(tempDir)
 
+      if (options.validateOnly) {
+        this.progressTracker.setPhase(RestorePhase.COMPLETE)
+        return {
+          duration: Date.now() - startTime,
+          domainCounts: {},
+          conflictCount: 0,
+          resolvedCount: 0,
+          skippedCount: 0,
+          fileCount: 0,
+          errorCount: 0
+        }
+      }
+
       const backupDbPath = path.join(tempDir, 'backup.sqlite')
       const backupUrl = pathToFileURL(backupDbPath).href
       const backupClient = createClient({ url: backupUrl })
@@ -50,6 +63,20 @@ export class ImportOrchestrator {
       const selectedDomains = this.resolveImportDomains(manifest, options)
 
       this.progressTracker.setPhase(RestorePhase.IMPORTING)
+
+      const domainTotals = new Map<BackupDomain, number>()
+      let totalImportItems = 0
+      for (const domain of selectedDomains) {
+        const tables = DOMAIN_TABLE_MAP[domain]
+        let domainTotal = 0
+        for (const t of tables) {
+          const r = await backupClient.execute(`SELECT COUNT(*) as cnt FROM "${t}"`)
+          domainTotal += Number(r.rows[0].cnt)
+        }
+        domainTotals.set(domain, domainTotal)
+        totalImportItems += domainTotal
+      }
+      this.progressTracker.setTotals(totalImportItems, 0n)
 
       const remapper = new IdRemapper()
       const domainCounts: Record<string, number> = {}
@@ -66,6 +93,7 @@ export class ImportOrchestrator {
         for (const domain of IMPORT_ORDER) {
           if (!selectedDomains.includes(domain)) continue
           this.token.throwIfCancelled()
+          this.progressTracker.setDomain(domain, domainTotals.get(domain) ?? 0)
 
           const result = await importer.importDomain(domain, strategy)
           domainCounts[domain] = result.imported
@@ -84,10 +112,16 @@ export class ImportOrchestrator {
       const fileRestorer = new FileRestorer(tempDir, this.progressTracker, this.token)
       let fileCount = 0
       if (options.restoreFiles !== false) {
-        const fileResult = await fileRestorer.restoreFiles(strategy)
-        fileCount += fileResult.restored
-        const kbResult = await fileRestorer.restoreKnowledgeBases(strategy)
-        fileCount += kbResult.restored
+        const hasFilesDomain =
+          selectedDomains.includes(BackupDomain.FILE_STORAGE) || selectedDomains.includes(BackupDomain.TOPICS)
+        const hasKnowledgeDomain = selectedDomains.includes(BackupDomain.KNOWLEDGE)
+
+        if (hasFilesDomain) {
+          fileCount += (await fileRestorer.restoreFiles(strategy)).restored
+        }
+        if (hasKnowledgeDomain) {
+          fileCount += (await fileRestorer.restoreKnowledgeBases(strategy)).restored
+        }
       }
 
       this.progressTracker.setPhase(RestorePhase.COMPLETE)

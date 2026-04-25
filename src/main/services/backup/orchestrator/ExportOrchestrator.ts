@@ -50,6 +50,8 @@ export class ExportOrchestrator {
         }
 
         domainStats = await this.collectDomainStats(backupClient, options.domains)
+        const totalItems = Object.values(domainStats).reduce((sum, s) => sum + s.itemCount, 0)
+        this.progressTracker.setTotals(totalItems, 0n)
 
         this.progressTracker.setPhase(BackupPhase.FILES)
         await this.collectFiles(backupClient, tempDir, options)
