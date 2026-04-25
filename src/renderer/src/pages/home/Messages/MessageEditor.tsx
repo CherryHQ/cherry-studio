@@ -5,6 +5,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
@@ -45,8 +46,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
-  const { assistant } = useAssistant(message.assistantId)
-  const model = assistant.model || assistant.defaultModel
+  const { model: v2Model } = useAssistant(message.assistantId)
+  const model = useMemo(() => (v2Model ? fromSharedModel(v2Model) : undefined), [v2Model])
   const { pasteLongTextAsFile } = useSettings()
 
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
@@ -65,7 +66,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     []
   )
 
-  const couldAddImageFile = useMemo(() => isVisionModel(model), [model])
+  const couldAddImageFile = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const couldAddTextFile = useMemo(() => true, [])
 
   const extensions = useMemo(() => {

@@ -16,10 +16,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useModelById } from '@renderer/hooks/useModels'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { Input } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -51,9 +53,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     setTokenCount(estimateTextTokens(prompt))
   }, [prompt])
 
+  const { model } = useModelById(assistant.modelId as UniqueModelId)
   const processedPrompt = usePromptProcessor({
     prompt,
-    modelName: assistant.model?.name
+    modelName: model?.name
   })
 
   const onUpdate = () => {

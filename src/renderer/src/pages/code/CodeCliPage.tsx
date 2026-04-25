@@ -4,13 +4,13 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { useAppSelector } from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils/naming'
 import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
@@ -18,6 +18,7 @@ import { formatProviderApiHost } from '@renderer/utils/providerHost'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Check, Code2, Download, FolderOpen, Search, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -78,7 +79,7 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
   const { maxTokens, reasoning_effort } = useMemo(() => {
     if (!defaultAssistant) {
       return { maxTokens: undefined, reasoning_effort: undefined }
@@ -285,6 +286,10 @@ const CodeCliPage: FC = () => {
     if (!resolvedModel) return null
 
     const modelProvider = getProviderByModel(resolvedModel)
+    if (!modelProvider) {
+      logger.warn(`Provider not found for model: ${resolvedModel.id}`)
+      return null
+    }
     const actualProvider = formatProviderApiHost(modelProvider)
     const baseUrl = actualProvider.apiHost
     const apiKey = getRotatedProviderApiKey(actualProvider)

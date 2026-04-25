@@ -171,7 +171,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
     const provider = getProviderByModel(model)
 
-    if (!provider.apiKey) {
+    if (!provider || !provider.apiKey) {
       window.modal.error({
         content: t('error.no_api_key'),
         centered: true
