@@ -25,7 +25,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, gt, inArray, isNull, like, notInArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, like, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 import { pinService } from './PinService'
@@ -61,24 +61,49 @@ function topicScopePredicate(groupId: string | null): SQL {
 
 /**
  * Cursor format:
- *   `pin:<orderKey>`    — boundary at this pin.orderKey, still in pin section
- *   `topic:<orderKey>`  — boundary at this topic.orderKey, in unpinned section
- *   `topic:`            — pin section exhausted, unpinned section starts
+ *   `pin:<pin.orderKey>`           — boundary inside the pin section
+ *   `topic:<updatedAt>:<id>`       — boundary inside the unpinned section
+ *                                    (sorted by updatedAt DESC, id ASC tie-break)
+ *   `topic:`                       — pin section exhausted, start of unpinned
  */
-type Cursor = { section: 'pin' | 'topic'; orderKey: string }
+type Cursor =
+  | { section: 'pin'; orderKey: string }
+  | { section: 'topic'; updatedAt: number; id: string }
+  | { section: 'topic'; updatedAt: null; id: null }
 
 function decodeCursor(raw: string): Cursor {
-  const colonIdx = raw.indexOf(':')
-  if (colonIdx < 0) throw DataApiErrorFactory.validation({ cursor: ['malformed cursor'] })
-  const section = raw.slice(0, colonIdx)
-  if (section !== 'pin' && section !== 'topic') {
-    throw DataApiErrorFactory.validation({ cursor: ['unknown cursor section'] })
+  const firstColon = raw.indexOf(':')
+  if (firstColon < 0) throw DataApiErrorFactory.validation({ cursor: ['malformed cursor'] })
+  const section = raw.slice(0, firstColon)
+  const rest = raw.slice(firstColon + 1)
+
+  if (section === 'pin') {
+    return { section: 'pin', orderKey: rest }
   }
-  return { section, orderKey: raw.slice(colonIdx + 1) }
+  if (section === 'topic') {
+    if (rest === '') return { section: 'topic', updatedAt: null, id: null }
+    const sep = rest.indexOf(':')
+    if (sep < 0) throw DataApiErrorFactory.validation({ cursor: ['malformed topic cursor'] })
+    const updatedAt = Number(rest.slice(0, sep))
+    const id = rest.slice(sep + 1)
+    if (!Number.isFinite(updatedAt) || !id) {
+      throw DataApiErrorFactory.validation({ cursor: ['malformed topic cursor'] })
+    }
+    return { section: 'topic', updatedAt, id }
+  }
+  throw DataApiErrorFactory.validation({ cursor: ['unknown cursor section'] })
 }
 
-function encodeCursor(c: Cursor): string {
-  return `${c.section}:${c.orderKey}`
+function encodePinCursor(orderKey: string): string {
+  return `pin:${orderKey}`
+}
+
+function encodeTopicCursor(updatedAt: number, id: string): string {
+  return `topic:${updatedAt}:${id}`
+}
+
+function encodeTopicSectionStart(): string {
+  return 'topic:'
 }
 
 export class TopicService {
@@ -104,12 +129,20 @@ export class TopicService {
   /**
    * Cursor-paginated topic list with optional name search.
    *
-   * The view is composed: pinned topics first (joined through `pin` on
-   * `entityType='topic'`, ordered by `pin.orderKey`), then unpinned topics
-   * (ordered by `topic.orderKey`). The cursor encodes which section the
-   * caller is in so subsequent pages continue from the right boundary, and
-   * a partial pin page that fits into the limit transparently spills into
-   * the unpinned section to fill the remainder.
+   * The view is composed:
+   *  1. Pinned topics, joined through `pin` on `entityType='topic'`, ordered
+   *     by `pin.orderKey` ASC. Pin order is user-controlled (drag-to-reorder).
+   *  2. Unpinned topics, ordered by `topic.updatedAt DESC, topic.id ASC`.
+   *     Recency-by-default matches the v1 list-time sort and what users
+   *     intuitively expect ("new conversation goes to the top"). `topic.orderKey`
+   *     is still maintained on the row for a future drag-mode toggle (see
+   *     data-ordering-guide §"Why no dual-mode sort"), but the default list
+   *     reads ignore it for unpinned rows.
+   *
+   * The cursor encodes which section the caller is in so subsequent pages
+   * continue from the right boundary, and a partial pin page that fits into
+   * the limit transparently spills into the unpinned section to fill the
+   * remainder.
    */
   async listByCursor(query: ListTopicsQuery = {}): Promise<CursorPaginationResponse<Topic>> {
     const db = application.get('DbService').getDb()
@@ -139,7 +172,7 @@ export class TopicService {
         const last = items[items.length - 1]
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodeCursor({ section: 'pin', orderKey: last.pinOrderKey ?? '' })
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
         }
       }
 
@@ -147,23 +180,33 @@ export class TopicService {
         // Pin section exactly filled the page; next page starts the unpinned section.
         return {
           items: items.map((i) => i.topic),
-          nextCursor: encodeCursor({ section: 'topic', orderKey: '' })
+          nextCursor: encodeTopicSectionStart()
         }
       }
       // Pin section exhausted with room to spare — fall through.
     }
 
     // ── Section 2: unpinned topics ───────────────────────────────────────
+    // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
+    // the next page contains rows with smaller `updatedAt`, OR rows tied on
+    // `updatedAt` with a strictly larger `id`. Without the id tiebreaker
+    // pages would dedup or skip rows whenever two topics share a timestamp.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-    const topicAfter =
-      cursor.section === 'topic' && cursor.orderKey ? gt(topicTable.orderKey, cursor.orderKey) : undefined
+
+    let topicAfter: SQL | undefined
+    if (cursor.section === 'topic' && cursor.updatedAt !== null) {
+      topicAfter = or(
+        lt(topicTable.updatedAt, cursor.updatedAt),
+        and(eq(topicTable.updatedAt, cursor.updatedAt), gt(topicTable.id, cursor.id))
+      )
+    }
 
     const topicRows = await db
       .select()
       .from(topicTable)
       .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(asc(topicTable.orderKey), asc(topicTable.id))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(remaining + 1)
 
     const hasMoreInTopic = topicRows.length > remaining
@@ -171,9 +214,11 @@ export class TopicService {
       items.push({ topic: rowToTopic(row) })
     }
 
-    const nextCursor = hasMoreInTopic
-      ? encodeCursor({ section: 'topic', orderKey: items[items.length - 1].topic.orderKey })
-      : undefined
+    let nextCursor: string | undefined
+    if (hasMoreInTopic) {
+      const last = topicRows[remaining - 1]
+      nextCursor = encodeTopicCursor(last.updatedAt, last.id)
+    }
 
     return { items: items.map((i) => i.topic), nextCursor }
   }

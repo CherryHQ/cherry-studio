@@ -58,11 +58,26 @@ describe('TopicService', () => {
       expect(result.nextCursor).toBeUndefined()
     })
 
-    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by topic.orderKey', async () => {
-      // Two pinned topics + two unpinned. Pin order is independent of
-      // topic.orderKey: 't-pinned-2' is pinned later (higher pin.orderKey)
-      // but its topic.orderKey is 'a0'. Result must show pin section first
-      // ordered strictly by pin.orderKey, then unpinned by topic.orderKey.
+    it('orders unpinned topics by updatedAt DESC with id tiebreaker', async () => {
+      // Default list-time sort is recency ("most recent activity first") —
+      // topic.orderKey is maintained on the row but not consulted here.
+      // Without the id tiebreaker, two topics tied on updatedAt would have
+      // an undefined relative order and could swap on revalidate.
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'older', name: 'older', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'tied-b', name: 'tied-b', orderKey: 'a1', createdAt: 1, updatedAt: 200 },
+        { id: 'tied-a', name: 'tied-a', orderKey: 'a2', createdAt: 1, updatedAt: 200 },
+        { id: 'newest', name: 'newest', orderKey: 'a3', createdAt: 1, updatedAt: 300 }
+      ])
+
+      const result = await service.listByCursor()
+      expect(result.items.map((t) => t.id)).toEqual(['newest', 'tied-a', 'tied-b', 'older'])
+    })
+
+    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by updatedAt DESC', async () => {
+      // Two pinned topics + two unpinned. Pin order follows pin.orderKey
+      // (user-controlled drag); unpinned section follows updatedAt DESC.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't-pinned-1', name: 'P1', orderKey: 'a3', createdAt: 1, updatedAt: 1 },
