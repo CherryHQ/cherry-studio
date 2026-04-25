@@ -228,6 +228,130 @@ describe('ChatMigrator.prepareTopicData', () => {
     // a2 should resolve through the chain to u1
     expect(msgMap.get('a2')?.parentId).toBe('u1')
   })
+
+  it('derives missing topic timestamps from messages instead of Date.now()', () => {
+    // Topic with no createdAt/updatedAt — should derive from messages, NOT
+    // fall back to Date.now() (which floods the topic list with migration-time
+    // entries). createdAt = min(message.createdAt), updatedAt = max.
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'ast-1',
+      name: 'No Timestamps',
+      createdAt: '', // missing
+      updatedAt: '', // missing
+      messages: [
+        msg('u1', 'user', ['b1'], { createdAt: '2025-03-15T10:00:00.000Z' }),
+        msg('a1', 'assistant', ['b2'], { createdAt: '2025-03-15T10:05:00.000Z' })
+      ]
+    }
+
+    const result = prepareTopic(oldTopic, [b1, b2])
+    expect(result).not.toBeNull()
+    expect(result?.topic.createdAt).toBe(new Date('2025-03-15T10:00:00.000Z').getTime())
+    expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
+  })
+
+  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
+    // Without this fallback, a topic with no assistantId becomes
+    // `assistantId: null`, and the renderer's `useAssistant('')` then
+    // dispatches `PATCH /assistants/` (empty id) on every reasoning-effort
+    // sync — server 400s, SWR retries, infinite loop.
+    const b1 = block('b1', 'u1')
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: '', // empty
+      name: 'Orphan Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])]
+    }
+
+    const result = prepareTopic(oldTopic, [b1])
+    expect(result).not.toBeNull()
+    expect(result?.topic.assistantId).toBe('default')
+  })
+
+  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId points to missing FK', () => {
+    // validAssistantIds set up to *not* include 'orphaned-id', so the FK check
+    // fires and falls the topic back onto DEFAULT_ASSISTANT_ID instead of
+    // leaving it dangling.
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'orphaned-id',
+      name: 'Bad FK Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])]
+    }
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', block('b1', 'u1')]])
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['orphanedAssistantTopics'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    // FK validation set: only 'default' valid, orphan must fall back
+    m['validAssistantIds'] = new Set(['default'])
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+    expect(result?.topic.assistantId).toBe('default')
+  })
+})
+
+describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('extracts topic metadata from state.defaultAssistant.topics[]', async () => {
+    // Topics under state.defaultAssistant.topics[] (a slot separate from
+    // state.assistants[].topics[]) used to be silently dropped — they showed
+    // up as "Unnamed Topic" with no timestamps post-migration.
+    const migrator = new ChatMigrator()
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(true),
+          readTable: vi.fn().mockResolvedValue([]),
+          createStreamReader: vi.fn().mockReturnValue({
+            count: vi.fn().mockResolvedValue(0),
+            readSample: vi.fn().mockResolvedValue([]),
+            readInBatches: vi.fn()
+          })
+        },
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            assistants: [{ id: 'ast-1', topics: [{ id: 'topic-A', name: 'A' }] }],
+            defaultAssistant: {
+              id: 'default',
+              topics: [{ id: 'topic-X', name: 'X', pinned: true }]
+            }
+          })
+        }
+      }
+    }
+    await migrator.prepare(ctx as any)
+
+    const internal = migrator as unknown as {
+      topicMetaLookup: Map<string, { name?: string; pinned?: boolean }>
+      topicAssistantLookup: Map<string, string>
+    }
+    // Both topics should be registered
+    expect(internal.topicMetaLookup.has('topic-A')).toBe(true)
+    expect(internal.topicMetaLookup.has('topic-X')).toBe(true)
+    expect(internal.topicMetaLookup.get('topic-X')?.name).toBe('X')
+    expect(internal.topicMetaLookup.get('topic-X')?.pinned).toBe(true)
+    // defaultAssistant's topic maps to the default-assistant id
+    expect(internal.topicAssistantLookup.get('topic-X')).toBe('default')
+    expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
+  })
 })
 
 describe('ChatMigrator model reference sanitization', () => {

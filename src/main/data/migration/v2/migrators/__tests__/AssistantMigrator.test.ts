@@ -143,10 +143,13 @@ describe('AssistantMigrator', () => {
       })
     })
 
-    it('should deduplicate assistants by id', async () => {
+    it('should merge duplicate-id assistants instead of skipping', async () => {
+      // Two id='dup-1' entries merge field-by-field, primary (first) wins on
+      // non-empty values — see mergeOldAssistants. No warnings emitted; merge
+      // is silent (logged at info level).
       const assistants = [
-        { id: 'dup-1', name: 'first' },
-        { id: 'dup-1', name: 'duplicate' },
+        { id: 'dup-1', name: 'first', prompt: 'p1' },
+        { id: 'dup-1', name: '', prompt: 'p2-overridden', emoji: '🌟' },
         { id: 'ast-2', name: 'unique' }
       ]
       const ctx = createMockContext({ assistants: { assistants, presets: [] } })
@@ -154,7 +157,7 @@ describe('AssistantMigrator', () => {
       expect(result).toStrictEqual({
         success: true,
         itemCount: 2,
-        warnings: ['Skipped duplicate assistant id: dup-1']
+        warnings: undefined
       })
     })
 
@@ -171,6 +174,60 @@ describe('AssistantMigrator', () => {
       const result = await migrator.prepare(ctx as any)
       expect(result.success).toBe(false)
       expect(result.itemCount).toBe(0)
+    })
+
+    it('should include state.defaultAssistant as a migration source', async () => {
+      // The v1 slice's `state.defaultAssistant` lives in its own slot, not in
+      // `state.assistants[]`. Without explicit handling, customizations on the
+      // default assistant slot are lost on migration.
+      const ctx = createMockContext({
+        assistants: {
+          assistants: [{ id: 'ast-1', name: 'User Assistant' }],
+          presets: [],
+          defaultAssistant: { id: 'default', name: 'Customized Default', prompt: 'Custom prompt' }
+        }
+      })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(2) // ast-1 + default
+    })
+
+    it('should merge defaultAssistant with same-id entry from assistants[] (primary wins)', async () => {
+      // v1 initial state seeds id='default' in BOTH `assistants[0]` and
+      // `defaultAssistant`. Reducers update one or the other independently.
+      // Migration should merge field-by-field — assistants[] wins on
+      // non-empty values; defaultAssistant fills the gaps.
+      const ctx = createMockContext({
+        assistants: {
+          assistants: [
+            // assistants[0] holds the live edits — user changed model + settings here
+            {
+              id: 'default',
+              name: 'My Default',
+              prompt: '', // not set on this slot
+              model: { id: 'gpt-4', provider: 'openai' }
+            }
+          ],
+          presets: [],
+          // defaultAssistant slot has the prompt the user set via reset/onboarding
+          defaultAssistant: {
+            id: 'default',
+            name: 'Factory Default',
+            prompt: 'You are helpful',
+            emoji: '😀'
+          }
+        }
+      })
+      const result = await migrator.prepare(ctx as any)
+      expect(result).toStrictEqual({ success: true, itemCount: 1, warnings: undefined })
+
+      const internal = migrator as unknown as { preparedResults: { assistant: Record<string, unknown> }[] }
+      const merged = internal.preparedResults[0].assistant
+      expect(merged.id).toBe('default')
+      expect(merged.name).toBe('My Default') // assistants[] wins on populated field
+      expect(merged.prompt).toBe('You are helpful') // defaultAssistant fills empty gap
+      expect(merged.emoji).toBe('😀') // defaultAssistant fills missing field
+      expect(merged.modelId).toBe('openai::gpt-4') // assistants[]-only field preserved
     })
   })
 
