@@ -93,10 +93,14 @@ const TOPIC_BATCH_SIZE = 50
 const MESSAGE_INSERT_BATCH_SIZE = 100
 
 /**
- * Assistant data from Redux for assistant lookup
+ * Assistant data from Redux for assistant lookup. Both `assistants[]` and the
+ * standalone `defaultAssistant` slot can carry topics under `.topics[]` —
+ * iterating only `assistants[]` (the previous behavior) silently dropped every
+ * topic that lived under the v1 default assistant.
  */
 interface AssistantState {
   assistants: OldAssistant[]
+  defaultAssistant?: OldAssistant
 }
 
 /**
@@ -215,10 +219,17 @@ export class ChatMigrator extends BaseMigrator {
       }
 
       // Step 3: Load assistant data for model lookup
-      // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[])
+      // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[]).
+      // `state.defaultAssistant` is a sibling slot (not inside `assistants[]`) and
+      // can also carry topics — must be visited too, otherwise its topics show
+      // up post-migration as "Unnamed Topic" with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
-      if (assistantState?.assistants) {
-        for (const assistant of assistantState.assistants) {
+      const allAssistants: OldAssistant[] = []
+      if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
+      if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
+
+      if (allAssistants.length > 0) {
+        for (const assistant of allAssistants) {
           this.assistantLookup.set(assistant.id, assistant)
 
           // Extract topic metadata from this assistant's topics array
