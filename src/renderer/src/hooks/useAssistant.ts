@@ -1,5 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { db } from '@renderer/databases'
+import { useModelById } from '@renderer/hooks/useModels'
 import { useReasoningEffortSync } from '@renderer/hooks/useReasoningEffortSync'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -14,9 +17,9 @@ import {
   updateAssistantSettings as _updateAssistantSettings,
   updateDefaultAssistant
 } from '@renderer/store/assistants'
-import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
 import type { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,7 +79,10 @@ export function useAssistant(id: string) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
-  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
+  // The throw above guarantees `model` is non-null whenever `assistant` is —
+  // narrow it back to `Model` so v1 consumers (Inputbar / MCPToolsButton /
+  // SelectModelButton …) keep their original non-optional contract.
+  const assistantWithModel = useMemo(() => ({ ...assistant, model: model as Model }), [assistant, model])
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
@@ -98,7 +104,9 @@ export function useAssistant(id: string) {
 
   return {
     assistant: assistantWithModel,
-    model,
+    // Same `Model` narrowing as `assistantWithModel.model` — the throw above
+    // guarantees this is defined when the consumer has an assistant.
+    model: model as Model,
     addTopic: async (topic: Topic): Promise<Topic> => {
       // DataApi assigns its own UUID — caller's local `topic.id` is
       // ignored. Map back to renderer shape so callers can drive
@@ -185,15 +193,32 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, quickModel, translateModel } = useAppSelector((state) => state.llm)
-  const dispatch = useAppDispatch()
+  const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
+  const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
+  const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+
+  // Preference stores the UniqueModelId as a plain string for cross-feature
+  // flexibility; cast back to the branded type at the DataApi boundary.
+  const { model: apiDefaultModel } = useModelById(defaultModelId as UniqueModelId)
+  const { model: apiQuickModel } = useModelById((quickModelId as UniqueModelId) ?? defaultModelId)
+  const { model: apiTranslateModel } = useModelById((translateModelId as UniqueModelId) ?? defaultModelId)
+
+  const defaultModel = useMemo(
+    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
+    [apiDefaultModel]
+  )
+  const quickModel = useMemo(() => (apiQuickModel ? fromSharedModel(apiQuickModel) : undefined), [apiQuickModel])
+  const translateModel = useMemo(
+    () => (apiTranslateModel ? fromSharedModel(apiTranslateModel) : undefined),
+    [apiTranslateModel]
+  )
 
   return {
     defaultModel,
     quickModel,
     translateModel,
-    setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
-    setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+    setDefaultModel: (model: Model) => setDefaultModelId(createUniqueModelId(model.provider, model.id)),
+    setQuickModel: (model: Model) => setQuickModelId(createUniqueModelId(model.provider, model.id)),
+    setTranslateModel: (model: Model) => setTranslateModelId(createUniqueModelId(model.provider, model.id))
   }
 }

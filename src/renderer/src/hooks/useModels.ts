@@ -128,12 +128,8 @@ export function useModelMutations() {
  * the canonical v2 {@link Model} shape; consumers that need a bare modelId
  * should use `parseUniqueModelId(model.id)`.
  */
-export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
-  const { data, isLoading, error, refetch, mutate } = useQuery('/models/:uniqueModelId*', {
-    // The fallback is only visited when `enabled: false` short-circuits the
-    // request — it's never sent. The `_::_` shape satisfies the path-param
-    // branded type (`${string}::${string}`) without escaping to `as any`.
-    params: { uniqueModelId: uniqueModelId ?? ('_::_' as UniqueModelId) },
+export function useModelById(uniqueModelId: UniqueModelId) {
+  const { data, isLoading, error, refetch, mutate } = useQuery(`/models/${uniqueModelId}`, {
     enabled: !!uniqueModelId
   })
 

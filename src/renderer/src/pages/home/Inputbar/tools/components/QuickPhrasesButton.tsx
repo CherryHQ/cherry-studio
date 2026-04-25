@@ -7,13 +7,12 @@ import {
   type QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Input, Modal, Radio, Space } from 'antd'
-import { BotMessageSquare, Plus, Zap } from 'lucide-react'
+import { Input, Modal, Space } from 'antd'
+import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -22,33 +21,23 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  assistantId: string
 }
 
-const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
+const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
+  const [formData, setFormData] = useState({ title: '', content: '' })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
   const triggerInfoRef = useRef<
     (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
   >(undefined)
 
-  const loadQuickListPhrases = useCallback(
-    async (regularPhrases: QuickPhrase[] = []) => {
-      const phrases = await QuickPhraseService.getAll()
-      if (regularPhrases.length) {
-        setQuickPhrasesList([...regularPhrases, ...phrases])
-        return
-      }
-      const assistantPrompts = assistant.regularPhrases || []
-      setQuickPhrasesList([...assistantPrompts, ...phrases])
-    },
-    [assistant.regularPhrases]
-  )
+  const loadQuickListPhrases = useCallback(async () => {
+    const phrases = await QuickPhraseService.getAll()
+    setQuickPhrasesList(phrases)
+  }, [])
 
   useEffect(() => {
     void loadQuickListPhrases()
@@ -127,38 +116,17 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
     if (!formData.title.trim() || !formData.content.trim()) {
       return
     }
-
-    const updatedPrompts = [
-      ...(assistant.regularPhrases || []),
-      {
-        id: crypto.randomUUID(),
-        title: formData.title,
-        content: formData.content,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      }
-    ]
-    if (formData.location === 'assistant') {
-      // 添加到助手的 regularPhrases
-      updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
-    } else {
-      // 添加到全局 Quick Phrases
-      await QuickPhraseService.add(formData)
-    }
+    await QuickPhraseService.add(formData)
     setIsModalOpen(false)
-    setFormData({ title: '', content: '', location: 'global' })
-    if (formData.location === 'assistant') {
-      await loadQuickListPhrases(updatedPrompts)
-      return
-    }
+    setFormData({ title: '', content: '' })
     await loadQuickListPhrases()
   }
 
   const phraseItems = useMemo(() => {
-    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
+    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase) => ({
       label: phrase.title,
       description: phrase.content,
-      icon: index < (assistant.regularPhrases?.length || 0) ? <BotMessageSquare /> : <Zap />,
+      icon: <Zap />,
       action: () => handlePhraseSelect(phrase)
     }))
 
@@ -168,7 +136,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
       action: () => setIsModalOpen(true)
     })
     return newList
-  }, [quickPhrasesList, t, handlePhraseSelect, assistant])
+  }, [quickPhrasesList, t, handlePhraseSelect])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
@@ -265,7 +233,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
         maskClosable={false}
         onCancel={() => {
           setIsModalOpen(false)
-          setFormData({ title: '', content: '', location: 'global' })
+          setFormData({ title: '', content: '' })
         }}
         width={520}
         transitionName="animation-move-down"
@@ -288,24 +256,6 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
               rows={6}
               style={{ resize: 'none' }}
             />
-          </div>
-          <div>
-            <Label>{t('settings.quickPhrase.locationLabel', '添加位置')}</Label>
-            <Radio.Group
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
-              <Radio value="global">
-                <Zap size={20} style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }} />
-                {t('settings.quickPhrase.global', '全局快速短语')}
-              </Radio>
-              <Radio value="assistant">
-                <BotMessageSquare
-                  size={20}
-                  style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }}
-                />
-                {t('settings.quickPhrase.assistant', '助手提示词')}
-              </Radio>
-            </Radio.Group>
           </div>
         </Space>
       </Modal>

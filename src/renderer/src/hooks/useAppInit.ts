@@ -110,9 +110,9 @@ export function useAppInit() {
   useEffect(() => {
     if (isLocalAi) {
       const model = JSON.parse(import.meta.env.VITE_RENDERER_INTEGRATED_MODEL)
-      setDefaultModel(model)
-      setQuickModel(model)
-      setTranslateModel(model)
+      void setDefaultModel(model)
+      void setQuickModel(model)
+      void setTranslateModel(model)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

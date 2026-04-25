@@ -116,6 +116,6 @@ export function useProvider(id: string) {
 export function useProviderByAssistant(assistant: Assistant) {
   const { defaultModel } = useDefaultModel()
   const model = assistant.model || defaultModel
-  const { provider } = useProvider(model.provider)
+  const { provider } = useProvider(model?.provider ?? '')
   return provider
 }
