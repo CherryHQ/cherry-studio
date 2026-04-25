@@ -53,9 +53,13 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   const resolveApiKey = () =>
     loadApiKey({ apiKey: options.apiKey, environmentVariableName: 'NEWAPI_API_KEY', description: 'NewAPI' })
 
+  // Note: Do not hard-code `Content-Type: application/json` here. `postJsonToApi`
+  // already defaults it for JSON endpoints, while `postFormDataToApi` (used by
+  // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
+  // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
+  // image edits with "invalid character '-' in numeric literal" on the server.
   const authHeaders = (): Record<string, string> => ({
     Authorization: `Bearer ${resolveApiKey()}`,
-    'Content-Type': 'application/json',
     ...options.headers
   })
 

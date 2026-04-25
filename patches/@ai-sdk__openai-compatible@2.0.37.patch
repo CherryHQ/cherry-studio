@@ -1,11 +1,11 @@
 diff --git a/dist/index.js b/dist/index.js
-index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde96c2b6cab 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -572,6 +572,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -571,6 +571,17 @@
+         type: "reasoning",
          text: reasoning
        });
-     }
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -16,11 +16,10 @@ index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde9
 +          data: match2 ? match2[1] : image.image_url.url,
 +        });
 +      }
-+    }
+     }
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
-         const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -732,6 +743,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -732,6 +743,17 @@
                  delta: delta.content
                });
              }
@@ -38,10 +37,11 @@ index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde9
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -928,6 +950,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+@@ -927,6 +949,14 @@
+                 thought_signature: import_v43.z.string().nullish()
                }).nullish()
              }).nullish()
-           })
++          })
 +        ).nullish(),
 +        images: import_v43.z.array(
 +          import_v43.z.object({
@@ -49,14 +49,14 @@ index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde9
 +            image_url: import_v43.z.object({
 +              url: import_v43.z.string(),
 +            })
-+          })
+           })
          ).nullish()
        }),
-       finish_reason: import_v43.z.string().nullish()
-@@ -964,6 +994,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
+@@ -963,6 +993,14 @@
+                 thought_signature: import_v43.z.string().nullish()
                }).nullish()
              }).nullish()
-           })
++          })
 +        ).nullish(),
 +        images: import_v43.z.array(
 +          import_v43.z.object({
@@ -64,18 +64,43 @@ index d73573b013e61903991cad2074187a3ade8921ab..919cbb2d14c0019716080c1bf041dde9
 +            image_url: import_v43.z.object({
 +              url: import_v43.z.string(),
 +            })
-+          })
+           })
          ).nullish()
        }).nullish(),
-       finish_reason: import_v43.z.string().nullish()
+@@ -1529,6 +1567,16 @@
+ // src/image/openai-compatible-image-model.ts
+ var import_provider_utils5 = require("@ai-sdk/provider-utils");
+ var import_v48 = require("zod/v4");
++var defaultResponseFormatPrefixes = [
++  "chatgpt-image-",
++  "gpt-image-1-mini",
++  "gpt-image-1.5",
++  "gpt-image-1",
++  "gpt-image-2"
++];
++function hasDefaultResponseFormat(modelId) {
++  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
++}
+ var OpenAICompatibleImageModel = class {
+   constructor(modelId, config) {
+     this.modelId = modelId;
+@@ -1625,7 +1673,7 @@
+         n,
+         size,
+         ...args,
+-        response_format: "b64_json"
++        ...(!hasDefaultResponseFormat(this.modelId) ? { response_format: "b64_json" } : {})
+       },
+       failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
+         (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7f5aae49b 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -559,6 +559,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -558,6 +558,17 @@
+         type: "reasoning",
          text: reasoning
        });
-     }
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -86,11 +111,10 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7
 +          data: match2 ? match2[1] : image.image_url.url,
 +        });
 +      }
-+    }
+     }
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
-         const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -719,6 +730,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -719,6 +730,17 @@
                  delta: delta.content
                });
              }
@@ -108,10 +132,11 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -915,6 +937,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+@@ -914,6 +936,14 @@
+                 thought_signature: z3.string().nullish()
                }).nullish()
              }).nullish()
-           })
++          })
 +        ).nullish(),
 +        images: z3.array(
 +          z3.object({
@@ -119,14 +144,14 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7
 +            image_url: z3.object({
 +              url: z3.string(),
 +            })
-+          })
+           })
          ).nullish()
        }),
-       finish_reason: z3.string().nullish()
-@@ -951,6 +981,14 @@ var chunkBaseSchema = z3.looseObject({
+@@ -950,6 +980,14 @@
+                 thought_signature: z3.string().nullish()
                }).nullish()
              }).nullish()
-           })
++          })
 +        ).nullish(),
 +        images: z3.array(
 +          z3.object({
@@ -134,7 +159,32 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..2e140f053bb9d7e88ed6b54238d355e7
 +            image_url: z3.object({
 +              url: z3.string(),
 +            })
-+          })
+           })
          ).nullish()
        }).nullish(),
-       finish_reason: z3.string().nullish()
+@@ -1543,6 +1581,16 @@
+   postJsonToApi as postJsonToApi4
+ } from "@ai-sdk/provider-utils";
+ import { z as z8 } from "zod/v4";
++var defaultResponseFormatPrefixes = [
++  "chatgpt-image-",
++  "gpt-image-1-mini",
++  "gpt-image-1.5",
++  "gpt-image-1",
++  "gpt-image-2"
++];
++function hasDefaultResponseFormat(modelId) {
++  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
++}
+ var OpenAICompatibleImageModel = class {
+   constructor(modelId, config) {
+     this.modelId = modelId;
+@@ -1639,7 +1687,7 @@
+         n,
+         size,
+         ...args,
+-        response_format: "b64_json"
++        ...(!hasDefaultResponseFormat(this.modelId) ? { response_format: "b64_json" } : {})
+       },
+       failedResponseHandler: createJsonErrorResponseHandler4(
+         (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
