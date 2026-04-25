@@ -16,7 +16,7 @@ let _activeTopicId: string | undefined
  * delays don't bounce the UI back to an old topic.
  */
 export function useActiveTopic(topic?: Topic) {
-  const { topics: apiTopics, isLoading } = useAllTopics()
+  const { topics: apiTopics, isLoading } = useAllTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
   // Holds the last Topic object passed to setActiveTopic, used as fallback when

@@ -24,7 +24,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   const { handleScroll, containerRef } = useScrollPosition('TopicsHistory')
   const [sortType, setSortType] = useState<SortType>('createdAt')
 
-  const { topics: apiTopics } = useAllTopics()
+  const { topics: apiTopics } = useAllTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
 
   const filteredTopics = topics.filter((topic) => {

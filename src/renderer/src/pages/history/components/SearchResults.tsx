@@ -194,7 +194,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   const [searchTerms, setSearchTerms] = useState<string[]>(splitKeywordsToTerms(keywords))
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
-  const { topics: apiAllTopics } = useAllTopics()
+  const { topics: apiAllTopics } = useAllTopics({ loadAll: true })
   const allTopics = useMemo(() => apiAllTopics.map(mapApiTopicToRendererTopic), [apiAllTopics])
   const storeTopicsMap = useMemo(() => {
     const map = new Map<string, Topic>()

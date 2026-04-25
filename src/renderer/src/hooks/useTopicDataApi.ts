@@ -9,7 +9,13 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { useSharedCache } from '@data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import {
+  useInfiniteFlatItems,
+  useInfiniteQuery,
+  useInvalidateCache,
+  useMutation,
+  useQuery
+} from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
@@ -24,8 +30,13 @@ const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
  * Message history is not loaded here — use `useTopicMessagesV2` or `getTopicMessages`.
  *
- * @deprecated Transitional adapter — call sites should migrate to read DataApi
- * `Topic` shape directly (`isPinned` instead of `pinned`, no `messages[]`).
+ * Pin state is no longer a topic column; consumers that need "is this pinned?"
+ * read the `pin` collection (`useQuery('/pins', { query: { entityType: 'topic' } })`)
+ * and check membership. The legacy `pinned` flag on the renderer Topic is
+ * always `false` here — consumers reading it directly need to migrate.
+ *
+ * @deprecated Transitional adapter — call sites should migrate to the DataApi
+ * `Topic` shape directly (no `messages[]`, no `pinned` flag — use `/pins`).
  */
 export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
   return {
@@ -35,25 +46,49 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     messages: [],
-    pinned: t.isPinned,
+    pinned: false,
     isNameManuallyEdited: t.isNameManuallyEdited
   }
 }
 
 /**
- * List all topics across all assistants from SQLite via DataApi.
- * Used by history / search pages that need the complete topic list.
+ * List topics across all assistants from SQLite via DataApi.
+ *
+ * Backed by `useInfiniteQuery` cursor pagination — `/topics` returns a
+ * server-composed view (pinned topics first via the `pin` table, then
+ * unpinned ordered by `topic.orderKey`). Consumers that genuinely need the
+ * full list (`loadAll: true`) auto-paginate to the end; consumers that just
+ * want progressive loading (sidebar) leave it `undefined` and call
+ * `loadNext()` themselves.
+ *
+ * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useAllTopics() {
-  const { data, isLoading, error, refetch, mutate } = useQuery('/topics', {
-    query: {}
+export function useAllTopics(opts?: { q?: string; loadAll?: boolean }) {
+  const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
+    query,
+    limit: 50
   })
+  const topics = useInfiniteFlatItems(pages)
+
+  // Auto-paginate to completion when the caller wants the full list. The
+  // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
+  // position so paging is visible to the user.
+  useEffect(() => {
+    if (opts?.loadAll && hasNext && !isLoading && !isRefreshing) {
+      loadNext()
+    }
+  }, [opts?.loadAll, hasNext, isLoading, isRefreshing, loadNext])
 
   return {
-    topics: data ?? EMPTY_TOPICS,
+    topics: topics.length > 0 ? topics : EMPTY_TOPICS,
+    pages,
+    hasNext,
+    loadNext,
     isLoading,
+    isRefreshing,
     error,
-    refetch,
+    refetch: refresh,
     mutate
   }
 }

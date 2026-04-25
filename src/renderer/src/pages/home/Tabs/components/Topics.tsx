@@ -1,5 +1,7 @@
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
+import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AddButton from '@renderer/components/AddButton'
@@ -30,6 +32,7 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
@@ -66,24 +69,72 @@ interface Props {
 export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position }) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, batchUpdateTopics } = useTopicMutations()
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
   const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
   const updateTopic = useCallback(
     (topic: Topic) =>
       patchTopic(topic.id, {
         name: topic.name,
-        isNameManuallyEdited: topic.isNameManuallyEdited,
-        isPinned: topic.pinned
+        isNameManuallyEdited: topic.isNameManuallyEdited
       }),
     [patchTopic]
   )
-  const updateTopics = useCallback(
-    (topics: Topic[]) =>
-      batchUpdateTopics(topics.map((t, i) => ({ id: t.id, dto: { name: t.name, isPinned: t.pinned, sortOrder: i } }))),
-    [batchUpdateTopics]
+
+  // Pin state lives on the polymorphic `pin` table now, not on the topic
+  // row — fetch it separately and overlay onto the topic list. Pin order
+  // (where pinned topics sit relative to each other) is independent from
+  // topic order; the server-side composed `/topics` view does the
+  // pinned-first ordering for us, so the renderer only needs to know which
+  // ids are pinned (for UI styling and the pin/unpin toggle).
+  const { data: pinList } = useQuery('/pins', { query: { entityType: 'topic' } })
+  const pinByTopicId = useMemo(() => new Map((pinList ?? []).map((p) => [p.entityId, p.id] as const)), [pinList])
+
+  const { topics: apiTopics } = useAllTopics({ loadAll: true })
+  const topics = useMemo(
+    () =>
+      apiTopics.map((t) => {
+        const r = mapApiTopicToRendererTopic(t)
+        return { ...r, pinned: pinByTopicId.has(t.id) }
+      }),
+    [apiTopics, pinByTopicId]
   )
-  const { topics: apiTopics } = useAllTopics()
-  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
+
+  // Drag-reorder via the canonical fractional-indexing endpoint:
+  // `PATCH /topics/:id/order` with `{ before }` or `{ after }`. We compute the
+  // anchor from the new index in the dropped list — `position: 'first'` for
+  // index 0, otherwise `{ after: previousNeighbor.id }`. This replaces the
+  // legacy `batchUpdateTopics` that wrote `sortOrder` integers (the column is
+  // gone). Cross-section drags (pinning / unpinning by drag) are handled at
+  // pinPanel level via /pins POST/DELETE; same-section drags route here.
+  const updateTopics = useCallback(
+    async (reordered: Topic[]) => {
+      // Diff to find moved topics — the drag library hands back the full new
+      // ordering so we'd otherwise PATCH every row. Compute the minimal set
+      // by zipping against the current order and keeping only changed
+      // positions; one anchor PATCH per genuinely-moved topic.
+      const currentIds = topics.map((t) => t.id)
+      const reorderedIds = reordered.map((t) => t.id)
+      const moves: Array<{ id: string; anchor: OrderRequest }> = []
+      for (let i = 0; i < reorderedIds.length; i++) {
+        if (currentIds[i] === reorderedIds[i]) continue
+        const id = reorderedIds[i]
+        const anchor: OrderRequest = i === 0 ? { position: 'first' } : { after: reorderedIds[i - 1] }
+        moves.push({ id, anchor })
+      }
+      if (moves.length === 0) return
+      try {
+        if (moves.length === 1) {
+          await dataApiService.patch(`/topics/${moves[0].id}/order`, { body: moves[0].anchor })
+        } else {
+          await dataApiService.patch('/topics/order:batch', { body: { moves } })
+        }
+        await refreshTopics()
+      } catch (err) {
+        logger.error('Failed to reorder topics', { err })
+      }
+    },
+    [topics, refreshTopics]
+  )
 
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
@@ -183,41 +234,32 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
   )
 
   const onPinTopic = useCallback(
-    (topic: Topic) => {
-      // 只有当 pinTopicsToTop 开启时才重新排序话题
-      if (pinTopicsToTop) {
-        let newIndex = 0
-
+    async (topic: Topic) => {
+      // Pin state moved to the polymorphic `pin` table — pin = POST /pins,
+      // unpin = DELETE /pins/:pinId. The server-composed `/topics` view
+      // re-orders pinned-first on revalidate, so we don't manually reshuffle
+      // the array anymore — the PATCHes that the legacy code did to write
+      // `sortOrder` integers are gone.
+      try {
         if (topic.pinned) {
-          // 取消固定：将话题移到未固定话题的顶部
-          const pinnedTopics = topics.filter((t) => t.pinned)
-          const unpinnedTopics = topics.filter((t) => !t.pinned)
-
-          const reorderedTopics = [...pinnedTopics.filter((t) => t.id !== topic.id), topic, ...unpinnedTopics]
-
-          newIndex = pinnedTopics.length - 1
-          void updateTopics(reorderedTopics)
+          const pinId = pinByTopicId.get(topic.id)
+          if (pinId) {
+            await dataApiService.delete(`/pins/${pinId}`)
+          }
         } else {
-          // 固定话题：移到固定区域顶部
-          const pinnedTopics = topics.filter((t) => t.pinned)
-          const unpinnedTopics = topics.filter((t) => !t.pinned)
-
-          const reorderedTopics = [topic, ...pinnedTopics, ...unpinnedTopics.filter((t) => t.id !== topic.id)]
-
-          newIndex = 0
-          void updateTopics(reorderedTopics)
+          await dataApiService.post('/pins', { body: { entityType: 'topic', entityId: topic.id } })
         }
-
-        // 延迟滚动到话题位置（等待渲染完成）
-        setTimeout(() => {
-          listRef.current?.scrollToIndex(newIndex, { align: 'auto' })
-        }, 50)
+        await refreshTopics()
+        if (pinTopicsToTop) {
+          // After revalidation, the just-toggled topic lands at the head of
+          // its new section — scroll there so the user sees the move.
+          setTimeout(() => listRef.current?.scrollToIndex(0, { align: 'auto' }), 50)
+        }
+      } catch (err) {
+        logger.error('Failed to toggle topic pin', { topicId: topic.id, err })
       }
-
-      const updatedTopic = { ...topic, pinned: !topic.pinned }
-      void updateTopic(updatedTopic)
     },
-    [topics, updateTopic, updateTopics, pinTopicsToTop]
+    [pinByTopicId, refreshTopics, pinTopicsToTop]
   )
 
   const onDeleteTopic = useCallback(
