@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { getModelLogoById } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -21,10 +21,6 @@ import { usePartsMap } from './Blocks'
 
 interface MessageLineProps {
   messages: Message[]
-}
-
-const getModelIcon = (modelId: string | undefined) => {
-  return modelId ? getModelLogoById(modelId) : undefined
 }
 
 const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
@@ -193,7 +189,8 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
-          const ModelIcon = getModelIcon(getMessageModelId(message))
+          // Walk the full resolution chain (model icon → provider-by-model → provider).
+          const ModelIcon = getModelLogo(message.model)
           const username = removeLeadingEmoji(getUserName(message))
           const parts = partsMap?.[message.id]
           const content = parts ? getTextFromParts(parts) : getMainTextContent(message)

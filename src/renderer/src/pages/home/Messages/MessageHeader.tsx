@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
-import { getModelLogoById } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -31,10 +31,6 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const getAvatarIcon = (modelId: string | undefined) => {
-  return modelId ? getModelLogoById(modelId) : undefined
-}
-
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
@@ -51,7 +47,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
-  const ModelIcon = useMemo(() => getAvatarIcon(getMessageModelId(message)), [message])
+  const ModelIcon = useMemo(() => getModelLogo(message.model ?? model), [message.model, model])
 
   const getUserName = useCallback(() => {
     if (isAgentView && message.role === 'assistant') {
