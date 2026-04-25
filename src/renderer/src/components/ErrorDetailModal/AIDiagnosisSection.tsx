@@ -1,18 +1,45 @@
-import { dbService } from '@renderer/services/db/DbService'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { diagnoseError } from '@renderer/services/ErrorDiagnosisService'
-import store from '@renderer/store'
-import { updateOneBlock } from '@renderer/store/messageBlock'
 import type { SerializedError } from '@renderer/types/error'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-function persistDiagnosis(blockId: string, diagnosis: DiagnosisResult) {
-  const block = store.getState().messageBlocks.entities[blockId]
-  const updatedMetadata = { ...block?.metadata, diagnosis }
-  store.dispatch(updateOneBlock({ id: blockId, changes: { metadata: updatedMetadata } }))
-  void dbService.updateSingleBlock(blockId, { metadata: updatedMetadata })
+const logger = loggerService.withContext('AIDiagnosisSection')
+
+async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult) {
+  const match = partId.match(/^(.+)-(?:part|block)-(\d+)$/)
+  if (!match) return
+  const [, messageId, indexStr] = match
+  const partIndex = parseInt(indexStr, 10)
+
+  try {
+    const res = (await dataApiService.get(`/messages/${messageId}`)) as { data?: { parts?: CherryMessagePart[] } }
+    const parts = res.data?.parts
+    if (!parts || partIndex < 0 || partIndex >= parts.length) return
+
+    const target = parts[partIndex]
+    const existing = ('providerMetadata' in target ? target.providerMetadata : undefined) as
+      | { cherry?: Record<string, unknown> }
+      | undefined
+    const updatedPart = {
+      ...target,
+      providerMetadata: {
+        ...existing,
+        // Cast: AI-SDK's providerMetadata index signature is `JSONValue`, but
+        // we treat `cherry.*` as opaque renderer metadata — DiagnosisResult is
+        // structurally JSON-safe (strings + nested arrays) even if TS can't see it.
+        cherry: { ...existing?.cherry, diagnosis: diagnosis as unknown as Record<string, unknown> }
+      }
+    } as CherryMessagePart
+    const updatedParts = parts.map((p, i) => (i === partIndex ? updatedPart : p))
+    await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: updatedParts } } })
+  } catch (err) {
+    logger.warn(`Failed to persist diagnosis for ${partId}:`, { error: err })
+  }
 }
 
 const diagPanelStyle: React.CSSProperties = {
@@ -77,7 +104,7 @@ const AIDiagnosisSectionWithStatus = memo(
         setResult(diagnosis)
         onStatusChange('done')
         if (blockId) {
-          persistDiagnosis(blockId, diagnosis)
+          void persistDiagnosis(blockId, diagnosis)
         }
       } catch (err: unknown) {
         if (cancelledRef.current) return
