@@ -9,6 +9,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
+import { updateAssistant, updateDefaultAssistant } from '@renderer/store/assistants'
 import {
   setEnableDataCollection,
   setEnableSpellCheck,
@@ -102,12 +103,25 @@ const GeneralSettings: FC = () => {
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const defaultAssistant = useSelector((state: RootState) => state.assistants.defaultAssistant)
 
-  const onSelectLanguage = (value: LanguageVarious) => {
+  const KNOWN_DEFAULT_ASSISTANT_NAMES = ['Default Assistant', '默认助手', '預設助手']
+  const KNOWN_DEFAULT_TOPIC_NAMES = ['Default Topic', '默认话题', '預設話題']
+
+  const onSelectLanguage = async (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
     void window.api.setLanguage(value)
-    void i18n.changeLanguage(value)
+    await i18n.changeLanguage(value)
+
+    if (KNOWN_DEFAULT_ASSISTANT_NAMES.includes(defaultAssistant.name)) {
+      const newName = i18n.t('chat.default.name')
+      const updatedTopics = defaultAssistant.topics.map((topic) =>
+        KNOWN_DEFAULT_TOPIC_NAMES.includes(topic.name) ? { ...topic, name: i18n.t('chat.default.topic.name') } : topic
+      )
+      dispatch(updateDefaultAssistant({ assistant: { ...defaultAssistant, name: newName, topics: updatedTopics } }))
+      dispatch(updateAssistant({ id: defaultAssistant.id, name: newName, topics: updatedTopics }))
+    }
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
