@@ -41,7 +41,7 @@ const KnowledgePageDetailSection = () => {
           />
         ) : null}
         {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} /> : null}
-        {activeTab === 'recall' ? <RecallTestPanel /> : null}
+        {activeTab === 'recall' ? <RecallTestPanel baseId={selectedBaseId} /> : null}
       </div>
     </main>
   )

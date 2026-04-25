@@ -96,21 +96,22 @@ const DetailHeader = ({ base, onRenameBase, onDeleteBase }: DetailHeaderProps) =
               side="bottom"
               sideOffset={8}
               collisionPadding={8}
-              className="w-52 rounded-xl p-2"
+              className="w-27.5 min-w-27.5 rounded-lg border-border bg-popover p-1 shadow-xl"
               onOpenAutoFocus={(event) => event.preventDefault()}
               onCloseAutoFocus={(event) => event.preventDefault()}>
-              <MenuList className="gap-0.5">
+              <MenuList className="gap-0">
                 <MenuItem
                   variant="ghost"
-                  icon={<PencilLine className="size-3.5" />}
+                  icon={<PencilLine className="size-2.25" />}
                   label={t('knowledge_v2.context.rename')}
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-[10px] text-popover-foreground hover:bg-accent"
                   onClick={handleRenameBase}
                 />
                 <MenuItem
                   variant="ghost"
-                  icon={<Trash2 className="size-3.5" />}
+                  icon={<Trash2 className="size-2.25" />}
                   label={t('knowledge_v2.context.delete')}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-[10px] text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
                   onClick={() => {
                     setIsMenuOpen(false)
                     setIsDeleteDialogOpen(true)

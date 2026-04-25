@@ -1,0 +1,109 @@
+import { useCache } from '@data/hooks/useCache'
+import { loggerService } from '@logger'
+import type { ReactNode } from 'react'
+import { createContext, use, useState } from 'react'
+
+import type { RecallResultItem, RecallTestContextValue } from './types'
+import { mapRecallResult, prependHistoryQuery } from './utils'
+
+const logger = loggerService.withContext('KnowledgeV2RecallTest')
+
+const RecallTestContext = createContext<RecallTestContextValue | null>(null)
+
+export const useRecallTest = () => {
+  const context = use(RecallTestContext)
+
+  if (!context) {
+    throw new Error('RecallTest components must be used within RecallTestProvider')
+  }
+
+  return context
+}
+
+interface RecallTestProviderProps {
+  baseId: string
+  children: ReactNode
+}
+
+const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
+  const [query, setQuery] = useState('')
+  const [historyQueriesByBaseId, setHistoryQueriesByBaseId] = useCache('knowledge.recall.search_queries')
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const [results, setResults] = useState<RecallResultItem[]>([])
+  const [duration, setDuration] = useState(0)
+  const [isSearching, setIsSearching] = useState(false)
+
+  const historyQueries = historyQueriesByBaseId[baseId] ?? []
+  const historyItems = historyQueries.map((query) => ({ id: query, query }))
+  const topScore = results.reduce((score, item) => Math.max(score, item.score), 0)
+
+  const runSearch = async () => {
+    const trimmedQuery = query.trim()
+
+    if (trimmedQuery.length === 0) {
+      return
+    }
+
+    const currentHistoryQueries = historyQueriesByBaseId[baseId] ?? []
+    setHistoryQueriesByBaseId({
+      ...historyQueriesByBaseId,
+      [baseId]: prependHistoryQuery(currentHistoryQueries, trimmedQuery)
+    })
+
+    setIsSearching(true)
+    setResults([])
+    const startTime = performance.now()
+
+    try {
+      const searchResults = await window.api.knowledgeRuntime.search(baseId, trimmedQuery)
+      logger.info('Knowledge recall search IPC result', { baseId, query: trimmedQuery, results: searchResults })
+      setResults(searchResults.map(mapRecallResult))
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error('Knowledge recall search IPC failed', normalizedError, { baseId, query: trimmedQuery })
+      setResults([])
+    }
+
+    setDuration(Math.round(performance.now() - startTime))
+    setIsSearching(false)
+    setHasSearched(true)
+  }
+
+  const value: RecallTestContextValue = {
+    state: {
+      query,
+      historyItems,
+      isHistoryOpen,
+      isSearching,
+      hasSearched,
+      results,
+      duration,
+      topScore
+    },
+    actions: {
+      setQuery,
+      setHistoryOpen: setIsHistoryOpen,
+      runSearch,
+      selectHistory: (item) => {
+        setQuery(item.query)
+        setIsHistoryOpen(false)
+      },
+      removeHistory: (historyId) =>
+        setHistoryQueriesByBaseId({
+          ...historyQueriesByBaseId,
+          [baseId]: historyQueries.filter((item) => item !== historyId)
+        }),
+      clearHistory: () =>
+        setHistoryQueriesByBaseId({
+          ...historyQueriesByBaseId,
+          [baseId]: []
+        })
+    },
+    meta: { baseId }
+  }
+
+  return <RecallTestContext value={value}>{children}</RecallTestContext>
+}
+
+export default RecallTestProvider
