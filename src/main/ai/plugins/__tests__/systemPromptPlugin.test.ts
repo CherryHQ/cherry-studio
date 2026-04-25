@@ -1,5 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the dependency modules BEFORE importing the plugin so the factory
@@ -40,7 +40,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   } as Assistant
 }
 
-const model = { id: 'gpt-4', providerId: 'openai', name: 'GPT-4' } as Model
+const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name: 'GPT-4' } as Model
 
 describe('systemPromptPlugin', () => {
   afterEach(() => {

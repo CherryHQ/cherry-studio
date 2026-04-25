@@ -2,18 +2,20 @@ import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
 import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
-import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -62,27 +64,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  // Synchronous store read — avoids pulling in react-redux `<Provider>`, which is
-  // intentionally absent from the mini window (see MiniWindowApp). The store is
-  // rehydrated by PersistGate before this component mounts, so `getAssistantById`
-  // returns stable data.
-  //
-  // Why not DataApi `useQuery('/assistants/:id')` (endpoints already exist):
-  //  - Downstream (`<InputBar>` → `<ModelAvatar model={...} />`) expects a fully
-  //    populated `Model` object. DataApi's Assistant carries only `modelId`, so
-  //    going that route means a second `useQuery('/models/:providerId/:modelId')`
-  //    and reshaping the result to match — the change would fan out to
-  //    ModelAvatar / InputBar and other consumers.
-  //  - A mini window session keeps a single assistant config for its whole
-  //    lifetime. Config changes originate in the main window (QuickAssistantSettings)
-  //    and only take effect on the next open; no live reactivity is needed here.
-  //
-  // Full DataApi migration is a follow-up once downstream components have been
-  // converted off the monolithic Assistant/Model shape.
-  const currentAssistant = useMemo(() => {
-    const base = (quickAssistantId && getAssistantById(quickAssistantId)) || getDefaultAssistant()
-    return { ...base, model: base.model ?? getDefaultModel() }
-  }, [quickAssistantId])
+  // DataApi-backed read; falls back to the seeded DEFAULT_ASSISTANT_ID when no
+  // quick-assistant has been chosen. `useAssistant` already composes the
+  // assistant + its resolved Model (with default-model fallback for unset
+  // `modelId`).
+  const effectiveAssistantId = quickAssistantId || DEFAULT_ASSISTANT_ID
+  const { assistant: currentAssistant, model: currentApiModel } = useAssistant(effectiveAssistantId)
+  const currentModel = useMemo(
+    () => (currentApiModel ? fromSharedModel(currentApiModel) : undefined),
+    [currentApiModel]
+  )
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -90,7 +81,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic(currentAssistant.id)
+  } = useTemporaryTopic(currentAssistant?.id ?? effectiveAssistantId)
 
   const referenceText = clipboardText || userInputText
 
@@ -405,9 +396,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
-      model: quickAssistantId ? currentAssistant.name : currentAssistant.model.name
+      model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
     })
-  }, [referenceText, route, t, quickAssistantId, currentAssistant])
+  }, [referenceText, route, t, quickAssistantId, currentAssistant, currentModel])
 
   const baseFooterProps = useMemo(
     () => ({
@@ -426,11 +417,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'explanation':
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          {route === 'chat' && (
+          {route === 'chat' && currentAssistant && (
             <>
               <InputBar
                 text={userInputText}
                 assistant={currentAssistant}
+                model={currentModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
@@ -458,7 +450,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             ))}
           <ChatWindow
             route={route}
-            assistant={currentAssistant}
+            assistant={currentAssistant ?? null}
             isOutputted={isOutputted}
             messages={adaptedMessages}
             partsMap={partsMap}
@@ -482,16 +474,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     default:
       return (
         <Container style={{ backgroundColor }} $draggable={draggable}>
-          <InputBar
-            text={userInputText}
-            assistant={currentAssistant}
-            referenceText={referenceText}
-            placeholder={inputPlaceholder}
-            loading={isLoading}
-            handleKeyDown={handleKeyDown}
-            handleChange={handleChange}
-            ref={inputBarRef}
-          />
+          {currentAssistant && (
+            <InputBar
+              text={userInputText}
+              assistant={currentAssistant}
+              model={currentModel}
+              referenceText={referenceText}
+              placeholder={inputPlaceholder}
+              loading={isLoading}
+              handleKeyDown={handleKeyDown}
+              handleChange={handleChange}
+              ref={inputBarRef}
+            />
+          )}
           <Divider style={{ margin: '10px 0' }} />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           <Main>

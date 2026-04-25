@@ -4,26 +4,20 @@ import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/compone
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
-import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
-import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
 import NavbarIcon from '../../components/NavbarIcon'
-import AssistantsDrawer from './components/AssistantsDrawer'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
-  activeAssistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const HeaderNavbar: FC<Props> = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
@@ -36,15 +30,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
-  }
-
-  const onShowAssistantsDrawer = () => {
-    void AssistantsDrawer.show({
-      activeAssistant,
-      setActiveAssistant,
-      activeTopic,
-      setActiveTopic
-    })
   }
 
   return (
@@ -81,18 +66,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
-          <AnimatePresence initial={false}>
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
-                <Menu size={18} />
-              </NavbarIcon>
-            </motion.div>
-          </AnimatePresence>
         </NavbarLeft>
       )}
       <NavbarCenter></NavbarCenter>

@@ -2,7 +2,8 @@ import { ColFlex, Flex, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useKnowledge } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -104,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
-  const { bases } = useKnowledgeBases()
+  const { knowledgeBases: bases } = useKnowledgeBases()
   const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
   const { t } = useTranslation()
 
@@ -174,14 +175,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       bases.map((base) => ({
         label: base.name,
         value: base.id,
-        disabled: !base.version
+        disabled: !base.embeddingModelId
       })),
     [bases]
   )
 
   // 表单状态
   const formState = useMemo(() => {
-    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.version
+    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.embeddingModelId
     const hasContent = isNoteMode || contentTypeOptions.length > 0
 
     const canSubmit = hasValidBase && (isNoteMode || (selectedTypes.length > 0 && hasContent))
@@ -204,7 +205,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   // 默认选择第一个可用知识库
   useEffect(() => {
     if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.version)
+      const firstAvailableBase = bases.find((base) => base.embeddingModelId)
       if (firstAvailableBase) {
         setSelectedBaseId(firstAvailableBase.id)
       }
@@ -260,7 +261,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         throw new Error('Selected knowledge base not found')
       }
 
-      if (!selectedBase.version) {
+      if (!selectedBase.embeddingModelId) {
         throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
       }
 

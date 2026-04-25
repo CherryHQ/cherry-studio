@@ -11,13 +11,14 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { webSearchService } from '@renderer/services/WebSearchService'
-import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
+import { getEffectiveMcpMode, type WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
@@ -62,75 +63,64 @@ export const WebSearchProviderIcon = ({
 
 export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
+  const { assistant, model, updateAssistant } = useAssistant(assistantId)
+  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { providers } = useWebSearchProviders()
   const { setTimeoutTimer } = useTimer()
 
-  const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
+  const enableWebSearch = assistant?.settings.enableWebSearch ?? false
 
-  const updateWebSearchProvider = useCallback(
-    async (providerId?: WebSearchProvider['id']) => {
-      setTimeoutTimer('updateWebSearchProvider', () => {
-        updateAssistant({
-          ...assistant,
-          webSearchProviderId: providerId,
-          enableWebSearch: false
+  const setEnableWebSearch = useCallback(
+    (next: boolean) => {
+      if (!assistant) return
+      setTimeoutTimer('setEnableWebSearch', () => {
+        void updateAssistant({
+          settings: { ...assistant.settings, enableWebSearch: next }
         })
       })
     },
     [assistant, setTimeoutTimer, updateAssistant]
   )
 
-  const updateQuickPanelItem = useCallback(
-    async (providerId?: WebSearchProvider['id']) => {
-      if (providerId === assistant.webSearchProviderId) {
-        void updateWebSearchProvider(undefined)
-      } else {
-        void updateWebSearchProvider(providerId)
-      }
-    },
-    [assistant.webSearchProviderId, updateWebSearchProvider]
-  )
-
   const updateToModelBuiltinWebSearch = useCallback(async () => {
-    const update = {
-      ...assistant,
-      webSearchProviderId: undefined,
-      enableWebSearch: !assistant.enableWebSearch
-    }
-    const model = assistant.model
-    const provider = getProviderByModel(model)
-    if (!model) {
+    if (!assistant || !v1Model) {
       logger.error('Model does not exist.')
       window.toast.error(t('error.model.not_exists'))
       return
     }
+    let nextEnableWebSearch = !assistant.settings.enableWebSearch
+    const provider = getProviderByModel(v1Model)
     // Gemini 3+ supports combining built-in tools with function calling
     if (
+      provider &&
       isGeminiWebSearchProvider(provider) &&
-      isGeminiModel(model) &&
-      !isGemini3Model(model) &&
+      isGeminiModel(v1Model) &&
+      !isGemini3Model(v1Model) &&
       isToolUseModeFunction(assistant) &&
-      update.enableWebSearch &&
+      nextEnableWebSearch &&
       getEffectiveMcpMode(assistant) !== 'disabled'
     ) {
-      update.enableWebSearch = false
+      nextEnableWebSearch = false
       window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
     }
     if (
-      isOpenAIWebSearchModel(model) &&
-      isGPT5SeriesReasoningModel(model) &&
-      update.enableWebSearch &&
-      assistant.settings?.reasoning_effort === 'minimal'
+      isOpenAIWebSearchModel(v1Model) &&
+      isGPT5SeriesReasoningModel(v1Model) &&
+      nextEnableWebSearch &&
+      assistant.settings.reasoning_effort === 'minimal'
     ) {
-      update.enableWebSearch = false
+      nextEnableWebSearch = false
       window.toast.warning(t('chat.web_search.warning.openai'))
     }
-    setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
-  }, [assistant, setTimeoutTimer, t, updateAssistant])
+    setTimeoutTimer(
+      'updateSelectedWebSearchBuiltin',
+      () => updateAssistant({ settings: { ...assistant.settings, enableWebSearch: nextEnableWebSearch } }),
+      200
+    )
+  }, [assistant, v1Model, setTimeoutTimer, t, updateAssistant])
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
-    const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
+    const isWebSearchModelEnabled = !!v1Model && isWebSearchModel(v1Model)
     const items: QuickPanelListItem[] = []
     items.push(
       ...providers
@@ -142,9 +132,9 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
               : t('settings.tool.websearch.free')
             : t('chat.input.web_search.enable_content'),
           icon: <WebSearchProviderIcon size={13} pid={p.id} />,
-          isSelected: p.id === assistant?.webSearchProviderId,
+          isSelected: false,
           disabled: !webSearchService.isWebSearchEnabled(p.id),
-          action: () => updateQuickPanelItem(p.id)
+          action: () => setEnableWebSearch(true)
         }))
         .filter((item) => !item.disabled)
     )
@@ -156,14 +146,14 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
           ? t('chat.input.web_search.builtin.enabled_content')
           : t('chat.input.web_search.builtin.disabled_content'),
         icon: <Globe />,
-        isSelected: assistant.enableWebSearch,
+        isSelected: enableWebSearch,
         disabled: !isWebSearchModelEnabled,
         action: () => updateToModelBuiltinWebSearch()
       })
     }
 
     return items
-  }, [assistant, providers, t, updateQuickPanelItem, updateToModelBuiltinWebSearch])
+  }, [v1Model, enableWebSearch, providers, t, setEnableWebSearch, updateToModelBuiltinWebSearch])
 
   const openQuickPanel = useCallback(() => {
     quickPanelController.open({
@@ -187,9 +177,8 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     providerItems,
     openQuickPanel,
     toggleQuickPanel,
-    updateWebSearchProvider,
-    updateToModelBuiltinWebSearch,
-    selectedProviderId: assistant.webSearchProviderId
+    setEnableWebSearch,
+    updateToModelBuiltinWebSearch
   }
 }
 

@@ -12,13 +12,11 @@ import {
   updateProvider,
   updateProviders
 } from '@renderer/store/llm'
-import type { Assistant, Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { withoutTrailingSlash } from '@renderer/utils/api'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { useCallback, useMemo } from 'react'
-
-import { useDefaultModel } from './useAssistant'
 
 /**
  * Normalizes provider apiHost by removing trailing slashes.
@@ -88,7 +86,7 @@ export function useProvider(id: string) {
     (model: Model) => {
       let processedModel = { ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) }
 
-      if (isNewApiProvider(provider)) {
+      if (provider && isNewApiProvider(provider)) {
         const endpointTypes = model.supported_endpoint_types
         if (endpointTypes && endpointTypes.length > 0) {
           processedModel = {
@@ -111,11 +109,4 @@ export function useProvider(id: string) {
     removeModel: (model: Model) => dispatch(removeModel({ providerId: id, model })),
     updateModel: (model: Model) => dispatch(updateModel({ providerId: id, model }))
   }
-}
-
-export function useProviderByAssistant(assistant: Assistant) {
-  const { defaultModel } = useDefaultModel()
-  const model = assistant.model || defaultModel
-  const { provider } = useProvider(model?.provider ?? '')
-  return provider
 }

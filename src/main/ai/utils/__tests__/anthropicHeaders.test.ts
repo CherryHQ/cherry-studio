@@ -30,7 +30,12 @@ function makeAssistant(settings: Partial<Assistant['settings']> = {}): Assistant
 }
 
 function makeModel(overrides: Partial<Model> = {}): Model {
-  return { id: 'claude-sonnet-4-5-20250101', providerId: 'anthropic', name: 'Claude 4.5 Sonnet', ...overrides } as Model
+  return {
+    id: 'anthropic::claude-sonnet-4-5-20250101',
+    providerId: 'anthropic',
+    name: 'Claude 4.5 Sonnet',
+    ...overrides
+  } as Model
 }
 
 function makeProvider(overrides: Partial<Provider> = {}): Provider {
@@ -60,7 +65,7 @@ describe('addAnthropicHeaders', () => {
   it('adds web-search beta for Claude 4 series on Vertex when web search is enabled', () => {
     const headers = addAnthropicHeaders(
       makeAssistant({ enableWebSearch: true }),
-      makeModel({ id: 'claude-sonnet-4-20250101' }),
+      makeModel({ id: 'anthropic::claude-sonnet-4-20250101' }),
       makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex' })
     )
     expect(headers).toContain('web-search-2025-03-05')
@@ -69,7 +74,7 @@ describe('addAnthropicHeaders', () => {
   it('does NOT add web-search on Vertex when web search is disabled', () => {
     const headers = addAnthropicHeaders(
       makeAssistant({ enableWebSearch: false }),
-      makeModel({ id: 'claude-sonnet-4-20250101' }),
+      makeModel({ id: 'anthropic::claude-sonnet-4-20250101' }),
       makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex' })
     )
     expect(headers).not.toContain('web-search-2025-03-05')
@@ -78,7 +83,7 @@ describe('addAnthropicHeaders', () => {
   it('returns an empty list for non-qualifying model/provider combos', () => {
     const headers = addAnthropicHeaders(
       makeAssistant(),
-      makeModel({ id: 'gpt-4', providerId: 'openai' }),
+      makeModel({ id: 'openai::gpt-4', providerId: 'openai' }),
       makeProvider({ id: 'openai' })
     )
     expect(headers).toEqual([])

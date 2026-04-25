@@ -2,20 +2,21 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  isAutoEnableImageGenerationModel,
   isGenerateImageModel,
   isGenerateImageModels,
-  isMandatoryWebSearchModel,
   isVisionModel,
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
@@ -24,18 +25,9 @@ import {
   useInputbarToolsInternalDispatch,
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
-import { webSearchService } from '@renderer/services/WebSearchService'
-import {
-  type Assistant,
-  type FileMetadata,
-  type KnowledgeBase,
-  type Model,
-  type Topic,
-  TopicType
-} from '@renderer/types'
+import { type FileMetadata, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -66,7 +58,6 @@ const getValidatedCachedModels = (assistantId: string): Model[] => {
 }
 
 interface Props {
-  assistant: Assistant
   setActiveTopic: (topic: Topic) => void
   topic: Topic
   onSend: (
@@ -88,7 +79,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic, onSend: onSendProp }) => {
+const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -98,18 +89,18 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
     toggleExpanded: () => {}
   })
 
-  const [initialMentionedModels] = useState(() => getValidatedCachedModels(initialAssistant.id))
+  const [initialMentionedModels] = useState(() => getValidatedCachedModels(topic.assistantId))
 
   const initialState = useMemo(
     () => ({
       files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
-      selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
+      selectedKnowledgeBases: [] as KnowledgeBase[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialMentionedModels, initialAssistant.knowledge_bases]
+    [initialMentionedModels]
   )
 
   return (
@@ -123,24 +114,12 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <InputbarInner
-        assistant={initialAssistant}
-        setActiveTopic={setActiveTopic}
-        topic={topic}
-        actionsRef={actionsRef}
-        onSend={onSendProp}
-      />
+      <InputbarInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({
-  assistant: initialAssistant,
-  setActiveTopic,
-  topic,
-  actionsRef,
-  onSend: onSendProp
-}) => {
+const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsRef, onSend: onSendProp }) => {
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
@@ -165,7 +144,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     minHeight: 30
   })
 
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(initialAssistant.id)
+  const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
+  const { createTopic } = useTopicMutations()
+  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
+  const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -183,8 +165,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     setIsSending(false)
   }, [topic.id])
   const loading = isPending || isSending
-  const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
-  const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+  const isVisionAssistant = useMemo(() => (v1Model ? isVisionModel(v1Model) : false), [v1Model])
+  const isGenerateImageAssistant = useMemo(() => (v1Model ? isGenerateImageModel(v1Model) : false), [v1Model])
   const { setTimeoutTimer } = useTimer()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
@@ -235,9 +217,9 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   })
 
   useEffect(() => {
-    return () => onUnmount(assistant.id)
+    return () => onUnmount(topic.assistantId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant.id])
+  }, [topic.assistantId])
 
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
@@ -313,20 +295,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   }, [loading, onPause])
 
   const addNewTopic = useCallback(async () => {
-    if (assistant.defaultModel) {
-      setModel(assistant.defaultModel)
-    }
-
-    // `addTopic` returns the DataApi-persisted topic whose id is the one
-    // Main will recognise. Activating the local seed (`getDefaultTopic`)
-    // would leave `activeTopic.id` pointing at an unpersisted UUID, which
-    // then makes `Ai_Stream_Open` fail with "Topic not found".
-    const persisted = await addTopic(getDefaultTopic(assistant.id))
+    const persisted = await createTopic({ assistantId: topic.assistantId, name: t('chat.default.topic.name') })
     if (!persisted) return
-    setActiveTopic(persisted)
+    setActiveTopic(mapApiTopicToRendererTopic(persisted))
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
+  }, [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer])
 
   const handleRemoveModel = useCallback(
     (modelToRemove: Model) => {
@@ -337,11 +311,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({
 
   const handleRemoveKnowledgeBase = useCallback(
     (knowledgeBase: KnowledgeBase) => {
-      const nextKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-      updateAssistant({ ...assistant, knowledge_bases: nextKnowledgeBases })
-      setSelectedKnowledgeBases(nextKnowledgeBases ?? [])
+      const nextIds = (assistant?.knowledgeBaseIds ?? []).filter((id) => id !== knowledgeBase.id)
+      void updateAssistant({ knowledgeBaseIds: nextIds })
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => nextIds.includes(kb.id)) as unknown as KnowledgeBase[])
     },
-    [assistant, setSelectedKnowledgeBases, updateAssistant]
+    [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases, updateAssistant]
   )
 
   const handleToggleExpanded = useCallback(
@@ -412,45 +386,29 @@ const InputbarInner: FC<InputbarInnerProps> = ({
     }
   }, [
     topic.id,
-    assistant.mcpServers,
-    assistant.knowledge_bases,
-    assistant.enableWebSearch,
-    assistant.webSearchProviderId,
+    assistant?.mcpServerIds,
+    assistant?.knowledgeBaseIds,
+    assistant?.settings.enableWebSearch,
     mentionedModels,
     focusTextarea
   ])
 
-  // TODO: Just use assistant.knowledge_bases as selectedKnowledgeBases. context state is overdesigned.
   useEffect(() => {
-    setSelectedKnowledgeBases(assistant.knowledge_bases ?? [])
-  }, [assistant.knowledge_bases, setSelectedKnowledgeBases])
+    const ids = assistant?.knowledgeBaseIds ?? []
+    if (ids.length === 0) {
+      setSelectedKnowledgeBases([])
+      return
+    }
+    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
+  }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
 
   useEffect(() => {
-    // Disable web search if model doesn't support it
-    if (!isWebSearchModel(model) && assistant.enableWebSearch) {
-      updateAssistant({ ...assistant, enableWebSearch: false })
+    if (!assistant) return
+    if (!v1Model || isWebSearchModel(v1Model)) return
+    if (assistant.settings.enableWebSearch) {
+      void updateAssistant({ settings: { ...assistant.settings, enableWebSearch: false } })
     }
-
-    // Clear web search provider if disabled or model has mandatory search
-    if (
-      assistant.webSearchProviderId &&
-      (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
-    ) {
-      updateAssistant({ ...assistant, webSearchProviderId: undefined })
-    }
-
-    // v1 legacy: auto-enable/disable image generation when the user switches
-    // to a model that IS an image generator. v2 moves image gen to tool
-    // calls — a general chat model invokes an image tool, so this side-
-    // effect goes away (the toggle disappears, no per-model flip needed).
-    if (isGenerateImageModel(model)) {
-      if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
-        updateAssistant({ ...assistant, enableGenerateImage: true })
-      }
-    } else if (assistant.enableGenerateImage) {
-      updateAssistant({ ...assistant, enableGenerateImage: false })
-    }
-  }, [assistant, model, updateAssistant])
+  }, [assistant, v1Model, updateAssistant])
 
   if (isMultiSelectMode) {
     return null
@@ -473,7 +431,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({
   )
 
   // leftToolbar: 左侧工具栏
-  const leftToolbar = config.showTools ? <InputbarTools scope={scope} assistant={assistant} model={model} /> : null
+  const leftToolbar =
+    config.showTools && assistant && v1Model ? (
+      <InputbarTools scope={scope} assistant={assistant} model={v1Model} />
+    ) : null
 
   // rightToolbar: 右侧工具栏
   const rightToolbar = (

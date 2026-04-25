@@ -3,7 +3,6 @@ import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AddButton from '@renderer/components/AddButton'
-import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import type { DraggableVirtualListRef } from '@renderer/components/DraggableList'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -12,16 +11,14 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
-import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { mapApiTopicToRendererTopic, useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
@@ -41,7 +38,6 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   CheckSquare,
-  FolderOpen,
   ListChecks,
   MenuIcon,
   NotebookPen,
@@ -62,18 +58,31 @@ import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 const logger = loggerService.withContext('Topics')
 
 interface Props {
-  assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
 }
 
-export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
+export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position }) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const { assistants } = useAssistants()
-  const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { topics: apiTopics } = useTopicsByAssistant(_assistant.id)
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, batchUpdateTopics } = useTopicMutations()
+  const removeTopic = useCallback((topic: Topic) => deleteTopicById(topic.id), [deleteTopicById])
+  const updateTopic = useCallback(
+    (topic: Topic) =>
+      patchTopic(topic.id, {
+        name: topic.name,
+        isNameManuallyEdited: topic.isNameManuallyEdited,
+        isPinned: topic.pinned
+      }),
+    [patchTopic]
+  )
+  const updateTopics = useCallback(
+    (topics: Topic[]) =>
+      batchUpdateTopics(topics.map((t, i) => ({ id: t.id, dto: { name: t.name, isPinned: t.pinned, sortOrder: i } }))),
+    [batchUpdateTopics]
+  )
+  const { topics: apiTopics } = useAllTopics()
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
 
   const [showTopicTime] = usePreference('topic.tab.show_time')
@@ -161,22 +170,16 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         setDeletingTopicId(null)
         return
       }
-      // Only adjust the active topic / seed a fresh topic *after* the delete
-      // succeeded — otherwise a reject (e.g. `INVALID_OPERATION: forked
-      // topics depend on this topic`) leaves the user staring at a silently
-      // missing topic in the sidebar.
-      if (topics.length === 1) {
-        const persisted = await addTopic(getDefaultTopic(assistant.id))
-        if (persisted) {
-          setActiveTopic(persisted)
-        }
-      } else if (topic.id === activeTopic.id) {
+      // Topics are no longer assistant-scoped — when the deleted row was the
+      // active one, hop to its neighbour. An empty list now shows an empty
+      // state instead of auto-seeding a fresh topic.
+      if (topic.id === activeTopic.id && topics.length > 1) {
         const index = findIndex(topics, (t) => t.id === topic.id)
         setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
       }
       setDeletingTopicId(null)
     },
-    [activeTopic.id, addTopic, assistant.id, topics, removeTopic, setActiveTopic, t]
+    [activeTopic.id, topics, removeTopic, setActiveTopic, t]
   )
 
   const onPinTopic = useCallback(
@@ -233,15 +236,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       }
     },
     [topics, removeTopic, setActiveTopic, activeTopic, t]
-  )
-
-  const onMoveTopic = useCallback(
-    (topic: Topic, toAssistant: Assistant) => {
-      const index = findIndex(topics, (t) => t.id === topic.id)
-      setActiveTopic(topics[index + 1 === topics.length ? 0 : index + 1])
-      void moveTopic(topic, toAssistant)
-    },
-    [topics, moveTopic, setActiveTopic]
   )
 
   const onSwitchTopic = useCallback(
@@ -467,23 +461,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       }
     ]
 
-    if (assistants.length > 1 && topics.length > 1) {
-      menus.push({
-        label: t('chat.topics.move_to'),
-        key: 'move',
-        icon: <FolderOpen size={14} />,
-        popupClassName: 'move-to-submenu',
-        children: assistants
-          .filter((a) => a.id !== assistant.id)
-          .map((a) => ({
-            label: a.name,
-            key: a.id,
-            icon: <AssistantAvatar assistant={a} size={18} />,
-            onClick: () => onMoveTopic(topic, a)
-          }))
-      })
-    }
-
     if (topics.length > 1 && !topic.pinned) {
       menus.push({ type: 'divider' })
       menus.push({
@@ -509,16 +486,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     exportMenuOptions.obsidian,
     exportMenuOptions.joplin,
     exportMenuOptions.siyuan,
-    assistants,
     notesPath,
-    assistant,
     updateTopic,
     activeTopic.id,
     setActiveTopic,
     onPinTopic,
     onClearMessages,
     setTopicPosition,
-    onMoveTopic,
     onDeleteTopic
   ])
 
@@ -602,7 +576,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 toggleSelectTopic(topic.id)
               }
             } else {
-              void onSwitchTopic(topic)
+              onSwitchTopic(topic)
             }
           }
 
@@ -710,13 +684,10 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
       {/* 管理模式底部面板 */}
       <TopicManagePanel
-        assistant={assistant}
-        assistants={assistants}
         topics={topics}
         activeTopic={activeTopic}
         setActiveTopic={setActiveTopic}
         updateTopics={updateTopics}
-        moveTopic={moveTopic}
         manageState={manageState}
         filteredTopics={filteredTopics}
       />

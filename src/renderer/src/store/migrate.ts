@@ -33,8 +33,8 @@ import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
-  Assistant,
   BuiltinOcrProvider,
+  LegacyAssistant as Assistant,
   Model,
   Provider,
   ProviderApiOptions,

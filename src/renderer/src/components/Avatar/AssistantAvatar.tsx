@@ -1,6 +1,7 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { Assistant } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { FC } from 'react'
@@ -16,12 +17,13 @@ interface AssistantAvatarProps {
 
 const AssistantAvatar: FC<AssistantAvatarProps> = ({ assistant, size = 24, className }) => {
   const { assistantIconType } = useSettings()
-  const defaultModel = getDefaultModel()
+  const { model } = useAssistant(assistant.id)
+  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
 
   const assistantName = useMemo(() => assistant.name || '', [assistant.name])
 
   if (assistantIconType === 'model') {
-    return <ModelAvatar model={assistant.model || defaultModel} size={size} className={className} />
+    return <ModelAvatar model={v1Model} size={size} className={className} />
   }
 
   if (assistantIconType === 'emoji') {

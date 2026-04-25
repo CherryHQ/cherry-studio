@@ -20,7 +20,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
+import type { Model, Topic, TranslateLanguage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -77,7 +77,6 @@ const abortTranslation = (messageId: string) => {
 
 interface Props {
   message: Message
-  assistant: Assistant
   topic: Topic
   model?: Model
   isGrouped?: boolean
@@ -91,7 +90,6 @@ interface Props {
 const logger = loggerService.withContext('MessageMenubar')
 
 type MessageMenubarButtonContext = {
-  assistant: Assistant
   messageParts: CherryMessagePart[]
   confirmDeleteMessage: boolean
   confirmRegenerateMessage: boolean
@@ -129,17 +127,8 @@ type MessageMenubarButtonContext = {
 type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactNode | null
 
 const MessageMenubar: FC<Props> = (props) => {
-  const {
-    message,
-    isGrouped,
-    isLastMessage,
-    isAssistantMessage,
-    assistant,
-    model,
-    topic,
-    messageContainerRef,
-    onUpdateUseful
-  } = props
+  const { message, isGrouped, isLastMessage, isAssistantMessage, model, topic, messageContainerRef, onUpdateUseful } =
+    props
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
@@ -516,7 +505,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
 
   const buttonContext: MessageMenubarButtonContext = {
-    assistant,
     messageParts,
     confirmDeleteMessage,
     confirmRegenerateMessage,

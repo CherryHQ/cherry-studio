@@ -13,11 +13,15 @@ import {
   MIN_TOOL_CALLS
 } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { useModelById } from '@renderer/hooks/useModels'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
@@ -26,9 +30,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+type CustomParameter = AssistantSettings['customParameters'][number]
+
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (patch: UpdateAssistantDto) => void
   updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
 }
 
@@ -53,16 +59,17 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     () => assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
     [assistant?.settings?.enableMaxToolCalls]
   )
+  const { model: apiDefaultModel } = useModelById(assistant?.modelId as UniqueModelId)
   const defaultModel = useMemo(
-    () => assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
-    [assistant?.defaultModel]
+    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
+    [apiDefaultModel]
   )
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const enableTopP = useMemo(
     () => assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
     [assistant?.settings?.enableTopP]
   )
-  const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
+  const [customParameters, setCustomParameters] = useState<CustomParameter[]>(
     assistant?.settings?.customParameters ?? []
   )
   const enableTemperature = useMemo(
@@ -140,7 +147,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         return (
           <InputNumber
             style={{ width: '100%' }}
-            value={param.value as number}
+            value={param.value}
             onChange={(value) => onUpdateCustomParameter(index, 'value', value || 0)}
             step={0.01}
           />
@@ -148,7 +155,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       case 'boolean':
         return (
           <Select
-            value={param.value as boolean}
+            value={param.value}
             onChange={(value) => onUpdateCustomParameter(index, 'value', value)}
             style={{ width: '100%' }}
             options={[
@@ -193,12 +200,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         )
       }
       default:
-        return (
-          <Input
-            value={param.value as string}
-            onChange={(e) => onUpdateCustomParameter(index, 'value', e.target.value)}
-          />
-        )
+        return <Input value={param.value} onChange={(e) => onUpdateCustomParameter(index, 'value', e.target.value)} />
     }
   }
 
@@ -220,24 +222,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
   const onSelectModel = useCallback(async () => {
-    const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectChatModelPopup.show({ model: currentModel, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({ model: defaultModel, filter: modelFilter })
     if (selectedModel) {
-      updateAssistant({
-        ...assistant,
-        model: selectedModel,
-        defaultModel: selectedModel
-      })
-      // TODO: 移除根据模型自动修改参数的逻辑
-      if (selectedModel.name.includes('kimi-k2')) {
-        setTemperature(0.6)
-        setTimeoutTimer('onSelectModel_1', () => updateAssistantSettings({ temperature: 0.6 }), 500)
-      } else if (selectedModel.name.includes('moonshot')) {
-        setTemperature(0.3)
-        setTimeoutTimer('onSelectModel_2', () => updateAssistantSettings({ temperature: 0.3 }), 500)
-      }
+      updateAssistant({ modelId: createUniqueModelId(selectedModel.provider, selectedModel.id) })
     }
-  }, [assistant, defaultModel, setTimeoutTimer, updateAssistant, updateAssistantSettings])
+  }, [defaultModel, setTimeoutTimer, updateAssistant, updateAssistantSettings])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -263,7 +252,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               variant="destructive"
               size="icon"
               onClick={() => {
-                updateAssistant({ ...assistant, defaultModel: undefined })
+                updateAssistant({ modelId: null })
               }}>
               <DeleteIcon size={14} className="lucide-custom" />
             </Button>

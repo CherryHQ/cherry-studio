@@ -1,7 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
-import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -26,14 +25,13 @@ import MessageTokens from './MessageTokens'
 
 interface Props {
   message: Message
-  assistant: Assistant
+  assistant?: Assistant
   model?: Model
   topic: Topic
   isGroupContextMessage?: boolean
 }
 
-const getAvatarIcon = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return undefined
+const getAvatarIcon = (modelId: string | undefined) => {
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -53,13 +51,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isSelected = selectedMessageIds?.includes(message.id)
 
-  const ModelIcon = useMemo(() => getAvatarIcon(isLocalAi, getMessageModelId(message)), [message])
+  const ModelIcon = useMemo(() => getAvatarIcon(getMessageModelId(message)), [message])
 
   const getUserName = useCallback(() => {
-    if (isLocalAi && message.role !== 'user') {
-      return APP_NAME
-    }
-
     if (isAgentView && message.role === 'assistant') {
       return agent?.name ?? t('common.unknown')
     }
@@ -74,7 +68,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
 
-  const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
+  const avatarName = useMemo(() => firstLetter(assistant?.name ?? '').toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
@@ -101,15 +95,11 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
             style={{
               cursor: showMinappIcon ? 'pointer' : 'default',
-              border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+              border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}
             onClick={showMiniApp}>
-            {isLocalAi ? (
-              <AvatarImage src={AppLogo} />
-            ) : (
-              <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
-            )}
+            <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
           </Avatar>
         )
       ) : (

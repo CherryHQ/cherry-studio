@@ -1,16 +1,15 @@
-import type { Assistant } from '@renderer/types'
 import type { FC } from 'react'
 
 import TopicContent from './TopicContent'
 
 interface Props {
-  assistant: Assistant
+  assistantId: string
 }
 
-const ChatNavbarContent: FC<Props> = ({ assistant }) => {
+const ChatNavbarContent: FC<Props> = ({ assistantId }) => {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between">
-      <TopicContent assistant={assistant} />
+      <TopicContent assistantId={assistantId} />
     </div>
   )
 }

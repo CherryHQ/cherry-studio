@@ -32,7 +32,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shared/data/types/model')>()
+  const actual = (await importOriginal()) as any
   return {
     ...actual,
     createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)

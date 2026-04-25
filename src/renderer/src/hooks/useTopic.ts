@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { mapApiTopicToRendererTopic, useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import { fetchMessagesFromDataApi } from '@renderer/services/db/DataApiMessageDataSource'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -11,17 +11,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 let _activeTopicId: string | undefined
 
 /**
- * Manages the currently-selected topic for an assistant.
- *
- * Design: the UI state holds only `activeTopicId` (string). The `activeTopic`
- * object is derived from `topics` at render time, with a short-lived `pendingTopic`
- * fallback to handle optimistic creation before SWR refreshes.
- *
- * This avoids the "stale topic object" / "topic not yet in SWR cache" races that
- * used to silently switch the user back to an old topic.
+ * Manages the currently-selected topic across the home page.
+ * Keeps a transient `pendingTopic` for optimistic creation so SWR-refresh
+ * delays don't bounce the UI back to an old topic.
  */
-export function useActiveTopic(assistantId: string, topic?: Topic) {
-  const { topics: apiTopics, isLoading } = useTopicsByAssistant(assistantId)
+export function useActiveTopic(topic?: Topic) {
+  const { topics: apiTopics, isLoading } = useAllTopics()
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
   // Holds the last Topic object passed to setActiveTopic, used as fallback when

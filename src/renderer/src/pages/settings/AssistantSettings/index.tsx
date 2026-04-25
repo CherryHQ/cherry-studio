@@ -3,7 +3,8 @@ import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import type { Assistant } from '@renderer/types'
+import type { Assistant, AssistantPreset } from '@renderer/types'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,14 +14,13 @@ import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
-import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
 
 interface AssistantSettingPopupShowParams {
   assistant: Assistant
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -33,10 +33,21 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
 
   const _useAssistant = useAssistant(props.assistant.id)
   const _useAgent = useAssistantPreset(props.assistant.id)
-  const isAgent = props.assistant.type === 'agent'
+  // The popup is opened from two places: a real assistant (DataApi-backed) and
+  // a preset card (Redux v1 slice). Treat the entry as a preset if Redux holds
+  // a record with this id. Falls back to v1 prop shape when neither lookup
+  // resolves yet (transient first-render state).
+  const isAgent = !!_useAgent.preset
 
-  const assistant = isAgent ? (_useAgent.preset ?? props.assistant) : _useAssistant.assistant
-  const updateAssistant = isAgent ? _useAgent.updateAssistantPreset : _useAssistant.updateAssistant
+  const assistant: Assistant = isAgent
+    ? ((_useAgent.preset as Assistant | undefined) ?? props.assistant)
+    : (_useAssistant.assistant ?? props.assistant)
+
+  // Normalize preset (full-record write) and assistant (partial PATCH) update
+  // shapes to the same partial-patch contract that child panels expect.
+  const updateAssistant: (patch: UpdateAssistantDto) => void = isAgent
+    ? (patch) => _useAgent.updateAssistantPreset({ ...(assistant as AssistantPreset), ...patch })
+    : (patch) => void _useAssistant.updateAssistant(patch)
   const updateAssistantSettings = isAgent
     ? _useAgent.updateAssistantPresetSettings
     : _useAssistant.updateAssistantSettings
@@ -71,10 +82,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'mcp',
       label: t('assistants.settings.mcp.label')
-    },
-    {
-      key: 'regular_phrases',
-      label: t('assistants.settings.regular_phrases.title', 'Regular Prompts')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -133,9 +140,6 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
           {menu === 'mcp' && <AssistantMCPSettings assistant={assistant} updateAssistant={updateAssistant} />}
-          {menu === 'regular_phrases' && (
-            <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
-          )}
         </Settings>
       </RowFlex>
     </StyledModal>

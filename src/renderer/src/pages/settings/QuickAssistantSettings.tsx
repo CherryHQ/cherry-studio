@@ -2,10 +2,13 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Select } from 'antd'
 import type { FC } from 'react'
 import { useMemo } from 'react'
@@ -28,12 +31,16 @@ const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistants } = useAssistants()
-  const { defaultAssistant: _defaultAssistant } = useDefaultAssistant()
-  const { defaultModel } = useDefaultModel()
+  const { assistant: _defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { defaultModel: apiDefaultModel } = useDefaultModel()
+  const v1DefaultModel = useMemo(
+    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
+    [apiDefaultModel]
+  )
 
   // Take the "default assistant" from the assistant list first.
   const defaultAssistant = useMemo(
-    () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
+    () => assistants.find((a) => a.id === _defaultAssistant?.id) || _defaultAssistant,
     [assistants, _defaultAssistant]
   )
 
@@ -113,7 +120,7 @@ const QuickAssistantSettings: FC = () => {
               <Spacer />
             </RowFlex>
             <RowFlex className="items-center gap-2.5">
-              {!quickAssistantId ? null : (
+              {!quickAssistantId || !defaultAssistant ? null : (
                 <RowFlex className="items-center">
                   <Select
                     value={quickAssistantId || defaultAssistant.id}
@@ -128,7 +135,7 @@ const QuickAssistantSettings: FC = () => {
                         title: defaultAssistant.name,
                         label: (
                           <AssistantItem>
-                            <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
+                            <ModelAvatar model={v1DefaultModel} size={18} />
                             <AssistantName>{defaultAssistant.name}</AssistantName>
                             <Spacer />
                             <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
@@ -143,7 +150,7 @@ const QuickAssistantSettings: FC = () => {
                           title: a.name,
                           label: (
                             <AssistantItem>
-                              <ModelAvatar model={a.model || defaultModel} size={18} />
+                              <ModelAvatar model={v1DefaultModel} size={18} />
                               <AssistantName>{a.name}</AssistantName>
                               <Spacer />
                             </AssistantItem>
@@ -157,7 +164,7 @@ const QuickAssistantSettings: FC = () => {
               <RowFlex className="items-center gap-0">
                 <StyledButton
                   color={quickAssistantId ? 'primary' : 'default'}
-                  onClick={() => void setQuickAssistantId(defaultAssistant.id)}
+                  onClick={() => defaultAssistant && void setQuickAssistantId(defaultAssistant.id)}
                   selected={!!quickAssistantId}>
                   {t('settings.models.use_assistant')}
                 </StyledButton>

@@ -24,11 +24,13 @@ import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { TopicType } from '@renderer/pages/home/Inputbar/types'
 import { isSoulModeEnabled } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, ThinkingOption } from '@renderer/types'
+import type { Assistant, Model, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,28 +74,32 @@ const AgentSessionInputbar = ({
     toggleExpanded: () => {}
   })
 
-  // Create assistant stub with session data
+  // Resolve the v1-shape model the InputbarTools / model checks need.
+  const sessionModel = useMemo<Model | undefined>(() => {
+    if (!session?.model) return undefined
+    const [providerId, actualModelId] = session.model.split(':')
+    if (!providerId || !actualModelId) return undefined
+    return providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
+  }, [session?.model, providers])
+
+  // v2-shape Assistant stub for tools that expect a real assistant record.
   const assistantStub = useMemo<Assistant | null>(() => {
     if (!session) return null
-
-    // Extract model info
-    const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
-    const actualModel = actualModelId
-      ? providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
-      : undefined
-
+    const now = new Date().toISOString()
     return {
       id: session.agentId ?? agentId,
       name: session.name ?? 'Agent Session',
       prompt: session.instructions ?? '',
-      topics: [],
-      type: 'agent-session',
-      model: actualModel,
-      defaultModel: actualModel,
-      tags: [],
-      enableWebSearch: false
+      emoji: '🌟',
+      description: '',
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      modelId: sessionModel ? createUniqueModelId(sessionModel.provider, sessionModel.id) : null,
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
+      createdAt: now,
+      updatedAt: now
     } satisfies Assistant
-  }, [session, agentId, providers])
+  }, [session, agentId, sessionModel])
 
   // Prepare session data for tools
   const sessionData = useMemo(() => {
@@ -135,6 +141,7 @@ const AgentSessionInputbar = ({
       }}>
       <AgentSessionInputbarInner
         assistant={assistantStub}
+        model={sessionModel}
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
@@ -149,6 +156,7 @@ const AgentSessionInputbar = ({
 
 interface InnerProps {
   assistant: Assistant
+  model?: Model
   agentId: string
   sessionId: string
   sessionData?: ToolContext['session']
@@ -164,6 +172,7 @@ interface InnerProps {
 
 const AgentSessionInputbarInner: FC<InnerProps> = ({
   assistant,
+  model,
   agentId,
   sessionId,
   sessionData,
@@ -211,11 +220,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
 
   // Calculate vision and image generation support
-  const isVisionAssistant = useMemo(() => (assistant.model ? isVisionModel(assistant.model) : false), [assistant.model])
-  const isGenerateImageAssistant = useMemo(
-    () => (assistant.model ? isGenerateImageModel(assistant.model) : false),
-    [assistant.model]
-  )
+  const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
+  const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
 
   // Agent sessions don't support model mentions yet, so we only check the assistant's model
   const canAddImageFile = useMemo(() => {
@@ -436,8 +442,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
   const leftToolbar = useMemo(
     () => (
       <ToolbarGroup>
-        {config.showTools && (
-          <InputbarTools scope={scope} assistant={assistant} model={assistant.model!} session={toolsSession} />
+        {config.showTools && model && (
+          <InputbarTools scope={scope} assistant={assistant} model={model} session={toolsSession} />
         )}
       </ToolbarGroup>
     ),

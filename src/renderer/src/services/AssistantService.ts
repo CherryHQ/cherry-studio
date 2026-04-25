@@ -1,12 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import {
-  DEFAULT_CONTEXTCOUNT,
-  DEFAULT_MAX_TOKENS,
-  DEFAULT_TEMPERATURE,
-  MAX_CONTEXT_COUNT,
-  UNLIMITED_CONTEXT_COUNT
-} from '@renderer/config/constant'
+import { MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/config/models'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { UNKNOWN } from '@renderer/config/translate'
@@ -18,91 +12,89 @@ import type {
   Assistant,
   AssistantPreset,
   AssistantSettings,
+  LegacyAssistant,
   Model,
-  Provider,
-  Topic,
-  TranslateAssistant,
   TranslateLanguage
 } from '@renderer/types'
+import {
+  DEFAULT_ASSISTANT_ID,
+  DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS
+} from '@shared/data/types/assistant'
 import { v4 as uuid } from 'uuid'
+
+import { getProviderByModel } from './ProviderService'
+
+export { getProviderByModel }
+
+/**
+ * Fallback chain for "give me *some* provider":
+ *   1. Provider that matches the assistant's chosen model
+ *   2. First provider in the registry
+ *
+ * Returns `undefined` only when the provider registry is completely empty
+ * (fresh install before any LLM provider is configured). Caller passes the
+ * model so the function stays free of Redux/global lookups.
+ */
+export function getDefaultProvider(model?: Model) {
+  return getProviderByModel(model) ?? getStoreProviders()[0]
+}
 
 const logger = loggerService.withContext('AssistantService')
 
-/**
- * Default assistant settings configuration template.
- *
- * **Important**: This defines the DEFAULT VALUES for assistant settings, NOT the current settings
- * of the default assistant. To get the actual settings of the default assistant, use `getDefaultAssistantSettings()`.
- *
- * Provides sensible defaults for all assistant settings with a focus on minimal parameter usage:
- * - **Temperature disabled**: Use provider defaults by default
- * - **MaxTokens disabled**: Use provider defaults by default
- * - **TopP disabled**: Use provider defaults by default
- * - **Streaming enabled**: Provides real-time response for better UX
- * - **Standard context count**: Balanced memory usage and conversation length
- */
-export const DEFAULT_ASSISTANT_SETTINGS = {
-  maxTokens: DEFAULT_MAX_TOKENS,
-  enableMaxTokens: false,
-  temperature: DEFAULT_TEMPERATURE,
-  enableTemperature: false,
-  topP: 1,
-  enableTopP: false,
-  contextCount: DEFAULT_CONTEXTCOUNT,
-  streamOutput: true,
-  defaultModel: undefined,
-  customParameters: [],
-  reasoning_effort: 'default',
-  qwenThinkMode: undefined,
-  // It would gracefully fallback to prompt if not supported by model.
-  toolUseMode: 'function',
-  maxToolCalls: 20,
-  enableMaxToolCalls: true
-} as const satisfies AssistantSettings
+/** Default assistant settings — single source of truth lives in the shared
+ *  schema; re-exported here for legacy import paths until consumers migrate. */
+export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = SHARED_DEFAULT_ASSISTANT_SETTINGS
 
 /**
- * Creates a temporary default assistant instance.
- *
- * **Important**: This creates a NEW temporary assistant instance with DEFAULT_ASSISTANT_SETTINGS,
- * NOT the actual default assistant from Redux store. This is used as a template for creating
- * new assistants or as a fallback when no assistant is specified.
- *
- * To get the actual default assistant from Redux store (with current user settings), use:
- * ```typescript
- * const defaultAssistant = store.getState().assistants.defaultAssistant
- * ```
- *
- * @returns New temporary assistant instance with default settings
+ * Transient placeholder for windows that may render before any assistant is
+ * loaded (quick-assistant / selection). Real DataApi-backed code should use
+ * `useAssistantApiById(DEFAULT_ASSISTANT_ID)` — Phase 0 seeds that record on
+ * first launch.
  */
 export function getDefaultAssistant(): Assistant {
+  const now = new Date().toISOString()
   return {
-    id: 'default',
+    id: DEFAULT_ASSISTANT_ID,
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',
-    topics: [getDefaultTopic('default')],
-    messages: [],
-    type: 'assistant',
-    regularPhrases: [], // Added regularPhrases
-    settings: DEFAULT_ASSISTANT_SETTINGS
+    description: '',
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    modelId: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    createdAt: now,
+    updatedAt: now
   }
 }
 
 /**
- * Creates a default translate assistant.
- *
- * @param targetLanguage - Target language for translation
- * @param text - Text to be translated
- * @param _settings - Optional settings to override default assistant settings
- * @returns Configured translate assistant
+ * Translate-specific composition: assistant + the live translate model + the
+ * per-call target language and prompt-rendered content. Lives here only because
+ * `getDefaultTranslateAssistant` builds it; translate paths should compose
+ * locally (see plan).
+ */
+export type TranslateComposition = Assistant & {
+  model: Model
+  targetLanguage: TranslateLanguage
+  content: string
+}
+
+/**
+ * Compose a translate "assistant" (really a model + prompt + target-language
+ * bag). Throws when no translate model is configured or the language is
+ * unknown.
  */
 export async function getDefaultTranslateAssistant(
   targetLanguage: TranslateLanguage,
   text: string,
   _settings?: Partial<AssistantSettings>
-): Promise<TranslateAssistant> {
-  const model = getTranslateModel()
-  const assistant: Assistant = getDefaultAssistant()
+): Promise<TranslateComposition> {
+  // Direct Redux read — the LLM slice still owns translate-model selection.
+  // Goes away when this function is deleted in favour of `useTranslateModel`
+  // composition inside ActionTranslate / TranslatePage.
+  const model = store.getState().llm.translateModel
+  const assistant = getDefaultAssistant()
 
   if (!model) {
     logger.error('No translate model')
@@ -115,148 +107,39 @@ export async function getDefaultTranslateAssistant(
   }
 
   const supportedOptions = getModelSupportedReasoningEffortOptions(model)
-  // disable reasoning if it could be disabled, otherwise no configuration
   const reasoningEffort = supportedOptions?.includes('none') ? 'none' : 'default'
-  const settings = {
+  const settings: AssistantSettings = {
+    ...DEFAULT_ASSISTANT_SETTINGS,
     reasoning_effort: reasoningEffort,
     ..._settings
-  } satisfies Partial<AssistantSettings>
-
-  const getTranslateContent = async (
-    model: Model,
-    text: string,
-    targetLanguage: TranslateLanguage
-  ): Promise<string> => {
-    if (isQwenMTModel(model)) {
-      return text // QwenMT models handle raw text directly
-    }
-
-    const translateModelPrompt = await preferenceService.get('feature.translate.model_prompt')
-    return translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value).replaceAll('{{text}}', text)
   }
 
-  const content = await getTranslateContent(model, text, targetLanguage)
-  const translateAssistant = {
+  const content = isQwenMTModel(model)
+    ? text
+    : (await preferenceService.get('feature.translate.model_prompt'))
+        .replaceAll('{{target_language}}', targetLanguage.value)
+        .replaceAll('{{text}}', text)
+
+  return {
     ...assistant,
-    model,
     settings,
-    prompt: '',
+    model,
     targetLanguage,
     content
-  } satisfies TranslateAssistant
-  return translateAssistant
-}
-
-/**
- * Gets the CURRENT SETTINGS of the default assistant.
- *
- * **Important**: This returns the actual current settings of the default assistant (user-configured),
- * NOT the DEFAULT_ASSISTANT_SETTINGS template. The settings may have been modified by the user
- * from their initial default values.
- *
- * To get the template of default values, use DEFAULT_ASSISTANT_SETTINGS directly.
- *
- * @returns Current settings of the default assistant from store state
- */
-export function getDefaultAssistantSettings() {
-  return store.getState().assistants.defaultAssistant.settings
-}
-
-export function getDefaultTopic(assistantId: string): Topic {
-  return {
-    id: uuid(),
-    assistantId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    name: i18n.t('chat.default.topic.name'),
-    messages: [],
-    isNameManuallyEdited: false
   }
 }
 
-export function getDefaultProvider() {
-  return getProviderByModel(getDefaultModel())
-}
-
-export function getDefaultModel() {
-  return store.getState().llm.defaultModel
-}
-
-export function getQuickModel() {
-  return store.getState().llm.quickModel
-}
-
-export function getTranslateModel() {
-  return store.getState().llm.translateModel
-}
-
-export function getAssistantProvider(assistant: Assistant): Provider {
-  const providers = getStoreProviders()
-  const provider = providers.find((p) => p.id === assistant.model?.provider)
-  return provider || getDefaultProvider()
-}
-
-// FIXME: This function fails in silence.
-// TODO: Refactor it to make it return exactly valid value or null, and update all usage.
-export function getProviderByModel(model?: Model): Provider {
-  const providers = getStoreProviders()
-  const provider = providers.find((p) => p.id === model?.provider)
-
-  if (!provider) {
-    const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    return defaultProvider || providers[0]
-  }
-
-  return provider
-}
-
-// FIXME: This function may return undefined but as Provider
-export function getProviderByModelId(modelId?: string) {
-  const providers = getStoreProviders()
-  const _modelId = modelId || getDefaultModel().id
-  return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
-}
-
 /**
- * Retrieves and normalizes assistant settings with special transformation handling.
- *
- * **Special Transformations:**
- * 1. **Context Count**: Converts `MAX_CONTEXT_COUNT` to `UNLIMITED_CONTEXT_COUNT` for internal processing
- * 2. **Max Tokens**: Only returns a value when `enableMaxTokens` is true, otherwise returns `undefined`
- * 3. **Max Tokens Validation**: Ensures maxTokens > 0, falls back to `DEFAULT_MAX_TOKENS` if invalid
- * 4. **Fallback Defaults**: Applies system defaults for all undefined/missing settings
- *
- * @param assistant - The assistant instance to extract settings from
- * @returns Normalized assistant settings with all transformations applied
+ * Normalize assistant settings — currently the only non-trivial transform is
+ * collapsing `MAX_CONTEXT_COUNT` to `UNLIMITED_CONTEXT_COUNT` for downstream
+ * consumers (TokenService, CodeCliPage). Schema defaults already populate the
+ * rest, so the v1-era `?? DEFAULT_ASSISTANT_SETTINGS.x` chain is gone.
  */
 export const getAssistantSettings = (assistant: Assistant): AssistantSettings => {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const getAssistantMaxTokens = () => {
-    if (assistant.settings?.enableMaxTokens) {
-      const maxTokens = assistant.settings.maxTokens
-      if (typeof maxTokens === 'number') {
-        return maxTokens > 0 ? maxTokens : DEFAULT_MAX_TOKENS
-      }
-      return DEFAULT_MAX_TOKENS
-    }
-    return undefined
-  }
-
+  const settings = assistant.settings
   return {
-    contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
-    temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
-    enableTemperature: assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
-    topP: assistant?.settings?.topP ?? DEFAULT_ASSISTANT_SETTINGS.topP,
-    enableTopP: assistant?.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP,
-    enableMaxTokens: assistant?.settings?.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens,
-    maxTokens: getAssistantMaxTokens(),
-    streamOutput: assistant?.settings?.streamOutput ?? DEFAULT_ASSISTANT_SETTINGS.streamOutput,
-    toolUseMode: assistant?.settings?.toolUseMode ?? DEFAULT_ASSISTANT_SETTINGS.toolUseMode,
-    maxToolCalls: assistant?.settings?.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
-    enableMaxToolCalls: assistant?.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls,
-    defaultModel: assistant?.defaultModel ?? DEFAULT_ASSISTANT_SETTINGS.defaultModel,
-    reasoning_effort: assistant?.settings?.reasoning_effort ?? DEFAULT_ASSISTANT_SETTINGS.reasoning_effort,
-    customParameters: assistant?.settings?.customParameters ?? DEFAULT_ASSISTANT_SETTINGS.customParameters
+    ...settings,
+    contextCount: settings.contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : settings.contextCount
   }
 }
 
@@ -265,25 +148,29 @@ export function getAssistantById(id: string) {
   return assistants.find((a) => a.id === id)
 }
 
+/**
+ * v1 legacy: dispatches Redux v1 slice. Going away with the slice itself.
+ * Casts at the boundary to satisfy LegacyAssistant typing.
+ */
 export async function createAssistantFromAgent(agent: AssistantPreset) {
   const assistantId = uuid()
-  const topic = getDefaultTopic(assistantId)
-  const resolvedDefaultModel = agent.defaultModel ?? getDefaultModel()
+  const now = new Date().toISOString()
 
   const assistant: Assistant = {
-    ...agent,
     id: assistantId,
     name: agent.name,
     emoji: agent.emoji,
-    topics: [topic],
-    model: agent.defaultModel ?? resolvedDefaultModel,
-    defaultModel: resolvedDefaultModel,
-    type: 'assistant',
-    regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
-    settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS
+    prompt: agent.prompt,
+    description: agent.description,
+    settings: agent.settings ?? DEFAULT_ASSISTANT_SETTINGS,
+    modelId: agent.modelId ?? null,
+    mcpServerIds: agent.mcpServerIds ?? [],
+    knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
+    createdAt: now,
+    updatedAt: now
   }
 
-  store.dispatch(addAssistant(assistant))
+  store.dispatch(addAssistant(assistant as unknown as LegacyAssistant))
 
   window.toast.success(i18n.t('message.assistant.added.content'))
 

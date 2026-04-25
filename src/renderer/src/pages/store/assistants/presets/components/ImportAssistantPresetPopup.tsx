@@ -1,10 +1,11 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setAgentssubscribeUrl } from '@renderer/store/settings'
@@ -31,6 +32,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const dispatch = useAppDispatch()
   const { agentssubscribeUrl } = useSettings()
   const [subscribeUrl, setSubscribeUrl] = useState(agentssubscribeUrl || '')
+  const { defaultModel: apiDefaultModel } = useDefaultModel()
+  const v1DefaultModel = apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined
   const [selectedFile, setSelectedFile] = useState<{ name: string; content: Uint8Array } | null>(null)
   const [urlValue, setUrlValue] = useState('')
 
@@ -92,7 +95,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           type: 'agent',
           topics: [],
           messages: [],
-          defaultModel: getDefaultModel(),
+          defaultModel: v1DefaultModel,
           regularPhrases: preset.regularPhrases || []
         }
         addAssistantPreset(newPreset)

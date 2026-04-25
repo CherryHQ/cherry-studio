@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProvider'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
 import type { Model, Provider } from '@renderer/types'

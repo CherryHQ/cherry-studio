@@ -1,16 +1,17 @@
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { isLocalAi } from '@renderer/config/env'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { Assistant, Model } from '@renderer/types'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,22 +21,23 @@ interface Props {
 
 const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, updateAssistant } = useAssistant(assistant.id)
+  const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { t } = useTranslation()
   const timerRef = useRef<NodeJS.Timeout>(undefined)
-  const provider = useProvider(model?.provider)
+  const provider = useProvider(v1Model?.provider ?? '')
 
-  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+  const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectChatModelPopup.show({ model, filter: modelFilter })
+    const selectedModel = await SelectChatModelPopup.show({ model: v1Model, filter: modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
       clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedModel)
-        updateAssistant({
-          model: selectedModel,
-          enableWebSearch: enabledWebSearch && assistant.enableWebSearch
+        void updateAssistant({
+          modelId: createUniqueModelId(selectedModel.provider, selectedModel.id),
+          settings: { ...assistant.settings, enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
         })
       }, 200)
     }
@@ -47,11 +49,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     }
   }, [])
 
-  if (isLocalAi) {
-    return null
-  }
-
-  const providerName = getProviderName(model)
+  const providerName = getProviderName(v1Model)
 
   return (
     <Button
@@ -60,9 +58,9 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
       onClick={onSelectModel}
       className="mt-0.5 rounded-2xl border border-transparent border-solid bg-transparent px-1 py-3 text-xs shadow-none">
       <ButtonContent>
-        <ModelAvatar model={model} size={20} />
+        <ModelAvatar model={v1Model} size={20} />
         <ModelName>
-          {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
+          {v1Model ? v1Model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
         </ModelName>
       </ButtonContent>
       <ChevronsUpDown size={14} color="var(--color-icon)" />

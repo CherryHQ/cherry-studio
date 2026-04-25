@@ -13,8 +13,9 @@
  * `V2ChatContent.tsx`, not to change behaviour.
  */
 import { loggerService } from '@logger'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { BranchMessagesResponse, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
@@ -28,7 +29,6 @@ const logger = loggerService.withContext('useV2ChatOverrides')
 
 interface Params {
   topic: Topic
-  assistant: Assistant
   uiMessages: CherryUIMessage[]
   projectedMessages: Message[]
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
@@ -46,7 +46,8 @@ interface Result {
 }
 
 export function useV2ChatOverrides(params: Params): Result {
-  const { topic, assistant, uiMessages, projectedMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, projectedMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
     seedOptimisticBranch,
@@ -192,19 +193,10 @@ export function useV2ChatOverrides(params: Params): Result {
 
   const capabilityBody = useMemo<Record<string, unknown>>(
     () => ({
-      knowledgeBaseIds: assistant.knowledge_bases?.map((kb) => kb.id),
-      enableWebSearch: assistant.enableWebSearch,
-      webSearchProviderId: assistant.webSearchProviderId,
-      enableUrlContext: assistant.enableUrlContext,
-      enableGenerateImage: assistant.enableGenerateImage
+      knowledgeBaseIds: assistant?.knowledgeBaseIds,
+      enableWebSearch: assistant?.settings.enableWebSearch
     }),
-    [
-      assistant.knowledge_bases,
-      assistant.enableWebSearch,
-      assistant.webSearchProviderId,
-      assistant.enableUrlContext,
-      assistant.enableGenerateImage
-    ]
+    [assistant?.knowledgeBaseIds, assistant?.settings.enableWebSearch]
   )
 
   /** Regenerate with capability body + target-driven anchor/model. */

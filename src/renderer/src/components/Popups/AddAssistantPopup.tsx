@@ -1,13 +1,13 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
-import { createAssistantFromAgent } from '@renderer/services/AssistantService'
+import { createAssistantFromAgent, DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, AssistantPreset } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { InputRef } from 'antd'
 import { Divider, Input, Modal, Tag } from 'antd'
 import { take } from 'lodash'
@@ -19,6 +19,9 @@ import styled from 'styled-components'
 import EmojiIcon from '../EmojiIcon'
 import Scrollbar from '../Scrollbar'
 
+/** Field-by-field check for legacy v1 records still living in Redux. */
+const isAgentPreset = (preset: AssistantPreset): boolean => (preset as unknown as { type?: string }).type === 'agent'
+
 interface Props {
   resolve: (value: Assistant | undefined) => void
 }
@@ -28,7 +31,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { t } = useTranslation()
   const { presets: userPresets } = useAssistantPresets()
   const [searchText, setSearchText] = useState('')
-  const { defaultAssistant } = useDefaultAssistant()
+  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
   const { assistants, addAssistant } = useAssistants()
   const inputRef = useRef<InputRef>(null)
   const systemPresets = useSystemAssistantPresets()
@@ -39,7 +42,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const presets = useMemo(() => {
     const allPresets = [...userPresets, ...systemPresets] as AssistantPreset[]
-    const list = [defaultAssistant, ...allPresets.filter((preset) => !assistants.map((a) => a.id).includes(preset.id))]
+    const base: AssistantPreset[] = defaultAssistant ? [defaultAssistant as AssistantPreset] : []
+    const list = [...base, ...allPresets.filter((preset) => !assistants.map((a) => a.id).includes(preset.id))]
     const filtered = searchText
       ? list.filter(
           (preset) =>
@@ -49,13 +53,19 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       : list
 
     if (searchText.trim()) {
+      const now = new Date().toISOString()
       const newAgent: AssistantPreset = {
         id: 'new',
         name: searchText.trim(),
         prompt: '',
-        topics: [],
-        type: 'assistant',
-        emoji: '⭐️'
+        emoji: '⭐️',
+        description: '',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        modelId: null,
+        mcpServerIds: [],
+        knowledgeBaseIds: [],
+        createdAt: now,
+        updatedAt: now
       }
       return [newAgent, ...filtered]
     }
@@ -68,17 +78,29 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [presets.length, searchText])
 
   const onCreateAssistant = useCallback(
-    async (preset: AssistantPreset) => {
-      if (loadingRef.current) {
+    async (preset: AssistantPreset | undefined) => {
+      if (!preset || loadingRef.current) {
         return
       }
 
       loadingRef.current = true
       let assistant: Assistant
 
-      if (preset.id === 'default') {
-        assistant = { ...preset, id: uuid() }
-        addAssistant(assistant)
+      if (preset.id === DEFAULT_ASSISTANT_ID || preset.id === 'new') {
+        // Cloning the default seed (or a search-typed brand-new entry):
+        // create via DataApi mutation. Fields not present on the preset
+        // (id, createdAt, updatedAt) are filled by the server.
+        const created = await addAssistant({
+          name: preset.name,
+          prompt: preset.prompt,
+          emoji: preset.emoji,
+          description: preset.description,
+          settings: preset.settings,
+          modelId: preset.modelId,
+          mcpServerIds: preset.mcpServerIds,
+          knowledgeBaseIds: preset.knowledgeBaseIds
+        })
+        assistant = created
       } else {
         assistant = await createAssistantFromAgent(preset)
       }
@@ -88,7 +110,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setOpen(false)
     },
     [setTimeoutTimer, resolve, addAssistant]
-  ) // 添加函数内使用的依赖项
+  )
   // 键盘导航处理
   useEffect(() => {
     if (!open) return
@@ -198,14 +220,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <AgentItem
             key={preset.id}
             onClick={() => onCreateAssistant(preset)}
-            className={`agent-item ${preset.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
+            className={`agent-item ${preset.id === DEFAULT_ASSISTANT_ID ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
             <RowFlex className="max-w-full items-center gap-[5px] overflow-hidden">
               <EmojiIcon emoji={preset.emoji || ''} />
               <span className="text-nowrap">{preset.name}</span>
             </RowFlex>
-            {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
-            {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
+            {preset.id === DEFAULT_ASSISTANT_ID && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
+            {isAgentPreset(preset) && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
             {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
           </AgentItem>
         ))}

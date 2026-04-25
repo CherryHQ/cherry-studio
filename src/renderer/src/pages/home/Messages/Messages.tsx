@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -12,7 +13,7 @@ import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
@@ -37,7 +38,6 @@ import Prompt from './Prompt'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
-  assistant: Assistant
   topic: Topic
   onComponentUpdate?(): void
   onFirstUpdate?(): void
@@ -51,7 +51,6 @@ interface MessagesProps {
 const logger = loggerService.withContext('Messages')
 
 const Messages: React.FC<MessagesProps> = ({
-  assistant,
   topic,
   onComponentUpdate,
   onFirstUpdate,
@@ -59,6 +58,7 @@ const Messages: React.FC<MessagesProps> = ({
   loadOlder,
   hasOlder = false
 }) => {
+  const { assistant } = useAssistant(topic.assistantId)
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
@@ -183,6 +183,7 @@ const Messages: React.FC<MessagesProps> = ({
   }, [assistant, scrollToBottom, topic])
 
   useEffect(() => {
+    if (!assistant) return
     void runAsyncFunction(async () => {
       void EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
         tokensCount: await estimateHistoryTokens(assistant, messages),
@@ -244,7 +245,7 @@ const Messages: React.FC<MessagesProps> = ({
       id="messages"
       className="messages-container"
       ref={scrollContainerRef}
-      key={assistant.id}
+      key={assistant?.id ?? topic.assistantId}
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
@@ -276,7 +277,7 @@ const Messages: React.FC<MessagesProps> = ({
           </ContextMenu>
         </InfiniteScroll>
 
-        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
+        {showPrompt && <Prompt key={assistant?.prompt ?? ''} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       <SelectionBox

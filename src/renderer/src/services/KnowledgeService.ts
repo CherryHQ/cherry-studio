@@ -23,8 +23,16 @@ import { estimateTextTokens } from './TokenService'
 const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
-  const embedProvider = formatProviderApiHost(getProviderByModel(base.model))
-  const rerankProvider = formatProviderApiHost(getProviderByModel(base.rerankModel))
+  const embedProviderRaw = getProviderByModel(base.model)
+  const rerankProviderRaw = getProviderByModel(base.rerankModel)
+  if (!embedProviderRaw) {
+    throw new Error(`Knowledge base ${base.name}: embedding model provider not found`)
+  }
+  if (!rerankProviderRaw) {
+    throw new Error(`Knowledge base ${base.name}: rerank model provider not found`)
+  }
+  const embedProvider = formatProviderApiHost(embedProviderRaw)
+  const rerankProvider = formatProviderApiHost(rerankProviderRaw)
 
   // get preprocess provider from store instead of base.preprocessProvider
   const preprocessProvider = store

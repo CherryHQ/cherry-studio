@@ -3,18 +3,19 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
 import ExecutionStreamCollector from '@renderer/pages/home/Messages/ExecutionStreamCollector'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { getAssistantById, getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
@@ -34,19 +35,12 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
-  const activeAssistant = useMemo(() => {
-    const currentAssistant = action.assistantId
-      ? getAssistantById(action.assistantId) || getDefaultAssistant()
-      : getDefaultAssistant()
 
-    return {
-      ...currentAssistant,
-      model: currentAssistant.model || getDefaultModel()
-    }
-  }, [action.assistantId])
+  const effectiveAssistantId = action.assistantId || DEFAULT_ASSISTANT_ID
+  const { assistant: activeAssistant } = useAssistant(effectiveAssistantId)
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant.id)
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic(activeAssistant?.id ?? effectiveAssistantId)
 
   const promptContent = useMemo(() => {
     let userContent = ''

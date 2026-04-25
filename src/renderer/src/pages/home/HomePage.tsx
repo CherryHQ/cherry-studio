@@ -1,46 +1,36 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
-let _activeAssistant: Assistant
-
 const HomePage: FC = () => {
-  const { assistants } = useAssistants()
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
-  const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
+  const state = location.state as { topic?: Topic } | undefined
 
-  const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
-    state?.assistant || _activeAssistant || assistants[0]
-  )
-
-  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
+  const { activeTopic, setActiveTopic } = useActiveTopic(state?.topic)
   const [showAssistants] = usePreference('assistant.tab.show')
   const [showTopics] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
   const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
   const { toggleShowTopics } = useShowTopics()
-
-  _activeAssistant = activeAssistant
 
   // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
   useShortcut('general.toggle_sidebar', () => {
@@ -77,22 +67,11 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
-  const setActiveAssistant = useCallback(
-    (newAssistant: Assistant) => {
-      if (newAssistant.id === activeAssistant?.id) return
-      _setActiveAssistant(newAssistant)
-    },
-    [activeAssistant?.id]
-  )
-
-  const setActiveTopic = _setActiveTopic
-
   useEffect(() => {
     NavigationService.setNavigate(navigate)
   }, [navigate])
 
   useEffect(() => {
-    state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
@@ -112,15 +91,7 @@ const HomePage: FC = () => {
 
   return (
     <Container id="home-page">
-      {isLeftNavbar && (
-        <Navbar
-          activeAssistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-          position="left"
-        />
-      )}
+      {isLeftNavbar && <Navbar position="left" />}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <AnimatePresence initial={false}>
           {showAssistants && (
@@ -131,24 +102,13 @@ const HomePage: FC = () => {
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                 style={{ overflow: 'hidden' }}>
-                <HomeTabs
-                  activeAssistant={activeAssistant}
-                  activeTopic={activeTopic}
-                  setActiveAssistant={setActiveAssistant}
-                  setActiveTopic={setActiveTopic}
-                  position="left"
-                />
+                <HomeTabs activeTopic={activeTopic} setActiveTopic={setActiveTopic} position="left" />
               </motion.div>
             </ErrorBoundary>
           )}
         </AnimatePresence>
         <ErrorBoundary>
-          <Chat
-            assistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            setActiveAssistant={setActiveAssistant}
-          />
+          <Chat activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
         </ErrorBoundary>
       </ContentContainer>
     </Container>

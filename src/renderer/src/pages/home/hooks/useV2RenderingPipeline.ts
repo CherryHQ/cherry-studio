@@ -15,10 +15,12 @@
  *   - `projectedMessages` / `mergedPartsMap` — outputs consumed by
  *     `Messages` / `PartsProvider`
  */
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { useMemo } from 'react'
 
 import { uiToMessage } from '../uiToMessage'
@@ -33,21 +35,20 @@ export interface V2RenderingPipeline {
 export function useV2RenderingPipeline(
   uiMessages: CherryUIMessage[],
   activeExecutionIds: readonly string[],
-  assistant: Assistant,
   topic: Topic
 ): V2RenderingPipeline {
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(
-    () =>
-      assistant.model
-        ? {
-            id: assistant.model.id,
-            name: assistant.model.name,
-            provider: assistant.model.provider,
-            ...(assistant.model.group && { group: assistant.model.group })
-          }
-        : undefined,
-    [assistant.model]
-  )
+  const { assistant, model } = useAssistant(topic.assistantId)
+
+  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
+    if (!model) return undefined
+    const { providerId, modelId } = parseUniqueModelId(model.id)
+    return {
+      id: modelId,
+      name: model.name,
+      provider: providerId,
+      ...(model.group && { group: model.group })
+    }
+  }, [model])
 
   const lastUserIdInBase = useMemo(() => {
     for (let i = uiMessages.length - 1; i >= 0; i--) {
@@ -60,13 +61,13 @@ export function useV2RenderingPipeline(
     () =>
       uiMessages.map((m) =>
         uiToMessage(m, {
-          assistantId: assistant.id,
+          assistantId: assistant?.id ?? topic.assistantId,
           topicId: topic.id,
           askIdFallback: lastUserIdInBase,
           modelFallback: fallbackSnapshot
         })
       ),
-    [uiMessages, assistant.id, topic.id, lastUserIdInBase, fallbackSnapshot]
+    [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot]
   )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {

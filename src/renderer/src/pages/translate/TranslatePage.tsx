@@ -6,12 +6,13 @@ import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -63,7 +64,11 @@ let _targetLanguage = LanguagesEnum.enUS
 const TranslatePage: FC = () => {
   // hooks
   const { t } = useTranslation()
-  const { translateModel, setTranslateModel } = useDefaultModel()
+  const { translateModel: apiTranslateModel, setTranslateModel } = useDefaultModel()
+  const translateModel = useMemo(
+    () => (apiTranslateModel ? fromSharedModel(apiTranslateModel) : undefined),
+    [apiTranslateModel]
+  )
   const { prompt, getLanguageByLangcode, settings } = useTranslate()
   const { autoCopy } = settings
   const { shikiMarkdownIt } = useCodeStyle()
@@ -111,7 +116,7 @@ const TranslatePage: FC = () => {
 
   // 控制翻译模型切换
   const handleModelChange = (model: Model) => {
-    setTranslateModel(model)
+    void setTranslateModel(model)
     void db.settings.put({ id: 'translate:model', value: model.id })
   }
 

@@ -3,8 +3,7 @@ import { isQwenMTModel } from '@renderer/config/models'
 import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { getQuickModel } from '@renderer/services/AssistantService'
-import { hasModel } from '@renderer/services/ModelService'
+import { readQuickModel } from '@renderer/services/ModelService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
@@ -66,8 +65,8 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
-  const model = getQuickModel()
-  if (!model || !hasModel(model)) {
+  const model = await readQuickModel()
+  if (!model) {
     throw new Error(i18n.t('error.model.not_exists'))
   }
 

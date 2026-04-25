@@ -23,6 +23,7 @@ export class ChannelAdapterListener implements StreamListener {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
 
+  // oxlint-disable-next-line no-unused-vars
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
     // Accumulate text for adapters that don't support streaming updates.
     // Adapters with streaming support (e.g. Feishu card editing) get updates

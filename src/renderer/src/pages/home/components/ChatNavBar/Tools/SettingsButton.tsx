@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import type { Assistant } from '@renderer/types'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { Drawer } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
@@ -10,11 +10,12 @@ import NavbarIcon from '../../../../../components/NavbarIcon'
 import { AssistantSettingsTab } from './SettingsTab'
 
 interface Props {
-  assistant?: Assistant
+  assistantId: string
 }
 
-const SettingsButton: FC<Props> = ({ assistant }) => {
+const SettingsButton: FC<Props> = ({ assistantId }) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const { assistant } = useAssistant(assistantId)
 
   return (
     <>

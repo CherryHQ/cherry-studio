@@ -1,10 +1,9 @@
-import type { Assistant, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { FC } from 'react'
 
 import { Topics } from './components/Topics'
 
 interface Props {
-  assistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'

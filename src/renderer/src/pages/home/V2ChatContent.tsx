@@ -7,7 +7,7 @@ import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
-import type { Assistant, FileMetadata, Topic } from '@renderer/types'
+import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -22,7 +22,6 @@ import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 interface Props {
-  assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
   mainHeight: string
@@ -48,7 +47,7 @@ interface Props {
  * `ExecutionStreamCollector`s and are overlaid into the partsMap by
  * the rendering pipeline.
  */
-const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight }) => {
+const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight }) => {
   const {
     uiMessages,
     siblingsMap,
@@ -74,7 +73,6 @@ const V2ChatContent: FC<Props> = ({ assistant, topic, setActiveTopic, mainHeight
 
   return (
     <V2ChatContentInner
-      assistant={assistant}
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
@@ -108,7 +106,6 @@ interface InnerProps extends Props {
 }
 
 const V2ChatContentInner: FC<InnerProps> = ({
-  assistant,
   topic,
   setActiveTopic,
   mainHeight,
@@ -128,7 +125,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   // Rendering: project uiMessages + layer per-execution streaming overlay.
   const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
-    useV2RenderingPipeline(uiMessages, activeExecutionIds, assistant, topic)
+    useV2RenderingPipeline(uiMessages, activeExecutionIds, topic)
 
   // Topic-messages optimistic cache + DataApi mutation triggers.
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
@@ -138,7 +135,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // the send path below mirrors the same shape.
   const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
     topic,
-    assistant,
     uiMessages,
     projectedMessages,
     regenerate,
@@ -210,14 +206,13 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
                   <Messages
                     key={topic.id}
-                    assistant={assistant}
                     topic={topic}
                     messages={projectedMessages}
                     loadOlder={loadOlder}
                     hasOlder={hasOlder}
                   />
 
-                  <Inputbar assistant={assistant} topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
+                  <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>
               </ChatContextBridge>
             </ToolApprovalProvider>

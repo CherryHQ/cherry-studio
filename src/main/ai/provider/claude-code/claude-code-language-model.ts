@@ -638,6 +638,7 @@ export class ClaudeCodeLanguageModel implements LanguageModelV3 {
   // ── doGenerate (not supported — Cherry Studio uses streaming only) ──
 
   async doGenerate(
+    // oxlint-disable-next-line no-unused-vars
     _options: Parameters<LanguageModelV3['doGenerate']>[0]
   ): Promise<Awaited<ReturnType<LanguageModelV3['doGenerate']>>> {
     throw new Error('Claude Code provider does not support doGenerate. Use doStream instead.')

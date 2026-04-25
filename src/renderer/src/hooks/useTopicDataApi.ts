@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicDataApi')
 
@@ -37,25 +37,6 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     messages: [],
     pinned: t.isPinned,
     isNameManuallyEdited: t.isNameManuallyEdited
-  }
-}
-
-/**
- * List topics for an assistant from SQLite via DataApi.
- */
-export function useTopicsByAssistant(assistantId: string | undefined) {
-  const { data, isLoading, error, refetch, mutate } = useQuery('/topics', {
-    enabled: !!assistantId
-  })
-
-  const topics = useMemo(() => data?.filter((t) => t.assistantId === assistantId) ?? EMPTY_TOPICS, [data, assistantId])
-
-  return {
-    topics,
-    isLoading,
-    error,
-    refetch,
-    mutate
   }
 }
 
@@ -138,16 +119,6 @@ export function useTopicMutations() {
     [deleteTrigger]
   )
 
-  const deleteAllTopics = useCallback(
-    async (assistantId: string): Promise<void> => {
-      const allTopics = await dataApiService.get('/topics')
-      const assistantTopics = allTopics.filter((t) => t.assistantId === assistantId)
-      await Promise.allSettled(assistantTopics.map((t) => dataApiService.delete(`/topics/${t.id}`)))
-      await refreshTopics()
-    },
-    [refreshTopics]
-  )
-
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
       await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
@@ -156,20 +127,11 @@ export function useTopicMutations() {
     [refreshTopics]
   )
 
-  const moveTopic = useCallback(
-    (topicId: string, toAssistantId: string): Promise<Topic> => {
-      return updateTopic(topicId, { assistantId: toAssistantId })
-    },
-    [updateTopic]
-  )
-
   return {
     createTopic,
     updateTopic,
     deleteTopic,
-    deleteAllTopics,
     batchUpdateTopics,
-    moveTopic,
     refreshTopics,
     isCreating,
     isUpdating,

@@ -48,10 +48,11 @@ const ThinkingButton: FC<Props> = ({
   const isControlled = controlledEffort !== undefined
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
-  const currentReasoningEffort = useMemo(() => {
+  const currentReasoningEffort = useMemo<ThinkingOption>(() => {
     if (isControlled) return controlledEffort
-    return assistant.settings?.reasoning_effort || 'none'
-  }, [isControlled, controlledEffort, assistant.settings?.reasoning_effort])
+    const stored = assistant?.settings.reasoning_effort
+    return (stored ?? 'none') as ThinkingOption
+  }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
@@ -89,7 +90,7 @@ const ThinkingButton: FC<Props> = ({
       if (
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
-        assistant.enableWebSearch &&
+        assistant?.settings.enableWebSearch &&
         option === 'minimal'
       ) {
         window.toast.warning(t('chat.web_search.warning.openai'))
@@ -101,7 +102,15 @@ const ThinkingButton: FC<Props> = ({
         qwenThinkMode: true
       })
     },
-    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistantId, assistant.enableWebSearch, model, t]
+    [
+      isControlled,
+      onReasoningEffortChange,
+      updateAssistantSettings,
+      assistantId,
+      assistant?.settings.enableWebSearch,
+      model,
+      t
+    ]
   )
 
   const reasoningEffortOptionLabelMap = {

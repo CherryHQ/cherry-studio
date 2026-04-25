@@ -95,14 +95,6 @@ function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMes
 }
 
 describe('V2ChatContent', () => {
-  const assistant = {
-    id: 'assistant-1',
-    name: 'Test Assistant',
-    model: { id: 'gpt-4.1', provider: 'openai' },
-    topics: [],
-    type: 'assistant'
-  } as any
-
   const topic = {
     id: 'topic-1',
     assistantId: 'assistant-1',
@@ -152,7 +144,7 @@ describe('V2ChatContent', () => {
       addToolApprovalResponse: vi.fn()
     })
 
-    render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await act(async () => {
       await capturedOnSend?.('hello')
@@ -201,7 +193,7 @@ describe('V2ChatContent', () => {
       addToolApprovalResponse: vi.fn()
     })
 
-    render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
@@ -237,7 +229,7 @@ describe('V2ChatContent', () => {
       addToolApprovalResponse: vi.fn()
     })
 
-    render(<V2ChatContent assistant={assistant} topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')

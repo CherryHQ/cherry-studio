@@ -21,9 +21,6 @@ import {
   isNotSupportTextDeltaModel,
   isSupportedFlexServiceTier,
   isSupportFlexServiceTierModel,
-  isSupportTemperatureModel,
-  isSupportTopPModel,
-  isTemperatureTopPMutuallyExclusiveModel,
   isVisionModels,
   isZhipuModel
 } from '../utils'
@@ -192,67 +189,6 @@ describe('model utils', () => {
     describe('isSupportedFlexServiceTier', () => {
       it('returns false for non-flex models', () => {
         expect(isSupportedFlexServiceTier(createModel({ id: 'gpt-4o' }))).toBe(false)
-      })
-    })
-  })
-
-  describe('Temperature and top-p support', () => {
-    describe('isSupportTemperatureModel', () => {
-      it('returns false for null/undefined models', () => {
-        expect(isSupportTemperatureModel(null)).toBe(false)
-        expect(isSupportTemperatureModel(undefined)).toBe(false)
-      })
-
-      it('returns true for regular models without schema override', () => {
-        const model = createModel({ id: 'gpt-4' })
-        expect(isSupportTemperatureModel(model)).toBe(true)
-      })
-    })
-
-    describe('isSupportTopPModel', () => {
-      it('returns false for null/undefined models', () => {
-        expect(isSupportTopPModel(null)).toBe(false)
-        expect(isSupportTopPModel(undefined)).toBe(false)
-      })
-
-      it('returns true for regular models without schema override', () => {
-        const model = createModel({ id: 'gpt-4' })
-        expect(isSupportTopPModel(model)).toBe(true)
-      })
-    })
-
-    describe('isTemperatureTopPMutuallyExclusiveModel', () => {
-      it('returns true for Claude 4.5 reasoning models', () => {
-        const claude45Sonnet = createModel({ id: 'claude-sonnet-4.5-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Sonnet)).toBe(true)
-
-        const claude45Opus = createModel({ id: 'claude-opus-4.5-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude45Opus)).toBe(true)
-      })
-
-      it('returns false for Claude 4 models', () => {
-        const claude4Sonnet = createModel({ id: 'claude-sonnet-4-20250514' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude4Sonnet)).toBe(false)
-      })
-
-      it('returns false for Claude 3.x models', () => {
-        const claude35Sonnet = createModel({ id: 'claude-3-5-sonnet-20241022' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude35Sonnet)).toBe(false)
-
-        const claude3Opus = createModel({ id: 'claude-3-opus-20240229' })
-        expect(isTemperatureTopPMutuallyExclusiveModel(claude3Opus)).toBe(false)
-      })
-
-      it('returns false for other AI models', () => {
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gpt-4o' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'o1' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'gemini-2.0-flash' }))).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(createModel({ id: 'qwen-max' }))).toBe(false)
-      })
-
-      it('returns false for null/undefined models', () => {
-        expect(isTemperatureTopPMutuallyExclusiveModel(null)).toBe(false)
-        expect(isTemperatureTopPMutuallyExclusiveModel(undefined)).toBe(false)
       })
     })
   })

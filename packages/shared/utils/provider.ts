@@ -52,28 +52,32 @@ export function isVertexProvider(provider: Provider): boolean {
 
 /** Check if provider is AI Gateway */
 export function isAIGatewayProvider(provider: Provider): boolean {
-  return provider.id === 'gateway'
+  return provider.presetProviderId === 'gateway' || provider.id === 'gateway'
 }
 
 /** Check if provider supports URL context */
+// oxlint-disable-next-line no-unused-vars
 export function isSupportUrlContextProvider(_provider: Provider): boolean {
   // TODO: derive from provider-registry capabilities
   return false
 }
 
 /** Check if provider supports service tier */
+// oxlint-disable-next-line no-unused-vars
 export function isSupportServiceTierProvider(_provider: Provider): boolean {
   // TODO: derive from provider-registry capabilities
   return false
 }
 
 /** Check if provider supports verbosity */
+// oxlint-disable-next-line no-unused-vars
 export function isSupportVerbosityProvider(_provider: Provider): boolean {
   // TODO: derive from provider-registry capabilities
   return false
 }
 
 /** Check if provider supports enabling thinking mode */
+// oxlint-disable-next-line no-unused-vars
 export function isSupportEnableThinkingProvider(_provider: Provider): boolean {
   // TODO: derive from provider-registry capabilities
   return false

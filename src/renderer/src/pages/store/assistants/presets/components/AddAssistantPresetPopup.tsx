@@ -3,10 +3,11 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
 import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
@@ -47,6 +48,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
+  const { defaultModel: apiDefaultModel } = useDefaultModel()
+  const v1DefaultModel = apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined
   const knowledgeOptions: SelectProps['options'] = []
 
   knowledgeState.bases.forEach((base) => {
@@ -77,7 +80,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         ?.filter((base): base is KnowledgeBase => base !== undefined),
       emoji: _emoji,
       prompt: values.prompt,
-      defaultModel: getDefaultModel(),
+      defaultModel: v1DefaultModel,
       type: 'agent',
       topics: [],
       messages: []

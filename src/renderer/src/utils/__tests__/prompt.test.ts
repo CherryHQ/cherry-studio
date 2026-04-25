@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { type Assistant, type MCPTool, type Model } from '@renderer/types'
+import { type MCPTool } from '@renderer/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -53,19 +53,10 @@ const createMockTool = (id: string, description: string, inputSchema: any = {}):
   type: 'mcp'
 })
 
-// Helper to create a mock Assistant
-const createMockAssistant = (name: string, modelName: string): Assistant => ({
-  id: 'asst_mock_123',
-  name,
-  prompt: 'You are a helpful assistant.',
-  topics: [],
-  type: 'assistant',
-  model: {
-    id: modelName,
-    name: modelName,
-    provider: 'mock'
-  } as unknown as Model
-})
+// `replacePromptVariables` only needs the model name string. The tests used
+// to pass through a full Assistant just to read `.model.name`; the v2 model
+// lookup happens at the call site, so the helper is a name pair only.
+const createMockAssistant = (_name: string, modelName: string) => ({ modelName })
 
 // 设置全局 mocks
 Object.defineProperty(window, 'api', {
@@ -131,7 +122,7 @@ describe('prompt', () => {
   - 用户名称: {{username}};
 `
       const assistant = createMockAssistant('MyAssistant', 'Super-Model-X')
-      const result = await replacePromptVariables(userPrompt, assistant.model?.name)
+      const result = await replacePromptVariables(userPrompt, assistant.modelName)
       const expectedPrompt = `
 以下是一些辅助信息:
   - 日期和时间: ${mockDate.toLocaleString(undefined, {
@@ -182,7 +173,7 @@ describe('prompt', () => {
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
+      basePrompt = await replacePromptVariables(initialPrompt, assistant.modelName)
       expectedBasePrompt = `
         System Information:
         - Date: ${mockDate.toLocaleDateString(undefined, {
@@ -226,7 +217,7 @@ describe('prompt', () => {
   describe('buildSystemPromptWithTools', () => {
     it('should build a full prompt for "prompt" toolUseMode', async () => {
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      const basePrompt = await replacePromptVariables('Be helpful.', assistant.model?.name)
+      const basePrompt = await replacePromptVariables('Be helpful.', assistant.modelName)
       const tools = [createMockTool('web_search', 'Search the web')]
 
       const finalPrompt = buildSystemPromptWithTools(basePrompt, tools)
@@ -250,7 +241,7 @@ describe('prompt', () => {
         Instructions: Be helpful.
       `
       const assistant = createMockAssistant('Test Assistant', 'Advanced-AI-Model')
-      const basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
+      const basePrompt = await replacePromptVariables(initialPrompt, assistant.modelName)
       const expectedBasePrompt = `
         System Information:
         - Date: ${mockDate.toLocaleDateString(undefined, {

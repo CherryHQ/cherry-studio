@@ -1,7 +1,6 @@
-import type { Assistant } from '@renderer/types'
 import { type Model } from '@renderer/types'
-import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'
 import { getLowerBaseModelName } from '@renderer/utils'
+import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'
 import {
   GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,
   isAnthropicModel as sharedIsAnthropicModel,
@@ -21,9 +20,6 @@ import {
   isNotSupportSystemMessageModel as sharedIsNotSupportSystemMessageModel,
   isNotSupportTextDeltaModel as sharedIsNotSupportTextDeltaModel,
   isSupportFlexServiceTierModel as sharedIsSupportFlexServiceTierModel,
-  isSupportTemperatureModel as sharedIsSupportTemperatureModel,
-  isSupportTopPModel as sharedIsSupportTopPModel,
-  isTemperatureTopPMutuallyExclusiveModel as sharedIsTemperatureTopPMutuallyExclusiveModel,
   isZhipuModel as sharedIsZhipuModel
 } from '@shared/utils/model'
 
@@ -56,28 +52,6 @@ export const isSupportFlexServiceTierModel = (model: Model): boolean =>
   sharedIsSupportFlexServiceTierModel(toSharedCompatModel(model))
 
 export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
-
-// ── Temperature / top_p support ───────────────────────────────────────────
-// Delegates to shared's capability-based checks (read `parameterSupport`
-// from the schema). The `assistant` parameter is retained on the signature
-// because a small number of callers still pass it, but the v1 SKU-specific
-// branching (OpenAI reasoning / chat-only / QwenMT / Kimi K2.5) is gone —
-// those will come back once the v2 registry populates `parameterSupport`.
-
-export function isSupportTemperatureModel(model: Model | undefined | null, _assistant?: Assistant): boolean {
-  if (!model) return false
-  return sharedIsSupportTemperatureModel(toSharedCompatModel(model))
-}
-
-export function isSupportTopPModel(model: Model | undefined | null, _assistant?: Assistant): boolean {
-  if (!model) return false
-  return sharedIsSupportTopPModel(toSharedCompatModel(model))
-}
-
-export const isTemperatureTopPMutuallyExclusiveModel = (model: Model | undefined | null): boolean => {
-  if (!model) return false
-  return sharedIsTemperatureTopPMutuallyExclusiveModel(toSharedCompatModel(model))
-}
 
 // ── Family checks (delegated to shared) ─────────────────────────────────
 export const isGemmaModel = (model?: Model): boolean => (model ? sharedIsGemmaModel(toSharedCompatModel(model)) : false)

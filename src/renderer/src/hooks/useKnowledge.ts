@@ -25,8 +25,6 @@ import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
-import { useAssistants } from './useAssistant'
-import { useAssistantPresets } from './useAssistantPresets'
 import { useTimer } from './useTimer'
 
 export const useKnowledge = (baseId: string) => {
@@ -341,8 +339,6 @@ export const useKnowledge = (baseId: string) => {
 export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
   const bases = useSelector((state: RootState) => state.knowledge.bases)
-  const { assistants, updateAssistants } = useAssistants()
-  const { presets, setAssistantPresets } = useAssistantPresets()
 
   const addKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(addBase(base))
@@ -357,30 +353,10 @@ export const useKnowledgeBases = () => {
     if (!base) return
     dispatch(deleteBase({ baseId }))
 
-    // remove assistant knowledge_base
-    const _assistants = assistants.map((assistant) => {
-      if (assistant.knowledge_bases?.find((kb) => kb.id === baseId)) {
-        return {
-          ...assistant,
-          knowledge_bases: assistant.knowledge_bases.filter((kb) => kb.id !== baseId)
-        }
-      }
-      return assistant
-    })
-
-    // remove agent knowledge_base
-    const _presets = presets.map((agent) => {
-      if (agent.knowledge_bases?.find((kb) => kb.id === baseId)) {
-        return {
-          ...agent,
-          knowledge_bases: agent.knowledge_bases.filter((kb) => kb.id !== baseId)
-        }
-      }
-      return agent
-    })
-
-    updateAssistants(_assistants)
-    setAssistantPresets(_presets)
+    // v1 cascade cleanup (rewriting `assistant.knowledge_bases` /
+    // `preset.knowledge_bases` arrays) is gone — the call into a non-existent
+    // `updateAssistants` was already a no-op and the FK cascade in the v2
+    // DataApi schema clears `assistant.knowledgeBaseIds` references on delete.
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {

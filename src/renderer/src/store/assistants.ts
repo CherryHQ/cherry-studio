@@ -19,10 +19,12 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSelector, createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
-import type { Assistant, AssistantPreset, AssistantSettings, Model, Topic } from '@renderer/types'
+import type { LegacyAssistant as Assistant, LegacyAssistant as AssistantPreset, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
 
 import type { RootState } from '.'
+
+type AssistantSettings = Assistant['settings']
 
 export interface AssistantsState {
   defaultAssistant: Assistant

@@ -3,12 +3,16 @@ import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -17,7 +21,6 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
-import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
 interface ModelSettingsProps {
@@ -33,6 +36,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 }) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
+  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -45,16 +49,23 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     []
   )
 
-  const defaultModelValue = useMemo(
-    () => (hasModel(defaultModel) ? getModelUniqId(defaultModel) : undefined),
-    [defaultModel]
+  const v1DefaultModel = useMemo(() => (defaultModel ? fromSharedModel(defaultModel) : undefined), [defaultModel])
+  const v1QuickModel = useMemo(() => (quickModel ? fromSharedModel(quickModel) : undefined), [quickModel])
+  const v1TranslateModel = useMemo(
+    () => (translateModel ? fromSharedModel(translateModel) : undefined),
+    [translateModel]
   )
 
-  const defaultQuickModel = useMemo(() => (hasModel(quickModel) ? getModelUniqId(quickModel) : undefined), [quickModel])
+  const defaultModelValue = useMemo(
+    () => (v1DefaultModel ? getModelUniqId(v1DefaultModel) : undefined),
+    [v1DefaultModel]
+  )
+
+  const defaultQuickModel = useMemo(() => (v1QuickModel ? getModelUniqId(v1QuickModel) : undefined), [v1QuickModel])
 
   const defaultTranslateModel = useMemo(
-    () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
-    [translateModel]
+    () => (v1TranslateModel ? getModelUniqId(v1TranslateModel) : undefined),
+    [v1TranslateModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -82,8 +93,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          {showSettingsButton && (
-            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
+          {showSettingsButton && defaultAssistant && (
+            <Button
+              className="ml-2"
+              onClick={() => AssistantSettingsPopup.show({ assistant: defaultAssistant })}
+              size="icon">
               <Settings2 size={16} />
             </Button>
           )}

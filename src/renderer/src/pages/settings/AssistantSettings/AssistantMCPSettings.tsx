@@ -2,14 +2,14 @@ import { Box, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { Empty, Radio } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   assistant: Assistant
-  updateAssistant: (assistant: Assistant) => void
+  updateAssistant: (patch: UpdateAssistantDto) => void
 }
 
 const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
@@ -17,30 +17,29 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   const { mcpServers: allMcpServers } = useMCPServers()
 
   const currentMode = getEffectiveMcpMode(assistant)
+  const enabledServerIds = assistant.mcpServerIds ?? []
 
   const handleModeChange = (mode: McpMode) => {
-    updateAssistant({ ...assistant, mcpMode: mode })
+    updateAssistant({ settings: { ...assistant.settings, mcpMode: mode } })
   }
 
   const onUpdate = (ids: string[]) => {
-    const mcpServers = ids
-      .map((id) => allMcpServers.find((server) => server.id === id))
-      .filter((server): server is MCPServer => server !== undefined && server.isActive)
-
-    updateAssistant({ ...assistant, mcpServers, mcpMode: 'manual' })
+    const activeIds = ids.filter((id) => allMcpServers.find((server) => server.id === id && server.isActive))
+    updateAssistant({
+      mcpServerIds: activeIds,
+      settings: { ...assistant.settings, mcpMode: 'manual' }
+    })
   }
 
   const handleServerToggle = (serverId: string) => {
-    const currentServerIds = assistant.mcpServers?.map((server) => server.id) || []
-
-    if (currentServerIds.includes(serverId)) {
-      onUpdate(currentServerIds.filter((id) => id !== serverId))
+    if (enabledServerIds.includes(serverId)) {
+      onUpdate(enabledServerIds.filter((id) => id !== serverId))
     } else {
-      onUpdate([...currentServerIds, serverId])
+      onUpdate([...enabledServerIds, serverId])
     }
   }
 
-  const enabledCount = assistant.mcpServers?.length || 0
+  const enabledCount = enabledServerIds.length
 
   return (
     <Container>
@@ -88,7 +87,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
           {allMcpServers.length > 0 ? (
             <ServerList>
               {allMcpServers.map((server) => {
-                const isEnabled = assistant.mcpServers?.some((s) => s.id === server.id) || false
+                const isEnabled = enabledServerIds.includes(server.id)
 
                 return (
                   <ServerItem key={server.id} isEnabled={isEnabled}>

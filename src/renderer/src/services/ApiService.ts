@@ -1,13 +1,11 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
-import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import { hubMCPServer } from '@renderer/store/mcp'
-import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
-import { getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
+import type { Assistant, Model, Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -18,66 +16,9 @@ import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } fro
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty, takeRight } from 'lodash'
 
-import { getDefaultAssistant, getDefaultModel, getQuickModel } from './AssistantService'
+import { readDefaultModel, readQuickModel } from './ModelService'
 
 const logger = loggerService.withContext('ApiService')
-
-/**
- * Fetch active MCP servers from the Data API.
- */
-async function fetchActiveMcpServers(): Promise<MCPServer[]> {
-  const response = await dataApiService.get('/mcp-servers', { query: { isActive: true } })
-  return (response as { items: MCPServer[] }).items ?? []
-}
-
-/**
- * Get the MCP servers to use based on the assistant's MCP mode.
- */
-export async function getMcpServersForAssistant(assistant: Assistant): Promise<MCPServer[]> {
-  const mode = getEffectiveMcpMode(assistant)
-
-  switch (mode) {
-    case 'disabled':
-      return []
-    case 'auto':
-      return [hubMCPServer]
-    case 'manual': {
-      const activedMcpServers = await fetchActiveMcpServers()
-      const assistantMcpServers = assistant.mcpServers || []
-      return activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-    }
-    default:
-      return []
-  }
-}
-
-export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
-  const activedMcpServers = await fetchActiveMcpServers()
-
-  if (activedMcpServers.length === 0) {
-    return []
-  }
-
-  try {
-    const toolPromises = activedMcpServers.map(async (mcpServer: MCPServer) => {
-      try {
-        const tools = await window.api.mcp.listTools(mcpServer)
-        return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-      } catch (error) {
-        logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
-        return []
-      }
-    })
-    const results = await Promise.allSettled(toolPromises)
-    return results
-      .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
-      .map((result) => result.value)
-      .flat()
-  } catch (toolError) {
-    logger.error('Error fetching all active server tools:', toolError as Error)
-    return []
-  }
-}
 
 export async function fetchMessagesSummary({
   messages
@@ -85,7 +26,10 @@ export async function fetchMessagesSummary({
   messages: Message[]
 }): Promise<{ text: string | null; error?: string }> {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
-  const model = getQuickModel()
+  const model = await readQuickModel()
+  if (!model) {
+    return { text: null, error: i18n.t('error.model.not_exists') }
+  }
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -118,10 +62,14 @@ export async function fetchMessagesSummary({
   }
 }
 
-export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
+export async function fetchNoteSummary({ content }: { content: string; assistant?: Assistant }) {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
-  const resolvedAssistant = assistant || getDefaultAssistant()
-  const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
+  // Note summarisation always uses the quick-assistant model. The optional
+  // assistant parameter was a v1 escape hatch (read assistant.model); in v2 the
+  // assistant has no embedded model, so we go straight to the user's quick
+  // model preference.
+  const model = (await readQuickModel()) ?? (await readDefaultModel())
+  if (!model) return null
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -152,7 +100,11 @@ export async function fetchGenerate({
   model?: Model
 }): Promise<string> {
   try {
-    const resolvedModel = model || getDefaultModel()
+    const resolvedModel = model ?? (await readDefaultModel())
+    if (!resolvedModel) {
+      logger.error('fetchGenerate: no model available')
+      return ''
+    }
     const { text } = await window.api.ai.generateText({
       uniqueModelId: createUniqueModelId(resolvedModel.provider, resolvedModel.id),
       system: prompt,

@@ -239,7 +239,6 @@ const MessageItem: FC<Props> = ({
                   }}>
                   <MessageMenubar
                     message={message}
-                    assistant={assistant}
                     model={model}
                     topic={topic}
                     isLastMessage={isLastMessage}

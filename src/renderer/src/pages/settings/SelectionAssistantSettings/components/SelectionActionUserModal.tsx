@@ -1,9 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { getDefaultModel } from '@renderer/services/AssistantService'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
@@ -27,7 +29,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
-  const { defaultAssistant } = useDefaultAssistant()
+  const { assistant: defaultAssistant } = useAssistant(DEFAULT_ASSISTANT_ID)
+  const { defaultModel: apiDefaultModel } = useDefaultModel()
+  const v1DefaultModel = apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
   const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
@@ -172,7 +176,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Radio.Group
               value={formData.assistantId ? 'assistant' : 'default'}
               onChange={(e) =>
-                handleInputChange('assistantId', e.target.value === 'default' ? '' : defaultAssistant.id)
+                handleInputChange('assistantId', e.target.value === 'default' ? '' : (defaultAssistant?.id ?? ''))
               }
               buttonStyle="solid">
               <Radio.Button value="default">{t('selection.settings.user_modal.model.default')}</Radio.Button>
@@ -181,7 +185,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
           </Row>
         </ModalSection>
 
-        {formData.assistantId && (
+        {formData.assistantId && defaultAssistant && (
           <ModalSection>
             <ModalSectionTitle>
               <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
@@ -193,7 +197,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               dropdownRender={(menu) => menu}>
               <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
                 <AssistantItem>
-                  <ModelAvatar model={defaultAssistant.model || getDefaultModel()} size={18} />
+                  <ModelAvatar model={v1DefaultModel} size={18} />
                   <AssistantName>{defaultAssistant.name}</AssistantName>
                   <Spacer />
                   <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
@@ -204,7 +208,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 .map((a) => (
                   <Select.Option key={a.id} value={a.id}>
                     <AssistantItem>
-                      <ModelAvatar model={a.model || getDefaultModel()} size={18} />
+                      <ModelAvatar model={v1DefaultModel} size={18} />
                       <AssistantName>{a.name}</AssistantName>
                       <Spacer />
                     </AssistantItem>

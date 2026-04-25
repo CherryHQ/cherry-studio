@@ -12,15 +12,16 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { Assistant, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { isGroqSystemProvider } from '@renderer/types'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -102,8 +103,14 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   })
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
 
-  const { assistant } = useAssistant(props.assistant.id)
-  const { provider } = useProvider(assistant.model.provider)
+  const { model: apiModel } = useAssistant(props.assistant.id)
+  const { defaultModel: apiDefaultModel } = useDefaultModel()
+  const v1Model = useMemo(() => (apiModel ? fromSharedModel(apiModel) : undefined), [apiModel])
+  const v1DefaultModel = useMemo(
+    () => (apiDefaultModel ? fromSharedModel(apiDefaultModel) : undefined),
+    [apiDefaultModel]
+  )
+  const { provider } = useProvider(v1Model?.provider ?? '')
 
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
@@ -187,17 +194,19 @@ const AssistantSettingsTab: FC<Props> = (props) => {
     [theme, codeEditor.enabled, setCodeEditor, setCodeViewer]
   )
 
-  const model = assistant.model || getDefaultModel()
+  const model = v1Model || v1DefaultModel
 
   const showOpenAiSettings =
-    isOpenAICompatibleProvider(provider) ||
-    isOpenAIModel(model) ||
-    isSupportServiceTierProvider(provider) ||
-    (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
+    !!provider &&
+    !!model &&
+    (isOpenAICompatibleProvider(provider) ||
+      isOpenAIModel(model) ||
+      isSupportServiceTierProvider(provider) ||
+      (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)))
 
   return (
     <Container className="settings-tab">
-      {showOpenAiSettings && (
+      {showOpenAiSettings && provider && model && (
         <OpenAISettingsGroup
           model={model}
           providerId={provider.id}
@@ -205,7 +214,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
       )}
-      {isGroqSystemProvider(provider) && (
+      {provider && isGroqSystemProvider(provider) && (
         <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>

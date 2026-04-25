@@ -1,7 +1,6 @@
 import { Avatar, AvatarImage, EmojiAvatar } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -24,8 +23,7 @@ interface MessageLineProps {
   messages: Message[]
 }
 
-const getModelIcon = (isLocalAi: boolean, modelId: string | undefined) => {
-  if (isLocalAi) return undefined
+const getModelIcon = (modelId: string | undefined) => {
   return modelId ? getModelLogoById(modelId) : undefined
 }
 
@@ -83,10 +81,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
   const getUserName = useCallback(
     (message: Message) => {
-      if (isLocalAi && message.role !== 'user') {
-        return APP_NAME
-      }
-
       if (message.role === 'assistant') {
         if (message.model) {
           return getModelName(message.model) || message.model.name || message.modelId || ''
@@ -199,7 +193,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
-          const ModelIcon = getModelIcon(isLocalAi, getMessageModelId(message))
+          const ModelIcon = getModelIcon(getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
           const parts = partsMap?.[message.id]
           const content = parts ? getTextFromParts(parts) : getMainTextContent(message)
@@ -230,11 +224,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                     style={{
                       width: size,
                       height: size,
-                      border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
+                      border: 'none',
                       filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                    }}>
-                    {isLocalAi && <AvatarImage src={AppLogo} />}
-                  </MessageItemAvatar>
+                    }}></MessageItemAvatar>
                 )
               ) : (
                 <>

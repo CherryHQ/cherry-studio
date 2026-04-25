@@ -1,7 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
-import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
@@ -13,7 +12,6 @@ import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
-import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useMinapps } from './useMinapps'
 import useNavBackgroundColor from './useNavBackgroundColor'
@@ -29,7 +27,6 @@ export function useAppInit() {
   const { isLeftNavbar } = useNavbarPosition()
   const { minappShow } = useMinapps()
   const { updateAppUpdateState } = useAppUpdateState()
-  const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const navBackgroundColor = useNavBackgroundColor()
@@ -106,16 +103,6 @@ export function useAppInit() {
 
     window.root.style.background = navBackgroundColor
   }, [windowStyle, minappShow, theme, isLeftNavbar, navBackgroundColor])
-
-  useEffect(() => {
-    if (isLocalAi) {
-      const model = JSON.parse(import.meta.env.VITE_RENDERER_INTEGRATED_MODEL)
-      void setDefaultModel(model)
-      void setQuickModel(model)
-      void setTranslateModel(model)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     // set files path
