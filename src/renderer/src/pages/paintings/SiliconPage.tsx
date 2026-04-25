@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
@@ -117,7 +116,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [isLoading, setIsLoading] = useState(false)
   const activeRequestIdRef = useRef<string | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -185,7 +183,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     const requestId = uuid()
     activeRequestIdRef.current = requestId
     setIsLoading(true)
-    setGenerating(true)
 
     if (!painting.model) {
       return
@@ -233,7 +230,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (activeRequestIdRef.current === requestId) {
         activeRequestIdRef.current = null
         setIsLoading(false)
-        setGenerating(false)
       }
     }
   }
@@ -244,7 +240,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     activeRequestIdRef.current = null
     setIsLoading(false)
-    setGenerating(false)
   }
 
   const onSelectImageSize = (v: string) => {
@@ -275,7 +270,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: Painting) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }

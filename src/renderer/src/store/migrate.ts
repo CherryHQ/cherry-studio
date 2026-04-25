@@ -28,7 +28,7 @@ import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER 
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
-import { getModel } from '@renderer/hooks/useModel'
+import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
@@ -3084,14 +3084,17 @@ const migrateConfig = {
       // @ts-ignore
       const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
 
+      const allModels = getStoreProviders().flatMap((p) => p.models)
+      const findModel = (id: string, provider: string) => allModels.find((m) => m.id === id && m.provider === provider)
+
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        state.memory.memoryConfig.llmModel = findModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
         // @ts-ignore
         delete state.memory.memoryConfig.llmApiClient
       }
 
       if (memoryEmbeddingApiClient) {
-        state.memory.memoryConfig.embeddingModel = getModel(
+        state.memory.memoryConfig.embeddingModel = findModel(
           memoryEmbeddingApiClient.model,
           memoryEmbeddingApiClient.provider
         )

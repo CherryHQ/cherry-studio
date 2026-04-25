@@ -6,10 +6,8 @@ import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
-import { useModel } from '@renderer/hooks/useModel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -69,7 +67,9 @@ const MessageItem: FC<Props> = ({
   const { t } = useTranslation()
   const { assistant, setModel } = useAssistant(message.assistantId)
   const { isMultiSelectMode } = useChatContext(topic)
-  const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
+  // Use the message-embedded snapshot rather than re-resolving the live model
+  // config: the snapshot is what the message was actually generated with.
+  const model = message.model
 
   const [messageFont] = usePreference('chat.message.font')
   const [fontSize] = usePreference('chat.message.font_size')

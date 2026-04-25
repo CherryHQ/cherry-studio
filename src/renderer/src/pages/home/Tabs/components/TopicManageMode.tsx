@@ -1,5 +1,4 @@
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import type { Assistant, Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -143,8 +142,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
     if (!confirmed) return
 
-    await modelGenerating()
-
     const idsArray = Array.from(selectedIds)
 
     const results = await Promise.allSettled(idsArray.map((id) => deleteTopic(id).then(() => id)))
@@ -190,8 +187,6 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
         window.toast.error(t('chat.topics.manage.error.at_least_one'))
         return
       }
-
-      await modelGenerating()
 
       const movedCount = selectedIds.size
       for (const id of selectedIds) {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { CreateModelDto, CreateModelsDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { isUndefined, omitBy } from 'lodash'
 import { useCallback } from 'react'
@@ -118,5 +118,30 @@ export function useModelMutations() {
     updateModel,
     isUpdating,
     updateError
+  }
+}
+
+// ─── Layer 3: Single-model lookups ────────────────────────────────────
+
+/**
+ * Single-model read backed by DataApi (`/models/:uniqueModelId*`). Returns
+ * the canonical v2 {@link Model} shape; consumers that need a bare modelId
+ * should use `parseUniqueModelId(model.id)`.
+ */
+export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
+  const { data, isLoading, error, refetch, mutate } = useQuery('/models/:uniqueModelId*', {
+    // The fallback is only visited when `enabled: false` short-circuits the
+    // request — it's never sent. The `_::_` shape satisfies the path-param
+    // branded type (`${string}::${string}`) without escaping to `as any`.
+    params: { uniqueModelId: uniqueModelId ?? ('_::_' as UniqueModelId) },
+    enabled: !!uniqueModelId
+  })
+
+  return {
+    model: data,
+    isLoading,
+    error,
+    refetch,
+    mutate
   }
 }

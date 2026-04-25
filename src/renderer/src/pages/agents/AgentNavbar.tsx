@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
@@ -24,8 +23,7 @@ const AgentNavbar = () => {
     void SearchPopup.show()
   })
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 

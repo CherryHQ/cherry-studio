@@ -4,7 +4,6 @@ import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -169,12 +168,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const menuId = menuItemId as SidebarIconType
       const path = getMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
-
-      try {
-        await modelGenerating()
-      } catch {
-        return
-      }
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })

@@ -118,7 +118,6 @@ export type UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
-  'chat.generating': boolean
   'chat.web_search.searching': boolean
 
   // Minapp management
@@ -199,7 +198,6 @@ export const DefaultUseCache: UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
-  'chat.generating': false,
   'chat.web_search.searching': false,
 
   // Minapp management

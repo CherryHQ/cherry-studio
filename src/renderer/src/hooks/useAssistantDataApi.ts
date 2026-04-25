@@ -15,15 +15,25 @@
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useModels } from '@renderer/hooks/useModels'
+import { useAllTopics, useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
 import type {
   Assistant as RendererAssistant,
   AssistantSettingCustomParameters as RendererCustomParameter,
   AssistantSettings as RendererAssistantSettings,
-  ReasoningEffortOption
+  KnowledgeBase,
+  MCPServer,
+  Model,
+  ReasoningEffortOption,
+  Topic as RendererTopic
 } from '@renderer/types'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant as ApiAssistant, AssistantSettings as ApiAssistantSettings } from '@shared/data/types/assistant'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useAssistantDataApi')
@@ -232,5 +242,138 @@ export function useAssistantMutations() {
     isCreating,
     isUpdating,
     isDeleting
+  }
+}
+
+// ============================================================================
+// Phase 2: Join layer
+//
+// Hydrate the renderer's rich Assistant shape by joining DataApi data with
+// stores that own the related entities (providers/models in Redux LLM,
+// knowledge bases in Redux, MCP servers in DataApi, topics in DataApi).
+// ============================================================================
+
+const EMPTY_TOPICS: readonly RendererTopic[] = Object.freeze([])
+const EMPTY_KNOWLEDGE_BASES: readonly KnowledgeBase[] = Object.freeze([])
+const EMPTY_MCP_SERVERS: readonly MCPServer[] = Object.freeze([])
+
+/** Look up a renderer `Model` by its DataApi `UniqueModelId` (`provider::model`). */
+function findModelByUniqueId(allModels: readonly Model[], uniqueId: UniqueModelId | null): Model | undefined {
+  if (!uniqueId) return undefined
+  const { providerId, modelId } = parseUniqueModelId(uniqueId)
+  return allModels.find((m) => m.id === modelId && m.provider === providerId)
+}
+
+/** Pick entities by id from a (typically small) list, preserving the id order. */
+function pickById<T extends { id: string }>(allItems: readonly T[], ids: readonly string[]): T[] {
+  if (ids.length === 0 || allItems.length === 0) return []
+  const byId = new Map(allItems.map((item) => [item.id, item]))
+  const result: T[] = []
+  for (const id of ids) {
+    const item = byId.get(id)
+    if (item) result.push(item)
+  }
+  return result
+}
+
+interface JoinContext {
+  allModels: readonly Model[]
+  allKnowledgeBases: readonly KnowledgeBase[]
+  allMcpServers: readonly MCPServer[]
+  topics: readonly RendererTopic[]
+}
+
+/** Project a DataApi assistant + related stores into the renderer's rich shape. */
+function joinAssistant(api: ApiAssistant, ctx: JoinContext): RendererAssistant {
+  const base = mapApiAssistantToRendererAssistant(api)
+  return {
+    ...base,
+    model: findModelByUniqueId(ctx.allModels, api.modelId),
+    topics: ctx.topics.length === 0 ? [] : [...ctx.topics],
+    knowledge_bases: pickById(ctx.allKnowledgeBases, api.knowledgeBaseIds),
+    mcpServers: pickById(ctx.allMcpServers, api.mcpServerIds)
+  }
+}
+
+/** All models from DataApi, adapted to the renderer's legacy `Model` shape. */
+function useAllModels(): Model[] {
+  const { models } = useModels()
+  return useMemo(() => models.map(fromSharedModel), [models])
+}
+
+/**
+ * Read a single assistant joined with model / topics / knowledge bases / MCP
+ * servers. Phase 2 read path for the renderer's rich `Assistant` shape.
+ */
+export function useAssistantJoined(id: string | undefined) {
+  const { apiAssistant, isLoading: isAssistantLoading, error, refetch, mutate } = useAssistantApiById(id)
+  const { rendererTopics, isLoading: isTopicsLoading } = useTopicsByAssistant(id)
+  const allModels = useAllModels()
+  const { bases } = useKnowledgeBases()
+  const { mcpServers } = useMCPServers()
+
+  const assistant = useMemo(() => {
+    if (!apiAssistant) return undefined
+    return joinAssistant(apiAssistant, {
+      allModels,
+      allKnowledgeBases: bases ?? EMPTY_KNOWLEDGE_BASES,
+      allMcpServers: mcpServers ?? EMPTY_MCP_SERVERS,
+      topics: rendererTopics
+    })
+  }, [apiAssistant, allModels, bases, mcpServers, rendererTopics])
+
+  return {
+    apiAssistant,
+    assistant,
+    isLoading: isAssistantLoading || isTopicsLoading,
+    error,
+    refetch,
+    mutate
+  }
+}
+
+/**
+ * Read all assistants joined with model / topics / knowledge bases / MCP
+ * servers. Topics are bucketed from a single `/topics` fetch so the join
+ * cost is O(assistants + topics) rather than N fetches.
+ */
+export function useAssistantsJoined() {
+  const { apiAssistants, total, isLoading: isAssistantsLoading, error, refetch, mutate } = useAssistantsApi()
+  const { rendererTopics, isLoading: isTopicsLoading } = useAllTopics()
+  const allModels = useAllModels()
+  const { bases } = useKnowledgeBases()
+  const { mcpServers } = useMCPServers()
+
+  const topicsByAssistant = useMemo(() => {
+    const map = new Map<string, RendererTopic[]>()
+    for (const topic of rendererTopics) {
+      const list = map.get(topic.assistantId)
+      if (list) list.push(topic)
+      else map.set(topic.assistantId, [topic])
+    }
+    return map
+  }, [rendererTopics])
+
+  const assistants = useMemo(
+    () =>
+      apiAssistants.map((api) =>
+        joinAssistant(api, {
+          allModels,
+          allKnowledgeBases: bases ?? EMPTY_KNOWLEDGE_BASES,
+          allMcpServers: mcpServers ?? EMPTY_MCP_SERVERS,
+          topics: topicsByAssistant.get(api.id) ?? EMPTY_TOPICS
+        })
+      ),
+    [apiAssistants, allModels, bases, mcpServers, topicsByAssistant]
+  )
+
+  return {
+    apiAssistants,
+    assistants,
+    total,
+    isLoading: isAssistantsLoading || isTopicsLoading,
+    error,
+    refetch,
+    mutate
   }
 }

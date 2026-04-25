@@ -89,6 +89,8 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
+export const DEFAULT_ASSISTANT_ID = 'default' as const
+
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,

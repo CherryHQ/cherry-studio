@@ -4,7 +4,6 @@ import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
@@ -79,7 +78,6 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   }
 
   const onContinueChat = async (topic: Topic) => {
-    await modelGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
     void navigate({ to: '/app/chat', search: { assistantId: assistant?.id, topicId: topic.id } })

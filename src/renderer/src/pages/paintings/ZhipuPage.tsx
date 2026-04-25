@@ -2,7 +2,6 @@ import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -55,7 +54,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const activeRequestIdRef = useRef<string | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -102,7 +100,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    setGenerating(true)
     const requestId = uuid()
     activeRequestIdRef.current = requestId
 
@@ -190,7 +187,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (activeRequestIdRef.current === requestId) {
         activeRequestIdRef.current = null
         setIsLoading(false)
-        setGenerating(false)
       }
     }
   }
@@ -201,7 +197,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     activeRequestIdRef.current = null
     setIsLoading(false)
-    setGenerating(false)
   }
 
   const nextImage = () => {
@@ -235,7 +230,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: any) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
@@ -276,7 +271,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    if (generating) return
+    if (isLoading) return
     const newPainting = getNewPainting()
     const addedPainting = addPainting('zhipu_paintings', newPainting)
     setPainting(addedPainting)

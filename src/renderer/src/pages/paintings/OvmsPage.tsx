@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -67,7 +66,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const [generating, setGenerating] = useCache('chat.generating')
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -177,7 +175,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    setGenerating(true)
 
     try {
       // Prepare request body for OVMS
@@ -236,7 +233,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -453,7 +449,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: OvmsPainting) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }

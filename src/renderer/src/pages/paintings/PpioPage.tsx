@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -82,7 +81,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
 
-  const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const { autoTranslateWithSpace } = useSettings()
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -166,7 +164,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       setAbortController(null)
     }
     setIsLoading(false)
-    setGenerating(false)
   }
 
   const handleProviderChange = (providerId: string) => {
@@ -233,7 +230,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    setGenerating(true)
 
     const controller = new AbortController()
     setAbortController(controller)
@@ -311,7 +307,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePaintingState({ ppioStatus: 'failed' })
     } finally {
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }

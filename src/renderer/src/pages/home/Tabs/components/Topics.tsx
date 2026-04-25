@@ -14,7 +14,6 @@ import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useTopicsByAssistant } from '@renderer/hooks/useTopicDataApi'
@@ -79,8 +78,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
-
-  const [, setGenerating] = useCache('chat.generating')
 
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -147,19 +144,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
   }, [])
 
-  const onClearMessages = useCallback(
-    (topic: Topic) => {
-      // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-      setGenerating(false)
-      void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-    },
-    [setGenerating]
-  )
+  const onClearMessages = useCallback((topic: Topic) => {
+    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+  }, [])
 
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
-      await modelGenerating()
       try {
         await removeTopic(topic)
       } catch (err) {
@@ -227,7 +218,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const onDeleteTopic = useCallback(
     async (topic: Topic) => {
-      await modelGenerating()
       try {
         await removeTopic(topic)
       } catch (err) {
@@ -245,8 +235,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   )
 
   const onMoveTopic = useCallback(
-    async (topic: Topic, toAssistant: Assistant) => {
-      await modelGenerating()
+    (topic: Topic, toAssistant: Assistant) => {
       const index = findIndex(topics, (t) => t.id === topic.id)
       setActiveTopic(topics[index + 1 === topics.length ? 0 : index + 1])
       void moveTopic(topic, toAssistant)
@@ -255,8 +244,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   )
 
   const onSwitchTopic = useCallback(
-    async (topic: Topic) => {
-      // await modelGenerating()
+    (topic: Topic) => {
       setActiveTopic(topic)
     },
     [setActiveTopic]

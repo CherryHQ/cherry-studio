@@ -8,7 +8,7 @@ import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { getModel } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { InputbarCore } from '@renderer/pages/home/Inputbar/components/InputbarCore'
@@ -63,6 +63,7 @@ const AgentSessionInputbar = ({
   isStreaming: isStreamingProp
 }: Props) => {
   const { session } = useSession(agentId, sessionId)
+  const { providers } = useProviders()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({
     resizeTextArea: () => {},
@@ -77,7 +78,9 @@ const AgentSessionInputbar = ({
 
     // Extract model info
     const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
-    const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
+    const actualModel = actualModelId
+      ? providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
+      : undefined
 
     return {
       id: session.agentId ?? agentId,
@@ -90,7 +93,7 @@ const AgentSessionInputbar = ({
       tags: [],
       enableWebSearch: false
     } satisfies Assistant
-  }, [session, agentId])
+  }, [session, agentId, providers])
 
   // Prepare session data for tools
   const sessionData = useMemo(() => {

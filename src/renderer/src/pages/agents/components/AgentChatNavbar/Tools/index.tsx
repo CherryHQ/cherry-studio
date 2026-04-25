@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Tooltip } from 'antd'
@@ -17,8 +16,7 @@ const Tools = () => {
   const [topicPosition] = usePreference('topic.position')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 

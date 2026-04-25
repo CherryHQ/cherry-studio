@@ -2,7 +2,6 @@ import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import type { Assistant, Topic } from '@renderer/types'
@@ -35,8 +34,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     void SearchPopup.show()
   })
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 

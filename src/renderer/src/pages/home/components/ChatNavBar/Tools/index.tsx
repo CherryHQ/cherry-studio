@@ -2,7 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import type { Assistant } from '@renderer/types'
@@ -23,8 +22,7 @@ const Tools = ({ assistant }: ToolsProps) => {
   const [topicPosition] = usePreference('topic.position')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
 
-  const handleNarrowModeToggle = async () => {
-    await modelGenerating()
+  const handleNarrowModeToggle = () => {
     void setNarrowMode(!narrowMode)
   }
 

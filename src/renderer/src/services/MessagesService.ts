@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
@@ -36,8 +35,6 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
 }
 
 export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
-  await modelGenerating()
-
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)

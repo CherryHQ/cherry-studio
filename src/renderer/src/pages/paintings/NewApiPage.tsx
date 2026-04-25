@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -74,7 +73,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const routeName = location.pathname.split('/').pop() || 'new-api'
   const newApiProviders = providers.filter((p) => isNewApiProvider(p))
 
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -252,7 +250,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    setGenerating(true)
 
     let body: string | FormData = ''
     const headers: Record<string, string> = {
@@ -350,7 +347,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -459,7 +455,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 渲染配置项的函数
   const onSelectPainting = (newPainting: PaintingAction) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }

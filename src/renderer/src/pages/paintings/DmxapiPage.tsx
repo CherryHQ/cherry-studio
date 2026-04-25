@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -55,7 +54,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -559,7 +557,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 设置请求状态
       const controller = new AbortController()
       setAbortController(controller)
-      setGenerating(true)
 
       // 准备请求配置
       const requestConfig = await prepareRequestConfig(prompt, painting)
@@ -603,7 +600,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     } finally {
       // 清理状态
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -644,7 +640,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: DmxapiPainting) => {
-    if (generating) return
+    if (isLoading) return
     clearImages()
     setPainting(newPainting)
     setCurrentImageIndex(0)

@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -74,7 +73,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
@@ -169,7 +167,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    setGenerating(true)
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
@@ -367,7 +364,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             handleError(error)
           } finally {
             setIsLoading(false)
-            setGenerating(false)
             setAbortController(null)
           }
         } else {
@@ -588,7 +584,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     } finally {
       activeImageRequestIdRef.current = null
       setIsLoading(false)
-      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -866,7 +861,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onSelectPainting = (newPainting: PaintingAction) => {
-    if (generating) return
+    if (isLoading) return
     setPainting(newPainting)
     setCurrentImageIndex(0)
   }
