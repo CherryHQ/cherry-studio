@@ -38,7 +38,7 @@ import {
   getQuickModel
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
-import FileManager from './FileManager'
+import { getEditableImageInput } from './imageEditInput'
 import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
@@ -310,25 +310,26 @@ export async function fetchChatCompletion({
  */
 async function collectImagesFromMessages(userMessage: Message, assistantMessage?: Message): Promise<string[]> {
   const images: string[] = []
+  const loadImageDataUrl = async (message: Message): Promise<string[]> => {
+    const imageBlocks = findImageBlocks(message)
+    const imageUrls: string[] = []
+
+    for (const block of imageBlocks) {
+      const imageInput = await getEditableImageInput(block)
+      if (imageInput) {
+        imageUrls.push(imageInput)
+      }
+    }
+
+    return imageUrls
+  }
 
   // 收集用户消息中的图像
-  const userImageBlocks = findImageBlocks(userMessage)
-  for (const block of userImageBlocks) {
-    if (block.file) {
-      const base64 = await FileManager.readBase64File(block.file)
-      const mimeType = block.file.type || 'image/png'
-      images.push(`data:${mimeType};base64,${base64}`)
-    }
-  }
+  images.push(...(await loadImageDataUrl(userMessage)))
 
   // 收集助手消息中的图像（用于继续编辑生成的图像）
   if (assistantMessage) {
-    const assistantImageBlocks = findImageBlocks(assistantMessage)
-    for (const block of assistantImageBlocks) {
-      if (block.url) {
-        images.push(block.url)
-      }
-    }
+    images.push(...(await loadImageDataUrl(assistantMessage)))
   }
 
   return images
