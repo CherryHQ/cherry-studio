@@ -253,6 +253,22 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
   })
 
+  it('skips topics with no messages (empty conversations are noise)', () => {
+    // v1 created an empty topic on first launch and on every abandoned "new
+    // topic" click — migrating those just clutters the post-migration list.
+    // They also lack a usable timestamp source (no messages to derive from),
+    // so they would otherwise stack up at the migration moment.
+    const oldTopic: OldTopic = {
+      id: 't-empty',
+      assistantId: 'ast-1',
+      name: '',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: []
+    }
+    expect(prepareTopic(oldTopic, [])).toBeNull()
+  })
+
   it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
     // Without this fallback, a topic with no assistantId becomes
     // `assistantId: null`, and the renderer's `useAssistant('')` then
