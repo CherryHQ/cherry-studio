@@ -54,7 +54,7 @@ describe('MessageService', () => {
    *           └── follow (user)
    */
   async function seedMultiModelTree() {
-    await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'm-follow' })
+    await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'm-follow', orderKey: 'a0' })
 
     const messages: (typeof messageTable.$inferInsert)[] = [
       {

@@ -26,12 +26,8 @@ export const TopicSchema = z.strictObject({
   activeNodeId: z.string().nullable().optional(),
   /** Group ID for organization */
   groupId: z.string().nullable().optional(),
-  /** Sort order within group */
-  sortOrder: z.number(),
-  /** Whether topic is pinned */
-  isPinned: z.boolean(),
-  /** Pinned order */
-  pinnedOrder: z.number(),
+  /** Fractional-indexing order key, partitioned by groupId. */
+  orderKey: z.string(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
