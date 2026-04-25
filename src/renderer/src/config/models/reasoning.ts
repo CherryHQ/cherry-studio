@@ -27,7 +27,7 @@ import {
   isGemini3ProModel,
   isGemini31FlashLiteModel,
   isGemini31ProModel,
-  isKimi25Model,
+  isKimi25OrNewerModel,
   withModelIdAndNameAsId
 } from './utils'
 import { isTextToImageModel } from './vision'
@@ -633,13 +633,13 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
  * Detects whether a Kimi model supports thinking control
  *
  * This function identifies Kimi models that support thinking token control.
- * Currently only supports Kimi K2.5 and its variants.
+ * Currently only supports Kimi K2.5 / K2.6 and their variants.
  *
  * @param model - The model object to check
  * @returns true if the model supports thinking control, false otherwise
  */
 const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
-  return isKimi25Model(model)
+  return isKimi25OrNewerModel(model)
 }
 
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
@@ -732,16 +732,15 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
  * This function identifies Moonshot AI's Kimi series reasoning models.
  * Currently should only support:
  * - Kimi K2 Thinking and its variants (including -turbo suffix)
- * - Kimi K2.5
+ * - Kimi K2.5+ (K2.5, K2.6, ...) and K3+ (K3, K3.x, K4, ...)
  *
  * @param model - The model object to check, can be undefined
  * @returns true if it's a Kimi reasoning model, false otherwise
  */
 const _isKimiReasoningModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5
-  // The regex ensures no extra suffixes after these patterns
-  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-\w)*$/.test(modelId)
+  // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5+ / kimi-k3+
+  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2\.[5-9]\d*|[3-9]\d*)(?:[.-]\w+)*$/.test(modelId)
 }
 
 export function isKimiReasoningModel(model?: Model): boolean {
@@ -887,7 +886,7 @@ export const isFixedReasoningModel = (model: Model) =>
 // https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
 /** @deprecated No longer used. */
 const INTERLEAVED_THINKING_MODEL_REGEX =
-  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2\.[56](?:-[\w-]+)?$/i
 
 /**
  * Determines whether the given model supports interleaved thinking.
