@@ -34,7 +34,7 @@ const { PersistenceListener } = await import('../../listeners/PersistenceListene
 
 function makeSubscriber() {
   return {
-    id: 'wc:1:temp:1',
+    id: 'wc:1:1',
     onChunk: vi.fn(),
     onDone: vi.fn(),
     onPaused: vi.fn(),
@@ -45,7 +45,7 @@ function makeSubscriber() {
 
 function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequest {
   return {
-    topicId: 'temp:1',
+    topicId: '1',
     userMessageParts: [{ type: 'text', text: 'hi' }],
     ...overrides
   }
@@ -65,7 +65,7 @@ describe('TemporaryChatContextProvider', () => {
 
     // sensible defaults
     hasTopicMock.mockReturnValue(true)
-    getTopicMock.mockReturnValue({ id: 'temp:1', assistantId: 'asst_1' })
+    getTopicMock.mockReturnValue({ id: '1', assistantId: 'asst_1' })
     getAssistantByIdMock.mockResolvedValue({ id: 'asst_1', modelId: 'openai::gpt-4o' })
     getByKeyMock.mockResolvedValue({
       id: 'openai::gpt-4o',
@@ -88,12 +88,12 @@ describe('TemporaryChatContextProvider', () => {
 
   it('canHandle is state-based (hasTopic), not prefix-based', () => {
     hasTopicMock.mockReturnValueOnce(true)
-    expect(provider.canHandle('temp:1')).toBe(true)
+    expect(provider.canHandle('1')).toBe(true)
     hasTopicMock.mockReturnValueOnce(false)
     expect(provider.canHandle('some-uuid')).toBe(false)
     // Even a temp-prefixed id returns false once service no longer holds it.
     hasTopicMock.mockReturnValueOnce(false)
-    expect(provider.canHandle('temp:vanished')).toBe(false)
+    expect(provider.canHandle('vanished')).toBe(false)
   })
 
   it('rejects regenerate-message — temp chats are immutable append-only', async () => {
@@ -108,7 +108,7 @@ describe('TemporaryChatContextProvider', () => {
   })
 
   it('throws when topic has no assistantId', async () => {
-    getTopicMock.mockReturnValueOnce({ id: 'temp:1', assistantId: null })
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(/no assistantId configured/i)
   })
 
@@ -117,14 +117,14 @@ describe('TemporaryChatContextProvider', () => {
 
     const prepared = await provider.prepareDispatch(subscriber, openReq())
 
-    expect(prepared.topicId).toBe('temp:1')
+    expect(prepared.topicId).toBe('1')
     expect(prepared.isMultiModel).toBe(false)
     expect(prepared.userMessage).toBeUndefined()
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const [topicId, userInput] = appendMessageMock.mock.calls[0]
-    expect(topicId).toBe('temp:1')
+    expect(topicId).toBe('1')
     expect(userInput.role).toBe('user')
     expect(userInput.id).toBeUndefined()
 

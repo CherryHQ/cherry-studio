@@ -98,7 +98,7 @@ describe('TemporaryChatService', () => {
       // Note: we do NOT set assistantId here because FK enforcement is ON
       // and the assistant table starts empty.
       const topic = await service.createTopic({ name: 'hello' })
-      expect(topic.id).toMatch(/^temp:[0-9a-f-]{36}$/)
+      expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.activeNodeId).toBeNull()
       expect(topic.orderKey).toBe('')

@@ -31,6 +31,12 @@ const logger = loggerService.withContext('Chat')
 interface Props {
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  /**
+   * Called by V2ChatContent before the first message of a freshly-leased
+   * temporary topic is sent. HomePage owns the lease so it also owns the
+   * persist trigger.
+   */
+  onPersistTemporaryTopic?: () => Promise<void>
 }
 
 const Chat: FC<Props> = (props) => {
@@ -148,6 +154,7 @@ const Chat: FC<Props> = (props) => {
                 topic={props.activeTopic}
                 setActiveTopic={props.setActiveTopic}
                 mainHeight={mainHeight}
+                onPersistTemporaryTopic={props.onPersistTemporaryTopic}
               />
               <ContentSearch
                 ref={contentSearchRef}

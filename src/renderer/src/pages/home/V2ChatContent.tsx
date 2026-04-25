@@ -25,6 +25,13 @@ interface Props {
   topic: Topic
   setActiveTopic: (topic: Topic) => void
   mainHeight: string
+  /**
+   * If the active topic is a freshly-leased temporary one, this callback
+   * migrates it into SQLite (with the same id) before the first message
+   * is sent. Owned by HomePage so the lease and the persist trigger live
+   * on the same hook instance.
+   */
+  onPersistTemporaryTopic?: () => Promise<void>
 }
 
 /**
@@ -47,7 +54,7 @@ interface Props {
  * `ExecutionStreamCollector`s and are overlaid into the partsMap by
  * the rendering pipeline.
  */
-const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight }) => {
+const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersistTemporaryTopic }) => {
   const {
     uiMessages,
     siblingsMap,
@@ -76,6 +83,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight }) => {
       topic={topic}
       setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
+      onPersistTemporaryTopic={onPersistTemporaryTopic}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -109,6 +117,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
   mainHeight,
+  onPersistTemporaryTopic,
   initialMessages,
   uiMessages,
   siblingsMap,
@@ -146,6 +155,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const handleSendV2 = useCallback(
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
+      // HomePage only wires `onPersistTemporaryTopic` when this V2ChatContent
+      // is currently displaying its first-launch temporary topic. Calling it
+      // migrates that topic into SQLite under the same UUID *before* the
+      // message hits the transport, so the regular `/topics/:id/messages`
+      // path persists the user's first message. Idempotent — once persisted,
+      // subsequent calls inside the same lease are no-ops.
+      if (onPersistTemporaryTopic) {
+        try {
+          await onPersistTemporaryTopic()
+        } catch (err) {
+          console.warn('[V2ChatContent] failed to persist temporary topic, falling back', err)
+        }
+      }
       await cache.seedOptimisticUser({
         text,
         parentId: activeNodeId ?? null,
@@ -170,7 +192,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
         throw err
       }
     },
-    [activeNodeId, sendMessage, capabilityBody, cache]
+    [onPersistTemporaryTopic, activeNodeId, sendMessage, capabilityBody, cache]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

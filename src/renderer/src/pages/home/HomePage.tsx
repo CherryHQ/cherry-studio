@@ -3,20 +3,40 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
+
+let _appLaunchTempTopicUsed = false
+
+/** Synthesise a renderer Topic shape from a freshly-leased temporary id. */
+function buildPendingTemporaryTopic(id: string, assistantId: string): Topic {
+  const nowIso = new Date().toISOString()
+  return {
+    id,
+    assistantId,
+    name: '',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    messages: [],
+    pinned: false,
+    isNameManuallyEdited: false
+  }
+}
 
 const HomePage: FC = () => {
   const navigate = useNavigate()
@@ -25,7 +45,47 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
 
-  const { activeTopic, setActiveTopic } = useActiveTopic(state?.topic)
+  // Capture the first-launch decision once on mount so re-renders don't see
+  // the flag flip after we set it inside the same render pass.
+  const [shouldUseTemporary] = useState(() => {
+    if (state?.topic) return false
+    if (_appLaunchTempTopicUsed) return false
+    _appLaunchTempTopicUsed = true
+    return true
+  })
+
+  // Lease a temporary topic only when this is the app's first HomePage mount
+  // and the caller didn't pre-select a topic via router state. The hook is
+  // a no-op when assistantId is undefined.
+  const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic(
+    shouldUseTemporary ? DEFAULT_ASSISTANT_ID : undefined
+  )
+
+  const { refreshTopics } = useTopicMutations()
+
+  const initialTopic = useMemo<Topic | undefined>(() => {
+    if (state?.topic) return state.topic
+    if (shouldUseTemporary && tempTopicId) {
+      return buildPendingTemporaryTopic(tempTopicId, DEFAULT_ASSISTANT_ID)
+    }
+    return undefined
+  }, [state?.topic, shouldUseTemporary, tempTopicId])
+
+  const { activeTopic, setActiveTopic } = useActiveTopic(initialTopic, {
+    // While we're waiting for the temporary topic to lease, suppress the
+    // auto-pick-first-topic effect so the UI doesn't flash a stale topic
+    // before our blank one shows up.
+    autoPickFirst: !shouldUseTemporary
+  })
+
+  // Persist the temporary topic on the user's first message in this session,
+  // then refresh `/topics` so the now-real topic shows up in the sidebar.
+  // After resolving, `useTemporaryTopic` skips its cleanup DELETE since the
+  // id no longer points at an in-memory entry.
+  const persistTemporaryTopicAndRefresh = useCallback(async () => {
+    await persistTemporaryTopic()
+    await refreshTopics()
+  }, [persistTemporaryTopic, refreshTopics])
   const [showAssistants] = usePreference('assistant.tab.show')
   const [showTopics] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
@@ -108,7 +168,17 @@ const HomePage: FC = () => {
           )}
         </AnimatePresence>
         <ErrorBoundary>
-          <Chat activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
+          <Chat
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
+            // Wire the persist callback only while the temp lease is the
+            // currently-active topic. If the user clicks a sidebar topic
+            // before sending, the active id no longer matches the lease and
+            // the next send won't accidentally persist an empty lease.
+            onPersistTemporaryTopic={
+              tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
+            }
+          />
         </ErrorBoundary>
       </ContentContainer>
     </Container>

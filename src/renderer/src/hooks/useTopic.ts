@@ -15,7 +15,8 @@ let _activeTopicId: string | undefined
  * Keeps a transient `pendingTopic` for optimistic creation so SWR-refresh
  * delays don't bounce the UI back to an old topic.
  */
-export function useActiveTopic(topic?: Topic) {
+export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean } = {}) {
+  const { autoPickFirst = true } = options
   const { topics: apiTopics, isLoading } = useAllTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(topic?.id ?? _activeTopicId)
@@ -23,13 +24,23 @@ export function useActiveTopic(topic?: Topic) {
   // the newly-added topic is not yet in `topics` (SWR still refetching).
   const [pendingTopic, setPendingTopic] = useState<Topic | undefined>(topic)
 
+  // Pick up a topic supplied later (e.g. an async-leased temporary topic) the
+  // moment it arrives — without this, an undefined-then-defined `topic` prop
+  // never becomes active because both `useState` initializers fired with
+  // undefined on first render.
+  useEffect(() => {
+    if (!topic) return
+    setActiveTopicId((prev) => prev ?? topic.id)
+    setPendingTopic((prev) => prev ?? topic)
+  }, [topic])
+
   const activeTopic = useMemo<Topic | undefined>(() => {
-    if (!activeTopicId) return pendingTopic ?? topics[0]
+    if (!activeTopicId) return pendingTopic ?? (autoPickFirst ? topics[0] : undefined)
     const fromList = topics.find((t) => t.id === activeTopicId)
     if (fromList) return fromList
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, topics, pendingTopic])
+  }, [activeTopicId, topics, pendingTopic, autoPickFirst])
 
   _activeTopicId = activeTopicId
 
@@ -40,10 +51,11 @@ export function useActiveTopic(topic?: Topic) {
 
   // When no topic is selected yet and the list has loaded, pick the first one
   useEffect(() => {
+    if (!autoPickFirst) return
     if (!activeTopicId && topics.length > 0) {
       setActiveTopicId(topics[0].id)
     }
-  }, [activeTopicId, topics])
+  }, [activeTopicId, topics, autoPickFirst])
 
   // If the active topic was deleted (existed in list before, now gone), fall back
   // to the first remaining topic. `pendingTopic` mismatch means it's neither

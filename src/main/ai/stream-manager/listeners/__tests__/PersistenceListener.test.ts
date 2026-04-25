@@ -34,10 +34,10 @@ function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
 
 function makeListener(modelId?: UniqueModelId) {
   return new PersistenceListener({
-    topicId: 'temp:abc',
+    topicId: 'abc',
     modelId,
     backend: new TemporaryChatBackend({
-      topicId: 'temp:abc',
+      topicId: 'abc',
       modelId,
       modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
     })
@@ -57,7 +57,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const [topicId, payload] = appendMessageMock.mock.calls[0]
-    expect(topicId).toBe('temp:abc')
+    expect(topicId).toBe('abc')
     expect(payload.role).toBe('assistant')
     expect(payload.status).toBe('success')
     expect(payload.modelId).toBe('openai::gpt-4o')

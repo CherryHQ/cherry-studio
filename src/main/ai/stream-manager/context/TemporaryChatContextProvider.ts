@@ -8,9 +8,8 @@
  *  - On stream start: append the user message.
  *  - On stream terminate: TemporaryPersistenceListener appends the assistant message.
  *
- * Routing is state-based (`hasTopic`) not prefix-based — after `persist()`, ids retain
- * the `temp:` prefix but are no longer owned by this provider; they should fall through
- * to the persistent provider.
+ * Routing is state-based (`hasTopic`) — after `persist()`, the topic moves out of
+ * the in-memory map and ownership flips to the persistent provider under the same id.
  */
 
 import { assistantDataService } from '@data/services/AssistantService'

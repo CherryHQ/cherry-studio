@@ -20,7 +20,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
 
@@ -31,12 +31,23 @@ export interface UseTemporaryTopicResult {
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op if assistantId is missing. */
   reset: () => void
+  /**
+   * Move the temporary topic (plus its messages) into SQLite. After resolving,
+   * cleanup will no longer issue `DELETE /temporary/topics/:id` on unmount —
+   * the topic now lives on the persistent path under the same id.
+   */
+  persist: () => Promise<void>
 }
 
 export function useTemporaryTopic(assistantId: string | undefined): UseTemporaryTopicResult {
   const [topicId, setTopicId] = useState<string | null>(null)
   /** Bumped by `reset()` to force the effect to re-run and allocate a new topic. */
   const [epoch, setEpoch] = useState(0)
+  /**
+   * Mirror of the in-effect `createdId`. Cleared by `persist()` so the
+   * cleanup path skips DELETE once the topic has migrated to SQLite.
+   */
+  const activeIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!assistantId) {
@@ -45,12 +56,11 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
     }
 
     let cancelled = false
-    let createdId: string | null = null
 
     void dataApiService
       .post('/temporary/topics', { body: { assistantId } })
       .then((topic) => {
-        createdId = topic.id
+        activeIdRef.current = topic.id
         if (cancelled) {
           void dataApiService.delete(`/temporary/topics/${topic.id}`).catch((err) => {
             logger.warn('Failed to cleanup racing temporary topic', err as Error)
@@ -67,8 +77,10 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
     return () => {
       cancelled = true
       setTopicId(null)
-      if (createdId) {
-        void dataApiService.delete(`/temporary/topics/${createdId}`).catch((err) => {
+      const idToCleanup = activeIdRef.current
+      activeIdRef.current = null
+      if (idToCleanup) {
+        void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
       }
@@ -79,5 +91,14 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
     setEpoch((n) => n + 1)
   }, [])
 
-  return { topicId, ready: topicId !== null, reset }
+  const persist = useCallback(async () => {
+    const id = activeIdRef.current
+    if (!id) return
+    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
+    // Clear before unmount so cleanup skips the now-pointless DELETE.
+    activeIdRef.current = null
+    logger.debug('Persisted temporary topic', { topicId: id })
+  }, [])
+
+  return { topicId, ready: topicId !== null, reset, persist }
 }
