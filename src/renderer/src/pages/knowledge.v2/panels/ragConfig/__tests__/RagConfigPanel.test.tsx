@@ -19,6 +19,12 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+    <span>
+      {children}
+      {content ? <span role="tooltip">{content}</span> : null}
+    </span>
+  ),
   Slider: ({
     value,
     onValueChange,
@@ -81,6 +87,16 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.rag.search_mode.hybrid': '混合检索（推荐）',
           'knowledge_v2.rag.hybrid_alpha': 'Hybrid Alpha',
           'knowledge_v2.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
+          'knowledge_v2.rag.hints.embedding_model': '用于将知识库内容转换为向量。',
+          'knowledge_v2.rag.hints.dimensions': '当前嵌入模型输出的向量维度。',
+          'knowledge_v2.rag.hints.processor': '导入文件时使用的解析处理服务。',
+          'knowledge_v2.rag.hints.chunk_size': '单个文档片段的目标 token 数。',
+          'knowledge_v2.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
+          'knowledge_v2.rag.hints.document_count': '每次召回返回的最大文档片段数。',
+          'knowledge_v2.rag.hints.threshold': '过滤低相关片段的相似度阈值。',
+          'knowledge_v2.rag.hints.search_mode': '选择召回方式。',
+          'knowledge_v2.rag.hints.hybrid_alpha': '混合检索中向量得分的权重。',
+          'knowledge_v2.rag.hints.rerank_model': '对初步召回结果重新排序的模型。',
           'knowledge_v2.rag.chunk_size_invalid': '分块大小必须大于 0',
           'knowledge_v2.rag.chunk_overlap_invalid': '分块重叠必须大于等于 0',
           'knowledge_v2.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小'
@@ -202,6 +218,17 @@ describe('RagConfigPanel', () => {
 
     fireEvent.click(saveButton)
     expect(mockSave).not.toHaveBeenCalled()
+  })
+
+  it('renders hover hint tooltip content for RAG field labels', () => {
+    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+
+    expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '过滤低相关片段的相似度阈值。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '选择召回方式。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
+    expect(screen.queryByRole('tooltip', { name: '混合检索中向量得分的权重。' })).not.toBeInTheDocument()
   })
 
   it('shows hybrid alpha when the current search mode is hybrid', () => {

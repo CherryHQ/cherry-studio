@@ -1,4 +1,13 @@
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
+import {
+  Input,
+  NormalTooltip,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider
+} from '@cherrystudio/ui'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { Info, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -12,11 +21,22 @@ export const RagSectionTitle = ({ title, icon: Icon }: { title: string; icon: Lu
   )
 }
 
-export const RagFieldLabel = ({ label }: { label: string }) => {
+export const RagFieldLabel = ({ label, hint }: { label: string; hint?: string }) => {
   return (
     <div className="mb-1 flex items-center gap-1">
       <span className="text-[0.6875rem] text-foreground/75 leading-4.125">{label}</span>
-      <Info className="size-2.25 text-muted-foreground/40" />
+      {hint ? (
+        <NormalTooltip
+          content={hint}
+          side="top"
+          contentProps={{
+            className: 'max-w-56 rounded-md px-2.5 py-1.5 text-[0.6875rem] leading-4 text-foreground/75'
+          }}>
+          <span tabIndex={0} aria-label={hint}>
+            <Info className="size-2.25 cursor-help text-muted-foreground/40" />
+          </span>
+        </NormalTooltip>
+      ) : null}
     </div>
   )
 }
@@ -54,16 +74,18 @@ export const RagNumericField = ({
   label,
   value,
   suffix,
+  hint,
   onChange
 }: {
   label: string
   value: string
   suffix?: string
+  hint?: string
   onChange: (value: string) => void
 }) => {
   return (
     <div>
-      <RagFieldLabel label={label} />
+      <RagFieldLabel label={label} hint={hint} />
       <div className="relative">
         <Input
           value={value}
@@ -81,10 +103,10 @@ export const RagNumericField = ({
   )
 }
 
-export const RagReadonlyField = ({ label, value }: { label: string; value: string }) => {
+export const RagReadonlyField = ({ label, value, hint }: { label: string; value: string; hint?: string }) => {
   return (
     <div>
-      <RagFieldLabel label={label} />
+      <RagFieldLabel label={label} hint={hint} />
       <Input
         readOnly
         value={value}
@@ -138,6 +160,7 @@ export const RagSliderField = ({
   minLabel,
   maxLabel,
   formatValue,
+  hint,
   disabled = false
 }: {
   label: string
@@ -149,12 +172,13 @@ export const RagSliderField = ({
   minLabel: string
   maxLabel: string
   formatValue: (value: number) => string
+  hint?: string
   disabled?: boolean
 }) => {
   return (
     <div>
       <div className="mb-1 flex items-end justify-between gap-3">
-        <RagFieldLabel label={label} />
+        <RagFieldLabel label={label} hint={hint} />
         <span className="text-[0.6875rem] text-foreground leading-4.125">{formatValue(value)}</span>
       </div>
 

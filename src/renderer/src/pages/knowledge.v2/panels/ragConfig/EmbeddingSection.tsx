@@ -25,7 +25,7 @@ const EmbeddingSection = ({
 
       <div className="grid grid-cols-[minmax(0,1fr)_8.75rem] gap-2">
         <div>
-          <RagFieldLabel label={t('knowledge_v2.embedding_model')} />
+          <RagFieldLabel label={t('knowledge_v2.embedding_model')} hint={t('knowledge_v2.rag.hints.embedding_model')} />
           <RagSelectField
             value={embeddingModelId ?? undefined}
             options={embeddingModelOptions}
@@ -34,7 +34,11 @@ const EmbeddingSection = ({
           />
         </div>
 
-        <RagReadonlyField label={t('knowledge_v2.dimensions')} value={String(dimensions)} />
+        <RagReadonlyField
+          label={t('knowledge_v2.dimensions')}
+          value={String(dimensions)}
+          hint={t('knowledge_v2.rag.hints.dimensions')}
+        />
       </div>
     </section>
   )

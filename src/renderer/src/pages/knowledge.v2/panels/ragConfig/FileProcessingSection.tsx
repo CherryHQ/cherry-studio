@@ -24,7 +24,7 @@ const FileProcessingSection = ({
       <RagSectionTitle title={t('knowledge_v2.rag.file_processing')} icon={Bot} />
 
       <div>
-        <RagFieldLabel label={t('knowledge_v2.rag.processor')} />
+        <RagFieldLabel label={t('knowledge_v2.rag.processor')} hint={t('knowledge_v2.rag.hints.processor')} />
         <RagSelectField
           value={fileProcessorId ?? EMPTY_OPTION_VALUE}
           options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.not_set') }, ...fileProcessorOptions]}

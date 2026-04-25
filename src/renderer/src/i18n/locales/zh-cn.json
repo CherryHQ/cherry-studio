@@ -2258,7 +2258,19 @@
       },
       "separator_rule": "分隔符规则",
       "threshold": "相似度阈值",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "hints": {
+        "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
+        "dimensions": "当前嵌入模型输出的向量维度，用于创建和匹配向量索引。",
+        "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
+        "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
+        "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
+        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
+        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
+        "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。"
+      }
     },
     "recall": {
       "collapse": "收起片段",

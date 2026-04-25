@@ -46,6 +46,7 @@ const RetrievalSection = ({
 
       <RagSliderField
         label={t('knowledge_v2.rag.document_count')}
+        hint={t('knowledge_v2.rag.hints.document_count')}
         value={documentCount}
         onValueChange={onDocumentCountChange}
         min={1}
@@ -58,6 +59,7 @@ const RetrievalSection = ({
 
       <RagSliderField
         label={t('knowledge_v2.rag.threshold')}
+        hint={t('knowledge_v2.rag.hints.threshold')}
         value={threshold}
         onValueChange={onThresholdChange}
         min={0}
@@ -69,7 +71,7 @@ const RetrievalSection = ({
       />
 
       <div>
-        <RagFieldLabel label={t('knowledge_v2.rag.search_mode.title')} />
+        <RagFieldLabel label={t('knowledge_v2.rag.search_mode.title')} hint={t('knowledge_v2.rag.hints.search_mode')} />
         <RagSelectField
           value={searchMode}
           options={searchModeOptions}
@@ -80,6 +82,7 @@ const RetrievalSection = ({
       {isHybridMode ? (
         <RagSliderField
           label={t('knowledge_v2.rag.hybrid_alpha')}
+          hint={t('knowledge_v2.rag.hints.hybrid_alpha')}
           value={hybridAlpha ?? DEFAULT_HYBRID_ALPHA}
           onValueChange={onHybridAlphaChange}
           min={0}
@@ -92,7 +95,7 @@ const RetrievalSection = ({
       ) : null}
 
       <div>
-        <RagFieldLabel label={t('models.rerank_model')} />
+        <RagFieldLabel label={t('models.rerank_model')} hint={t('knowledge_v2.rag.hints.rerank_model')} />
         <RagSelectField
           value={rerankModelId ?? EMPTY_OPTION_VALUE}
           options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge_v2.not_set') }, ...rerankModelOptions]}
