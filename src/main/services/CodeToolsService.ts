@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryName } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeTools,
@@ -17,6 +18,7 @@ import {
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
+import type { CodeToolsRunResult } from '@shared/config/types'
 import { getFunctionalKeys, parseJSONC, sanitizeEnvForLogging } from '@shared/utils'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -128,6 +130,37 @@ class CodeToolsService {
   }
 
   /**
+   * Get the command to execute claude-code.
+   *
+   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
+   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
+   * a JS launcher that locates and spawns the correct platform-specific binary.
+   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
+   */
+  private async getClaudeCodeCommand(bunPath: string): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const cliWrapperPath = path.join(
+      globalInstallDir,
+      'node_modules',
+      '@anthropic-ai',
+      'claude-code',
+      'cli-wrapper.cjs'
+    )
+
+    if (fs.existsSync(cliWrapperPath)) {
+      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
+      return `"${bunPath}" "${cliWrapperPath}"`
+    }
+
+    // Fallback: try to execute the binary directly (works if postinstall ran correctly)
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeTools.claudeCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
+    return `"${executablePath}"`
+  }
+
+  /**
    * Generate opencode.json config file for OpenCode CLI
    * Merge approach:
    * 1. Parse existing config (if any) with JSONC support
@@ -221,7 +254,7 @@ class CodeToolsService {
     this.openCodeConfigBackups.set(configPath, backupContent)
 
     // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/-/g, '_')}`
+    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
     const cherryProviderConfig = {
       npm: npmPackage,
       name: dynamicProviderName,
@@ -651,11 +684,21 @@ class CodeToolsService {
     if (isInstalled) {
       logger.info(`${cliTool} is installed, getting current version`)
       try {
-        const executableName = await this.getCliExecutableName(cliTool)
-        const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-        const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+        let versionCommand: string
 
-        const { stdout } = await execAsync(`"${executablePath}" --version`, {
+        // claude-code ships a native binary that cannot be executed via Bun.
+        // Use cli-wrapper.cjs (via Bun) to run --version reliably on all platforms.
+        if (cliTool === codeTools.claudeCode) {
+          const bunPath = await this.getBunPath()
+          versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else {
+          const executableName = await this.getCliExecutableName(cliTool)
+          const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+          const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+          versionCommand = `"${executablePath}"`
+        }
+
+        const { stdout } = await execAsync(`${versionCommand} --version`, {
           timeout: 10000
         })
         // Extract version number from output (format may vary by tool)
@@ -810,7 +853,7 @@ class CodeToolsService {
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
-  ) {
+  ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
@@ -917,11 +960,38 @@ class CodeToolsService {
       }
     }
 
-    let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
+    let baseCommand: string
+
+    // claude-code ships a native binary that cannot be executed via Bun.
+    // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
+    if (cliTool === codeTools.claudeCode) {
+      baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (isWin) {
+      baseCommand = `"${executablePath}"`
+    } else {
+      baseCommand = `"${bunPath}" "${executablePath}"`
+    }
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeTools.kimiCli) {
-      const uvPath = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin', await getBinaryName('uv'))
+      const shellEnv = await getShellEnv()
+      let uvPath = await findCommandInShellEnv('uv', shellEnv)
+
+      if (!uvPath) {
+        if (await isBinaryExists('uv')) {
+          uvPath = await getBinaryPath('uv')
+          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
+        } else {
+          throw new Error(
+            'uv not found in PATH and bundled version is not available.\n' +
+              'Please either:\n' +
+              '1. Install uv from https://github.com/astral-sh/uv\n' +
+              '2. Run the MCP dependencies installer from Settings\n' +
+              '3. Restart the application if you recently installed uv'
+          )
+        }
+      }
+
       baseCommand = `${uvPath} tool run ${packageName}`
     }
 

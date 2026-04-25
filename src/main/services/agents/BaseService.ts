@@ -184,6 +184,14 @@ export abstract class BaseService {
       }
     }
 
+    // Normalize legacy agent type values to the unified type
+    if (deserialized.type === 'cherry-claw') {
+      deserialized.type = 'claude-code'
+    }
+    if (deserialized.agent_type === 'cherry-claw') {
+      deserialized.agent_type = 'claude-code'
+    }
+
     // convert null from db to undefined to satisfy type definition
     for (const key of objectKeys(data)) {
       if (deserialized[key] === null) {

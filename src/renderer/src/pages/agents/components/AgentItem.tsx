@@ -1,4 +1,5 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MarqueeText from '@renderer/components/MarqueeText'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -77,9 +78,9 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-          <AgentNameWrapper>
+          <MarqueeText className="flex min-w-0 flex-1">
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
-          </AgentNameWrapper>
+          </MarqueeText>
           {(isActive || isHovered) && (
             <Dropdown
               menu={{ items: menuItems }}
@@ -118,10 +119,6 @@ export const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
     className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-(--color-text) text-[13px]', className)}
     {...props}
   />
-)
-
-export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap', className)} {...props} />
 )
 
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (

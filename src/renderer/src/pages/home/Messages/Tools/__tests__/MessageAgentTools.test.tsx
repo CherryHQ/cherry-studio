@@ -363,8 +363,9 @@ describe('MessageAgentTools', () => {
 
       // Should render the DEDICATED BashTool component
       expect(screen.getByText('Bash')).toBeInTheDocument()
-      // Command should be visible in the dedicated renderer
-      expect(screen.getByText(/npm install/)).toBeInTheDocument()
+      // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
+      const container = screen.getByTestId('collapse-content-Bash')
+      expect(container.textContent).toContain('npm install')
     })
   })
 })

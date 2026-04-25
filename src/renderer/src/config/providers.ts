@@ -84,8 +84,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'CherryIN',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://open.cherryin.net',
-    anthropicApiHost: 'https://open.cherryin.net',
+    apiHost: 'https://open.cherryin.cc',
+    anthropicApiHost: 'https://open.cherryin.cc',
     models: [],
     isSystem: true,
     enabled: true
@@ -1441,7 +1441,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://poe.com/',
-      apiKey: 'https://poe.com/api_key',
+      apiKey: 'https://poe.com/api/keys',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
     }

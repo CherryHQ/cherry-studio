@@ -1,7 +1,7 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGeminiModel } from '@renderer/config/models'
+import { isGemini3Model, isGeminiModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -162,7 +162,8 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
           window.toast.warning(t('chat.mcp.warning.url_context'))
           update.enableUrlContext = false
         }
-        if (isGeminiWebSearchProvider(provider) && assistant.enableWebSearch) {
+        // Gemini 3+ supports combining built-in tools with function calling
+        if (isGeminiWebSearchProvider(provider) && assistant.enableWebSearch && !isGemini3Model(model)) {
           window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
           update.enableWebSearch = false
         }
