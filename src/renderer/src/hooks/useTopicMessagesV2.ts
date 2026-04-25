@@ -1,11 +1,11 @@
 /**
  * V2 hook for loading topic messages from DataApi as CherryUIMessage[].
  *
- * Uses `useInfiniteQuery` with `pageOrder: 'reverse-pages'` — the branch
- * endpoint paginates newest-page-first but keeps within-page items in
- * oldest→newest order, so reversing page order yields a monotonically
- * chronological `items` array (root → activeNode) across any number of
- * loaded pages.
+ * Uses `useInfiniteQuery` + `useInfiniteFlatItems` with `reversePages: true` —
+ * the branch endpoint paginates newest-page-first but keeps within-page items
+ * in oldest→newest order, so reversing page order yields a monotonically
+ * chronological `items` array (root → activeNode) across any number of loaded
+ * pages. `activeNodeId` is read from the freshest page's top-level metadata.
  *
  * `toUIMessage` projects every persisted field onto `CherryUIMessage.metadata`
  * so downstream consumers read per-message metadata (model, parent, stats,
@@ -13,11 +13,11 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
-import { useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { KeyedMutator } from 'swr'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 const PAGE_SIZE = 50
 
@@ -159,27 +159,22 @@ export interface UseTopicMessagesV2Result {
    * `useTopicMessagesCache` can apply optimistic writes via the updater
    * form (`mutate((pages) => next, { revalidate: false })`).
    */
-  mutate: KeyedMutator<BranchMessagesResponse[]>
+  mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
 export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
-  const {
-    items: branchItems,
-    isLoading,
-    mutate,
-    loadNext,
-    hasNext
-  } = useInfiniteQuery('/topics/:topicId/messages', {
+  const { pages, isLoading, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
     limit: PAGE_SIZE,
-    pageOrder: 'reverse-pages',
     swrOptions: { dedupingInterval: 0 }
   })
 
-  // With `pageOrder: 'reverse-pages'`, `branchItems` is monotonically
-  // ordered root → activeNode. The activeNode is the last on-path item.
-  const activeNodeId = branchItems.length > 0 ? branchItems[branchItems.length - 1].message.id : null
+  // Branch endpoint paginates newest-page-first; flipping page order gives a
+  // chronological root → activeNode list. `activeNodeId` lives on each page
+  // response — page 0 is the freshest fetch, so its value is authoritative.
+  const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
+  const activeNodeId = pages[0]?.activeNodeId ?? null
 
   // On remount with stale SWR cache, isLoading=false but data is stale.
   // Force a fresh fetch and track readiness so the loading gate blocks until fresh.

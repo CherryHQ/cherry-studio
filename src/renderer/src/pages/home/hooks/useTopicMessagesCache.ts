@@ -25,7 +25,7 @@ import type {
   Message as SharedMessage
 } from '@shared/data/types/message'
 import { useCallback } from 'react'
-import type { KeyedMutator } from 'swr'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
 function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
@@ -80,7 +80,7 @@ function synthesizeOptimisticUserMessage(params: {
 
 export interface UseTopicMessagesCacheParams {
   topicId: string
-  mutate: KeyedMutator<BranchMessagesResponse[]>
+  mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
 export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
