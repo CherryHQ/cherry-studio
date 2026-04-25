@@ -1,0 +1,28 @@
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 468e7518923b5bfaffa3a5a601e233b5271889ae..88d6a8c15902c65a4eed312eba974fb1f3026a72 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -3062,6 +3062,9 @@ var AnthropicMessagesLanguageModel = class {
+           ...thinkingDisplay != null && { display: thinkingDisplay }
+         }
+       },
++      ...thinkingType === "disabled" && {
++        thinking: { type: "disabled" }
++      },
+       ...((anthropicOptions == null ? void 0 : anthropicOptions.effort) || (anthropicOptions == null ? void 0 : anthropicOptions.taskBudget) || useStructuredOutput && (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null) && {
+         output_config: {
+           ...(anthropicOptions == null ? void 0 : anthropicOptions.effort) && {
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 6e9ff51dd8ccc4785ecd423ec34a84eba8a7d42d..0bde5ccd9dc588b5aec4668b06d7590cfb18c768 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -3091,6 +3091,9 @@ var AnthropicMessagesLanguageModel = class {
+           ...thinkingDisplay != null && { display: thinkingDisplay }
+         }
+       },
++      ...thinkingType === "disabled" && {
++        thinking: { type: "disabled" }
++      },
+       ...((anthropicOptions == null ? void 0 : anthropicOptions.effort) || (anthropicOptions == null ? void 0 : anthropicOptions.taskBudget) || useStructuredOutput && (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null) && {
+         output_config: {
+           ...(anthropicOptions == null ? void 0 : anthropicOptions.effort) && {

@@ -44,7 +44,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
@@ -60,7 +60,8 @@ const visionAllowedModels = [
   'qwen-omni(?:-[\\w-]+)?',
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|latest)',
+  'mistral-small',
+  'mimo-v2\\.5$',
   'mimo-v2-omni(?:-[\\w-]+)?',
   'glm-5v-turbo'
 ]
