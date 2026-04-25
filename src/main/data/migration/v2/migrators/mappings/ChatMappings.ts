@@ -386,9 +386,7 @@ export interface NewTopic {
   assistantId: string | null
   activeNodeId: string | null
   groupId: string | null
-  sortOrder: number
-  isPinned: boolean
-  pinnedOrder: number
+  orderKey: string
   createdAt: number // timestamp
   updatedAt: number // timestamp
 }
@@ -452,9 +450,9 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     groupId: null, // New field, no migration source
-    sortOrder: 0, // New field, default value
-    isPinned: oldTopic.pinned ?? false,
-    pinnedOrder: 0, // New field, default value
+    // Placeholder — overwritten in ChatMigrator.execute via
+    // `assignOrderKeysByScope` once the full topic batch is transformed.
+    orderKey: '',
     createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }

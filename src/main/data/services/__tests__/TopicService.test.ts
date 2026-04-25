@@ -16,8 +16,8 @@ vi.mock('../MessageService', () => ({
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
-  describe('list', () => {
-    it('returns all non-deleted topics across assistants', async () => {
+  describe('listByCursor', () => {
+    it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
@@ -28,9 +28,7 @@ describe('TopicService', () => {
         id: 't1',
         name: 'A',
         assistantId: 'asst-1',
-        sortOrder: 0,
-        isPinned: false,
-        pinnedOrder: 0,
+        orderKey: 'a0',
         createdAt: 1,
         updatedAt: 100
       })
@@ -39,33 +37,32 @@ describe('TopicService', () => {
         id: 't2',
         name: 'B',
         assistantId: 'asst-1',
-        sortOrder: 1,
+        orderKey: 'a1',
         deletedAt: 999,
-        isPinned: false,
-        pinnedOrder: 0,
         createdAt: 2,
         updatedAt: 200
       })
-      // Different assistant — must still be returned (client filters).
+      // Different assistant — must still be returned (client filters by assistantId).
       await dbh.db.insert(topicTable).values({
         id: 't3',
         name: 'Other',
         assistantId: 'asst-2',
-        sortOrder: 0,
-        isPinned: false,
-        pinnedOrder: 0,
+        orderKey: 'a2',
         createdAt: 3,
         updatedAt: 300
       })
 
-      const list = await service.list()
-      expect(list.map((t) => t.id).sort()).toEqual(['t1', 't3'])
+      const result = await service.listByCursor()
+      expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't3'])
+      expect(result.nextCursor).toBeUndefined()
     })
   })
 
   describe('delete', () => {
     it('should remove topic messages and entity tags in one delete flow', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', createdAt: 1, updatedAt: 1 })
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-1', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(messageTable).values({
         topicId: 'topic-1',
         role: 'user',

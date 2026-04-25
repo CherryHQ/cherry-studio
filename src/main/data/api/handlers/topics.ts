@@ -2,16 +2,20 @@
  * Topic API Handlers
  *
  * Implements all topic-related API endpoints including:
+ * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
  * - Active node switching for branch navigation
+ * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
@@ -21,8 +25,9 @@ const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
-    GET: async () => {
-      return await topicService.list()
+    GET: async ({ query }) => {
+      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      return await topicService.listByCursor(parsed)
     },
 
     POST: async ({ body }) => {
@@ -57,6 +62,22 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId, { descend: parsed.descend })
+    }
+  },
+
+  '/topics/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const anchor = OrderRequestSchema.parse(body)
+      await topicService.reorder(params.id, anchor)
+      return undefined
+    }
+  },
+
+  '/topics/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await topicService.reorderBatch(parsed.moves)
+      return undefined
     }
   }
 }

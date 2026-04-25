@@ -12,6 +12,11 @@ export const TopicNameSchema = z.string().min(1).max(255)
 
 /**
  * Complete topic entity as stored in database.
+ *
+ * Pin state lives in the polymorphic `pin` table (entityType='topic'); the
+ * legacy `isPinned` / `pinnedOrder` fields were dropped during the v2.x
+ * migration. Order is stored as a fractional-indexing `orderKey`, scoped by
+ * `groupId` (NULL and non-NULL are distinct partitions).
  */
 export const TopicSchema = z.strictObject({
   /** Topic ID */
@@ -26,12 +31,8 @@ export const TopicSchema = z.strictObject({
   activeNodeId: z.string().nullable().optional(),
   /** Group ID for organization */
   groupId: z.string().nullable().optional(),
-  /** Sort order within group */
-  sortOrder: z.number(),
-  /** Whether topic is pinned */
-  isPinned: z.boolean(),
-  /** Pinned order */
-  pinnedOrder: z.number(),
+  /** Fractional-indexing order key, partitioned by groupId. */
+  orderKey: z.string(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

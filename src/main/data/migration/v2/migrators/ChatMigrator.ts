@@ -52,6 +52,7 @@
  */
 
 import { messageTable } from '@data/db/schemas/message'
+import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
@@ -61,6 +62,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   buildBlockLookup,
@@ -104,11 +106,14 @@ interface AssistantState {
 }
 
 /**
- * Prepared data for execution phase
+ * Prepared data for execution phase. `pinned` carries the legacy `pinned`
+ * flag from the source so the migrator can emit a corresponding `pin` row
+ * (the polymorphic pin table replaces the old per-topic isPinned column).
  */
 interface PreparedTopicData {
   topic: NewTopic
   messages: NewMessage[]
+  pinned: boolean
 }
 
 export class ChatMigrator extends BaseMigrator {
@@ -133,12 +138,13 @@ export class ChatMigrator extends BaseMigrator {
   private validAssistantIds: Set<string> | null = null
   // Valid model IDs from ProviderModelMigrator/SQLite for FK validation
   private validModelIds: Set<string> | null = null
-  // Track seen message IDs to handle duplicates across topics
-  private seenMessageIds = new Set<string>()
   // Block statistics for diagnostics
   private blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
   // Count of messages promoted to root because no migrated ancestor was found
   private promotedToRootCount = 0
+  // Buffered transformed topics across all streamed batches. Inserted in a
+  // post-stream pass once orderKey can be assigned globally per groupId.
+  private stagedTopics: PreparedTopicData[] = []
 
   override reset(): void {
     this.topicCount = 0
@@ -150,11 +156,11 @@ export class ChatMigrator extends BaseMigrator {
     this.skippedTopics = 0
     this.skippedMessages = 0
     this.orphanedAssistantTopics = 0
-    this.seenMessageIds = new Set()
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     this.promotedToRootCount = 0
     this.validAssistantIds = null
     this.validModelIds = null
+    this.stagedTopics = []
   }
 
   /**
@@ -322,7 +328,6 @@ export class ChatMigrator extends BaseMigrator {
     let processedMessages = 0
 
     try {
-      const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
       // Load valid assistant IDs for FK validation (set by AssistantMigrator).
@@ -359,86 +364,30 @@ export class ChatMigrator extends BaseMigrator {
           }
         }
 
-        // Insert topics in a transaction
-        if (preparedData.length > 0) {
-          // Collect all messages and handle duplicates BEFORE transaction
-          // This ensures parentId references are updated correctly
-          const allMessages: NewMessage[] = []
-          const idRemapping = new Map<string, string>() // oldId → newId for duplicates
-          const batchMessageIds = new Set<string>() // IDs added in this batch (for transaction safety)
-
-          for (const data of preparedData) {
-            for (const msg of data.messages) {
-              if (this.seenMessageIds.has(msg.id) || batchMessageIds.has(msg.id)) {
-                const newId = uuidv4()
-                logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
-                idRemapping.set(msg.id, newId)
-                msg.id = newId
-              }
-              batchMessageIds.add(msg.id)
-              allMessages.push(msg)
-            }
-          }
-
-          // Update parentId references for any remapped IDs
-          if (idRemapping.size > 0) {
-            for (const msg of allMessages) {
-              if (msg.parentId && idRemapping.has(msg.parentId)) {
-                msg.parentId = idRemapping.get(msg.parentId)!
-              }
-            }
-          }
-
-          const droppedMessageModelRefs = this.sanitizeMessageModelReferences(allMessages)
-          if (droppedMessageModelRefs > 0) {
-            logger.info(`Filtered ${droppedMessageModelRefs} dangling message model references`)
-          }
-
-          // @libsql/client creates new DB connections after each transaction()
-          // (this.#db = null). libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1
-          // (see libsql-ffi/build.rs), so new connections have foreign_keys = ON.
-          // Must disable FK before each batch to prevent
-          // SQLITE_CONSTRAINT_FOREIGNKEY on message.parentId self-references.
-          await db.run(sql`PRAGMA foreign_keys = OFF`)
-          try {
-            await db.transaction(async (tx) => {
-              // Insert topics
-              const topicValues = preparedData.map((d) => d.topic)
-              await tx.insert(topicTable).values(topicValues)
-
-              // Insert messages in batches (SQLite parameter limit)
-              for (let i = 0; i < allMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-                const batch = allMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-                await tx.insert(messageTable).values(batch)
-              }
-            })
-          } finally {
-            await db.run(sql`PRAGMA foreign_keys = ON`)
-          }
-
-          // Update state ONLY after transaction succeeds (transaction safety)
-          for (const id of batchMessageIds) {
-            this.seenMessageIds.add(id)
-          }
-          processedMessages += allMessages.length
-          processedTopics += preparedData.length
+        // Stage transformed batch into the streaming buffer. Topic orderKey
+        // stamping and DB inserts run AFTER all batches finish, so we can
+        // assign keys globally per groupId scope (per-batch stamping would
+        // collide on shared scopes when the same groupId spans batches).
+        for (const data of preparedData) {
+          this.stagedTopics.push(data)
         }
 
-        // Report progress
-        const progress = Math.round((processedTopics / this.topicCount) * 100)
-        this.reportProgress(
-          progress,
-          `Migrated ${processedTopics}/${this.topicCount} conversations, ${processedMessages} messages`,
-          {
-            key: 'migration.progress.migrated_chats',
-            params: { processed: processedTopics, total: this.topicCount, messages: processedMessages }
-          }
-        )
+        // Stream-progress while transforming. Actual DB inserts happen after
+        // the stream finishes, so the bar may pause briefly at the end.
+        const progress = Math.round((this.stagedTopics.length / this.topicCount) * 100)
+        this.reportProgress(progress, `Transformed ${this.stagedTopics.length}/${this.topicCount} conversations`)
       })
+
+      // ── Post-stream phase: stamp orderKeys, dedupe message ids, insert ──
+      const insertResult = await this.insertStagedTopics(ctx)
+      processedTopics = insertResult.topicsInserted
+      processedMessages = insertResult.messagesInserted
+      const pinsInserted = insertResult.pinsInserted
 
       logger.info('Execute completed', {
         processedTopics,
         processedMessages,
+        pinsInserted,
         skippedTopics: this.skippedTopics,
         skippedMessages: this.skippedMessages
       })
@@ -851,7 +800,120 @@ export class ChatMigrator extends BaseMigrator {
 
     return {
       topic: newTopic,
-      messages: newMessages
+      messages: newMessages,
+      pinned: oldTopic.pinned ?? false
     }
+  }
+
+  /**
+   * Post-stream insert pass.
+   *
+   * Three concerns folded together so the buffered topic set is touched
+   * exactly once before commit:
+   *
+   * 1. **Stamp `orderKey`.** We must wait until the full set is in memory —
+   *    keys generated per-batch would collide on shared `groupId` partitions
+   *    (the same scope spans multiple streamed batches). `assignOrderKeysByScope`
+   *    runs once over all topics, partitioned by `groupId`.
+   *
+   * 2. **Insert topics + messages in batches** with FK pragma toggling
+   *    (kept from the previous design — libsql resets `foreign_keys = ON`
+   *    after every transaction, so each batch must disable it again before
+   *    inserting messages whose `parentId` self-references in the topic).
+   *
+   * 3. **Emit `pin` rows for legacy `pinned: true` topics.** Pin state moved
+   *    to the polymorphic `pin` table; the migration writes one row per
+   *    pinned topic with a fresh per-pin orderKey, sorted by topic
+   *    `updatedAt DESC` so the most recently active pin lands at the head.
+   */
+  private async insertStagedTopics(
+    ctx: MigrationContext
+  ): Promise<{ topicsInserted: number; messagesInserted: number; pinsInserted: number }> {
+    const db = ctx.db
+
+    // Phase 1: assign orderKey to every topic, scoped by groupId.
+    const stampedTopics = assignOrderKeysByScope(
+      this.stagedTopics.map((d) => d.topic),
+      (t) => t.groupId
+    )
+    for (let i = 0; i < this.stagedTopics.length; i++) {
+      this.stagedTopics[i].topic.orderKey = stampedTopics[i].orderKey
+    }
+
+    // Phase 2: insert topics + messages in batches.
+    let topicsInserted = 0
+    let messagesInserted = 0
+    const seenMessageIds = new Set<string>()
+
+    for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
+      const batch = this.stagedTopics.slice(start, start + TOPIC_BATCH_SIZE)
+
+      // Dedupe message ids within the batch and against prior batches; remap
+      // children's parentIds to keep the tree intact after the rename.
+      const batchMessages: NewMessage[] = []
+      const idRemap = new Map<string, string>()
+      const batchIds = new Set<string>()
+      for (const data of batch) {
+        for (const msg of data.messages) {
+          if (seenMessageIds.has(msg.id) || batchIds.has(msg.id)) {
+            const newId = uuidv4()
+            logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
+            idRemap.set(msg.id, newId)
+            msg.id = newId
+          }
+          batchIds.add(msg.id)
+          batchMessages.push(msg)
+        }
+      }
+      if (idRemap.size > 0) {
+        for (const msg of batchMessages) {
+          if (msg.parentId && idRemap.has(msg.parentId)) {
+            msg.parentId = idRemap.get(msg.parentId)!
+          }
+        }
+      }
+      const droppedRefs = this.sanitizeMessageModelReferences(batchMessages)
+      if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
+
+      await db.run(sql`PRAGMA foreign_keys = OFF`)
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(topicTable).values(batch.map((d) => d.topic))
+          for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+            await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+          }
+        })
+      } finally {
+        await db.run(sql`PRAGMA foreign_keys = ON`)
+      }
+
+      for (const id of batchIds) seenMessageIds.add(id)
+      topicsInserted += batch.length
+      messagesInserted += batchMessages.length
+    }
+
+    // Phase 3: emit pin rows for legacy pinned topics.
+    const pinned = this.stagedTopics.filter((d) => d.pinned)
+    let pinsInserted = 0
+    if (pinned.length > 0) {
+      // Order pins newest-first so the most recently active pin is at the head.
+      const sorted = [...pinned].sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
+      const now = Date.now()
+      const pinRows = assignOrderKeysInSequence(
+        sorted.map((d) => ({
+          id: uuidv4(),
+          entityType: 'topic',
+          entityId: d.topic.id,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+        await db.insert(pinTable).values(pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+      }
+      pinsInserted = pinRows.length
+    }
+
+    return { topicsInserted, messagesInserted, pinsInserted }
   }
 }

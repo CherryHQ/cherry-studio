@@ -55,7 +55,7 @@ describe('MessageService', () => {
    *           └── follow (user)
    */
   async function seedMultiModelTree() {
-    await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'm-follow' })
+    await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'm-follow', orderKey: 'a0' })
 
     const messages: (typeof messageTable.$inferInsert)[] = [
       {
@@ -182,7 +182,7 @@ describe('MessageService', () => {
 
   describe('reserveAssistantTurn — placeholder id override', () => {
     it('uses the caller-supplied id when provided, generates otherwise', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null })
+      await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null, orderKey: 'a0' })
 
       const suppliedId = '11111111-1111-4111-8111-111111111111'
       const { userMessage, placeholders } = await messageService.reserveAssistantTurn({

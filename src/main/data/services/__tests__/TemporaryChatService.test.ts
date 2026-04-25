@@ -101,7 +101,7 @@ describe('TemporaryChatService', () => {
       expect(topic.id).toMatch(/^temp:[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.activeNodeId).toBeNull()
-      expect(topic.isPinned).toBe(false)
+      expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })

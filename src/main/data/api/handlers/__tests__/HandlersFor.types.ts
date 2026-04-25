@@ -141,7 +141,9 @@ const _n5_new: HandlersFor<TopicSchemas> = {
     GET: ok
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/:id/active-node': { PUT: ok }
+  '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/order': { PATCH: async () => undefined },
+  '/topics/order:batch': { PATCH: async () => undefined }
 }
 
 const _n5_old: OldTopicHandlers = {
@@ -151,7 +153,9 @@ const _n5_old: OldTopicHandlers = {
     GET: ok
   },
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
-  '/topics/:id/active-node': { PUT: ok }
+  '/topics/:id/active-node': { PUT: ok },
+  '/topics/:id/order': { PATCH: async () => undefined },
+  '/topics/order:batch': { PATCH: async () => undefined }
 }
 
 // ============================================================================

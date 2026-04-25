@@ -96,7 +96,7 @@ describe('MessageService.reserveAssistantTurn', () => {
   })
 
   async function seedTopic(id = 'topic-1') {
-    await realDb!.insert(topicTable).values({ id })
+    await realDb!.insert(topicTable).values({ id, orderKey: 'a0' })
   }
 
   describe('fresh single-model turn', () => {
@@ -283,7 +283,10 @@ describe('MessageService.reserveAssistantTurn', () => {
     })
 
     it('throws when parent does not belong to the same topic', async () => {
-      await realDb!.insert(topicTable).values([{ id: 'topic-1' }, { id: 'topic-2' }])
+      await realDb!.insert(topicTable).values([
+        { id: 'topic-1', orderKey: 'a0' },
+        { id: 'topic-2', orderKey: 'a1' }
+      ])
       await realDb!.insert(messageTable).values({
         id: 'u-in-t2',
         topicId: 'topic-2',
