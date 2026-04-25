@@ -68,6 +68,7 @@ vi.mock('react-i18next', () => ({
         (
           {
             'knowledge_v2.data_source.add_dialog.title': '添加数据源',
+            'common.add': '添加数据源',
             'common.loading': '加载中...',
             'common.cancel': '取消',
             'common.delete': '删除',
@@ -205,6 +206,26 @@ describe('DataSourcePanel', () => {
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
   })
 
+  it('forwards row clicks to the item chunk detail handler', () => {
+    const onItemClick = vi.fn()
+    const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
+
+    render(
+      <DataSourcePanel
+        items={[item]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('季度报告.pdf'))
+
+    expect(onItemClick).toHaveBeenCalledWith(item)
+  })
+
   it('opens delete confirmation before forwarding row delete actions', async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined)
 
@@ -248,5 +269,27 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+  })
+
+  it('does not forward menu actions as row clicks', () => {
+    const onItemClick = vi.fn()
+    const onReindex = vi.fn()
+
+    render(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onItemClick={onItemClick}
+        onDelete={vi.fn()}
+        onReindex={onReindex}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    expect(onItemClick).not.toHaveBeenCalled()
   })
 })

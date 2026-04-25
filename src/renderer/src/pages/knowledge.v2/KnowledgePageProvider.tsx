@@ -1,5 +1,5 @@
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import {
   createContext,
   type MouseEvent as ReactMouseEvent,
@@ -42,6 +42,7 @@ interface KnowledgePageContextValue {
   selectedBase: KnowledgeBase | undefined
   selectedBaseId: string
   selectedBaseItems: KnowledgeBaseItems
+  selectedItem: KnowledgeItem | null
   isItemsLoading: boolean
   activeTab: KnowledgeTabKey
   navigatorWidth: number
@@ -59,6 +60,8 @@ interface KnowledgePageContextValue {
   createBase: CreateKnowledgeBase
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
+  openItemChunks: (item: KnowledgeItem) => void
+  closeItemChunks: () => void
   openAddSourceDialog: () => void
   openCreateBaseDialog: (groupId?: string) => void
   openCreateGroupDialog: () => void
@@ -91,6 +94,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { deleteBase } = useDeleteKnowledgeBase()
   const { deleteGroup } = useDeleteKnowledgeGroup()
   const [selectedBaseId, setSelectedBaseId] = useState('')
+  const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null)
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
@@ -120,6 +124,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       if (!pendingSelectedBaseId && selectedBaseId) {
         setSelectedBaseId('')
       }
+      setSelectedItem(null)
       return
     }
 
@@ -133,12 +138,27 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
       setSelectedBaseId(bases[0].id)
+      setSelectedItem(null)
     }
   }, [bases, pendingSelectedBaseId, selectedBaseId])
 
   const selectBase = useCallback((baseId: string) => {
     setPendingSelectedBaseId(null)
     setSelectedBaseId(baseId)
+    setSelectedItem(null)
+  }, [])
+
+  const handleSetActiveTab = useCallback((tab: KnowledgeTabKey) => {
+    setActiveTab(tab)
+    setSelectedItem(null)
+  }, [])
+
+  const openItemChunks = useCallback((item: KnowledgeItem) => {
+    setSelectedItem(item)
+  }, [])
+
+  const closeItemChunks = useCallback(() => {
+    setSelectedItem(null)
   }, [])
 
   const openCreateBaseDialog = useCallback((groupId?: string) => {
@@ -193,6 +213,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const handleCreateBaseCreated = useCallback((createdBase: { id: string }) => {
     setPendingSelectedBaseId(createdBase.id)
     setSelectedBaseId(createdBase.id)
+    setSelectedItem(null)
   }, [])
 
   const submitCreateGroup = useCallback(
@@ -299,6 +320,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedBaseItems,
+      selectedItem,
       isItemsLoading,
       activeTab,
       navigatorWidth,
@@ -315,7 +337,9 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isUpdatingGroup,
       createBase,
       selectBase,
-      setActiveTab,
+      setActiveTab: handleSetActiveTab,
+      openItemChunks,
+      closeItemChunks,
       openAddSourceDialog,
       openCreateBaseDialog,
       openCreateGroupDialog,
@@ -348,6 +372,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleCreateGroupDialogOpenChange,
       handleDeleteBase,
       handleDeleteGroup,
+      handleSetActiveTab,
       handleRenameBaseDialogOpenChange,
       handleRenameGroupDialogOpenChange,
       isAddSourceDialogOpen,
@@ -363,6 +388,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       moveBase,
       navigatorWidth,
       openAddSourceDialog,
+      closeItemChunks,
+      openItemChunks,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,
@@ -371,6 +398,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectedBase,
       selectedBaseId,
       selectedBaseItems,
+      selectedItem,
       startNavigatorResize,
       submitCreateGroup,
       submitRenameBase,

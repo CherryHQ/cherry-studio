@@ -3,6 +3,7 @@ import DetailTabs from '../components/DetailTabs'
 import { useDeleteKnowledgeItem, useReindexKnowledgeItem } from '../hooks'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
+import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
 import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
 
@@ -12,8 +13,11 @@ const KnowledgePageDetailSection = () => {
     selectedBase,
     selectedBaseId,
     selectedBaseItems,
+    selectedItem,
     isItemsLoading,
     setActiveTab,
+    openItemChunks,
+    closeItemChunks,
     openAddSourceDialog,
     openRenameBaseDialog,
     deleteBase
@@ -31,11 +35,15 @@ const KnowledgePageDetailSection = () => {
       <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {activeTab === 'data' ? (
+        {activeTab === 'data' && selectedItem ? (
+          <KnowledgeItemChunkDetailPanel item={selectedItem} onBack={closeItemChunks} />
+        ) : null}
+        {activeTab === 'data' && !selectedItem ? (
           <DataSourcePanel
             items={selectedBaseItems}
             isLoading={isItemsLoading}
             onAdd={openAddSourceDialog}
+            onItemClick={openItemChunks}
             onDelete={deleteItem}
             onReindex={reindexItem}
           />

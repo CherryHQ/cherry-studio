@@ -159,12 +159,14 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
     items,
     isLoading,
     onAdd,
+    onItemClick,
     onDelete,
     onReindex
   }: {
     items: Array<{ id: string }>
     isLoading: boolean
     onAdd: () => void
+    onItemClick: (item: { id: string }) => void
     onDelete: (item: { id: string }) => void | Promise<void>
     onReindex: (item: { id: string }) => void | Promise<void>
   }) => (
@@ -175,6 +177,9 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
       </button>
       {items.map((item) => (
         <div key={item.id}>
+          <button type="button" onClick={() => onItemClick(item)}>
+            OpenChunks {item.id}
+          </button>
           <button type="button" onClick={() => void onDelete(item)}>
             DeleteItem {item.id}
           </button>
@@ -183,6 +188,17 @@ vi.mock('../panels/dataSource/DataSourcePanel', () => ({
           </button>
         </div>
       ))}
+    </div>
+  )
+}))
+
+vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
+  default: ({ item, onBack }: { item: { id: string }; onBack: () => void }) => (
+    <div data-testid="chunk-detail-panel">
+      <div>{`chunks:${item.id}`}</div>
+      <button type="button" onClick={onBack}>
+        BackToSources
+      </button>
     </div>
   )
 }))
@@ -604,6 +620,69 @@ describe('KnowledgePage', () => {
 
     expect(mockUseReindexKnowledgeItem).toHaveBeenCalledWith('base-1')
     expect(reindexItem).toHaveBeenCalledWith(expect.objectContaining({ id: 'item-1' }))
+  })
+
+  it('opens item chunks from the data source list and returns to the list', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
+
+    expect(screen.getByTestId('chunk-detail-panel')).toHaveTextContent('chunks:item-1')
+    expect(screen.queryByTestId('data-source-panel')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'BackToSources' }))
+
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+  })
+
+  it('clears open item chunks when switching away from the data tab', async () => {
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    mockUseKnowledgeItems.mockReturnValue({
+      items: [createKnowledgeItem({ id: 'item-1' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
+    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
+    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
+    expect(screen.queryByTestId('chunk-detail-panel')).not.toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {

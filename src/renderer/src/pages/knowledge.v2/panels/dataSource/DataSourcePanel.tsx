@@ -12,17 +12,18 @@ export interface DataSourcePanelProps {
   items: KnowledgeItem[]
   isLoading: boolean
   onAdd: () => void
+  onItemClick?: (item: KnowledgeItem) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
 }
 
-const DataSourcePanel = ({ items, isLoading, onAdd, onDelete, onReindex }: DataSourcePanelProps) => {
+const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onReindex }: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const [activeFilter, setActiveFilter] = useState<DataSourceFilter>('all')
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const readyCount = getReadyCount(items)
   const visibleItems = getVisibleItems(items, activeFilter)
-  const handleItemClick = () => undefined
+  const handleItemClick = (item: KnowledgeItem) => onItemClick?.(item)
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {
