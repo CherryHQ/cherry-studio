@@ -16,7 +16,7 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant }) => isSupportedToolUse(assistant) || isPromptToolUse(assistant),
+  condition: ({ assistant, model }) => isSupportedToolUse(assistant, model) || isPromptToolUse(assistant),
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,
