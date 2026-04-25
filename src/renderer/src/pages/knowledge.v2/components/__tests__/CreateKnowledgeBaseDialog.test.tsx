@@ -205,7 +205,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('text-xs')
     expect(screen.getByText('名称')).toHaveClass('text-[11px]')
     expect(screen.getByLabelText('名称')).toHaveClass('text-[11px]', 'h-8')
-    expect(screen.getAllByRole('button', { name: '未分组' })[0]).toHaveClass('text-[11px]', 'h-8')
+    expect(screen.queryByText('分组')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('text-[11px]', 'h-8')
     expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-[11px]', 'h-8')
     expect(screen.getByRole('button', { name: '创建' })).toHaveClass('text-[11px]', 'h-8')
@@ -256,7 +256,23 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(createBase).not.toHaveBeenCalled()
   })
 
-  it('renders the ungrouped option before real groups', () => {
+  it('hides the group field when there are no real groups', () => {
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('分组')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '未分组' })).not.toBeInTheDocument()
+  })
+
+  it('renders real group options without an ungrouped option', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -269,9 +285,38 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByText('分组')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '未分组' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: '未分组' })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
+  })
+
+  it('ignores a stale initial group id when there are no real groups', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        initialGroupId="deleted-group"
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        emoji: '📁',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: '1024'
+      })
+    )
   })
 
   it('submits the selected emoji in the request payload', async () => {

@@ -266,7 +266,35 @@ describe('BaseNavigator', () => {
     expect(screen.getByText('workspace')).toBeInTheDocument()
   })
 
-  it('falls back to the ungrouped label when groupId is missing', () => {
+  it('renders ungrouped bases before real group sections', () => {
+    render(
+      <BaseNavigator
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
+        ]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-2"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    const ungroupedBase = screen.getByRole('button', { name: /Beta/ })
+    const firstRealGroup = screen.getByRole('button', { name: /Research/ })
+
+    expect(ungroupedBase.compareDocumentPosition(firstRealGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders ungrouped bases without a synthetic group label', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
@@ -285,7 +313,8 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByText('未分组')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
+    expect(screen.queryByText('未分组')).not.toBeInTheDocument()
   })
 
   it('opens a context menu on right click and moves the base to another group', async () => {
@@ -593,7 +622,7 @@ describe('BaseNavigator', () => {
     expect(onCreateBase).toHaveBeenCalledWith('group-1')
   })
 
-  it('does not render a trailing group menu button for the synthetic ungrouped section', () => {
+  it('does not render a group menu trigger for the ungrouped section', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
@@ -612,9 +641,8 @@ describe('BaseNavigator', () => {
       />
     )
 
+    expect(screen.queryByText('未分组')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '更多' })).toHaveLength(1)
-    fireEvent.contextMenu(screen.getByRole('button', { name: /未分组/ }))
-    expect(screen.queryByRole('button', { name: '重命名' })).not.toBeInTheDocument()
   })
 
   it('filters visible sections and rows when the search value changes', () => {

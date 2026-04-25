@@ -21,7 +21,7 @@ import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface CreateKnowledgeBaseDialogProps {
@@ -36,7 +36,6 @@ interface CreateKnowledgeBaseDialogProps {
 
 const DEFAULT_EMOJI = '📁'
 const DEFAULT_DIMENSIONS = '1024'
-const UNGROUPED_GROUP_VALUE = '__ungrouped__'
 const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
 
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'>
@@ -155,17 +154,31 @@ const CreateKnowledgeBaseDialogRoot = ({
     capability: MODEL_CAPABILITY.EMBEDDING,
     enabled: true
   })
-  const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() => createInitialInput(initialGroupId))
+  const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
+  const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
+  const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
+    createInitialInput(normalizedInitialGroupId)
+  )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
-      setValues(createInitialInput(initialGroupId))
+      setValues(createInitialInput(normalizedInitialGroupId))
       setHasAttemptedSubmit(false)
       setSubmitError(null)
     }
-  }, [open, initialGroupId])
+  }, [open, normalizedInitialGroupId])
+
+  useEffect(() => {
+    setValues((currentValues) => {
+      if (!currentValues.groupId || groupIds.has(currentValues.groupId)) {
+        return currentValues
+      }
+
+      return { ...currentValues, groupId: undefined }
+    })
+  }, [groupIds])
 
   const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
     value: model.id,
@@ -189,7 +202,7 @@ const CreateKnowledgeBaseDialogRoot = ({
       dimensions: DEFAULT_DIMENSIONS
     }
 
-    if (values.groupId) {
+    if (values.groupId && groupIds.has(values.groupId)) {
       createInput.groupId = values.groupId
     }
 
@@ -243,33 +256,34 @@ const CreateKnowledgeBaseDialogRoot = ({
               />
             </div>
 
-            <div className="space-y-1">
-              <Label className="font-medium text-[11px] text-muted-foreground leading-4">
-                {t('knowledge_v2.add.group')}
-              </Label>
-              <Select
-                value={values.groupId ?? UNGROUPED_GROUP_VALUE}
-                onValueChange={(groupValue) =>
-                  setValues((currentValues) => ({
-                    ...currentValues,
-                    groupId: groupValue === UNGROUPED_GROUP_VALUE ? undefined : groupValue
-                  }))
-                }>
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-placeholder:text-[11px] data-placeholder:text-muted-foreground/70">
-                  <SelectValue placeholder={t('knowledge_v2.groups.ungrouped')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNGROUPED_GROUP_VALUE}>{t('knowledge_v2.groups.ungrouped')}</SelectItem>
-                  {groups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {groups.length > 0 ? (
+              <div className="space-y-1">
+                <Label className="font-medium text-[11px] text-muted-foreground leading-4">
+                  {t('knowledge_v2.add.group')}
+                </Label>
+                <Select
+                  value={values.groupId}
+                  onValueChange={(groupId) =>
+                    setValues((currentValues) => ({
+                      ...currentValues,
+                      groupId
+                    }))
+                  }>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-full rounded-lg px-2.5 text-[11px] leading-4 data-placeholder:text-[11px] data-placeholder:text-muted-foreground/70">
+                    <SelectValue placeholder={t('knowledge_v2.groups.ungrouped')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             <div className="space-y-1">
               <Label className="font-medium text-[11px] text-muted-foreground leading-4">

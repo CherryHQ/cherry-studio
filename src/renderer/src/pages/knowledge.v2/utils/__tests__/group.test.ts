@@ -36,7 +36,7 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 })
 
 describe('buildKnowledgePageBaseGroupSections', () => {
-  it('orders known groups by the real group list and keeps ungrouped bases in a null section', () => {
+  it('places ungrouped bases before real group sections', () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-2' }),
       createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null }),
@@ -49,16 +49,16 @@ describe('buildKnowledgePageBaseGroupSections', () => {
 
     expect(buildKnowledgeBaseGroupSections(bases, groups, '')).toEqual([
       {
+        groupId: null,
+        items: [bases[1]]
+      },
+      {
         groupId: 'group-1',
         items: [bases[2]]
       },
       {
         groupId: 'group-2',
         items: [bases[0]]
-      },
-      {
-        groupId: null,
-        items: [bases[1]]
       }
     ])
   })
@@ -85,7 +85,8 @@ describe('buildKnowledgePageBaseGroupSections', () => {
   it('filters group sections by knowledge base name', () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Alpha Docs', groupId: 'group-1' }),
-      createKnowledgeBase({ id: 'base-2', name: 'Beta Notes', groupId: 'group-2' })
+      createKnowledgeBase({ id: 'base-2', name: 'Beta Notes', groupId: 'group-2' }),
+      createKnowledgeBase({ id: 'base-3', name: 'Meeting Notes', groupId: null })
     ]
     const groups = [
       createGroup({ id: 'group-1', name: 'Research', orderKey: 'a0' }),
@@ -93,6 +94,10 @@ describe('buildKnowledgePageBaseGroupSections', () => {
     ]
 
     expect(buildKnowledgeBaseGroupSections(bases, groups, 'notes')).toEqual([
+      {
+        groupId: null,
+        items: [bases[2]]
+      },
       {
         groupId: 'group-2',
         items: [bases[1]]
@@ -115,7 +120,7 @@ describe('buildKnowledgePageBaseGroupSections', () => {
     ])
   })
 
-  it('appends unknown group ids after real groups and before ungrouped', () => {
+  it('places ungrouped before real groups and appends unknown group ids after real groups', () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-2' }),
       createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'orphan-group' }),
@@ -125,16 +130,16 @@ describe('buildKnowledgePageBaseGroupSections', () => {
 
     expect(buildKnowledgeBaseGroupSections(bases, groups, '')).toEqual([
       {
+        groupId: null,
+        items: [bases[2]]
+      },
+      {
         groupId: 'group-2',
         items: [bases[0]]
       },
       {
         groupId: 'orphan-group',
         items: [bases[1]]
-      },
-      {
-        groupId: null,
-        items: [bases[2]]
       }
     ])
   })

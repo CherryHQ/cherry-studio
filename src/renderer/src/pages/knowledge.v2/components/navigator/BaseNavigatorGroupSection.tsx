@@ -3,15 +3,8 @@ import { AccordionContent, AccordionItem } from '@cherrystudio/ui'
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import KnowledgeBaseRow from './KnowledgeBaseRow'
 import KnowledgeGroupRow from './KnowledgeGroupRow'
-import type { BaseNavigatorGroupSectionProps, BaseNavigatorSectionTriggerProps } from './types'
+import type { BaseNavigatorGroupSectionProps } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
-
-const BaseNavigatorStaticGroupRow = ({
-  label,
-  itemCount
-}: Pick<BaseNavigatorSectionTriggerProps, 'label' | 'itemCount'>) => {
-  return <BaseNavigatorSectionTrigger label={label} itemCount={itemCount} />
-}
 
 const BaseNavigatorGroupSection = ({
   section,
@@ -39,9 +32,9 @@ const BaseNavigatorGroupSection = ({
           onCreateBase={onCreateBaseInGroup}
           onDeleteGroup={onDeleteGroup}
         />
-      ) : (
-        <BaseNavigatorStaticGroupRow label={groupLabel} itemCount={section.items.length} />
-      )}
+      ) : section.groupId !== null ? (
+        <BaseNavigatorSectionTrigger label={groupLabel} itemCount={section.items.length} />
+      ) : null}
 
       <AccordionContent className="pt-0 pb-0">
         <div className="space-y-px">

@@ -39,6 +39,11 @@ export const buildKnowledgeBaseGroupSections = (
 
   const sections: KnowledgePageBaseGroupSection[] = []
 
+  const ungroupedItems = groupedBases.get(null)
+  if (ungroupedItems) {
+    sections.push({ groupId: null, items: ungroupedItems })
+  }
+
   for (const group of groups) {
     const items = groupedBases.get(group.id)
     if (items || includeEmptyKnownGroups) {
@@ -51,11 +56,6 @@ export const buildKnowledgeBaseGroupSections = (
     if (items) {
       sections.push({ groupId, items })
     }
-  }
-
-  const ungroupedItems = groupedBases.get(null)
-  if (ungroupedItems) {
-    sections.push({ groupId: null, items: ungroupedItems })
   }
 
   return sections
