@@ -15,6 +15,7 @@ import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
+import { useTopicFolders } from '@renderer/hooks/useTopicFolders'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -40,6 +41,7 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   CheckSquare,
+  FolderIcon,
   FolderOpen,
   HelpCircle,
   ListChecks,
@@ -95,6 +97,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   // 管理模式状态
   const manageState = useTopicManageMode()
   const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
+
+  const pinnedTopics = useMemo(() => assistant.topics.filter((t) => t.pinned), [assistant.topics])
+  const { allFolders, createFolder } = useTopicFolders(assistant.id, pinnedTopics)
 
   const { startEdit, isEditing, inputProps } = useInPlaceEdit({
     onSave: (name: string) => {
@@ -344,6 +349,57 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         }
       },
       {
+        label: t('chat.topics.folder.move_to'),
+        key: 'folder',
+        icon: <FolderIcon size={14} />,
+        children: [
+          ...(topic.folder
+            ? [
+                {
+                  label: t('chat.topics.folder.remove'),
+                  key: 'remove-from-folder',
+                  onClick: () => {
+                    const updatedTopic = { ...topic, folder: undefined }
+                    updateTopic(updatedTopic)
+                    topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+                  }
+                }
+              ]
+            : []),
+          ...allFolders.map((folderName) => ({
+            label: folderName,
+            key: `folder-${folderName}`,
+            onClick: () => {
+              const updatedTopic = { ...topic, folder: folderName }
+              updateTopic(updatedTopic)
+              topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+            }
+          })),
+          { type: 'divider' as const },
+          {
+            label: t('chat.topics.folder.create'),
+            key: 'create-folder',
+            onClick: async () => {
+              const folderName = await PromptPopup.show({
+                title: t('chat.topics.folder.create'),
+                message: '',
+                defaultValue: '',
+                inputProps: {
+                  placeholder: t('chat.topics.folder.create_placeholder'),
+                  allowClear: true
+                }
+              })
+              if (folderName) {
+                void createFolder(folderName)
+                const updatedTopic = { ...topic, folder: folderName }
+                updateTopic(updatedTopic)
+                topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+              }
+            }
+          }
+        ]
+      },
+      {
         label: t('notes.save'),
         key: 'notes',
         icon: <NotebookPen size={14} />,
@@ -539,7 +595,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     onClearMessages,
     setTopicPosition,
     onMoveTopic,
-    onDeleteTopic
+    onDeleteTopic,
+    allFolders,
+    createFolder
   ])
 
   // Sort topics based on pinned status if pinTopicsToTop is enabled

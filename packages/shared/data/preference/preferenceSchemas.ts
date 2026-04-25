@@ -460,6 +460,10 @@ export interface PreferenceSchemas {
     'shortcut.topic.rename': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.toggle_show_topics
     'shortcut.topic.toggle_show_topics': PreferenceTypes.PreferenceShortcutType
+    // redux/settings/topicFoldersOrder
+    'topic.folders.collapsed': Record<string, string[]>
+    // redux/settings/collapsedTopicFolders
+    'topic.folders.order': Record<string, string[]>
     // redux/settings/enableTopicNaming
     'topic.naming.enabled': boolean
     // target-key-definitions/complex/complex
@@ -737,6 +741,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.topic.new': { binding: ['CommandOrControl', 'N'], enabled: true },
     'shortcut.topic.rename': { binding: ['CommandOrControl', 'T'], enabled: false },
     'shortcut.topic.toggle_show_topics': { binding: ['CommandOrControl', ']'], enabled: true },
+    'topic.folders.collapsed': {},
+    'topic.folders.order': {},
     'topic.naming.enabled': true,
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
