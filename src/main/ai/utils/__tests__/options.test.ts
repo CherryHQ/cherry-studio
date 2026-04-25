@@ -110,7 +110,7 @@ describe('mergeCustomProviderParameters', () => {
   it('preserves unrelated providerOptions entries', () => {
     const initial = { google: { thinkingConfig: { mode: 'auto' as never } }, anthropic: { cacheControl: {} as never } }
     const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
+      initial as unknown as Record<string, Record<string, never>>,
       { google: { extra: 1 } },
       'google'
     )
@@ -136,5 +136,6 @@ describe('customParameters → providerOptions plugin contract', () => {
   })
 })
 
-// Type-only fixture to keep linters happy for the helper-only tests above.
-type _UnusedAssistant = Assistant
+// `Assistant` is imported only so the file's type-import alignment matches the
+// other helpers' tests; nothing in this suite references the runtime shape.
+export type _UnusedAssistant = Assistant

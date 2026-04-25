@@ -33,7 +33,7 @@ function makeAssistant(settings: Partial<Assistant['settings']>): Assistant {
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
-    id: 'gpt-4',
+    id: 'openai::gpt-4',
     providerId: 'openai',
     name: 'GPT-4',
     group: 'openai',
@@ -66,7 +66,7 @@ describe('getTemperature', () => {
     // A Claude reasoning model — id containing 'claude-sonnet-4-5' triggers
     // `isClaudeReasoningModel` via the shared regex.
     const model = makeModel({
-      id: 'claude-sonnet-4-5-20250101',
+      id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic'
     })
     expect(getTemperature(a, model)).toBeUndefined()
@@ -75,7 +75,7 @@ describe('getTemperature', () => {
   it('keeps temperature on Claude reasoning models when reasoning_effort is default', () => {
     const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
     const model = makeModel({
-      id: 'claude-sonnet-4-5-20250101',
+      id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic'
     })
     expect(getTemperature(a, model)).toBe(0.8)
@@ -84,7 +84,7 @@ describe('getTemperature', () => {
   it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
     // gpt-5 is in the max-temperature-one list per shared/utils/model.
     const a = makeAssistant({ temperature: 1.5 })
-    const model = makeModel({ id: 'gpt-5' })
+    const model = makeModel({ id: 'openai::gpt-5' })
     expect(getTemperature(a, model)).toBe(1)
   })
 })
@@ -103,7 +103,7 @@ describe('getTopP', () => {
   it('clamps topP to [0.95, 1] on Claude reasoning models with reasoning effort', () => {
     const a = makeAssistant({ enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
     const model = makeModel({
-      id: 'claude-sonnet-4-5-20250101',
+      id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic'
     })
     expect(getTopP(a, model)).toBe(0.95)
@@ -123,7 +123,7 @@ describe('getMaxTokens', () => {
 
   it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
     const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'claude-sonnet-4-6-20260101', providerId: 'anthropic' })
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-6-20260101', providerId: 'anthropic' })
     const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
     expect(getMaxTokens(a, model, provider)).toBe(8000)
   })
