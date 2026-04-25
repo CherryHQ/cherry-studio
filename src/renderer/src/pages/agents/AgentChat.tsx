@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
@@ -9,7 +10,6 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
@@ -34,7 +34,7 @@ import Sessions from './components/Sessions'
 const AgentChat = () => {
   const { t } = useTranslation()
   const { messageNavigation, messageStyle, topicPosition } = useSettings()
-  const { showTopics } = useShowTopics()
+  const [showTopics] = usePreference('topic.tab.show')
   const [activeAgentId] = useCache('agent.active_id')
   const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')

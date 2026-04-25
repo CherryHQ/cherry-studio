@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { t } from 'i18next'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -20,9 +19,9 @@ interface Props {
 const HeaderNavbar: FC<Props> = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
-
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  // Single source of truth for the topics sidebar (the only sidebar in v2).
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
   useShortcut('general.search', () => {
     void SearchPopup.show()
@@ -35,7 +34,7 @@ const HeaderNavbar: FC<Props> = () => {
   return (
     <Navbar className="home-navbar">
       <AnimatePresence initial={false}>
-        {showAssistants && (
+        {showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 'auto', opacity: 1 }}
@@ -44,7 +43,7 @@ const HeaderNavbar: FC<Props> = () => {
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
               <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon onClick={toggleShowAssistants}>
+                <NavbarIcon onClick={toggleShowSidebar}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
               </Tooltip>
@@ -52,7 +51,7 @@ const HeaderNavbar: FC<Props> = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      {!showAssistants && (
+      {!showSidebar && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',
@@ -62,7 +61,7 @@ const HeaderNavbar: FC<Props> = () => {
             minWidth: 'auto'
           }}>
           <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
-            <NavbarIcon onClick={() => toggleShowAssistants()}>
+            <NavbarIcon onClick={toggleShowSidebar}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -89,17 +88,13 @@ const HeaderNavbar: FC<Props> = () => {
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
-          {topicPosition === 'right' && !showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelLeftClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          {topicPosition === 'right' && showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelRightClose size={18} />
+          {topicPosition === 'right' && (
+            <Tooltip
+              placement="bottom"
+              content={showSidebar ? t('navbar.hide_sidebar') : t('navbar.show_sidebar')}
+              delay={2000}>
+              <NavbarIcon onClick={toggleShowSidebar}>
+                {showSidebar ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
               </NavbarIcon>
             </Tooltip>
           )}

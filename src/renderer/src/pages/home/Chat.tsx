@@ -10,7 +10,6 @@ import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/con
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -46,7 +45,7 @@ const Chat: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
-  const { showTopics } = useShowTopics()
+  const [showTopics] = usePreference('topic.tab.show')
   const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
@@ -145,7 +144,7 @@ const Chat: FC<Props> = (props) => {
           <div
             ref={mainRef}
             id="chat-main"
-            className="relative flex flex-1 flex-col justify-between transform-[translateZ(0)]"
+            className="transform-[translateZ(0)] relative flex flex-1 flex-col justify-between"
             style={{ height: mainHeight, width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar assistantId={props.activeTopic.assistantId} />

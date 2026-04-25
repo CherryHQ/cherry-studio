@@ -3,7 +3,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
@@ -75,29 +74,21 @@ const HomePage: FC = () => {
     autoPickFirst: !shouldUseTemporary
   })
 
-  // Persist the temporary topic on the user's first message in this session,
-  // then refresh `/topics` so the now-real topic shows up in the sidebar.
-  // After resolving, `useTemporaryTopic` skips its cleanup DELETE since the
-  // id no longer points at an in-memory entry.
   const persistTemporaryTopicAndRefresh = useCallback(async () => {
     await persistTemporaryTopic()
     await refreshTopics()
   }, [persistTemporaryTopic, refreshTopics])
-  const [showAssistants] = usePreference('assistant.tab.show')
-  const [showTopics] = usePreference('topic.tab.show')
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
-  const { setShowAssistants, toggleShowAssistants } = useShowAssistants()
-  const { toggleShowTopics } = useShowTopics()
 
-  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
   useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'right') {
-      void toggleShowAssistants()
+      void setShowSidebar(!showSidebar)
       return
     }
 
-    if (!showAssistants) {
-      void setShowAssistants(true)
+    if (!showSidebar) {
+      void setShowSidebar(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
       })
@@ -109,12 +100,12 @@ const HomePage: FC = () => {
 
   useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      void toggleShowTopics()
+      void setShowSidebar(!showSidebar)
       return
     }
 
-    if (!showAssistants) {
-      void setShowAssistants(true)
+    if (!showSidebar) {
+      void setShowSidebar(true)
       requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       })
@@ -134,13 +125,12 @@ const HomePage: FC = () => {
   }, [state])
 
   useEffect(() => {
-    const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showAssistants, showTopics, topicPosition])
+  }, [showSidebar])
 
   if (!activeTopic) {
     return <Container id="home-page" />
@@ -151,7 +141,7 @@ const HomePage: FC = () => {
       {isLeftNavbar && <Navbar position="left" />}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <AnimatePresence initial={false}>
-          {showAssistants && (
+          {showSidebar && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}

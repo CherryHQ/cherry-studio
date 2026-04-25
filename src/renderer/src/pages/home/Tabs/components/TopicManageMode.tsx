@@ -351,7 +351,7 @@ const SearchInput: FC<SearchInputProps> = ({ className, ref, ...props }) => (
     {...props}
     ref={ref}
     className={cn(
-      'h-7 min-w-0 flex-1 border-none bg-transparent p-0 text-[13px] text-(--color-text-1) outline-none placeholder:text-(--color-text-3)',
+      'h-7 min-w-0 flex-1 border-none bg-transparent p-0 text-(--color-text-1) text-[13px] outline-none placeholder:text-(--color-text-3)',
       className
     )}
   />

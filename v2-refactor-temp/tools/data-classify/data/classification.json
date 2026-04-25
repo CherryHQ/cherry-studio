@@ -830,9 +830,8 @@
           "originalKey": "showAssistants",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.tab.show"
+          "status": "deleted",
+          "targetKey": null
         },
         {
           "originalKey": "showTopics",

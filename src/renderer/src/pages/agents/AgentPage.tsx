@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -7,7 +8,6 @@ import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -23,8 +23,8 @@ import { AgentEmpty, AgentServerDisabled, AgentServerStopped } from './component
 
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
   const [activeAgentId] = useCache('agent.active_id')
   const { agents } = useAgents()
@@ -32,10 +32,9 @@ const AgentPage = () => {
   const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const { t } = useTranslation()
 
-  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
   useShortcut('general.toggle_sidebar', () => {
     if (topicPosition === 'left') {
-      void toggleShowAssistants()
+      toggleShowSidebar()
       return
     }
 
@@ -44,7 +43,7 @@ const AgentPage = () => {
 
   useShortcut('topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
-      void toggleShowTopics()
+      toggleShowSidebar()
     } else {
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
@@ -58,12 +57,11 @@ const AgentPage = () => {
   }, [activeAgentId, agents, setActiveAgentId])
 
   useEffect(() => {
-    const canMinimize = topicPosition === 'left' ? !showAssistants : !showAssistants && !showTopics
-    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showAssistants, showTopics, topicPosition])
+  }, [showSidebar])
 
   if (!apiServerConfig.enabled) {
     return (
@@ -105,7 +103,7 @@ const AgentPage = () => {
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AnimatePresence initial={false}>
-          {showAssistants && (
+          {showSidebar && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}

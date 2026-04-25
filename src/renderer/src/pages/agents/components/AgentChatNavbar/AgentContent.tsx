@@ -1,9 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShowAssistants } from '@renderer/hooks/useStore'
 import { AgentSettingsPopup, SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import type { AgentEntity, ApiModel } from '@renderer/types'
@@ -25,7 +25,8 @@ type AgentContentProps = {
 }
 
 const AgentContent = ({ activeAgent }: AgentContentProps) => {
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
@@ -41,22 +42,22 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   return (
     <div className="flex w-full justify-between pr-2">
       <div className="flex min-w-0 shrink items-center">
-        {isTopNavbar && showAssistants && (
+        {isTopNavbar && showSidebar && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={toggleShowAssistants}>
+            <NavbarIcon onClick={toggleShowSidebar}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-        {isTopNavbar && !showAssistants && (
+        {isTopNavbar && !showSidebar && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
-            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
+            <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         <AnimatePresence initial={false}>
-          {!showAssistants && isTopNavbar && (
+          {!showSidebar && isTopNavbar && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'auto', opacity: 1 }}
