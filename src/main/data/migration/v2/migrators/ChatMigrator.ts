@@ -372,10 +372,15 @@ export class ChatMigrator extends BaseMigrator {
           this.stagedTopics.push(data)
         }
 
-        // Stream-progress while transforming. Actual DB inserts happen after
-        // the stream finishes, so the bar may pause briefly at the end.
-        const progress = Math.round((this.stagedTopics.length / this.topicCount) * 100)
-        this.reportProgress(progress, `Transformed ${this.stagedTopics.length}/${this.topicCount} conversations`)
+        // Stream phase reports 0..50%. Insert phase (insertStagedTopics)
+        // reports 50..100% so the bar continues advancing once streaming
+        // finishes — without that split the migrator looks frozen during
+        // the (potentially long) post-stream insert pass.
+        const progress = Math.round((this.stagedTopics.length / this.topicCount) * 50)
+        this.reportProgress(progress, `Prepared ${this.stagedTopics.length}/${this.topicCount} conversations`, {
+          key: 'migration.progress.prepared_chats',
+          params: { processed: this.stagedTopics.length, total: this.topicCount }
+        })
       })
 
       // ── Post-stream phase: stamp orderKeys, dedupe message ids, insert ──
@@ -845,6 +850,8 @@ export class ChatMigrator extends BaseMigrator {
     let messagesInserted = 0
     const seenMessageIds = new Set<string>()
 
+    const total = this.stagedTopics.length || 1
+
     for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
       const batch = this.stagedTopics.slice(start, start + TOPIC_BATCH_SIZE)
 
@@ -890,6 +897,18 @@ export class ChatMigrator extends BaseMigrator {
       for (const id of batchIds) seenMessageIds.add(id)
       topicsInserted += batch.length
       messagesInserted += batchMessages.length
+
+      // Stream phase ran 0..50%; the insert phase advances 50..100% so the
+      // user sees per-batch progress instead of a long stall after streaming.
+      const progress = 50 + Math.round((topicsInserted / total) * 50)
+      this.reportProgress(
+        progress,
+        `Migrated ${topicsInserted}/${this.stagedTopics.length} conversations, ${messagesInserted} messages`,
+        {
+          key: 'migration.progress.migrated_chats',
+          params: { processed: topicsInserted, total: this.stagedTopics.length, messages: messagesInserted }
+        }
+      )
     }
 
     // Phase 3: emit pin rows for legacy pinned topics.
