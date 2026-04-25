@@ -64,7 +64,14 @@ export class AssistantMigrator extends BaseMigrator {
         return { success: true, itemCount: 0, warnings: ['No assistants data found'] }
       }
 
-      // Merge assistants and presets into one list
+      // Merge assistants, presets, and the v1 default assistant into one list.
+      // `state.defaultAssistant` lives in its own slot (id == DEFAULT_ASSISTANT_ID
+      // == 'default'), separate from `state.assistants[]`. Without including it,
+      // user customizations on the default assistant (prompt / model / settings)
+      // are lost on migration. Dedup by id below handles any overlap with the
+      // assistants/presets lists, and the post-migration DefaultAssistantSeeder
+      // is idempotent — if the migrated row already has id 'default', the seeder
+      // is a no-op.
       const allSources: OldAssistant[] = []
 
       if (Array.isArray(state.assistants)) {
@@ -72,6 +79,9 @@ export class AssistantMigrator extends BaseMigrator {
       }
       if (Array.isArray(state.presets)) {
         allSources.push(...state.presets)
+      }
+      if (state.defaultAssistant && typeof state.defaultAssistant === 'object') {
+        allSources.push(state.defaultAssistant)
       }
 
       // Deduplicate by ID
