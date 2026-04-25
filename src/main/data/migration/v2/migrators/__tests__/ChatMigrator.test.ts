@@ -17,6 +17,7 @@ import type { NewMessage, NewTopic, OldBlock, OldMainTextBlock, OldMessage, OldT
 interface PreparedTopicData {
   topic: NewTopic
   messages: NewMessage[]
+  pinned: boolean
 }
 
 /** Create a minimal OldMainTextBlock */
@@ -227,6 +228,74 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.has('u2')).toBe(false)
     // a2 should resolve through the chain to u1
     expect(msgMap.get('a2')?.parentId).toBe('u1')
+  })
+})
+
+describe('ChatMigrator pin migration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('captures pinned flag from Redux topic metadata onto PreparedTopicData', () => {
+    // Dexie topic row has no `pinned` column; the v1 source stores pin state
+    // on the Redux side under assistant.topics[].pinned. The migrator must
+    // merge that flag into PreparedTopicData so insertStagedTopics can later
+    // emit a `pin` row — without this flag the legacy pinned topic silently
+    // becomes unpinned post-migration.
+    const b1 = block('b1', 'u1')
+    const messages = [msg('u1', 'user', ['b1'])]
+    const oldTopic = topic('t1', messages)
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', b1]])
+    m['assistantLookup'] = new Map()
+    // Redux meta says it's pinned even though Dexie source doesn't carry the flag.
+    m['topicMetaLookup'] = new Map([['t1', { pinned: true }]])
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+
+    expect(result).not.toBeNull()
+    expect(result?.pinned).toBe(true)
+  })
+
+  it('defaults pinned to false when source has no pinned flag', () => {
+    const b1 = block('b1', 'u1')
+    const result = prepareTopic(topic('t1', [msg('u1', 'user', ['b1'])]), [b1])
+    expect(result).not.toBeNull()
+    expect(result?.pinned).toBe(false)
+  })
+
+  it('lets Redux pinned=false override Dexie pinned=true (Redux is authoritative)', () => {
+    // The merge order is `topicMeta.pinned ?? oldTopic.pinned`, so an explicit
+    // false in Redux wins over a stale true on the Dexie side.
+    const b1 = block('b1', 'u1')
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'ast-1',
+      name: 'X',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])],
+      pinned: true
+    }
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', b1]])
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map([['t1', { pinned: false }]])
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+    expect(result?.pinned).toBe(false)
   })
 })
 
