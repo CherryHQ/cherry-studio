@@ -39,9 +39,10 @@ export const AssistantSettingsSchema = z.object({
   topP: z.number().min(0).max(1).default(1),
   /** @default false */
   enableTopP: z.boolean().default(false),
-  // TODO: use constant instead
-  /** @default 4096 — from DEFAULT_MAX_TOKENS */
-  maxTokens: z.number().int().positive().default(4096),
+  /**
+   * @default 4096 — from DEFAULT_MAX_TOKENS
+   */
+  maxTokens: z.number().int().nonnegative().default(4096),
   /** @default false — disabled = use model's own default */
   enableMaxTokens: z.boolean().default(false),
   // TODO: use constant instead

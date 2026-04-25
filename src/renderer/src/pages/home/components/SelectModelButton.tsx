@@ -7,7 +7,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { Assistant, Model } from '@renderer/types'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import type { FC } from 'react'
@@ -20,7 +19,7 @@ interface Props {
 }
 
 const SelectModelButton: FC<Props> = ({ assistant }) => {
-  const { model, updateAssistant } = useAssistant(assistant.id)
+  const { model, setModel } = useAssistant(assistant.id)
   const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { t } = useTranslation()
   const timerRef = useRef<NodeJS.Timeout>(undefined)
@@ -35,10 +34,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
       clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedModel)
-        void updateAssistant({
-          modelId: createUniqueModelId(selectedModel.provider, selectedModel.id),
-          settings: { ...assistant.settings, enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
-        })
+        setModel(selectedModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
       }, 200)
     }
   }

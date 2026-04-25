@@ -9,7 +9,6 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useReasoningEffortSync } from '@renderer/hooks/useReasoningEffortSync'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -17,7 +16,6 @@ import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Model, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import React, { useMemo, useRef, useState } from 'react'
@@ -36,16 +34,9 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant, model, updateAssistant, updateAssistantSettings } = useAssistant(
-    props.activeTopic.assistantId ?? ''
-  )
+  const { assistant, model, setModel } = useAssistant(props.activeTopic.assistantId ?? '')
   const { updateTopic: patchTopic } = useTopicMutations()
   const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
-
-  // Single-owner reasoning-effort sync. Was fanned out across every
-  // useAssistant() consumer; concentrating here avoids parallel writes
-  // racing on the same assistant settings.
-  useReasoningEffortSync(assistant?.id, model, assistant?.settings, updateAssistantSettings)
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
@@ -96,10 +87,7 @@ const Chat: FC<Props> = (props) => {
     })
     if (selectedModel) {
       const enabledWebSearch = isWebSearchModel(selectedModel)
-      void updateAssistant({
-        modelId: createUniqueModelId(selectedModel.provider, selectedModel.id),
-        settings: { ...assistant.settings, enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
-      })
+      setModel(selectedModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     }
   })
 
