@@ -6,15 +6,18 @@
  */
 
 import { dataApiService } from '@data/DataApiService'
+import { useSharedCache } from '@data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { Topic as RendererTopic } from '@renderer/types'
 import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { IpcChannel } from '@shared/IpcChannel'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicDataApi')
+
+const EMPTY_API_TOPICS: readonly ApiTopic[] = Object.freeze([])
+const EMPTY_RENDERER_TOPICS: readonly RendererTopic[] = Object.freeze([])
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -41,8 +44,11 @@ export function useTopicsByAssistant(assistantId: string | undefined) {
     enabled: !!assistantId
   })
 
-  const topics = data?.filter((t) => t.assistantId === assistantId) ?? []
-  const rendererTopics = topics.map(mapApiTopicToRendererTopic)
+  const topics = useMemo(
+    () => data?.filter((t) => t.assistantId === assistantId) ?? EMPTY_API_TOPICS,
+    [data, assistantId]
+  )
+  const rendererTopics = useMemo(() => topics.map(mapApiTopicToRendererTopic), [topics])
 
   return {
     topics,
@@ -63,9 +69,11 @@ export function useAllTopics() {
     query: {}
   })
 
+  const rendererTopics = useMemo(() => (data ? data.map(mapApiTopicToRendererTopic) : EMPTY_RENDERER_TOPICS), [data])
+
   return {
-    topics: data ?? [],
-    rendererTopics: data?.map(mapApiTopicToRendererTopic),
+    topics: data ?? EMPTY_API_TOPICS,
+    rendererTopics,
     isLoading,
     error,
     refetch,
@@ -95,44 +103,46 @@ export function useTopicById(topicId: string | undefined) {
 
 /**
  * Topic mutations (create / update / delete) backed by DataApi.
- *
- * Every mutation automatically invalidates the `/topics` SWR cache so
- * consumers like `useTopicsByAssistant` pick up changes.
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
-  const { trigger: doCreate, isLoading: isCreating } = useMutation('POST', '/topics', {
+
+  const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
+  })
+  const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
+  })
+  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
 
   const createTopic = useCallback(
     async (dto: CreateTopicDto): Promise<ApiTopic> => {
-      const topic = await doCreate({ body: dto })
+      const topic = await createTrigger({ body: dto })
       logger.info('Created topic', { id: topic.id })
       return topic
     },
-    [doCreate]
+    [createTrigger]
   )
 
   const updateTopic = useCallback(
     async (topicId: string, dto: UpdateTopicDto): Promise<ApiTopic> => {
-      const topic = await dataApiService.patch(`/topics/${topicId}`, { body: dto })
-      await refreshTopics()
+      const topic = await updateTrigger({ params: { id: topicId }, body: dto })
       logger.info('Updated topic', { id: topicId })
       return topic
     },
-    [refreshTopics]
+    [updateTrigger]
   )
 
   const deleteTopic = useCallback(
     async (topicId: string): Promise<void> => {
-      await dataApiService.delete(`/topics/${topicId}`)
-      await refreshTopics()
+      await deleteTrigger({ params: { id: topicId } })
       logger.info('Deleted topic', { id: topicId })
     },
-    [refreshTopics]
+    [deleteTrigger]
   )
 
   const deleteAllTopics = useCallback(
@@ -154,12 +164,10 @@ export function useTopicMutations() {
   )
 
   const moveTopic = useCallback(
-    async (topicId: string, toAssistantId: string): Promise<ApiTopic> => {
-      const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId: toAssistantId } })
-      await refreshTopics()
-      return topic
+    (topicId: string, toAssistantId: string): Promise<ApiTopic> => {
+      return updateTopic(topicId, { assistantId: toAssistantId })
     },
-    [refreshTopics]
+    [updateTopic]
   )
 
   return {
@@ -170,7 +178,9 @@ export function useTopicMutations() {
     batchUpdateTopics,
     moveTopic,
     refreshTopics,
-    isCreating
+    isCreating,
+    isUpdating,
+    isDeleting
   }
 }
 
@@ -179,18 +189,13 @@ export function useTopicMutations() {
  * and invalidates the SWR topic cache so UI reflects the change.
  */
 export function useTopicSync() {
+  const [version] = useSharedCache('topic.cache_version')
   const invalidate = useInvalidateCache()
-  const refresh = useCallback(() => {
-    void invalidate('/topics')
-  }, [invalidate])
+  const lastSeenRef = useRef(version)
 
   useEffect(() => {
-    if (!window.electron?.ipcRenderer) return
-
-    const removeListener = window.electron.ipcRenderer.on(IpcChannel.Topic_Updated, refresh)
-
-    return () => {
-      removeListener()
-    }
-  }, [refresh])
+    if (version === lastSeenRef.current) return
+    lastSeenRef.current = version
+    void invalidate(['/topics', '/topics/*'])
+  }, [version, invalidate])
 }

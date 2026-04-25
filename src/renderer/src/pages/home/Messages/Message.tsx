@@ -191,7 +191,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 transform-[translateZ(0)] will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] p-[10px] pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}

@@ -622,7 +622,7 @@ function adjustAllowedToolsForMcp(
 }
 
 function getSettingSources(session: AgentSessionEntity): Array<'user' | 'project' | 'local'> {
-  const builtinRole = (session.configuration)?.builtin_role
+  const builtinRole = session.configuration?.builtin_role
   return builtinRole ? [] : ['project', 'local']
 }
 

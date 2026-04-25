@@ -22,7 +22,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@shared/data/types/model', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@shared/data/types/model')>()
+  const actual = (await importOriginal()) as any
   return {
     ...actual,
     createUniqueModelId: vi.fn((providerId: string, modelId: string) => `${providerId}::${modelId}`)
@@ -185,11 +185,7 @@ describe('SchedulerService', () => {
     // Simulate AiStreamManager completing the execution so the scheduler's
     // `await executionDone` resolves and the task flow reaches updateTaskAfterRun.
     mockSend.mockImplementationOnce(
-      ({
-        listeners
-      }: {
-        listeners: Array<{ id: string; onDone?: (r: { status: string }) => void }>
-      }) => {
+      ({ listeners }: { listeners: Array<{ id: string; onDone?: (r: { status: string }) => void }> }) => {
         const sentinel = listeners.find((l) => l.id.startsWith('scheduler:'))
         sentinel?.onDone?.({ status: 'success' })
         return { mode: 'started', executionIds: [] }

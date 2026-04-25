@@ -4,13 +4,11 @@ import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
 import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { application } from '@main/core/application'
-import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
 import { agentSessionService as sessionService } from '@main/services/agents'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
-import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('TopicNamingService')
 
@@ -172,7 +170,7 @@ export class TopicNamingService {
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
    * DB (`session.name`) rather than `topics.name`, uses the session's own
-   * model for summarization, and broadcasts `AgentSession_Updated` so
+   * model for summarization, and bumps `agent_session.cache_version` so
    * renderer SWR caches can refresh.
    *
    * @param sessionId  Cherry Studio session id.
@@ -214,7 +212,7 @@ export class TopicNamingService {
 
       const updated = await sessionService.updateSession(agentId, sessionId, { name: nextName })
       if (updated) {
-        this.broadcastAgentSessionUpdated(updated.id, agentId, updated.name ?? nextName)
+        this.broadcastAgentSessionUpdated()
       }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', error as Error)
@@ -274,26 +272,20 @@ export class TopicNamingService {
     const nextName = removeSpecialCharactersForTopicName(name)
     if (!nextName || nextName === topic.name) return
 
-    const updatedTopic = await topicService.update(topic.id, { name: nextName })
-    this.broadcastTopicUpdated(updatedTopic)
+    await topicService.update(topic.id, { name: nextName })
+    this.broadcastTopicUpdated()
   }
 
-  private broadcastTopicUpdated(topic: Topic): void {
-    // Topic_Updated is consumed only by `TopViewContainer.useTopicSync`,
-    // which mounts in `Main` (App.tsx) and `DetachedTab` (detachedWindow/
-    // entryPoint.tsx). Quick-assistant and selection-toolbar windows don't
-    // render a topic list, so broadcasting to them would just burn IPC.
-    const wm = application.get('WindowManager')
-    wm.broadcastToType(WindowType.Main, IpcChannel.Topic_Updated, topic)
-    wm.broadcastToType(WindowType.SubWindow, IpcChannel.Topic_Updated, topic)
+  private broadcastTopicUpdated(): void {
+    const cache = application.get('CacheService')
+    const current = cache.getShared('topic.cache_version') ?? 0
+    cache.setShared('topic.cache_version', current + 1)
   }
 
-  private broadcastAgentSessionUpdated(sessionId: string, agentId: string, name: string): void {
-    // Same subscriber set as `Topic_Updated` — keep the two calls in sync.
-    const payload = { sessionId, agentId, name }
-    const wm = application.get('WindowManager')
-    wm.broadcastToType(WindowType.Main, IpcChannel.AgentSession_Updated, payload)
-    wm.broadcastToType(WindowType.SubWindow, IpcChannel.AgentSession_Updated, payload)
+  private broadcastAgentSessionUpdated(): void {
+    const cache = application.get('CacheService')
+    const current = cache.getShared('agent_session.cache_version') ?? 0
+    cache.setShared('agent_session.cache_version', current + 1)
   }
 }
 

@@ -1,59 +1,34 @@
 /**
- * Listens for `AgentSession_Updated` broadcasts from Main (emitted by
- * TopicNamingService after the auto-rename hook fires) and patches the
- * relevant SWR caches so the session list + detail UIs pick up the new
- * name without a refetch.
+ * Watches the `agent_session.cache_version` shared cache key (bumped by Main
+ * after auto-rename via TopicNamingService) and invalidates every agent-session
+ * SWR cache entry so list + detail UIs pick up the new name on next render.
+ *
+ * Mirrors the `topic.cache_version` pattern. Trades the legacy surgical
+ * IPC patch for a refetch — fine because session renames are rare.
  */
 
-import { DEFAULT_SESSION_PAGE_SIZE } from '@renderer/api/agent'
-import type { AgentSessionEntity, ListAgentSessionsResponse } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
-import { useEffect } from 'react'
+import { useSharedCache } from '@data/hooks/useCache'
+import { useEffect, useRef } from 'react'
 import { mutate } from 'swr'
-import { unstable_serialize } from 'swr/infinite'
 
-import { useAgentClient } from './useAgentClient'
+// Matches both fixed string keys (`/v1/agents/{agentId}/sessions[/{id}]`) and
+// the serialized infinite key (`["/v1/agents/{agentId}/sessions",page,size]`),
+// while excluding message-scoped keys (`/sessions/{id}/messages...`).
+const SESSION_KEY_RE = /\/agents\/[^/"]+\/sessions(\/[^/"]+)?(?:"|$)/
 
-interface AgentSessionUpdatedPayload {
-  sessionId: string
-  agentId: string
-  name: string
+function isSessionKey(key: unknown): boolean {
+  if (typeof key === 'string') return SESSION_KEY_RE.test(key)
+  if (Array.isArray(key) && typeof key[0] === 'string') return SESSION_KEY_RE.test(key[0])
+  return false
 }
 
 export function useAgentSessionSync() {
-  const client = useAgentClient()
+  const [version] = useSharedCache('agent_session.cache_version')
+  const lastSeenRef = useRef(version)
 
   useEffect(() => {
-    if (!client || !window.electron?.ipcRenderer) return
-
-    const removeListener = window.electron.ipcRenderer.on(
-      IpcChannel.AgentSession_Updated,
-      (_event, payload: AgentSessionUpdatedPayload) => {
-        const paths = client.getSessionPaths(payload.agentId)
-        const itemKey = paths.withId(payload.sessionId)
-        const infKey = unstable_serialize(() => [paths.base, 0, DEFAULT_SESSION_PAGE_SIZE])
-
-        void mutate<AgentSessionEntity>(itemKey, (prev) => (prev ? { ...prev, name: payload.name } : prev), {
-          revalidate: false
-        })
-        void mutate<ListAgentSessionsResponse[]>(
-          infKey,
-          (prev) => {
-            if (!prev) return prev
-            return prev.map((page) => ({
-              ...page,
-              data: page.data.map((session) =>
-                session.id === payload.sessionId ? { ...session, name: payload.name } : session
-              )
-            }))
-          },
-          { revalidate: false }
-        )
-      }
-    )
-
-    return () => {
-      removeListener()
-    }
-  }, [client])
+    if (version === lastSeenRef.current) return
+    lastSeenRef.current = version
+    void mutate(isSessionKey)
+  }, [version])
 }

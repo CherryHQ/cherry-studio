@@ -463,8 +463,6 @@ export enum IpcChannel {
    * `ToolApprovalRegistry` which unblocks the provider's `canUseTool`.
    */
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
-  Topic_Updated = 'topic:updated',
-  AgentSession_Updated = 'agent-session:updated',
 
   // AI Non-streaming
   Ai_GenerateText = 'ai:generate-text',

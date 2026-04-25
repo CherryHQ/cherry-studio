@@ -251,6 +251,8 @@ export const DefaultUseCache: UseCacheSchema = {
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'topic.stream.statuses': CacheValueTypes.CacheTopicStreamStatuses
+  'topic.cache_version': number
+  'agent_session.cache_version': number
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -259,6 +261,8 @@ export type SharedCacheSchema = {
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'topic.stream.statuses': {},
+  'topic.cache_version': 0,
+  'agent_session.cache_version': 0,
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': ''
 }
