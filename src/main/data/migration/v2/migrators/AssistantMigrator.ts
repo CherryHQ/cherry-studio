@@ -35,6 +35,54 @@ interface AssistantState {
   defaultAssistant?: OldAssistant
 }
 
+/**
+ * Merge two same-id v1 assistant rows. `primary` wins on every field that has
+ * a defined, non-empty value; `secondary` only fills the gaps. Used to
+ * reconcile the two id='default' copies the v1 slice always holds (one in
+ * `assistants[]`, one in `state.defaultAssistant`) without losing fields that
+ * only one of them edited.
+ *
+ * Settings is shallow-merged the same way (per-key first-non-empty wins) so
+ * a user who only ever touched `defaultAssistant.settings.temperature` and
+ * left `assistants[0].settings.temperature` at the seed value still gets
+ * their value preserved when the seed-default key is undefined.
+ */
+function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
+  const pickPrimaryThen = <K extends keyof OldAssistant>(key: K): OldAssistant[K] => {
+    const p = primary[key]
+    if (p !== undefined && p !== null && p !== '') return p
+    return secondary[key]
+  }
+  const mergedSettings: OldAssistant['settings'] = (() => {
+    const a = primary.settings
+    const b = secondary.settings
+    if (!a) return b
+    if (!b) return a
+    const merged: Record<string, unknown> = { ...b }
+    for (const [k, v] of Object.entries(a)) {
+      if (v !== undefined && v !== null && v !== '') merged[k] = v
+    }
+    return merged as OldAssistant['settings']
+  })()
+
+  return {
+    id: primary.id,
+    name: pickPrimaryThen('name'),
+    prompt: pickPrimaryThen('prompt'),
+    emoji: pickPrimaryThen('emoji'),
+    description: pickPrimaryThen('description'),
+    type: pickPrimaryThen('type'),
+    model: pickPrimaryThen('model'),
+    defaultModel: pickPrimaryThen('defaultModel'),
+    settings: mergedSettings,
+    mcpMode: pickPrimaryThen('mcpMode'),
+    mcpServers: pickPrimaryThen('mcpServers'),
+    knowledge_bases: pickPrimaryThen('knowledge_bases'),
+    enableWebSearch: primary.enableWebSearch ?? secondary.enableWebSearch,
+    tags: pickPrimaryThen('tags')
+  }
+}
+
 export class AssistantMigrator extends BaseMigrator {
   readonly id = 'assistant'
   readonly name = 'Assistant'
@@ -64,55 +112,63 @@ export class AssistantMigrator extends BaseMigrator {
         return { success: true, itemCount: 0, warnings: ['No assistants data found'] }
       }
 
-      // Merge assistants, presets, and the v1 default assistant into one list.
-      // `state.defaultAssistant` lives in its own slot (id == DEFAULT_ASSISTANT_ID
-      // == 'default'), separate from `state.assistants[]`. Without including it,
-      // user customizations on the default assistant (prompt / model / settings)
-      // are lost on migration. Dedup by id below handles any overlap with the
-      // assistants/presets lists, and the post-migration DefaultAssistantSeeder
-      // is idempotent — if the migrated row already has id 'default', the seeder
-      // is a no-op.
-      const allSources: OldAssistant[] = []
-
-      if (Array.isArray(state.assistants)) {
-        allSources.push(...state.assistants)
-      }
-      if (Array.isArray(state.presets)) {
-        allSources.push(...state.presets)
-      }
-      if (state.defaultAssistant && typeof state.defaultAssistant === 'object') {
-        allSources.push(state.defaultAssistant)
-      }
-
-      // Deduplicate by ID
-      const seenIds = new Set<string>()
-
-      for (const source of allSources) {
+      // Collect from all three v1 slots:
+      //   - state.assistants[]: user-created + v1 initial-state copy of default (id='default')
+      //   - state.presets[]:    saved presets
+      //   - state.defaultAssistant: standalone slot, id=DEFAULT_ASSISTANT_ID='default'
+      //
+      // The v1 slice's initial state seeded *both* `defaultAssistant` and
+      // `assistants[0]` from `getDefaultAssistant()` (id='default'); they then
+      // drifted independently because `updateDefaultAssistant` writes only to
+      // the slot, while `updateAssistant`/`updateAssistantSettings`/`addTopic`
+      // write only to `assistants[]`. So real users typically have *both*
+      // slots populated with overlapping but non-equivalent data on id='default'.
+      //
+      // Strategy: merge same-id sources field-by-field (first non-empty wins).
+      // Push order: assistants[] → presets → defaultAssistant — `assistants[0]`
+      // gets the live edits in v1 (settings page writes there), so it wins
+      // for fields it has; `defaultAssistant` only fills in fields the live
+      // copy left empty (less common, but happens when only the slot was
+      // touched via `updateDefaultAssistant`).
+      const sourceById = new Map<string, OldAssistant>()
+      const recordSource = (source: OldAssistant): void => {
         const { id } = source
         if (!id || typeof id !== 'string') {
           this.skippedCount++
           warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
-          continue
+          return
         }
-
-        if (seenIds.has(id)) {
-          this.skippedCount++
-          warnings.push(`Skipped duplicate assistant id: ${id}`)
-          continue
+        const existing = sourceById.get(id)
+        if (existing) {
+          sourceById.set(id, mergeOldAssistants(existing, source))
+          logger.info(`Merged duplicate assistant id ${id} from secondary slot`)
+        } else {
+          sourceById.set(id, source)
         }
-        seenIds.add(id)
+      }
 
+      if (Array.isArray(state.assistants)) {
+        for (const a of state.assistants) recordSource(a)
+      }
+      if (Array.isArray(state.presets)) {
+        for (const a of state.presets) recordSource(a)
+      }
+      if (state.defaultAssistant && typeof state.defaultAssistant === 'object') {
+        recordSource(state.defaultAssistant)
+      }
+
+      for (const source of sourceById.values()) {
         try {
           this.preparedResults.push(transformAssistant(source))
         } catch (err) {
           this.skippedCount++
-          warnings.push(`Failed to transform assistant ${id}: ${(err as Error).message}`)
-          logger.warn(`Skipping assistant ${id}`, err as Error)
+          warnings.push(`Failed to transform assistant ${source.id}: ${(err as Error).message}`)
+          logger.warn(`Skipping assistant ${source.id}`, err as Error)
         }
       }
 
       // Fail if all items were skipped but source had data (indicates systemic issue)
-      if (this.skippedCount > 0 && this.preparedResults.length === 0 && allSources.length > 0) {
+      if (this.skippedCount > 0 && this.preparedResults.length === 0 && sourceById.size === 0) {
         logger.error('All assistants were skipped during preparation', { skipped: this.skippedCount })
         return { success: false, itemCount: 0, warnings }
       }
