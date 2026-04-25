@@ -188,7 +188,7 @@ const createAssistant = (): Assistant =>
     enableWebSearch: false,
     topics: [],
     name: 'Assistant'
-  }) as Assistant
+  }) as unknown as Assistant
 
 const createTopic = (id: string): Topic =>
   ({
