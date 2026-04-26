@@ -171,7 +171,7 @@ function mergeWithRegistryPath(env: Record<string, string>): Record<string, stri
     return { ...env, [canonicalKey]: existingPath + ';' + registrySegments.join(';') }
   }
 
-  return env
+  return { ...env }
 }
 
 /**
