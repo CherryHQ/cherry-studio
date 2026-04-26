@@ -16,7 +16,7 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 /**
  * File Processing API Schema definitions
  */
-export interface FileProcessingSchemas {
+export type FileProcessingSchemas = {
   /**
    * List available processors
    * @example GET /file-processing/processors

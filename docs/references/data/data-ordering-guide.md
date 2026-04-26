@@ -81,17 +81,25 @@ File: `src/renderer/src/data/hooks/useReorder.ts`. One hook on top of `useMutati
 import { useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 
+// Paginated collection — items live under `.items`.
 function McpServerList() {
   const { data } = useQuery('/mcp-servers')
   const { applyReorderedList, isPending } = useReorder('/mcp-servers')
   return <DraggableList items={data?.items ?? []} onReorder={applyReorderedList} />
 }
 
+// Flat-array collection — the response *is* the list.
+function PinList() {
+  const { data } = useQuery('/pins')
+  const { applyReorderedList } = useReorder('/pins')
+  return <DraggableList items={data ?? []} onReorder={applyReorderedList} />
+}
+
 // Non-`id` primary key (e.g. miniapp.appId):
-useReorder('/mini-apps', { idKey: 'appId' })
+useReorder('/miniapps', { idKey: 'appId' })
 ```
 
-Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly.
+Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 
 ---
 
@@ -238,14 +246,72 @@ Three observable steps: **optimistic write → PATCH → revalidate** (or **inva
 ### 4.2 Non-`id` primary keys — the `idKey` option
 
 ```tsx
-useReorder('/mini-apps', { idKey: 'appId' })
+useReorder('/miniapps', { idKey: 'appId' })
 ```
 
 Flows into both the optimistic reducer and the new-list diff. The server-facing contract is unchanged — `move(id, anchor)` still takes a plain string id, PATCH body shape is untouched. `idKey` only affects how the client **extracts** ids from cached items.
 
 Single field only — composite keys like `${providerId}:${modelName}` are out of scope; pre-project a synthetic id field before passing items to the drag library.
 
-### 4.3 Anti-pattern: don't shadow SWR with local state
+### 4.3 Supported cache shapes
+
+`useReorder` inspects the cached value at `collectionUrl` to locate the items list. Three shapes are recognized out of the box:
+
+| Shape | Example endpoints | How items are extracted |
+|---|---|---|
+| **Flat array** `T[]` | `GET /pins`, `GET /groups`, `GET /tags`, `GET /providers` | The cache value *is* the array. |
+| **Wrapped pagination** `{ items, total, page }` / `{ items, nextCursor }` | `GET /miniapps`, `GET /mcp-servers`, `GET /assistants`, `GET /knowledges` | Reads `cache.items`; preserves `total` / `page` / `nextCursor` on optimistic writes. |
+| **Naked items wrapper** `{ items: T[] }` | `GET /knowledges/:id/items` | Reads `cache.items`. |
+
+No caller configuration is required for any of the three. Both pagination shapes (`OffsetPaginationResponse` and `CursorPaginationResponse`) fall under the same `{ items }` branch — metadata fields are passed through unchanged.
+
+### 4.4 Using accessors for nested shapes
+
+For responses the defaults cannot reach — grouped views, GraphQL-style connections, or envelopes with a different field name — pass `selectItems` and `updateItems` together. Passing one without the other throws at hook construction.
+
+```tsx
+// Envelope with a different field name: cache = { data: T[], meta }
+useReorder('/custom', {
+  selectItems: (cache) => (cache as Envelope).data,
+  updateItems: (cache, items) => ({ ...(cache as Envelope), data: items })
+})
+
+// Grouped view: cache = { groups: [{ id, items }], version }
+useReorder('/grouped-view', {
+  selectItems: (cache) => (cache as GroupedView).groups[0].items,
+  updateItems: (cache, items) => {
+    const c = cache as GroupedView
+    return { ...c, groups: [{ ...c.groups[0], items }, ...c.groups.slice(1)] }
+  }
+})
+
+// GraphQL-ish connection: cache = { edges: [{ node }], pageInfo }
+useReorder('/connection', {
+  selectItems: (cache) => (cache as Conn).edges.map((e) => e.node),
+  updateItems: (cache, items) => {
+    const c = cache as Conn
+    return { ...c, edges: items.map((node, i) => ({ ...c.edges[i], node })) }
+  }
+})
+```
+
+`updateItems` must be the inverse of `selectItems`: a round trip through the pair must yield the same items list.
+
+### 4.5 Degradation: not-loaded vs. unrecognized cache
+
+The hook distinguishes two failure modes so calls remain safe even when preconditions aren't met.
+
+| Precondition | `move` / `applyBatch` | `applyReorderedList` |
+|---|---|---|
+| **Cache not yet loaded** (`readCache` returns `undefined`) | no-op, warn on each call | no-op, warn on each call |
+| **Cache loaded, shape unrecognized** | skip optimistic overlay, **PATCH still fires**, warn (de-duplicated per hook) | no-op, warn (de-duplicated per hook) |
+
+Rationale:
+
+- "Not loaded" is a UX timing bug — the user interacted before data arrived. Every occurrence is worth logging; each is an independent event.
+- "Unrecognized shape" is a caller contract issue (missing accessors for a nested cache). `move`'s `id` / `anchor` arguments are self-contained and the server can honor them without a client-side diff, so the PATCH is allowed through. `applyReorderedList`, by contrast, needs a current baseline to compute minimal moves — without one, the new list would have to be replayed blindly, which is unsafe. The warning is deduplicated because a misconfigured accessor would otherwise log on every drag.
+
+### 4.6 Anti-pattern: don't shadow SWR with local state
 
 ```tsx
 // WRONG — fights SWR cache, flickers, goes stale
@@ -297,7 +363,7 @@ Complete in one PR:
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
-5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk.
+5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk. If the `GET` response is neither a flat array nor `{ items }`-shaped (e.g. a grouped or connection-style envelope), also pass `selectItems` / `updateItems` — see §4.4.
 6. **Drizzle custom migration** (runs when the consuming resource's PR lands, not part of the base-infrastructure PR): add `order_key` nullable → backfill bucket-by-bucket via `generateOrderKeySequence` imported from `@data/services/utils/orderKey` (never from `fractional-indexing` directly) → promote to `NOT NULL` → drop the old `sort_order` column → create the index. Until this step runs, the production schema keeps the legacy `sort_order INT` column — the base infrastructure never touches existing tables.
 
 ---

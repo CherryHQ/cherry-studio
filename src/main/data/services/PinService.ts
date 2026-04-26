@@ -13,7 +13,7 @@
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
  *   scope inference and enforces "batch stays within one entityType".
  * - `purgeForEntity` MUST be called from consumer services' delete paths
- *   (mirrors `tagService.removeEntityTags`). The `pin` table has no FK to
+ *   (mirrors `tagService.purgeForEntity`). The `pin` table has no FK to
  *   consumer tables by design; application-level purge is the contract.
  */
 
@@ -179,9 +179,8 @@ export class PinService {
    * remaining rows' orderKeys are not mutated — neighbors retain their
    * existing keys and relative ordering.
    *
-   * Signature is tx-first (mainstream ORM convention) rather than mirroring
-   * `tagService.removeEntityTags` — tag's trailing-optional-tx is the project's
-   * historical outlier; new polymorphic purge helpers should lead with tx.
+   * Signature is tx-first (mainstream ORM convention) — mirrors
+   * `tagService.purgeForEntity`.
    */
   async purgeForEntity(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
     await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))

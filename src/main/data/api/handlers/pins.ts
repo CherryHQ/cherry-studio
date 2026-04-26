@@ -11,17 +11,11 @@
  */
 
 import { pinService } from '@data/services/PinService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
-import { CreatePinDtoSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
+import { CreatePinSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
 
-type PinHandler<Path extends keyof PinSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const pinHandlers: {
-  [Path in keyof PinSchemas]: {
-    [Method in keyof PinSchemas[Path]]: PinHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins': {
     GET: async ({ query }) => {
       const parsed = ListPinsQuerySchema.parse(query)
@@ -29,7 +23,7 @@ export const pinHandlers: {
     },
 
     POST: async ({ body }) => {
-      const parsed = CreatePinDtoSchema.parse(body)
+      const parsed = CreatePinSchema.parse(body)
       return await pinService.pin(parsed)
     }
   },

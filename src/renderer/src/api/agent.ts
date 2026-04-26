@@ -319,7 +319,7 @@ export class AgentApiClient {
   public async createTask(agentId: string, task: CreateTaskRequest): Promise<ScheduledTaskEntity> {
     const url = this.taskPaths.base
     try {
-      const response = await this.axios.post(url, { agent_id: agentId, ...task })
+      const response = await this.axios.post(url, { agentId, ...task })
       const data = ScheduledTaskEntitySchema.parse(response.data)
       return data
     } catch (error) {
@@ -369,7 +369,7 @@ export class AgentApiClient {
 
   // --- Channel CRUD ---
 
-  public async listChannels(filters?: { agent_id?: string; type?: string }): Promise<{ data: any[]; total: number }> {
+  public async listChannels(filters?: { agentId?: string; type?: string }): Promise<{ data: any[]; total: number }> {
     const url = this.channelPaths.base
     try {
       const response = await this.axios.get(url, { params: filters })

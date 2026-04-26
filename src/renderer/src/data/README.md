@@ -5,7 +5,7 @@ This directory contains the renderer process data services.
 ## Documentation
 
 - **Overview**: [docs/references/data/README.md](../../../../docs/references/data/README.md)
-- **Cache**: [cache-overview.md](../../../../docs/references/data/cache-overview.md) | [cache-usage.md](../../../../docs/references/data/cache-usage.md)
+- **Cache**: [cache-overview.md](../../../../docs/references/data/cache-overview.md) | [cache-usage.md](../../../../docs/references/data/cache-usage.md) | [cache-schema-guide.md](../../../../docs/references/data/cache-schema-guide.md)
 - **Preference**: [preference-overview.md](../../../../docs/references/data/preference-overview.md) | [preference-usage.md](../../../../docs/references/data/preference-usage.md)
 - **DataApi**: [data-api-in-renderer.md](../../../../docs/references/data/data-api-in-renderer.md)
 
@@ -17,7 +17,7 @@ src/renderer/src/data/
 ├── PreferenceService.ts    # Preferences management
 ├── CacheService.ts         # Three-tier caching system
 └── hooks/
-    ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, usePaginatedQuery, useReadCache, useWriteCache, useInvalidateCache, prefetch
+    ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, useInfiniteFlatItems, usePaginatedQuery, useReadCache, useWriteCache, useInvalidateCache, prefetch
     ├── useReorder.ts       # optimistic drag-and-drop reordering
     ├── usePreference.ts    # usePreference, usePreferences
     └── useCache.ts         # useCache, useSharedCache, usePersistCache

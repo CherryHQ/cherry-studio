@@ -21,25 +21,25 @@ export const GroupIdSchema = SharedGroupIdSchema
  * DTO for creating a new group.
  * `entityType` is locked at creation time (read-only afterwards).
  */
-export const CreateGroupDtoSchema = z.object({
+export const CreateGroupSchema = z.strictObject({
   entityType: EntityTypeSchema,
   name: GroupNameSchema
 })
-export type CreateGroupDto = z.infer<typeof CreateGroupDtoSchema>
+export type CreateGroupDto = z.infer<typeof CreateGroupSchema>
 
 /**
  * DTO for updating an existing group. Only `name` is mutable.
  */
-export const UpdateGroupDtoSchema = z.object({
+export const UpdateGroupSchema = z.strictObject({
   name: GroupNameSchema.optional()
 })
-export type UpdateGroupDto = z.infer<typeof UpdateGroupDtoSchema>
+export type UpdateGroupDto = z.infer<typeof UpdateGroupSchema>
 
 /**
  * Query params for `GET /groups`. `entityType` is required — listing across
  * entity types has no business use case.
  */
-export const ListGroupsQuerySchema = z.object({
+export const ListGroupsQuerySchema = z.strictObject({
   entityType: EntityTypeSchema
 })
 export type ListGroupsQuery = z.infer<typeof ListGroupsQuerySchema>
