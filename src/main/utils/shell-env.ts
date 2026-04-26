@@ -429,8 +429,9 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
           appendCherryBinToPath(env)
           return env
         })
-        .catch((error) => {
-          logger.warn('Git Bash spawn failed, falling back to registry PATH', { error: error.message })
+        .catch((error: unknown) => {
+          const msg = error instanceof Error ? error.message : String(error)
+          logger.warn('Git Bash spawn failed, falling back to registry PATH', { error: msg })
           return getWindowsEnvironment()
         })
     }

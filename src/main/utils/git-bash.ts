@@ -42,7 +42,7 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
 /**
  * Find git.exe on Windows via where.exe (no dependency on process.ts).
- * Returns the first match or null.
+ * Returns the first PATH-based match (skips current-directory hits) or null.
  */
 function findGitExeViaWhere(): string | null {
   try {
@@ -51,8 +51,17 @@ function findGitExeViaWhere(): string | null {
       timeout: 5000,
       windowsHide: true
     })
-    const firstLine = output.trim().split(/\r?\n/)[0]
-    return firstLine && fs.existsSync(firstLine) ? firstLine : null
+    const lines = output.trim().split(/\r?\n/)
+    // where.exe lists current-directory matches before PATH hits;
+    // skip entries that are relative or sit inside CWD
+    const cwdLower = process.cwd().toLowerCase() + path.sep
+    for (const line of lines) {
+      const resolved = path.resolve(line)
+      if (!fs.existsSync(resolved)) continue
+      if (resolved.toLowerCase().startsWith(cwdLower)) continue
+      return resolved
+    }
+    return null
   } catch {
     return null
   }
