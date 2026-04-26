@@ -1,5 +1,4 @@
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
-import { isDev } from '@renderer/config/constant'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
@@ -128,7 +127,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   hasOlder,
   messagesCacheMutate
 }) => {
-  const { sendMessage, regenerate, stop, error, setMessages, activeExecutionIds, addToolApprovalResponse } =
+  const { sendMessage, regenerate, stop, setMessages, activeExecutionIds, addToolApprovalResponse } =
     useChatWithHistory(topic.id, initialMessages, refresh)
 
   const respondToToolApproval = useToolApprovalBridge({ addToolApprovalResponse })
@@ -204,15 +203,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="flex flex-1 flex-col justify-between"
                   style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {isDev && (
-                    <div
-                      className="fixed top-5 right-50 z-50 px-4 py-1 text-xs opacity-50"
-                      style={{ color: 'var(--color-text-3)' }}>
-                      [V2] {projectedMessages.length} msgs
-                      {error && <span className="ml-2 text-red-500">{error.message}</span>}
-                    </div>
-                  )}
-
                   {activeExecutionIds.map((executionId) => (
                     <ExecutionStreamCollector
                       key={executionId}
