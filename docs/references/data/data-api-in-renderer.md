@@ -63,24 +63,40 @@ const { trigger } = useMutation('POST', '/topics', {
 
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
-For infinite scroll UIs with "Load More" pattern.
+For infinite scroll UIs with "Load More" pattern. The hook exposes `pages` —
+the raw response array — and consumers derive a flat item list with
+`useInfiniteFlatItems`, picking the order that matches the endpoint and
+container layout.
 
 ```typescript
-import { useInfiniteQuery } from '@data/hooks/useDataApi'
+import { useInfiniteQuery, useInfiniteFlatItems } from '@data/hooks/useDataApi'
 
-const { items, isLoading, hasNext, loadNext } = useInfiniteQuery('/messages', {
-  query: { topicId: 'abc123' },
-  limit: 20
+// Simple feed: page 0 newest, within-page descending — page order matches display order
+const { pages, hasNext, loadNext, isLoading } = useInfiniteQuery('/feed')
+const items = useInfiniteFlatItems(pages)
+
+// Branch-walk in `column-reverse` chat container: page 0 newest, within-page
+// ascending. `reverseItems: true` flips each page so the flat output is
+// newest-first and feeds straight into the reversed layout.
+const { pages, hasNext, loadNext } = useInfiniteQuery('/topics/:topicId/messages', {
+  params: { topicId }
 })
+const messages = useInfiniteFlatItems(pages, { reverseItems: true })
+const activeNodeId = pages[0]?.activeNodeId ?? null  // top-level metadata, no cast
 
-// items: all loaded items flattened
-// loadNext(): load next page
-// hasNext: true if more pages available
+// Time-ascending render in non-`column-reverse` container: flip page order
+const items = useInfiniteFlatItems(pages, { reversePages: true })
 ```
+
+`useInfiniteQuery` rejects offset-paginated paths at compile time — the path
+generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
+across rerenders when SWR's underlying data is unchanged, so
+`useInfiniteFlatItems(pages)` skips recomputation.
 
 ### usePaginatedQuery (Offset-based Pagination)
 
-For page-by-page navigation with previous/next controls.
+For page-by-page navigation with previous/next controls. Rejects
+cursor-paginated paths at compile time.
 
 ```typescript
 import { usePaginatedQuery } from '@data/hooks/useDataApi'
@@ -100,6 +116,10 @@ const { items, page, total, hasNext, hasPrev, nextPage, prevPage } =
 | Infinite scroll, chat, feeds | `useInfiniteQuery` |
 | Page navigation, tables | `usePaginatedQuery` |
 | Manual control | `useQuery` |
+
+Each pagination hook constrains its path generic to the matching pagination
+shape: passing a cursor path to `usePaginatedQuery` or an offset path to
+`useInfiniteQuery` is a compile-time error, not a silent runtime hang.
 
 ## Dynamic Paths
 
@@ -418,8 +438,9 @@ const { data: topic } = useQuery('/topics/abc123')
 
 1. **Use hooks for components**: `useQuery` and `useMutation` handle loading/error states
 2. **Choose the right pagination hook**: Use `useInfiniteQuery` for infinite scroll, `usePaginatedQuery` for page navigation
-3. **Handle loading states**: Always show feedback while data is loading
-4. **Handle errors gracefully**: Provide meaningful error messages to users
-5. **Revalidate after mutations**: Use `refresh` option to keep the UI in sync
-6. **Use conditional fetching**: Set `enabled: false` to skip queries when dependencies aren't ready
-7. **Batch related operations**: Consider using transactions for multiple updates
+3. **Derive flat infinite items via `useInfiniteFlatItems`**: Pick `reversePages` / `reverseItems` to match the endpoint's pagination shape and container layout — never assume page-load order equals item display order
+4. **Handle loading states**: Always show feedback while data is loading
+5. **Handle errors gracefully**: Provide meaningful error messages to users
+6. **Revalidate after mutations**: Use `refresh` option to keep the UI in sync
+7. **Use conditional fetching**: Set `enabled: false` to skip queries when dependencies aren't ready
+8. **Batch related operations**: Consider using transactions for multiple updates

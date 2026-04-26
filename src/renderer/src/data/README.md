@@ -17,7 +17,7 @@ src/renderer/src/data/
 ├── PreferenceService.ts    # Preferences management
 ├── CacheService.ts         # Three-tier caching system
 └── hooks/
-    ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, usePaginatedQuery, useReadCache, useWriteCache, useInvalidateCache, prefetch
+    ├── useDataApi.ts       # useQuery, useMutation, useInfiniteQuery, useInfiniteFlatItems, usePaginatedQuery, useReadCache, useWriteCache, useInvalidateCache, prefetch
     ├── useReorder.ts       # optimistic drag-and-drop reordering
     ├── usePreference.ts    # usePreference, usePreferences
     └── useCache.ts         # useCache, useSharedCache, usePersistCache
