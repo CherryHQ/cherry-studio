@@ -17,6 +17,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
+import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
@@ -167,8 +169,8 @@ const AboutSettings: FC = () => {
       className={cn(
         'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden'
       )}>
-      <AboutGroup theme={theme}>
-        <div className="flex select-none items-center justify-between gap-2 font-bold text-sm">
+      <SettingGroup theme={theme}>
+        <SettingTitle className="gap-2">
           <div>{t('settings.about.title')}</div>
           <button
             type="button"
@@ -176,7 +178,7 @@ const AboutSettings: FC = () => {
             className="inline-flex items-center justify-center rounded-md p-1 text-(--color-foreground) transition-colors hover:bg-(--color-muted)">
             <Github className="size-5" />
           </button>
-        </div>
+        </SettingTitle>
 
         <Divider className="my-1.5" />
 
@@ -237,24 +239,24 @@ const AboutSettings: FC = () => {
         {!isPortable && (
           <>
             <Divider className="my-3" />
-            <AboutRow>
-              <AboutRowTitle>{t('settings.general.auto_check_update.title')}</AboutRowTitle>
+            <SettingRow className="gap-3">
+              <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
-            </AboutRow>
+            </SettingRow>
 
             <Divider className="my-3" />
-            <AboutRow>
-              <AboutRowTitle>{t('settings.general.test_plan.title')}</AboutRowTitle>
+            <SettingRow className="gap-3">
+              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
                 <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
-            </AboutRow>
+            </SettingRow>
 
             {testPlan && (
               <>
                 <Divider className="my-1.5" />
-                <AboutRow className="items-start">
-                  <AboutRowTitle className="pt-1">{t('settings.general.test_plan.version_options')}</AboutRowTitle>
+                <SettingRow className="items-start gap-3">
+                  <SettingRowTitle className="pt-1">{t('settings.general.test_plan.version_options')}</SettingRowTitle>
                   <RadioGroup
                     className="flex flex-wrap justify-end gap-3"
                     value={getTestChannel()}
@@ -273,21 +275,21 @@ const AboutSettings: FC = () => {
                       )
                     })}
                   </RadioGroup>
-                </AboutRow>
+                </SettingRow>
               </>
             )}
           </>
         )}
-      </AboutGroup>
+      </SettingGroup>
 
       {appUpdateState.info && appUpdateState.available && (
-        <AboutGroup theme={theme}>
-          <AboutRow>
-            <AboutRowTitle>
+        <SettingGroup theme={theme}>
+          <SettingRow className="gap-3">
+            <SettingRowTitle className="gap-2.5">
               {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
               <IndicatorLight color="green" />
-            </AboutRowTitle>
-          </AboutRow>
+            </SettingRowTitle>
+          </SettingRow>
           <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-(--color-foreground-secondary) text-sm [&_p]:m-0">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
@@ -295,10 +297,10 @@ const AboutSettings: FC = () => {
                 : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </div>
-        </AboutGroup>
+        </SettingGroup>
       )}
 
-      <AboutGroup theme={theme}>
+      <SettingGroup theme={theme}>
         <AboutActionRow
           icon={<BadgeQuestionMark className="size-4.5" />}
           title={t('docs.title')}
@@ -354,31 +356,7 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
-      </AboutGroup>
-    </div>
-  )
-}
-
-function AboutGroup({ children, theme }: { children: ReactNode; theme: ThemeMode }) {
-  return (
-    <div
-      className={cn(
-        'mb-3 rounded-2xl border border-border/60 bg-background p-4 last:mb-0',
-        theme === ThemeMode.dark ? 'bg-black/5' : 'bg-(--color-background)'
-      )}>
-      {children}
-    </div>
-  )
-}
-
-function AboutRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex min-h-6 items-center justify-between gap-3', className)}>{children}</div>
-}
-
-function AboutRowTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn('flex items-center gap-2.5 text-(--color-foreground) text-sm leading-4.5', className)}>
-      {children}
+      </SettingGroup>
     </div>
   )
 }
@@ -395,15 +373,15 @@ function AboutActionRow({
   title: string
 }) {
   return (
-    <AboutRow>
-      <AboutRowTitle>
+    <SettingRow className="gap-3">
+      <SettingRowTitle className="gap-2.5">
         {icon}
         {title}
-      </AboutRowTitle>
+      </SettingRowTitle>
       <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
       </Button>
-    </AboutRow>
+    </SettingRow>
   )
 }
 

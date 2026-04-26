@@ -17,7 +17,10 @@ export const SettingContainer = ({
 )
 
 export const SettingTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex select-none items-center justify-between font-bold text-sm', className)} {...props} />
+  <div
+    className={cn('flex select-none items-center justify-between font-semibold text-[15px]', className)}
+    {...props}
+  />
 )
 
 export const SettingSubtitle = ({
@@ -60,5 +63,9 @@ export const SettingGroup = ({
   theme,
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
-  <div data-theme-mode={theme} className={cn('mb-4 last:mb-0', className)} {...props} />
+  <div
+    data-theme-mode={theme}
+    className={cn('border-border/60 border-t pt-4 first:mt-0 first:border-t-0 first:pt-0', className)}
+    {...props}
+  />
 )

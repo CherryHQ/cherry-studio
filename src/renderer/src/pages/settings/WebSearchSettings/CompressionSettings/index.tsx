@@ -48,8 +48,6 @@ const CompressionSettings = () => {
           </SelectContent>
         </Select>
       </SettingRow>
-      <SettingDivider />
-
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
       {compressionConfig?.method === 'rag' && <RagSettings />}
     </SettingGroup>

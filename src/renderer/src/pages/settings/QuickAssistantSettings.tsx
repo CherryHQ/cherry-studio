@@ -179,7 +179,7 @@ const QuickAssistantSettings: FC = () => {
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <div className="mx-auto h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
+        <div className="mx-auto mt-5 h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
         </div>
       )}
