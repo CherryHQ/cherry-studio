@@ -453,22 +453,22 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   return (
     <Scrollbar className="flex flex-1 flex-col px-5 py-4" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-      <div className="mb-1">
-        <SettingTitle>
-          <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 pb-1">
+        <div className="min-w-0">
+          <SettingTitle className="justify-start gap-2">
             {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-            <span>{channelDef.name}</span>
-          </div>
-          <Button size="sm" disabled={!channelDef.available} onClick={handleAdd}>
-            <PlusOutlined />
-            {t('agent.cherryClaw.channels.add')}
-          </Button>
-        </SettingTitle>
-        <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
-          {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
-        </p>
+            <span className="truncate">{channelDef.name}</span>
+          </SettingTitle>
+          <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
+            {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
+          </p>
+        </div>
+        <Button size="sm" disabled={!channelDef.available} onClick={handleAdd}>
+          <PlusOutlined />
+          {t('agent.cherryClaw.channels.add')}
+        </Button>
       </div>
-      <SettingDivider style={{ margin: '0 0 4px 0' }} />
+      <SettingDivider className="m-0 mt-2" />
       <div className="flex flex-col">
         {channelList.length === 0 && (
           <EmptyState
