@@ -8,7 +8,7 @@ const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
     'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
+    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-brand-500',
     'disabled:cursor-not-allowed disabled:opacity-40',
     'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
   ],
@@ -21,7 +21,7 @@ const switchRootVariants = cva(
       },
       loading: {
         false: null,
-        true: ['bg-primary-hover!']
+        true: ['bg-brand-300!']
       }
     },
     defaultVariants: {
@@ -45,7 +45,7 @@ const switchThumbVariants = cva(
       },
       loading: {
         false: null,
-        true: ['bg-primary-hover!']
+        true: ['bg-brand-300!']
       }
     },
     compoundVariants: [

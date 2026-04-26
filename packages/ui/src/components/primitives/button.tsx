@@ -16,15 +16,17 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary hover:bg-primary-hover text-white',
+        default:
+          'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
-        outline: cn('border border-primary/40 bg-primary/10 text-primary', 'hover:bg-primary/5'),
+        outline: 'border border-border bg-transparent text-foreground hover:bg-accent',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'text-primary shadow-none hover:text-primary-hover hover:shadow-none',
-        link: 'text-primary underline-offset-4 hover:underline hover:text-primary-hover'
+        ghost:
+          'text-neutral-900 shadow-none hover:text-neutral-700 hover:shadow-none dark:text-neutral-100 dark:hover:text-neutral-300',
+        link: 'text-neutral-900 underline-offset-4 hover:text-neutral-700 hover:underline dark:text-neutral-100 dark:hover:text-neutral-300'
       },
       size: {
-        default: 'min-h-8 px-3 text-[13px]',
+        default: 'min-h-7.5 gap-1.5 px-2.5 text-[13px]',
         sm: 'min-h-7 rounded-md gap-1.5 px-2.5 text-xs',
         lg: 'min-h-9 rounded-md px-4 text-sm',
         icon: 'size-9',
