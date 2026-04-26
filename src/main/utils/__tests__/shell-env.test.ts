@@ -17,7 +17,21 @@ vi.mock('@main/utils/git-bash', () => ({
   findGitBash: vi.fn().mockReturnValue(null)
 }))
 
+// Mock ConfigManager
+vi.mock('@main/services/ConfigManager', () => ({
+  ConfigKeys: {
+    GitBashPath: 'gitBashPath',
+    GitBashPathSource: 'gitBashPathSource'
+  },
+  configManager: {
+    get: vi.fn().mockReturnValue(undefined),
+    set: vi.fn()
+  }
+}))
+
 // Import AFTER mocks are registered so the module binds to mocked values.
+import { ConfigKeys, configManager } from '@main/services/ConfigManager'
+
 import { refreshShellEnv } from '../shell-env'
 
 // ---------------------------------------------------------------------------
@@ -202,6 +216,8 @@ describe('shell-env – Windows Git Bash spawn', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Reset configManager mock
+    vi.mocked(configManager.get).mockReturnValue(undefined)
     process.env = {
       SystemRoot: 'C:\\Windows',
       USERPROFILE: 'C:\\Users\\TestUser',
@@ -235,12 +251,13 @@ describe('shell-env – Windows Git Bash spawn', () => {
     return mockChild
   }
 
-  // T006: Git Bash found → spawn with -ilc env
-  it('should spawn bash with -ilc env when Git Bash is found', async () => {
+  // T006: Git Bash found → spawn with -ilc env (MSYS PATH format)
+  it('should spawn bash with -ilc env and convert MSYS PATH to Windows', async () => {
     const { findGitBash } = await import('@main/utils/git-bash')
     vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
 
-    const bashEnvOutput = 'PATH=C:\\fnm\\node\\v22.0.0;C:\\Users\\TestUser\\.local\\bin\nHOME=C:\\Users\\TestUser\n'
+    // Real Git Bash output: POSIX-style PATH with MSYS paths
+    const bashEnvOutput = 'PATH=/c/Users/TestUser/.local/bin:/c/fnm/node/v22.0.0:/usr/bin\nHOME=/c/Users/TestUser\n'
     mockSpawnSuccess(bashEnvOutput)
 
     // Registry returns system paths
@@ -257,7 +274,12 @@ describe('shell-env – Windows Git Bash spawn', () => {
       ['-ilc', 'env'],
       expect.objectContaining({ shell: false })
     )
-    expect(env.PATH || env.Path).toContain('C:\\fnm\\node\\v22.0.0')
+    // MSYS paths should be converted to Windows format
+    const pathValue = env.PATH || env.Path || ''
+    expect(pathValue).toContain('C:\\Users\\TestUser\\.local\\bin')
+    expect(pathValue).toContain('C:\\fnm\\node\\v22.0.0')
+    // Registry paths should be merged
+    expect(pathValue).toContain('C:\\Windows\\system32')
   })
 
   // T007: Git Bash not found → fallback to registry
@@ -340,13 +362,13 @@ describe('shell-env – Windows Git Bash spawn', () => {
     vi.useRealTimers()
   })
 
-  // T010: mergeWithRegistryPath preserves registry segments
+  // T010: mergeWithRegistryPath preserves registry segments (MSYS PATH format)
   it('should merge registry PATH segments not present in bash env', async () => {
     const { findGitBash } = await import('@main/utils/git-bash')
     vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
 
-    // Bash env has user paths but not system paths
-    const bashEnvOutput = 'PATH=C:\\fnm\\node\\v22.0.0;C:\\Users\\TestUser\\.local\\bin\nHOME=C:\\Users\\TestUser\n'
+    // Real Git Bash output: POSIX-style PATH
+    const bashEnvOutput = 'PATH=/c/fnm/node/v22.0.0:/c/Users/TestUser/.local/bin\nHOME=/c/Users/TestUser\n'
     mockSpawnSuccess(bashEnvOutput)
 
     // Registry has system paths
@@ -359,20 +381,20 @@ describe('shell-env – Windows Git Bash spawn', () => {
     const env = await refreshShellEnv()
 
     const pathValue = env.PATH || env.Path || ''
-    // Both bash and registry paths should be present
+    // Both bash (converted) and registry paths should be present
     expect(pathValue).toContain('C:\\fnm\\node\\v22.0.0')
     expect(pathValue).toContain('C:\\Windows\\system32')
     // Bash paths should come before registry paths
     expect(pathValue.indexOf('C:\\fnm\\node\\v22.0.0')).toBeLessThan(pathValue.indexOf('C:\\Windows\\system32'))
   })
 
-  // T011: verify dedup — registry segment already in bash env is not duplicated
+  // T011: verify dedup — registry segment already in bash env is not duplicated (MSYS PATH format)
   it('should not duplicate PATH segments already present from bash env', async () => {
     const { findGitBash } = await import('@main/utils/git-bash')
     vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
 
-    // Bash env already includes a system path
-    const bashEnvOutput = 'PATH=C:\\Windows\\system32;C:\\fnm\\node\\v22.0.0\nHOME=C:\\Users\\TestUser\n'
+    // Real Git Bash output: includes system32 as MSYS path
+    const bashEnvOutput = 'PATH=/c/Windows/system32:/c/fnm/node/v22.0.0\nHOME=/c/Users/TestUser\n'
     mockSpawnSuccess(bashEnvOutput)
 
     // Registry also includes the same system path
@@ -388,5 +410,113 @@ describe('shell-env – Windows Git Bash spawn', () => {
     const segments = pathValue.split(';')
     const system32Count = segments.filter((s: string) => s.toLowerCase().includes('system32')).length
     expect(system32Count).toBe(1)
+  })
+
+  // ---------------------------------------------------------------------------
+  // P2: Configured Git Bash path tests
+  // ---------------------------------------------------------------------------
+
+  // T-P2-01: Configured Git Bash path from settings is used
+  it('should use configured Git Bash path from settings', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+
+    // Mock configManager to return configured path
+    vi.mocked(configManager.get).mockImplementation((key: string) => {
+      if (key === ConfigKeys.GitBashPath) return 'D:\\CustomGit\\bin\\bash.exe'
+      return undefined
+    })
+
+    // findGitBash returns the configured path (after validation)
+    vi.mocked(findGitBash).mockReturnValue('D:\\CustomGit\\bin\\bash.exe')
+
+    const bashEnvOutput = 'PATH=/c/Users/TestUser/.local/bin\nHOME=/c/Users/TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    await refreshShellEnv()
+
+    // findGitBash should be called WITH the configured path
+    expect(findGitBash).toHaveBeenCalledWith('D:\\CustomGit\\bin\\bash.exe')
+  })
+
+  // T-P2-02: Configured path invalid falls back to auto-discovery
+  it('should pass configured path to findGitBash even if invalid', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+
+    // Mock configManager to return invalid path
+    vi.mocked(configManager.get).mockImplementation((key: string) => {
+      if (key === ConfigKeys.GitBashPath) return 'D:\\NonExistent\\bash.exe'
+      return undefined
+    })
+
+    // findGitBash returns null (invalid path), then auto-discovered path
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    const bashEnvOutput = 'PATH=/c/Users/TestUser/.local/bin\nHOME=/c/Users/TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    await refreshShellEnv()
+
+    // findGitBash was called with configured path (it handles validation internally)
+    expect(findGitBash).toHaveBeenCalledWith('D:\\NonExistent\\bash.exe')
+  })
+
+  // ---------------------------------------------------------------------------
+  // MSYS PATH conversion edge case tests
+  // ---------------------------------------------------------------------------
+
+  // T-MSYS-01: Mixed MSYS and Windows paths
+  it('should handle mixed MSYS and Windows paths in PATH', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // Mixed format: some MSYS, some already Windows (colon-separated)
+    const bashEnvOutput = 'PATH=/c/Users/TestUser/.local/bin:C:/Python39:/usr/bin\nHOME=/c/Users/TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const pathValue = env.PATH || env.Path || ''
+    expect(pathValue).toContain('C:\\Users\\TestUser\\.local\\bin')
+    expect(pathValue).toContain('C:\\Python39')
+  })
+
+  // T-MSYS-02: Already Windows PATH (semicolon-separated) - skip conversion
+  it('should skip MSYS conversion when PATH is already Windows-style', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // Already Windows format (has ; separator)
+    const bashEnvOutput = 'PATH=C:\\fnm\\node\\v22.0.0;C:\\Users\\TestUser\\.local\\bin\nHOME=C:\\Users\\TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const pathValue = env.PATH || env.Path || ''
+    expect(pathValue).toContain('C:\\fnm\\node\\v22.0.0')
+    expect(pathValue).toContain('C:\\Users\\TestUser\\.local\\bin')
   })
 })

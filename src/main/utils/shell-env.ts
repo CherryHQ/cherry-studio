@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { ConfigKeys, configManager } from '@main/services/ConfigManager'
 import { findGitBash } from '@main/utils/git-bash'
 import { execFileSync, spawn } from 'child_process'
 
@@ -175,6 +176,96 @@ function mergeWithRegistryPath(env: Record<string, string>): Record<string, stri
 }
 
 /**
+ * Convert MSYS/POSIX-style PATH and HOME to Windows-style.
+ * Git Bash outputs paths like /c/Users/... which need conversion.
+ */
+function normaliseBashEnvToWindows(env: Record<string, string>): Record<string, string> {
+  // Start with a copy to avoid mutation
+  const windowsEnv: Record<string, string> = { ...env }
+
+  // Convert HOME if present (MSYS format /c/Users/... → C:\Users\...)
+  const homeKey = Object.keys(windowsEnv).find((k) => k.toLowerCase() === 'home')
+  if (homeKey && windowsEnv[homeKey]) {
+    const homeValue = windowsEnv[homeKey]
+    const msysHomeMatch = /^\/([a-z])(\/.*)$/i.exec(homeValue)
+    if (msysHomeMatch) {
+      const driveLetter = msysHomeMatch[1].toUpperCase()
+      const rest = msysHomeMatch[2].replace(/\//g, '\\')
+      windowsEnv[homeKey] = `${driveLetter}:${rest}`
+    }
+  }
+
+  // Find PATH key (case-insensitive)
+  const pathKey = Object.keys(windowsEnv).find((k) => k.toLowerCase() === 'path')
+  if (!pathKey) {
+    return windowsEnv
+  }
+
+  const pathValue = windowsEnv[pathKey]
+  if (!pathValue) {
+    return windowsEnv
+  }
+
+  // Already Windows format (has ';' separator) - no conversion needed
+  if (pathValue.includes(';')) {
+    return windowsEnv
+  }
+
+  // POSIX format - split on ':' and convert each segment
+  // Handle edge case: Windows paths like C:/path contain ':' which shouldn't split
+  // Strategy: split on ':', then recombine drive letter fragments
+  const rawSegments = pathValue.split(':')
+  const segments: string[] = []
+
+  for (let i = 0; i < rawSegments.length; i++) {
+    const current = rawSegments[i].trim()
+    if (!current) continue
+
+    // Check if this looks like a drive letter (single letter)
+    // and next segment starts with / or \ (Windows-style path in POSIX PATH)
+    if (/^[A-Za-z]$/.test(current) && i + 1 < rawSegments.length) {
+      const next = rawSegments[i + 1].trim()
+      if (next.startsWith('/') || next.startsWith('\\')) {
+        // Combine: C + /Python39 → C:/Python39
+        segments.push(`${current}:${next}`)
+        i++ // Skip next segment since we combined it
+        continue
+      }
+    }
+
+    segments.push(current)
+  }
+
+  const windowsSegments: string[] = []
+
+  for (const segment of segments) {
+    const trimmed = segment.trim()
+    if (!trimmed) {
+      continue
+    }
+
+    // MSYS path: /c/Users/... → C:\Users\...
+    const msysMatch = /^\/([a-z])(\/.*)$/i.exec(trimmed)
+    if (msysMatch) {
+      const driveLetter = msysMatch[1].toUpperCase()
+      const rest = msysMatch[2].replace(/\//g, '\\')
+      windowsSegments.push(`${driveLetter}:${rest}`)
+    } else if (/^[A-Za-z]:[\\/]/.test(trimmed)) {
+      // Already Windows-style (e.g., C:/Python39), normalize slashes to backslashes
+      windowsSegments.push(trimmed.replace(/\//g, '\\'))
+    } else {
+      // Other paths (e.g., /usr/bin) - pass through unchanged
+      // These are MSYS-internal paths that don't translate to Windows
+      windowsSegments.push(trimmed)
+    }
+  }
+
+  const windowsPath = windowsSegments.join(';')
+  windowsEnv[pathKey] = windowsPath
+  return windowsEnv
+}
+
+/**
  * Spawn a login shell and capture its environment variables.
  * Works with any POSIX-compatible shell (bash, zsh, etc.) on any platform.
  */
@@ -287,8 +378,8 @@ function spawnShellEnv(shellPath: string): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryBinToPath(env)
-
+      // Note: appendCherryBinToPath is called after normaliseBashEnvToWindows
+      // to ensure PATH is in Windows format first
       resolveOnce(env)
     })
   })
@@ -325,10 +416,17 @@ function detectUnixShell(): string {
 function getLoginShellEnvironment(): Promise<Record<string, string>> {
   // On Windows, try Git Bash first to source profile files
   if (isWin) {
-    const gitBashPath = findGitBash()
+    // Read configured Git Bash path from settings (P2 fix)
+    const configuredPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
+    const gitBashPath = findGitBash(configuredPath)
     if (gitBashPath) {
       return spawnShellEnv(gitBashPath)
+        .then((bashEnv) => normaliseBashEnvToWindows(bashEnv))
         .then((bashEnv) => mergeWithRegistryPath(bashEnv))
+        .then((env) => {
+          appendCherryBinToPath(env)
+          return env
+        })
         .catch((error) => {
           logger.warn('Git Bash spawn failed, falling back to registry PATH', { error: error.message })
           return getWindowsEnvironment()
@@ -340,7 +438,10 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 
   // macOS/Linux: spawn the user's default login shell
   const shellPath = detectUnixShell()
-  return spawnShellEnv(shellPath)
+  return spawnShellEnv(shellPath).then((env) => {
+    appendCherryBinToPath(env)
+    return env
+  })
 }
 
 let cachedEnv: Record<string, string> | null = null
