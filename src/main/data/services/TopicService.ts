@@ -94,6 +94,74 @@ function encodeTopicSectionStart(): string {
   return 'topic:'
 }
 
+/**
+ * Extract the anchor id from an `OrderRequest` shape (`before` / `after`),
+ * or `null` for sentinel positions (`first` / `last`).
+ */
+function anchorIdOf(anchor: OrderRequest): string | null {
+  if ('before' in anchor) return anchor.before
+  if ('after' in anchor) return anchor.after
+  return null
+}
+
+/**
+ * Translate `applyMoves`/`computeNewOrderKey` plain-Error throws into
+ * `DataApiError`s matching the ordering spec
+ * (`docs/references/data/data-ordering-guide.md` §1):
+ *   - missing anchor id     → `NOT_FOUND` on Topic
+ *   - anchor equals self    → `VALIDATION_ERROR` with field `anchor`
+ *
+ * Unknown errors (including the missing-target throw, which is pre-checked
+ * by callers) are rethrown as-is so failures aren't silently masked.
+ */
+function translateApplyMovesError(err: unknown, moveId: string, anchor: OrderRequest): unknown {
+  if (!(err instanceof Error)) return err
+  const msg = err.message
+
+  if (msg.includes('computeNewOrderKey: anchor id')) {
+    const anchorId = anchorIdOf(anchor)
+    if (anchorId !== null) {
+      return DataApiErrorFactory.notFound('Topic', anchorId)
+    }
+  }
+
+  if (msg.includes(`cannot equal the move's own id`)) {
+    const message = `anchor id cannot equal target id ("${moveId}")`
+    return DataApiErrorFactory.validation({ anchor: ['anchor id cannot equal target id'] }, message)
+  }
+
+  return err
+}
+
+/**
+ * Batch variant: `applyMoves` throws on the first failing move and quotes the
+ * offending id in the message. We extract that quoted id directly rather than
+ * trying to correlate it back to a specific entry in `moves` — the moves list
+ * is still passed in to provide a defensive fallback id (first move) on the
+ * unlikely path where the message format changes and the regex misses.
+ */
+function translateApplyMovesBatchError(err: unknown, moves: Array<{ id: string; anchor: OrderRequest }>): unknown {
+  if (!(err instanceof Error)) return err
+  const msg = err.message
+
+  if (msg.includes('computeNewOrderKey: anchor id')) {
+    const match = msg.match(/anchor id "([^"]+)"/)
+    const quotedId = match?.[1]
+    if (quotedId) {
+      return DataApiErrorFactory.notFound('Topic', quotedId)
+    }
+  }
+
+  if (msg.includes(`cannot equal the move's own id`)) {
+    const match = msg.match(/\("([^"]+)"\)/)
+    const quotedId = match?.[1] ?? moves[0]?.id ?? ''
+    const message = `anchor id cannot equal target id ("${quotedId}")`
+    return DataApiErrorFactory.validation({ anchor: ['anchor id cannot equal target id'] }, message)
+  }
+
+  return err
+}
+
 export class TopicService {
   /**
    * Get a topic by ID
@@ -339,10 +407,20 @@ export class TopicService {
         .limit(1)
       if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
-      await applyMoves(tx, topicTable, [{ id, anchor }], {
-        pkColumn: topicTable.id,
-        scope: topicScopePredicate(target.groupId)
-      })
+      // Pattern-match on applyMoves's plain Error messages — they're part of
+      // its de-facto contract (see orderKey.ts JSDoc on applyMoves /
+      // computeNewOrderKey). Translate the two anchor-related throws into the
+      // spec-required NOT_FOUND / VALIDATION codes (data-ordering-guide §1).
+      // The missing-target case is already pre-checked above, so it's not
+      // re-handled here.
+      try {
+        await applyMoves(tx, topicTable, [{ id, anchor }], {
+          pkColumn: topicTable.id,
+          scope: topicScopePredicate(target.groupId)
+        })
+      } catch (err) {
+        throw translateApplyMovesError(err, id, anchor)
+      }
     })
   }
 
@@ -377,10 +455,20 @@ export class TopicService {
       }
 
       const [scopeValue] = [...scopeValues]
-      await applyMoves(tx, topicTable, moves, {
-        pkColumn: topicTable.id,
-        scope: topicScopePredicate(scopeValue ?? null)
-      })
+      // Pattern-match on applyMoves's plain Error messages — they're part of
+      // its de-facto contract (see orderKey.ts JSDoc on applyMoves /
+      // computeNewOrderKey). Translate the two anchor-related throws into the
+      // spec-required NOT_FOUND / VALIDATION codes (data-ordering-guide §1).
+      // applyMoves stops on the first failing move, so we walk the input list
+      // to find the offending move whose anchor id matches the error.
+      try {
+        await applyMoves(tx, topicTable, moves, {
+          pkColumn: topicTable.id,
+          scope: topicScopePredicate(scopeValue ?? null)
+        })
+      } catch (err) {
+        throw translateApplyMovesBatchError(err, moves)
+      }
     })
   }
 
