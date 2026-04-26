@@ -175,15 +175,16 @@ class CodeToolsService {
     supportsReasoningEffort: boolean,
     budgetTokens: number | undefined,
     providerType: string,
-    providerName: string
+    providerName: string,
+    endpointType: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
-    // Determine npm package based on provider type
+    // Determine npm package based on endpoint type (model-level) then provider type (fallback)
     let npmPackage = '@ai-sdk/openai-compatible'
-    if (providerType === 'anthropic') {
+    if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
       npmPackage = '@ai-sdk/anthropic'
-    } else if (providerType === 'openai-response') {
+    } else if (endpointType === 'openai-response' || (!endpointType && providerType === 'openai-response')) {
       npmPackage = '@ai-sdk/openai'
     }
 
@@ -192,10 +193,10 @@ class CodeToolsService {
       name: model.name
     }
 
-    // Add reasoning config based on provider type
+    // Add reasoning config based on endpoint type and provider type
     if (isReasoning) {
       modelConfig.reasoning = true
-      if (providerType === 'anthropic') {
+      if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
         // Anthropic style: thinking with budgetTokens
         modelConfig.options = {
           thinking: {
@@ -1036,6 +1037,7 @@ class CodeToolsService {
       const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
       const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
       const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
+      const endpointType = env.OPENCODE_MODEL_ENDPOINT_TYPE || ''
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
@@ -1045,7 +1047,8 @@ class CodeToolsService {
         supportsReasoningEffort,
         budgetTokens,
         providerType,
-        providerName
+        providerName,
+        endpointType
       )
       this.scheduleOpenCodeConfigCleanup(configPath)
 
