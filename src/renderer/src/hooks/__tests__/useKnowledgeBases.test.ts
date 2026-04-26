@@ -1,16 +1,20 @@
-import type { CreateKnowledgeBaseInput } from '@renderer/pages/knowledge.v2/types'
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockRendererLoggerService } from '../../../../../../../tests/__mocks__/RendererLoggerService'
+import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
 import {
   useCreateKnowledgeBase,
   useDeleteKnowledgeBase,
   useKnowledgeBases,
   useUpdateKnowledgeBase
 } from '../useKnowledgeBases'
+
+type CreateKnowledgeBaseInput = Pick<
+  CreateKnowledgeBaseDto,
+  'name' | 'emoji' | 'groupId' | 'embeddingModelId' | 'dimensions'
+>
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -120,7 +124,7 @@ describe('useCreateKnowledgeBase', () => {
       emoji: '📚',
       groupId: 'group-2',
       embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: '2048'
+      dimensions: 2048
     }
 
     mockUseMutation.mockReturnValue({
@@ -166,7 +170,7 @@ describe('useCreateKnowledgeBase', () => {
       name: 'Base 3',
       emoji: '🧠',
       embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: '1536'
+      dimensions: 1536
     }
 
     mockUseMutation.mockReturnValue({

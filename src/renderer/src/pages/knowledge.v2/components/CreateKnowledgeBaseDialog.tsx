@@ -16,7 +16,8 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useModels } from '@renderer/hooks/useModels'
-import type { CreateKnowledgeBaseInput, KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
+import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -35,9 +36,13 @@ interface CreateKnowledgeBaseDialogProps {
 }
 
 const DEFAULT_EMOJI = '📁'
-const DEFAULT_DIMENSIONS = '1024'
+const DEFAULT_DIMENSIONS = 1024
 const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
 
+type CreateKnowledgeBaseInput = Pick<
+  CreateKnowledgeBaseDto,
+  'name' | 'emoji' | 'groupId' | 'embeddingModelId' | 'dimensions'
+>
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'>
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({

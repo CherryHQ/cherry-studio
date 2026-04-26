@@ -314,7 +314,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         name: 'My Base',
         emoji: '📁',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1024'
+        dimensions: 1024
       })
     )
   })
@@ -345,7 +345,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         name: 'My Base',
         emoji: '📚',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1024'
+        dimensions: 1024
       })
     )
     expect(onCreated).toHaveBeenCalled()
@@ -377,7 +377,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1024'
+        dimensions: 1024
       })
     )
   })
@@ -407,7 +407,7 @@ describe('CreateKnowledgeBaseDialog', () => {
         emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: '1024'
+        dimensions: 1024
       })
     )
   })

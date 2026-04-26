@@ -18,15 +18,18 @@ const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
 
-vi.mock('../hooks', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
-  useKnowledgeGroups: () => mockUseKnowledgeGroups(),
-  useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useUpdateKnowledgeBase: () => mockUseUpdateKnowledgeBase(),
+  useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase()
+}))
+
+vi.mock('../hooks', () => ({
+  useKnowledgeGroups: () => mockUseKnowledgeGroups(),
+  useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup(),
-  useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase(),
   useDeleteKnowledgeItem: (baseId: string) => mockUseDeleteKnowledgeItem(baseId),
   useKnowledgeItems: (baseId: string) => mockUseKnowledgeItems(baseId),
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
@@ -239,7 +242,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
       emoji: string
       groupId?: string
       embeddingModelId: string | null
-      dimensions: string
+      dimensions: number
     }) => Promise<KnowledgeBase>
     onOpenChange: (open: boolean) => void
     onCreated: (base: KnowledgeBase) => void
@@ -256,7 +259,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
               emoji: '📚',
               ...(initialGroupId ? { groupId: initialGroupId } : {}),
               embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: '1536'
+              dimensions: 1536
             })
             onCreated(createdBase)
             onOpenChange(false)

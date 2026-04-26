@@ -1,3 +1,9 @@
+import {
+  useCreateKnowledgeBase,
+  useDeleteKnowledgeBase,
+  useKnowledgeBases,
+  useUpdateKnowledgeBase
+} from '@renderer/hooks/useKnowledgeBases'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import {
@@ -14,14 +20,10 @@ import {
 } from 'react'
 
 import {
-  useCreateKnowledgeBase,
   useCreateKnowledgeGroup,
-  useDeleteKnowledgeBase,
   useDeleteKnowledgeGroup,
-  useKnowledgeBases,
   useKnowledgeGroups,
   useKnowledgeItems,
-  useUpdateKnowledgeBase,
   useUpdateKnowledgeGroup
 } from './hooks'
 import type { KnowledgeTabKey } from './types'

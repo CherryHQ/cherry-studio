@@ -1,10 +1,8 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import { useCallback, useMemo, useState } from 'react'
-
-import type { CreateKnowledgeBaseInput } from '../types'
 
 const KNOWLEDGE_V2_BASES_QUERY = {
   page: 1,
@@ -12,6 +10,11 @@ const KNOWLEDGE_V2_BASES_QUERY = {
 } as const
 
 const logger = loggerService.withContext('useKnowledgeBases')
+
+export type CreateKnowledgeBaseInput = Pick<
+  CreateKnowledgeBaseDto,
+  'name' | 'emoji' | 'groupId' | 'embeddingModelId' | 'dimensions'
+>
 
 export const useKnowledgeBases = () => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
@@ -42,7 +45,7 @@ export const useCreateKnowledgeBase = () => {
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
       const embeddingModelId = input.embeddingModelId?.trim()
-      const dimensions = Number(input.dimensions)
+      const dimensions = input.dimensions
 
       if (!name) {
         throw new Error('Knowledge base name is required')
