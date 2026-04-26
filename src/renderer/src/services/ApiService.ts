@@ -373,9 +373,12 @@ export async function fetchImageGeneration({
     const inputImages = await collectImagesFromMessages(lastUserMessage, lastAssistantMessage)
 
     // 调用 generateImage 或 editImage
-    // 使用默认图像生成配置
-    const imageSize = '1024x1024'
-    const batchSize = 1
+    // 从助手自定义参数读取图像配置，未设置时使用默认值
+    const customParams = assistant.settings?.customParameters ?? []
+    const findParam = (names: string[]) =>
+      customParams.find((p) => names.includes(p.name) && typeof p.value === 'string')?.value as string | undefined
+    const imageSize = findParam(['size', 'imageSize']) ?? '1024x1024'
+    const batchSize = Number(findParam(['n', 'batchSize'])) || 1
 
     let images: string[]
     if (inputImages.length > 0) {
