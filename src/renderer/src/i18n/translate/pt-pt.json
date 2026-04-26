@@ -1995,45 +1995,11 @@
     "add": {
       "title": "Adicionar Base de Conhecimento"
     },
-    "add_directory": "Adicionar diretório",
-    "add_file": "Adicionar arquivo",
-    "add_image": "Adicionar imagens",
-    "add_note": "Adicionar nota",
-    "add_sitemap": "Adicionar mapa do site",
-    "add_url": "Adicionar URL",
-    "add_video": "Adicionar vídeo",
-    "cancel_index": "Cancelar índice",
-    "chunk_overlap": "Sobreposição de bloco",
-    "chunk_overlap_placeholder": "Valor padrão (não recomendado alterar)",
-    "chunk_overlap_tooltip": "Quantidade de conteúdo repetido entre blocos de texto adjacentes, garantindo que os blocos de texto divididos ainda tenham conexões de contexto, melhorando o desempenho geral do modelo em textos longos",
-    "chunk_size": "Tamanho do bloco",
-    "chunk_size_change_warning": "A alteração do tamanho do bloco e da sobreposição de bloco é válida apenas para novos conteúdos adicionados",
-    "chunk_size_placeholder": "Valor padrão (não recomendado alterar)",
-    "chunk_size_too_large": "O tamanho do bloco não pode exceder o limite de contexto do modelo ({{max_context}})",
-    "chunk_size_tooltip": "Dividir o documento em blocos, o tamanho de cada bloco, que não pode exceder o limite de contexto do modelo",
-    "clear_selection": "Limpar seleção",
-    "delete": "Excluir",
-    "delete_confirm": "Tem certeza de que deseja excluir este repositório de conhecimento?",
-    "dimensions": "Dimensão de incorporação",
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
-    "dimensions_default": "O modelo utilizará as dimensões de incorporação padrão",
-    "dimensions_error_invalid": "Por favor insira o tamanho da dimensão de incorporação",
-    "dimensions_set_right": "⚠️ Certifique-se de que o modelo suporta o tamanho da dimensão de incorporação definido",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
-    "dimensions_size_too_large": "A dimensão de incorporação não pode exceder o limite do contexto do modelo ({{max_context}})",
     "dimensions_size_tooltip": "Tamanho da dimensão de incorporação, quanto maior o valor, maior a dimensão de incorporação, mas também maior o consumo de tokens",
-    "directories": "Diretórios",
-    "directory_placeholder": "Digite o caminho do diretório",
-    "document_count": "Número de fragmentos de documentos solicitados",
-    "document_count_default": "Padrão",
-    "document_count_help": "Quanto mais fragmentos de documentos solicitados, mais informações são incluídas, mas mais tokens são consumidos",
     "drag_file": "Arraste o arquivo aqui",
-    "drag_image": "Arraste a imagem para aqui",
-    "edit_remark": "Editar observação",
-    "edit_remark_placeholder": "Digite o conteúdo da observação",
-    "embedding_model": "Modelo de incorporação",
     "embedding_model_required": "O modelo de incorporação da base de conhecimento é obrigatório",
-    "empty": "Sem repositório de conhecimento",
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
       "failed_to_edit": "Falha ao editar o repositório de conhecimento",
@@ -2044,76 +2010,198 @@
       }
     },
     "file_hint": "Formatos suportados: {{file_types}}",
-    "image_hint": "Suporta formatos {{image_types}}",
-    "images": "imagem",
-    "index_all": "Índice total",
-    "index_cancelled": "Índice cancelado",
-    "index_started": "Índice iniciado",
-    "invalid_url": "URL inválida",
-    "migrate": {
-      "button": {
-        "text": "Migrar"
-      },
-      "confirm": {
-        "content": "Foram detectadas alterações no modelo de incorporação ou dimensões, o que impede a gravação da configuração. Você pode executar a migração para evitar a perda de dados. A migração do repositório de conhecimento não exclui o repositório de conhecimento anterior, mas cria uma cópia e processa todos os itens do repositório de conhecimento, o que pode consumir muitos tokens. Por favor, agir com cuidado.",
-        "ok": "Iniciar migração",
-        "title": "Migração do repositório de conhecimento"
-      },
-      "error": {
-        "failed": "Falha na migração"
-      },
-      "source_dimensions": "Dimensões de origem",
-      "source_model": "Modelo de origem",
-      "target_dimensions": "Dimensões de destino",
-      "target_model": "Modelo de destino"
-    },
-    "model_info": "Informações do modelo",
-    "name_required": "O nome da base de conhecimento é obrigatório",
-    "no_bases": "Sem repositório de conhecimento",
-    "no_match": "Não houve correspondência com o conteúdo do repositório de conhecimento",
-    "no_provider": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
-    "not_set": "Não definido",
-    "not_support": "O motor de banco de dados do repositório de conhecimento foi atualizado, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
-    "notes": "Notas",
-    "notes_placeholder": "Digite informações adicionais ou contexto para este repositório de conhecimento...",
     "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
-    "rename": "Renomear",
-    "search": "Pesquisar repositório de conhecimento",
     "search_placeholder": "Digite o conteúdo da consulta",
-    "settings": {
-      "preprocessing": "Pré-processamento",
-      "preprocessing_tooltip": "Pré-processar arquivos enviados usando OCR",
-      "title": "Configurações do Banco de Conhecimento"
-    },
-    "sitemap_added": "Adicionado com sucesso",
-    "sitemap_placeholder": "Digite a URL do mapa do site",
-    "sitemaps": "Sites",
-    "source": "Fonte",
-    "status": "Status",
-    "status_completed": "Concluído",
-    "status_embedding_completed": "Incorporação concluída",
-    "status_embedding_failed": "Falha na incorporação",
-    "status_failed": "Falhou",
-    "status_new": "Adicionado",
-    "status_pending": "Pendente",
-    "status_preprocess_completed": "Pré-processamento concluído",
-    "status_preprocess_failed": "Falha no pré-processamento",
-    "status_processing": "Processando",
     "subtitle_file": "arquivo de legenda",
-    "threshold": "Limite de correspondência",
-    "threshold_placeholder": "Não definido",
-    "threshold_too_large_or_small": "O limite não pode ser maior que 1 ou menor que 0",
-    "threshold_tooltip": "Usado para medir a relevância entre a pergunta do usuário e o conteúdo do repositório de conhecimento (0-1)",
     "title": "Repositório de conhecimento",
-    "topN": "Número de resultados retornados",
-    "topN_placeholder": "Não definido",
-    "topN_too_large_or_small": "O número de resultados retornados não pode ser maior que 30 nem menor que 1",
-    "topN_tooltip": "Número de resultados correspondentes retornados, quanto maior o valor, mais resultados correspondentes, mas mais tokens são consumidos",
-    "url_added": "URL adicionada",
-    "url_placeholder": "Digite a URL, várias URLs separadas por enter",
-    "urls": "URLs",
-    "videos": "vídeo",
     "videos_file": "Arquivo de vídeo"
+  },
+  "knowledge_v2": {
+    "add": {
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
+    },
+    "context": {
+      "delete": "[to be translated]:Delete Knowledge Base",
+      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Confirm Knowledge Base Deletion",
+      "move_to": "[to be translated]:Move to",
+      "rename": "[to be translated]:Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "[to be translated]:Delete",
+        "preview_source": "[to be translated]:Preview Source",
+        "reindex": "[to be translated]:Reindex",
+        "view_chunks": "[to be translated]:View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
+          "selected_notes": "[to be translated]:{{count}} notes selected"
+        },
+        "note": {
+          "description": "[to be translated]:Select existing notes as knowledge base sources",
+          "empty_description": "[to be translated]:The real note list will appear here after integration. For now, use files, directories, URLs, or sitemaps.",
+          "empty_title": "[to be translated]:Note data source is not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "[to be translated]:Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "[to be translated]:Enter sitemap URL:",
+          "help": "[to be translated]:Reads pages listed in the sitemap and indexes them",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "[to be translated]:Directory",
+          "file": "[to be translated]:File",
+          "note": "[to be translated]:Note",
+          "sitemap": "[to be translated]:Website",
+          "url": "[to be translated]:URL"
+        },
+        "submit": {
+          "error": "[to be translated]:Failed to add data source",
+          "success": "[to be translated]:Data source added to knowledge base"
+        },
+        "title": "[to be translated]:Add Data Source",
+        "url": {
+          "description": "[to be translated]:Enter webpage URL:",
+          "help": "[to be translated]:Automatically fetches page text and indexes chunks",
+          "input_label": "[to be translated]:Webpage URL",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
+          "title": "[to be translated]:Import a webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will regenerate it.",
+      "chunk_delete_confirm_title": "[to be translated]:Confirm Chunk Deletion",
+      "chunks_count": "[to be translated]:{{count}} chunks",
+      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Confirm Data Source Deletion",
+      "filters": {
+        "all": "[to be translated]:All",
+        "directory": "[to be translated]:Directory",
+        "file": "[to be translated]:File",
+        "note": "[to be translated]:Note",
+        "sitemap": "[to be translated]:Website",
+        "url": "[to be translated]:URL"
+      },
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "status": {
+        "chunking": "[to be translated]:Chunking",
+        "embedding": "[to be translated]:Embedding",
+        "error": "[to be translated]:Error",
+        "pending": "[to be translated]:Pending",
+        "ready": "[to be translated]:Ready"
+      }
+    },
+    "dimensions": "[to be translated]:Embedding Dimensions",
+    "embedding_model": "[to be translated]:Embedding Model",
+    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
+    "empty": "[to be translated]:No knowledge bases yet",
+    "error": {
+      "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_edit": "[to be translated]:Failed to edit knowledge base"
+    },
+    "groups": {
+      "add": "[to be translated]:New Group",
+      "create_base_here": "[to be translated]:Create here",
+      "delete": "[to be translated]:Delete Group",
+      "delete_confirm_description": "[to be translated]:After deletion, knowledge bases in this group will move to Ungrouped.",
+      "delete_confirm_title": "[to be translated]:Confirm Group Deletion",
+      "error": {
+        "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_update": "[to be translated]:Failed to rename group"
+      },
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required",
+      "rename": "[to be translated]:Rename",
+      "rename_title": "[to be translated]:Rename Group",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
+    "meta": {
+      "documents_count": "[to be translated]:{{count}} documents"
+    },
+    "name_required": "[to be translated]:Knowledge base name is required",
+    "not_set": "[to be translated]:Not set",
+    "rag": {
+      "chunk_overlap": "[to be translated]:Chunk Overlap",
+      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk overlap requires chunk size",
+      "chunk_size": "[to be translated]:Chunk Size",
+      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
+      "chunking": "[to be translated]:Chunking",
+      "default_separator": "[to be translated]:Auto (recommended)",
+      "document_count": "[to be translated]:Document Count",
+      "file_processing": "[to be translated]:File Processing",
+      "file_processing_hint": "[to be translated]:File processing runs automatically during import. Choose a suitable processor to improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "[to be translated]:Overlapping token count retained between adjacent chunks to reduce semantic truncation.",
+        "chunk_size": "[to be translated]:Target token count for each document chunk, affecting retrieval granularity and context length.",
+        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "[to be translated]:Maximum number of chunks returned per retrieval. Higher values cover more content but consume more context.",
+        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Existing content usually needs reindexing after changing models.",
+        "hybrid_alpha": "[to be translated]:Weight of vector score in hybrid search. Higher values favor semantic matching.",
+        "processor": "[to be translated]:The parsing processor used when importing files to extract text, tables, and other content.",
+        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "[to be translated]:Choose retrieval mode: vector search for semantic matching, full-text search for keywords, hybrid combines both.",
+        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter."
+      },
+      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
+      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid search mode",
+      "processor": "[to be translated]:Processor",
+      "rerank_disabled": "[to be translated]:Disabled",
+      "reset_defaults": "[to be translated]:Reset Defaults",
+      "retrieval": "[to be translated]:Retrieval Settings",
+      "search_mode": {
+        "bm25": "[to be translated]:Full-text Search",
+        "default": "[to be translated]:Vector Search",
+        "hybrid": "[to be translated]:Hybrid Search (recommended)",
+        "title": "[to be translated]:Search Mode"
+      },
+      "separator_rule": "[to be translated]:Separator Rule",
+      "threshold": "[to be translated]:Similarity Threshold",
+      "tokens_unit": "[to be translated]:tokens"
+    },
+    "recall": {
+      "collapse": "[to be translated]:Collapse chunk",
+      "copy": "[to be translated]:Copy chunk",
+      "duration": "[to be translated]:{{duration}}ms",
+      "empty_description": "[to be translated]:Results will show matching document chunks and scores",
+      "empty_title": "[to be translated]:Enter a query to start retrieval testing",
+      "expand": "[to be translated]:Expand chunk",
+      "history_clear": "[to be translated]:Clear",
+      "history_remove": "[to be translated]:Remove history",
+      "history_title": "[to be translated]:Search History",
+      "placeholder": "[to be translated]:Enter test query...",
+      "result_count": "[to be translated]:{{count}} results",
+      "searching": "[to be translated]:Searching...",
+      "submit": "[to be translated]:Search",
+      "top_score": "[to be translated]:Top: {{score}}"
+    },
+    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "search": "[to be translated]:Search Knowledge Base",
+    "status": {
+      "completed": "[to be translated]:Ready",
+      "failed": "[to be translated]:Failed",
+      "processing": "[to be translated]:Processing"
+    },
+    "tabs": {
+      "data_source": "[to be translated]:Data Sources",
+      "rag_config": "[to be translated]:RAG Config",
+      "recall_test": "[to be translated]:Recall Test"
+    },
+    "title": "[to be translated]:Knowledge Base"
   },
   "languages": {
     "arabic": "Árabe",

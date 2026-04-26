@@ -1995,45 +1995,11 @@
     "add": {
       "title": "Добавить базу знаний"
     },
-    "add_directory": "Добавить директорию",
-    "add_file": "Добавить файл",
-    "add_image": "добавить изображение",
-    "add_note": "Добавить запись",
-    "add_sitemap": "Карта сайта",
-    "add_url": "Добавить URL",
-    "add_video": "Добавить видео",
-    "cancel_index": "Отменить индексирование",
-    "chunk_overlap": "Перекрытие фрагмента",
-    "chunk_overlap_placeholder": "По умолчанию (не рекомендуется изменять)",
-    "chunk_overlap_tooltip": "Перекрытие фрагмента, не превышающее модель контекста",
-    "chunk_size": "Размер фрагмента",
-    "chunk_size_change_warning": "Размер фрагмента и перекрытие фрагмента могут быть изменены только для новых содержимого",
-    "chunk_size_placeholder": "По умолчанию (не рекомендуется изменять)",
-    "chunk_size_too_large": "Размер фрагмента не может превышать модель контекста ({{max_context}})",
-    "chunk_size_tooltip": "Размер фрагмента, не превышающий модель контекста",
-    "clear_selection": "Очистить выбор",
-    "delete": "Удалить",
-    "delete_confirm": "Вы уверены, что хотите удалить эту базу знаний?",
-    "dimensions": "векторное пространство",
     "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
-    "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию",
-    "dimensions_error_invalid": "Неверная размерность эмбеддинга",
-    "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
     "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
-    "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
     "dimensions_size_tooltip": "Размерность вложения - чем больше значение, тем больше токенов потребляется. Если оставить пустым, параметр dimensions не будет передаваться.",
-    "directories": "Директории",
-    "directory_placeholder": "Введите путь к директории",
-    "document_count": "Количество запрошенных документов",
-    "document_count_default": "По умолчанию",
-    "document_count_help": "Количество запрошенных документов, вместе с ними передается больше информации, но и требуется больше токенов",
     "drag_file": "Перетащите файл сюда",
-    "drag_image": "Перетащите изображение сюда",
-    "edit_remark": "Изменить примечание",
-    "edit_remark_placeholder": "Пожалуйста, введите содержание примечания",
-    "embedding_model": "Модель встраивания",
     "embedding_model_required": "Модель встраивания базы знаний требуется",
-    "empty": "База знаний не найдена",
     "error": {
       "failed_to_create": "Создание базы знаний завершено с ошибками",
       "failed_to_edit": "Редактирование базы знаний завершено с ошибками",
@@ -2044,76 +2010,198 @@
       }
     },
     "file_hint": "Поддерживаются {{file_types}}",
-    "image_hint": "Поддерживаются форматы {{image_types}}",
-    "images": "изображение",
-    "index_all": "Индексировать все",
-    "index_cancelled": "Индексирование отменено",
-    "index_started": "Индексирование началось",
-    "invalid_url": "Неверный URL",
-    "migrate": {
-      "button": {
-        "text": "Миграция"
-      },
-      "confirm": {
-        "content": "Обнаружена изменение модели встраивания или размерности, невозможно сохранить конфигурацию напрямую. Миграция базы знаний не удалит существующую базу знаний, а создаст ее копию, после чего перепроцессит все записи базы знаний, что может потреблять большое количество токенов. Пожалуйста, действуйте осторожно.",
-        "ok": "Начать миграцию",
-        "title": "Миграция базы знаний"
-      },
-      "error": {
-        "failed": "Миграция завершена с ошибками"
-      },
-      "source_dimensions": "Исходная размерность",
-      "source_model": "Исходная модель",
-      "target_dimensions": "Целевая размерность",
-      "target_model": "Целевая модель"
-    },
-    "model_info": "Модель информации",
-    "name_required": "Название базы знаний обязательно",
-    "no_bases": "База знаний не найдена",
-    "no_match": "Не найдено содержимого в базе знаний.",
-    "no_provider": "База знаний модель поставщика не настроена, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
-    "not_set": "Не установлено",
-    "not_support": "База знаний базы данных движок обновлен, база знаний больше не поддерживается, пожалуйста, создайте новую базу знаний",
-    "notes": "Заметки",
-    "notes_placeholder": "Введите дополнительную информацию или контекст для этой базы знаний...",
     "provider_not_found": "Поставщик не найден",
-    "rename": "Переименовать",
-    "search": "Поиск в базе знаний",
     "search_placeholder": "Введите текст для поиска",
-    "settings": {
-      "preprocessing": "Предварительная обработка",
-      "preprocessing_tooltip": "Предварительная обработка документов",
-      "title": "Настройки базы знаний"
-    },
-    "sitemap_added": "Карта сайта добавлена",
-    "sitemap_placeholder": "Введите URL карты сайта",
-    "sitemaps": "Сайты",
-    "source": "Источник",
-    "status": "Статус",
-    "status_completed": "Завершено",
-    "status_embedding_completed": "Вложение завершено",
-    "status_embedding_failed": "Не удалось встроить",
-    "status_failed": "Ошибка",
-    "status_new": "Добавлено",
-    "status_pending": "Ожидание",
-    "status_preprocess_completed": "Предварительная обработка завершена",
-    "status_preprocess_failed": "Предварительная обработка не удалась",
-    "status_processing": "Обработка",
     "subtitle_file": "Файл субтитров",
-    "threshold": "Порог соответствия",
-    "threshold_placeholder": "Не установлено",
-    "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
-    "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
     "title": "База знаний",
-    "topN": "Количество возвращаемых результатов",
-    "topN_placeholder": "Не установлено",
-    "topN_too_large_or_small": "Количество возвращаемых результатов не может быть больше 30 или меньше 1.",
-    "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
-    "url_added": "URL добавлен",
-    "url_placeholder": "Введите URL, несколько URL через Enter",
-    "urls": "URL-адреса",
-    "videos": "видео",
     "videos_file": "видеофайл"
+  },
+  "knowledge_v2": {
+    "add": {
+      "group": "[to be translated]:Group",
+      "icon": "[to be translated]:Icon",
+      "submit": "[to be translated]:Create",
+      "title": "[to be translated]:New Knowledge Base"
+    },
+    "context": {
+      "delete": "[to be translated]:Delete Knowledge Base",
+      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Confirm Knowledge Base Deletion",
+      "move_to": "[to be translated]:Move to",
+      "rename": "[to be translated]:Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "[to be translated]:Delete",
+        "preview_source": "[to be translated]:Preview Source",
+        "reindex": "[to be translated]:Reindex",
+        "view_chunks": "[to be translated]:View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "[to be translated]:Recursively import supported files from a folder",
+          "title": "[to be translated]:Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "[to be translated]:{{count}} directories selected",
+          "selected_files": "[to be translated]:{{count}} files selected",
+          "selected_notes": "[to be translated]:{{count}} notes selected"
+        },
+        "note": {
+          "description": "[to be translated]:Select existing notes as knowledge base sources",
+          "empty_description": "[to be translated]:The real note list will appear here after integration. For now, use files, directories, URLs, or sitemaps.",
+          "empty_title": "[to be translated]:Note data source is not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "[to be translated]:Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "[to be translated]:Enter sitemap URL:",
+          "help": "[to be translated]:Reads pages listed in the sitemap and indexes them",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "[to be translated]:Directory",
+          "file": "[to be translated]:File",
+          "note": "[to be translated]:Note",
+          "sitemap": "[to be translated]:Website",
+          "url": "[to be translated]:URL"
+        },
+        "submit": {
+          "error": "[to be translated]:Failed to add data source",
+          "success": "[to be translated]:Data source added to knowledge base"
+        },
+        "title": "[to be translated]:Add Data Source",
+        "url": {
+          "description": "[to be translated]:Enter webpage URL:",
+          "help": "[to be translated]:Automatically fetches page text and indexes chunks",
+          "input_label": "[to be translated]:Webpage URL",
+          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
+          "title": "[to be translated]:Import a webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will regenerate it.",
+      "chunk_delete_confirm_title": "[to be translated]:Confirm Chunk Deletion",
+      "chunks_count": "[to be translated]:{{count}} chunks",
+      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "[to be translated]:Confirm Data Source Deletion",
+      "filters": {
+        "all": "[to be translated]:All",
+        "directory": "[to be translated]:Directory",
+        "file": "[to be translated]:File",
+        "note": "[to be translated]:Note",
+        "sitemap": "[to be translated]:Website",
+        "url": "[to be translated]:URL"
+      },
+      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
+      "status": {
+        "chunking": "[to be translated]:Chunking",
+        "embedding": "[to be translated]:Embedding",
+        "error": "[to be translated]:Error",
+        "pending": "[to be translated]:Pending",
+        "ready": "[to be translated]:Ready"
+      }
+    },
+    "dimensions": "[to be translated]:Embedding Dimensions",
+    "embedding_model": "[to be translated]:Embedding Model",
+    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
+    "empty": "[to be translated]:No knowledge bases yet",
+    "error": {
+      "failed_to_create": "[to be translated]:Failed to create knowledge base",
+      "failed_to_edit": "[to be translated]:Failed to edit knowledge base"
+    },
+    "groups": {
+      "add": "[to be translated]:New Group",
+      "create_base_here": "[to be translated]:Create here",
+      "delete": "[to be translated]:Delete Group",
+      "delete_confirm_description": "[to be translated]:After deletion, knowledge bases in this group will move to Ungrouped.",
+      "delete_confirm_title": "[to be translated]:Confirm Group Deletion",
+      "error": {
+        "failed_to_create": "[to be translated]:Failed to create group",
+        "failed_to_update": "[to be translated]:Failed to rename group"
+      },
+      "name_placeholder": "[to be translated]:Enter group name...",
+      "name_required": "[to be translated]:Group name is required",
+      "rename": "[to be translated]:Rename",
+      "rename_title": "[to be translated]:Rename Group",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
+    "meta": {
+      "documents_count": "[to be translated]:{{count}} documents"
+    },
+    "name_required": "[to be translated]:Knowledge base name is required",
+    "not_set": "[to be translated]:Not set",
+    "rag": {
+      "chunk_overlap": "[to be translated]:Chunk Overlap",
+      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk overlap requires chunk size",
+      "chunk_size": "[to be translated]:Chunk Size",
+      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
+      "chunking": "[to be translated]:Chunking",
+      "default_separator": "[to be translated]:Auto (recommended)",
+      "document_count": "[to be translated]:Document Count",
+      "file_processing": "[to be translated]:File Processing",
+      "file_processing_hint": "[to be translated]:File processing runs automatically during import. Choose a suitable processor to improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "[to be translated]:Overlapping token count retained between adjacent chunks to reduce semantic truncation.",
+        "chunk_size": "[to be translated]:Target token count for each document chunk, affecting retrieval granularity and context length.",
+        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "[to be translated]:Maximum number of chunks returned per retrieval. Higher values cover more content but consume more context.",
+        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Existing content usually needs reindexing after changing models.",
+        "hybrid_alpha": "[to be translated]:Weight of vector score in hybrid search. Higher values favor semantic matching.",
+        "processor": "[to be translated]:The parsing processor used when importing files to extract text, tables, and other content.",
+        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "[to be translated]:Choose retrieval mode: vector search for semantic matching, full-text search for keywords, hybrid combines both.",
+        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter."
+      },
+      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
+      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid search mode",
+      "processor": "[to be translated]:Processor",
+      "rerank_disabled": "[to be translated]:Disabled",
+      "reset_defaults": "[to be translated]:Reset Defaults",
+      "retrieval": "[to be translated]:Retrieval Settings",
+      "search_mode": {
+        "bm25": "[to be translated]:Full-text Search",
+        "default": "[to be translated]:Vector Search",
+        "hybrid": "[to be translated]:Hybrid Search (recommended)",
+        "title": "[to be translated]:Search Mode"
+      },
+      "separator_rule": "[to be translated]:Separator Rule",
+      "threshold": "[to be translated]:Similarity Threshold",
+      "tokens_unit": "[to be translated]:tokens"
+    },
+    "recall": {
+      "collapse": "[to be translated]:Collapse chunk",
+      "copy": "[to be translated]:Copy chunk",
+      "duration": "[to be translated]:{{duration}}ms",
+      "empty_description": "[to be translated]:Results will show matching document chunks and scores",
+      "empty_title": "[to be translated]:Enter a query to start retrieval testing",
+      "expand": "[to be translated]:Expand chunk",
+      "history_clear": "[to be translated]:Clear",
+      "history_remove": "[to be translated]:Remove history",
+      "history_title": "[to be translated]:Search History",
+      "placeholder": "[to be translated]:Enter test query...",
+      "result_count": "[to be translated]:{{count}} results",
+      "searching": "[to be translated]:Searching...",
+      "submit": "[to be translated]:Search",
+      "top_score": "[to be translated]:Top: {{score}}"
+    },
+    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "search": "[to be translated]:Search Knowledge Base",
+    "status": {
+      "completed": "[to be translated]:Ready",
+      "failed": "[to be translated]:Failed",
+      "processing": "[to be translated]:Processing"
+    },
+    "tabs": {
+      "data_source": "[to be translated]:Data Sources",
+      "rag_config": "[to be translated]:RAG Config",
+      "recall_test": "[to be translated]:Recall Test"
+    },
+    "title": "[to be translated]:Knowledge Base"
   },
   "languages": {
     "arabic": "Арабский",

@@ -1,12 +1,7 @@
-// TODO(v2): All Redux store reads in this file (state.knowledge.bases, state.llm.providers)
-//           should migrate to the V2 SQLite/Drizzle data layer (src/main/services/agents/).
-//           Redux is blocked for new data-model features until v2.0.0.
-//           See: src/main/services/agents/database/schema/index.ts
-
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
-import { knowledgeService } from '@main/services/KnowledgeService'
-import { reduxService } from '@main/services/ReduxService'
-import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
+import { DataApiError } from '@shared/data/api'
 import type { Response } from 'express'
 import type * as z from 'zod'
 
@@ -19,14 +14,6 @@ const logger = loggerService.withContext('KnowledgeHandlers')
 type ValidatedSearchBody = z.infer<typeof KnowledgeSearchSchema>
 
 /**
- * Helper to detect Redux unavailability errors
- */
-function isReduxUnavailableError(error: unknown): boolean {
-  const message = (error as Error)?.message || ''
-  return message.includes('Main window is not available') || message.includes('Timeout waiting for Redux store')
-}
-
-/**
  * Get all knowledge bases
  */
 export const listKnowledgeBases = async (req: ValidationRequest, res: Response): Promise<Response> => {
@@ -36,31 +23,11 @@ export const listKnowledgeBases = async (req: ValidationRequest, res: Response):
 
     logger.debug('Listing knowledge bases', { limit, offset })
 
-    // Get knowledge bases from Redux store
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    //           Redux access requires Cherry Studio window to be open.
-    let bases: KnowledgeBase[]
-    try {
-      bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
-    } catch (error) {
-      if (isReduxUnavailableError(error)) {
-        logger.warn('Redux store not available, returning 503')
-        return res.status(503).json({
-          error: {
-            message: 'Knowledge bases are only available when Cherry Studio window is open',
-            type: 'service_unavailable',
-            code: 'REDUX_UNAVAILABLE'
-          }
-        })
-      }
-      throw error // Re-throw non-Redux errors to outer catch
-    }
+    const result = await knowledgeBaseService.list({ page: Math.floor(offset / limit) + 1, limit })
 
-    const total = bases?.length || 0
-    const paginatedBases = (bases || []).slice(offset, offset + limit)
     return res.json({
-      knowledge_bases: paginatedBases,
-      total
+      knowledge_bases: result.items,
+      total: result.total
     })
   } catch (error) {
     logger.error('Failed to list knowledge bases', error as Error)
@@ -84,28 +51,16 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
 
     logger.debug(`Getting knowledge base: ${id}`)
 
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
-    const base = bases?.find((b) => b.id === id)
-
-    if (!base) {
-      return res.status(404).json({
-        error: {
-          message: `Knowledge base not found: ${id}`,
-          type: 'invalid_request_error',
-          code: 'KB_NOT_FOUND'
-        }
-      })
-    }
+    const base = await knowledgeBaseService.getById(id)
 
     return res.json(base)
   } catch (error) {
-    if (isReduxUnavailableError(error)) {
-      return res.status(503).json({
+    if (error instanceof DataApiError && error.code === 'NOT_FOUND') {
+      return res.status(404).json({
         error: {
-          message: 'Knowledge bases are only available when Cherry Studio window is open',
-          type: 'service_unavailable',
-          code: 'REDUX_UNAVAILABLE'
+          message: `Knowledge base not found: ${req.validatedParams?.id}`,
+          type: 'invalid_request_error',
+          code: 'KB_NOT_FOUND'
         }
       })
     }
@@ -121,88 +76,6 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
 }
 
 /**
- * Get provider configuration from Redux store by provider ID
- *
- * TODO(v2): Migrate to V2 provider config storage (SQLite/Drizzle) so the API server
- *           can resolve embedding/rerank provider credentials without a running renderer.
- *
- * NOTE: Redux errors are allowed to propagate - they will be caught by the handler's
- *       try/catch and converted to 503 responses via isReduxUnavailableError().
- */
-async function getProviderConfig(providerId: string): Promise<{ apiKey: string; baseURL: string } | null> {
-  const providers = await reduxService.select<Provider[]>('state.llm.providers')
-  const provider = providers?.find((p) => p.id === providerId)
-  if (!provider) {
-    logger.warn(`Provider not found: ${providerId}`)
-    return null
-  }
-
-  // Derive baseURL from apiHost, removing trailing slashes and # suffix
-  let baseURL = provider.apiHost || ''
-  baseURL = baseURL.replace(/\/+$/, '')
-  baseURL = baseURL.replace(/#$/, '')
-
-  // If multiple API keys are configured (comma-separated), use the first one.
-  // Matches the main-process convention in OpenClawService.
-  const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
-
-  return {
-    apiKey,
-    baseURL
-  }
-}
-
-/**
- * Convert KnowledgeBase to KnowledgeBaseParams for search
- */
-async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBaseParams> {
-  // Validate that embedding model provider is configured
-  const embedProviderId = base.model?.provider
-  if (!embedProviderId) {
-    throw new Error(`Knowledge base "${base.name}" is missing embedding model provider configuration`)
-  }
-
-  const embedConfig = await getProviderConfig(embedProviderId)
-  if (!embedConfig) {
-    throw new Error(`Provider "${embedProviderId}" not found for knowledge base "${base.name}"`)
-  }
-
-  const embedApiClient = {
-    model: base.model?.id || '',
-    provider: embedProviderId,
-    apiKey: embedConfig.apiKey,
-    baseURL: embedConfig.baseURL
-  }
-
-  // Build the params object
-  const params: KnowledgeBaseParams = {
-    id: base.id,
-    dimensions: base.dimensions,
-    embedApiClient,
-    chunkSize: base.chunkSize,
-    chunkOverlap: base.chunkOverlap,
-    documentCount: base.documentCount
-  }
-
-  // Add rerank if configured
-  if (base.rerankModel?.provider) {
-    const rerankConfig = await getProviderConfig(base.rerankModel.provider)
-    if (!rerankConfig) {
-      logger.warn(`Rerank provider not found for knowledge base "${base.name}": ${base.rerankModel.provider}`)
-    } else {
-      params.rerankApiClient = {
-        model: base.rerankModel.id || '',
-        provider: base.rerankModel.provider,
-        apiKey: rerankConfig.apiKey,
-        baseURL: rerankConfig.baseURL
-      }
-    }
-  }
-
-  return params
-}
-
-/**
  * Search across knowledge bases
  *
  * This endpoint allows you to search through one or more knowledge bases
@@ -215,9 +88,8 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
 
     logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, document_count })
 
-    // Get knowledge bases from Redux
-    // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+    const listResult = await knowledgeBaseService.list({ page: 1, limit: 100 })
+    const bases = listResult.items
 
     if (!bases || bases.length === 0) {
       return res.json({
@@ -245,15 +117,8 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
     // Search each knowledge base
     const searchPromises = targetBases.map(async (base) => {
       try {
-        const params = await getKnowledgeBaseParams(base)
-
-        // WORKAROUND: knowledgeService.search() expects Electron.IpcMainInvokeEvent for IPC signature.
-        // The @TraceMethod decorator doesn't currently access event properties, so passing {} is safe.
-        // TODO(v2): Add searchInternal() method to knowledgeService for non-IPC calls.
-        const searchResults = await knowledgeService.search({} as Electron.IpcMainInvokeEvent, {
-          search: query,
-          base: params
-        })
+        const runtime = application.get('KnowledgeRuntimeService')
+        const searchResults = await runtime.search(base, query)
 
         return {
           baseId: base.id,
@@ -309,15 +174,6 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
       ...(warnings.length > 0 && { warnings })
     })
   } catch (error) {
-    if (isReduxUnavailableError(error)) {
-      return res.status(503).json({
-        error: {
-          message: 'Knowledge bases are only available when Cherry Studio window is open',
-          type: 'service_unavailable',
-          code: 'REDUX_UNAVAILABLE'
-        }
-      })
-    }
     logger.error('Failed to search knowledge bases', error as Error)
     return res.status(500).json({
       error: {

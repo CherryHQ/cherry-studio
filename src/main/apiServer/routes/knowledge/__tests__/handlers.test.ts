@@ -1,19 +1,22 @@
-import type { KnowledgeBase } from '@types'
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { DataApiErrorFactory } from '@shared/data/api'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ValidationRequest } from '../../agents/validators/zodValidator'
 
-// Mock dependencies BEFORE importing handlers - no top-level variables
-vi.mock('@main/services/ReduxService', () => ({
-  reduxService: {
-    select: vi.fn()
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn()
   }
 }))
 
-vi.mock('@main/services/KnowledgeService', () => ({
-  default: {
-    search: vi.fn()
+vi.mock('@data/services/KnowledgeBaseService', () => ({
+  knowledgeBaseService: {
+    list: vi.fn(),
+    getById: vi.fn()
   }
 }))
 
@@ -28,26 +31,25 @@ vi.mock('@logger', () => ({
   }
 }))
 
-// Import handlers AFTER mocks
 import { getKnowledgeBase, listKnowledgeBases, searchKnowledge } from '../handlers'
 
-// Helper to create mock KnowledgeBase
 function createMockKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-test-id',
     name: 'Test Knowledge Base',
     description: 'Test description',
-    model: { id: 'text-embedding-3-small', provider: 'openai' },
+    groupId: null,
+    emoji: '📁',
     dimensions: 1536,
+    embeddingModelId: 'ollama:nomic-embed-text',
     chunkSize: 500,
     chunkOverlap: 50,
     documentCount: 10,
-    version: 1,
-    items: [],
-    created_at: Date.now(),
-    updated_at: Date.now(),
+    searchMode: 'hybrid',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
-  } as KnowledgeBase
+  }
 }
 
 describe('Knowledge Handlers', () => {
@@ -55,10 +57,12 @@ describe('Knowledge Handlers', () => {
   let res: Partial<Response>
   let jsonMock: ReturnType<typeof vi.fn>
   let statusMock: ReturnType<typeof vi.fn>
+  let runtimeSearchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     jsonMock = vi.fn()
     statusMock = vi.fn(() => ({ json: jsonMock }))
+    runtimeSearchMock = vi.fn()
 
     req = {}
     res = {
@@ -66,65 +70,58 @@ describe('Knowledge Handlers', () => {
       json: jsonMock
     }
 
+    vi.mocked(application.get).mockReturnValue({ search: runtimeSearchMock } as never)
     vi.clearAllMocks()
   })
 
   describe('listKnowledgeBases', () => {
-    it('should return paginated knowledge bases', async () => {
+    it('should return paginated knowledge bases from v2 storage', async () => {
       const mockBases = [
         createMockKnowledgeBase({ id: 'kb-1', name: 'KB 1' }),
-        createMockKnowledgeBase({ id: 'kb-2', name: 'KB 2' }),
-        createMockKnowledgeBase({ id: 'kb-3', name: 'KB 3' })
+        createMockKnowledgeBase({ id: 'kb-2', name: 'KB 2' })
       ]
-
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue(mockBases)
+      vi.mocked(knowledgeBaseService.list).mockResolvedValue({ items: mockBases, total: 3, page: 1 })
 
       req.validatedQuery = { limit: 2, offset: 0 }
 
       await listKnowledgeBases(req as ValidationRequest, res as Response)
 
+      expect(knowledgeBaseService.list).toHaveBeenCalledWith({ page: 1, limit: 2 })
       expect(jsonMock).toHaveBeenCalledWith({
-        knowledge_bases: mockBases.slice(0, 2),
+        knowledge_bases: mockBases,
         total: 3
       })
     })
 
-    it('should return 503 when Redux is unavailable', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
+    it('should not depend on Redux availability', async () => {
+      vi.mocked(knowledgeBaseService.list).mockResolvedValue({ items: [], total: 0, page: 1 })
 
       req.validatedQuery = { limit: 20, offset: 0 }
 
       await listKnowledgeBases(req as ValidationRequest, res as Response)
 
-      expect(statusMock).toHaveBeenCalledWith(503)
-      expect(jsonMock).toHaveBeenCalledWith({
-        error: {
-          message: 'Knowledge bases are only available when Cherry Studio window is open',
-          type: 'service_unavailable',
-          code: 'REDUX_UNAVAILABLE'
-        }
-      })
+      expect(statusMock).not.toHaveBeenCalledWith(503)
+      expect(jsonMock).toHaveBeenCalledWith({ knowledge_bases: [], total: 0 })
     })
   })
 
   describe('getKnowledgeBase', () => {
-    it('should return a single knowledge base', async () => {
+    it('should return a single knowledge base from v2 storage', async () => {
       const mockBase = createMockKnowledgeBase({ id: 'kb-1' })
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([mockBase])
+      vi.mocked(knowledgeBaseService.getById).mockResolvedValue(mockBase)
 
       req.validatedParams = { id: 'kb-1' }
 
       await getKnowledgeBase(req as ValidationRequest, res as Response)
 
+      expect(knowledgeBaseService.getById).toHaveBeenCalledWith('kb-1')
       expect(jsonMock).toHaveBeenCalledWith(mockBase)
     })
 
     it('should return 404 when knowledge base not found', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([])
+      vi.mocked(knowledgeBaseService.getById).mockRejectedValue(
+        DataApiErrorFactory.notFound('KnowledgeBase', 'non-existent')
+      )
 
       req.validatedParams = { id: 'non-existent' }
 
@@ -139,23 +136,11 @@ describe('Knowledge Handlers', () => {
         }
       })
     })
-
-    it('should return 503 when Redux is unavailable', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
-
-      req.validatedParams = { id: 'kb-1' }
-
-      await getKnowledgeBase(req as ValidationRequest, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(503)
-    })
   })
 
   describe('searchKnowledge', () => {
     it('should return warnings when no knowledge bases configured', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([])
+      vi.mocked(knowledgeBaseService.list).mockResolvedValue({ items: [], total: 0, page: 1 })
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
@@ -171,8 +156,11 @@ describe('Knowledge Handlers', () => {
     })
 
     it('should return 404 when specified knowledge bases not found', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([createMockKnowledgeBase({ id: 'kb-1' })])
+      vi.mocked(knowledgeBaseService.list).mockResolvedValue({
+        items: [createMockKnowledgeBase({ id: 'kb-1' })],
+        total: 1,
+        page: 1
+      })
 
       req.validatedBody = {
         query: 'test query',
@@ -192,15 +180,37 @@ describe('Knowledge Handlers', () => {
       })
     })
 
-    it('should return 503 when Redux is unavailable', async () => {
-      const { reduxService } = await import('@main/services/ReduxService')
-      ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
+    it('should search v2 runtime and annotate results with knowledge base metadata', async () => {
+      const mockBase = createMockKnowledgeBase({ id: 'kb-1', name: 'KB 1' })
+      vi.mocked(knowledgeBaseService.list).mockResolvedValue({ items: [mockBase], total: 1, page: 1 })
+      runtimeSearchMock.mockResolvedValue([
+        {
+          pageContent: 'result',
+          score: 0.9,
+          metadata: { itemId: 'item-1', itemType: 'note', source: 'note', name: 'Note', chunkIndex: 0, tokenCount: 3 },
+          itemId: 'item-1',
+          chunkId: 'chunk-1'
+        }
+      ])
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
       await searchKnowledge(req as ValidationRequest, res as Response)
 
-      expect(statusMock).toHaveBeenCalledWith(503)
+      expect(application.get).toHaveBeenCalledWith('KnowledgeRuntimeService')
+      expect(runtimeSearchMock).toHaveBeenCalledWith(mockBase, 'test query')
+      expect(jsonMock).toHaveBeenCalledWith({
+        query: 'test query',
+        results: [
+          expect.objectContaining({
+            pageContent: 'result',
+            knowledge_base_id: 'kb-1',
+            knowledge_base_name: 'KB 1'
+          })
+        ],
+        total: 1,
+        searched_bases: [{ id: 'kb-1', name: 'KB 1' }]
+      })
     })
   })
 })

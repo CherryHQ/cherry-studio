@@ -2,7 +2,8 @@ import { ColFlex, Flex, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+// import { addKnowledgeSources } from '@renderer/services/KnowledgeV2Service'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -105,7 +106,6 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
   const { bases } = useKnowledgeBases()
-  const { addNote, addFiles } = useKnowledge(selectedBaseId || '')
   const { t } = useTranslation()
 
   const isTopicMode = source?.type === 'topic'
@@ -174,14 +174,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       bases.map((base) => ({
         label: base.name,
         value: base.id,
-        disabled: !base.version
+        disabled: !base.embeddingModelId
       })),
     [bases]
   )
 
   // 表单状态
   const formState = useMemo(() => {
-    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.version
+    const hasValidBase = selectedBaseId && bases.find((base) => base.id === selectedBaseId)?.embeddingModelId
     const hasContent = isNoteMode || contentTypeOptions.length > 0
 
     const canSubmit = hasValidBase && (isNoteMode || (selectedTypes.length > 0 && hasContent))
@@ -204,7 +204,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   // 默认选择第一个可用知识库
   useEffect(() => {
     if (!selectedBaseId) {
-      const firstAvailableBase = bases.find((base) => base.version)
+      const firstAvailableBase = bases.find((base) => base.embeddingModelId)
       if (firstAvailableBase) {
         setSelectedBaseId(firstAvailableBase.id)
       }
@@ -247,7 +247,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     if (!formState.canSubmit) return
 
     setLoading(true)
-    let savedCount = 0
+    const savedCount = 0
+    const knowledgeV2SavingDisabledError = 'Knowledge V2 saving is temporarily disabled.'
 
     try {
       // Validate knowledge base configuration before proceeding
@@ -260,7 +261,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         throw new Error('Selected knowledge base not found')
       }
 
-      if (!selectedBase.version) {
+      if (!selectedBase.embeddingModelId) {
         throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
       }
 
@@ -283,8 +284,18 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         logger.debug('Note content loaded', { contentLength: content.length })
-        await addNote(content)
-        savedCount = 1
+        // Knowledge V2 saving is temporarily disabled while KnowledgeV2Service is removed.
+        // await addKnowledgeSources(selectedBaseId, [
+        //   {
+        //     type: 'note',
+        //     data: {
+        //       content,
+        //       sourceUrl: note.externalPath
+        //     }
+        //   }
+        // ])
+        // savedCount = 1
+        throw new Error(knowledgeV2SavingDisabledError)
       } else {
         // 原有的消息或主题处理逻辑
         const result = isTopicMode
@@ -293,13 +304,30 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
-          await addNote(result.text)
-          savedCount++
+          // Knowledge V2 saving is temporarily disabled while KnowledgeV2Service is removed.
+          // await addKnowledgeSources(selectedBaseId, [
+          //   {
+          //     type: 'note',
+          //     data: {
+          //       content: result.text
+          //     }
+          //   }
+          // ])
+          // savedCount++
+          throw new Error(knowledgeV2SavingDisabledError)
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          addFiles(result.files)
-          savedCount += result.files.length
+          // Knowledge V2 saving is temporarily disabled while KnowledgeV2Service is removed.
+          // await addKnowledgeSources(
+          //   selectedBaseId,
+          //   result.files.map((file) => ({
+          //     type: 'file' as const,
+          //     data: { file }
+          //   }))
+          // )
+          // savedCount += result.files.length
+          throw new Error(knowledgeV2SavingDisabledError)
         }
       }
 

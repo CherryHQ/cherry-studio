@@ -40,7 +40,7 @@ import {
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
 import FileManager from './FileManager'
-import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
+// import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeV2Service'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // import { processKnowledgeSearch } from './KnowledgeService'
@@ -183,15 +183,15 @@ export async function transformMessagesAndFetch(
       return
     }
 
-    // inject knowledge search prompt into model messages
-    await injectUserMessageWithKnowledgeSearchPrompt({
-      modelMessages,
-      assistant,
-      assistantMsgId: request.assistantMsgId,
-      topicId: request.topicId,
-      blockManager: request.blockManager,
-      setCitationBlockId: request.callbacks.setCitationBlockId!
-    })
+    // Knowledge V2 search prompt injection is temporarily disabled while KnowledgeV2Service is removed.
+    // await injectUserMessageWithKnowledgeSearchPrompt({
+    //   modelMessages,
+    //   assistant,
+    //   assistantMsgId: request.assistantMsgId,
+    //   topicId: request.topicId,
+    //   blockManager: request.blockManager,
+    //   setCitationBlockId: request.callbacks.setCitationBlockId!
+    // })
 
     await fetchChatCompletion({
       messages: modelMessages,

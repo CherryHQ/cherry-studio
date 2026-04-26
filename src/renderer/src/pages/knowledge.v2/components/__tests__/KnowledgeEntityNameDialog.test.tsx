@@ -130,6 +130,8 @@ describe('KnowledgeEntityNameDialog', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith('Archive')
     })
-    expect(screen.getByText('更新失败')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('更新失败')).toBeInTheDocument()
+    })
   })
 })

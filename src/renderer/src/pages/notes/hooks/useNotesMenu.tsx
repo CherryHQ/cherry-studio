@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { RootState } from '@renderer/store'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
@@ -39,17 +38,11 @@ export const useNotesMenu = ({
   activeNode
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
-  const { bases } = useKnowledgeBases()
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
 
   const handleExportKnowledge = useCallback(
     async (note: NotesTreeNode) => {
       try {
-        if (bases.length === 0) {
-          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
-          return
-        }
-
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
@@ -60,7 +53,7 @@ export const useNotesMenu = ({
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
-    [bases.length, t]
+    [t]
   )
 
   const handleImageAction = useCallback(

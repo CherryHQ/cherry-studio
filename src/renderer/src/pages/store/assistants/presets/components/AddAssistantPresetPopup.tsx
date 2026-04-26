@@ -7,8 +7,8 @@ import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+// import { listKnowledgeBases, toLegacyKnowledgeBase } from '@renderer/services/KnowledgeV2Service'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { useAppSelector } from '@renderer/store'
 import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { AGENT_PROMPT } from '@shared/config/prompts'
@@ -45,16 +45,37 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const knowledgeState = useAppSelector((state) => state.knowledge)
+  const [knowledgeBases] = useState<KnowledgeBase[]>([])
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const knowledgeOptions: SelectProps['options'] = []
 
-  knowledgeState.bases.forEach((base) => {
+  knowledgeBases.forEach((base) => {
     knowledgeOptions.push({
       label: base.name,
       value: base.id
     })
   })
+
+  // Knowledge V2 base loading is temporarily disabled while KnowledgeV2Service is removed.
+  // useEffect(() => {
+  //   let disposed = false
+  //
+  //   listKnowledgeBases()
+  //     .then((bases) => {
+  //       if (!disposed) {
+  //         setKnowledgeBases(bases.map(toLegacyKnowledgeBase))
+  //       }
+  //     })
+  //     .catch(() => {
+  //       if (!disposed) {
+  //         setKnowledgeBases([])
+  //       }
+  //     })
+  //
+  //   return () => {
+  //     disposed = true
+  //   }
+  // }, [])
 
   useEffect(() => {
     const prompt = formRef.current?.getFieldValue('prompt')
@@ -73,7 +94,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       id: uuid(),
       name: values.name,
       knowledge_bases: values.knowledge_base_ids
-        ?.map((id) => knowledgeState.bases.find((t) => t.id === id))
+        ?.map((id) => knowledgeBases.find((base) => base.id === id))
         ?.filter((base): base is KnowledgeBase => base !== undefined),
       emoji: _emoji,
       prompt: values.prompt,

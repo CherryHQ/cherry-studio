@@ -1,5 +1,4 @@
 import type { RootState } from '@renderer/store'
-import { syncPreprocessProvider as _syncPreprocessProvider } from '@renderer/store/knowledge'
 import {
   setDefaultPreprocessProvider as _setDefaultPreprocessProvider,
   updatePreprocessProvider as _updatePreprocessProvider,
@@ -21,10 +20,6 @@ export const usePreprocessProvider = (id: PreprocessProviderId) => {
     updateProvider: (updates: Partial<PreprocessProvider>) => {
       const payload = { id, ...updates }
       dispatch(_updatePreprocessProvider(payload))
-      // 将更新同步到所有知识库中的引用
-      if (updates.apiHost || updates.apiKey || updates.model) {
-        dispatch(_syncPreprocessProvider(payload))
-      }
     }
   }
 }

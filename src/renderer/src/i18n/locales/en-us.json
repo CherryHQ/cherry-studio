@@ -1995,45 +1995,11 @@
     "add": {
       "title": "Add Knowledge Base"
     },
-    "add_directory": "Add Directory",
-    "add_file": "Add File",
-    "add_image": "Add Image",
-    "add_note": "Add Note",
-    "add_sitemap": "Website Map",
-    "add_url": "Add URL",
-    "add_video": "Add video",
-    "cancel_index": "Cancel Indexing",
-    "chunk_overlap": "Chunk Overlap",
-    "chunk_overlap_placeholder": "Default (not recommended to change)",
-    "chunk_overlap_tooltip": "The amount of duplicate content between adjacent chunks, ensuring that the chunks are still contextually related, improving the overall effect of processing long text",
-    "chunk_size": "Chunk Size",
-    "chunk_size_change_warning": "Chunk size and overlap size changes only apply to new content",
-    "chunk_size_placeholder": "Default (not recommended to change)",
-    "chunk_size_too_large": "Chunk size cannot exceed model context limit ({{max_context}})",
-    "chunk_size_tooltip": "Split documents into chunks, each chunk size, not exceeding model context limit",
-    "clear_selection": "Clear selection",
-    "delete": "Delete",
-    "delete_confirm": "Are you sure you want to delete this knowledge base?",
-    "dimensions": "Embedding dimension",
     "dimensions_auto_set": "Auto-set embedding dimensions",
-    "dimensions_default": "The model will use default embedding dimensions",
-    "dimensions_error_invalid": "Invalid embedding dimension",
-    "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
-    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
     "dimensions_size_tooltip": "Embedding dimension size, the larger the value, the more tokens will be consumed. Leave empty to not pass dimensions parameter.",
-    "directories": "Directories",
-    "directory_placeholder": "Enter Directory Path",
-    "document_count": "Requested Document Chunks",
-    "document_count_default": "Default",
-    "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
     "drag_file": "Drag file here",
-    "drag_image": "Drag image here",
-    "edit_remark": "Edit Remark",
-    "edit_remark_placeholder": "Please enter remark content",
-    "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge Base Embedding Model is required",
-    "empty": "No knowledge base found",
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
@@ -2044,76 +2010,198 @@
       }
     },
     "file_hint": "Support {{file_types}}",
-    "image_hint": "Support {{image_types}}",
-    "images": "Images",
-    "index_all": "Index All",
-    "index_cancelled": "Indexing cancelled",
-    "index_started": "Indexing started",
-    "invalid_url": "Invalid URL",
-    "migrate": {
-      "button": {
-        "text": "Migrate"
-      },
-      "confirm": {
-        "content": "Detected changes in embedding model or dimension, cannot save configuration directly. Knowledge base migration will not delete the existing knowledge base, but will create a copy and then reprocess all knowledge base entries, which may consume a large number of tokens, please proceed with caution.",
-        "ok": "Start Migration",
-        "title": "Knowledge Base Migration"
-      },
-      "error": {
-        "failed": "Migration failed"
-      },
-      "source_dimensions": "Source Dimensions",
-      "source_model": "Source Model",
-      "target_dimensions": "Target Dimensions",
-      "target_model": "Target Model"
-    },
-    "model_info": "Model Info",
-    "name_required": "Knowledge Base Name is required",
-    "no_bases": "No knowledge bases available",
-    "no_match": "No matching content found in the knowledge base.",
-    "no_provider": "Knowledge base model provider is not set, the knowledge base will no longer be supported, please create a new knowledge base",
-    "not_set": "Not Set",
-    "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
-    "notes": "Notes",
-    "notes_placeholder": "Enter additional information or context for this knowledge base...",
     "provider_not_found": "Provider not found",
-    "rename": "Rename",
-    "search": "Search knowledge base",
     "search_placeholder": "Enter text to search",
-    "settings": {
-      "preprocessing": "Preprocessing",
-      "preprocessing_tooltip": "Preprocess uploaded files",
-      "title": "Knowledge Base Settings"
-    },
-    "sitemap_added": "Added successfully",
-    "sitemap_placeholder": "Enter Website Map URL",
-    "sitemaps": "Websites",
-    "source": "Source",
-    "status": "Status",
-    "status_completed": "Completed",
-    "status_embedding_completed": "Embedding Completed",
-    "status_embedding_failed": "Embedding Failed",
-    "status_failed": "Failed",
-    "status_new": "Added",
-    "status_pending": "Pending",
-    "status_preprocess_completed": "Preprocessing Completed",
-    "status_preprocess_failed": "Preprocessing Failed",
-    "status_processing": "Processing",
     "subtitle_file": "subtitle file",
-    "threshold": "Matching threshold",
-    "threshold_placeholder": "Not set",
-    "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
-    "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
     "title": "Knowledge Base",
-    "topN": "Number of results returned",
-    "topN_placeholder": "Not set",
-    "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
-    "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
-    "url_added": "URL added",
-    "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-    "urls": "URLs",
-    "videos": "video",
     "videos_file": "video file"
+  },
+  "knowledge_v2": {
+    "add": {
+      "group": "Group",
+      "icon": "Icon",
+      "submit": "Create",
+      "title": "New Knowledge Base"
+    },
+    "context": {
+      "delete": "Delete Knowledge Base",
+      "delete_confirm_description": "This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "Confirm Knowledge Base Deletion",
+      "move_to": "Move to",
+      "rename": "Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "Delete",
+        "preview_source": "Preview Source",
+        "reindex": "Reindex",
+        "view_chunks": "View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "Recursively import supported files from a folder",
+          "title": "Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "{{count}} directories selected",
+          "selected_files": "{{count}} files selected",
+          "selected_notes": "{{count}} notes selected"
+        },
+        "note": {
+          "description": "Select existing notes as knowledge base sources",
+          "empty_description": "The real note list will appear here after integration. For now, use files, directories, URLs, or sitemaps.",
+          "empty_title": "Note data source is not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "Enter sitemap URL:",
+          "help": "Reads pages listed in the sitemap and indexes them",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "Directory",
+          "file": "File",
+          "note": "Note",
+          "sitemap": "Website",
+          "url": "URL"
+        },
+        "submit": {
+          "error": "Failed to add data source",
+          "success": "Data source added to knowledge base"
+        },
+        "title": "Add Data Source",
+        "url": {
+          "description": "Enter webpage URL:",
+          "help": "Automatically fetches page text and indexes chunks",
+          "input_label": "Webpage URL",
+          "placeholder": "https://docs.cherry-ai.com/",
+          "title": "Import a webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will regenerate it.",
+      "chunk_delete_confirm_title": "Confirm Chunk Deletion",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "Confirm Data Source Deletion",
+      "filters": {
+        "all": "All",
+        "directory": "Directory",
+        "file": "File",
+        "note": "Note",
+        "sitemap": "Website",
+        "url": "URL"
+      },
+      "ready_summary": "{{ready}}/{{total}} ready",
+      "status": {
+        "chunking": "Chunking",
+        "embedding": "Embedding",
+        "error": "Error",
+        "pending": "Pending",
+        "ready": "Ready"
+      }
+    },
+    "dimensions": "Embedding Dimensions",
+    "embedding_model": "Embedding Model",
+    "embedding_model_required": "Knowledge base embedding model is required",
+    "empty": "No knowledge bases yet",
+    "error": {
+      "failed_to_create": "Failed to create knowledge base",
+      "failed_to_edit": "Failed to edit knowledge base"
+    },
+    "groups": {
+      "add": "New Group",
+      "create_base_here": "Create here",
+      "delete": "Delete Group",
+      "delete_confirm_description": "After deletion, knowledge bases in this group will move to Ungrouped.",
+      "delete_confirm_title": "Confirm Group Deletion",
+      "error": {
+        "failed_to_create": "Failed to create group",
+        "failed_to_update": "Failed to rename group"
+      },
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required",
+      "rename": "Rename",
+      "rename_title": "Rename Group",
+      "ungrouped": "Ungrouped"
+    },
+    "meta": {
+      "documents_count": "{{count}} documents"
+    },
+    "name_required": "Knowledge base name is required",
+    "not_set": "Not set",
+    "rag": {
+      "chunk_overlap": "Chunk Overlap",
+      "chunk_overlap_invalid": "Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "Chunk overlap requires chunk size",
+      "chunk_size": "Chunk Size",
+      "chunk_size_change_warning": "Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "Chunk size must be greater than 0",
+      "chunking": "Chunking",
+      "default_separator": "Auto (recommended)",
+      "document_count": "Document Count",
+      "file_processing": "File Processing",
+      "file_processing_hint": "File processing runs automatically during import. Choose a suitable processor to improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "Overlapping token count retained between adjacent chunks to reduce semantic truncation.",
+        "chunk_size": "Target token count for each document chunk, affecting retrieval granularity and context length.",
+        "dimensions": "The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "Maximum number of chunks returned per retrieval. Higher values cover more content but consume more context.",
+        "embedding_model": "Used to convert knowledge base content into vectors. Existing content usually needs reindexing after changing models.",
+        "hybrid_alpha": "Weight of vector score in hybrid search. Higher values favor semantic matching.",
+        "processor": "The parsing processor used when importing files to extract text, tables, and other content.",
+        "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "Choose retrieval mode: vector search for semantic matching, full-text search for keywords, hybrid combines both.",
+        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter."
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "Only configurable in Hybrid search mode",
+      "processor": "Processor",
+      "rerank_disabled": "Disabled",
+      "reset_defaults": "Reset Defaults",
+      "retrieval": "Retrieval Settings",
+      "search_mode": {
+        "bm25": "Full-text Search",
+        "default": "Vector Search",
+        "hybrid": "Hybrid Search (recommended)",
+        "title": "Search Mode"
+      },
+      "separator_rule": "Separator Rule",
+      "threshold": "Similarity Threshold",
+      "tokens_unit": "tokens"
+    },
+    "recall": {
+      "collapse": "Collapse chunk",
+      "copy": "Copy chunk",
+      "duration": "{{duration}}ms",
+      "empty_description": "Results will show matching document chunks and scores",
+      "empty_title": "Enter a query to start retrieval testing",
+      "expand": "Expand chunk",
+      "history_clear": "Clear",
+      "history_remove": "Remove history",
+      "history_title": "Search History",
+      "placeholder": "Enter test query...",
+      "result_count": "{{count}} results",
+      "searching": "Searching...",
+      "submit": "Search",
+      "top_score": "Top: {{score}}"
+    },
+    "rename_title": "Rename Knowledge Base",
+    "search": "Search Knowledge Base",
+    "status": {
+      "completed": "Ready",
+      "failed": "Failed",
+      "processing": "Processing"
+    },
+    "tabs": {
+      "data_source": "Data Sources",
+      "rag_config": "RAG Config",
+      "recall_test": "Recall Test"
+    },
+    "title": "Knowledge Base"
   },
   "languages": {
     "arabic": "Arabic",

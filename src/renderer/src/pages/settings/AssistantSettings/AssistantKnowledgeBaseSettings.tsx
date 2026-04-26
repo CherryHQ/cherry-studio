@@ -1,11 +1,12 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { Box } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
-import { useAppSelector } from '@renderer/store'
+// import { listKnowledgeBases, toLegacyKnowledgeBase } from '@renderer/services/KnowledgeV2Service'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import type { SelectProps } from 'antd'
 import { Row, Segmented, Select } from 'antd'
 import { CircleHelp } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,15 +18,36 @@ interface Props {
 
 const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
   const { t } = useTranslation()
+  const [knowledgeBases] = useState<Assistant['knowledge_bases']>([])
 
-  const knowledgeState = useAppSelector((state) => state.knowledge)
-  const knowledgeOptions: SelectProps['options'] = knowledgeState.bases.map((base) => ({
+  // Knowledge V2 base loading is temporarily disabled while KnowledgeV2Service is removed.
+  // useEffect(() => {
+  //   let disposed = false
+  //
+  //   listKnowledgeBases()
+  //     .then((bases) => {
+  //       if (!disposed) {
+  //         setKnowledgeBases(bases.map(toLegacyKnowledgeBase))
+  //       }
+  //     })
+  //     .catch(() => {
+  //       if (!disposed) {
+  //         setKnowledgeBases([])
+  //       }
+  //     })
+  //
+  //   return () => {
+  //     disposed = true
+  //   }
+  // }, [])
+
+  const knowledgeOptions: SelectProps['options'] = knowledgeBases?.map((base) => ({
     label: base.name,
     value: base.id
   }))
 
   const onUpdate = (value) => {
-    const knowledge_bases = value.map((id) => knowledgeState.bases.find((b) => b.id === id))
+    const knowledge_bases = value.map((id) => knowledgeBases?.find((base) => base.id === id))
     const _assistant = { ...assistant, knowledge_bases }
     updateAssistant(_assistant)
   }

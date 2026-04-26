@@ -2,11 +2,11 @@ import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
@@ -20,11 +20,13 @@ import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
+const logger = loggerService.withContext('BasicDataSettings')
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
-  const { size, removeAllFiles } = useKnowledgeFiles()
+  const knowledgeFilesSize = 0
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
@@ -428,10 +430,10 @@ const BasicDataSettings: React.FC = () => {
   const handleRemoveAllFiles = () => {
     window.modal.confirm({
       centered: true,
-      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(size)}) `,
+      title: t('settings.data.app_knowledge.remove_all') + ` (${formatFileSize(knowledgeFilesSize)}) `,
       content: t('settings.data.app_knowledge.remove_all_confirm'),
       onOk: async () => {
-        await removeAllFiles()
+        logger.warn('Legacy knowledge file cleanup is disabled after Knowledge V1 removal')
         window.toast.success(t('settings.data.app_knowledge.remove_all_success'))
       },
       okText: t('common.delete'),

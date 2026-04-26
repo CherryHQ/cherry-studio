@@ -1,6 +1,6 @@
-import { processKnowledgeSearch } from '@renderer/services/KnowledgeService'
-import type { Assistant, KnowledgeReference } from '@renderer/types'
-import type { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/extract'
+// import { processKnowledgeSearch } from '@renderer/services/KnowledgeV2Service'
+import type { Assistant } from '@renderer/types'
+import type { KnowledgeExtractResults } from '@renderer/utils/extract'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import { isEmpty } from 'lodash'
@@ -61,46 +61,52 @@ You can use this tool as-is, or provide additionalContext to refine the search f
         return []
       }
 
-      // 构建搜索条件
-      let searchCriteria: { question: string[]; rewrite: string }
+      void topicId
+      void userMessage
+      void finalRewrite
+      void knowledgeRecognition
 
-      if (knowledgeRecognition === 'off') {
-        // 直接模式：使用用户消息内容
-        const directContent = userMessage || finalQueries[0] || 'search'
-        searchCriteria = {
-          question: [directContent],
-          rewrite: directContent
-        }
-      } else {
-        // 自动模式：使用意图识别的结果
-        searchCriteria = {
-          question: finalQueries,
-          rewrite: finalRewrite
-        }
-      }
-
-      // 构建 ExtractResults 对象
-      const extractResults: ExtractResults = {
-        websearch: undefined,
-        knowledge: searchCriteria
-      }
-
-      // 执行知识库搜索
-      const knowledgeReferences = await processKnowledgeSearch(extractResults, knowledgeBaseIds, topicId)
-      const knowledgeReferencesData = knowledgeReferences.map((ref: KnowledgeReference) => ({
-        id: ref.id,
-        content: ref.content,
-        sourceUrl: ref.sourceUrl,
-        type: ref.type,
-        file: ref.file,
-        metadata: ref.metadata
-      }))
+      // Knowledge V2 search is temporarily disabled while KnowledgeV2Service is removed.
+      // // 构建搜索条件
+      // let searchCriteria: { question: string[]; rewrite: string }
+      //
+      // if (knowledgeRecognition === 'off') {
+      //   // 直接模式：使用用户消息内容
+      //   const directContent = userMessage || finalQueries[0] || 'search'
+      //   searchCriteria = {
+      //     question: [directContent],
+      //     rewrite: directContent
+      //   }
+      // } else {
+      //   // 自动模式：使用意图识别的结果
+      //   searchCriteria = {
+      //     question: finalQueries,
+      //     rewrite: finalRewrite
+      //   }
+      // }
+      //
+      // // 构建 ExtractResults 对象
+      // const extractResults: ExtractResults = {
+      //   websearch: undefined,
+      //   knowledge: searchCriteria
+      // }
+      //
+      // // 执行知识库搜索
+      // const knowledgeReferences = await processKnowledgeSearch(extractResults, knowledgeBaseIds, topicId)
+      // const knowledgeReferencesData = knowledgeReferences.map((ref: KnowledgeReference) => ({
+      //   id: ref.id,
+      //   content: ref.content,
+      //   sourceUrl: ref.sourceUrl,
+      //   type: ref.type,
+      //   file: ref.file,
+      //   metadata: ref.metadata
+      // }))
 
       // TODO 在工具函数中添加搜索缓存机制
       // const searchCacheKey = `${topicId}-${JSON.stringify(finalQueries)}`
 
       // 返回结果
-      return knowledgeReferencesData
+      return []
     },
     toModelOutput: ({ output: results }) => {
       let summary = 'No search needed based on the query analysis.'

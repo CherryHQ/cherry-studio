@@ -3,12 +3,12 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import { useAppSelector } from '@renderer/store'
+// import { listKnowledgeBases, toLegacyKnowledgeBase } from '@renderer/services/KnowledgeV2Service'
 import type { KnowledgeBase } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -22,12 +22,33 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanelHook = useQuickPanel()
-  const knowledgeState = useAppSelector((state) => state.knowledge)
+  const [knowledgeBases] = useState<KnowledgeBase[]>([])
   const selectedBasesRef = useRef(selectedBases)
 
   useEffect(() => {
     selectedBasesRef.current = selectedBases
   }, [selectedBases])
+
+  // Knowledge V2 base loading is temporarily disabled while KnowledgeV2Service is removed.
+  // useEffect(() => {
+  //   let disposed = false
+  //
+  //   listKnowledgeBases()
+  //     .then((bases) => {
+  //       if (!disposed) {
+  //         setKnowledgeBases(bases.map(toLegacyKnowledgeBase))
+  //       }
+  //     })
+  //     .catch(() => {
+  //       if (!disposed) {
+  //         setKnowledgeBases([])
+  //       }
+  //     })
+  //
+  //   return () => {
+  //     disposed = true
+  //   }
+  // }, [])
 
   const handleBaseSelect = useCallback(
     (base: KnowledgeBase) => {
@@ -43,7 +64,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
   )
 
   const baseItems = useMemo<QuickPanelListItem[]>(() => {
-    const items: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
+    const items: QuickPanelListItem[] = knowledgeBases.map((base) => ({
       label: base.name,
       description: `${base.items.length} ${t('files.count')}`,
       icon: <FileSearch />,
@@ -70,7 +91,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     })
 
     return items
-  }, [knowledgeState.bases, t, selectedBases, handleBaseSelect, navigate, onSelect])
+  }, [knowledgeBases, t, selectedBases, handleBaseSelect, navigate, onSelect])
 
   const openQuickPanel = useCallback(() => {
     quickPanelHook.open({
