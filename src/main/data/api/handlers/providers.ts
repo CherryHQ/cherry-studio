@@ -9,11 +9,13 @@
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
   CreateProviderSchema,
   ListProvidersQuerySchema,
   type ProviderSchemas,
+  UpdateApiKeySchema,
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 
@@ -55,7 +57,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
   '/providers/:providerId/api-keys': {
     GET: async ({ params }) => {
-      const keys = await providerService.getEnabledApiKeys(params.providerId)
+      const keys = await providerService.getApiKeys(params.providerId)
       return { keys }
     },
 
@@ -84,9 +86,36 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     }
   },
 
+  '/providers/:providerId/preset-metadata': {
+    GET: async ({ params }) => {
+      return providerRegistryService.getProviderPresetMetadata(params.providerId)
+    }
+  },
+
   '/providers/:providerId/api-keys/:keyId': {
+    PATCH: async ({ params, body }) => {
+      const parsed = UpdateApiKeySchema.parse(body)
+      return providerService.updateApiKey(params.providerId, params.keyId, parsed)
+    },
+
     DELETE: async ({ params }) => {
       return providerService.deleteApiKey(params.providerId, params.keyId)
+    }
+  },
+
+  '/providers/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await providerService.move(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/providers/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await providerService.reorder(parsed.moves)
+      return undefined
     }
   }
 }

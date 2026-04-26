@@ -9,6 +9,7 @@
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -20,7 +21,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
       presetProviderId: 'openai',
-      name: 'OpenAI'
+      name: 'OpenAI',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
@@ -34,7 +36,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai-work',
       presetProviderId: 'openai',
-      name: 'OpenAI Work'
+      name: 'OpenAI Work',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
@@ -47,7 +50,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,
-      name: 'My Local LLM'
+      name: 'My Local LLM',
+      orderKey: generateOrderKeyBetween(null, null)
     })
 
     await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()

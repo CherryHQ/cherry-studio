@@ -16,8 +16,11 @@ import {
   type EndpointConfig,
   EndpointConfigSchema,
   type Provider,
-  ProviderSettingsSchema
+  type ProviderSettings,
+  ProviderSettingsSchema,
+  type ProviderWebsites
 } from '../../types/provider'
+import type { OrderEndpoints } from './_endpointHelpers'
 import type { EnrichModelsDto } from './models'
 
 // ============================================================================
@@ -72,9 +75,7 @@ export const UpdateProviderSchema = CreateProviderSchema.partial()
   .omit({ providerId: true, presetProviderId: true })
   .extend({
     /** Whether this provider is enabled */
-    isEnabled: z.boolean().optional(),
-    /** Sort order in UI */
-    sortOrder: z.number().int().optional()
+    isEnabled: z.boolean().optional()
   })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
@@ -92,8 +93,20 @@ export const AddProviderApiKeySchema = z.strictObject({
 })
 export type AddProviderApiKeyDto = z.infer<typeof AddProviderApiKeySchema>
 
+/** PATCH /providers/:providerId/api-keys/:keyId body */
+export const UpdateApiKeySchema = z.strictObject({
+  key: z.string().min(1).optional(),
+  label: z.string().optional(),
+  isEnabled: z.boolean().optional()
+})
+export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
+
+export interface ProviderPresetMetadata {
+  websites?: ProviderWebsites
+}
+
 // Re-exported for handler-side re-use
-export type { ApiKeyEntry, AuthConfig, EndpointConfig }
+export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }
 
 /**
  * Provider API Schema definitions
@@ -206,13 +219,31 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Delete a specific API key by ID
+   * Read-only preset metadata for a provider.
+   * Returns registry-backed display metadata without widening the runtime
+   * Provider contract.
+   */
+  '/providers/:providerId/preset-metadata': {
+    GET: {
+      params: { providerId: string }
+      response: ProviderPresetMetadata
+    }
+  }
+
+  /**
+   * Manage a specific API key by ID
+   * @example PATCH /providers/openai/api-keys/abc-123 { "label": "Primary" }
    * @example DELETE /providers/openai/api-keys/abc-123
    */
   '/providers/:providerId/api-keys/:keyId': {
+    PATCH: {
+      params: { providerId: string; keyId: string }
+      body: UpdateApiKeyDto
+      response: Provider
+    }
     DELETE: {
       params: { providerId: string; keyId: string }
       response: Provider
     }
   }
-}
+} & OrderEndpoints<'/providers'>

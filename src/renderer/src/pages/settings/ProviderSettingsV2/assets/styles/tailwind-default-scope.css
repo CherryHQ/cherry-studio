@@ -1,0 +1,203 @@
+/*
+ * Provider settings — scoped theme (`.provider-settings-default-scope`)
+ *
+ * Local semantic palette + atomic layout/type tokens for the **provider detail column** only, so we can align
+ * to design mocks without changing app-wide `:root` / global Tailwind theme.
+ *
+ * - **Atoms here** — spacing, radii, font steps, soft borders/surfaces, scroll max-height, chip refs, etc.
+ * - **Compose in TS** — `ProviderSettingsPrimitives.tsx` (`actionClasses`, `fieldClasses`, `modelListClasses`, …).
+ * - **Bridge `--color-*`** — utilities from `@cherrystudio/ui` often resolve `var(--color-foreground)` etc.; those
+ *   are normally `:root`-bound, so this block shadows `--color-*` to the same values as `--foreground`, … inside
+ *   the shell only.
+ *
+ * **Workflow** — add or adjust variables (and bridge) first; then extend `*Classes`; then TSX. Cross-links:
+ * `ProviderSetting.tsx` (shell node), `ModelList.tsx` (heavy `modelListClasses` consumer).
+ */
+.provider-settings-default-scope {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #00b96b;
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --radius-4xs: 0.25rem;
+  --radius-3xs: 0.5rem;
+  --radius-2xs: 0.625rem;
+  --radius-xs: 0.75rem;
+  --radius-sm: 0.875rem;
+  --radius-md: 1rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-round: 9999px;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --cherry-active-bg: rgba(107, 114, 128, 0.08);
+  --cherry-active-border: rgba(107, 114, 128, 0.15);
+  --cherry-primary: #6b7280;
+  --cherry-primary-hover: #9ca3af;
+  --cherry-primary-dark: #4b5563;
+  --cherry-text-muted: rgba(107, 114, 128, 0.7);
+  /*
+   * Atomic tokens for this scope (spacing / type / soft surfaces). Compose in components; do not name by screen.
+   * Caption scale 0.8125rem aligns with endpoint tabs here; section titles use larger type for hierarchy.
+   */
+  --space-inline-xs: 0.375rem;
+  --space-inline-sm: 0.5rem;
+  --space-inline-md: 0.75rem;
+  --space-stack-2xs: 0.25rem;
+  --space-stack-xs: 0.5rem;
+  --space-stack-sm: 0.625rem;
+  --radius-control: var(--radius-lg);
+  --font-size-caption: 0.8125rem;
+  --line-height-caption: 1.25;
+  --padding-x-control: 0.75rem;
+  --padding-y-control: 0.375rem;
+  --padding-x-control-compact: 0.5rem;
+  --padding-y-control-compact: 0.1875rem;
+  --icon-size-caption: 0.8125rem;
+  --icon-size-body-xs: 0.75rem;
+  --color-border-default-soft: color-mix(in srgb, var(--border) 25%, transparent);
+  --color-fg-subtle: color-mix(in srgb, var(--foreground) 70%, transparent);
+  /* 1rem (16px): block title (e.g. 模型); stays above caption tier; not shrinking to smaller design-only specs */
+  --font-size-heading-sm: 1rem;
+  --line-height-heading-sm: 1.3;
+  /* 0.875rem (14px): search field + empty-state body */
+  --font-size-body-md: 0.875rem;
+  --line-height-body-md: 1.4;
+  /* 连接认证 / 模型 等区块标题：与 `ProviderSection` 标题同字阶，行高略紧于正文 1.4 */
+  --line-height-section-label: 1.3;
+  /* 0.9375rem (15px): list row primary name; half step above body-md for scan readability vs matching smaller mock px */
+  --font-size-row-title: 0.9375rem;
+  --line-height-row-title: 1.2;
+  /* 0.75rem (12px): id badge / secondary identifiers only; smallest tier in this shell */
+  --font-size-body-xs: 0.75rem;
+  --line-height-body-xs: 1.2;
+  /*
+   * Model category pills: `rounded-full` in UI for Figma “infinite” radius.
+   * Label/count align to shell caption + body-xs for readability (strict 9px/8px mock was too small).
+   */
+  --font-size-chip-label: var(--font-size-caption);
+  --font-size-chip-count: var(--font-size-body-xs);
+  --color-border-fg-hairline: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --color-surface-fg-sunken: color-mix(in srgb, var(--foreground) 3%, transparent);
+  --color-surface-fg-subtle: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --color-border-fg-muted: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --color-surface-fg-muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  /* Matches prior hover:bg-accent/40 intent; follows --accent in light/dark */
+  --color-surface-hover-soft: color-mix(in srgb, var(--accent) 40%, transparent);
+  --padding-x-list-group: 0.875rem;
+  /* Unify outer list scroller with virtual list max (was 380 vs 390) */
+  --max-height-scroll-sm: 390px;
+  /*
+   * Bridge shadcn-style tokens above to Tailwind `@theme` / `text-foreground` etc.
+   * Those utilities resolve `var(--color-foreground)` from @cherrystudio/ui — that
+   * variable is normally only set on `:root`, so it would NOT follow this scope
+   * unless we shadow `--color-*` here to point at the same values as `--foreground`, …
+   */
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Dark: same scope node; only semantic palette overrides (atoms above inherit unless reset here). */
+.dark .provider-settings-default-scope {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --radius-4xs: 0.25rem;
+  --radius-3xs: 0.5rem;
+  --radius-2xs: 0.625rem;
+  --radius-xs: 0.75rem;
+  --radius-sm: 0.875rem;
+  --radius-md: 1rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-round: 9999px;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+  --cherry-active-bg: rgba(156, 163, 175, 0.06);
+  --cherry-active-border: rgba(156, 163, 175, 0.1);
+  --cherry-primary: #9ca3af;
+  --cherry-primary-hover: #d1d5db;
+  --cherry-primary-dark: #6b7280;
+  --cherry-text-muted: rgba(156, 163, 175, 0.7);
+}

@@ -1,0 +1,78 @@
+import IndicatorLight from '@renderer/components/IndicatorLight'
+import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import CustomTag from '@renderer/components/Tags/CustomTag'
+import { getProviderLabel } from '@renderer/i18n/label'
+import NavigationService from '@renderer/services/NavigationService'
+import { ArrowUpRight } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+interface Props {
+  modelId: string
+  providerId: string
+  showLabel?: boolean
+}
+
+export const FreeTrialModelTagV2: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
+  const { t } = useTranslation()
+
+  if (providerId !== 'cherryai') {
+    return null
+  }
+
+  const rawId = modelId.includes('::') ? modelId.slice(modelId.indexOf('::') + 2) : modelId
+  const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
+  const linkedProviderId = cherryInModels.includes(rawId) ? 'cherryin' : ''
+  if (!linkedProviderId) return null
+
+  const onSelectProvider = () => {
+    void NavigationService.navigate?.({ to: '/settings/provider-v2', search: { id: linkedProviderId } })
+  }
+
+  const onNavigateProvider = (e: MouseEvent) => {
+    e.stopPropagation()
+    SelectModelPopup.hide()
+    void NavigationService.navigate?.({ to: '/settings/provider-v2', search: { id: linkedProviderId } })
+  }
+
+  if (!showLabel) {
+    return (
+      <Container>
+        <CustomTag
+          color="var(--color-link)"
+          size={11}
+          onClick={onNavigateProvider}
+          style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {getProviderLabel(linkedProviderId)}
+          <ArrowUpRight size={12} />
+        </CustomTag>
+      </Container>
+    )
+  }
+
+  return (
+    <Container>
+      <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
+      <PoweredBy>{t('common.powered_by')}</PoweredBy>
+      <LinkText onClick={onSelectProvider}>{getProviderLabel(linkedProviderId)}</LinkText>
+    </Container>
+  )
+}
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+`
+
+const PoweredBy = styled.span`
+  font-size: 12px;
+  color: var(--color-text-2);
+`
+
+const LinkText = styled.a`
+  font-size: 12px;
+  color: var(--color-link);
+`

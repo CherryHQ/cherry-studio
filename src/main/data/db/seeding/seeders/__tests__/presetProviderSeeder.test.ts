@@ -9,6 +9,7 @@
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -58,7 +59,9 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
   })
 
   it('should NOT re-insert openai when it already exists in DB', async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'User-renamed OpenAI' })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'openai', name: 'User-renamed OpenAI', orderKey: generateOrderKeyBetween(null, null) })
 
     const seed = new PresetProviderSeeder()
     await seed.run(dbh.db)
@@ -74,10 +77,11 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
   })
 
   it('should not insert anything when all providers (including cherryai) already exist', async () => {
+    const [openaiKey, anthropicKey, cherryaiKey] = generateOrderKeySequence(3)
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai', name: 'OpenAI' },
-      { providerId: 'anthropic', name: 'Anthropic' },
-      { providerId: 'cherryai', name: 'CherryAI' }
+      { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
+      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey },
+      { providerId: 'cherryai', name: 'CherryAI', orderKey: cherryaiKey }
     ])
     const before = await dbh.db.select().from(userProviderTable)
 

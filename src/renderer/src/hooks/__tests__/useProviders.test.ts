@@ -9,6 +9,7 @@ import {
   useProviderApiKeys,
   useProviderAuthConfig,
   useProviderMutations,
+  useProviderPresetMetadata,
   useProviderRegistryModels,
   useProviders
 } from '../useProviders'
@@ -287,6 +288,19 @@ describe('useProviderMutations', () => {
     })
   })
 
+  it('should set up PATCH api-key mutation with /* wildcard refresh', () => {
+    renderHook(() => useProviderMutations('openai'))
+
+    const updateKeyCall = mockUseMutation.mock.calls.find(
+      (c: any[]) => c[0] === 'PATCH' && c[1] === '/providers/:providerId/api-keys/:keyId'
+    )
+
+    expect(updateKeyCall).toBeDefined()
+    expect(updateKeyCall![2]).toEqual({
+      refresh: ['/providers', '/providers/openai', '/providers/openai/*']
+    })
+  })
+
   it('should build correct refresh paths for hyphenated provider IDs', () => {
     renderHook(() => useProviderMutations('openai-main'))
 
@@ -559,6 +573,29 @@ describe('useProviderMutations', () => {
     expect(loggerSpy).toHaveBeenCalledWith('Failed to update API keys', { providerId: 'openai', error })
   })
 
+  it('should call updateApiKey trigger with providerId, keyId and body', async () => {
+    const updateKeyTrigger = vi.fn().mockResolvedValue({})
+    mockUseMutation.mockImplementation((_method: string, path: string) => ({
+      trigger:
+        _method === 'PATCH' && path === '/providers/:providerId/api-keys/:keyId'
+          ? updateKeyTrigger
+          : vi.fn().mockResolvedValue({}),
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result } = renderHook(() => useProviderMutations('openai'))
+
+    await act(async () => {
+      await result.current.updateApiKey('key-1', { label: 'Primary', isEnabled: false })
+    })
+
+    expect(updateKeyTrigger).toHaveBeenCalledWith({
+      params: { providerId: 'openai', keyId: 'key-1' },
+      body: { label: 'Primary', isEnabled: false }
+    })
+  })
+
   it('should expose isUpdating and isDeleting loading states', () => {
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
       trigger: vi.fn(),
@@ -715,6 +752,40 @@ describe('useProviderRegistryModels', () => {
     renderHook(() => useProviderRegistryModels('openai-main'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/registry-models', {
+      params: { providerId: 'openai-main' }
+    })
+  })
+})
+
+describe('useProviderPresetMetadata', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should query preset metadata for a provider', () => {
+    const mockMetadata = { websites: { official: 'https://openai.com' } }
+    mockUseQuery.mockImplementation(() => ({
+      data: mockMetadata,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderPresetMetadata('openai'))
+
+    expect(result.current.data).toEqual(mockMetadata)
+    expect(result.current.isLoading).toBe(false)
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/preset-metadata', {
+      params: { providerId: 'openai' }
+    })
+  })
+
+  it('should build correct params for hyphenated provider IDs', () => {
+    renderHook(() => useProviderPresetMetadata('openai-main'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/preset-metadata', {
       params: { providerId: 'openai-main' }
     })
   })

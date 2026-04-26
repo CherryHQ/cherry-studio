@@ -226,6 +226,24 @@ describe('orderKey', () => {
       expect(await readIds()).toEqual(['b', 'c', 'a'])
     })
 
+    it('dedups by last occurrence order before applying sequential moves', async () => {
+      await seedFx(['a', 'b', 'c', 'd'])
+      await dbh.db.transaction(async (tx) => {
+        await applyMoves(
+          tx,
+          fxTable,
+          [
+            { id: 'a', anchor: { position: 'last' } },
+            { id: 'd', anchor: { before: 'a' } },
+            { id: 'a', anchor: { position: 'last' } }
+          ],
+          { pkColumn: fxTable.id }
+        )
+      })
+
+      expect(await readIds()).toEqual(['d', 'b', 'c', 'a'])
+    })
+
     it('is a no-op when newKey === currentKey', async () => {
       await seedFx(['a', 'b', 'c'])
       const before = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))

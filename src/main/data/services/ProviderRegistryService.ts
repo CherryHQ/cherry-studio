@@ -17,6 +17,7 @@ import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
+import type { ProviderPresetMetadata } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
 import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { createCustomModel, extractReasoningFormatTypes, mergePresetModel } from '@shared/data/utils/modelMerger'
@@ -109,6 +110,26 @@ class ProviderRegistryService {
 
       logger.error('Failed to fetch provider for reasoning config', error as Error)
       throw error
+    }
+  }
+
+  /**
+   * Get read-only preset metadata for a provider.
+   *
+   * Resolves custom providers through `presetProviderId` so renderer code can
+   * request metadata by runtime provider ID without knowing the preset linkage.
+   *
+   * Used by: `GET /providers/:providerId/preset-metadata`
+   */
+  async getProviderPresetMetadata(providerId: string): Promise<ProviderPresetMetadata> {
+    const provider = await providerService.getByProviderId(providerId)
+    const presetProviderId = provider.presetProviderId ?? provider.id
+    const registryProvider = this.getLoader()
+      .loadProviders()
+      .find((p) => p.id === presetProviderId)
+
+    return {
+      websites: registryProvider?.metadata?.website
     }
   }
 

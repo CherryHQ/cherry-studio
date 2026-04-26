@@ -31,7 +31,7 @@ const SettingsPage: FC = () => {
   const { pathname } = location
   const { t } = useTranslation()
 
-  const isActive = (path: string) => pathname.startsWith(path)
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
 
   return (
@@ -47,6 +47,12 @@ const SettingsPage: FC = () => {
               label={t('settings.provider.title')}
               active={isActive('/settings/provider')}
               onClick={() => go('/settings/provider')}
+            />
+            <MenuItem
+              icon={<Cloud size={18} />}
+              label={`${t('settings.provider.title')} V2`}
+              active={isActive('/settings/provider-v2')}
+              onClick={() => go('/settings/provider-v2')}
             />
             <MenuItem
               icon={<Package size={18} />}

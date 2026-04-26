@@ -57,6 +57,8 @@ export { default as ImageToolButton } from './composites/ImageToolButton'
 // MenuList
 export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/MenuList'
 export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/MenuList'
+// ReorderableList
+export { ReorderableList, type ReorderableListProps } from './composites/ReorderableList'
 // Sortable
 export {
   CompositeInput,

@@ -1,0 +1,106 @@
+import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { useProvider } from '@renderer/hooks/useProviders'
+import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
+import { Copy, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
+import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import ProviderField from './ProviderField'
+import ProviderSection from './ProviderSection'
+import { fieldClasses } from './ProviderSettingsPrimitives'
+
+interface ApiKeyProps {
+  providerId: string
+  apiKeyConnectivity: ApiKeyConnectivity
+  onShowApiKeyError: () => void
+}
+
+export default function ApiKey({ providerId, apiKeyConnectivity, onShowApiKeyError }: ApiKeyProps) {
+  const { t } = useTranslation()
+  const { provider } = useProvider(providerId)
+  const meta = useProviderMeta(providerId)
+  const { inputApiKey, setInputApiKey, serverApiKey } = useAuthenticationApiKey()
+  const [showApiKey, setShowApiKey] = useState(false)
+
+  useEffect(() => {
+    setShowApiKey(false)
+  }, [provider?.id])
+
+  if (!provider || !meta.isApiKeyFieldVisible) {
+    return null
+  }
+
+  return (
+    <ProviderSection>
+      <ProviderField
+        className="space-y-2.5"
+        title={t('settings.provider.api_key.label')}
+        action={
+          meta.apiKeyWebsite && !meta.isDmxapi ? (
+            <a
+              href={meta.apiKeyWebsite}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-(--color-primary) text-[12px] leading-[1.35] hover:underline">
+              {t('settings.provider.get_api_key')}
+            </a>
+          ) : undefined
+        }>
+        <div className={fieldClasses.inputRow}>
+          <InputGroup className={fieldClasses.inputGroup}>
+            <InputGroupInput
+              type={showApiKey ? 'text' : 'password'}
+              className={fieldClasses.input}
+              value={inputApiKey}
+              placeholder={t('settings.provider.api_key.label')}
+              onChange={(event) => setInputApiKey(event.target.value)}
+              autoFocus={provider.isEnabled && !serverApiKey}
+              disabled={provider.id === 'copilot'}
+            />
+            {provider.id !== 'copilot' && (
+              <InputGroupAddon align="inline-end">
+                <Tooltip
+                  content={
+                    showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
+                  }>
+                  <button
+                    type="button"
+                    className={fieldClasses.apiKeyVisibilityToggle}
+                    onClick={() => setShowApiKey((v) => !v)}>
+                    {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                  </button>
+                </Tooltip>
+              </InputGroupAddon>
+            )}
+            {apiKeyConnectivity.status === 'failed' && !apiKeyConnectivity.checking && (
+              <InputGroupAddon align="inline-end">
+                <WarnTooltip
+                  content={apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
+                  onClick={onShowApiKeyError}
+                />
+              </InputGroupAddon>
+            )}
+          </InputGroup>
+          <Tooltip content={t('settings.provider.api_key.copy')}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                disabled={provider.id === 'copilot' || !inputApiKey}
+                className={fieldClasses.iconButton}
+                onClick={() => {
+                  if (!inputApiKey) {
+                    return
+                  }
+                  void navigator.clipboard.writeText(inputApiKey)
+                }}>
+                <Copy size={12} />
+              </button>
+            </span>
+          </Tooltip>
+        </div>
+      </ProviderField>
+    </ProviderSection>
+  )
+}

@@ -6,6 +6,7 @@ import {
   normalizeKnowledgeBaseConfigDependencies,
   validateKnowledgeBaseConfig
 } from '@data/services/KnowledgeBaseService'
+import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -24,9 +25,10 @@ describe('KnowledgeBaseService', () => {
 
   /** FK targets for embedding_model_id / rerank_model_id → user_model.id */
   async function seedUserProvidersAndModelsForKb() {
+    const [openaiKey, cohereKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai', name: 'OpenAI' },
-      { providerId: 'cohere', name: 'Cohere' }
+      { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
+      { providerId: 'cohere', name: 'Cohere', orderKey: cohereKey }
     ])
     await dbh.db.insert(userModelTable).values([
       {
