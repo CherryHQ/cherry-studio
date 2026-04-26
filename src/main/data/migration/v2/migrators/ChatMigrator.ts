@@ -772,12 +772,22 @@ export class ChatMigrator extends BaseMigrator {
     const db = ctx.db
 
     // Phase 1: assign orderKey to every topic, scoped by groupId.
-    const stampedTopics = assignOrderKeysByScope(
-      this.stagedTopics.map((d) => d.topic),
-      (t) => t.groupId
-    )
-    for (let i = 0; i < this.stagedTopics.length; i++) {
-      this.stagedTopics[i].topic.orderKey = stampedTopics[i].orderKey
+    // Sort by `updatedAt DESC` before stamping so the stamped order matches
+    // the default unpinned-topic sort (`TopicService.listByCursor` sorts by
+    // `updatedAt DESC`). Without this sort, orderKey would reflect arbitrary
+    // stream-arrival order and surface as a bug if a future drag-mode toggle
+    // ever falls back to orderKey ordering. Using a stable copy keeps the
+    // side effect off `this.stagedTopics`; ties preserve insertion order.
+    const sortedTopics = [...this.stagedTopics]
+      .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
+      .map((d) => d.topic)
+    const stampedTopics = assignOrderKeysByScope(sortedTopics, (t) => t.groupId)
+    const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
+    for (const data of this.stagedTopics) {
+      const orderKey = orderKeyById.get(data.topic.id)
+      if (orderKey) {
+        data.topic.orderKey = orderKey
+      }
     }
 
     // Phase 2: insert topics + messages in batches.
