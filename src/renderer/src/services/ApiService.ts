@@ -789,7 +789,7 @@ export async function fetchModels(provider: Provider): Promise<Model[]> {
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,
       providerName: provider.name,
-      error: error as Error
+      error: error instanceof Error ? error.message : String(error)
     })
     return []
   }
