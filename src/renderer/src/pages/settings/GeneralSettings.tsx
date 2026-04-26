@@ -105,8 +105,8 @@ const GeneralSettings: FC = () => {
   const { t } = useTranslation()
   const defaultAssistant = useSelector((state: RootState) => state.assistants.defaultAssistant)
 
-  const KNOWN_DEFAULT_ASSISTANT_NAMES = ['Default Assistant', '默认助手', '預設助手']
-  const KNOWN_DEFAULT_TOPIC_NAMES = ['Default Topic', '默认话题', '預設話題']
+  const getDefaultNamesForKey = (key: string): Set<string> =>
+    new Set(Object.keys(i18n.store.data).map((locale) => i18n.getFixedT(locale)(key)))
 
   const onSelectLanguage = async (value: LanguageVarious) => {
     dispatch(setLanguage(value))
@@ -114,10 +114,11 @@ const GeneralSettings: FC = () => {
     void window.api.setLanguage(value)
     await i18n.changeLanguage(value)
 
-    if (KNOWN_DEFAULT_ASSISTANT_NAMES.includes(defaultAssistant.name)) {
+    if (getDefaultNamesForKey('chat.default.name').has(defaultAssistant.name)) {
       const newName = i18n.t('chat.default.name')
+      const knownTopicNames = getDefaultNamesForKey('chat.default.topic.name')
       const updatedTopics = defaultAssistant.topics.map((topic) =>
-        KNOWN_DEFAULT_TOPIC_NAMES.includes(topic.name) ? { ...topic, name: i18n.t('chat.default.topic.name') } : topic
+        knownTopicNames.has(topic.name) ? { ...topic, name: i18n.t('chat.default.topic.name') } : topic
       )
       dispatch(updateDefaultAssistant({ assistant: { ...defaultAssistant, name: newName, topics: updatedTopics } }))
       dispatch(updateAssistant({ id: defaultAssistant.id, name: newName, topics: updatedTopics }))
