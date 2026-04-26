@@ -13,6 +13,8 @@ import { BackupProgressTracker } from './progress/BackupProgressTracker'
 
 const logger = loggerService.withContext('BackupService')
 
+const COMPLETED_OP_RETENTION_MS = 5_000
+
 type OperationType = 'backup' | 'restore'
 
 interface ActiveOperation {
@@ -25,6 +27,7 @@ interface ActiveOperation {
 @ServicePhase(Phase.WhenReady)
 export class BackupService extends BaseService {
   private readonly activeOps = new Map<string, ActiveOperation>()
+  private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>()
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
@@ -33,6 +36,8 @@ export class BackupService extends BaseService {
 
   protected async onStop(): Promise<void> {
     for (const [, op] of this.activeOps) op.token.cancel()
+    for (const timer of this.cleanupTimers) clearTimeout(timer)
+    this.cleanupTimers.clear()
     this.activeOps.clear()
   }
 
@@ -57,7 +62,7 @@ export class BackupService extends BaseService {
               tracker.reportError(err as Error)
             }
           })
-          .finally(() => this.activeOps.delete(opId))
+          .finally(() => this.finalizeOperation(opId))
 
         return { backupId: opId }
       }
@@ -92,7 +97,7 @@ export class BackupService extends BaseService {
               tracker.reportError(err as Error)
             }
           })
-          .finally(() => this.activeOps.delete(opId))
+          .finally(() => this.finalizeOperation(opId))
 
         return { restoreId: opId }
       }
@@ -123,15 +128,30 @@ export class BackupService extends BaseService {
     })
   }
 
+  private finalizeOperation(opId: string): void {
+    this.broadcastProgress(opId)
+    const timer = setTimeout(() => {
+      this.activeOps.delete(opId)
+      this.cleanupTimers.delete(timer)
+    }, COMPLETED_OP_RETENTION_MS)
+    this.cleanupTimers.add(timer)
+  }
+
+  private broadcastProgress(opId: string): void {
+    const op = this.activeOps.get(opId)
+    if (!op) return
+    const progress = op.type === 'restore' ? op.tracker.getRestoreProgress() : op.tracker.getBackupProgress()
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(IpcChannel.BackupV2_Progress, { operationId: opId, ...progress })
+      }
+    })
+  }
+
   private startProgressBroadcast(): void {
     const interval = setInterval(() => {
-      for (const [id, op] of this.activeOps) {
-        const progress = op.type === 'restore' ? op.tracker.getRestoreProgress() : op.tracker.getBackupProgress()
-        BrowserWindow.getAllWindows().forEach((win) => {
-          if (!win.isDestroyed()) {
-            win.webContents.send(IpcChannel.BackupV2_Progress, { operationId: id, ...progress })
-          }
-        })
+      for (const [id] of this.activeOps) {
+        this.broadcastProgress(id)
       }
     }, 200)
     this.registerDisposable(() => clearInterval(interval))
