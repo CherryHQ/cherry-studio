@@ -268,20 +268,33 @@ export class TopicService {
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
-    // Verify topic exists
-    await this.getById(id)
+    const topic = await db.transaction(async (tx) => {
+      // Verify topic exists (inline check — getById has no tx-aware overload).
+      const [existing] = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+        .limit(1)
+      if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
 
-    const updates: Partial<typeof topicTable.$inferInsert> = {}
-    if (dto.name !== undefined) updates.name = dto.name
-    if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
-    if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
-    if (dto.groupId !== undefined) updates.groupId = dto.groupId
+      const updates: Partial<typeof topicTable.$inferInsert> = {}
+      if (dto.name !== undefined) updates.name = dto.name
+      if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
+      if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
-    const [row] = await db.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
+      const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
+      // Defensive: the transaction collapses the getById-then-write race, but
+      // surface a clean NOT_FOUND if the row vanished anyway instead of letting
+      // rowToTopic crash on undefined.
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+
+      return rowToTopic(row)
+    })
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
-    return rowToTopic(row)
+    return topic
   }
 
   /**
