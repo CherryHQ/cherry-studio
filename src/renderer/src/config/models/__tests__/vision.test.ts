@@ -104,6 +104,11 @@ describe('vision helpers', () => {
     it('returns false when openai-response model is not on allow list', () => {
       expect(isGenerateImageModel(createModel({ id: 'gpt-4.2-experimental' }))).toBe(false)
     })
+
+    it('recognizes versioned GPT image models routed through OpenRouter', () => {
+      expect(isGenerateImageModel(createModel({ id: 'gpt-5.4-image-2', provider: 'openrouter' }))).toBe(true)
+      expect(isPureGenerateImageModel(createModel({ id: 'gpt-5.4-image-2', provider: 'openrouter' }))).toBe(true)
+    })
   })
 
   describe('isPureGenerateImageModel', () => {
@@ -122,12 +127,17 @@ describe('vision helpers', () => {
 
     it('detects models with restricted image size support and enhancement', () => {
       expect(isImageEnhancementModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
+      expect(isImageEnhancementModel(createModel({ id: 'gpt-5.4-image-2', provider: 'openrouter' }))).toBe(true)
       expect(isImageEnhancementModel(createModel({ id: 'gpt-4o' }))).toBe(false)
     })
 
     it('identifies dedicated and auto-enabled image generation models', () => {
       expect(isDedicatedImageGenerationModel(createModel({ id: 'grok-2-image-1212' }))).toBe(true)
       expect(isAutoEnableImageGenerationModel(createModel({ id: 'gemini-2.5-flash-image-ultra' }))).toBe(true)
+      expect(isDedicatedImageGenerationModel(createModel({ id: 'gpt-5.4-image-2', provider: 'openrouter' }))).toBe(true)
+      expect(isAutoEnableImageGenerationModel(createModel({ id: 'gpt-5.4-image-2', provider: 'openrouter' }))).toBe(
+        true
+      )
     })
 
     it('returns false when models are not in dedicated or auto-enable sets', () => {
