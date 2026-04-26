@@ -272,8 +272,6 @@
   /* Runtime Theme Inputs */
   /* ==================== */
   --cs-theme-primary: var(--cs-primary);
-  --cs-user-font-family: initial;
-  --cs-user-code-font-family: initial;
 
   /* ==================== */
   /* Compatibility Aliases */

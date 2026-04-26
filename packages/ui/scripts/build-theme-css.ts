@@ -8,11 +8,7 @@ const __dirname = path.dirname(__filename)
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-const RUNTIME_THEME_INPUT_LINES = [
-  '--cs-theme-primary: var(--cs-primary);',
-  '--cs-user-font-family: initial;',
-  '--cs-user-code-font-family: initial;'
-]
+const RUNTIME_THEME_INPUT_LINES = ['--cs-theme-primary: var(--cs-primary);']
 
 const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);']
 

@@ -12,6 +12,8 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain("@import './tokens.css';")
     expect(css).toContain('/* Runtime Theme Inputs */')
     expect(css).toContain('--cs-theme-primary: var(--cs-primary);')
+    expect(css).not.toContain('--cs-user-font-family:')
+    expect(css).not.toContain('--cs-user-code-font-family:')
     expect(css).toContain('/* Compatibility Aliases */')
     expect(css).toContain('--primary: var(--color-primary);')
     expect(css).toContain('--color-neutral-50: var(--cs-neutral-50);')
