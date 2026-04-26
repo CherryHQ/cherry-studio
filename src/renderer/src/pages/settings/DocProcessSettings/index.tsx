@@ -200,8 +200,8 @@ const DocProcessSettings: FC = () => {
 
     if (activeEntry.kind === 'ocr') {
       return (
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background shadow-xs">
-          <div className="flex size-6 shrink-0 items-center justify-center [&_svg]:size-4.5 [&_svg]:shrink-0 [&_svg]:text-background">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted shadow-xs">
+          <div className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md text-foreground [&_svg]:size-4.5 [&_svg]:shrink-0">
             <OcrProviderLogo provider={activeEntry.provider} size={18} />
           </div>
         </div>

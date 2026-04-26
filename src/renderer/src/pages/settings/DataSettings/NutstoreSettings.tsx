@@ -211,7 +211,7 @@ const NutstoreSettings: FC = () => {
         {isLogin ? (
           <RowFlex className="items-center justify-between gap-1.25">
             <Button
-              variant={nsConnected ? 'ghost' : 'default'}
+              variant={nsConnected ? 'ghost' : 'outline'}
               onClick={handleCheckConnection}
               disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
@@ -227,7 +227,9 @@ const NutstoreSettings: FC = () => {
             </Button>
           </RowFlex>
         ) : (
-          <Button onClick={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
+          <Button onClick={handleClickNutstoreSSO} variant="outline">
+            {t('settings.data.nutstore.login.button')}
+          </Button>
         )}
       </SettingRow>
       <SettingDivider />
@@ -250,7 +252,7 @@ const NutstoreSettings: FC = () => {
                   void setNutstorePath(e.target.value)
                 }}
               />
-              <Button variant="default" onClick={handleClickPathChange} size="icon">
+              <Button variant="outline" onClick={handleClickPathChange} size="icon">
                 <FolderOutlined />
               </Button>
             </RowFlex>
@@ -259,10 +261,10 @@ const NutstoreSettings: FC = () => {
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
             <RowFlex className="justify-between gap-1.25">
-              <Button onClick={showBackupModal} disabled={backuping}>
+              <Button onClick={showBackupModal} disabled={backuping} variant="outline">
                 {t('settings.data.nutstore.backup.button')}
               </Button>
-              <Button onClick={showBackupManager} disabled={!nutstoreToken}>
+              <Button onClick={showBackupManager} disabled={!nutstoreToken} variant="outline">
                 {t('settings.data.nutstore.restore.button')}
               </Button>
             </RowFlex>

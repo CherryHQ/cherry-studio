@@ -1,8 +1,8 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { cn } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
-import { CircleAlert, CircleCheckBig, FolderOpen, Package } from 'lucide-react'
+import { CircleAlert, FolderOpen, Package } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,19 +36,16 @@ const DependencyCard: FC<DependencyCardProps> = ({
   onOpenPath,
   t
 }) => (
-  <div
-    className={cn(
-      'flex min-h-0 items-center gap-4 rounded-lg border border-border/80 bg-background px-3.5 py-3 transition-colors',
-      !installed && 'border-warning/30'
-    )}>
-    <div className="min-w-0 flex-1">
+  <Item
+    variant="outline"
+    className={cn('min-h-0 w-full flex-nowrap border-border/80 px-3.5 py-3', !installed && 'border-warning/30')}>
+    <ItemContent className="min-w-0 gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="font-semibold text-foreground text-sm">{name}</div>
+        <ItemTitle>{name}</ItemTitle>
         {installed ? (
           <Badge
             variant="outline"
-            className="gap-1 rounded-full border-primary/25 bg-primary/8 px-2 py-0.5 text-primary text-xs">
-            <CircleCheckBig className="size-3.5" />
+            className="rounded-md border-transparent bg-primary/8 px-1.5 py-0 font-normal text-[11px] text-primary">
             {t('settings.skills.installed')}
           </Badge>
         ) : (
@@ -58,7 +55,7 @@ const DependencyCard: FC<DependencyCardProps> = ({
           </Badge>
         )}
       </div>
-      <div className="mt-1 text-muted-foreground text-xs leading-5">{description}</div>
+      <ItemDescription className="line-clamp-none text-xs leading-5">{description}</ItemDescription>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/75">
         <span className="truncate">
           {installed ? path || name : `${name} ${t('settings.mcp.missingDependencies')}`}
@@ -75,14 +72,16 @@ const DependencyCard: FC<DependencyCardProps> = ({
           <FolderOpen className="size-3.5 shrink-0" />
         </button>
       </div>
-    </div>
+    </ItemContent>
 
-    {!installed && (
-      <Button size="sm" className="shrink-0 rounded-lg shadow-none" onClick={onInstall} disabled={installing}>
-        {installing ? t('settings.mcp.dependenciesInstalling') : actionLabel}
-      </Button>
-    )}
-  </div>
+    <ItemActions className="shrink-0">
+      {!installed && (
+        <Button size="sm" className="shrink-0 rounded-lg shadow-none" onClick={onInstall} disabled={installing}>
+          {installing ? t('settings.mcp.dependenciesInstalling') : actionLabel}
+        </Button>
+      )}
+    </ItemActions>
+  </Item>
 )
 
 const InstallNpxUv: FC<Props> = ({ mini = false }) => {

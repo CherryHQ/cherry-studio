@@ -83,7 +83,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
+            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon" variant="outline">
               <Settings2 size={16} />
             </Button>
           )}
@@ -110,7 +110,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
+            <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon" variant="outline">
               <Settings2 size={16} />
             </Button>
           )}
@@ -135,12 +135,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           />
           {showSettingsButton && (
             <>
-              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon">
+              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon" variant="outline">
                 <Settings2 size={16} />
               </Button>
               {translateModelPrompt !== TRANSLATE_PROMPT && (
                 <Tooltip title={t('common.reset')}>
-                  <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
+                  <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon" variant="outline">
                     <RedoOutlined size={16} />
                   </Button>
                 </Tooltip>

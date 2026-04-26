@@ -89,7 +89,7 @@ const MarkdownExportSettings: FC = () => {
               ) : null
             }
           />
-          <Button onClick={handleSelectFolder}>
+          <Button onClick={handleSelectFolder} variant="outline">
             <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>

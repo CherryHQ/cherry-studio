@@ -455,11 +455,11 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show()}>
+            <Button onClick={() => BackupPopup.show()} variant="outline">
               <SaveIcon size={14} />
               {t('settings.general.backup.button')}
             </Button>
-            <Button onClick={RestorePopup.show}>
+            <Button onClick={RestorePopup.show} variant="outline">
               <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
@@ -480,7 +480,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
-            <Button onClick={LanTransferPopup.show}>
+            <Button onClick={LanTransferPopup.show} variant="outline">
               <WifiOutlined size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
@@ -490,7 +490,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show('lan-transfer')}>
+            <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
               <FolderInput size={14} />
               {t('settings.data.export_to_phone.file.button')}
             </Button>
@@ -512,7 +512,9 @@ const BasicDataSettings: React.FC = () => {
               <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
             </Tooltip>
             <RowFlex className="ml-2 gap-1.25">
-              <Button onClick={() => handleOpenPath(appInfo?.appDataPath)}>{t('settings.data.app_data.open')}</Button>
+              <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
+                {t('settings.data.app_data.open')}
+              </Button>
             </RowFlex>
           </PathRow>
         </SettingRow>
@@ -526,7 +528,9 @@ const BasicDataSettings: React.FC = () => {
               {appInfo?.logsPath}
             </PathText>
             <RowFlex className="ml-2 gap-1.25">
-              <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>{t('settings.data.app_logs.button')}</Button>
+              <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
+                {t('settings.data.app_logs.button')}
+              </Button>
             </RowFlex>
           </PathRow>
         </SettingRow>
@@ -534,7 +538,9 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
           <RowFlex className="items-center gap-1.25">
-            <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
+            <Button onClick={handleRemoveAllFiles} variant="outline">
+              {t('settings.data.app_knowledge.button.delete')}
+            </Button>
           </RowFlex>
         </SettingRow>
         <SettingDivider />
@@ -544,7 +550,9 @@ const BasicDataSettings: React.FC = () => {
             {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
           </SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
+            <Button onClick={handleClearCache} variant="outline">
+              {t('settings.data.clear_cache.button')}
+            </Button>
           </RowFlex>
         </SettingRow>
         <SettingDivider />

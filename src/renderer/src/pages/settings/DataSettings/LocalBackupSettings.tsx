@@ -192,7 +192,7 @@ const LocalBackupSettings: React.FC = () => {
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
-          <Button onClick={handleBrowseDirectory}>
+          <Button onClick={handleBrowseDirectory} variant="outline">
             <FolderOpenOutlined />
             {t('common.browse')}
           </Button>
@@ -206,11 +206,11 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={showBackupModal} disabled={!localBackupDir || backuping}>
+          <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
             <SaveOutlined />
             {t('settings.data.local.backup.button')}
           </Button>
-          <Button onClick={showBackupManager} disabled={!localBackupDir}>
+          <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
             <FolderOpenOutlined />
             {t('settings.data.local.restore.button')}
           </Button>

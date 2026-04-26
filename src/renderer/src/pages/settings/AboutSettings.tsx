@@ -219,6 +219,7 @@ const AboutSettings: FC = () => {
             <div className="flex shrink-0 items-center justify-end">
               <Button
                 size="sm"
+                variant="outline"
                 loading={appUpdateState.checking}
                 onClick={onCheckUpdate}
                 disabled={appUpdateState.downloading}
@@ -399,7 +400,7 @@ function AboutActionRow({
         {icon}
         {title}
       </AboutRowTitle>
-      <Button size="sm" onClick={() => void onAction()}>
+      <Button size="sm" onClick={() => void onAction()} variant="outline">
         {actionLabel}
       </Button>
     </AboutRow>

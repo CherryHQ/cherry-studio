@@ -18,7 +18,9 @@ const ImportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={ImportPopup.show}>{t('settings.data.import_settings.button')}</Button>
+          <Button onClick={ImportPopup.show} variant="outline">
+            {t('settings.data.import_settings.button')}
+          </Button>
         </RowFlex>
       </SettingRow>
     </SettingGroup>

@@ -115,7 +115,9 @@ const SiyuanSettings: FC = () => {
               placeholder={t('settings.data.siyuan.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+            <Button onClick={handleCheckConnection} variant="outline">
+              {t('settings.data.siyuan.check.button')}
+            </Button>
           </RowFlex>
         </RowFlex>
       </SettingRow>

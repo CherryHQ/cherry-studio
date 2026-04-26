@@ -416,7 +416,7 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={settedTheme} shape="round" onChange={setTheme} options={themeOptions} />
+          <Selector<ThemeMode> size={14} value={settedTheme} onChange={setTheme} options={themeOptions} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>

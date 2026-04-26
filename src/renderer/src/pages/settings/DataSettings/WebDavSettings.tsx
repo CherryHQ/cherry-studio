@@ -147,11 +147,11 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
-          <Button onClick={showBackupModal} disabled={backuping}>
+          <Button onClick={showBackupModal} disabled={backuping} variant="outline">
             <SaveOutlined />
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showBackupManager} disabled={!webdavHost}>
+          <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
             <FolderOpenOutlined />
             {t('settings.data.webdav.restore.button')}
           </Button>

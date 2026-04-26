@@ -107,7 +107,9 @@ const YuqueSettings: FC = () => {
               placeholder={t('settings.data.yuque.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
+            <Button onClick={handleYuqueConnectionCheck} variant="outline">
+              {t('settings.data.yuque.check.button')}
+            </Button>
           </RowFlex>
         </RowFlex>
       </SettingRow>

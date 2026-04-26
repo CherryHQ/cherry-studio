@@ -155,15 +155,12 @@ const McpServersList: FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <InstallNpxUv mini />
-          <Button
-            className="h-9 rounded-full px-3.5 shadow-none"
-            variant="ghost"
-            onClick={() => setIsEditing((value) => !value)}>
+          <Button variant="ghost" onClick={() => setIsEditing((value) => !value)}>
             <EditIcon size={14} />
             {isEditing ? t('common.completed') : t('common.edit')}
           </Button>
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button className="h-9 rounded-full px-3.5 shadow-none">
+            <Button>
               <Plus size={16} />
               {t('common.add')}
             </Button>

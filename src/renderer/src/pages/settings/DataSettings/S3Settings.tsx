@@ -189,12 +189,14 @@ const S3Settings: FC = () => {
         <RowFlex className="justify-between gap-1.25">
           <Button
             onClick={showBackupModal}
+            variant="outline"
             disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             <SaveOutlined />
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
             onClick={showBackupManager}
+            variant="outline"
             disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             <FolderOpenOutlined />
             {t('settings.data.s3.backup.manager.button')}
