@@ -60,12 +60,5 @@ export const SettingGroup = ({
   theme,
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
-  <div
-    className={cn(
-      'mb-4 rounded-lg border border-border/60 bg-background p-5 last:mb-0',
-      theme === 'dark' && 'bg-black/10',
-      className
-    )}
-    {...props}
-  />
+  <div data-theme-mode={theme} className={cn('mb-4 last:mb-0', className)} {...props} />
 )
