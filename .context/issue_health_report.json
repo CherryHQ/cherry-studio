@@ -1,104 +1,125 @@
 {
-  "generated_at": "2026-04-25T00:00:00Z",
-  "snapshot_date": "2026-04-25",
-  "methodology": "Age-based classification on open issues. Sample: first 100 most-recently-updated open issues.",
-  "total_open_issues": 810,
+  "generated_at": "2026-04-26T00:00:00Z",
+  "snapshot_date": "2026-04-26",
+  "methodology": "Age-based classification on open issues. 700 of 807 open issues sampled (86.7%), remaining estimated.",
+  "total_open_issues": 807,
   "overall_health": {
     "score": "MODERATE",
     "notes": [
-      "High closure rate (240 closed in 30 days) indicates active maintenance",
-      "96 unlabeled issues (11.9%) need triage",
-      "102 issues marked 'inactive' — consider closing or following up",
-      "3 P1 issues open including 1 critical security advisory (GHSA-qmgw-45x4-3626)"
+      "High closure rate (251 closed in 30 days) indicates active maintenance",
+      "106 unlabeled issues (~13.1%) need triage",
+      "108 issues marked 'inactive' — consider closing or following up",
+      "3 P1 issues open including 1 critical security advisory (GHSA-qmgw-45x4-3626) — now 66 days old"
     ]
   },
   "age_distribution": {
-    "methodology": "Calculated from sample of 100 most recently updated open issues",
+    "methodology": "Calculated from 700 most recently updated open issues + extrapolation for remaining 107",
     "active_0_7d": {
-      "count": 66,
-      "pct": 66.0,
+      "count": 236,
+      "pct": 29.2,
       "description": "Recently created or updated, likely actively being worked"
     },
     "aging_8_30d": {
-      "count": 4,
-      "pct": 4.0,
+      "count": 449,
+      "pct": 55.6,
       "description": "A few weeks old without recent update"
     },
     "stale_31_90d": {
-      "count": 30,
-      "pct": 30.0,
+      "count": 125,
+      "pct": 15.5,
       "description": "1–3 months old with no recent activity — needs triage"
     },
     "zombie_over_90d": {
-      "count": 0,
-      "pct": 0.0,
+      "count": 12,
+      "pct": 1.5,
       "description": "Over 3 months old — potential candidates for closure"
     }
   },
   "bug_health": {
-    "total_open_bugs": 122,
-    "age_distribution_sample_100": {
-      "active_0_7d": 4,
-      "aging_8_30d": 3,
-      "stale_31_90d": 14,
-      "zombie_over_90d": 79
-    },
-    "concern": "79% of sampled bugs are over 90 days old — significant backlog of unresolved bugs"
+    "total_open_bugs_estimated": 42,
+    "p1_count": 3,
+    "concern": "P1 security advisory #12966 has been open 66 days with no resolution"
   },
   "no_label_issues": {
-    "total": 96,
-    "pct_of_open": 11.9,
-    "age_distribution_sample_96": {
-      "active_0_7d": 31,
-      "aging_8_30d": 60,
-      "stale_31_90d": 5,
-      "zombie_over_90d": 0
-    },
-    "action": "Triage needed — 60 aging unlabeled issues from 8–30 days ago"
+    "total": 106,
+    "pct_of_open": 13.1,
+    "action": "Triage needed — add at minimum bug/feature/question labels"
   },
   "inactive_issues": {
-    "total": 102,
+    "total": 108,
     "description": "Issues labeled 'inactive' — no response from author or stalled",
     "recommendation": "Consider auto-closing after 14 more days of inactivity"
   },
   "p1_critical": {
     "count": 3,
-    "oldest_open_days": 65,
+    "oldest_open_days": 66,
     "security_issue_open": true,
     "security_issue_number": 12966,
     "action_required": "Security advisory GHSA-qmgw-45x4-3626 (#12966) requires immediate triage response"
   },
   "closure_rate": {
-    "last_30d": 240,
-    "avg_per_day": 8.0,
+    "last_30d": 251,
+    "avg_per_day": 8.4,
     "peak_days": [
-      {"date": "2026-04-22", "closed": 29},
-      {"date": "2026-04-21", "closed": 28},
-      {"date": "2026-04-23", "closed": 17},
-      {"date": "2026-04-24", "closed": 15},
-      {"date": "2026-04-25", "closed": 10}
+      {
+        "date": "2026-04-22",
+        "closed": 29
+      },
+      {
+        "date": "2026-04-26",
+        "closed": 17
+      },
+      {
+        "date": "2026-04-23",
+        "closed": 17
+      },
+      {
+        "date": "2026-04-24",
+        "closed": 15
+      },
+      {
+        "date": "2026-04-25",
+        "closed": 10
+      }
     ]
+  },
+  "top_label_counts": {
+    "UI/UX": 203,
+    "Models": 148,
+    "feature": 132,
+    "inactive": 94,
+    "Assistant": 82,
+    "Blocked: v2": 62,
+    "MCP": 53,
+    "Data": 46,
+    "discussion": 43,
+    "help wanted": 41,
+    "needs-repro": 38,
+    "BUG": 36,
+    "RAG": 32,
+    "P3": 29,
+    "Connectivity": 28
   },
   "recommendations": [
     {
       "priority": "CRITICAL",
-      "action": "Respond to security advisory GHSA-qmgw-45x4-3626 on issue #12966 immediately"
+      "action": "Respond to security advisory GHSA-qmgw-45x4-3626 on issue #12966 immediately (66 days unaddressed)"
     },
     {
       "priority": "HIGH",
-      "action": "Triage 96 unlabeled issues — add at minimum bug/feature/question labels"
+      "action": "Triage 106 unlabeled issues — add at minimum bug/feature/question labels"
     },
     {
       "priority": "HIGH",
-      "action": "Review 102 'inactive' issues for closure eligibility"
+      "action": "Review 108 'inactive' issues for closure eligibility"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Investigate 'Blocked: v2' issues (62 in sample) — coordinate resolution timeline with v2 roadmap"
     },
     {
       "priority": "MEDIUM",
-      "action": "Address 79 zombie bugs (>90d) — close duplicates, add to backlog, or fix"
-    },
-    {
-      "priority": "LOW",
-      "action": "Investigate #13608 (mimo streaming) and #13193 (Azure OpenAI regression) — both P1"
+      "action": "Address P1 issues #13608 (mimo streaming) and #13193 (Azure OpenAI regression)"
     }
   ]
 }

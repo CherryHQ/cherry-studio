@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-25T00:00:00Z",
-  "snapshot_date": "2026-04-25",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "snapshot_date": "2026-04-26",
   "data_source": "GitHub Discussions (GraphQL API not available via MCP — partial data)",
   "note": "Discussion data requires GraphQL API access. This file is a skeleton pending Conductor/Actions integration with full GraphQL token.",
   "summary": {

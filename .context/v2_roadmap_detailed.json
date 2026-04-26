@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-25T00:00:00Z",
-  "snapshot_date": "2026-04-25",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "snapshot_date": "2026-04-26",
   "v2_branch_overview": {
     "branch": "v2",
     "status": "active_development",
@@ -8,78 +8,154 @@
     "main_freeze": "main branch under code freeze since 2026-04-03. Only hotfix/* accepted."
   },
   "open_prs": {
-    "total": 62,
-    "draft": 20,
-    "ready_for_review": 42,
+    "total": 66,
+    "draft": 21,
+    "ready_for_review": 45,
     "top_contributors": [
-      {"login": "DeJeune", "open_prs": 15, "role": "Core maintainer"},
-      {"login": "EurFelux", "open_prs": 12, "role": "Contributor"},
-      {"login": "zhangjiadi225", "open_prs": 5, "role": "Contributor"},
-      {"login": "404-Page-Found", "open_prs": 4, "role": "Contributor"},
-      {"login": "kovsu", "open_prs": 3, "role": "Contributor"},
-      {"login": "LWWZH", "open_prs": 3, "role": "Contributor"},
-      {"login": "vaayne", "open_prs": 2, "role": "Contributor"},
-      {"login": "kangfenmao", "open_prs": 2, "role": "Lead maintainer"},
-      {"login": "jidan745le", "open_prs": 2, "role": "Contributor"},
-      {"login": "Raymond8196", "open_prs": 2, "role": "Contributor"}
+      {
+        "login": "DeJeune",
+        "open_prs": 18,
+        "role": "Core maintainer"
+      },
+      {
+        "login": "EurFelux",
+        "open_prs": 12,
+        "role": "Contributor"
+      },
+      {
+        "login": "zhangjiadi225",
+        "open_prs": 5,
+        "role": "Contributor"
+      },
+      {
+        "login": "404-Page-Found",
+        "open_prs": 4,
+        "role": "Contributor"
+      },
+      {
+        "login": "jidan745le",
+        "open_prs": 3,
+        "role": "Contributor"
+      },
+      {
+        "login": "LWWZH",
+        "open_prs": 3,
+        "role": "Contributor"
+      },
+      {
+        "login": "kovsu",
+        "open_prs": 3,
+        "role": "Contributor"
+      },
+      {
+        "login": "Raymond8196",
+        "open_prs": 2,
+        "role": "Contributor"
+      },
+      {
+        "login": "kangfenmao",
+        "open_prs": 2,
+        "role": "Lead maintainer"
+      },
+      {
+        "login": "vaayne",
+        "open_prs": 2,
+        "role": "Contributor"
+      }
     ]
   },
   "merged_prs_last_30d": {
     "total": 45,
-    "period": "2026-03-26 to 2026-04-25",
+    "period": "2026-03-27 to 2026-04-26",
     "activity_by_date": {
-      "2026-04-10": 9,
-      "2026-03-31": 6,
-      "2026-04-20": 4,
-      "2026-04-16": 3,
+      "2026-04-24": 1,
       "2026-04-21": 2,
+      "2026-04-20": 4,
+      "2026-04-18": 1,
       "2026-04-17": 2,
+      "2026-04-16": 3,
+      "2026-04-15": 1,
+      "2026-04-14": 1,
       "2026-04-13": 2,
-      "2026-04-07": 2,
-      "2026-04-05": 2,
-      "2026-04-04": 2
+      "2026-04-11": 1
     },
-    "avg_merges_per_week": 11.25,
+    "avg_merges_per_week": 10.47,
     "notable_recent_merges": [
       {
-        "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
-        "category": "AI Core refactor",
-        "significance": "Major architecture change - new streaming pipeline"
+        "title": "fix(draggable-list): bind scroll node via callback ref",
+        "category": "UI component fix",
+        "significance": "Fixes DraggableVirtualList remount issue (empty list after sidebar toggle)"
       },
       {
-        "title": "refactor(agents-data-api): migrate agents domain to DataApi — remove BaseService, database/ shims, SkillRepositories",
-        "category": "Agents subsystem refactor",
-        "significance": "DataApi migration, removes legacy patterns"
+        "title": "feat(ai): V2 AI streaming pipeline improvements",
+        "category": "AI Core refactor",
+        "significance": "Ongoing streaming pipeline migration to v2 architecture"
       }
     ]
   },
-  "known_blocked_areas": [
+  "issues_blocked_on_v2": {
+    "count_in_700_sample": 62,
+    "estimated_total": 71,
+    "note": "Issues labeled 'Blocked: v2' are waiting for v2 refactor to unblock"
+  },
+  "key_areas_in_progress": [
     {
-      "area": "Redux store slices",
-      "status": "BLOCKED",
-      "note": "No new slices or state shape changes until v2.0.0"
+      "area": "UI/UX Refactoring",
+      "open_issues_in_sample": 203,
+      "label": "UI/UX"
     },
     {
-      "area": "Dexie (IndexedDB) schema",
-      "status": "BLOCKED",
-      "note": "No schema changes until v2.0.0"
+      "area": "Models Integration",
+      "open_issues_in_sample": 148,
+      "label": "Models"
     },
     {
-      "area": "Files with @deprecated v2.0.0 header",
-      "status": "BUG_FIX_ONLY",
-      "note": "Feature PRs blocked. Bug fixes only."
+      "area": "Feature Development",
+      "open_issues_in_sample": 132,
+      "label": "feature"
+    },
+    {
+      "area": "Assistant Improvements",
+      "open_issues_in_sample": 82,
+      "label": "Assistant"
+    },
+    {
+      "area": "MCP Server Support",
+      "open_issues_in_sample": 53,
+      "label": "MCP"
+    },
+    {
+      "area": "Data Layer Refactoring",
+      "open_issues_in_sample": 46,
+      "label": "Data"
+    },
+    {
+      "area": "RAG / Knowledge Base",
+      "open_issues_in_sample": 32,
+      "label": "RAG"
+    },
+    {
+      "area": "Connectivity / Networking",
+      "open_issues_in_sample": 28,
+      "label": "Connectivity"
+    },
+    {
+      "area": "Performance",
+      "open_issues_in_sample": 21,
+      "label": "Performance"
     }
   ],
-  "active_refactor_areas": [
-    "Agents subsystem (src/main/services/agents/) — DataApi migration",
-    "AI Core (packages/aiCore/) — streaming pipeline v2",
-    "Legacy middleware pipeline (src/renderer/src/aiCore/) — deprecated, migrating to packages/aiCore"
-  ],
-  "velocity": {
-    "open_prs": 62,
-    "merged_last_30d": 45,
-    "throughput_ratio": "0.73 merged per open PR (healthy)",
-    "draft_ratio": "32% of open PRs are drafts (work in progress)"
+  "blocked_state": {
+    "redux_store_frozen": true,
+    "db_schema_frozen": true,
+    "new_redux_slices_blocked": true,
+    "note": "Redux store, IndexedDB schema, and new Redux slices blocked until v2.0.0"
   },
-  "health_assessment": "ACTIVE — v2 development proceeding at good velocity. 45 merges in 30 days across multiple contributors. Key architecture refactors (AI streaming, agents DataApi) actively landing."
+  "velocity": {
+    "merged_prs_30d": 45,
+    "avg_per_week": 10.5,
+    "open_pr_backlog": 66,
+    "ready_for_review": 45,
+    "draft_in_progress": 21
+  }
 }

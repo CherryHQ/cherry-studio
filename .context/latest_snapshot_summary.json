@@ -1,45 +1,55 @@
 {
-  "generated_at": "2026-04-25T00:00:00Z",
-  "snapshot_date": "2026-04-25",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "snapshot_date": "2026-04-26",
   "data_source": "GitHub API via MCP (CherryHQ/cherry-studio)",
   "issues": {
-    "open_total": 810,
+    "open_total": 807,
     "by_label": {
-      "bug": 122,
-      "feature": 142,
+      "bug": 42,
+      "feature": 152,
       "enhancement": 0,
       "P1": 3,
-      "inactive": 102,
-      "no_label": 96
+      "inactive": 108,
+      "no_label": 106
     },
-    "unclassified_count": 96,
-    "unclassified_ratio_pct": 11.9,
-    "closed_last_30d": 240,
+    "unclassified_count": 106,
+    "unclassified_ratio_pct": 13.1,
+    "closed_last_30d": 251,
     "p1_issues": [
       {
         "number": 12966,
-        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
-        "labels": ["BUG", "P1", "inactive"],
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage",
+        "labels": [
+          "BUG",
+          "P1",
+          "inactive"
+        ],
         "created_at": "2026-02-19T16:12:01Z",
         "updated_at": "2026-04-25T00:51:12Z",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
         "severity": "CRITICAL",
-        "note": "Security advisory GHSA-qmgw-45x4-3626 pending triage"
+        "note": "Security advisory GHSA-qmgw-45x4-3626 pending triage — now 66 days old"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": ["P1", "Models"],
+        "labels": [
+          "P1",
+          "Models"
+        ],
         "created_at": "2026-03-18T14:34:38Z",
         "updated_at": "2026-03-19T14:22:09Z",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
         "severity": "HIGH",
-        "note": "Streaming display regression for mimo-v2-flash"
+        "note": "Streaming display regression for mimo-v2-flash on v1.8.0"
       },
       {
         "number": 13193,
         "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-        "labels": ["P1", "Models"],
+        "labels": [
+          "P1",
+          "Models"
+        ],
         "created_at": "2026-03-04T05:07:40Z",
         "updated_at": "2026-03-05T08:47:59Z",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
@@ -49,52 +59,96 @@
       }
     ],
     "top_commented_bugs": [
-      {"number": 9112, "comments": 26, "title": "升级时，提示Cherry Studio无法关闭，无法升级"},
-      {"number": 10918, "comments": 20, "title": "Impossible to add a knowledge base"},
-      {"number": 12079, "comments": 14, "title": "cherry-studio cannot read the file since today"},
-      {"number": 9943, "comments": 13, "title": "MCPB（原DXT）文件导入MCP服务器相关问题"},
-      {"number": 12268, "comments": 10, "title": "Agent Error"}
+      {
+        "number": 13082,
+        "comments": 5,
+        "title": "[Bug]: Frequent lag during normal operations"
+      },
+      {
+        "number": 12694,
+        "comments": 4,
+        "title": "[Bug]: Performance issue causes severe overheating on MacBook Air M4"
+      },
+      {
+        "number": 12890,
+        "comments": 4,
+        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model"
+      },
+      {
+        "number": 13659,
+        "comments": 3,
+        "title": "[Bug]: Error message for automatic topic naming failure"
+      },
+      {
+        "number": 9943,
+        "comments": 13,
+        "title": "MCPB（原DXT）文件导入MCP服务器相关问题"
+      }
     ]
   },
   "pull_requests": {
-    "open_total": 197,
-    "open_to_main": 135,
-    "open_to_v2": 62,
+    "open_total": 267,
+    "open_to_main": 179,
+    "open_to_v2": 88,
     "closed_last_30d": 100,
     "open_v2_detail": {
-      "total": 62,
-      "draft": 20,
-      "ready_for_review": 42,
+      "total": 66,
+      "draft": 21,
+      "ready_for_review": 45,
       "top_authors": [
-        {"login": "DeJeune", "open_prs": 15},
-        {"login": "EurFelux", "open_prs": 12},
-        {"login": "zhangjiadi225", "open_prs": 5},
-        {"login": "404-Page-Found", "open_prs": 4},
-        {"login": "kovsu", "open_prs": 3},
-        {"login": "LWWZH", "open_prs": 3}
+        {
+          "login": "DeJeune",
+          "open_prs": 18,
+          "role": "Core maintainer"
+        },
+        {
+          "login": "EurFelux",
+          "open_prs": 12,
+          "role": "Contributor"
+        },
+        {
+          "login": "zhangjiadi225",
+          "open_prs": 5,
+          "role": "Contributor"
+        },
+        {
+          "login": "404-Page-Found",
+          "open_prs": 4,
+          "role": "Contributor"
+        },
+        {
+          "login": "jidan745le",
+          "open_prs": 3,
+          "role": "Contributor"
+        },
+        {
+          "login": "LWWZH",
+          "open_prs": 3,
+          "role": "Contributor"
+        }
       ]
     },
     "open_age_distribution": {
-      "fresh_0_7d": 36,
-      "active_8_30d": 35,
-      "aging_31_90d": 13,
-      "stale_over_90d": 16
+      "fresh_0_7d": 55,
+      "active_8_30d": 53,
+      "aging_31_90d": 28,
+      "stale_over_90d": 131
     }
   },
   "v2_branch": {
-    "open_prs": 62,
+    "open_prs": 66,
     "merged_prs_last_30d": 45,
     "merged_by_date": {
-      "2026-04-10": 9,
-      "2026-03-31": 6,
-      "2026-04-20": 4,
-      "2026-04-16": 3,
+      "2026-04-24": 1,
       "2026-04-21": 2,
+      "2026-04-20": 4,
+      "2026-04-18": 1,
       "2026-04-17": 2,
+      "2026-04-16": 3,
+      "2026-04-15": 1,
+      "2026-04-14": 1,
       "2026-04-13": 2,
-      "2026-04-07": 2,
-      "2026-04-05": 2,
-      "2026-04-04": 2
+      "2026-04-11": 1
     }
   },
   "branch_strategy": {
