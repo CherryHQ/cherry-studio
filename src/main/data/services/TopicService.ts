@@ -322,7 +322,7 @@ export class TopicService {
       const [target] = await tx
         .select({ groupId: topicTable.groupId })
         .from(topicTable)
-        .where(eq(topicTable.id, id))
+        .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
       if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
@@ -348,7 +348,7 @@ export class TopicService {
       const targets = await tx
         .select({ id: topicTable.id, groupId: topicTable.groupId })
         .from(topicTable)
-        .where(inArray(topicTable.id, ids))
+        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
 
       if (targets.length !== ids.length) {
         const found = new Set(targets.map((t) => t.id))
