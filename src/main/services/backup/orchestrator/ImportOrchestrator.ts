@@ -59,7 +59,7 @@ export class ImportOrchestrator {
       const backupClient = createClient({ url: backupUrl })
 
       const liveDb = application.get('DbService').getDb()
-      const strategy = options.conflictStrategy ?? ConflictStrategy.SKIP
+      const strategy = options.conflictStrategy ?? ConflictStrategy.RENAME
       const selectedDomains = this.resolveImportDomains(manifest, options)
 
       this.progressTracker.setPhase(RestorePhase.IMPORTING)

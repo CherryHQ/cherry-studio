@@ -145,8 +145,13 @@ export class DomainImporter {
         const query = sql`INSERT INTO ${sql.raw(`"${tableName}"`)} (${sql.raw(colList)}) VALUES (${sql.join(paramChunks, sql.raw(', '))})${sql.raw(conflictClause)}`
 
         try {
-          await tx.run(query)
-          imported++
+          const result = await tx.run(query)
+          const affected = (result as { rowsAffected?: number })?.rowsAffected ?? 1
+          if (affected > 0) {
+            imported++
+          } else {
+            skipped++
+          }
         } catch (err) {
           if (strategy === ConflictStrategy.SKIP) {
             skipped++

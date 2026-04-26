@@ -30,7 +30,7 @@ describe('DomainImporter', () => {
 
   const createMockLiveDb = () => {
     const mockTx = {
-      run: vi.fn().mockResolvedValue(undefined),
+      run: vi.fn().mockResolvedValue({ rowsAffected: 1 }),
       all: vi.fn().mockResolvedValue([])
     }
     return {
@@ -271,6 +271,48 @@ describe('DomainImporter', () => {
 
     expect(remapper.addMapping).not.toHaveBeenCalled()
     expect(result.imported).toBeGreaterThanOrEqual(1)
+  })
+
+  it('counts row as skipped when rowsAffected is 0 (ON CONFLICT DO NOTHING)', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.run.mockResolvedValue({ rowsAffected: 0 })
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.SKIP)
+
+    expect(result.imported).toBe(0)
+    expect(result.skipped).toBe(1)
+  })
+
+  it('counts row as imported when rowsAffected is 1', async () => {
+    const rows = [{ id: '1', name: 'test-mcp' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.run.mockResolvedValue({ rowsAffected: 1 })
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.SKIP)
+
+    expect(result.imported).toBe(1)
+    expect(result.skipped).toBe(0)
   })
 
   it('remaps snake_case FK columns for assistant junction tables', async () => {
