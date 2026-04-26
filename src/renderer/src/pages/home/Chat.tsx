@@ -33,9 +33,10 @@ interface Props {
   /**
    * Called by V2ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
-   * persist trigger.
+   * persist trigger. `initialName` becomes a placeholder topic title so
+   * the sidebar isn't blank in the gap before auto-naming runs.
    */
-  onPersistTemporaryTopic?: () => Promise<void>
+  onPersistTemporaryTopic?: (initialName?: string) => Promise<void>
 }
 
 const Chat: FC<Props> = (props) => {

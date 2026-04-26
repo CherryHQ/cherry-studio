@@ -18,6 +18,7 @@
  * resolves, the hook still deletes the freshly created topic to avoid Main-side leaks.
  */
 
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -31,12 +32,8 @@ export interface UseTemporaryTopicResult {
   ready: boolean
   /** Drop the current topic and lease a fresh one. No-op if assistantId is missing. */
   reset: () => void
-  /**
-   * Move the temporary topic (plus its messages) into SQLite. After resolving,
-   * cleanup will no longer issue `DELETE /temporary/topics/:id` on unmount —
-   * the topic now lives on the persistent path under the same id.
-   */
-  persist: () => Promise<void>
+  /** Move the temporary topic (plus its messages) into SQLite. */
+  persist: (initialName?: string) => Promise<void>
 }
 
 export function useTemporaryTopic(assistantId: string | undefined): UseTemporaryTopicResult {
@@ -83,6 +80,10 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
         void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
+
+        if (cacheService.get('topic.active')?.id === idToCleanup) {
+          cacheService.set('topic.active', null)
+        }
       }
     }
   }, [assistantId, epoch])
@@ -91,13 +92,22 @@ export function useTemporaryTopic(assistantId: string | undefined): UseTemporary
     setEpoch((n) => n + 1)
   }, [])
 
-  const persist = useCallback(async () => {
+  const persist = useCallback(async (initialName?: string) => {
     const id = activeIdRef.current
     if (!id) return
     await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
     // Clear before unmount so cleanup skips the now-pointless DELETE.
     activeIdRef.current = null
     logger.debug('Persisted temporary topic', { topicId: id })
+
+    const trimmed = initialName?.trim()
+    if (trimmed) {
+      try {
+        await dataApiService.patch(`/topics/${id}`, { body: { name: trimmed.slice(0, 30) } })
+      } catch (err) {
+        logger.warn('Failed to seed placeholder topic name', err as Error)
+      }
+    }
   }, [])
 
   return { topicId, ready: topicId !== null, reset, persist }

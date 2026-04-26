@@ -74,10 +74,13 @@ const HomePage: FC = () => {
     autoPickFirst: !shouldUseTemporary
   })
 
-  const persistTemporaryTopicAndRefresh = useCallback(async () => {
-    await persistTemporaryTopic()
-    await refreshTopics()
-  }, [persistTemporaryTopic, refreshTopics])
+  const persistTemporaryTopicAndRefresh = useCallback(
+    async (initialName?: string) => {
+      await persistTemporaryTopic(initialName)
+      await refreshTopics()
+    },
+    [persistTemporaryTopic, refreshTopics]
+  )
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
 

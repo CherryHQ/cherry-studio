@@ -67,6 +67,12 @@ export function useActiveTopic(topic?: Topic, options: { autoPickFirst?: boolean
     }
   }, [activeTopic])
 
+  useEffect(() => {
+    if (activeTopic) {
+      cacheService.set('topic.active', activeTopic)
+    }
+  }, [activeTopic])
+
   return { activeTopic, setActiveTopic, isLoading }
 }
 

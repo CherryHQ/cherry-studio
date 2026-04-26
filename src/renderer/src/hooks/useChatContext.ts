@@ -51,7 +51,6 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
 
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
-  const [, setActiveTopic] = useCache('topic.active')
 
   const [messageRefs, setMessageRefs] = useState<Map<string, HTMLElement>>(new Map())
 
@@ -71,10 +70,6 @@ export const useChatContextProvider = (activeTopic: Topic): ChatContextValue => 
     })
     return () => unsubscribe()
   }, [handleToggleMultiSelectMode])
-
-  useEffect(() => {
-    setActiveTopic(activeTopic)
-  }, [activeTopic, setActiveTopic])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     setMessageRefs((prev) => {

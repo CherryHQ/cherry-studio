@@ -29,9 +29,10 @@ interface Props {
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
    * is sent. Owned by HomePage so the lease and the persist trigger live
-   * on the same hook instance.
+   * on the same hook instance. `initialName` seeds a placeholder topic
+   * title so the sidebar isn't blank pre-auto-name.
    */
-  onPersistTemporaryTopic?: () => Promise<void>
+  onPersistTemporaryTopic?: (initialName?: string) => Promise<void>
 }
 
 /**
@@ -157,7 +158,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
     async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
       if (onPersistTemporaryTopic) {
         try {
-          await onPersistTemporaryTopic()
+          // Seed the new topic with the user's first message as a placeholder
+          // name so the sidebar entry isn't blank while the auto-namer runs.
+          await onPersistTemporaryTopic(text)
         } catch (err) {
           console.warn('[V2ChatContent] failed to persist temporary topic, falling back', err)
         }
