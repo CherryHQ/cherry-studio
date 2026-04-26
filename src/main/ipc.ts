@@ -43,9 +43,6 @@ export async function registerIpc() {
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
-    if (languages.length === 0) {
-      return
-    }
     const windows = BrowserWindow.getAllWindows()
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
