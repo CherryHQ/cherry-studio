@@ -273,6 +273,50 @@ describe('DomainImporter', () => {
     expect(result.imported).toBeGreaterThanOrEqual(1)
   })
 
+  it('tryUniqueMerge proceeds to insert when unique column value is null', async () => {
+    const rows = [{ id: 'tag-null', name: null }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.TAGS_GROUPS, ConflictStrategy.RENAME)
+
+    expect(liveDb._tx.all).not.toHaveBeenCalled()
+    expect(remapper.addMapping).not.toHaveBeenCalled()
+    expect(result.imported).toBeGreaterThanOrEqual(1)
+  })
+
+  it('tryUniqueMerge does not add mapping when backupId equals liveId', async () => {
+    const rows = [{ id: 'same-id', name: 'existing-tag' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.all.mockResolvedValueOnce([{ id: 'same-id' }])
+    const remapper = createMockRemapper()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.TAGS_GROUPS, ConflictStrategy.RENAME)
+
+    expect(remapper.addMapping).not.toHaveBeenCalled()
+    expect(result.skipped).toBeGreaterThanOrEqual(1)
+  })
+
   it('counts row as skipped when rowsAffected is 0 (ON CONFLICT DO NOTHING)', async () => {
     const rows = [{ id: '1', name: 'test-mcp' }]
     const backupClient = createMockBackupClient(rows)

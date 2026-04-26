@@ -9,8 +9,10 @@ import type { BackupProgressTracker } from '../progress/BackupProgressTracker'
 import { DOMAIN_TABLE_MAP } from './DomainRegistry'
 import type { IdRemapper } from './IdRemapper'
 
+type SqlRunResult = { rowsAffected: number }
+
 type SqlRunner = {
-  run(query: ReturnType<typeof sql>): Promise<unknown>
+  run(query: ReturnType<typeof sql>): Promise<SqlRunResult>
   all(query: ReturnType<typeof sql>): Promise<unknown[]>
 }
 
@@ -42,8 +44,13 @@ const FK_REMAP_RULES: Record<string, string[]> = {
   agent_task_run_log: ['task_id', 'session_id']
 }
 
+// Stripping only applies to RENAME: SKIP uses ON CONFLICT DO NOTHING (safe),
+// OVERWRITE intentionally matches on the original PK to replace the row.
 const AUTOINCREMENT_PK_TABLES = new Set(['agent_session_message', 'agent_task_run_log'])
 
+// Tables with a UNIQUE non-PK column AND downstream FK references in FK_REMAP_RULES
+// must have an entry here, otherwise RENAME inserts fail on the UNIQUE constraint
+// and child FK references become dangling.
 const UNIQUE_MERGE_RULES: Record<string, { column: string }> = {
   agent_global_skill: { column: 'folder_name' },
   tag: { column: 'name' }
@@ -146,7 +153,7 @@ export class DomainImporter {
 
         try {
           const result = await tx.run(query)
-          const affected = (result as { rowsAffected?: number })?.rowsAffected ?? 1
+          const affected = result.rowsAffected
           if (affected > 0) {
             imported++
           } else {
@@ -197,6 +204,12 @@ export class DomainImporter {
     const backupId = row.id as string
     if (backupId && liveId !== backupId) {
       this.remapper.addMapping(backupId, liveId)
+      logger.info('UNIQUE merge: mapped backup row to existing live record', {
+        table: tableName,
+        column: rule.column,
+        backupId,
+        liveId
+      })
     }
     return true
   }

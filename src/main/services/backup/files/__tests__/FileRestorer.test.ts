@@ -7,11 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
   application: {
-    getPath: vi.fn().mockImplementation((key: string) => {
-      if (key === 'feature.files.data') return '/tmp/test-live-files'
-      if (key === 'feature.knowledgebase.data') return '/tmp/test-live-kb'
-      return '/tmp/test'
-    })
+    getPath: vi.fn()
   }
 }))
 
