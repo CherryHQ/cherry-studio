@@ -312,8 +312,6 @@ export function runAgentLoop<T extends AppProviderKey>(
         abortSignal: signal
       })
 
-      let capturedStreamError: unknown
-
       // Stream → writer (transport channel)
       //
       // `messageMetadata` is the single AI SDK hook that injects usage /
@@ -389,10 +387,6 @@ export function runAgentLoop<T extends AppProviderKey>(
             completionTokens: usage.outputTokens,
             thoughtsTokens: usage.outputTokenDetails?.reasoningTokens
           }
-        },
-        onError: (error) => {
-          capturedStreamError ??= error
-          return error instanceof Error ? error.message : String(error)
         }
       })
       const reader = uiStream.getReader()
@@ -407,10 +401,6 @@ export function runAgentLoop<T extends AppProviderKey>(
         readError = error
       } finally {
         reader.releaseLock()
-      }
-
-      if (capturedStreamError) {
-        throw capturedStreamError
       }
 
       if (readError) {
