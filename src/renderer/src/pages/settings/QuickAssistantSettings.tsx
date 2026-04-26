@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, ButtonGroup, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -158,22 +158,22 @@ const QuickAssistantSettings: FC = () => {
                   />
                 </RowFlex>
               )}
-              <RowFlex className="items-center gap-0">
-                <StyledButton
-                  color={quickAssistantId ? 'primary' : 'default'}
+              <ButtonGroup>
+                <Button
+                  className="min-w-20"
+                  variant={quickAssistantId ? 'default' : 'outline'}
                   onClick={() => {
                     dispatch(setQuickAssistantId(defaultAssistant.id))
-                  }}
-                  selected={!!quickAssistantId}>
+                  }}>
                   {t('settings.models.use_assistant')}
-                </StyledButton>
-                <StyledButton
-                  color={!quickAssistantId ? 'primary' : 'default'}
-                  onClick={() => dispatch(setQuickAssistantId(''))}
-                  selected={!quickAssistantId}>
+                </Button>
+                <Button
+                  className="min-w-20"
+                  variant={!quickAssistantId ? 'default' : 'outline'}
+                  onClick={() => dispatch(setQuickAssistantId(''))}>
                   {t('settings.models.use_model')}
-                </StyledButton>
-              </RowFlex>
+                </Button>
+              </ButtonGroup>
             </RowFlex>
           </RowFlex>
         </SettingGroup>
@@ -206,22 +206,6 @@ const DefaultTag = ({
 }: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
   <span
     className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
-    {...props}
-  />
-)
-
-const StyledButton = ({
-  className,
-  selected,
-  ...props
-}: React.ComponentProps<typeof Button> & { selected: boolean }) => (
-  <Button
-    className={cn(
-      'min-w-20 rounded-md first:rounded-r-none first:border-r-0 last:rounded-l-none last:border-l',
-      selected ? 'z-1' : 'z-0',
-      'hover:z-1 focus:z-1',
-      className
-    )}
     {...props}
   />
 )
