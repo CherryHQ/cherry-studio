@@ -228,6 +228,29 @@ describe('DomainImporter', () => {
     expect(result.skipped).toBeGreaterThanOrEqual(1)
   })
 
+  it('UNIQUE merge uses original backup ID even when buildMap already remapped it', async () => {
+    const rows = [{ id: 'backup-tag-id', name: 'existing-tag' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.all.mockResolvedValueOnce([{ id: 'live-tag-id' }])
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => (id === 'backup-tag-id' ? 'remapped-tag-id' : id))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.TAGS_GROUPS, ConflictStrategy.RENAME)
+
+    expect(remapper.addMapping).toHaveBeenCalledWith('backup-tag-id', 'live-tag-id')
+    expect(remapper.addMapping).not.toHaveBeenCalledWith('remapped-tag-id', expect.anything())
+  })
+
   it('inserts tag normally when no UNIQUE conflict under RENAME', async () => {
     const rows = [{ id: 'new-tag-id', name: 'brand-new-tag' }]
     const backupClient = createMockBackupClient(rows)

@@ -38,8 +38,8 @@ const FK_REMAP_RULES: Record<string, string[]> = {
   agent_session: ['id', 'agent_id'],
   agent_task: ['id', 'agent_id'],
   agent_channel_task: ['channel_id', 'task_id'],
-  agent_session_message: ['session_id'],
-  agent_task_run_log: ['task_id']
+  agent_session_message: ['session_id', 'agent_session_id'],
+  agent_task_run_log: ['task_id', 'session_id']
 }
 
 const AUTOINCREMENT_PK_TABLES = new Set(['agent_session_message', 'agent_task_run_log'])
@@ -126,15 +126,15 @@ export class DomainImporter {
       }
 
       for (const row of batch.rows) {
-        let remapped = this.remapRow(tableName, row as Record<string, unknown>)
-
         if (strategy === ConflictStrategy.RENAME) {
-          const merged = await this.tryUniqueMerge(tx, tableName, remapped)
+          const merged = await this.tryUniqueMerge(tx, tableName, row as Record<string, unknown>)
           if (merged) {
             skipped++
             continue
           }
         }
+
+        let remapped = this.remapRow(tableName, row as Record<string, unknown>)
 
         if (tableName === 'user_provider' && strategy === ConflictStrategy.OVERWRITE) {
           remapped = await this.preserveProviderCredentials(tx, remapped)
