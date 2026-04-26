@@ -43,6 +43,7 @@ describe('DomainImporter', () => {
 
   const createMockRemapper = () => ({
     remap: vi.fn().mockImplementation((id: string) => id),
+    addMapping: vi.fn(),
     buildMap: vi.fn(),
     getMap: vi.fn().mockReturnValue(new Map())
   })
@@ -166,6 +167,87 @@ describe('DomainImporter', () => {
     expect(remapper.remap).toHaveBeenCalledWith(oldAssistantId)
     const sqlStr = flattenSqlChunks(liveDb._tx.run.mock.calls[0][0])
     expect(sqlStr).toContain(newAssistantId)
+  })
+
+  it('strips autoincrement PK (id) column for agent_session_message in RENAME', async () => {
+    const rows = [{ id: 1, session_id: 'sess-1', content: 'hello' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute
+      .mockResolvedValueOnce({ rows })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      createMockRemapper() as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.AGENTS, ConflictStrategy.RENAME)
+
+    const sessionMsgCalls = liveDb._tx.run.mock.calls.filter((call: unknown[]) => {
+      const s = flattenSqlChunks(call[0])
+      return s.includes('"agent_session_message"')
+    })
+    for (const call of sessionMsgCalls) {
+      const s = flattenSqlChunks(call[0])
+      expect(s).not.toMatch(/"id".*VALUES/)
+      expect(s).toContain('"session_id"')
+    }
+  })
+
+  it('performs UNIQUE merge for tag with matching name under RENAME', async () => {
+    const rows = [{ id: 'backup-tag-id', name: 'existing-tag' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.all.mockResolvedValueOnce([{ id: 'live-tag-id' }])
+    const remapper = createMockRemapper()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.TAGS_GROUPS, ConflictStrategy.RENAME)
+
+    expect(remapper.addMapping).toHaveBeenCalledWith('backup-tag-id', 'live-tag-id')
+    expect(result.skipped).toBeGreaterThanOrEqual(1)
+  })
+
+  it('inserts tag normally when no UNIQUE conflict under RENAME', async () => {
+    const rows = [{ id: 'new-tag-id', name: 'brand-new-tag' }]
+    const backupClient = createMockBackupClient(rows)
+    backupClient.execute.mockResolvedValueOnce({ rows }).mockResolvedValueOnce({ rows: [] })
+    const liveDb = createMockLiveDb()
+    liveDb._tx.all.mockResolvedValueOnce([])
+    const remapper = createMockRemapper()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    const result = await importer.importDomain(BackupDomain.TAGS_GROUPS, ConflictStrategy.RENAME)
+
+    expect(remapper.addMapping).not.toHaveBeenCalled()
+    expect(result.imported).toBeGreaterThanOrEqual(1)
   })
 
   it('remaps snake_case FK columns for assistant junction tables', async () => {

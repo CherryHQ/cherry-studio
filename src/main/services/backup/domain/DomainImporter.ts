@@ -33,11 +33,20 @@ const FK_REMAP_RULES: Record<string, string[]> = {
   assistant_knowledge_base: ['assistant_id', 'knowledge_base_id'],
   agent: ['id'],
   agent_global_skill: ['id'],
-  agent_channel: ['id', 'agent_id'],
+  agent_channel: ['id', 'agent_id', 'session_id'],
   agent_skill: ['agent_id', 'skill_id'],
-  agent_session: ['agent_id'],
-  agent_task: ['agent_id'],
-  agent_channel_task: ['channel_id']
+  agent_session: ['id', 'agent_id'],
+  agent_task: ['id', 'agent_id'],
+  agent_channel_task: ['channel_id', 'task_id'],
+  agent_session_message: ['session_id'],
+  agent_task_run_log: ['task_id']
+}
+
+const AUTOINCREMENT_PK_TABLES = new Set(['agent_session_message', 'agent_task_run_log'])
+
+const UNIQUE_MERGE_RULES: Record<string, { column: string }> = {
+  agent_global_skill: { column: 'folder_name' },
+  tag: { column: 'name' }
 }
 
 export class DomainImporter {
@@ -94,6 +103,7 @@ export class DomainImporter {
     let imported = 0
     let skipped = 0
     let errors = 0
+    const stripAutoIncrementPk = AUTOINCREMENT_PK_TABLES.has(tableName) && strategy === ConflictStrategy.RENAME
 
     while (true) {
       this.token.throwIfCancelled()
@@ -103,7 +113,8 @@ export class DomainImporter {
       })
       if (batch.rows.length === 0) break
 
-      const columns = Object.keys(batch.rows[0])
+      const allColumns = Object.keys(batch.rows[0])
+      const columns = stripAutoIncrementPk ? allColumns.filter((c) => c !== 'id') : allColumns
       const colList = columns.map((c) => `"${c}"`).join(', ')
 
       let conflictClause = ''
@@ -116,6 +127,14 @@ export class DomainImporter {
 
       for (const row of batch.rows) {
         let remapped = this.remapRow(tableName, row as Record<string, unknown>)
+
+        if (strategy === ConflictStrategy.RENAME) {
+          const merged = await this.tryUniqueMerge(tx, tableName, remapped)
+          if (merged) {
+            skipped++
+            continue
+          }
+        }
 
         if (tableName === 'user_provider' && strategy === ConflictStrategy.OVERWRITE) {
           remapped = await this.preserveProviderCredentials(tx, remapped)
@@ -155,6 +174,26 @@ export class DomainImporter {
       }
     }
     return result
+  }
+
+  private async tryUniqueMerge(tx: SqlRunner, tableName: string, row: Record<string, unknown>): Promise<boolean> {
+    const rule = UNIQUE_MERGE_RULES[tableName]
+    if (!rule) return false
+
+    const uniqueValue = row[rule.column]
+    if (uniqueValue == null) return false
+
+    const existing = await tx.all(
+      sql`SELECT id FROM ${sql.raw(`"${tableName}"`)} WHERE ${sql.raw(`"${rule.column}"`)} = ${uniqueValue as string}`
+    )
+    if (existing.length === 0) return false
+
+    const liveId = (existing[0] as { id: string }).id
+    const backupId = row.id as string
+    if (backupId && liveId !== backupId) {
+      this.remapper.addMapping(backupId, liveId)
+    }
+    return true
   }
 
   private async preserveProviderCredentials(

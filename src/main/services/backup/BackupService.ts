@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { BackupOptions, RestoreOptions } from '@shared/backup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
@@ -25,6 +25,7 @@ interface ActiveOperation {
 
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['DbService'])
 export class BackupService extends BaseService {
   private readonly activeOps = new Map<string, ActiveOperation>()
   private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>()

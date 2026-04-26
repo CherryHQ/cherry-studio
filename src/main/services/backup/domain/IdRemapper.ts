@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import type { Client } from '@libsql/client'
 import { loggerService } from '@logger'
 import type { BackupDomain } from '@shared/backup'
@@ -22,6 +24,11 @@ const V4_TABLES = new Set([
 ])
 const V7_TABLES = new Set(['message', 'knowledge_item', 'translate_history'])
 
+const TEXT_ID_GENERATORS = new Map<string, () => string>([
+  ['agent_session', () => `session_${Date.now()}_${randomBytes(4).toString('hex')}`],
+  ['agent_task', () => `task_${Date.now()}_${randomBytes(4).toString('hex')}`]
+])
+
 export class IdRemapper {
   private readonly idMap = new Map<string, string>()
 
@@ -35,7 +42,8 @@ export class IdRemapper {
     for (const table of tables) {
       const isV4 = V4_TABLES.has(table)
       const isV7 = V7_TABLES.has(table)
-      if (!isV4 && !isV7) continue
+      const textGen = TEXT_ID_GENERATORS.get(table)
+      if (!isV4 && !isV7 && !textGen) continue
 
       const backupRows = await backupClient.execute(`SELECT id FROM "${table}"`)
       if (backupRows.rows.length === 0) continue
@@ -45,7 +53,8 @@ export class IdRemapper {
 
       for (const oldId of allIds) {
         if (existingSet.has(oldId)) {
-          this.idMap.set(oldId, isV7 ? uuidv7() : uuidv4())
+          const newId = textGen ? textGen() : isV7 ? uuidv7() : uuidv4()
+          this.idMap.set(oldId, newId)
         }
       }
     }
@@ -73,6 +82,10 @@ export class IdRemapper {
     }
 
     return result
+  }
+
+  addMapping(oldId: string, newId: string): void {
+    this.idMap.set(oldId, newId)
   }
 
   remap(id: string): string {

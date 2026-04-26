@@ -168,5 +168,15 @@ describe('DomainRegistry', () => {
       const tables = DOMAIN_TABLE_MAP[BackupDomain.TAGS_GROUPS]
       expect(tables.indexOf('tag')).toBeLessThan(tables.indexOf('entity_tag'))
     })
+
+    it('has agent_session before agent_session_message (FK: message.session_id -> session.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.AGENTS]
+      expect(tables.indexOf('agent_session')).toBeLessThan(tables.indexOf('agent_session_message'))
+    })
+
+    it('has agent_task before agent_task_run_log (FK: run_log.task_id -> task.id)', () => {
+      const tables = DOMAIN_TABLE_MAP[BackupDomain.AGENTS]
+      expect(tables.indexOf('agent_task')).toBeLessThan(tables.indexOf('agent_task_run_log'))
+    })
   })
 })

@@ -39,12 +39,6 @@ export class FileRestorer {
           skipped++
           continue
         }
-        const sourceStats = await fsp.stat(sourcePath)
-        const targetStats = await fsp.stat(targetPath)
-        if (sourceStats.size === targetStats.size) {
-          skipped++
-          continue
-        }
       }
 
       if (entry.isDirectory()) {
