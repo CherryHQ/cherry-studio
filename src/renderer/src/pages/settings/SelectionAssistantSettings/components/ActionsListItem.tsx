@@ -91,9 +91,9 @@ const Item = ({
   <div
     ref={ref as React.Ref<HTMLDivElement>}
     className={cn(
-      'mb-2 flex cursor-move items-center justify-between rounded-md border border-border bg-card px-4 py-3 transition-colors last:mb-0 hover:bg-accent',
-      disabled && 'opacity-80',
-      className === 'non-draggable' && 'relative cursor-default bg-accent',
+      'group/action-item mb-2 flex min-h-11 cursor-move items-center justify-between rounded-md border border-border/60 bg-transparent px-4 py-2 transition-colors last:mb-0 hover:border-border hover:bg-muted/50',
+      disabled && 'opacity-70 hover:bg-muted/30',
+      className === 'non-draggable' && 'relative cursor-default border-border/80 bg-muted/50 hover:bg-muted/50',
       className
     )}
     {...props}
@@ -101,7 +101,7 @@ const Item = ({
 )
 
 const ItemLeft = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-1 items-center', className)} {...props} />
+  <div className={cn('flex min-w-0 flex-1 items-center', className)} {...props} />
 )
 
 const ItemName = ({
@@ -109,14 +109,14 @@ const ItemName = ({
   disabled,
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { disabled: boolean }) => (
-  <span className={cn('ml-2', disabled ? 'text-foreground-muted' : 'text-foreground', className)} {...props} />
+  <span className={cn('ml-2 truncate', disabled ? 'text-foreground-muted' : 'text-foreground', className)} {...props} />
 )
 
 const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithoutRef<'div'> & { disabled: boolean }) => (
   <div
     className={cn(
       'mx-2 flex items-center justify-center',
-      disabled ? 'text-foreground-muted' : 'text-primary',
+      disabled ? 'text-muted-foreground/70' : 'text-muted-foreground group-hover/action-item:text-foreground',
       className
     )}
     {...props}
@@ -125,7 +125,10 @@ const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithout
 
 const ItemDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('ml-4 flex items-center gap-1 text-foreground-secondary text-xs opacity-80', className)}
+    className={cn(
+      'ml-4 flex h-5 shrink-0 items-center gap-1 rounded-sm bg-muted/50 px-1.5 text-muted-foreground text-xs leading-none',
+      className
+    )}
     {...props}
   />
 )
@@ -133,7 +136,7 @@ const ItemDescription = ({ className, ...props }: React.ComponentPropsWithoutRef
 const UserActionOpSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex flex-row items-center gap-2 [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-delete]:text-foreground-muted [&_.btn-icon-edit:hover]:text-primary [&_.btn-icon-edit]:text-foreground-muted',
+      'flex flex-row items-center gap-2 [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-delete]:text-muted-foreground [&_.btn-icon-edit:hover]:text-foreground [&_.btn-icon-edit]:text-muted-foreground',
       className
     )}
     {...props}
