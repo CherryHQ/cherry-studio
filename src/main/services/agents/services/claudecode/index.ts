@@ -23,7 +23,6 @@ import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
-import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
@@ -517,7 +516,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       systemPrompt: assistantSystemPrompt
         ? assistantSystemPrompt
         : soulSystemPrompt
-          ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+          ? `${soulSystemPrompt}${session.instructions ? `\n\n${session.instructions}` : ''}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : {
               type: 'preset',
               preset: 'claude_code',
@@ -572,8 +571,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
     if (!options.mcpServers) options.mcpServers = {}
-    const browserServer = new BrowserServer()
-    options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
 
     // Inject Exa MCP for structured web search (free tier, no API key required)
     options.mcpServers.exa = {
