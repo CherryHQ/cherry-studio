@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
@@ -9,9 +8,12 @@ import os from 'os'
 import path from 'path'
 
 import { isWin } from '../constant'
-import { ConfigKeys, configManager } from '../services/ConfigManager'
 import { getResourcePath } from '.'
+import { getCommonGitRoots } from './git-bash'
 import getShellEnv, { refreshShellEnv } from './shell-env'
+
+// Re-export for consumers that import from process.ts
+export { autoDiscoverGitBash, findGitBash, getGitBashPathInfo, validateGitBashPath } from './git-bash'
 
 const logger = loggerService.withContext('Utils:Process')
 
@@ -511,18 +513,6 @@ export async function executeCommand(
 }
 
 /**
- * Common Git installation root directories on Windows
- * Used by findExecutable() (git special case) and findGitBash() to check fallback paths
- */
-function getCommonGitRoots(): string[] {
-  return [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
-    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
-  ]
-}
-
-/**
  * Check if git is available in the user's environment
  * Refreshes shell env cache to detect newly installed Git
  * @returns Object with availability status and path to git executable
@@ -534,168 +524,3 @@ export async function checkGitAvailable(): Promise<{ available: boolean; path: s
   return { available: gitPath !== null, path: gitPath }
 }
 
-/**
- * Find Git Bash (bash.exe) on Windows
- * @param customPath - Optional custom path from config
- * @returns Full path to bash.exe or null if not found
- */
-export function findGitBash(customPath?: string | null): string | null {
-  // Git Bash is Windows-only
-  if (!isWin) {
-    return null
-  }
-
-  // 1. Check custom path from config first
-  if (customPath) {
-    const validated = validateGitBashPath(customPath)
-    if (validated) {
-      logger.debug('Using custom Git Bash path from config', { path: validated })
-      return validated
-    }
-    logger.warn('Custom Git Bash path provided but invalid', { path: customPath })
-  }
-
-  // 2. Check environment variable override
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
-  if (envOverride) {
-    const validated = validateGitBashPath(envOverride)
-    if (validated) {
-      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
-      return validated
-    }
-    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
-  }
-
-  // 3. Find git.exe via findExecutable (checks PATH + common Git install paths)
-  const gitPath = findExecutable('git')
-  if (gitPath) {
-    // Derive bash.exe from git.exe location
-    // Different Git installations have different directory structures
-    const possibleBashPaths = [
-      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
-      path.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
-      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // MSYS2 Git: git.exe at msys64/usr/bin/ -> navigate up 2 levels -> then usr/bin/bash.exe
-    ]
-
-    for (const bashPath of possibleBashPaths) {
-      const resolvedBashPath = path.resolve(bashPath)
-      if (fs.existsSync(resolvedBashPath)) {
-        logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
-        return resolvedBashPath
-      }
-    }
-
-    logger.debug('bash.exe not found at expected locations relative to git.exe', {
-      gitPath,
-      checkedPaths: possibleBashPaths.map((p) => path.resolve(p))
-    })
-  }
-
-  // 4. Fallback: check common Git installation paths directly
-  for (const root of getCommonGitRoots()) {
-    const fullPath = path.join(root, 'bin', 'bash.exe')
-    if (fs.existsSync(fullPath)) {
-      logger.debug('Found bash.exe at common path', { path: fullPath })
-      return fullPath
-    }
-  }
-
-  logger.debug('bash.exe not found - checked git derivation and common paths')
-  return null
-}
-
-export function validateGitBashPath(customPath?: string | null): string | null {
-  if (!customPath) {
-    return null
-  }
-
-  const resolved = path.resolve(customPath)
-
-  if (!fs.existsSync(resolved)) {
-    logger.warn('Custom Git Bash path does not exist', { path: resolved })
-    return null
-  }
-
-  const isExe = resolved.toLowerCase().endsWith('bash.exe')
-  if (!isExe) {
-    logger.warn('Custom Git Bash path is not bash.exe', { path: resolved })
-    return null
-  }
-
-  logger.debug('Validated custom Git Bash path', { path: resolved })
-  return resolved
-}
-
-/**
- * Auto-discover and persist Git Bash path if not already configured
- * Only called when Git Bash is actually needed
- *
- * Precedence order:
- * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
- * 2. Configured path from settings (manual or auto)
- * 3. Auto-discovery via findGitBash (only if no valid config exists)
- */
-export function autoDiscoverGitBash(): string | null {
-  if (!isWin) {
-    return null
-  }
-
-  // 1. Check environment variable override first (highest priority)
-  const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
-  if (envOverride) {
-    const validated = validateGitBashPath(envOverride)
-    if (validated) {
-      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override', { path: validated })
-      return validated
-    }
-    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
-  }
-
-  // 2. Check if a path is already configured
-  const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
-  const existingSource = configManager.get<GitBashPathSource | undefined>(ConfigKeys.GitBashPathSource)
-
-  if (existingPath) {
-    const validated = validateGitBashPath(existingPath)
-    if (validated) {
-      return validated
-    }
-    // Existing path is invalid, try to auto-discover
-    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
-      path: existingPath,
-      source: existingSource
-    })
-  }
-
-  // 3. Try to find Git Bash via auto-discovery
-  const discoveredPath = findGitBash()
-  if (discoveredPath) {
-    // Persist the discovered path with 'auto' source
-    configManager.set(ConfigKeys.GitBashPath, discoveredPath)
-    configManager.set(ConfigKeys.GitBashPathSource, 'auto')
-    logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
-  }
-
-  return discoveredPath
-}
-
-/**
- * Get Git Bash path info including source
- * If no path is configured, triggers auto-discovery first
- */
-export function getGitBashPathInfo(): GitBashPathInfo {
-  if (!isWin) {
-    return { path: null, source: null }
-  }
-
-  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
-  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
-
-  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
-  if (!path) {
-    path = autoDiscoverGitBash()
-    source = path ? 'auto' : null
-  }
-
-  return { path, source }
-}

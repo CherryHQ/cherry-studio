@@ -12,6 +12,11 @@ vi.mock('@main/constant', () => ({
 
 vi.mock('child_process')
 
+// Mock findGitBash — returns null by default (no Git Bash installed)
+vi.mock('@main/utils/git-bash', () => ({
+  findGitBash: vi.fn().mockReturnValue(null)
+}))
+
 // Import AFTER mocks are registered so the module binds to mocked values.
 import { refreshShellEnv } from '../shell-env'
 
@@ -175,7 +180,7 @@ describe('shell-env – Windows registry PATH', () => {
 
   // -- does not spawn cmd.exe -----------------------------------------------
 
-  it('should not spawn cmd.exe or any shell process', async () => {
+  it('should not spawn any shell process when Git Bash is not found', async () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const keyPath = (args as string[])[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
@@ -185,5 +190,203 @@ describe('shell-env – Windows registry PATH', () => {
     await refreshShellEnv()
 
     expect(spawn).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Git Bash spawn tests
+// ---------------------------------------------------------------------------
+
+describe('shell-env – Windows Git Bash spawn', () => {
+  const savedEnv = process.env
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env = {
+      SystemRoot: 'C:\\Windows',
+      USERPROFILE: 'C:\\Users\\TestUser',
+      Path: 'C:\\StaleOldPath'
+    }
+  })
+
+  afterEach(() => {
+    process.env = savedEnv
+  })
+
+  // Helper: create a mock ChildProcess that emits 'close' with stdout
+  function mockSpawnSuccess(stdout: string) {
+    type ListenerFn = (...args: unknown[]) => void
+    const listeners: Record<string, ListenerFn[]> = {}
+    const mockChild = {
+      kill: vi.fn(),
+      stdout: { on: (_event: string, fn: ListenerFn) => { listeners['stdout'] = listeners['stdout'] || []; listeners['stdout'].push(fn) } },
+      stderr: { on: (_event: string, fn: ListenerFn) => { listeners['stderr'] = listeners['stderr'] || []; listeners['stderr'].push(fn) } },
+      on: (event: string, fn: ListenerFn) => { listeners[event] = listeners[event] || []; listeners[event].push(fn) }
+    }
+    vi.mocked(spawn).mockImplementation(() => {
+      // Simulate async data and close events
+      setTimeout(() => {
+        listeners['stdout']?.forEach((fn) => fn(stdout))
+        listeners['stderr']?.forEach((fn) => fn(''))
+        listeners['close']?.forEach((fn) => fn(0))
+      }, 0)
+      return mockChild as any
+    })
+    return mockChild
+  }
+
+  // T006: Git Bash found → spawn with -ilc env
+  it('should spawn bash with -ilc env when Git Bash is found', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    const bashEnvOutput = 'PATH=C:\\fnm\\node\\v22.0.0;C:\\Users\\TestUser\\.local\\bin\nHOME=C:\\Users\\TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    // Registry returns system paths
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    expect(spawn).toHaveBeenCalledWith(
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      ['-ilc', 'env'],
+      expect.objectContaining({ shell: false })
+    )
+    expect(env.PATH || env.Path).toContain('C:\\fnm\\node\\v22.0.0')
+  })
+
+  // T007: Git Bash not found → fallback to registry
+  it('should fall back to registry PATH when Git Bash is not found', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue(null)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    expect(spawn).not.toHaveBeenCalled()
+    expect(env.Path).toContain('C:\\Windows\\system32')
+  })
+
+  // T008: spawn failure → fallback to registry
+  it('should fall back to registry PATH when bash spawn fails', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // spawn emits 'error' event
+    type ListenerFn = (...args: unknown[]) => void
+    const listeners: Record<string, ListenerFn[]> = {}
+    vi.mocked(spawn).mockImplementation(() => {
+      setTimeout(() => {
+        listeners['error']?.forEach((fn) => fn(new Error('ENOENT')))
+      }, 0)
+      return {
+        kill: vi.fn(),
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: (event: string, fn: ListenerFn) => { listeners[event] = listeners[event] || []; listeners[event].push(fn) }
+      } as any
+    })
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\FallbackPath')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    expect(env.Path).toContain('C:\\FallbackPath')
+  })
+
+  // T009: spawn timeout → fallback to registry
+  it('should fall back to registry PATH when bash spawn times out', async () => {
+    vi.useFakeTimers()
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // spawn never resolves (hangs)
+    vi.mocked(spawn).mockImplementation(() => ({
+      kill: vi.fn(),
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() },
+      on: vi.fn()
+    }) as any)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\TimeoutFallback')
+      throw new Error('not found')
+    })
+
+    const promise = refreshShellEnv()
+
+    // Advance past the 15s timeout
+    vi.advanceTimersByTime(16_000)
+
+    const env = await promise
+
+    expect(env.Path).toContain('C:\\TimeoutFallback')
+
+    vi.useRealTimers()
+  })
+
+  // T010: mergeWithRegistryPath preserves registry segments
+  it('should merge registry PATH segments not present in bash env', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // Bash env has user paths but not system paths
+    const bashEnvOutput = 'PATH=C:\\fnm\\node\\v22.0.0;C:\\Users\\TestUser\\.local\\bin\nHOME=C:\\Users\\TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    // Registry has system paths
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32;C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const pathValue = env.PATH || env.Path || ''
+    // Both bash and registry paths should be present
+    expect(pathValue).toContain('C:\\fnm\\node\\v22.0.0')
+    expect(pathValue).toContain('C:\\Windows\\system32')
+    // Bash paths should come before registry paths
+    expect(pathValue.indexOf('C:\\fnm\\node\\v22.0.0')).toBeLessThan(pathValue.indexOf('C:\\Windows\\system32'))
+  })
+
+  // T011: verify dedup — registry segment already in bash env is not duplicated
+  it('should not duplicate PATH segments already present from bash env', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // Bash env already includes a system path
+    const bashEnvOutput = 'PATH=C:\\Windows\\system32;C:\\fnm\\node\\v22.0.0\nHOME=C:\\Users\\TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    // Registry also includes the same system path
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32;C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const pathValue = env.PATH || env.Path || ''
+    const segments = pathValue.split(';')
+    const system32Count = segments.filter((s: string) => s.toLowerCase().includes('system32')).length
+    expect(system32Count).toBe(1)
   })
 })

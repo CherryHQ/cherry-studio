@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { findGitBash } from '@main/utils/git-bash'
 import { execFileSync, spawn } from 'child_process'
 
 const logger = loggerService.withContext('ShellEnv')
@@ -139,45 +140,50 @@ function getWindowsEnvironment(): Record<string, string> {
 }
 
 /**
- * Spawns a login shell in the user's home directory to capture its environment variables.
- *
- * We explicitly run a login + interactive shell so it sources the same init files that a user
- * would typically rely on inside their terminal. Many CLIs export PATH or other variables from
- * these scripts; capturing them keeps spawned processes aligned with the user’s expectations.
- *
- * Timeout handling is important because profile scripts might block forever (e.g. misconfigured
- * `read` or prompts). We proactively kill the shell and surface an error in that case so that
- * the app does not hang.
- * @returns {Promise<Object>} A promise that resolves with an object containing
- * the environment variables, or rejects with an error.
+ * Merge registry PATH segments into a bash-captured environment.
+ * Ensures Windows system-level paths (e.g. System32) are not lost
+ * when the environment was captured from Git Bash.
  */
-function getLoginShellEnvironment(): Promise<Record<string, string>> {
-  // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
-  // the (potentially stale) parent process env. Instead, read the current PATH
-  // straight from the Windows registry.
-  if (isWin) {
-    return Promise.resolve(getWindowsEnvironment())
+function mergeWithRegistryPath(env: Record<string, string>): Record<string, string> {
+  const registryPath = readWindowsRegistryPath(env)
+  if (!registryPath) {
+    return { ...env }
   }
 
+  // Find the PATH key in env (case-insensitive on Windows)
+  const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path')
+  const canonicalKey = pathKey || 'Path'
+  const existingPath = env[canonicalKey] || ''
+
+  const normaliseSegment = (segment: string) => path.normalize(segment).toLowerCase()
+  const seenSegments = new Set(existingPath.split(';').map(normaliseSegment))
+
+  const registrySegments = registryPath.split(';').filter((segment) => {
+    const trimmed = segment.trim()
+    if (!trimmed) return false
+    const normalised = normaliseSegment(trimmed)
+    if (seenSegments.has(normalised)) return false
+    seenSegments.add(normalised)
+    return true
+  })
+
+  if (registrySegments.length > 0) {
+    return { ...env, [canonicalKey]: existingPath + ';' + registrySegments.join(';') }
+  }
+
+  return env
+}
+
+/**
+ * Spawn a login shell and capture its environment variables.
+ * Works with any POSIX-compatible shell (bash, zsh, etc.) on any platform.
+ */
+function spawnShellEnv(shellPath: string): Promise<Record<string, string>> {
   return new Promise((resolve, reject) => {
     const homeDirectory =
       process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
     if (!homeDirectory) {
       return reject(new Error("Could not determine user's home directory."))
-    }
-
-    let shellPath = process.env.SHELL
-
-    if (!shellPath) {
-      if (isMac) {
-        logger.warn(
-          "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
-        )
-        shellPath = '/bin/zsh'
-      } else {
-        logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
-        shellPath = '/bin/bash'
-      }
     }
 
     const commandArgs = ['-ilc', 'env']
@@ -213,16 +219,15 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     const child = spawn(shellPath, commandArgs, {
-      cwd: homeDirectory, // Run the command in the user's home directory
-      detached: false, // Stay attached so we can clean up reliably
-      stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
-      shell: false // We are specifying the shell command directly
+      cwd: homeDirectory,
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false
     })
 
     let output = ''
     let errorOutput = ''
 
-    // Protects against shells that wait for user input or hang during profile sourcing.
     timeoutId = setTimeout(() => {
       const errorMessage = `Timed out after ${SHELL_ENV_TIMEOUT_MS}ms while retrieving shell environment. Shell: ${shellPath}. Args: ${commandArgs.join(
         ' '
@@ -257,12 +262,9 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
 
       if (errorOutput.trim()) {
-        // Some shells might output warnings or non-fatal errors to stderr
-        // during profile loading. Log it, but proceed if exit code is 0.
         logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
       }
 
-      // Convert each VAR=VALUE line into our env map.
       const env: Record<string, string> = {}
       const lines = output.split(/\r?\n/)
 
@@ -271,7 +273,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         if (trimmedLine) {
           const separatorIndex = trimmedLine.indexOf('=')
           if (separatorIndex > 0) {
-            // Ensure '=' is present and it's not the first character
             const key = trimmedLine.substring(0, separatorIndex)
             const value = trimmedLine.substring(separatorIndex + 1)
             env[key] = value
@@ -280,8 +281,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       })
 
       if (Object.keys(env).length === 0 && output.length < 100) {
-        // Arbitrary small length check
-        // This might indicate an issue if no env vars were parsed or output was minimal
         logger.warn(
           'Parsed environment is empty or output was very short. This might indicate an issue with shell execution or environment variable retrieval.'
         )
@@ -293,6 +292,55 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       resolveOnce(env)
     })
   })
+}
+
+/**
+ * Detect the user's default shell on macOS/Linux.
+ */
+function detectUnixShell(): string {
+  let shellPath = process.env.SHELL
+
+  if (!shellPath) {
+    if (isMac) {
+      logger.warn(
+        "process.env.SHELL is not set. Defaulting to /bin/zsh for macOS. This might not be the user's login shell."
+      )
+      shellPath = '/bin/zsh'
+    } else {
+      logger.warn("process.env.SHELL is not set. Defaulting to /bin/bash. This might not be the user's login shell.")
+      shellPath = '/bin/bash'
+    }
+  }
+
+  return shellPath
+}
+
+/**
+ * Spawns a login shell in the user's home directory to capture its environment variables.
+ *
+ * On Windows with Git Bash installed, spawns bash.exe to source profile files.
+ * On macOS/Linux, spawns the user's default login shell.
+ * Falls back to registry-based PATH on Windows when Git Bash is unavailable or spawn fails.
+ */
+function getLoginShellEnvironment(): Promise<Record<string, string>> {
+  // On Windows, try Git Bash first to source profile files
+  if (isWin) {
+    const gitBashPath = findGitBash()
+    if (gitBashPath) {
+      return spawnShellEnv(gitBashPath)
+        .then((bashEnv) => mergeWithRegistryPath(bashEnv))
+        .catch((error) => {
+          logger.warn('Git Bash spawn failed, falling back to registry PATH', { error: error.message })
+          return getWindowsEnvironment()
+        })
+    }
+    // No Git Bash found — fallback to registry-based PATH
+    return Promise.resolve(getWindowsEnvironment())
+  }
+
+  // macOS/Linux: spawn the user's default login shell
+  const shellPath = detectUnixShell()
+  return spawnShellEnv(shellPath)
 }
 
 let cachedEnv: Record<string, string> | null = null
