@@ -88,46 +88,39 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
 
 /**
  * Register MCP tools into the ToolRegistry for the given tool IDs.
- * Tool IDs are in format "serverId__toolName" (MCPTool.id).
  *
- * Fetches tool definitions from MCPService + server config from DB,
- * creates AI SDK tool wrappers with needsApproval, and registers them.
+ * Tool IDs are produced by `buildFunctionCallToolName(serverName, toolName)`
+ * in the format `mcp__{camelServerName}__{camelToolName}` — three segments,
+ * with the second carrying a transformed display name (camelCased, possibly
+ * truncated). That transformation is lossy, so we cannot map a tool id back
+ * to a server uuid by string parsing. Instead we iterate every active MCP
+ * server, ask `listTools` per server (cached for 5 min in McpService), and
+ * register the matches. The double listTools relative to
+ * `resolveAssistantMcpToolIds` hits the same cache on the second pass.
  */
 export async function registerMcpTools(registry: ToolRegistry, mcpToolIds: string[]): Promise<void> {
   if (mcpToolIds.length === 0) return
 
+  const requested = new Set(mcpToolIds.filter((id) => !registry.has(id)))
+  if (requested.size === 0) return
+
   const mcpService = application.get('McpService')
+  const { items: activeServers } = await mcpServerService.list({ isActive: true })
 
-  // Group tool IDs by server to batch listTools calls
-  const serverToolMap = new Map<string, string[]>()
-  for (const toolId of mcpToolIds) {
-    if (registry.has(toolId)) continue
-    const separatorIndex = toolId.indexOf('__')
-    if (separatorIndex === -1) continue
-    const serverId = toolId.substring(0, separatorIndex)
-    const existing = serverToolMap.get(serverId) ?? []
-    existing.push(toolId)
-    serverToolMap.set(serverId, existing)
-  }
-
-  for (const [serverId, toolIds] of serverToolMap) {
+  for (const server of activeServers) {
     try {
-      // Fetch tools + server config in parallel
-      const [allTools, serverConfig] = await Promise.all([
-        mcpService.listTools({ id: serverId } as MCPServer),
-        mcpServerService.getById(serverId).catch(() => null)
-      ])
-
-      const toolIdSet = new Set(toolIds)
-      const disabledAutoApprove = serverConfig?.disabledAutoApproveTools
-
-      for (const mcpTool of allTools) {
-        if (toolIdSet.has(mcpTool.id)) {
-          registry.register(createMcpTool(mcpTool, disabledAutoApprove))
-        }
+      const allTools = await mcpService.listTools(server)
+      const matches = allTools.filter((tool) => requested.has(tool.id))
+      if (matches.length === 0) continue
+      for (const mcpTool of matches) {
+        registry.register(createMcpTool(mcpTool, server.disabledAutoApproveTools))
       }
     } catch (error) {
-      logger.error('Failed to register MCP tools for server', { serverId, error })
+      logger.error('Failed to register MCP tools for server', {
+        serverId: server.id,
+        serverName: server.name,
+        error
+      })
     }
   }
 }
