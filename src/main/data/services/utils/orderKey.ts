@@ -8,28 +8,21 @@
  * rather than reaching for `fractional-indexing` directly.
  *
  * Rule: Do NOT import `fractional-indexing` outside this file.
- *
- * Character set is locked to base62 — the library default. Any future change
- * to an alternative alphabet requires a whole-database migration and must
- * start by changing the constant in this file; no `digits` parameter is
- * exposed to call sites.
  */
 
 import { loggerService } from '@logger'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import { and, type AnyColumn, asc, desc, eq, gt, lt, ne, type SQL } from 'drizzle-orm'
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import { and, type AnyColumn, asc, desc, eq, getTableName, gt, inArray, lt, ne, type SQL } from 'drizzle-orm'
+import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing'
 
 const logger = loggerService.withContext('orderKey')
 
-/**
- * Locked character set for generated order keys. Not used at runtime
- * (fractional-indexing's default is base62), documented here so that any
- * migration away from base62 has a single canonical origin in this file.
- */
-const _BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' as const
-void _BASE62
+// Character set is locked to `fractional-indexing`'s default base62
+// (0-9A-Za-z). Migrating away from base62 would require a whole-database
+// rewrite and must start by passing an explicit `digits` option to the
+// generator wrappers below — no call site should assume any other alphabet.
 
 /**
  * Broad transaction/database type. Matches both top-level `DbType` and the
@@ -234,6 +227,60 @@ export async function applyMoves(
       .set({ orderKey: newKey })
       .where(scope ? and(eq(pkColumn, move.id), scope) : eq(pkColumn, move.id))
   }
+}
+
+/**
+ * Apply a batch of moves that are implicitly scoped by a discriminator column
+ * (e.g. `entityType`). The scope value for each target is looked up from the
+ * row itself — callers only declare the `scopeColumn`; they do not pre-compute
+ * or pass in the scope value.
+ *
+ * Contract rejections (surfaced as `DataApiError` for direct propagation to
+ * the API layer):
+ * - Any requested id missing in the table → `NOT_FOUND`. Missing id check runs
+ *   before the multi-scope check.
+ * - The batch spans more than one distinct scope value → `VALIDATION_ERROR`.
+ *   Scoped reorders must not cross scope boundaries; a single request is
+ *   expected to stay within one scope bucket.
+ *
+ * Empty `moves` is a no-op (no DB access).
+ */
+export async function applyScopedMoves<T extends TableWithOrderKey>(
+  tx: TxLike,
+  table: T,
+  moves: Array<{ id: string; anchor: OrderRequest }>,
+  options: { pkColumn: AnySQLiteColumn; scopeColumn: AnySQLiteColumn }
+): Promise<void> {
+  if (moves.length === 0) return
+
+  const { pkColumn, scopeColumn } = options
+  const ids = moves.map((m) => m.id)
+  const resourceName = getTableName(table)
+
+  const rows = (await tx
+    .select({ id: pkColumn, scope: scopeColumn })
+    .from(table)
+    .where(inArray(pkColumn, ids))) as Array<{ id: string; scope: unknown }>
+
+  if (rows.length !== ids.length) {
+    const foundIds = new Set(rows.map((r) => r.id))
+    const missingId = ids.find((id) => !foundIds.has(id)) ?? ids[0]
+    throw DataApiErrorFactory.notFound(resourceName, missingId)
+  }
+
+  const scopes = new Set(rows.map((r) => r.scope))
+  if (scopes.size > 1) {
+    // Invariant: batch must share scope — service contract forbids cross-scope moves.
+    const scopeList = [...scopes].map((s) => String(s)).join(', ')
+    const message = `applyScopedMoves: batch spans multiple scopes (${scopeList})`
+    throw DataApiErrorFactory.validation({ _root: [message] }, message)
+  }
+
+  const [scopeValue] = [...scopes]
+  await applyMoves(tx, table, moves, {
+    pkColumn,
+    scope: eq(scopeColumn, scopeValue)
+  })
 }
 
 /**

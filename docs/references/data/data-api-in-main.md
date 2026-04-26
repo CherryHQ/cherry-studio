@@ -27,14 +27,24 @@ ApiServer is transport-agnostic. Adapters in `api/core/adapters/` bridge specifi
 - Transform response for IPC
 - **NO business logic here**
 
+### Handler Type Annotation
+
+Every per-module handler record **MUST** be annotated with `HandlersFor<XxxSchemas>`. This is the canonical shape for all files in `src/main/data/api/handlers/` — not a convention to choose among alternatives.
+
+`HandlersFor<XxxSchemas>` enforces two invariants:
+
+- **Paths are narrowed to the module's own schema.** Path strings outside `XxxSchemas` (typos, cross-module leaks) produce a compile error.
+- **Methods are exhaustive.** Every `path + method` declared in `XxxSchemas` must have a handler; adding an endpoint to the schema without a matching handler is a compile error.
+
 ### Example Handler
 
 ```typescript
-// handlers/topic.ts
-import type { ApiImplementation } from '@shared/data/api'
+// handlers/topics.ts
 import { topicService } from '@data/services/TopicService'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
+import type { TopicSchemas } from '@shared/data/api/schemas/topics'
 
-export const topicHandlers: Partial<ApiImplementation> = {
+export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
     GET: async ({ query }) => {
       const { page = 1, limit = 20 } = query ?? {}
@@ -304,7 +314,7 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 
 ```typescript
 // schemas/topic.ts
-export interface TopicSchemas {
+export type TopicSchemas = {
   '/topics': {
     GET: { response: PaginatedResponse<Topic> }
     POST: { body: CreateTopicDto; response: Topic }

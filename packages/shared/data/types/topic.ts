@@ -5,32 +5,38 @@
  * and can be organized into groups.
  */
 
+import * as z from 'zod'
+
+export const TopicIdSchema = z.uuidv4()
+export const TopicNameSchema = z.string().min(1).max(255)
+
 /**
- * Complete topic entity as stored in database
+ * Complete topic entity as stored in database.
  */
-export interface Topic {
+export const TopicSchema = z.strictObject({
   /** Topic ID */
-  id: string
+  id: TopicIdSchema,
   /** Topic name */
-  name?: string | null
+  name: TopicNameSchema.nullable().optional(),
   /** Whether the name was manually edited by user */
-  isNameManuallyEdited: boolean
+  isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
-  assistantId?: string | null
+  assistantId: z.string().nullable().optional(),
   /** Active node ID in the message tree */
-  activeNodeId?: string | null
+  activeNodeId: z.string().nullable().optional(),
   /** Group ID for organization */
-  groupId?: string | null
+  groupId: z.string().nullable().optional(),
   /** Sort order within group */
-  sortOrder: number
+  sortOrder: z.number(),
   /** Whether topic is pinned */
-  isPinned: boolean
+  isPinned: z.boolean(),
   /** Pinned order */
-  pinnedOrder: number
+  pinnedOrder: z.number(),
   /** Cache expiration reminder toggle */
-  enableCacheReminder?: boolean
+  enableCacheReminder: z.boolean().optional(),
   /** Creation timestamp (ISO string) */
-  createdAt: string
+  createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
-  updatedAt: string
-}
+  updatedAt: z.iso.datetime()
+})
+export type Topic = z.infer<typeof TopicSchema>

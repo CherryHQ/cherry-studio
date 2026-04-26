@@ -21,7 +21,7 @@ This document outlines the detailed plan for migrating Cherry Studio from antd +
 1. **Backward Compatibility**: Old components continue working until new components are fully available
 2. **Progressive Migration**: Migrate components one by one to avoid large-scale rewrites
 3. **Feature Parity**: Ensure new components have all the functionality of old components
-4. **Design Consistency**: Follow new design system specifications (see [README.md](./README.md))
+4. **Design Consistency**: Follow new design system specifications (see [README.md](../README.md))
 5. **Performance Priority**: Optimize bundle size and rendering performance
 6. **Designer Collaboration**: Work with UI designers for gradual component encapsulation and UI optimization
 
@@ -138,7 +138,7 @@ When submitting PRs, please place components in the correct directory based on t
 - Semantic spacing system: `5xs` through `8xl` (16 levels)
 - Semantic radius system: `4xs` through `3xl` plus `round` (11 levels)
 - Full light/dark mode support
-- See [README.md](./README.md) for usage documentation
+- See [README.md](../README.md) for usage documentation
 
 ### Migration Priority Adjustment
 

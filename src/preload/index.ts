@@ -115,9 +115,6 @@ const api = {
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
-  setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchToTray, isActive),
-  setTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTray, isActive),
-  setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
   setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
   // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
@@ -149,8 +146,6 @@ const api = {
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
-  setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.MainWindow_SetFullScreen, value),
-  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.MainWindow_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
   getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
   mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.MainWindow_CrashRenderProcess),
@@ -369,8 +364,7 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
-    getSize: (): Promise<[number, number]> => ipcRenderer.invoke(IpcChannel.MainWindow_GetSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
   },
   fileService: {
     upload: (provider: Provider, file: FileMetadata): Promise<FileUploadResponse> =>
@@ -556,7 +550,27 @@ const api = {
     // the sender window is not managed by WindowManager (e.g., detached devtools).
     // Renderers that also need to update on reuse should prefer the useWindowInitData
     // hook (core/hooks/useWindowInitData), which also listens for WindowManager_Reused.
-    getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData)
+    getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData),
+
+    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Minimize),
+    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Maximize),
+    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Unmaximize),
+    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Close),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsMaximized),
+
+    setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_SetFullScreen, value),
+    isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsFullScreen),
+
+    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
+      ipcRenderer.on(IpcChannel.WindowManager_MaximizedChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.WindowManager_MaximizedChanged, listener)
+    },
+    onFullscreenChange: (callback: (isFullscreen: boolean) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
+      ipcRenderer.on(IpcChannel.WindowManager_FullscreenChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.WindowManager_FullscreenChanged, listener)
+    }
   },
   selection: {
     hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
@@ -565,8 +579,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
     processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
-    closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
-    minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
@@ -798,21 +810,6 @@ const api = {
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
-  },
-  windowControls: {
-    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
-    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Maximize),
-    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Unmaximize),
-    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Close),
-    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
-    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
-      const channel = IpcChannel.MainWindow_MaximizedChanged
-      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
-      ipcRenderer.on(channel, listener)
-      return () => {
-        ipcRenderer.removeListener(channel, listener)
-      }
-    }
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {

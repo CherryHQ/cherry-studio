@@ -115,7 +115,7 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 Scope:
 
 - **BootConfig**: sync file-based; direct in main (pre-lifecycle), via `usePreference('BootConfig.*')` otherwise
-- **Cache**: memory / cross-window / persisted tiers; usable in main and renderer
+- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist is renderer-only (main relays IPC but doesn't store)
 - **Preference**: cross-process (main + renderer); auto-syncs across windows
 - **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
 

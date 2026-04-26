@@ -86,7 +86,7 @@ Cherry Studio uses four data systems, each optimized for different data characte
 | System | Storage | Timing | Use Case |
 |--------|---------|--------|----------|
 | **BootConfig** | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
-| **Cache** | Memory / localStorage | Runtime | Temp data, UI state |
+| **Cache** | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
 | **Preference** | SQLite | Post-lifecycle | User settings (theme, language) |
 | **DataApi** | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
 

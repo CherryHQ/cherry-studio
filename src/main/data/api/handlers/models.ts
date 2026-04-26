@@ -10,20 +10,15 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
-  CreateModelsDtoSchema,
+  CreateModelsSchema,
   ListModelsQuerySchema,
   type ModelSchemas,
-  UpdateModelDtoSchema
+  UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-
-/**
- * Handler type for a specific model endpoint
- */
-type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
 
@@ -68,14 +63,7 @@ async function enrichCreateItems(dtos: CreateModelDto[]) {
   )
 }
 
-/**
- * Model API handlers implementation
- */
-export const modelHandlers: {
-  [Path in keyof ModelSchemas]: {
-    [Method in keyof ModelSchemas[Path]]: ModelHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
       const parsed = ListModelsQuerySchema.parse(query ?? {})
@@ -86,7 +74,7 @@ export const modelHandlers: {
       // Transport is array-only by design. Even single-item create requests are
       // normalized before they reach the service so the service can expose one
       // collection-oriented create path with consistent transaction semantics.
-      const parsed = CreateModelsDtoSchema.parse(body)
+      const parsed = CreateModelsSchema.parse(body)
       const items = await enrichCreateItems(parsed)
       return await modelService.create(items)
     }
@@ -100,7 +88,7 @@ export const modelHandlers: {
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      const parsed = UpdateModelDtoSchema.parse(body)
+      const parsed = UpdateModelSchema.parse(body)
       return await modelService.update(providerId, modelId, parsed)
     },
 

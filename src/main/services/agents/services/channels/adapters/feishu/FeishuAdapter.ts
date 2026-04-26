@@ -4,16 +4,17 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
-import type { FeishuDomain } from '@main/services/agents/database/schema'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
   type FileAttachment,
+  type ImageAttachment,
   MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import type { FeishuDomain } from '../../channelConfig'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
@@ -682,6 +683,11 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
+    if (messageType === 'image') {
+      this.handleImageMessage(event, chatId, userId)
+      return
+    }
+
     if (messageType !== 'text') return
 
     let text: string
@@ -716,6 +722,96 @@ class FeishuAdapter extends ChannelAdapter {
       userName: '',
       text
     })
+  }
+
+  private handleImageMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
+    let imageKey: string
+    try {
+      const parsed = JSON.parse(event.message.content) as { image_key?: string }
+      imageKey = parsed.image_key ?? ''
+    } catch {
+      return
+    }
+    if (!imageKey) return
+
+    this.downloadFeishuImage(event.message.message_id, imageKey)
+      .then((images) => {
+        if (images.length === 0) {
+          this.emit('message', {
+            chatId,
+            userId,
+            userName: '',
+            text: '[Image — download failed]'
+          })
+          return
+        }
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: '',
+          images
+        })
+      })
+      .catch((error) => {
+        this.log.warn('Failed to download Feishu image', {
+          imageKey,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: '[Image — download failed]'
+        })
+      })
+  }
+
+  private async downloadFeishuImage(messageId: string, imageKey: string): Promise<ImageAttachment[]> {
+    if (!this.client) return []
+
+    this.log.info('Downloading Feishu image', { messageId, imageKey })
+
+    let resp: Awaited<ReturnType<typeof this.client.im.messageResource.get>>
+    try {
+      resp = await this.client.im.messageResource.get({
+        params: { type: 'image' },
+        path: { message_id: messageId, file_key: imageKey }
+      })
+    } catch (error) {
+      this.log.error('Feishu messageResource.get failed', {
+        messageId,
+        imageKey,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      throw error
+    }
+
+    const stream = resp.getReadableStream()
+    const chunks: Buffer[] = []
+    let totalSize = 0
+
+    for await (const chunk of stream) {
+      totalSize += chunk.length
+      if (totalSize > MAX_FILE_SIZE_BYTES) {
+        this.log.warn('Feishu image too large, aborting download', { imageKey, size: totalSize })
+        stream.destroy()
+        return []
+      }
+      chunks.push(Buffer.from(chunk))
+    }
+
+    const buffer = Buffer.concat(chunks)
+    if (buffer.length === 0) return []
+
+    const rawContentType =
+      (resp.headers as Record<string, string | string[] | undefined> | undefined)?.['content-type'] ?? ''
+    const headerValue = Array.isArray(rawContentType) ? rawContentType[0] : rawContentType
+    const mediaType = headerValue ? headerValue.split(';')[0].trim() || 'image/png' : 'image/png'
+
+    this.log.info('Feishu image downloaded', { imageKey, totalSize: buffer.length, mediaType })
+    return [{ data: buffer.toString('base64'), media_type: mediaType }]
   }
 
   private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
