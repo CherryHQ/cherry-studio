@@ -44,7 +44,7 @@ const visionAllowedModels = [
   'o3(?:-[\\w-]+)?',
   'o4(?:-[\\w-]+)?',
   'deepseek-vl(?:[\\w-]+)?',
-  'kimi-k2.5',
+  'kimi-k2\\.[56](?:-[\\w-]+)?',
   'kimi-latest',
   'gemma-?[3-4](?:[-.\\w]+)?',
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
@@ -60,7 +60,8 @@ const visionAllowedModels = [
   'qwen-omni(?:-[\\w-]+)?',
   'mistral-large-(2512|latest)',
   'mistral-medium-(2508|latest)',
-  'mistral-small-(2506|latest)',
+  'mistral-small',
+  'mimo-v2\\.5$',
   'mimo-v2-omni(?:-[\\w-]+)?',
   'glm-5v-turbo'
 ]
@@ -117,6 +118,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
   'qwen-image-edit',
   'gpt-image-1',
+  'gpt-image-2',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'

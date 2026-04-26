@@ -19,6 +19,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import { McpError, type Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
@@ -68,8 +69,10 @@ type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: strin
 
 const logger = loggerService.withContext('MCPService')
 
-/** Timeout for MCP server connection (transport init + client connect), in milliseconds. */
-const MCP_CONNECTION_TIMEOUT_MS = 60_000
+// Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
+// so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
+// still letting users raise it further via `server.timeout`.
+const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 function redactSensitive(input: any): any {
@@ -596,32 +599,28 @@ class McpService {
         }
 
         try {
-          const connectWithTimeout = async () => {
-            const transport = await initTransport()
-            try {
-              await client.connect(transport)
-            } catch (error: any) {
-              if (
-                error instanceof Error &&
-                (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
-              ) {
-                logger.debug(`Authentication required for server: ${server.name}`)
-                await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-              } else {
-                throw error
-              }
+          const transport = await initTransport()
+          // Bound the MCP `initialize` request so a non-responsive server fails fast via the
+          // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
+          // generous headroom is cheap) while still honoring larger `server.timeout` values
+          // that the user explicitly configured. transport.start() latency remains bounded
+          // by the underlying fetch / child_process, matching v1.8.4 behavior.
+          const connectOptions: RequestOptions = {
+            timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
+          }
+          try {
+            await client.connect(transport, connectOptions)
+          } catch (error: any) {
+            if (
+              error instanceof Error &&
+              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+            ) {
+              logger.debug(`Authentication required for server: ${server.name}`)
+              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+            } else {
+              throw error
             }
           }
-
-          await Promise.race([
-            connectWithTimeout(),
-            new Promise<never>((_, reject) =>
-              setTimeout(
-                () => reject(new Error(`Connection timed out after ${MCP_CONNECTION_TIMEOUT_MS / 1000}s`)),
-                MCP_CONNECTION_TIMEOUT_MS
-              )
-            )
-          ])
 
           this.emitServerLog(server, {
             timestamp: Date.now(),
