@@ -58,7 +58,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.githubCopilotCli]: () => [],
   [codeTools.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openCode]: (providers) =>
-    providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
+    providers.filter((p) => ['openai', 'openai-response', 'anthropic', 'new-api'].includes(p.type))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -206,8 +206,18 @@ export const generateToolEnvironment = ({
     case codeTools.openCode:
       // Set environment variable with provider-specific suffix for security
       {
-        env.OPENCODE_BASE_URL = formattedBaseUrl
+        // Determine base URL format based on model's endpoint type and provider type
+        // anthropic: use formatApiHost(url, false) to preserve existing /v1 from provider config
+        // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
+        // others: append /v1 (standard OpenAI-compatible endpoint)
+        const endpointType = model.endpoint_type
+        const isAnthropicEndpoint =
+          endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
+        const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
+
+        env.OPENCODE_BASE_URL = openCodeBaseUrl
         env.OPENCODE_MODEL_NAME = model.name
+        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType || ''
         // Calculate OpenCode-specific config internally
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
