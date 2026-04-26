@@ -271,8 +271,10 @@ function normaliseBashEnvToWindows(env: Record<string, string>): Record<string, 
  */
 function spawnShellEnv(shellPath: string): Promise<Record<string, string>> {
   return new Promise((resolve, reject) => {
-    const homeDirectory =
-      process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
+    // On Windows, prefer USERPROFILE (native path) over HOME (may be MSYS format /c/...)
+    const homeDirectory = isWin
+      ? process.env.USERPROFILE || process.env.UserProfile || process.env.HOME || process.env.Home || os.homedir()
+      : process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
     if (!homeDirectory) {
       return reject(new Error("Could not determine user's home directory."))
     }
