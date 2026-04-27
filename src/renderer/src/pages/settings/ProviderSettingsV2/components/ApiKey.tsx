@@ -1,7 +1,7 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
-import { Copy, Eye, EyeOff } from 'lucide-react'
+import { Activity, Copy, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,9 +15,15 @@ interface ApiKeyProps {
   providerId: string
   apiKeyConnectivity: ApiKeyConnectivity
   onShowApiKeyError: () => void
+  onOpenConnectionCheck: () => void
 }
 
-export default function ApiKey({ providerId, apiKeyConnectivity, onShowApiKeyError }: ApiKeyProps) {
+export default function ApiKey({
+  providerId,
+  apiKeyConnectivity,
+  onShowApiKeyError,
+  onOpenConnectionCheck
+}: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
@@ -33,7 +39,7 @@ export default function ApiKey({ providerId, apiKeyConnectivity, onShowApiKeyErr
   }
 
   return (
-    <ProviderSection>
+    <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
       <ProviderField
         className="space-y-2.5"
         title={t('settings.provider.api_key.label')}
@@ -83,6 +89,17 @@ export default function ApiKey({ providerId, apiKeyConnectivity, onShowApiKeyErr
               </InputGroupAddon>
             )}
           </InputGroup>
+          <Tooltip content={t('settings.provider.check')}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
+                className={fieldClasses.iconButton}
+                onClick={onOpenConnectionCheck}>
+                {apiKeyConnectivity.checking ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
+              </button>
+            </span>
+          </Tooltip>
           <Tooltip content={t('settings.provider.api_key.copy')}>
             <span className="inline-flex">
               <button

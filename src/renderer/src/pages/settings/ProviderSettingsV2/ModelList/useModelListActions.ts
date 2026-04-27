@@ -1,62 +1,76 @@
 import { useModelMutations } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
-import i18n from '@renderer/i18n'
+import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '@renderer/pages/settings/ProviderSettingsV2/hooks/providerSetting/constants'
 import { useProviderModelSync } from '@renderer/pages/settings/ProviderSettingsV2/hooks/useProviderModelSync'
-import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import AddModelPopup from './AddModelPopup'
 import DownloadOVMSModelPopup from './DownloadOVMSModelPopup'
-import NewApiAddModelPopup from './NewApiAddModelPopup'
 
 type UseModelListActionsInput = {
   providerId: string
-  models: Model[]
 }
 
-export const useModelListActions = ({ providerId, models }: UseModelListActionsInput) => {
+export const useModelListActions = ({ providerId }: UseModelListActionsInput) => {
+  const { t } = useTranslation()
   const { provider } = useProvider(providerId)
+  const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { updateModel } = useModelMutations()
-  const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: models })
+  const { isSyncingModels } = useProviderModelSync(providerId, { existingModels: models })
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [manageModelsOpen, setManageModelsOpen] = useState(false)
+  const [modelListSyncOpen, setModelListSyncOpen] = useState(false)
+  /** When true, `ManageModelsDrawer` opens the inline custom-add row (toolbar “Add”). */
+  const [openManageWithInlineCustomAdd, setOpenManageWithInlineCustomAdd] = useState(false)
 
   const openManageModels = useCallback(() => {
     if (provider) {
+      setOpenManageWithInlineCustomAdd(false)
       setManageModelsOpen(true)
     }
   }, [provider])
 
+  const openModelListSync = useCallback(() => {
+    if (!provider) {
+      return
+    }
+    setModelListSyncOpen(true)
+  }, [provider])
+
   const closeManageModels = useCallback(() => {
     setManageModelsOpen(false)
+    setOpenManageWithInlineCustomAdd(false)
+  }, [])
+
+  const closeModelListSync = useCallback(() => {
+    setModelListSyncOpen(false)
+  }, [])
+
+  const consumeOpenManageWithInlineCustomAdd = useCallback(() => {
+    setOpenManageWithInlineCustomAdd(false)
   }, [])
 
   const onRefreshModels = useCallback(() => {
-    if (provider) {
-      void syncProviderModels(provider)
-    }
-  }, [provider, syncProviderModels])
+    openModelListSync()
+  }, [openModelListSync])
 
   const onAddModel = useCallback(() => {
     if (!provider) {
       return
     }
 
-    if (isNewApiProvider(provider)) {
-      void NewApiAddModelPopup.show({ title: i18n.t('settings.models.add.add_model'), provider })
-      return
-    }
-
-    void AddModelPopup.show({ title: i18n.t('settings.models.add.add_model'), provider })
+    setOpenManageWithInlineCustomAdd(false)
+    setManageModelsOpen(true)
   }, [provider])
 
   const onDownloadModel = useCallback(() => {
     if (provider) {
-      void DownloadOVMSModelPopup.show({ title: i18n.t('ovms.download.title'), provider })
+      void DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider })
     }
-  }, [provider])
+  }, [provider, t])
 
   const updateVisibleModelsEnabledState = useCallback(
     async (visibleModels: Model[], enabled: boolean) => {
@@ -84,7 +98,12 @@ export const useModelListActions = ({ providerId, models }: UseModelListActionsI
 
   return {
     manageModelsOpen,
+    modelListSyncOpen,
+    openManageWithInlineCustomAdd,
+    consumeOpenManageWithInlineCustomAdd,
     openManageModels,
+    openModelListSync,
+    closeModelListSync,
     closeManageModels,
     onRefreshModels,
     onAddModel,
@@ -94,3 +113,5 @@ export const useModelListActions = ({ providerId, models }: UseModelListActionsI
     isSyncingModels
   }
 }
+
+export type ModelListActionsSurface = ReturnType<typeof useModelListActions>

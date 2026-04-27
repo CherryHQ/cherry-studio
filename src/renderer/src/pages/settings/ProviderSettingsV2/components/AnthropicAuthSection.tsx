@@ -11,10 +11,23 @@ interface AnthropicAuthSectionProps {
   providerId: string
 }
 
+function buildAnthropicAuthConfig(type: 'api-key' | 'oauth'): AuthConfig {
+  if (type === 'oauth') {
+    return {
+      type: 'oauth',
+      clientId: ''
+    }
+  }
+
+  return {
+    type: 'api-key'
+  }
+}
+
 export default function AnthropicAuthSection({ providerId }: AnthropicAuthSectionProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
-  const { updateProvider } = useProviderMutations(providerId)
+  const { updateAuthConfig } = useProviderMutations(providerId)
 
   if (!provider) {
     return null
@@ -26,11 +39,7 @@ export default function AnthropicAuthSection({ providerId }: AnthropicAuthSectio
         <div className="w-[220px]">
           <InlineSelector
             value={provider.authType || 'api-key'}
-            onChange={(value) =>
-              void updateProvider({
-                authConfig: { type: value as 'api-key' | 'oauth' } as AuthConfig
-              })
-            }
+            onChange={(value) => void updateAuthConfig(buildAnthropicAuthConfig(value as 'api-key' | 'oauth'))}
             options={[
               { value: 'api-key', label: t('settings.provider.anthropic.apikey') },
               { value: 'oauth', label: t('settings.provider.anthropic.oauth') }

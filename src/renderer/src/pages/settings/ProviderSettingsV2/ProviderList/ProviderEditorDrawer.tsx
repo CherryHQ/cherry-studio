@@ -62,8 +62,15 @@ export default function ProviderEditorDrawer({
     setLogoPickerOpen(false)
   }, [initialLogo, open, provider])
 
-  const avatarBackgroundColor = useMemo(() => generateColorFromChar(name), [name])
-  const avatarForegroundColor = useMemo(() => getForegroundColor(avatarBackgroundColor), [avatarBackgroundColor])
+  const previewName = name.trim()
+  const avatarBackgroundColor = useMemo(
+    () => (previewName ? generateColorFromChar(previewName) : undefined),
+    [previewName]
+  )
+  const avatarForegroundColor = useMemo(
+    () => (avatarBackgroundColor ? getForegroundColor(avatarBackgroundColor) : undefined),
+    [avatarBackgroundColor]
+  )
 
   const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -115,12 +122,17 @@ export default function ProviderEditorDrawer({
       open={open}
       onClose={onClose}
       title={t(isEditing ? 'common.edit' : 'settings.provider.add.title')}
+      size="compact"
       footer={footer}>
       <div className="flex flex-col gap-5">
         <div className="flex flex-col items-center gap-3">
           <div
             className="flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
-            style={name ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor } : undefined}>
+            style={
+              avatarBackgroundColor && avatarForegroundColor
+                ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }
+                : undefined
+            }>
             <ProviderAvatarPrimitive
               providerId={provider?.id ?? 'provider-editor-preview'}
               providerName={name || 'Provider'}

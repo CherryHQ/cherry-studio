@@ -5,16 +5,14 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
-import { useModelListSections } from './useModelListSections'
+import type { ModelListSectionsSurface } from './useModelListSections'
 
 interface ModelListSectionsProps {
-  providerId: string
-  containerWidth: number
+  sections: ModelListSectionsSurface
 }
 
-const ModelListSections: React.FC<ModelListSectionsProps> = ({ providerId, containerWidth }) => {
+const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
   const { t } = useTranslation()
-  const sections = useModelListSections({ providerId, containerWidth })
 
   if (sections.isLoading) {
     return (
@@ -50,8 +48,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ providerId, conta
                   key={`enabled-${groupName}`}
                   groupName={groupName}
                   items={items}
-                  isCompact={sections.isCompact}
-                  isUltraCompact={sections.isUltraCompact}
                   defaultOpen={index <= 5}
                   disabled={sections.isHealthChecking}
                   onEditModel={sections.onEditModel}
@@ -74,8 +70,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ providerId, conta
                   key={`disabled-${groupName}`}
                   groupName={groupName}
                   items={items}
-                  isCompact={sections.isCompact}
-                  isUltraCompact={sections.isUltraCompact}
                   defaultOpen={index <= 2}
                   disabled={sections.isHealthChecking}
                   onEditModel={sections.onEditModel}

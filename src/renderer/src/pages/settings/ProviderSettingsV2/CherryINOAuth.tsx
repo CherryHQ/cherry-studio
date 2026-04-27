@@ -1,23 +1,22 @@
+import { Button } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
+import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Button, Skeleton } from 'antd'
-import { CreditCard, LogIn, LogOut, RefreshCw } from 'lucide-react'
+import { Skeleton } from 'antd'
+import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { Trans, useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('CherryINOAuth')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
+const CHERRYIN_REGISTER_URL = 'https://open.cherryin.ai'
 
-/**
- * Generate avatar initials from a name (first 2 characters)
- */
 export const getAvatarInitials = (name: string): string => {
   if (!name) return '??'
   const trimmed = name.trim()
@@ -25,26 +24,50 @@ export const getAvatarInitials = (name: string): string => {
   return trimmed.slice(0, 2).toUpperCase()
 }
 
+interface CherryINProfile {
+  displayName: string | null
+  username: string | null
+  email: string | null
+  group: string | null
+}
+
 interface BalanceInfo {
   balance: number
+  profile: CherryINProfile | null
+  monthlyUsageTokens: number | null
+  monthlySpend: number | null
 }
 
 interface CherryINOAuthProps {
   providerId: string
 }
 
+function formatCurrency(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '-'
+  }
+
+  return `$${value.toFixed(2)}`
+}
+
 const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
+  const {
+    data: authConfig,
+    isLoading: isAuthConfigLoading,
+    refetch: refetchAuthConfig
+  } = useProviderAuthConfig(providerId)
   const { t } = useTranslation()
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
-  const [hasOAuthToken, setHasOAuthToken] = useState<boolean | null>(null)
+  const [oauthTokenOverride, setOauthTokenOverride] = useState<boolean | null>(null)
 
   const hasKeys = provider ? hasApiKeys(provider) : false
-  // User is considered logged in via OAuth only if they have both API key and OAuth token
-  const isOAuthLoggedIn = hasKeys && hasOAuthToken === true
+  const remoteHasOAuthToken = authConfig?.type === 'oauth' && Boolean(authConfig.accessToken)
+  const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken
+  const isOAuthLoggedIn = hasKeys && hasOAuthToken
 
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
@@ -59,35 +82,36 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     }
   }, [])
 
-  // Check if OAuth token exists
   useEffect(() => {
-    window.api.cherryin
-      .hasToken()
-      .then((has) => {
-        setHasOAuthToken(has)
-      })
-      .catch(() => {
-        setHasOAuthToken(false)
-      })
-  }, [])
-
-  useEffect(() => {
-    // Only fetch balance if logged in via OAuth
     if (isOAuthLoggedIn) {
       void fetchData()
     } else {
       setBalanceInfo(null)
     }
-  }, [isOAuthLoggedIn, fetchData])
+  }, [fetchData, isOAuthLoggedIn])
+
+  useEffect(() => {
+    if (oauthTokenOverride !== null && remoteHasOAuthToken === oauthTokenOverride) {
+      setOauthTokenOverride(null)
+    }
+  }, [oauthTokenOverride, remoteHasOAuthToken])
 
   const handleOAuthLogin = useCallback(async () => {
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
-          // POST each key to /api-keys endpoint
-          await addApiKey(apiKeys, 'OAuth')
+          const keys = apiKeys
+            .split(',')
+            .map((key) => key.trim())
+            .filter(Boolean)
+
+          await Promise.all(keys.map((key) => addApiKey(key, 'OAuth')))
           await updateProvider({ isEnabled: true })
-          setHasOAuthToken(true)
+          setOauthTokenOverride(true)
+          void Promise.resolve(refetchAuthConfig()).catch((error) => {
+            logger.warn('Failed to refetch CherryIN auth config after login:', error as Error)
+          })
+          await fetchData()
           window.toast.success(t('auth.get_key_success'))
         },
         {
@@ -95,10 +119,10 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
         }
       )
     } catch (error) {
-      logger.error('OAuth Error:', error as Error)
+      logger.error('OAuth error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     }
-  }, [addApiKey, updateProvider, t])
+  }, [addApiKey, fetchData, refetchAuthConfig, t, updateProvider])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -110,238 +134,163 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
 
         try {
           await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
-          // Delete OAuth key by label
-          const oauthKey = provider?.apiKeys.find((k) => k.label === 'OAuth')
-          if (oauthKey) {
-            await deleteApiKey(oauthKey.id)
-          }
-          setHasOAuthToken(false)
+          setOauthTokenOverride(false)
           setBalanceInfo(null)
+
+          void Promise.resolve(refetchAuthConfig()).catch((error) => {
+            logger.warn('Failed to refetch CherryIN auth config after logout:', error as Error)
+          })
+
+          const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
+          const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
+          const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
+          if (rejectedDeletes.length > 0) {
+            logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
+          }
+
           window.toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {
           logger.error('Logout error:', error as Error)
-          // Still clear local state even if server revocation failed
-          setHasOAuthToken(false)
-          setBalanceInfo(null)
           window.toast.warning(t('settings.provider.oauth.logout_warning'))
         } finally {
           setIsLoggingOut(false)
         }
       }
     })
-  }, [provider?.apiKeys, deleteApiKey, t])
+  }, [deleteApiKey, provider?.apiKeys, refetchAuthConfig, t])
 
   const handleTopup = useCallback(() => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')
   }, [])
 
-  // Render logic:
-  // 1. No API key → Show login button
-  // 2. Has API key + OAuth token → Show logged-in UI
-  // 3. Has API key + No OAuth token (legacy manual key) → Show connect button to upgrade to OAuth
-  const renderContent = () => {
-    if (!hasKeys) {
-      // Case 1: No API key - show login button
-      return (
-        <Button
-          type="primary"
-          shape="round"
-          className="!h-auto !rounded-lg !px-3 !py-[6px] !text-[13px]"
-          icon={<LogIn size={14} />}
-          onClick={handleOAuthLogin}>
-          {t('auth.login')}
-        </Button>
-      )
-    }
+  const scrollToApiKeySection = useCallback(() => {
+    document.getElementById('cherryin-api-key-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
-    if (hasOAuthToken === null) {
-      // Still checking OAuth token status
-      return <Skeleton.Input active size="small" style={{ width: 120, height: 32 }} />
-    }
+  if (!provider) {
+    return null
+  }
 
-    if (!hasOAuthToken) {
-      // Case 3: Has API key but no OAuth token (legacy manual key)
-      // Show button to connect OAuth for better experience
-      return (
-        <Button
-          type="primary"
-          shape="round"
-          className="!h-auto !rounded-lg !px-3 !py-[6px] !text-[13px]"
-          icon={<LogIn size={14} />}
-          onClick={handleOAuthLogin}>
-          {t('auth.login')}
-        </Button>
-      )
-    }
-
-    // Case 2: Has API key + OAuth token - show full logged-in UI
+  if (isAuthConfigLoading && hasKeys) {
     return (
-      <ButtonRow>
-        <BalanceCapsule onClick={fetchData} disabled={isLoadingData}>
-          <BalanceLabel>{t('settings.provider.oauth.balance')}</BalanceLabel>
-          {isLoadingData && !balanceInfo ? (
-            <Skeleton.Input active size="small" style={{ width: 50, height: 16, minWidth: 50 }} />
-          ) : (
-            <BalanceValue>
-              ${balanceInfo?.balance.toFixed(2) ?? '--'}
-              <RefreshCw size={12} className={isLoadingData ? 'spinning' : ''} />
-            </BalanceValue>
-          )}
-        </BalanceCapsule>
-        <TopupButton type="primary" shape="round" icon={<CreditCard size={16} />} onClick={handleTopup}>
-          {t('settings.provider.oauth.topup')}
-        </TopupButton>
-      </ButtonRow>
+      <div className={oauthCardClasses.container}>
+        <div className={oauthCardClasses.shell}>
+          <Skeleton active title={{ width: 220 }} paragraph={{ rows: 2, width: ['100%', '82%'] }} />
+        </div>
+      </div>
     )
   }
 
+  if (!isOAuthLoggedIn) {
+    return (
+      <div className={oauthCardClasses.container}>
+        <div className={oauthCardClasses.shellLoggedOut}>
+          <div className={oauthCardClasses.loginHeaderRow}>
+            <div className={oauthCardClasses.loginIconWrap}>
+              <Cherryin.Avatar shape="circle" size={32} />
+            </div>
+            <div className={oauthCardClasses.loginTextBlock}>
+              <p className={oauthCardClasses.loginTitle}>{t('settings.provider.oauth.cherryIn.account_title')}</p>
+              <p className={oauthCardClasses.loginSubtitle}>{t('settings.provider.oauth.cherryIn.tagline')}</p>
+            </div>
+          </div>
+          <Button className={oauthCardClasses.loginPrimaryCta} onClick={handleOAuthLogin}>
+            <ExternalLink className="size-[11px] shrink-0" />
+            {t('settings.provider.oauth.cherryIn.login_button')}
+          </Button>
+          <div className={oauthCardClasses.loginFooterRow}>
+            <Button
+              className={oauthCardClasses.loginFooterLink}
+              type="button"
+              variant="ghost"
+              onClick={scrollToApiKeySection}>
+              {t('settings.provider.oauth.cherryIn.use_api_key')}
+            </Button>
+            <span className={oauthCardClasses.loginFooterDivider} aria-hidden>
+              |
+            </span>
+            <a
+              className={oauthCardClasses.loginFooterLink}
+              href={CHERRYIN_REGISTER_URL}
+              rel="noreferrer"
+              target="_blank">
+              {t('settings.provider.oauth.cherryIn.register_account')}
+            </a>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const profileName =
+    balanceInfo?.profile?.displayName || balanceInfo?.profile?.username || balanceInfo?.profile?.email || provider.name
+  const profileEmail = balanceInfo?.profile?.email || t('settings.provider.oauth.cherryIn.logged_in')
+  const profileGroup =
+    balanceInfo?.profile?.group && balanceInfo.profile.group !== 'default' ? balanceInfo.profile.group : null
+
   return (
-    <Container>
-      {isOAuthLoggedIn && (
-        <LogoutCorner onClick={handleLogout} disabled={isLoggingOut}>
-          <LogOut size={14} />
-        </LogoutCorner>
-      )}
-      <ProviderLogoWrapper onClick={() => window.open('https://open.cherryin.ai', '_blank')}>
-        <Cherryin.Avatar size={60} shape="circle" />
-      </ProviderLogoWrapper>
-      {renderContent()}
-      <Description>
-        {t('settings.provider.oauth.provided_by')}{' '}
-        <OfficialWebsite href="https://open.cherryin.ai" target="_blank" rel="noreferrer">
-          open.cherryin.ai
-        </OfficialWebsite>
-        {t('settings.provider.oauth.provided_by_suffix')}
-      </Description>
-    </Container>
+    <div className={oauthCardClasses.container}>
+      <div className={oauthCardClasses.shellLoggedIn}>
+        <div className={oauthCardClasses.loggedInRow}>
+          <div className={oauthCardClasses.profileMeta}>
+            <div className={oauthCardClasses.avatarSm}>
+              <span>{getAvatarInitials(profileName)}</span>
+            </div>
+            <div className={oauthCardClasses.nameBlock}>
+              <div className={oauthCardClasses.nameRow}>
+                <div className={oauthCardClasses.loggedInName}>{profileName}</div>
+                {profileGroup ? <span className={oauthCardClasses.badge}>{profileGroup}</span> : null}
+              </div>
+              <div className={oauthCardClasses.loggedInEmail}>{profileEmail}</div>
+            </div>
+          </div>
+          <div className={oauthCardClasses.loggedInActions}>
+            <div className={oauthCardClasses.inlineBalanceBlock}>
+              <p className={oauthCardClasses.inlineBalanceLabel}>{t('settings.provider.oauth.balance')}</p>
+              <div className={oauthCardClasses.inlineBalanceValue}>
+                {isLoadingData && !balanceInfo ? (
+                  <Skeleton.Input
+                    active
+                    className={oauthCardClasses.balanceValueSkeleton}
+                    size="small"
+                    style={{ height: 20 }}
+                  />
+                ) : (
+                  formatCurrency(balanceInfo?.balance)
+                )}
+              </div>
+            </div>
+            <Button className={oauthCardClasses.topupOutlineButton} onClick={handleTopup} variant="outline">
+              {t('settings.provider.oauth.topup')}
+            </Button>
+            <Button
+              className={oauthCardClasses.logoutCompact}
+              disabled={isLoggingOut}
+              onClick={handleLogout}
+              variant="ghost">
+              {t('settings.provider.oauth.logout')}
+            </Button>
+          </div>
+        </div>
+        <p className={oauthCardClasses.serviceAttribution}>
+          <Trans
+            i18nKey="settings.provider.oauth.cherryIn.service_attribution"
+            components={{
+              link: (
+                <a
+                  key="cherryin-service-link"
+                  className={oauthCardClasses.serviceLink}
+                  href={CHERRYIN_OAUTH_SERVER}
+                  rel="noreferrer"
+                  target="_blank"
+                />
+              )
+            }}
+          />
+        </p>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 0 8px;
-`
-
-const LogoutCorner = styled.button`
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text-3);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-background-soft);
-    color: var(--color-error);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-`
-
-const ProviderLogoWrapper = styled.div`
-  cursor: pointer;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const ButtonRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`
-
-const BalanceCapsule = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 12px;
-  min-width: 100px;
-  height: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-background-soft);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    border-color: var(--color-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-  .spinning {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`
-
-const TopupButton = styled(Button)`
-  min-width: 100px;
-  height: auto !important;
-  padding: 6px 12px !important;
-  border-radius: 8px !important;
-  font-size: 13px !important;
-`
-
-const BalanceLabel = styled.span`
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--color-text-3);
-`
-
-const BalanceValue = styled.span`
-  font-size: 13px;
-  line-height: 1.35;
-  font-weight: 600;
-  color: var(--color-text-1);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const Description = styled.div`
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--color-text-2);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`
-
-const OfficialWebsite = styled.a`
-  text-decoration: none;
-  color: var(--color-text-2);
-`
 
 export default CherryINOAuth

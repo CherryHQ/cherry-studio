@@ -1,3 +1,4 @@
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,8 +7,9 @@ import ProviderList from '../ProviderList'
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
-const useProviderLogosMock = vi.fn()
 const useReorderMock = vi.fn()
+const useOvmsSupportMock = vi.fn()
+const deleteProviderMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -36,19 +38,27 @@ vi.mock('@data/hooks/useReorder', () => ({
   useReorder: (...args: any[]) => useReorderMock(...args)
 }))
 
-vi.mock('../ProviderList/useProviderLogos', () => ({
-  useProviderLogos: (...args: any[]) => useProviderLogosMock(...args)
+vi.mock('../hooks/useOvmsSupport', () => ({
+  useOvmsSupport: (...args: any[]) => useOvmsSupportMock(...args)
+}))
+
+vi.mock('../ProviderList/useProviderDelete', () => ({
+  useProviderDelete: () => ({
+    deleteProvider: deleteProviderMock
+  })
 }))
 
 vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
-  default: ({ provider, selectedProviderId, onSelect }: any) => (
-    <button
-      type="button"
-      data-testid={`provider-list-item-${provider.id}`}
-      data-selected={selectedProviderId === provider.id ? 'true' : 'false'}
-      onClick={onSelect}>
-      {provider.name}
-    </button>
+  default: ({ provider, selected, onSelect, onDelete, showManagementActions }: any) => (
+    <div data-testid={`provider-list-item-${provider.id}`} data-selected={selected ? 'true' : 'false'}>
+      <button type="button" onClick={onSelect}>
+        {provider.name}
+      </button>
+      <button type="button" data-testid={`provider-list-delete-${provider.id}`} onClick={onDelete}>
+        delete
+      </button>
+      <span data-testid={`provider-list-manage-${provider.id}`}>{showManagementActions ? 'true' : 'false'}</span>
+    </div>
   )
 }))
 
@@ -58,8 +68,24 @@ vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
 
 describe('ProviderList', () => {
   const providers = [
-    { id: 'openai', name: 'OpenAI', isEnabled: true },
-    { id: 'anthropic', name: 'Anthropic', isEnabled: false }
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      },
+      isEnabled: true
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
+      },
+      isEnabled: false
+    }
   ] as any
 
   beforeEach(() => {
@@ -73,14 +99,12 @@ describe('ProviderList', () => {
       updateProviderById: vi.fn(),
       deleteProviderById: vi.fn()
     })
-    useProviderLogosMock.mockReturnValue({
-      logos: {},
-      saveLogo: vi.fn(),
-      clearLogo: vi.fn()
-    })
     useReorderMock.mockReturnValue({
       applyReorderedList: reorderSpy
     })
+    useOvmsSupportMock.mockReturnValue({ isSupported: true })
+    deleteProviderMock.mockResolvedValue(undefined)
+    ;(window as any).modal = { confirm: vi.fn() }
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -103,6 +127,16 @@ describe('ProviderList', () => {
   })
 
   it('triggers add and reorder actions', () => {
+    const reorderableProviders = [
+      { ...providers[0], isEnabled: true },
+      { ...providers[1], isEnabled: true }
+    ]
+
+    useProvidersMock.mockReturnValue({
+      providers: reorderableProviders,
+      createProvider: vi.fn()
+    })
+
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
@@ -110,7 +144,7 @@ describe('ProviderList', () => {
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
-    expect(reorderSpy).toHaveBeenCalledWith([providers[1], providers[0]])
+    expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
   })
 
   it('applies an external filter hint without making the page own list filter state', () => {
@@ -124,5 +158,63 @@ describe('ProviderList', () => {
 
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+  })
+
+  it('shows management actions for preset-derived and custom providers but not canonical presets', () => {
+    useProvidersMock.mockReturnValue({
+      providers: [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          presetProviderId: 'openai',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          isEnabled: true
+        },
+        {
+          id: 'openai-work',
+          name: 'OpenAI Work',
+          presetProviderId: 'openai',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          isEnabled: true
+        },
+        {
+          id: 'my-local-llm',
+          name: 'My Local LLM',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          isEnabled: true
+        }
+      ],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByTestId('provider-list-manage-openai')).toHaveTextContent('false')
+    expect(screen.getByTestId('provider-list-manage-openai-work')).toHaveTextContent('true')
+    expect(screen.getByTestId('provider-list-manage-my-local-llm')).toHaveTextContent('true')
+  })
+
+  it('opens a confirmation modal before deleting a provider', () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
+
+    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
+    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.title).toBeTruthy()
+    expect(options.okText).toBeTruthy()
+    expect(options.okButtonProps).toEqual({ danger: true })
+    expect(options.centered).toBe(true)
+  })
+
+  it('delegates provider deletion from the confirmation callback', async () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
+    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+
+    await options.onOk()
+
+    expect(deleteProviderMock).toHaveBeenCalledWith('openai')
   })
 })

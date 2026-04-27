@@ -19,7 +19,6 @@ interface ModelListCapabilityChipsProps {
   capabilityOptions: readonly ModelListCapabilityFilter[]
   selectedCapabilityFilter: ModelListCapabilityFilter
   capabilityModelCounts: ModelListCapabilityCounts
-  chipMaxWidth: number | undefined
   onSelectCapabilityFilter: (filter: ModelListCapabilityFilter) => void
 }
 
@@ -27,7 +26,6 @@ const ModelListCapabilityChips: React.FC<ModelListCapabilityChipsProps> = ({
   capabilityOptions,
   selectedCapabilityFilter,
   capabilityModelCounts,
-  chipMaxWidth,
   onSelectCapabilityFilter
 }) => {
   const { t } = useTranslation()
@@ -51,8 +49,7 @@ const ModelListCapabilityChips: React.FC<ModelListCapabilityChipsProps> = ({
               key={filter}
               type="button"
               onClick={() => onSelectCapabilityFilter(filter)}
-              className={isActive ? modelListClasses.chipActive : modelListClasses.chipIdle}
-              style={chipMaxWidth ? { maxWidth: chipMaxWidth } : undefined}>
+              className={isActive ? modelListClasses.chipActive : modelListClasses.chipIdle}>
               <span className={modelListClasses.chipLabel}>{label}</span>
               <span className={modelListClasses.chipCount}>{count}</span>
             </button>

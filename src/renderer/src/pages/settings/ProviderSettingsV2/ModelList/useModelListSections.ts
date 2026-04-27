@@ -1,11 +1,9 @@
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProviders'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 
-import EditModelPopup from '../EditModelPopup/EditModelPopup'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
   applyModelFilters,
@@ -28,11 +26,6 @@ export interface ModelListGroupSection {
   items: ModelListGroupItem[]
 }
 
-interface UseModelListSectionsInput {
-  providerId: string
-  containerWidth: number
-}
-
 const toGroupSections = (
   groups: ModelGroups,
   duplicateModelNames: Set<string>,
@@ -48,12 +41,12 @@ const toGroupSections = (
   }))
 }
 
-export const useModelListSections = ({ providerId, containerWidth }: UseModelListSectionsInput) => {
-  const { provider } = useProvider(providerId)
+export const useModelListSections = ({ providerId }: { providerId: string }) => {
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { updateModel } = useModelMutations()
   const { searchText, selectedCapabilityFilter } = useModelListFilters()
   const { isHealthChecking, modelStatusMap } = useModelListHealth()
+  const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [displayedModelSections, setDisplayedModelSections] = useState<ReturnType<
     typeof calculateModelSections
   > | null>(() => {
@@ -76,14 +69,13 @@ export const useModelListSections = ({ providerId, containerWidth }: UseModelLis
     setDisplayedModelSections(calculateModelSections(models, searchText, selectedCapabilityFilter))
   }, [models, searchText, selectedCapabilityFilter])
 
-  const onEditModel = useCallback(
-    (model: Model) => {
-      if (provider) {
-        void EditModelPopup.show({ provider, model })
-      }
-    },
-    [provider]
-  )
+  const openEditModelDrawer = useCallback((model: Model) => {
+    setEditingModel(model)
+  }, [])
+
+  const closeEditModelDrawer = useCallback(() => {
+    setEditingModel(null)
+  }, [])
 
   const onToggleModel = useCallback(
     async (model: Model, enabled: boolean) => {
@@ -114,10 +106,14 @@ export const useModelListSections = ({ providerId, containerWidth }: UseModelLis
     enabledSections,
     disabledSections,
     disabledModelCount: filteredModels.filter((model) => !model.isEnabled).length,
-    isCompact: containerWidth > 0 && containerWidth < 920,
-    isUltraCompact: containerWidth > 0 && containerWidth < 760,
+    editingModel,
+    editModelDrawerOpen: editingModel !== null,
+    openEditModelDrawer,
+    closeEditModelDrawer,
     isHealthChecking,
-    onEditModel,
+    onEditModel: openEditModelDrawer,
     onToggleModel
   }
 }
+
+export type ModelListSectionsSurface = ReturnType<typeof useModelListSections>

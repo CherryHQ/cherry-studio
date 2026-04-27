@@ -4,16 +4,18 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import type { CSSProperties } from 'react'
 
+import { useProviderLogo } from '../hooks/useProviderLogo'
+
 interface ProviderAvatarProps {
   provider: Pick<Provider, 'id' | 'name'>
-  customLogos?: Record<string, string>
   size?: number
   className?: string
   style?: CSSProperties
 }
 
-export function ProviderAvatar({ provider, customLogos = {}, size, className, style }: ProviderAvatarProps) {
+export function ProviderAvatar({ provider, size, className, style }: ProviderAvatarProps) {
   const systemIcon = resolveProviderIcon(provider.id)
+  const { logo: customLogo } = useProviderLogo(systemIcon ? undefined : provider.id)
   if (systemIcon) {
     return (
       <ProviderAvatarPrimitive
@@ -27,7 +29,6 @@ export function ProviderAvatar({ provider, customLogos = {}, size, className, st
     )
   }
 
-  const customLogo = customLogos[provider.id]
   if (customLogo) {
     return (
       <ProviderAvatarPrimitive

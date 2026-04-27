@@ -6,6 +6,7 @@
  * - Listing with filters
  */
 
+import { modelSyncService } from '@data/services/ModelSyncService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
@@ -14,6 +15,7 @@ import {
   AddProviderApiKeySchema,
   CreateProviderSchema,
   ListProvidersQuerySchema,
+  ModelSyncApplySchema,
   type ProviderSchemas,
   UpdateApiKeySchema,
   UpdateProviderSchema
@@ -77,6 +79,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
         params.providerId,
         body.models.map((m) => m.modelId)
       )
+    }
+  },
+
+  '/providers/:providerId/model-sync:apply': {
+    POST: async ({ params, body }) => {
+      const parsed = ModelSyncApplySchema.parse(body ?? {})
+      return await modelSyncService.apply(params.providerId, parsed)
     }
   },
 

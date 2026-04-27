@@ -31,15 +31,11 @@ describe('ApiActions', () => {
   })
 
   it('owns the api key list action locally by providerId', () => {
-    const onCheckConnection = vi.fn()
     const openApiKeyList = vi.fn()
 
-    render(<ApiActions providerId="openai" onCheckConnection={onCheckConnection} onOpenApiKeyList={openApiKeyList} />)
+    render(<ApiActions providerId="openai" onOpenApiKeyList={openApiKeyList} />)
 
     expect(useProviderMetaMock).toHaveBeenCalledWith('openai')
-
-    fireEvent.click(screen.getByRole('button', { name: /检测/i }))
-    expect(onCheckConnection).toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: /API 密钥管理/i }))
     expect(openApiKeyList).toHaveBeenCalled()
@@ -50,8 +46,9 @@ describe('ApiActions', () => {
       isApiKeyFieldVisible: false
     })
 
-    render(<ApiActions providerId="copilot" onCheckConnection={vi.fn()} onOpenApiKeyList={vi.fn()} />)
+    const { container } = render(<ApiActions providerId="copilot" onOpenApiKeyList={vi.fn()} />)
 
+    expect(container).toBeEmptyDOMElement()
     expect(screen.queryByRole('button', { name: /API 密钥管理/i })).not.toBeInTheDocument()
   })
 })

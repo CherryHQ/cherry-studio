@@ -89,6 +89,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
   .extend({
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
+    isDeprecated: z.boolean().optional(),
     sortOrder: z.number().int().optional(),
     notes: z.string().optional()
   })

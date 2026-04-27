@@ -1,0 +1,178 @@
+import { Button, SelectDropdown, WarnTooltip } from '@cherrystudio/ui'
+import {
+  EmbeddingTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from '@renderer/components/Tags/Model'
+import { cn } from '@renderer/utils'
+import { RotateCcw } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import ProviderField from '../../components/ProviderField'
+import { drawerClasses } from '../../components/ProviderSettingsPrimitives'
+import { MODEL_ENDPOINT_OPTIONS } from './helpers'
+import type { ModelBasicFormState, ModelCapabilityToggle } from './types'
+
+interface ModelBasicFieldsProps {
+  values: ModelBasicFormState
+  showEndpointType: boolean
+  modelIdDisabled?: boolean
+  modelIdAction?: ReactNode
+  endpointTypeError?: string
+  onModelIdChange: (value: string) => void
+  onNameChange: (value: string) => void
+  onGroupChange: (value: string) => void
+  onEndpointTypeChange: (value: string) => void
+}
+
+const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
+
+export function ModelBasicFields({
+  values,
+  showEndpointType,
+  modelIdDisabled = false,
+  modelIdAction,
+  endpointTypeError,
+  onModelIdChange,
+  onNameChange,
+  onGroupChange,
+  onEndpointTypeChange
+}: ModelBasicFieldsProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <ProviderField title={t('settings.models.add.model_id.label')} titleClassName={drawerFieldTitleClassName}>
+        <div className={drawerClasses.valueRow}>
+          <input
+            required
+            spellCheck={false}
+            maxLength={200}
+            aria-label={t('settings.models.add.model_id.label')}
+            value={values.modelId}
+            disabled={modelIdDisabled}
+            placeholder={t('settings.models.add.model_id.placeholder')}
+            className={cn(drawerClasses.input, modelIdDisabled && drawerClasses.inputDisabled)}
+            onChange={(event) => onModelIdChange(event.target.value)}
+          />
+          {modelIdAction}
+        </div>
+      </ProviderField>
+
+      <ProviderField title={t('settings.models.add.model_name.label')} titleClassName={drawerFieldTitleClassName}>
+        <input
+          spellCheck={false}
+          aria-label={t('settings.models.add.model_name.label')}
+          value={values.name}
+          placeholder={t('settings.models.add.model_name.placeholder')}
+          className={drawerClasses.input}
+          onChange={(event) => onNameChange(event.target.value)}
+        />
+      </ProviderField>
+
+      <ProviderField title={t('settings.models.add.group_name.label')} titleClassName={drawerFieldTitleClassName}>
+        <input
+          spellCheck={false}
+          aria-label={t('settings.models.add.group_name.label')}
+          value={values.group}
+          placeholder={t('settings.models.add.group_name.placeholder')}
+          className={drawerClasses.input}
+          onChange={(event) => onGroupChange(event.target.value)}
+        />
+      </ProviderField>
+
+      {showEndpointType && (
+        <ProviderField
+          title={t('settings.models.add.endpoint_type.label')}
+          titleClassName={drawerFieldTitleClassName}
+          help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
+          <div data-testid="provider-settings-model-endpoint-type-field">
+            <SelectDropdown
+              items={MODEL_ENDPOINT_OPTIONS.map((option) => ({ id: option.id, label: t(option.label) }))}
+              selectedId={values.endpointType ?? null}
+              placeholder={t('settings.models.add.endpoint_type.placeholder')}
+              onSelect={(value) => onEndpointTypeChange(value)}
+              renderSelected={(item) => <span className="truncate">{item.label}</span>}
+              renderItem={(item) => <span className="truncate">{item.label}</span>}
+            />
+          </div>
+        </ProviderField>
+      )}
+    </>
+  )
+}
+
+interface ModelCapabilityTogglesProps {
+  selectedCaps: Set<ModelCapabilityToggle>
+  hasUserModified: boolean
+  onToggle: (type: ModelCapabilityToggle) => void
+  onReset: () => void
+}
+
+export function ModelCapabilityToggles({
+  selectedCaps,
+  hasUserModified,
+  onToggle,
+  onReset
+}: ModelCapabilityTogglesProps) {
+  const { t } = useTranslation()
+  const isRerankDisabled = selectedCaps.has('embedding')
+  const isEmbeddingDisabled = selectedCaps.has('rerank')
+  const isOtherDisabled = selectedCaps.has('rerank') || selectedCaps.has('embedding')
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1 text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] font-[weight:var(--font-weight-semibold)] text-foreground/90">
+          {t('models.type.select')}
+          <WarnTooltip content={t('settings.moresetting.check.warn')} />
+        </div>
+        {hasUserModified && (
+          <Button variant="ghost" size="icon-sm" onClick={onReset}>
+            <RotateCcw size={14} />
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <VisionTag
+          showLabel
+          inactive={isOtherDisabled || !selectedCaps.has('vision')}
+          disabled={isOtherDisabled}
+          onClick={() => onToggle('vision')}
+        />
+        <WebSearchTag
+          showLabel
+          inactive={isOtherDisabled || !selectedCaps.has('web_search')}
+          disabled={isOtherDisabled}
+          onClick={() => onToggle('web_search')}
+        />
+        <ReasoningTag
+          showLabel
+          inactive={isOtherDisabled || !selectedCaps.has('reasoning')}
+          disabled={isOtherDisabled}
+          onClick={() => onToggle('reasoning')}
+        />
+        <ToolsCallingTag
+          showLabel
+          inactive={isOtherDisabled || !selectedCaps.has('function_calling')}
+          disabled={isOtherDisabled}
+          onClick={() => onToggle('function_calling')}
+        />
+        <RerankerTag
+          disabled={isRerankDisabled}
+          inactive={isRerankDisabled || !selectedCaps.has('rerank')}
+          onClick={() => onToggle('rerank')}
+        />
+        <EmbeddingTag
+          disabled={isEmbeddingDisabled}
+          inactive={isEmbeddingDisabled || !selectedCaps.has('embedding')}
+          onClick={() => onToggle('embedding')}
+        />
+      </div>
+    </div>
+  )
+}

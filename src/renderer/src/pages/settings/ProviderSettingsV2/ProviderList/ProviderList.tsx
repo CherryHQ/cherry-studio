@@ -1,15 +1,16 @@
 import { useReorder } from '@data/hooks/useReorder'
-import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProviders'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import {
+  canManageProvider,
   isAnthropicSupportedProvider,
-  isSystemProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWRImmutable from 'swr/immutable'
 
+import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import ProviderEditorDrawer from './ProviderEditorDrawer'
 import ProviderListAddButton from './ProviderListAddButton'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
@@ -18,16 +19,7 @@ import ProviderListHeaderBar from './ProviderListHeaderBar'
 import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
 import { useProviderDelete } from './useProviderDelete'
-import { useProviderEditor } from './useProviderEditor'
-import { useProviderLogos } from './useProviderLogos'
-
-const getIsOvmsSupported = async (): Promise<boolean> => {
-  try {
-    return await window.api.ovms.isSupported()
-  } catch {
-    return false
-  }
-}
+import { type SubmitProviderEditorParams, useProviderEditor } from './useProviderEditor'
 
 export interface ProviderListProps {
   selectedProviderId?: string
@@ -37,10 +29,9 @@ export interface ProviderListProps {
 
 export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
   const { t } = useTranslation()
-  const { providers, createProvider } = useProviders()
-  const { logos: providerLogos, saveLogo, clearLogo } = useProviderLogos(providers)
-  const { updateProviderById, deleteProviderById } = useProviderActions()
+  const { providers } = useProviders()
   const { applyReorderedList } = useReorder('/providers')
+  const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
@@ -50,17 +41,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const {
     isOpen: editorOpen,
     editingProvider,
+    initialLogo,
     startAdd,
     startEdit,
     cancel: cancelEditor,
     submit: submitEditor
-  } = useProviderEditor({ createProvider, updateProviderById, saveLogo, clearLogo, onSelectProvider })
+  } = useProviderEditor({ onProviderCreated: onSelectProvider })
 
-  const { deleteProvider } = useProviderDelete({ deleteProviderById, clearLogo, providers, onSelectProvider })
+  const { deleteProvider } = useProviderDelete()
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
-
-  const { data: isOvmsSupported } = useSWRImmutable('ovms/isSupported', getIsOvmsSupported)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -83,6 +73,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     })
   }, [filterMode, isOvmsSupported, providers, searchText])
 
+  const enabledProviders = useMemo(
+    () => filteredProviders.filter((provider) => provider.isEnabled),
+    [filteredProviders]
+  )
+
+  const disabledProviders = useMemo(
+    () => filteredProviders.filter((provider) => !provider.isEnabled),
+    [filteredProviders]
+  )
+
   const providerCounts = useMemo(
     () =>
       providers.reduce<Map<string, number>>((counts, provider) => {
@@ -97,6 +97,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       itemRefs.current.set(providerId, element)
       return
     }
+
     itemRefs.current.delete(providerId)
   }, [])
 
@@ -128,18 +129,48 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
     }
   }, [])
 
+  const handleSubmitEditor = useCallback(
+    async (providerInput: SubmitProviderEditorParams) => {
+      const result = await submitEditor(providerInput)
+
+      if (result.notice === 'create-logo-save-failed') {
+        window.toast.error(t('message.error.save_provider_logo'))
+      } else if (result.notice === 'update-logo-save-failed') {
+        window.toast.error(t('message.error.update_provider_logo'))
+      }
+    },
+    [submitEditor, t]
+  )
+
+  const handleDeleteProvider = useCallback(
+    (providerId: Provider['id']) => {
+      window.modal.confirm({
+        title: t('settings.provider.delete.title'),
+        content: t('settings.provider.delete.content'),
+        okButtonProps: { danger: true },
+        okText: t('common.delete'),
+        centered: true,
+        onOk: async () => {
+          await deleteProvider(providerId)
+        }
+      })
+    },
+    [deleteProvider, t]
+  )
+
   const renderProviderItem = (provider: Provider, _index: number, state: ProviderListContentItemState) => {
-    const showManagementActions = (providerCounts.get(provider.id) ?? 0) > 1 || !isSystemProvider(provider)
+    const showManagementActions = (providerCounts.get(provider.id) ?? 0) > 1 || canManageProvider(provider)
+    const selected = provider.id === selectedProviderId
+
     return (
       <ProviderListItemWithContextMenu
         provider={provider}
-        selectedProviderId={selectedProviderId}
-        customLogos={providerLogos}
+        selected={selected}
         contextOpen={contextProviderId === provider.id}
         onContextOpenChange={(open) => setContextProviderId(open ? provider.id : null)}
         onSelect={() => onSelectProvider(provider.id)}
         onEdit={() => startEdit(provider)}
-        onDelete={() => void deleteProvider(provider)}
+        onDelete={() => handleDeleteProvider(provider.id)}
         showManagementActions={showManagementActions}
         listState={state}
         onSetListItemRef={setProviderItemRef}
@@ -148,28 +179,24 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }
 
   return (
-    <aside className="flex h-full w-[clamp(180px,20vw,250px)] shrink-0 basis-[clamp(180px,20vw,250px)] flex-col border-foreground/[0.05] border-r bg-(--color-sidebar)">
-      <ProviderListHeaderBar
-        filteredCount={filteredProviders.length}
-        filterMode={filterMode}
-        disabled={dragging}
-        onFilterChange={setFilterMode}
-      />
+    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
+      <ProviderListHeaderBar filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
       <ProviderListSearchField value={searchText} disabled={dragging} onValueChange={setSearchText} />
       <ProviderListContent
         providers={providers}
-        filteredProviders={filteredProviders}
+        enabledProviders={enabledProviders}
+        disabledProviders={disabledProviders}
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         renderItem={renderProviderItem}
       />
-      <ProviderListAddButton label={t('button.add')} disabled={dragging} onAdd={startAdd} />
+      <ProviderListAddButton label={t('settings.provider.add.title')} disabled={dragging} onAdd={startAdd} />
       <ProviderEditorDrawer
         open={editorOpen}
         provider={editingProvider}
-        initialLogo={editingProvider ? providerLogos[editingProvider.id] : undefined}
+        initialLogo={initialLogo}
         onClose={cancelEditor}
-        onSubmit={submitEditor}
+        onSubmit={handleSubmitEditor}
       />
     </aside>
   )

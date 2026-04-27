@@ -1,9 +1,10 @@
 import { useOpenApiKeyList } from '../hooks/providerSetting/useOpenApiKeyList'
 import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
-import ApiActions from './ApiActions'
+// import ApiActions from './ApiActions'
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
 import { LlmApiKeyList } from './ApiKeyList/list'
+import ProviderConnectionCheckDrawer from './ProviderConnectionCheckDrawer'
 import ProviderSettingsDrawer from './ProviderSettingsDrawer'
 
 export interface AuthenticationSectionContentProps {
@@ -20,12 +21,17 @@ export function AuthenticationSectionContent({ providerId }: AuthenticationSecti
         providerId={providerId}
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
         onShowApiKeyError={connectionCheck.showApiKeyError}
+        onOpenConnectionCheck={connectionCheck.openConnectionCheck}
       />
       <ApiHost providerId={providerId} />
-      <ApiActions
-        providerId={providerId}
-        onCheckConnection={() => void connectionCheck.checkApi()}
-        onOpenApiKeyList={() => void apiKeyList.openApiKeyList()}
+      {/* <ApiActions providerId={providerId} onOpenApiKeyList={() => void apiKeyList.openApiKeyList()} /> */}
+      <ProviderConnectionCheckDrawer
+        open={connectionCheck.connectionCheckOpen}
+        models={connectionCheck.checkableModels}
+        apiKeys={connectionCheck.checkableApiKeys}
+        isSubmitting={connectionCheck.apiKeyConnectivity.checking}
+        onClose={connectionCheck.closeConnectionCheck}
+        onStart={connectionCheck.startConnectionCheck}
       />
       <ProviderSettingsDrawer
         open={apiKeyList.apiKeyListOpen}

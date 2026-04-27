@@ -78,7 +78,7 @@ describe('modelListDerivedState', () => {
     ])
   })
 
-  it('derives counts, booleans, layout thresholds and status map', () => {
+  it('derives counts, booleans, and status map', () => {
     const modelStatuses: ModelWithStatus[] = [
       {
         model: models[0] as any,
@@ -92,8 +92,7 @@ describe('modelListDerivedState', () => {
       models: models as any,
       searchText: '',
       selectedCapabilityFilter: 'all',
-      modelStatuses,
-      containerWidth: 700
+      modelStatuses
     })
 
     expect(derivedState.enabledModelCount).toBe(3)
@@ -102,9 +101,6 @@ describe('modelListDerivedState', () => {
     expect(derivedState.hasVisibleModels).toBe(true)
     expect(derivedState.hasNoModels).toBe(false)
     expect(derivedState.allEnabled).toBe(false)
-    expect(derivedState.isCompact).toBe(true)
-    expect(derivedState.isUltraCompact).toBe(true)
-    expect(derivedState.chipMaxWidth).toBe(340)
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 5,
@@ -125,17 +121,13 @@ describe('modelListDerivedState', () => {
       models: [],
       searchText: 'missing',
       selectedCapabilityFilter: 'all',
-      modelStatuses: [],
-      containerWidth: 980
+      modelStatuses: []
     })
 
     expect(derivedState.hasNoModels).toBe(true)
     expect(derivedState.hasVisibleModels).toBe(false)
     expect(derivedState.modelCount).toBe(0)
     expect(derivedState.allEnabled).toBe(false)
-    expect(derivedState.isCompact).toBe(false)
-    expect(derivedState.isUltraCompact).toBe(false)
-    expect(derivedState.chipMaxWidth).toBe(313)
     expect(derivedState.capabilityOptions).toEqual(MODEL_LIST_CAPABILITY_FILTERS)
     expect(derivedState.capabilityModelCounts).toEqual({
       all: 0,

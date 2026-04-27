@@ -12,6 +12,7 @@ interface ModelListHealthContextValue {
   closeHealthCheck: () => void
   startHealthCheck: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
   modelStatusMap: Map<string, ModelWithStatus>
+  modelStatuses: ModelWithStatus[]
 }
 
 const ModelListHealthContext = createContext<ModelListHealthContextValue | null>(null)
@@ -34,7 +35,8 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       openHealthCheck,
       closeHealthCheck,
       startHealthCheck,
-      modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
+      modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status])),
+      modelStatuses
     }),
     [
       availableApiKeys,

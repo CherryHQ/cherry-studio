@@ -1,12 +1,13 @@
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { CHERRYIN_CONFIG } from '@shared/config/constant'
+import type { AuthConfig } from '@shared/data/types/provider'
 import { createHash, randomBytes } from 'crypto'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { reduxService } from './ReduxService'
-
 const logger = loggerService.withContext('CherryINOAuthService')
+const CHERRYIN_PROVIDER_ID = 'cherryin'
 
 // Zod schemas for API response validation
 const BalanceDataSchema = z.object({
@@ -41,9 +42,48 @@ const TokenResponseSchema = z.object({
   expires_in: z.number().optional()
 })
 
+const UserSelfProfileSchema = z.object({
+  display_name: z.string().optional().nullable(),
+  username: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  group: z.string().optional().nullable()
+})
+
+const UserSelfResponseSchema = z
+  .union([
+    z.object({
+      data: UserSelfProfileSchema.nullable().optional()
+    }),
+    UserSelfProfileSchema
+  ])
+  .transform((payload): CherryINProfile | null => {
+    const profile = 'data' in payload ? (payload.data ?? null) : payload
+
+    if (!profile) {
+      return null
+    }
+
+    return {
+      displayName: profile.display_name ?? null,
+      username: profile.username ?? null,
+      email: profile.email ?? null,
+      group: profile.group ?? null
+    }
+  })
+
 // Export types for use in other modules
 export interface BalanceResponse {
   balance: number
+  profile: CherryINProfile | null
+  monthlyUsageTokens: number | null
+  monthlySpend: number | null
+}
+
+export interface CherryINProfile {
+  displayName: string | null
+  username: string | null
+  email: string | null
+  group: string | null
 }
 
 export interface OAuthFlowParams {
@@ -86,6 +126,16 @@ function cleanupExpiredFlows(): void {
 }
 
 class CherryINOAuthService {
+  private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
+    try {
+      const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
+      return authConfig?.type === 'oauth' ? authConfig : null
+    } catch (error) {
+      logger.error('Failed to read CherryIN auth config:', error as Error)
+      return null
+    }
+  }
+
   /**
    * Validate API host against allowlist to prevent SSRF attacks
    */
@@ -259,24 +309,25 @@ class CherryINOAuthService {
   }
 
   /**
-   * Internal method to save OAuth tokens to Redux store
+   * Internal method to save OAuth tokens to the v2 provider auth config.
    */
   private saveTokenInternal = async (accessToken: string, refreshToken?: string): Promise<void> => {
-    // Only include refreshToken in payload if it's provided and non-empty
-    // This prevents clearing the existing refresh token when server doesn't return a new one
-    const payload: { accessToken: string; refreshToken?: string } = { accessToken }
-    if (refreshToken) {
-      payload.refreshToken = refreshToken
-    }
-    await reduxService.dispatch({
-      type: 'llm/setCherryInTokens',
-      payload
+    const currentConfig = await this.getOAuthAuthConfig()
+    const nextRefreshToken = refreshToken || currentConfig?.refreshToken
+
+    await providerService.update(CHERRYIN_PROVIDER_ID, {
+      authConfig: {
+        type: 'oauth',
+        clientId: currentConfig?.clientId || CHERRYIN_CONFIG.CLIENT_ID,
+        accessToken,
+        ...(nextRefreshToken ? { refreshToken: nextRefreshToken } : {})
+      }
     })
-    logger.debug('Successfully saved CherryIN OAuth tokens to Redux')
+    logger.debug('Successfully saved CherryIN OAuth tokens to auth config')
   }
 
   /**
-   * Save OAuth tokens to Redux store (IPC handler)
+   * Save OAuth tokens to provider auth config (IPC handler)
    * @param accessToken - The access token to save
    * @param refreshToken - The refresh token to save (only updates if provided and non-empty)
    */
@@ -294,29 +345,19 @@ class CherryINOAuthService {
   }
 
   /**
-   * Read OAuth access token from Redux store
+   * Read OAuth access token from provider auth config
    */
   public getToken = async (): Promise<string | null> => {
-    try {
-      const token = await reduxService.select<string>('state.llm.settings.cherryIn.accessToken')
-      return token || null
-    } catch (error) {
-      logger.error('Failed to read token:', error as Error)
-      return null
-    }
+    const authConfig = await this.getOAuthAuthConfig()
+    return authConfig?.accessToken || null
   }
 
   /**
-   * Read OAuth refresh token from Redux store
+   * Read OAuth refresh token from provider auth config
    */
   private getRefreshToken = async (): Promise<string | null> => {
-    try {
-      const token = await reduxService.select<string>('state.llm.settings.cherryIn.refreshToken')
-      return token || null
-    } catch (error) {
-      logger.error('Failed to read refresh token:', error as Error)
-      return null
-    }
+    const authConfig = await this.getOAuthAuthConfig()
+    return authConfig?.refreshToken || null
   }
 
   /**
@@ -414,6 +455,27 @@ class CherryINOAuthService {
     return response
   }
 
+  private getProfile = async (apiHost: string): Promise<CherryINProfile | null> => {
+    try {
+      const response = await this.authenticatedFetch(apiHost, '/api/user/self')
+
+      if (!response.ok) {
+        logger.warn(`Failed to fetch CherryIN profile: ${response.status} ${response.statusText}`)
+        return null
+      }
+
+      const json = await response.json()
+      return UserSelfResponseSchema.parse(json)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        logger.warn('Failed to parse CherryIN profile response:', error.issues)
+      } else {
+        logger.warn('Failed to fetch CherryIN profile:', error as Error)
+      }
+      return null
+    }
+  }
+
   /**
    * Get user balance from CherryIN API
    */
@@ -435,13 +497,18 @@ class CherryINOAuthService {
         throw new CherryINOAuthServiceError('API returned success: false')
       }
 
-      const { quota } = parsed.data
+      const { quota, used_quota: usedQuota } = parsed.data
+      const profile = await this.getProfile(apiHost)
       // quota = remaining balance
       // Convert to USD: 500000 units = 1 USD
-      const balanceYuan = quota / 500000
-      logger.info('Balance fetched successfully', { balanceYuan })
+      const balance = quota / 500000
+      const monthlySpend = usedQuota / 500000
+      logger.info('Balance fetched successfully', { balance, usedQuota, monthlySpend })
       return {
-        balance: balanceYuan
+        balance,
+        profile,
+        monthlyUsageTokens: null,
+        monthlySpend
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -454,7 +521,7 @@ class CherryINOAuthService {
   }
 
   /**
-   * Revoke OAuth token and clear from Redux store
+   * Revoke OAuth token and clear it from provider auth config
    */
   public logout = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<void> => {
     this.validateApiHost(apiHost)
@@ -482,11 +549,13 @@ class CherryINOAuthService {
         }
       }
 
-      // Clear tokens from Redux store
-      await reduxService.dispatch({
-        type: 'llm/clearCherryInTokens'
+      // Reset to API-key mode so v2 runtime/UI stop treating this provider as OAuth-backed.
+      await providerService.update(CHERRYIN_PROVIDER_ID, {
+        authConfig: {
+          type: 'api-key'
+        }
       })
-      logger.debug('Successfully cleared CherryIN OAuth tokens from Redux')
+      logger.debug('Successfully cleared CherryIN OAuth tokens from auth config')
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
       throw new CherryINOAuthServiceError('Failed to logout', error)

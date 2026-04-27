@@ -12,8 +12,6 @@ import type { ModelListGroupItem } from './useModelListSections'
 interface ModelListGroupProps {
   groupName: string
   items: ModelListGroupItem[]
-  isCompact: boolean
-  isUltraCompact: boolean
   defaultOpen: boolean
   disabled?: boolean
   onEditModel: (model: Model) => void
@@ -23,8 +21,6 @@ interface ModelListGroupProps {
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
   groupName,
   items,
-  isCompact,
-  isUltraCompact,
   defaultOpen,
   disabled,
   onEditModel,
@@ -63,8 +59,6 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               model={model}
               modelStatus={modelStatus}
               showIdentifier={showIdentifier}
-              isCompact={isCompact}
-              isUltraCompact={isUltraCompact}
               onEdit={onEditModel}
               onToggleEnabled={onToggleModel}
               disabled={disabled}

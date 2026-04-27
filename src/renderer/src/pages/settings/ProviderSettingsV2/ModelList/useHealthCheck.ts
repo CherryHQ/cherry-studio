@@ -41,8 +41,6 @@ export const useHealthCheck = (providerId: string) => {
 
   const startHealthCheck = useCallback(
     async ({ apiKeys, isConcurrent, timeout }: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => {
-      setHealthCheckOpen(false)
-
       if (!provider) return
 
       const modelsToCheck = models.filter((model) => !isRerankModel(model))
@@ -52,6 +50,7 @@ export const useHealthCheck = (providerId: string) => {
           timeout: 5000,
           title: i18n.t('settings.provider.no_models_for_check')
         })
+        setHealthCheckOpen(false)
         return
       }
 
@@ -95,6 +94,7 @@ export const useHealthCheck = (providerId: string) => {
       })
 
       setIsChecking(false)
+      setHealthCheckOpen(false)
     },
     [models, provider]
   )

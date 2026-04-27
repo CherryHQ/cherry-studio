@@ -10,23 +10,35 @@ vi.mock('@renderer/utils', () => ({
   uuid: () => uuidMock()
 }))
 
+const useProvidersMock = vi.fn()
+const useProviderActionsMock = vi.fn()
+
+vi.mock('@renderer/hooks/useProviders', () => ({
+  useProviders: (...args: any[]) => useProvidersMock(...args),
+  useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const useProviderLogoMock = vi.fn()
+const saveProviderLogoMock = vi.fn()
+const clearProviderLogoMock = vi.fn()
+
+vi.mock('../../hooks/useProviderLogo', () => ({
+  useProviderLogo: (...args: any[]) => useProviderLogoMock(...args),
+  saveProviderLogo: (...args: any[]) => saveProviderLogoMock(...args),
+  clearProviderLogo: (...args: any[]) => clearProviderLogoMock(...args)
+}))
+
 const createProviderMock = vi.fn()
 const updateProviderByIdMock = vi.fn()
-const saveLogoMock = vi.fn()
-const clearLogoMock = vi.fn()
-const onSelectProviderMock = vi.fn()
+const onProviderCreatedMock = vi.fn()
 
 function makeParams(overrides = {}) {
   return {
-    createProvider: createProviderMock,
-    updateProviderById: updateProviderByIdMock,
-    saveLogo: saveLogoMock,
-    clearLogo: clearLogoMock,
-    onSelectProvider: onSelectProviderMock,
+    onProviderCreated: onProviderCreatedMock,
     ...overrides
   }
 }
@@ -39,9 +51,15 @@ describe('useProviderEditor', () => {
     vi.clearAllMocks()
     createProviderMock.mockResolvedValue({ id: 'new-provider-id', name: 'My Provider' })
     updateProviderByIdMock.mockResolvedValue(undefined)
-    saveLogoMock.mockResolvedValue(undefined)
-    clearLogoMock.mockResolvedValue(undefined)
-    ;(window as any).toast = { error: vi.fn() }
+    saveProviderLogoMock.mockResolvedValue(undefined)
+    clearProviderLogoMock.mockResolvedValue(undefined)
+    useProvidersMock.mockReturnValue({
+      createProvider: createProviderMock
+    })
+    useProviderActionsMock.mockReturnValue({
+      updateProviderById: updateProviderByIdMock
+    })
+    useProviderLogoMock.mockReturnValue({ logo: undefined })
   })
 
   describe('initial state', () => {
@@ -49,6 +67,7 @@ describe('useProviderEditor', () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
       expect(result.current.isOpen).toBe(false)
       expect(result.current.editingProvider).toBeNull()
+      expect(result.current.initialLogo).toBeUndefined()
     })
   })
 
@@ -69,6 +88,15 @@ describe('useProviderEditor', () => {
 
       expect(result.current.isOpen).toBe(true)
       expect(result.current.editingProvider).toBe(provider)
+    })
+
+    it('exposes the persisted logo for the editing provider', () => {
+      useProviderLogoMock.mockReturnValue({ logo: 'icon:openai' })
+      const { result } = renderHook(() => useProviderEditor(makeParams()))
+
+      act(() => result.current.startEdit(provider))
+
+      expect(result.current.initialLogo).toBe('icon:openai')
     })
 
     it('startAdd clears editingProvider when switching from edit mode', () => {
@@ -92,7 +120,7 @@ describe('useProviderEditor', () => {
   })
 
   describe('submit — create path', () => {
-    it('calls createProvider with a new uuid, then onSelectProvider and closes', async () => {
+    it('calls createProvider with a new uuid, then onProviderCreated and closes', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startAdd())
@@ -105,7 +133,7 @@ describe('useProviderEditor', () => {
         name: 'My Provider',
         defaultChatEndpoint: endpoint
       })
-      expect(onSelectProviderMock).toHaveBeenCalledWith('new-provider-id')
+      expect(onProviderCreatedMock).toHaveBeenCalledWith('new-provider-id')
       expect(result.current.isOpen).toBe(false)
     })
 
@@ -121,10 +149,10 @@ describe('useProviderEditor', () => {
         })
       })
 
-      expect(saveLogoMock).toHaveBeenCalledWith('new-provider-id', 'data:image/png;base64,abc')
+      expect(saveProviderLogoMock).toHaveBeenCalledWith('new-provider-id', 'data:image/png;base64,abc')
     })
 
-    it('skips saveLogo when logo is not provided', async () => {
+    it('skips saveProviderLogo when logo is not provided', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startAdd())
@@ -132,23 +160,24 @@ describe('useProviderEditor', () => {
         await result.current.submit({ name: 'My Provider', defaultChatEndpoint: endpoint })
       })
 
-      expect(saveLogoMock).not.toHaveBeenCalled()
+      expect(saveProviderLogoMock).not.toHaveBeenCalled()
     })
 
-    it('shows error toast when saveLogo fails on create', async () => {
-      saveLogoMock.mockRejectedValue(new Error('storage full'))
+    it('returns a notice when saveProviderLogo fails on create', async () => {
+      saveProviderLogoMock.mockRejectedValue(new Error('storage full'))
       const { result } = renderHook(() => useProviderEditor(makeParams()))
+      let submitResult: Awaited<ReturnType<typeof result.current.submit>> | undefined
 
       act(() => result.current.startAdd())
       await act(async () => {
-        await result.current.submit({
+        submitResult = await result.current.submit({
           name: 'My Provider',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,abc'
         })
       })
 
-      expect(window.toast.error).toHaveBeenCalledWith('message.error.save_provider_logo')
+      expect(submitResult).toEqual({ notice: 'create-logo-save-failed' })
     })
 
     it('does nothing when name is empty', async () => {
@@ -193,7 +222,7 @@ describe('useProviderEditor', () => {
         })
       })
 
-      expect(saveLogoMock).toHaveBeenCalledWith('openai', 'data:image/png;base64,new')
+      expect(saveProviderLogoMock).toHaveBeenCalledWith('openai', 'data:image/png;base64,new')
     })
 
     it('clears logo when logo is null on update', async () => {
@@ -204,8 +233,8 @@ describe('useProviderEditor', () => {
         await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint, logo: null })
       })
 
-      expect(clearLogoMock).toHaveBeenCalledWith('openai')
-      expect(saveLogoMock).not.toHaveBeenCalled()
+      expect(clearProviderLogoMock).toHaveBeenCalledWith('openai')
+      expect(saveProviderLogoMock).not.toHaveBeenCalled()
     })
 
     it('skips logo mutation when logo is undefined on update', async () => {
@@ -216,27 +245,28 @@ describe('useProviderEditor', () => {
         await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint })
       })
 
-      expect(saveLogoMock).not.toHaveBeenCalled()
-      expect(clearLogoMock).not.toHaveBeenCalled()
+      expect(saveProviderLogoMock).not.toHaveBeenCalled()
+      expect(clearProviderLogoMock).not.toHaveBeenCalled()
     })
 
-    it('shows error toast when saveLogo fails on update', async () => {
-      saveLogoMock.mockRejectedValue(new Error('storage full'))
+    it('returns a notice when saveProviderLogo fails on update', async () => {
+      saveProviderLogoMock.mockRejectedValue(new Error('storage full'))
       const { result } = renderHook(() => useProviderEditor(makeParams()))
+      let submitResult: Awaited<ReturnType<typeof result.current.submit>> | undefined
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({
+        submitResult = await result.current.submit({
           name: 'Renamed',
           defaultChatEndpoint: endpoint,
           logo: 'data:image/png;base64,new'
         })
       })
 
-      expect(window.toast.error).toHaveBeenCalledWith('message.error.update_provider_logo')
+      expect(submitResult).toEqual({ notice: 'update-logo-save-failed' })
     })
 
-    it('does not call onSelectProvider on update', async () => {
+    it('does not call onProviderCreated on update', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startEdit(provider))
@@ -244,7 +274,7 @@ describe('useProviderEditor', () => {
         await result.current.submit({ name: 'Renamed', defaultChatEndpoint: endpoint })
       })
 
-      expect(onSelectProviderMock).not.toHaveBeenCalled()
+      expect(onProviderCreatedMock).not.toHaveBeenCalled()
     })
   })
 })

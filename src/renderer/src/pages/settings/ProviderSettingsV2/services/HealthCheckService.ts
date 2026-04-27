@@ -14,12 +14,14 @@ export async function checkModelWithMultipleKeys(
   provider: ModelCheckOptions['provider'],
   model: ModelCheckOptions['models'][number],
   apiKeys: string[],
+  modelsForShim: ModelCheckOptions['models'],
   timeout?: number
 ): Promise<ApiKeyWithStatus[]> {
   const checkPromises = apiKeys.map(async (key) => {
     const startTime = Date.now()
     const v1Provider: V1Provider = toV1ProviderShim(provider, {
-      apiKey: key
+      apiKey: key,
+      models: modelsForShim
     })
     const v1Model: V1Model = toV1ModelForCheckApi(model)
     await checkModel(v1Provider, v1Model, timeout)
@@ -56,7 +58,7 @@ export async function checkModelsHealth(
 
   try {
     const modelPromises = models.map(async (model, index) => {
-      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, timeout)
+      const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, models, timeout)
       const analysis = aggregateApiKeyResults(keyResults)
 
       const result: ModelWithStatus = {

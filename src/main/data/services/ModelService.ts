@@ -81,6 +81,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'pricing',
   'isEnabled',
   'isHidden',
+  'isDeprecated',
   'sortOrder',
   'notes'
 ]
@@ -164,6 +165,7 @@ function rowToRuntimeModel(row: UserModel): Model {
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled ?? true,
     isHidden: row.isHidden ?? false,
+    isDeprecated: row.isDeprecated ?? false,
     sortOrder: row.sortOrder ?? undefined,
     notes: row.notes ?? undefined
   }

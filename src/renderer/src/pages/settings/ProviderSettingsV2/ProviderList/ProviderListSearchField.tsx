@@ -1,3 +1,4 @@
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import { Search } from 'lucide-react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +14,8 @@ export default function ProviderListSearchField({ value, disabled, onValueChange
 
   return (
     <div className="px-3 pb-1.5">
-      <div className="flex items-center gap-1.5 rounded-lg border border-border/20 bg-foreground/[0.03] px-2 py-[4px]">
-        <Search size={9} className="shrink-0 text-foreground/50" />
+      <div className={providerListClasses.searchWrap}>
+        <Search size={9} className={providerListClasses.searchIcon} />
         <input
           value={value}
           placeholder={t('settings.provider.search')}
@@ -26,7 +27,7 @@ export default function ProviderListSearchField({ value, disabled, onValueChange
             }
           }}
           disabled={disabled}
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground/80 outline-none placeholder:text-foreground/40"
+          className={providerListClasses.searchInput}
         />
       </div>
     </div>

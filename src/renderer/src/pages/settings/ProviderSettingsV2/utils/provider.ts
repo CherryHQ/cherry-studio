@@ -60,6 +60,14 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
+/**
+ * Canonical preset providers are seeded built-ins whose runtime ID equals the
+ * linked preset ID. Preset-derived user providers remain user-manageable.
+ */
+export function canManageProvider(provider: Provider): boolean {
+  return provider.presetProviderId == null || provider.presetProviderId !== provider.id
+}
+
 // ─── Composite ───────────────────────────────────────────────────────────────
 
 export function isOpenAICompatibleProvider(provider: Provider): boolean {

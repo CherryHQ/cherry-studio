@@ -5,9 +5,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingSubtitle } from '..'
+import { useOvmsSupport } from './hooks/useOvmsSupport'
 
 const OVMSSettings: FC = () => {
   const { t } = useTranslation()
+  const { isSupported } = useOvmsSupport()
 
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
   const [isInstallingOvms, setIsInstallingOvms] = useState(false)
@@ -16,13 +18,12 @@ const OVMSSettings: FC = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
-      const supported = await window.api.ovms.isSupported()
-      if (!supported) return
+      if (!isSupported) return
       const status = await window.api.ovms.getStatus()
       setOvmsStatus(status)
     }
     void checkStatus()
-  }, [])
+  }, [isSupported])
 
   const installOvms = async () => {
     try {

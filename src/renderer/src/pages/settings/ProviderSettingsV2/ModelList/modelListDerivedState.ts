@@ -47,9 +47,6 @@ export type ModelListDerivedState = {
   hasVisibleModels: boolean
   hasNoModels: boolean
   allEnabled: boolean
-  isCompact: boolean
-  isUltraCompact: boolean
-  chipMaxWidth: number | undefined
   modelStatusMap: Map<string, ModelWithStatus>
 }
 
@@ -60,7 +57,6 @@ type CalculateModelListDerivedStateInput = {
   searchText: string
   selectedCapabilityFilter: ModelListCapabilityFilter
   modelStatuses: ModelWithStatus[]
-  containerWidth: number
 }
 
 export const groupModels = (models: Model[]): ModelGroups => {
@@ -163,28 +159,11 @@ export const getCapabilityModelCounts = (models: Model[]): ModelListCapabilityCo
   return counts
 }
 
-export const getChipMaxWidth = (containerWidth: number): number | undefined => {
-  if (containerWidth <= 0) {
-    return undefined
-  }
-
-  if (containerWidth < 520) {
-    return Math.max(containerWidth - 12, 96)
-  }
-
-  if (containerWidth < 860) {
-    return Math.max(Math.floor((containerWidth - 20) / 2), 96)
-  }
-
-  return Math.max(Math.floor(containerWidth * 0.32), 120)
-}
-
 export const calculateModelListDerivedState = ({
   models,
   searchText,
   selectedCapabilityFilter,
-  modelStatuses,
-  containerWidth
+  modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
   const enabledModelCount = filteredModels.filter((model) => model.isEnabled).length
@@ -204,9 +183,6 @@ export const calculateModelListDerivedState = ({
     hasVisibleModels: filteredModels.length > 0,
     hasNoModels: models.length === 0,
     allEnabled: filteredModels.length > 0 && filteredModels.every((model) => model.isEnabled),
-    isCompact: containerWidth > 0 && containerWidth < 920,
-    isUltraCompact: containerWidth > 0 && containerWidth < 760,
-    chipMaxWidth: getChipMaxWidth(containerWidth),
     modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
   }
 }

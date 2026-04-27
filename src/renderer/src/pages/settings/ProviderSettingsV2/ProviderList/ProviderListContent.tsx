@@ -1,16 +1,18 @@
 import { ReorderableList } from '@cherrystudio/ui'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
+import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export type ProviderListContentItemState = {
   dragging: boolean
-  [key: string]: unknown
 }
 
 interface ProviderListContentProps {
   providers: Provider[]
-  filteredProviders: Provider[]
+  enabledProviders: Provider[]
+  disabledProviders: Provider[]
   onDragStateChange: (nextDragging: boolean) => void
   onReorder: (reorderedProviders: Provider[]) => void | Promise<void>
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
@@ -18,31 +20,60 @@ interface ProviderListContentProps {
 
 export default function ProviderListContent({
   providers,
-  filteredProviders,
+  enabledProviders,
+  disabledProviders,
   onDragStateChange,
   onReorder,
   renderItem
 }: ProviderListContentProps) {
   const { t } = useTranslation()
+  const hasResults = enabledProviders.length > 0 || disabledProviders.length > 0
+
+  const renderSection = (sectionProviders: Provider[]) => (
+    <ReorderableList
+      items={providers}
+      visibleItems={sectionProviders}
+      getId={(provider) => provider.id}
+      onDragStateChange={onDragStateChange}
+      onReorder={onReorder}
+      className="w-full"
+      gap="var(--provider-list-row-gap)"
+      restrictions={{ scrollableAncestor: true }}
+      renderItem={renderItem}
+    />
+  )
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]">
-      {filteredProviders.length > 0 ? (
-        <ReorderableList
-          items={providers}
-          visibleItems={filteredProviders}
-          getId={(provider) => provider.id}
-          onDragStateChange={onDragStateChange}
-          onReorder={onReorder}
-          className="w-full"
-          gap={1}
-          restrictions={{ scrollableAncestor: true }}
-          renderItem={renderItem}
-        />
-      ) : (
-        <div className="flex h-full min-h-40 items-center justify-center px-3 text-center text-(--color-muted-foreground) text-[14px]">
-          {t('common.no_results')}
+    <div className={providerListClasses.scroller}>
+      {hasResults ? (
+        <div className={providerListClasses.sectionStack}>
+          {enabledProviders.length > 0 && (
+            <section className={providerListClasses.section}>
+              <div className={providerListClasses.sectionHeader}>
+                <p className={providerListClasses.sectionLabel}>
+                  {t('settings.models.check.enabled')} ({enabledProviders.length})
+                </p>
+              </div>
+              {renderSection(enabledProviders)}
+            </section>
+          )}
+          {disabledProviders.length > 0 && (
+            <section className={providerListClasses.section}>
+              <div
+                className={cn(
+                  providerListClasses.sectionHeader,
+                  enabledProviders.length > 0 && providerListClasses.sectionHeaderAfterEnabled
+                )}>
+                <p className={providerListClasses.sectionLabel}>
+                  {t('settings.models.check.disabled')} ({disabledProviders.length})
+                </p>
+              </div>
+              {renderSection(disabledProviders)}
+            </section>
+          )}
         </div>
+      ) : (
+        <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
       )}
     </div>
   )

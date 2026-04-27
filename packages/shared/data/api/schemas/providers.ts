@@ -7,6 +7,7 @@
 import * as z from 'zod'
 
 import type { EndpointType, Model } from '../../types/model'
+import { UniqueModelIdSchema } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -105,6 +106,37 @@ export interface ProviderPresetMetadata {
   websites?: ProviderWebsites
 }
 
+export const ModelSyncMissingActionSchema = z.enum(['deprecated', 'delete'])
+export type ModelSyncMissingAction = z.infer<typeof ModelSyncMissingActionSchema>
+
+export const ModelSyncReferenceImpactSchema = z.strictObject({
+  uniqueModelId: UniqueModelIdSchema,
+  assistantCount: z.number().int().nonnegative(),
+  knowledgeCount: z.number().int().nonnegative(),
+  preferenceReferences: z.array(z.string()),
+  strongReferenceCount: z.number().int().nonnegative()
+})
+export type ModelSyncReferenceImpact = z.infer<typeof ModelSyncReferenceImpactSchema>
+
+export const ModelSyncApplyItemSchema = z.strictObject({
+  uniqueModelId: UniqueModelIdSchema,
+  action: ModelSyncMissingActionSchema
+})
+export type ModelSyncApplyItem = z.infer<typeof ModelSyncApplyItemSchema>
+
+export const ModelSyncApplySchema = z.strictObject({
+  addModelIds: z.array(UniqueModelIdSchema).default([]),
+  missing: z.array(ModelSyncApplyItemSchema).default([])
+})
+export type ModelSyncApplyDto = z.infer<typeof ModelSyncApplySchema>
+
+export const ModelSyncApplyResponseSchema = z.strictObject({
+  addedCount: z.number().int().nonnegative(),
+  deprecatedCount: z.number().int().nonnegative(),
+  deletedCount: z.number().int().nonnegative()
+})
+export type ModelSyncApplyResponse = z.infer<typeof ModelSyncApplyResponseSchema>
+
 // Re-exported for handler-side re-use
 export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }
 
@@ -201,6 +233,18 @@ export type ProviderSchemas = {
       params: { providerId: string }
       body: EnrichModelsDto
       response: Model[]
+    }
+  }
+
+  /**
+   * Apply pull selection (add + missing actions). Remote list is resolved on main to match DB apply.
+   * @example POST /providers/openai/model-sync:apply { "addModelIds": ["openai::gpt-5"], "missing": [] }
+   */
+  '/providers/:providerId/model-sync:apply': {
+    POST: {
+      params: { providerId: string }
+      body: ModelSyncApplyDto
+      response: ModelSyncApplyResponse
     }
   }
 

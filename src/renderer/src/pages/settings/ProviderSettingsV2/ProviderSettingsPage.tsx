@@ -63,7 +63,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   )
 
   return (
-    <div className="provider-settings-default-scope relative flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-(--color-background)">
+    <div className="provider-settings-default-scope provider-settings-layout-cq relative flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-(--color-background)">
       <ProviderList
         selectedProviderId={selectedProviderId}
         filterModeHint={filterModeHint}

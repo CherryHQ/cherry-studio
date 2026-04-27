@@ -281,6 +281,8 @@ export const ModelSchema = z.object({
   isEnabled: z.boolean(),
   /** Whether this model is hidden from lists */
   isHidden: z.boolean(),
+  /** Whether this model has been deprecated by provider sync */
+  isDeprecated: z.boolean().optional(),
   /** Replacement model if this one is deprecated */
   replaceWith: UniqueModelIdSchema.optional(),
 

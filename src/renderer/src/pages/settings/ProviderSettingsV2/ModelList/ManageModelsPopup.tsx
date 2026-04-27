@@ -236,7 +236,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
         <ModelHeaderTitle>
           {provider ? getFancyProviderName(provider) : ''}
           {i18n.language.startsWith('zh') ? '' : ' '}
-          {t('common.models')}
+          {t('settings.models.list_title')}
         </ModelHeaderTitle>
       </Flex>
     )

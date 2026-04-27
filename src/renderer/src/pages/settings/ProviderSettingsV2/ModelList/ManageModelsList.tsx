@@ -1,17 +1,14 @@
-import { Avatar, AvatarFallback, Button, Flex, Tooltip } from '@cherrystudio/ui'
-import ExpandableText from '@renderer/components/ExpandableText'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import { Avatar, AvatarFallback, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import FileItem from '@renderer/pages/files/FileItem'
 import { getModelLogo } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettingsV2/ModelList/NewApiBatchAddModelPopup'
 import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
+import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import ModelIdWithTagsV2 from '../components/ModelIdWithTagsV2'
 import { getModelGroupLabel } from './grouping'
@@ -36,16 +33,21 @@ interface ManageModelsListProps {
   modelGroups: Record<string, Model[]>
   provider: Provider
   existingModelIds: Set<string>
+  /** Resolved provider models (for isEnabled on Switch) */
+  existingById: Map<string, Model>
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void
 }
 
 const ManageModelsList: React.FC<ManageModelsListProps> = ({
   modelGroups,
   provider,
   existingModelIds,
+  existingById,
   onAddModel,
-  onRemoveModel
+  onRemoveModel,
+  onToggleModelEnabled
 }) => {
   const { t } = useTranslation()
   const [collapsedGroups, setCollapsedGroups] = useState(new Set<string>())
@@ -54,9 +56,9 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
     setCollapsedGroups((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(groupName)) {
-        newSet.delete(groupName) // 如果已折叠，则展开
+        newSet.delete(groupName)
       } else {
-        newSet.add(groupName) // 如果已展开，则折叠
+        newSet.add(groupName)
       }
       return newSet
     })
@@ -68,7 +70,6 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 
     Object.entries(modelGroups).forEach(([groupName, models]) => {
       if (models.length > 0) {
-        // 只添加非空组
         rows.push({ type: 'group', groupName, models })
         if (!collapsedGroups.has(groupName)) {
           rows.push(
@@ -94,10 +95,8 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
 
       const handleGroupAction = () => {
         if (isAllInProvider) {
-          // 移除整组
           models.filter((model) => existingModelIds.has(model.id)).forEach(onRemoveModel)
         } else {
-          // 添加整组
           const wouldAddModels = models.filter((model) => !existingModelIds.has(model.id))
 
           if (isNewApiProvider(provider)) {
@@ -125,6 +124,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
           }>
           <Button
             variant="ghost"
+            type="button"
             size="icon"
             onClick={() => {
               handleGroupAction()
@@ -140,34 +140,41 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   return (
     <DynamicVirtualList
       list={flatRows}
-      estimateSize={useCallback(() => 60, [])}
+      estimateSize={useCallback(() => 52, [])}
       isSticky={useCallback((index: number) => flatRows[index].type === 'group', [flatRows])}
       overscan={5}
       scrollerStyle={{
-        paddingRight: '10px',
+        paddingRight: '4px',
         borderRadius: '8px'
       }}>
       {(row) => {
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)
           return (
-            <GroupHeaderContainer isCollapsed={isCollapsed}>
-              <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
-                <Flex className="flex-1 items-center gap-2.5">
-                  <ChevronRight
-                    size={16}
-                    color="var(--color-text-3)"
-                    strokeWidth={1.5}
-                    className={isCollapsed ? '' : 'rotate-90'}
-                  />
-                  <span className="font-bold text-sm">{getModelGroupLabel(row.groupName, t)}</span>
-                  <CustomTag color="#02B96B" size={10}>
-                    {row.models.length}
-                  </CustomTag>
-                </Flex>
+            <div
+              className="mb-1 flex cursor-pointer items-center gap-1.5 px-1 py-[3px]"
+              onClick={() => {
+                handleGroupToggle(row.groupName)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleGroupToggle(row.groupName)
+                }
+              }}
+              role="button"
+              tabIndex={0}>
+              <ChevronRight
+                size={14}
+                className={cn('shrink-0 text-muted-foreground/70', !isCollapsed && 'rotate-90')}
+                strokeWidth={1.5}
+              />
+              <span className="font-medium text-muted-foreground text-xs">{getModelGroupLabel(row.groupName, t)}</span>
+              <div className="h-px min-w-0 flex-1 bg-muted/50" />
+              <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} role="presentation">
                 {renderGroupTools(row.models)}
-              </GroupHeader>
-            </GroupHeaderContainer>
+              </div>
+            </div>
           )
         }
 
@@ -176,8 +183,10 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
             last={row.last}
             model={row.model}
             existingModelIds={existingModelIds}
+            existingById={existingById}
             onAddModel={onAddModel}
             onRemoveModel={onRemoveModel}
+            onToggleModelEnabled={onToggleModelEnabled}
           />
         )
       }}
@@ -185,79 +194,86 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
   )
 }
 
-// 模型列表项组件
+// 模型列表项组件 — 对齐 `ModelManagementPanel`：Switch 启用、未加入为 +
 interface ModelListItemProps {
   model: Model
   existingModelIds: Set<string>
+  existingById: Map<string, Model>
   onAddModel: (model: Model) => void
   onRemoveModel: (model: Model) => void
+  onToggleModelEnabled: (model: Model, enabled: boolean) => void
   last?: boolean
 }
 
 const ModelListItem: React.FC<ModelListItemProps> = memo(
-  ({ model, existingModelIds, onAddModel, onRemoveModel, last }) => {
+  ({ model, existingModelIds, existingById, onAddModel, onRemoveModel, onToggleModelEnabled, last }) => {
+    const { t } = useTranslation()
     const isAdded = useMemo(() => existingModelIds.has(model.id), [existingModelIds, model.id])
+    const isEnabled = isAdded ? (existingById.get(model.id)?.isEnabled ?? true) : false
+    const nameMuted = isAdded && !isEnabled
+
     return (
-      <ModelListItemContainer last={last}>
-        <FileItem
-          style={{
-            backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : '',
-            border: 'none',
-            boxShadow: 'none'
-          }}
-          fileInfo={{
-            icon: (() => {
-              const Icon = getModelLogo(model)
-              return Icon ? (
-                <Icon.Avatar size={28} />
-              ) : (
-                <Avatar size="sm">
-                  <AvatarFallback>{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
-                </Avatar>
-              )
-            })(),
-            name: <ModelIdWithTagsV2 model={model} />,
-            extra: model.description && <ExpandableText text={model.description} />,
-            ext: '.model',
-            actions: isAdded ? (
-              <Button variant="ghost" onClick={() => onRemoveModel(model)} size="icon">
-                <Minus size={16} />
-              </Button>
+      <div
+        className={cn(
+          'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
+          last && 'mb-0.5'
+        )}>
+        {isAdded ? (
+          <Switch
+            size="sm"
+            checked={isEnabled}
+            onCheckedChange={(v) => {
+              onToggleModelEnabled(model, v)
+            }}
+          />
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0 p-0"
+            onClick={() => {
+              onAddModel(model)
+            }}>
+            <Plus className="size-3.5" />
+          </Button>
+        )}
+        <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden rounded-[1px]">
+          {(() => {
+            const Icon = getModelLogo(model)
+            return Icon ? (
+              <Icon.Avatar size={14} />
             ) : (
-              <Button variant="ghost" onClick={() => onAddModel(model)} size="icon">
-                <Plus size={16} />
-              </Button>
+              <Avatar className="size-3.5">
+                <AvatarFallback className="text-[8px]">{model?.name?.[0]?.toUpperCase()}</AvatarFallback>
+              </Avatar>
             )
-          }}
-        />
-      </ModelListItemContainer>
+          })()}
+        </div>
+        <div
+          className={cn(
+            'min-w-0 flex-1 font-mono text-sm',
+            nameMuted ? 'text-muted-foreground/60' : 'text-foreground'
+          )}>
+          <ModelIdWithTagsV2 model={model} />
+        </div>
+        {isAdded ? (
+          <Tooltip content={t('settings.models.manage.remove_model')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-6 shrink-0 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={() => {
+                onRemoveModel(model)
+              }}>
+              <Minus className="size-3.5" />
+            </Button>
+          </Tooltip>
+        ) : null}
+      </div>
     )
   }
 )
-
-const GroupHeader = styled.div<{ isCollapsed: boolean }>`
-  display: flex;
-  background-color: var(--color-background-mute);
-  border-radius: ${(props) => (props.isCollapsed ? '8px' : '8px 8px 0 0')};
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 13px;
-  min-height: 38px;
-  color: var(--color-text);
-  cursor: pointer;
-`
-
-const GroupHeaderContainer = styled.div<{ isCollapsed: boolean }>`
-  padding-bottom: ${(props) => (props.isCollapsed ? '8px' : '0')};
-`
-
-const ModelListItemContainer = styled.div<{ last?: boolean }>`
-  border: 1px solid var(--color-border);
-  padding: 4px;
-  border-top: none;
-  border-radius: ${(props) => (props.last ? '0 0 8px 8px' : '0')};
-  border-bottom: ${(props) => (props.last ? '1px solid var(--color-border)' : 'none')};
-  margin-bottom: ${(props) => (props.last ? '8px' : '0')};
-`
 
 export default memo(ManageModelsList)

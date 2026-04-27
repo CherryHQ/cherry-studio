@@ -178,9 +178,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   ] satisfies ItemType[]
 
-  // for logo
-  const backgroundColor = generateColorFromChar(name)
-  const color = name ? getForegroundColor(backgroundColor) : 'white'
+  const previewName = name.trim()
+  const backgroundColor = previewName ? generateColorFromChar(previewName) : undefined
+  const color = backgroundColor ? getForegroundColor(backgroundColor) : 'white'
 
   return (
     <Modal
@@ -226,7 +226,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                   <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
                 </ProviderLogo>
               ) : (
-                <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
+                <ProviderInitialsLogo style={backgroundColor ? { backgroundColor, color } : undefined}>
                   {getInitials()}
                 </ProviderInitialsLogo>
               )}

@@ -19,8 +19,6 @@ interface ModelListItemProps {
   model: Model
   modelStatus: ModelWithStatus | undefined
   showIdentifier?: boolean
-  isCompact?: boolean
-  isUltraCompact?: boolean
   disabled?: boolean
   onEdit: (model: Model) => void
   onToggleEnabled: (model: Model, enabled: boolean) => Promise<void>
@@ -31,15 +29,13 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
   model,
   modelStatus,
   showIdentifier = false,
-  isCompact = false,
-  isUltraCompact = false,
   disabled,
   onEdit,
   onToggleEnabled
 }) => {
   const { t } = useTranslation()
   const isChecking = modelStatus?.checking === true
-  const shouldShowIdentifier = showIdentifier && !isUltraCompact && model.id !== model.name
+  const shouldShowIdentifier = showIdentifier && model.id !== model.name
 
   const healthResults = useMemo(
     () =>
@@ -83,10 +79,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
   const metaLine = useMemo(() => {
     const parts: string[] = []
 
-    if (model.description) {
-      parts.push(model.description)
-    }
-
     if (model.pricing?.input?.perMillionTokens != null) {
       parts.push(`Input $${model.pricing.input.perMillionTokens.toFixed(2)}/M`)
     }
@@ -106,12 +98,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
     }
 
     return parts.join(' · ')
-  }, [
-    model.contextWindow,
-    model.description,
-    model.pricing?.input?.perMillionTokens,
-    model.pricing?.output?.perMillionTokens
-  ])
+  }, [model.contextWindow, model.pricing?.input?.perMillionTokens, model.pricing?.output?.perMillionTokens])
 
   return (
     <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')} onClick={handleEdit}>
@@ -132,35 +119,37 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
               {model.name}
             </span>
             {shouldShowIdentifier && (
-              <span
-                className="min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-[length:var(--font-size-body-xs)] text-muted-foreground leading-[var(--line-height-body-xs)]"
-                title={model.id}>
+              <span className={modelListClasses.modelIdBadge} title={model.id}>
                 {model.id}
               </span>
             )}
           </div>
-          {!isUltraCompact && metaLine && <div className={modelListClasses.rowMeta}>{metaLine}</div>}
-          <div className={modelListClasses.rowBadges}>
-            <ModelTagsWithLabelV2 model={model} size={11} showLabel={false} />
-            <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
-          </div>
+          {metaLine ? <div className={modelListClasses.rowMeta}>{metaLine}</div> : null}
         </div>
       </RowFlex>
       <RowFlex className={modelListClasses.rowActions}>
-        <HealthStatusIndicator
-          results={healthResults}
-          loading={isChecking}
-          showLatency={!isCompact}
-          onErrorClick={handleErrorClick}
-        />
-        <div onClick={(event) => event.stopPropagation()}>
-          <Switch
-            checked={model.isEnabled}
-            disabled={disabled}
-            size="sm"
-            aria-label={t('common.enabled')}
-            onCheckedChange={handleToggleEnabled}
+        <div className={modelListClasses.healthStatusSlot}>
+          <HealthStatusIndicator
+            results={healthResults}
+            loading={isChecking}
+            showLatency
+            onErrorClick={handleErrorClick}
           />
+        </div>
+        <div className={modelListClasses.rowActionsCluster}>
+          <div className={modelListClasses.rowCapabilityStrip}>
+            <ModelTagsWithLabelV2 model={model} size={11} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+            <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
+          </div>
+          <div onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={model.isEnabled}
+              disabled={disabled}
+              size="sm"
+              aria-label={t('common.enabled')}
+              onCheckedChange={handleToggleEnabled}
+            />
+          </div>
         </div>
       </RowFlex>
     </div>

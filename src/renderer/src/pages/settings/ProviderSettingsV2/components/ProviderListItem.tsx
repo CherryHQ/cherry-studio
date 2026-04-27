@@ -1,23 +1,17 @@
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderAvatar'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight, GripVertical } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 interface ProviderListItemProps {
   provider: Provider
   selected: boolean
   dragging: boolean
-  customLogos?: Record<string, string>
   onClick: () => void
 }
 
-export default function ProviderListItem({
-  provider,
-  selected,
-  dragging,
-  customLogos,
-  onClick
-}: ProviderListItemProps) {
+export default function ProviderListItem({ provider, selected, dragging, onClick }: ProviderListItemProps) {
   return (
     <button
       type="button"
@@ -26,29 +20,18 @@ export default function ProviderListItem({
       data-dragging={dragging ? 'true' : 'false'}
       onClick={onClick}
       className={cn(
-        'group relative flex w-full items-center justify-between rounded-xl px-2 py-[12px] text-left transition-all',
-        selected ? 'bg-cherry-active-bg' : 'border border-transparent hover:bg-accent/40',
+        providerListClasses.item,
+        selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
       )}>
-      {selected && (
-        <div className="pointer-events-none absolute inset-0 rounded-xl border border-cherry-active-border" />
-      )}
       <div className="flex min-w-0 flex-1 items-center gap-2">
+        <ProviderAvatar provider={provider} size={14} className={providerListClasses.itemAvatar} />
         <span
-          className={cn(
-            'flex shrink-0 text-foreground/40 opacity-0 transition-opacity',
-            selected ? 'opacity-100' : 'group-hover:opacity-100'
-          )}>
-          <GripVertical size={9} />
-        </span>
-        <ProviderAvatar provider={provider} customLogos={customLogos} size={14} className="shrink-0 rounded-md" />
-        <span
-          className={cn('truncate text-[13px] leading-[1.35]', selected ? 'text-foreground/90' : 'text-foreground/80')}
-          style={{ fontWeight: selected ? 500 : 400 }}>
+          className={cn(providerListClasses.itemLabel, selected ? 'font-medium text-foreground' : 'text-foreground')}>
           {provider.name}
         </span>
       </div>
-      <div className={cn('shrink-0', selected ? 'text-foreground/50' : 'text-foreground/35')}>
+      <div className={cn('shrink-0', selected ? 'text-muted-foreground/60' : 'text-muted-foreground/40')}>
         <ChevronRight size={9} />
       </div>
     </button>

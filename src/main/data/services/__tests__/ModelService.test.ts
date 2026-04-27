@@ -45,6 +45,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'pricing',
       'isEnabled',
       'isHidden',
+      'isDeprecated',
       'sortOrder',
       'notes'
     ]
@@ -83,6 +84,7 @@ describe('ModelService.update', () => {
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false,
+      isDeprecated: false,
       sortOrder: 0
     })
   }
@@ -147,6 +149,20 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
+    expect(row.userOverrides ?? []).toEqual([])
+  })
+
+  it('updates isDeprecated without touching enrichable overrides', async () => {
+    await seedExistingModel()
+
+    await modelService.update('openai', 'gpt-4o', { isDeprecated: true })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+
+    expect(row.isDeprecated).toBe(true)
     expect(row.userOverrides ?? []).toEqual([])
   })
 
@@ -428,6 +444,7 @@ describe('ModelService.list', () => {
         name: 'GPT-4o',
         capabilities: ['function-call'],
         isEnabled: true,
+        isDeprecated: false,
         sortOrder: 0
       },
       {
@@ -437,6 +454,7 @@ describe('ModelService.list', () => {
         name: 'GPT-3.5',
         capabilities: ['embedding'],
         isEnabled: false,
+        isDeprecated: false,
         sortOrder: 1
       },
       {
@@ -446,6 +464,7 @@ describe('ModelService.list', () => {
         name: 'Claude 3',
         capabilities: ['function-call', 'reasoning'],
         isEnabled: true,
+        isDeprecated: false,
         sortOrder: 0
       }
     ])

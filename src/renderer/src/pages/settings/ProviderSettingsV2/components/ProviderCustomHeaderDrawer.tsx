@@ -73,7 +73,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       onClose={onClose}
       title={t('settings.provider.copilot.custom_headers')}
       footer={footer}
-      size="wide">
+      size="form">
       <ProviderHelpText>{t('settings.provider.copilot.headers_description')}</ProviderHelpText>
       <CodeEditor
         theme={activeCmTheme}

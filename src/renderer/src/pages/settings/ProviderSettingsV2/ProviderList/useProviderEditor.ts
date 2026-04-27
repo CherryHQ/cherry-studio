@@ -1,21 +1,16 @@
 import { loggerService } from '@logger'
+import { useProviderActions, useProviders } from '@renderer/hooks/useProviders'
 import { uuid } from '@renderer/utils'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+
+import { clearProviderLogo, saveProviderLogo, useProviderLogo } from '../hooks/useProviderLogo'
 
 const logger = loggerService.withContext('useProviderEditor')
 
 interface UseProviderEditorParams {
-  createProvider: (dto: { providerId: string; name: string; defaultChatEndpoint: EndpointType }) => Promise<Provider>
-  updateProviderById: (
-    providerId: string,
-    updates: { name: string; defaultChatEndpoint: EndpointType }
-  ) => Promise<unknown>
-  saveLogo: (providerId: string, logo: string) => Promise<void>
-  clearLogo: (providerId: string) => Promise<void>
-  onSelectProvider: (providerId: string) => void
+  onProviderCreated: (providerId: string) => void
 }
 
 export interface SubmitProviderEditorParams {
@@ -24,16 +19,18 @@ export interface SubmitProviderEditorParams {
   logo?: string | null
 }
 
-export function useProviderEditor({
-  createProvider,
-  updateProviderById,
-  saveLogo,
-  clearLogo,
-  onSelectProvider
-}: UseProviderEditorParams) {
-  const { t } = useTranslation()
+export type ProviderEditorSubmitNotice = 'create-logo-save-failed' | 'update-logo-save-failed'
+
+export interface ProviderEditorSubmitResult {
+  notice?: ProviderEditorSubmitNotice
+}
+
+export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
+  const { createProvider } = useProviders()
+  const { updateProviderById } = useProviderActions()
   const [addingProvider, setAddingProvider] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const { logo: initialLogo } = useProviderLogo(editingProvider?.id)
 
   const cancel = useCallback(() => {
     setAddingProvider(false)
@@ -51,26 +48,27 @@ export function useProviderEditor({
   }, [])
 
   const submit = useCallback(
-    async ({ name, defaultChatEndpoint, logo }: SubmitProviderEditorParams) => {
+    async ({ name, defaultChatEndpoint, logo }: SubmitProviderEditorParams): Promise<ProviderEditorSubmitResult> => {
       const trimmedName = name.trim()
       if (!trimmedName) {
-        return
+        return {}
       }
 
       if (editingProvider) {
         await updateProviderById(editingProvider.id, { name: trimmedName, defaultChatEndpoint })
+        let notice: ProviderEditorSubmitNotice | undefined
 
         if (logo !== undefined) {
           if (logo) {
             try {
-              await saveLogo(editingProvider.id, logo)
+              await saveProviderLogo(editingProvider.id, logo)
             } catch (error) {
               logger.error('Failed to save logo', error as Error)
-              window.toast.error(t('message.error.update_provider_logo'))
+              notice = 'update-logo-save-failed'
             }
           } else {
             try {
-              await clearLogo(editingProvider.id)
+              await clearProviderLogo(editingProvider.id)
             } catch (error) {
               logger.error('Failed to reset logo', error as Error)
             }
@@ -78,26 +76,36 @@ export function useProviderEditor({
         }
 
         cancel()
-        return
+        return notice ? { notice } : {}
       }
 
       const providerId = uuid()
       const provider = await createProvider({ providerId, name: trimmedName, defaultChatEndpoint })
+      let notice: ProviderEditorSubmitNotice | undefined
 
       if (logo) {
         try {
-          await saveLogo(providerId, logo)
+          await saveProviderLogo(providerId, logo)
         } catch (error) {
           logger.error('Failed to save logo', error as Error)
-          window.toast.error(t('message.error.save_provider_logo'))
+          notice = 'create-logo-save-failed'
         }
       }
 
-      onSelectProvider(provider.id)
+      onProviderCreated(provider.id)
       cancel()
+      return notice ? { notice } : {}
     },
-    [cancel, clearLogo, createProvider, editingProvider, onSelectProvider, saveLogo, t, updateProviderById]
+    [cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]
   )
 
-  return { isOpen: addingProvider || editingProvider != null, editingProvider, startAdd, startEdit, cancel, submit }
+  return {
+    isOpen: addingProvider || editingProvider != null,
+    editingProvider,
+    initialLogo,
+    startAdd,
+    startEdit,
+    cancel,
+    submit
+  }
 }

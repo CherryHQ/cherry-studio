@@ -11,7 +11,7 @@
  *   the shell only.
  *
  * **Workflow** — add or adjust variables (and bridge) first; then extend `*Classes`; then TSX. Cross-links:
- * `ProviderSetting.tsx` (shell node), `ModelList.tsx` (heavy `modelListClasses` consumer).
+ * `ProviderSetting.tsx` (shell node), `ProviderSettingsPage.tsx` (`provider-settings-layout-cq` + `ModelList` `ps-model-list-cq` + `@container` rules below).
  */
 .provider-settings-default-scope {
   --font-size: 16px;
@@ -57,6 +57,8 @@
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
+  /* `cherry-studio-ui-design` ModelServicePage provider column — `border-section-border` */
+  --section-border: #f0f0ef;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: #030213;
@@ -71,6 +73,8 @@
   --cherry-primary-hover: #9ca3af;
   --cherry-primary-dark: #4b5563;
   --cherry-text-muted: rgba(107, 114, 128, 0.7);
+  /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)` */
+  --provider-list-row-gap: 0.5rem;
   /*
    * Atomic tokens for this scope (spacing / type / soft surfaces). Compose in components; do not name by screen.
    * Caption scale 0.8125rem aligns with endpoint tabs here; section titles use larger type for hierarchy.
@@ -119,6 +123,10 @@
   --color-surface-fg-muted: color-mix(in srgb, var(--foreground) 10%, transparent);
   /* Matches prior hover:bg-accent/40 intent; follows --accent in light/dark */
   --color-surface-hover-soft: color-mix(in srgb, var(--accent) 40%, transparent);
+  --color-surface-warning-soft: color-mix(in srgb, var(--destructive) 8%, var(--background));
+  --color-border-warning-soft: color-mix(in srgb, var(--destructive) 22%, transparent);
+  --color-surface-info-soft: color-mix(in srgb, var(--foreground) 4%, var(--background));
+  --color-border-info-soft: color-mix(in srgb, var(--foreground) 12%, transparent);
   --padding-x-list-group: 0.875rem;
   /* Unify outer list scroller with virtual list max (was 380 vs 390) */
   --max-height-scroll-sm: 390px;
@@ -145,6 +153,7 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-section-border: var(--section-border);
   --color-input: var(--input);
   --color-ring: var(--ring);
   background: var(--background);
@@ -186,6 +195,7 @@
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
+  --section-border: #1f201d;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -200,4 +210,56 @@
   --cherry-primary-hover: #d1d5db;
   --cherry-primary-dark: #6b7280;
   --cherry-text-muted: rgba(156, 163, 175, 0.7);
+}
+
+/*
+ * Provider settings page — size context for in-page drawer widths (`cqw` in `ProviderSettingsDrawer`).
+ * Nested `ps-model-list-cq` is nearer for model-list drawers; auth-only drawers use this ancestor.
+ */
+.provider-settings-default-scope.provider-settings-layout-cq {
+  container-type: inline-size;
+  container-name: provider-settings;
+}
+
+/*
+ * Model list — inline-size container (replaces ResizeObserver + containerWidth in TS).
+ * Breakpoints match prior JS: meta/id/latency @ 760 / 920; chip max width bands @ 520 / 860.
+ */
+.provider-settings-default-scope .ps-model-list-cq {
+  container-type: inline-size;
+  container-name: model-list;
+}
+
+@container model-list (min-width: 860px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(32cqi, 7.5rem);
+  }
+}
+
+@container model-list (max-width: 859px) and (min-width: 520px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(calc((100cqi - 1.25rem) / 2), 6rem);
+  }
+}
+
+@container model-list (max-width: 519px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(calc(100cqi - 0.75rem), 6rem);
+  }
+}
+
+@container model-list (max-width: 759px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-id {
+    display: none;
+  }
+
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-meta {
+    display: none;
+  }
+}
+
+@container model-list (max-width: 919px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-health .ant-typography {
+    display: none !important;
+  }
 }

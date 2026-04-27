@@ -34,7 +34,7 @@ const ModelListHelpLinks: React.FC<ModelListHelpLinksProps> = ({ providerId }) =
         {docsWebsite && modelsWebsite && <ProviderHelpText>{t('common.and')}</ProviderHelpText>}
         {modelsWebsite && (
           <ProviderHelpLink target="_blank" href={modelsWebsite}>
-            {t('common.models')}
+            {t('settings.models.list_title')}
           </ProviderHelpLink>
         )}
         <ProviderHelpText>{t('settings.provider.docs_more_details')}</ProviderHelpText>
