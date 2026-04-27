@@ -341,9 +341,11 @@ class ProviderService {
         .from(userModelTable)
         .where(eq(userModelTable.providerId, providerId))
 
-      for (const model of models) {
-        await pinService.purgeForEntity(tx, 'model', model.id)
-      }
+      await pinService.purgeForEntities(
+        tx,
+        'model',
+        models.map((model) => model.id)
+      )
 
       await tx.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
     })
