@@ -70,20 +70,43 @@ export interface StreamErrorPayload {
 /**
  * Open a new stream or steer an existing one.
  *
- * Renderer sends the minimum required: topicId, parent anchor, and user content.
- * Main resolves everything else (assistant, provider, model, tools, overrides)
- * from the topic's assistant config via DB.
+ * Discriminated by `trigger`. Variant-specific fields are made `never` on
+ * the irrelevant branches so TypeScript surfaces protocol mistakes at the
+ * call site (passing `userMessageParts` to a regenerate, omitting
+ * `parentAnchorId` from a continue, etc).
  */
-export interface AiStreamOpenRequest {
+export type AiStreamOpenRequest = {
   topicId: string
-  /** 'submit-message' (new message) or 'regenerate-message' (re-run from existing user message). */
-  trigger?: 'submit-message' | 'regenerate-message'
-  /** Explicit parent node — message id at the current branch tip. Omit to let Main auto-resolve. */
-  parentAnchorId?: string
-  /** User message content — Main wraps into a full Message when persisting. */
-  userMessageParts: CherryMessagePart[]
   /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+} & (
+  | {
+      /** Brand-new user turn: create the user msg + N assistant placeholders. */
+      trigger: 'submit-message'
+      /** Parent of the new user msg. Omit to auto-resolve to the active branch tip. */
+      parentAnchorId?: string
+      /** Content of the new user msg. */
+      userMessageParts: CherryMessagePart[]
+    }
+  | {
+      /** Re-run the assistant under an existing user msg. */
+      trigger: 'regenerate-message'
+      /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
+      parentAnchorId: string
+      userMessageParts?: never
+    }
+)
+
+/**
+ * One user decision against an outstanding tool-approval-request. Lives
+ * in the transport package because Main's approval IPC (which is part of
+ * the renderer↔main contract) carries decisions in this shape, and
+ * `applyApprovalDecisions` (Main-only helper) consumes them.
+ */
+export interface ApprovalDecision {
+  approvalId: string
+  approved: boolean
+  reason?: string
 }
 
 /** Subscribe to a topic's stream state. */

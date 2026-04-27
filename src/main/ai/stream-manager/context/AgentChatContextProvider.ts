@@ -13,7 +13,6 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 
 import {
@@ -25,6 +24,7 @@ import { PersistenceListener } from '../listeners/PersistenceListener'
 import { AgentMessageBackend } from '../persistence/backends/AgentMessageBackend'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { MainDispatchRequest } from './dispatch'
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -33,7 +33,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+    if (req.trigger !== 'submit-message') {
+      throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
+    }
+
     const sessionId = extractAgentSessionId(req.topicId)
 
     const session = await agentSessionService.getById(sessionId)

@@ -871,22 +871,13 @@ const api = {
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {
-      /**
-       * Resolve a pending tool-approval request that was emitted as a
-       * `ToolUIPart { state: 'approval-requested' }`. Renderer calls this
-       * after `chat.addToolApprovalResponse(...)` to unblock the provider's
-       * `canUseTool` via `ToolApprovalRegistry` on Main.
-       *
-       * `updatedInput` lets Claude-Agent tools like `AskUserQuestion`
-       * return user-supplied values back into the same tool call — the
-       * Agent SDK's `canUseTool` resolves with `{behavior:'allow', updatedInput}`
-       * so the tool receives the answers as its final input.
-       */
       respond: (payload: {
         approvalId: string
         approved: boolean
         reason?: string
         updatedInput?: Record<string, unknown>
+        topicId?: string
+        anchorId?: string
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     }
   },

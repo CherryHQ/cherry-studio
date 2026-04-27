@@ -370,6 +370,7 @@ export function runAgentLoop<T extends AppProviderKey>(
       //    from the OTEL trace (Cherry's `packages/mcp-trace/` is the
       //    existing OTEL receiver). That sidesteps manual accumulation.
       const uiStream = result.toUIMessageStream({
+        originalMessages: messages,
         generateMessageId: () => {
           if (!hasUsedProvidedMessageId && params.messageId) {
             hasUsedProvidedMessageId = true

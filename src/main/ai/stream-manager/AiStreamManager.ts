@@ -705,7 +705,17 @@ export class AiStreamManager extends BaseService {
     // broadcast path has already decided the terminal status, and whatever
     // accumulated up to the last successful yield is preserved in
     // `exec.finalMessage`.
-    const accumulator = this.accumulateFinalMessage(forAccum, exec).catch(() => {})
+    // For `continue-conversation` (resuming after a tool-approval response),
+    // the chunks merge into the existing anchor assistant message — they
+    // reference toolCallIds and parts that already live on that message.
+    // `readUIMessageStream` must be seeded with that anchor or its internal
+    // `getToolInvocation` lookups throw and silently halt the accumulator,
+    // leaving `exec.finalMessage.parts === []` and overwriting the DB row
+    // on next persist. Seed when the last incoming UIMessage is an assistant.
+    const lastIncoming = request.messages?.at(-1)
+    const accumulatorSeed: CherryUIMessage | undefined =
+      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
+    const accumulator = this.accumulateFinalMessage(forAccum, exec, accumulatorSeed).catch(() => {})
 
     const onAbort = () => {
       void broadcastReader.cancel(signal.reason).catch(() => {})
@@ -766,7 +776,8 @@ export class AiStreamManager extends BaseService {
    */
   private async accumulateFinalMessage(
     chunkStream: ReadableStream<UIMessageChunk>,
-    exec: StreamExecution
+    exec: StreamExecution,
+    seed?: CherryUIMessage
   ): Promise<void> {
     const signal = exec.abortController.signal
     // `readUIMessageStream<CherryUIMessage>` does the narrowing from wide
@@ -774,7 +785,7 @@ export class AiStreamManager extends BaseService {
     // point where transport-level width meets Cherry-level shape. Upstream
     // (execution loop, AiService) stay on the wide AI SDK type so an unexpected
     // `data-*` variant from a provider / MCP tool can't be silently cast.
-    const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream })
+    const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream, message: seed })
     const reader = uiStream.getReader()
     const onAbort = () => {
       void reader.cancel(signal.reason).catch(() => {})

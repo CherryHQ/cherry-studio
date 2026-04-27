@@ -16,12 +16,12 @@
  *    requires writing a provider, never touching the dispatcher.
  */
 
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../AiService'
 import type { StreamListener } from '../types'
+import type { MainDispatchRequest } from './dispatch'
 
 /**
  * The bundle a provider produces so the dispatcher can call `manager.send`
@@ -65,5 +65,5 @@ export interface ChatContextProvider {
    * assemble the listener set + per-model requests. The dispatcher calls
    * `manager.send(...)` with the returned bundle.
    */
-  prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch>
+  prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch>
 }

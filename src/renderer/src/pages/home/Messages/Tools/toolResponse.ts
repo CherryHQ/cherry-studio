@@ -206,6 +206,8 @@ export function buildToolRenderItemFromBlock(block: ToolMessageBlock): ToolRende
 export type ToolApprovalMatch = {
   part: CherryMessagePart
   state: string
+  toolCallId: string
+  messageId: string
   approvalId?: string
   transport?: string
   input?: unknown
@@ -221,7 +223,7 @@ export function findToolPartByCallId(
   toolCallId: string | undefined
 ): ToolApprovalMatch | null {
   if (!partsMap || !toolCallId) return null
-  for (const parts of Object.values(partsMap)) {
+  for (const [messageId, parts] of Object.entries(partsMap)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
       const p = part as unknown as {
@@ -235,6 +237,8 @@ export function findToolPartByCallId(
       return {
         part,
         state: p.state ?? '',
+        toolCallId,
+        messageId,
         approvalId: p.approval?.id,
         transport: p.providerMetadata?.cherry?.transport,
         input: p.input

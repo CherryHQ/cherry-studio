@@ -10,6 +10,7 @@ const logger = loggerService.withContext('ExecutionStreamCollector')
 interface ExecutionStreamCollectorProps {
   topicId: string
   executionId: string
+  initialMessages?: CherryUIMessage[]
   onMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
   onDispose?: (executionId: string) => void
 }
@@ -17,6 +18,7 @@ interface ExecutionStreamCollectorProps {
 export default function ExecutionStreamCollector({
   topicId,
   executionId,
+  initialMessages,
   onMessagesChange,
   onDispose
 }: ExecutionStreamCollectorProps) {
@@ -25,7 +27,7 @@ export default function ExecutionStreamCollector({
   const { messages } = useChat<CherryUIMessage>({
     id: `${topicId}:${executionId}`,
     transport,
-    messages: [],
+    messages: initialMessages,
     resume: true,
     experimental_throttle: 50,
     onError: (error) => {

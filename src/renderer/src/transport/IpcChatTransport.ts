@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { AiChatRequestBody, StreamChunkPayload } from '@shared/ai/transport'
+import type { AiChatRequestBody, AiStreamOpenRequest, StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
@@ -47,20 +47,30 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
     const stream = this.buildListenerStream(topicId, undefined, abortSignal)
 
+    // Cherry's transport never derives `continue-conversation` from
+    // message-state introspection. Approval-driven turns go through the
+    // explicit `Ai_ToolApproval_Respond` IPC (see `useToolApprovalBridge`),
+    // so this method only handles the user-initiated triggers.
     const lastMessage = messages.at(-1)
+    const ipcRequest: AiStreamOpenRequest =
+      trigger === 'regenerate-message'
+        ? {
+            trigger: 'regenerate-message',
+            topicId,
+            parentAnchorId: mergedBody.parentAnchorId ?? '',
+            mentionedModelIds: mergedBody.mentionedModels
+          }
+        : {
+            trigger: 'submit-message',
+            topicId,
+            parentAnchorId: mergedBody.parentAnchorId,
+            userMessageParts: lastMessage?.parts ?? [],
+            mentionedModelIds: mergedBody.mentionedModels
+          }
 
-    // Fire the IPC request — AiStreamManager handles dedup, persistence, routing.
-    window.api.ai
-      .streamOpen({
-        topicId,
-        trigger,
-        parentAnchorId: mergedBody.parentAnchorId,
-        userMessageParts: lastMessage ? lastMessage.parts : [],
-        mentionedModelIds: mergedBody.mentionedModels
-      })
-      .catch((error: unknown) => {
-        logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
-      })
+    window.api.ai.streamOpen(ipcRequest).catch((error: unknown) => {
+      logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
+    })
 
     return Promise.resolve(stream)
   }

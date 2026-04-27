@@ -58,6 +58,7 @@ interface Props {
     text: string,
     options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
   ) => void | Promise<void>
+  awaitingApproval?: boolean
 }
 
 type ProviderActionHandlers = {
@@ -73,7 +74,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
+const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp, awaitingApproval = false }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -108,12 +109,24 @@ const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <InputbarInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
+      <InputbarInner
+        setActiveTopic={setActiveTopic}
+        topic={topic}
+        actionsRef={actionsRef}
+        onSend={onSendProp}
+        awaitingApproval={awaitingApproval}
+      />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsRef, onSend: onSendProp }) => {
+const InputbarInner: FC<InputbarInnerProps> = ({
+  setActiveTopic,
+  topic,
+  actionsRef,
+  onSend: onSendProp,
+  awaitingApproval = false
+}) => {
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
@@ -158,7 +171,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   useEffect(() => {
     setIsSending(false)
   }, [topic.id])
-  const loading = isPending || isSending
+  const loading = isPending || isSending || awaitingApproval
   const isVisionAssistant = useMemo(() => (v1Model ? isVisionModel(v1Model) : false), [v1Model])
   const isGenerateImageAssistant = useMemo(() => (v1Model ? isGenerateImageModel(v1Model) : false), [v1Model])
   const { setTimeoutTimer } = useTimer()

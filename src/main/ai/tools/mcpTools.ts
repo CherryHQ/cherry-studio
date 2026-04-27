@@ -24,15 +24,6 @@ const logger = loggerService.withContext('mcpTools')
 
 /**
  * Convert an MCPTool definition into a RegisteredTool for the ToolRegistry.
- *
- * The `needsApproval` function delegates to `autoApprovePolicy` — single
- * source of truth shared with Claude Agent SDK's `canUseTool` wrapper. When
- * AI SDK v6 calls the predicate before executing, we emit a
- * `tool-approval-request` chunk automatically; the renderer flips the
- * `ToolUIPart` via `chat.addToolApprovalResponse` and `sendAutomaticallyWhen`
- * fires a new turn where `execute()` runs (or an `output-denied` part is
- * emitted on deny).
- *
  * @param disabledAutoApproveTools - server's explicit opt-out list
  */
 function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly string[]): RegisteredTool {

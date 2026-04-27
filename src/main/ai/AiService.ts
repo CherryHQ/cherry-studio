@@ -33,6 +33,8 @@ import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCod
 import { providerToAiSdkConfig } from './provider/config'
 import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
+import { dispatchStreamRequest } from './stream-manager/context'
+import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
@@ -394,20 +396,52 @@ export class AiService extends BaseService {
     this.ipcHandle(
       IpcChannel.Ai_ToolApproval_Respond,
       async (
-        _,
+        event,
         payload: {
           approvalId: string
           approved: boolean
           reason?: string
           updatedInput?: Record<string, unknown>
+          topicId?: string
+          anchorId?: string
         }
-      ) => {
-        const ok = toolApprovalRegistry.dispatch(payload.approvalId, {
+      ): Promise<{ ok: boolean }> => {
+        // 1. Claude-Agent path — registry still has the pending approval,
+        // dispatching unblocks `canUseTool` so the in-flight stream resumes.
+        const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {
           approved: payload.approved,
           reason: payload.reason,
           updatedInput: payload.updatedInput
         })
-        return { ok }
+        if (dispatched) return { ok: true }
+
+        // 2. MCP path — original stream already ended at approval-request.
+        // Synthesise a `continue-conversation` request and run the same
+        // dispatch pipeline as `Ai_Stream_Open`. We never read renderer-side
+        // `chat.state.messages` to figure out which call this is for; the
+        // renderer hands us `anchorId` straight from the DB-truth view.
+        if (!payload.topicId || !payload.anchorId) {
+          logger.warn('Tool-approval response had no live registry entry and no anchor context', {
+            approvalId: payload.approvalId
+          })
+          return { ok: false }
+        }
+
+        const aiStreamManager = application.get('AiStreamManager')
+        const subscriber = new WebContentsListener(event.sender, payload.topicId)
+        await dispatchStreamRequest(aiStreamManager, subscriber, {
+          trigger: 'continue-conversation',
+          topicId: payload.topicId,
+          parentAnchorId: payload.anchorId,
+          approvalDecisions: [
+            {
+              approvalId: payload.approvalId,
+              approved: payload.approved,
+              ...(payload.reason !== undefined ? { reason: payload.reason } : {})
+            }
+          ]
+        })
+        return { ok: true }
       }
     )
   }

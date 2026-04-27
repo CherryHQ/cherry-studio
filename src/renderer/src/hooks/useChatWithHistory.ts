@@ -15,23 +15,18 @@
  * request carries the canonical history, not stale in-memory chunks.
  */
 
-import { useChat } from '@ai-sdk/react'
+import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { cherryApprovalPredicate } from '@renderer/utils/toolApprovalPredicate'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
-// Module-level empty-array constant so the `?? []` fallback in
-// `activeExecutionIds` keeps a stable reference when the cache is
-// undefined. Prevents downstream memos / effects from invalidating on
-// every render while no stream is active.
 const EMPTY_EXECUTIONS: readonly UniqueModelId[] = Object.freeze([])
 
 // ── Return type ──
@@ -43,13 +38,8 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   activeExecutionIds: readonly UniqueModelId[]
-  /**
-   * AI SDK v6 native tool-approval response. Flips a `ToolUIPart` from
-   * `approval-requested` to `approval-responded` on the local message.
-   * For Claude Agent approvals the caller must also unblock Main via
-   * `window.api.ai.toolApproval.respond` (see `useToolApprovalBridge`).
-   */
-  addToolApprovalResponse: (args: { id: string; approved: boolean; reason?: string }) => void | PromiseLike<void>
+  /** Underlying AI SDK chat instance — pass to hooks that need it (e.g. approval bridge). */
+  chat: Chat<CherryUIMessage>
 }
 
 // ── Hook ──
@@ -59,17 +49,24 @@ export function useChatWithHistory(
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>
 ): UseChatWithHistoryResult {
-  const { setMessages, stop, status, error, sendMessage, regenerate, resumeStream, addToolApprovalResponse } =
-    useChat<CherryUIMessage>({
-      id: topicId,
-      transport: ipcChatTransport,
-      messages: initialMessages,
-      experimental_throttle: 50,
-      sendAutomaticallyWhen: cherryApprovalPredicate,
-      onError: (streamError) => {
-        logger.error('AI stream error', { topicId, streamError })
-      }
-    })
+  // No `sendAutomaticallyWhen` — Cherry never lets `useChat` auto-fire from
+  // `chat.state.messages` state transitions.
+  const [chat] = useState<Chat<CherryUIMessage>>(
+    () =>
+      new Chat<CherryUIMessage>({
+        id: topicId,
+        transport: ipcChatTransport,
+        messages: initialMessages,
+        onError: (streamError) => {
+          logger.error('AI stream error', { topicId, streamError })
+        }
+      })
+  )
+
+  const { setMessages, stop, status, error, sendMessage, regenerate, resumeStream } = useChat<CherryUIMessage>({
+    chat,
+    experimental_throttle: 50
+  })
 
   // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
@@ -184,6 +181,6 @@ export function useChatWithHistory(
     error,
     setMessages,
     activeExecutionIds,
-    addToolApprovalResponse
+    chat
   }
 }

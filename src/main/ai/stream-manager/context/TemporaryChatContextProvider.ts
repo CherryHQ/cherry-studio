@@ -15,7 +15,6 @@
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../AiService'
@@ -23,6 +22,7 @@ import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { MainDispatchRequest } from './dispatch'
 import { resolveModels } from './modelResolution'
 
 const logger = loggerService.withContext('TemporaryChatContextProvider')
@@ -34,9 +34,12 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     return temporaryChatService.hasTopic(topicId)
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: AiStreamOpenRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
+    }
+    if (req.trigger === 'continue-conversation') {
+      throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
     }
 
     const topic = temporaryChatService.getTopic(req.topicId)

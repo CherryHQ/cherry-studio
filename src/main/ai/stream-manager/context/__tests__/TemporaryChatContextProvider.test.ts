@@ -46,9 +46,10 @@ function makeSubscriber() {
 function openReq(overrides: Partial<AiStreamOpenRequest> = {}): AiStreamOpenRequest {
   return {
     topicId: '1',
+    trigger: 'submit-message',
     userMessageParts: [{ type: 'text', text: 'hi' }],
     ...overrides
-  }
+  } as AiStreamOpenRequest
 }
 
 describe('TemporaryChatContextProvider', () => {

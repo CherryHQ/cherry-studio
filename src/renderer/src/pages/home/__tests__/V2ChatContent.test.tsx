@@ -122,8 +122,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: [],
-      addToolApprovalResponse: vi.fn()
+      activeExecutionIds: []
     })
   })
 
@@ -140,8 +139,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: [],
-      addToolApprovalResponse: vi.fn()
+      activeExecutionIds: []
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -189,8 +187,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: ['pending-placeholder'] as string[],
-      addToolApprovalResponse: vi.fn()
+      activeExecutionIds: ['pending-placeholder'] as string[]
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -225,8 +222,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: ['gemini-new-pending'] as string[],
-      addToolApprovalResponse: vi.fn()
+      activeExecutionIds: ['gemini-new-pending'] as string[]
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)

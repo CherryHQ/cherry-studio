@@ -18,6 +18,7 @@ export type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  ApprovalDecision,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
