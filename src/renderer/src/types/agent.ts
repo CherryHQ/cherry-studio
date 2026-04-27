@@ -162,6 +162,10 @@ export interface ListOptions {
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
   orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
+  /** Return rows bound to ANY of these tag ids (union semantics). */
+  tagIds?: string[]
 }
 
 // AgentSession entity representing a conversation session with one or more agents

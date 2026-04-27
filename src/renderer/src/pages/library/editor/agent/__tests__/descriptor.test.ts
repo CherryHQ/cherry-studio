@@ -20,6 +20,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     mcps: [],
     allowedTools: [],
     configuration: {},
+    tags: [],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
     ...overrides
@@ -128,11 +129,12 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed', instructions: 'new prompt' }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto).toEqual({
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto).toEqual({
       name: 'Renamed',
       instructions: 'new prompt'
     })
+    expect(result?.tagsChanged).toBe(false)
   })
 
   it('merges configuration-subkey patches on top of the existing configuration', () => {
@@ -142,10 +144,10 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, avatar: '🚀', maxTurns: 5 }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next, agent)
     // plugin_state must be preserved — the library form does not edit it, so
     // it MUST NOT be stripped from the PATCH payload.
-    expect(dto?.configuration).toEqual({
+    expect(result?.dto.configuration).toEqual({
       avatar: '🚀',
       plugin_state: 'keep-me',
       max_turns: 5
@@ -158,8 +160,8 @@ describe('diffAgentUpdate', () => {
     // User appends a line via the textarea control.
     const next = { ...baseline, envVarsText: 'A=1\nB=2' }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto?.configuration).toMatchObject({
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         A: '1',
         B: '2'
@@ -172,8 +174,8 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, accessiblePaths: ['/a', '/b'] }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto?.accessiblePaths).toEqual(['/a', '/b'])
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto.accessiblePaths).toEqual(['/a', '/b'])
   })
 
   it('persists the explicit default permission mode when switching back from another mode', () => {
@@ -181,8 +183,8 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, permissionMode: 'default' }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto?.configuration).toMatchObject({
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
     })
   })
@@ -192,9 +194,22 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, maxTurns: 0 }
 
-    const dto = diffAgentUpdate(baseline, next, agent)
-    expect(dto?.configuration).toMatchObject({
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto.configuration).toMatchObject({
       max_turns: 100
     })
+  })
+
+  it('flags tag-only changes as save-worthy', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, tags: ['work'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result).not.toBeNull()
+    expect(result?.tagsChanged).toBe(true)
+    expect(result?.tagNames).toEqual(['work'])
+    // The dto itself stays empty — tagIds resolution lives at the page level.
+    expect(result?.dto).toEqual({})
   })
 })

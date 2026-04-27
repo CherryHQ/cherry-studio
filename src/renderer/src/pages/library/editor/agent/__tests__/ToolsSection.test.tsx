@@ -65,6 +65,7 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
     soulEnabled: false,
     heartbeatEnabled: false,
     heartbeatInterval: 0,
+    tags: [],
     ...overrides
   }
 }
@@ -83,7 +84,8 @@ describe('ToolsSection', () => {
           model: '',
           createdAt: '',
           updatedAt: '',
-          tools: []
+          tools: [],
+          tags: []
         }}
         form={createForm()}
         onChange={vi.fn()}

@@ -3,19 +3,30 @@ import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/ag
 import type { AgentDetail } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 
-import type { ResourceAdapter, ResourceListResult } from './types'
+import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
+
+/**
+ * Default page size for the library list view. Matches the backend schema's
+ * `limit` max (`packages/shared/data/api/schemas/agents.ts`'s `AGENTS_MAX_LIMIT`)
+ * so the library grid surfaces every agent without a pagination UI.
+ */
+const DEFAULT_LIST_LIMIT = 500
 
 /**
  * List hook for agent resources — mirrors `assistantAdapter.useAssistantList`.
  *
- * NOTE: `GET /agents` currently does not accept `search` / `tagIds` query params
- * (the upstream DataApi handler only exposes pagination). `search` is handled
- * by `useResourceLibrary`'s client-side filter; `tagIds` is a no-op here
- * because agents have no tag relation. The list-query argument is therefore
- * omitted from this adapter's signature.
+ * `search` and `tagIds` are forwarded to `GET /agents` query params and
+ * evaluated server-side (see `AgentService.listAgents`), so callers don't
+ * need to chain a client-side filter on top.
  */
-function useAgentList(): ResourceListResult<AgentDetail> {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents')
+function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
+    query: {
+      limit: query?.limit ?? DEFAULT_LIST_LIMIT,
+      ...(query?.search ? { search: query.search } : {}),
+      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+    }
+  })
 
   const items = data?.items ?? []
   const stableRefetch = useCallback(() => refetch(), [refetch])

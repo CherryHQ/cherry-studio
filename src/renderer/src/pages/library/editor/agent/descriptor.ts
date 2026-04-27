@@ -78,6 +78,14 @@ export interface AgentFormState {
   soulEnabled: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
+
+  /**
+   * Tag names bound to the agent. Mirrors `AssistantFormState.tags`:
+   * the form stores user-facing names and the page resolves them to ids
+   * via `ensureTags` on save (so the user can type a brand-new tag name
+   * without paying a network round-trip per keystroke).
+   */
+  tags: string[]
 }
 
 const DEFAULT_AGENT_MAX_TURNS = 100
@@ -163,7 +171,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     envVarsText: envVarsToText(cfg.env_vars),
     soulEnabled: asBoolean(cfg.soul_enabled),
     heartbeatEnabled: asBoolean(cfg.heartbeat_enabled),
-    heartbeatInterval: asNumber(cfg.heartbeat_interval)
+    heartbeatInterval: asNumber(cfg.heartbeat_interval),
+    tags: (agent?.tags ?? []).map((t) => t.name)
   }
 }
 
@@ -235,19 +244,35 @@ export function isCreatePayloadValid(form: AgentFormState): boolean {
 }
 
 /**
+ * Result of {@link diffAgentUpdate}. Mirrors `AssistantDiffResult`:
+ *
+ * - `dto` is the PATCH body sans `tagIds` — tag resolution is a side effect
+ *   (`ensureTags` may POST new rows) so it stays at the page level.
+ * - `tagsChanged` + `tagNames` tell the page whether to call `ensureTags`
+ *   and what to resolve.
+ */
+export interface AgentDiffResult {
+  dto: UpdateAgentDto
+  tagsChanged: boolean
+  tagNames: string[]
+}
+
+/**
  * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
- * `null` when no field changed.
+ * `null` when nothing — including tag bindings — changed.
  *
  * `configuration` is merged onto the existing `agent.configuration` so unrelated
  * keys that we don't surface in the form (plugin-specific settings, etc.) are
  * preserved. Only the configuration keys we actually edit participate in the
- * diff.
+ * diff. Tags follow the same name→id resolution flow as assistants: not placed
+ * on the dto here, surfaced via `tagsChanged` so the page can `ensureTags` and
+ * attach `tagIds` itself.
  */
 export function diffAgentUpdate(
   baseline: AgentFormState,
   next: AgentFormState,
   agent: AgentDetail
-): UpdateAgentDto | null {
+): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
   let dirty = false
 
@@ -325,13 +350,24 @@ export function diffAgentUpdate(
     dirty = true
   }
 
-  return dirty ? dto : null
+  const tagsChanged = !sameStringSet(baseline.tags, next.tags)
+
+  if (!dirty && !tagsChanged) return null
+
+  return { dto, tagsChanged, tagNames: next.tags }
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+/** Order-insensitive string-set equality; mirrors assistant tag-set diff. */
+function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  const set = new Set(a)
+  return b.every((v) => set.has(v))
 }
 
 // ---------------------------------------------------------------------------
@@ -344,14 +380,17 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
  * so the shell / state hook stay generic — the page only has to match
  * on `kind` inside its `onCommit` closure.
  */
-export type AgentSaveIntent = { kind: 'create'; payload: CreateAgentDto } | { kind: 'update'; payload: UpdateAgentDto }
+export type AgentSaveIntent =
+  | { kind: 'create'; payload: CreateAgentDto; tagNames: string[] }
+  | { kind: 'update'; payload: UpdateAgentDto; tagNames: string[]; tagsChanged: boolean }
 
 /**
  * Resolve the current form into a save intent. Returns `null` when
  * there's nothing to do:
  * - Create mode (`agent === null`): form must satisfy the backend's
  *   required fields.
- * - Edit mode: at least one field must differ from the baseline.
+ * - Edit mode: at least one column or the tag binding must differ from
+ *   the baseline. Tag-only changes also trigger an update intent.
  */
 export function diffAgentSaveIntent(
   form: AgentFormState,
@@ -359,8 +398,19 @@ export function diffAgentSaveIntent(
   agent: AgentDetail | null
 ): AgentSaveIntent | null {
   if (!agent) {
-    return isCreatePayloadValid(form) ? { kind: 'create', payload: buildCreateAgentPayload(form) } : null
+    if (!isCreatePayloadValid(form)) return null
+    return {
+      kind: 'create',
+      payload: buildCreateAgentPayload(form),
+      tagNames: form.tags
+    }
   }
-  const patch = diffAgentUpdate(baseline, form, agent)
-  return patch ? { kind: 'update', payload: patch } : null
+  const result = diffAgentUpdate(baseline, form, agent)
+  if (!result) return null
+  return {
+    kind: 'update',
+    payload: result.dto,
+    tagNames: result.tagNames,
+    tagsChanged: result.tagsChanged
+  }
 }

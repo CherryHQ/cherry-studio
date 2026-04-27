@@ -137,13 +137,44 @@ describe('agentHandlers', () => {
       expect(result).toMatchObject({ items: [mockAgent], total: 1, page: 1 })
     })
 
-    it('GET works without query params (defaults to limit=50 offset=0)', async () => {
+    it('GET works without query params (defaults from ListAgentsQuerySchema)', async () => {
       listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
 
       const result = await agentHandlers['/agents'].GET({} as never)
 
-      expect(listAgentsMock).toHaveBeenCalledWith({ limit: 50, offset: 0 })
-      expect(result).toMatchObject({ total: 0 })
+      // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search/tagIds undefined.
+      expect(listAgentsMock).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 0,
+        search: undefined,
+        tagIds: undefined
+      })
+      expect(result).toMatchObject({ total: 0, page: 1 })
+    })
+
+    it('GET forwards search and tagIds to the service', async () => {
+      listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
+
+      await agentHandlers['/agents'].GET({
+        query: {
+          search: 'research',
+          tagIds: ['11111111-1111-4111-8111-111111111111']
+        }
+      } as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 0,
+        search: 'research',
+        tagIds: ['11111111-1111-4111-8111-111111111111']
+      })
+    })
+
+    it('GET rejects invalid pagination', async () => {
+      await expect(agentHandlers['/agents'].GET({ query: { page: 0 } } as never)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+      expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid pagination query', async () => {
