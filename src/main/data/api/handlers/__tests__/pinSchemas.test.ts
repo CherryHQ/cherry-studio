@@ -25,8 +25,8 @@ describe('pin schemas', () => {
     expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(AGENT_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse('cherry-claw-default').success).toBe(true)
-    // Agent ids are validated as `string().min(1)` to match AgentEntitySchema.id and accept
-    // historical / migrated ids that don't fit the generated `agent_<ts>_<rand>` template.
+    // TODO(agent-uuid-migration): drop the legacy-id case and tighten the negative case below
+    //   back to a non-UUID string (e.g. 'not-a-uuid') once upstream agent ids migrate to UUID.
     expect(EntityIdSchema.safeParse('legacy-agent-id-without-prefix').success).toBe(true)
     expect(EntityIdSchema.safeParse('').success).toBe(false)
   })

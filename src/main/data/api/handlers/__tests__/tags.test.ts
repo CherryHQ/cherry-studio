@@ -169,6 +169,8 @@ describe('tagHandlers', () => {
     it('should reject empty entity ids before calling the service', async () => {
       // Non-UUID strings are accepted at the schema layer because EntityIdSchema unions in
       // AgentIdSchema (`string().min(1)`); the structural floor is empty string.
+      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
+      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
       await expect(
         tagHandlers['/tags/:id/entities'].PUT({
           params: { id: TAG_ID },
@@ -227,6 +229,8 @@ describe('tagHandlers', () => {
 
     it('should reject empty entity ids in params before calling the service', async () => {
       // EntityIdSchema only fails on empty string; non-UUID agent ids pass via AgentIdSchema.
+      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
+      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
       await expect(
         tagHandlers['/tags/entities/:entityType/:entityId'].GET({
           params: { entityType: 'assistant', entityId: '' }

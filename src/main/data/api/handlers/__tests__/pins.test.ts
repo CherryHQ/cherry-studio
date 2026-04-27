@@ -140,6 +140,8 @@ describe('pinHandlers', () => {
       // Non-UUID strings are accepted at the schema layer because EntityIdSchema unions in
       // AgentIdSchema (`string().min(1)`); deeper validation that a topic id actually exists
       // is the service's job. The schema only guards the structural floor — empty string.
+      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
+      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
       await expect(
         pinHandlers['/pins'].POST({
           body: { entityType: 'topic', entityId: '' }

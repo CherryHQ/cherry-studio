@@ -16,6 +16,9 @@ export type EntityType = z.infer<typeof EntityTypeSchema>
 // `agent_<timestamp>_<random>` is a creation-side detail; pin / tag references must accept
 // historical and migrated ids that don't fit that template (including the `cherry-claw-default`
 // builtin). Tightening this would silently reject pinning legitimate agents.
+// TODO(agent-uuid-migration): collapse this back to UUID v4 once upstream agent ids migrate
+//   to UUID; this loosening also weakens the EntityIdSchema union below to "any non-empty string".
+//   Revert points: this file + pinSchemas.test.ts / pins.test.ts / tags.test.ts (same TODO token).
 const AgentIdSchema = z.string().min(1)
 
 /**
