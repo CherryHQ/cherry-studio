@@ -1,9 +1,17 @@
 /**
  * Assistant migrator - migrates assistants from Redux to SQLite
  *
- * Data sources:
- * - Redux assistants slice (state.assistants.assistants) -> assistant table
- * - Redux assistants slice (state.assistants.presets) -> assistant table (merged)
+ * Data sources (all merged into one assistant table):
+ * - state.assistants.assistants[] - user-created assistants + v1 initial
+ *   state's id='default' copy
+ * - state.assistants.presets[]    - saved presets
+ * - state.assistants.defaultAssistant - standalone slot, id='default'
+ *
+ * Same-id collisions across sources are merged field-by-field
+ * (see {@link mergeOldAssistants}); duplicates are NOT skipped, because the
+ * v1 slice's initial state seeds `assistants[0]` and `defaultAssistant` from
+ * the same factory and reducers update one or the other independently —
+ * dropping either side loses real user data.
  *
  * Dropped fields: type, messages, topics, content, targetLanguage,
  *   enableGenerateImage, enableUrlContext, knowledgeRecognition,
@@ -12,6 +20,9 @@
  * Transformed fields:
  * - model/defaultModel -> assistant.modelId (composite format)
  * - tags[] -> tag + entity_tag tables
+ *
+ * See README-AssistantMigrator.md for the full merge contract and edge
+ * cases (empty arrays, settings shallow-merge, unenumerated fields).
  */
 
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -42,16 +53,26 @@ interface AssistantState {
  * `assistants[]`, one in `state.defaultAssistant`) without losing fields that
  * only one of them edited.
  *
- * Settings is shallow-merged the same way (per-key first-non-empty wins) so
- * a user who only ever touched `defaultAssistant.settings.temperature` and
- * left `assistants[0].settings.temperature` at the seed value still gets
- * their value preserved when the seed-default key is undefined.
+ * "Non-empty" rules:
+ * - Strings: must not be `''`.
+ * - Arrays: must not be `[]` (so a default-empty `mcpServers: []` on primary
+ *   does not clobber a populated `mcpServers: [s1]` on secondary).
+ * - Booleans: `false` is preserved (treated as a real choice).
+ *
+ * Settings is shallow-merged the same way (per-key first-non-empty wins).
+ *
+ * Unenumerated fields (anything `OldAssistant` doesn't list, or fields added
+ * by future v1 versions) are preserved via object spread: secondary first,
+ * then primary, so primary still wins on overlap.
  */
 function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
+  const isPresent = (v: unknown): boolean => {
+    if (v === undefined || v === null || v === '') return false
+    if (Array.isArray(v) && v.length === 0) return false
+    return true
+  }
   const pickPrimaryThen = <K extends keyof OldAssistant>(key: K): OldAssistant[K] => {
-    const p = primary[key]
-    if (p !== undefined && p !== null && p !== '') return p
-    return secondary[key]
+    return isPresent(primary[key]) ? primary[key] : secondary[key]
   }
   const mergedSettings: OldAssistant['settings'] = (() => {
     const a = primary.settings
@@ -60,12 +81,17 @@ function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): Old
     if (!b) return a
     const merged: Record<string, unknown> = { ...b }
     for (const [k, v] of Object.entries(a)) {
-      if (v !== undefined && v !== null && v !== '') merged[k] = v
+      if (isPresent(v)) merged[k] = v
     }
     return merged as OldAssistant['settings']
   })()
 
+  // Spread secondary first, then primary, so any field not listed below still
+  // survives (primary wins on overlap). The explicit overrides below apply
+  // first-non-empty merging to the typed `OldAssistant` fields.
   return {
+    ...secondary,
+    ...primary,
     id: primary.id,
     name: pickPrimaryThen('name'),
     prompt: pickPrimaryThen('prompt'),
@@ -141,7 +167,8 @@ export class AssistantMigrator extends BaseMigrator {
         const existing = sourceById.get(id)
         if (existing) {
           sourceById.set(id, mergeOldAssistants(existing, source))
-          logger.info(`Merged duplicate assistant id ${id} from secondary slot`)
+          warnings.push(`Merged duplicate assistant id: ${id}`)
+          logger.info('Merged duplicate assistant id from secondary slot', { id })
         } else {
           sourceById.set(id, source)
         }

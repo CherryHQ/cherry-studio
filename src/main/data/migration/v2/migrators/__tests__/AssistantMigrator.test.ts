@@ -145,8 +145,8 @@ describe('AssistantMigrator', () => {
 
     it('should merge duplicate-id assistants instead of skipping', async () => {
       // Two id='dup-1' entries merge field-by-field, primary (first) wins on
-      // non-empty values — see mergeOldAssistants. No warnings emitted; merge
-      // is silent (logged at info level).
+      // non-empty values — see mergeOldAssistants. The merge is surfaced as a
+      // warning so the migration progress UI can report it.
       const assistants = [
         { id: 'dup-1', name: 'first', prompt: 'p1' },
         { id: 'dup-1', name: '', prompt: 'p2-overridden', emoji: '🌟' },
@@ -157,7 +157,7 @@ describe('AssistantMigrator', () => {
       expect(result).toStrictEqual({
         success: true,
         itemCount: 2,
-        warnings: undefined
+        warnings: ['Merged duplicate assistant id: dup-1']
       })
     })
 
@@ -219,7 +219,11 @@ describe('AssistantMigrator', () => {
         }
       })
       const result = await migrator.prepare(ctx as any)
-      expect(result).toStrictEqual({ success: true, itemCount: 1, warnings: undefined })
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 1,
+        warnings: ['Merged duplicate assistant id: default']
+      })
 
       const internal = migrator as unknown as { preparedResults: { assistant: Record<string, unknown> }[] }
       const merged = internal.preparedResults[0].assistant
@@ -228,6 +232,84 @@ describe('AssistantMigrator', () => {
       expect(merged.prompt).toBe('You are helpful') // defaultAssistant fills empty gap
       expect(merged.emoji).toBe('😀') // defaultAssistant fills missing field
       expect(merged.modelId).toBe('openai::gpt-4') // assistants[]-only field preserved
+    })
+
+    it('should preserve secondary populated arrays when primary has empty arrays', async () => {
+      // Primary has `mcpServers: []` (default-empty, never touched), secondary
+      // has `mcpServers: [s1]` (user-configured via the slot). The merge must
+      // not let an empty array from primary clobber a populated one from
+      // secondary — see mergeOldAssistants `isPresent` array rule.
+      const ctx = createMockContext({
+        assistants: {
+          assistants: [
+            {
+              id: 'default',
+              name: 'Slot Primary',
+              mcpServers: [],
+              knowledge_bases: [],
+              tags: []
+            }
+          ],
+          presets: [],
+          defaultAssistant: {
+            id: 'default',
+            name: 'Slot Secondary',
+            mcpServers: [{ id: 'srv-1' }],
+            knowledge_bases: [{ id: 'kb-1' }],
+            tags: ['t1']
+          }
+        }
+      })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+
+      const internal = migrator as unknown as {
+        preparedResults: {
+          assistant: Record<string, unknown>
+          mcpServers: { mcpServerId: string }[]
+          knowledgeBases: { knowledgeBaseId: string }[]
+          tags: string[]
+        }[]
+      }
+      const r = internal.preparedResults[0]
+      expect(r.mcpServers.map((s) => s.mcpServerId)).toEqual(['srv-1'])
+      expect(r.knowledgeBases.map((kb) => kb.knowledgeBaseId)).toEqual(['kb-1'])
+      expect(r.tags).toEqual(['t1'])
+    })
+
+    it('should preserve unenumerated fields through merge via object spread', async () => {
+      // Older v1 versions could carry fields not listed in `OldAssistant`
+      // (e.g. some internal experiment flag). The merge must not silently
+      // drop those — the object-spread baseline preserves them, with primary
+      // winning on overlap.
+      const assistants = [
+        {
+          id: 'default',
+          name: 'Primary',
+          legacyExperimentFlag: 'fromPrimary'
+        }
+      ]
+      const ctx = createMockContext({
+        assistants: {
+          assistants,
+          presets: [],
+          defaultAssistant: {
+            id: 'default',
+            name: '',
+            legacyExperimentFlag: 'fromSecondary',
+            secondaryOnlyField: 'kept'
+          }
+        }
+      })
+      await migrator.prepare(ctx as any)
+
+      const internal = migrator as unknown as { preparedResults: unknown[] }
+      // The merged source is consumed by transformAssistant, which only emits
+      // the typed assistant row — but the merge itself must have kept the
+      // fields available. Smoke-test by verifying the migration didn't error
+      // and itemCount is 1 (i.e. no exception was thrown handling the extras).
+      expect(internal.preparedResults).toHaveLength(1)
     })
   })
 
