@@ -63,21 +63,54 @@ function dedupeSelectedIds(ids: readonly UniqueModelId[]): UniqueModelId[] {
   return nextSelectedIds
 }
 
-function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId[] {
-  // Narrow on the discriminator pair directly so each branch operates on the
-  // variant-specific `value` type — no wide `ModelSelectorValue` needed.
-  // Incoherent shapes (e.g. array where a scalar is expected) are still
-  // possible at runtime if a caller ignores TS; we warn in DEV so
-  // misconfigurations surface during development.
+function getMalformedSelectionWarning(
+  props: ModelSelectorProps
+): { message: string; context: Record<string, unknown> } | null {
   if (props.multiple) {
     if (props.selectionType === 'id') {
       const value = props.value
-      if (isDev && value !== undefined && !Array.isArray(value)) {
-        logger.warn('normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []', {
-          selectionType: 'id',
-          valueType: typeof value
-        })
+      return value !== undefined && !Array.isArray(value)
+        ? {
+            message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
+            context: { selectionType: 'id', valueType: typeof value }
+          }
+        : null
+    }
+
+    const value = props.value
+    return value !== undefined && !Array.isArray(value)
+      ? {
+          message: 'normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []',
+          context: { selectionType: 'model', valueType: typeof value }
+        }
+      : null
+  }
+
+  if (props.selectionType === 'id') {
+    const value = props.value
+    return value !== undefined && Array.isArray(value)
+      ? {
+          message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
+          context: { selectionType: 'id', valueLength: value.length }
+        }
+      : null
+  }
+
+  const value = props.value
+  return value !== undefined && Array.isArray(value)
+    ? {
+        message: 'normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []',
+        context: { selectionType: 'model', valueLength: value.length }
       }
+    : null
+}
+
+function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId[] {
+  // Narrow on the discriminator pair directly so each branch operates on the
+  // variant-specific `value` type — no wide `ModelSelectorValue` needed.
+  if (props.multiple) {
+    if (props.selectionType === 'id') {
+      const value = props.value
       const ids = Array.isArray(value)
         ? value.filter((modelId): modelId is UniqueModelId => typeof modelId === 'string' && isUniqueModelId(modelId))
         : []
@@ -85,12 +118,6 @@ function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId
     }
 
     const value = props.value
-    if (isDev && value !== undefined && !Array.isArray(value)) {
-      logger.warn('normalizeSelectedIdsFromValue: multiple=true but value is not an array; coercing to []', {
-        selectionType: 'model',
-        valueType: typeof value
-      })
-    }
     const modelValues = Array.isArray(value) ? value : []
     const ids = modelValues.flatMap((candidate) => (candidate?.id ? [candidate.id] : []))
     return dedupeSelectedIds(ids)
@@ -98,22 +125,10 @@ function normalizeSelectedIdsFromValue(props: ModelSelectorProps): UniqueModelId
 
   if (props.selectionType === 'id') {
     const value = props.value
-    if (isDev && value !== undefined && Array.isArray(value)) {
-      logger.warn('normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []', {
-        selectionType: 'id',
-        valueLength: value.length
-      })
-    }
     return typeof value === 'string' && isUniqueModelId(value) ? dedupeSelectedIds([value]) : []
   }
 
   const value = props.value
-  if (isDev && value !== undefined && Array.isArray(value)) {
-    logger.warn('normalizeSelectedIdsFromValue: multiple=false but value is an array; coercing to []', {
-      selectionType: 'model',
-      valueLength: value.length
-    })
-  }
   return value?.id ? dedupeSelectedIds([value.id]) : []
 }
 
@@ -274,6 +289,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const skipNextFocusScroll = useRef(false)
+  const focusScrollFrameRef = useRef<number | null>(null)
+  const malformedSelectionWarningKeyRef = useRef<string | null>(null)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -290,6 +307,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   useEffect(() => {
     return () => {
       if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current)
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+      }
     }
   }, [])
 
@@ -325,7 +345,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     () => normalizeSelectedIdsFromValue(props),
     // Narrowing is driven by the three discriminators — any of them changing
     // means `props.value` may be typed differently too.
-    [props]
+    [props.multiple, props.selectionType, props.value]
   )
 
   const {
@@ -358,7 +378,6 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const listHeight = useMemo(() => Math.min(PAGE_SIZE, listItems.length || 1) * ITEM_HEIGHT, [listItems.length])
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
-  const resolvedSelectedModelIdsKey = useMemo(() => resolvedSelectedModelIds.join('|'), [resolvedSelectedModelIds])
 
   const emitSelection = useCallback(
     (nextSelectedIds: UniqueModelId[]) => {
@@ -390,7 +409,11 @@ export function ModelSelector(props: ModelSelectorProps) {
       setFocusedItemKey(key)
       const index = listItemsRef.current.findIndex((item) => item.key === key)
       if (index >= 0) {
-        requestAnimationFrame(() => {
+        if (focusScrollFrameRef.current !== null) {
+          window.cancelAnimationFrame(focusScrollFrameRef.current)
+        }
+        focusScrollFrameRef.current = window.requestAnimationFrame(() => {
+          focusScrollFrameRef.current = null
           listRef.current?.scrollToIndex(index, { align: 'auto' })
         })
       }
@@ -436,9 +459,10 @@ export function ModelSelector(props: ModelSelectorProps) {
       skipNextFocusScroll.current = true
       togglePin(modelId).catch((error) => {
         logger.error('Failed to toggle model pin', error as Error, { modelId })
+        window.toast?.error(t('common.error'))
       })
     },
-    [isPinActionDisabled, togglePin]
+    [isPinActionDisabled, t, togglePin]
   )
 
   const handleMultiSelectModeChange = useCallback(
@@ -473,6 +497,25 @@ export function ModelSelector(props: ModelSelectorProps) {
     onSelectItem: handleSelectItem,
     pageSize: PAGE_SIZE
   })
+
+  useEffect(() => {
+    if (!isDev) {
+      return
+    }
+
+    const warning = getMalformedSelectionWarning(props)
+    if (!warning) {
+      return
+    }
+
+    const warningKey = `${warning.message}:${JSON.stringify(warning.context)}`
+    if (malformedSelectionWarningKeyRef.current === warningKey) {
+      return
+    }
+
+    malformedSelectionWarningKeyRef.current = warningKey
+    logger.warn(warning.message, warning.context)
+  }, [props.multiple, props.selectionType, props.value])
 
   useEffect(() => {
     if (!open) {
@@ -515,7 +558,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (targetKey) {
       focusItem(targetKey)
     }
-  }, [deferredSearchText, focusItem, isLoading, open, resolvedSelectedModelIdsKey, selectedTagsKey])
+  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem) => {
@@ -534,7 +577,10 @@ export function ModelSelector(props: ModelSelectorProps) {
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
                   className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
-                  onClick={() => handleNavigateToProviderSettings(item.provider!.id)}>
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    handleNavigateToProviderSettings(item.provider!.id)
+                  }}>
                   <Settings2 className="size-3" />
                 </Button>
               </Tooltip>

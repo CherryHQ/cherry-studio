@@ -9,7 +9,7 @@ import { useModelSelectorData } from '../useModelSelectorData'
 // ─── Mock hook deps ───────────────────────────────────────────────────
 const mockUseModelsFn = vi.fn()
 const mockUseProvidersFn = vi.fn()
-const mockUsePinnedModelIdsFn = vi.fn()
+const mockUsePinsFn = vi.fn()
 
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: unknown[]) => mockUseModelsFn(...args)
@@ -17,8 +17,8 @@ vi.mock('@renderer/hooks/useModels', () => ({
 vi.mock('@renderer/hooks/useProviders', () => ({
   useProviders: (...args: unknown[]) => mockUseProvidersFn(...args)
 }))
-vi.mock('@renderer/hooks/usePinnedModelIds', () => ({
-  usePinnedModelIds: (...args: unknown[]) => mockUsePinnedModelIdsFn(...args)
+vi.mock('@renderer/hooks/usePins', () => ({
+  usePins: (...args: unknown[]) => mockUsePinsFn(...args)
 }))
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabel: (id: string) => `label(${id})`
@@ -56,7 +56,9 @@ function wireDeps(opts: {
   models: Model[]
   pinnedIds?: string[]
   isModelsLoading?: boolean
-  isPinnedModelsLoading?: boolean
+  isPinsLoading?: boolean
+  isPinsRefreshing?: boolean
+  isPinsMutating?: boolean
 }) {
   mockUseProvidersFn.mockReturnValue({
     providers: opts.providers,
@@ -71,8 +73,11 @@ function wireDeps(opts: {
     isLoading: opts.isModelsLoading ?? false,
     refetch: vi.fn()
   })
-  mockUsePinnedModelIdsFn.mockReturnValue({
-    isLoading: opts.isPinnedModelsLoading ?? false,
+  mockUsePinsFn.mockReturnValue({
+    isLoading: opts.isPinsLoading ?? false,
+    isRefreshing: opts.isPinsRefreshing ?? false,
+    isMutating: opts.isPinsMutating ?? false,
+    error: undefined,
     pinnedIds: opts.pinnedIds ?? [],
     refetch: vi.fn(),
     togglePin: vi.fn()
@@ -82,7 +87,7 @@ function wireDeps(opts: {
 beforeEach(() => {
   mockUseModelsFn.mockReset()
   mockUseProvidersFn.mockReset()
-  mockUsePinnedModelIdsFn.mockReset()
+  mockUsePinsFn.mockReset()
 })
 
 // ─── Tests ────────────────────────────────────────────────────────────
@@ -163,12 +168,40 @@ describe('useModelSelectorData', () => {
     wireDeps({
       providers: [makeProvider('openai')],
       models: [makeModel('gpt-4', 'openai')],
-      isPinnedModelsLoading: true
+      isPinsLoading: true
     })
 
     const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
 
     expect(result.current.isLoading).toBe(true)
+  })
+
+  it('disables pin actions during refresh or mutation without blocking the full selector', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')],
+      isPinsRefreshing: true,
+      isPinsMutating: true
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.isPinActionDisabled).toBe(true)
+  })
+
+  it('drops non-UniqueModelId values returned from model pins before rendering pinned rows', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')],
+      pinnedIds: ['not-a-model-id', 'openai::gpt-4']
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    const pinnedRows = result.current.modelItems.filter((item) => item.isPinned)
+    expect(result.current.pinnedIds).toEqual(['openai::gpt-4'])
+    expect(pinnedRows.map((row) => row.modelId)).toEqual(['openai::gpt-4'])
   })
 
   it('collapses pinned group back into provider group while searching', () => {

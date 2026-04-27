@@ -1,4 +1,6 @@
-import { PinSchema, PinTargetSchema, PinTargetTypeSchema } from '@shared/data/types/pin'
+import { CreatePinSchema } from '@shared/data/api/schemas/pins'
+import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
+import { PinSchema } from '@shared/data/types/pin'
 import { describe, expect, it } from 'vitest'
 
 const PIN_BASE = {
@@ -12,24 +14,27 @@ const UUID_ENTITY_ID = '22222222-2222-4222-8222-222222222222'
 const MODEL_ENTITY_ID = 'openai::gpt-4o'
 
 describe('pin schemas', () => {
-  it('binds model pins to UniqueModelId entity ids', () => {
-    expect(PinTargetSchema.safeParse({ entityType: 'model', entityId: MODEL_ENTITY_ID }).success).toBe(true)
-    expect(PinTargetSchema.safeParse({ entityType: 'model', entityId: UUID_ENTITY_ID }).success).toBe(false)
+  it('includes model in the shared entity type vocabulary', () => {
+    expect(EntityTypeSchema.safeParse('model').success).toBe(true)
+    expect(EntityTypeSchema.safeParse('agent').success).toBe(false)
   })
 
-  it('keeps non-model pins bound to UUID entity ids', () => {
-    expect(PinTargetSchema.safeParse({ entityType: 'topic', entityId: UUID_ENTITY_ID }).success).toBe(true)
-    expect(PinTargetSchema.safeParse({ entityType: 'topic', entityId: MODEL_ENTITY_ID }).success).toBe(false)
+  it('accepts both UUID and UniqueModelId through the shared entity id schema', () => {
+    expect(EntityIdSchema.safeParse(UUID_ENTITY_ID).success).toBe(true)
+    expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
+    expect(EntityIdSchema.safeParse('not-a-valid-entity-id').success).toBe(false)
   })
 
-  it('applies the same target binding to full pin rows', () => {
+  it('uses a flat pin schema over the shared entity type and id schemas', () => {
     expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'model', entityId: MODEL_ENTITY_ID }).success).toBe(true)
-    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'model', entityId: UUID_ENTITY_ID }).success).toBe(false)
     expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'assistant', entityId: UUID_ENTITY_ID }).success).toBe(true)
-    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'assistant', entityId: MODEL_ENTITY_ID }).success).toBe(false)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'assistant', entityId: MODEL_ENTITY_ID }).success).toBe(true)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'agent', entityId: UUID_ENTITY_ID }).success).toBe(false)
   })
 
-  it('does not expose future agent pins before their lifecycle cleanup is implemented', () => {
-    expect(PinTargetTypeSchema.safeParse('agent').success).toBe(false)
+  it('derives create-pin input from the shared flat entity reference', () => {
+    expect(CreatePinSchema.safeParse({ entityType: 'model', entityId: MODEL_ENTITY_ID }).success).toBe(true)
+    expect(CreatePinSchema.safeParse({ entityType: 'topic', entityId: UUID_ENTITY_ID }).success).toBe(true)
+    expect(CreatePinSchema.safeParse({ entityType: 'topic', entityId: MODEL_ENTITY_ID }).success).toBe(true)
   })
 })

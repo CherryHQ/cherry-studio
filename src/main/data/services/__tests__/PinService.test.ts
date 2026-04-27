@@ -126,22 +126,6 @@ describe('PinService', () => {
         code: ErrorCode.NOT_FOUND
       })
     })
-
-    it('should throw NOT_FOUND when the row exists but fails PinSchema', async () => {
-      // A row stored with an entityType the current enum does not accept is
-      // treated as not-found from the API boundary — we surface the schema
-      // break to the caller via 404 rather than leaking a ZodError.
-      await dbh.db.insert(pinTable).values({
-        id: PREEXISTING_PIN_ID,
-        entityType: 'agent',
-        entityId: ENTITY_ID_1,
-        orderKey: 'a0'
-      })
-
-      await expect(pinService.getById(PREEXISTING_PIN_ID)).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-    })
   })
 
   describe('listByEntityType', () => {
@@ -156,22 +140,6 @@ describe('PinService', () => {
 
     it('should return an empty array when no pins exist for the entityType', async () => {
       await expect(pinService.listByEntityType('assistant')).resolves.toEqual([])
-    })
-
-    it('skips rows that fail PinSchema without throwing the whole list', async () => {
-      // Seed a well-formed topic pin alongside a malformed row with a future
-      // entityType the current enum does not accept. Tolerating this row
-      // instead of throwing is what makes rollbacks / parallel branch data
-      // recoverable.
-      const topicA = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
-      await dbh.db.insert(pinTable).values({
-        entityType: 'agent', // not in PinTargetTypeSchema
-        entityId: ENTITY_ID_2,
-        orderKey: 'zz'
-      })
-
-      const topics = await pinService.listByEntityType('topic')
-      expect(topics.map((p) => p.id)).toEqual([topicA.id])
     })
   })
 

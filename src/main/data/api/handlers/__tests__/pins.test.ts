@@ -115,13 +115,16 @@ describe('pinHandlers', () => {
       expect(pinMock).not.toHaveBeenCalled()
     })
 
-    it('should still reject non-UUID entityId values for non-model pins', async () => {
+    it('should accept UniqueModelId entityId values for any shared entity type', async () => {
+      pinMock.mockResolvedValueOnce({ id: PIN_ID, entityType: 'topic', entityId: MODEL_ID })
+
       await expect(
         pinHandlers['/pins'].POST({
           body: { entityType: 'topic', entityId: MODEL_ID }
         } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-      expect(pinMock).not.toHaveBeenCalled()
+      ).resolves.toMatchObject({ id: PIN_ID, entityType: 'topic', entityId: MODEL_ID })
+
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'topic', entityId: MODEL_ID })
     })
   })
 

@@ -223,7 +223,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           }))
         )
         if (pinRows.length > 0) {
-          await tx.insert(pinTable).values(pinRows)
+          await tx.insert(pinTable).values(pinRows).onConflictDoNothing()
         }
       })
 

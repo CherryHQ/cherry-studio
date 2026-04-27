@@ -1,7 +1,7 @@
 import { useModels } from '@renderer/hooks/useModels'
-import { usePinnedModelIds } from '@renderer/hooks/usePinnedModelIds'
+import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProviders'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
 import { useCallback, useMemo } from 'react'
@@ -84,8 +84,17 @@ export function useModelSelectorData({
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
   const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
-  const { isLoading: isPinnedModelsLoading, pinnedIds, refetch: refetchPinnedModels, togglePin } = usePinnedModelIds()
+  const {
+    isLoading: isPinsLoading,
+    isRefreshing: isPinsRefreshing,
+    isMutating: isPinsMutating,
+    pinnedIds: rawPinnedIds,
+    refetch: refetchPinnedModels,
+    togglePin
+  } = usePins('model')
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
+
+  const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
@@ -272,8 +281,8 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    isLoading: isProvidersLoading || isModelsLoading || isPinnedModelsLoading,
-    isPinActionDisabled: isPinnedModelsLoading,
+    isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
+    isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
     modelItems,
     pinnedIds,
