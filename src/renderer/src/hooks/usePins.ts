@@ -61,7 +61,7 @@ export function usePins(entityType: EntityType): UsePinsResult {
 
   useEffect(() => {
     if (queryError) {
-      logger.error('Failed to read pins', queryError as Error, { entityType })
+      logger.error('Failed to read pins', queryError, { entityType })
     }
   }, [queryError, entityType])
 
