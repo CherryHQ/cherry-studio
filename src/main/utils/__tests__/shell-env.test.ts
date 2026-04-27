@@ -519,4 +519,62 @@ describe('shell-env – Windows Git Bash spawn', () => {
     expect(pathValue).toContain('C:\\fnm\\node\\v22.0.0')
     expect(pathValue).toContain('C:\\Users\\TestUser\\.local\\bin')
   })
+
+  // T-MSYS-03: MSYS-internal paths are filtered out
+  it('should filter out MSYS-internal paths from PATH', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // PATH includes MSYS-internal entries alongside valid MSYS drive paths
+    const bashEnvOutput =
+      'PATH=/c/Users/TestUser/.local/bin:/usr/bin:/usr/local/bin:/mingw64/bin:/bin:/cmd:/c/fnm/node/v22.0.0\nHOME=/c/Users/TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows\\system32')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+    const pathValue = env.PATH || env.Path || ''
+
+    // Valid MSYS drive paths should be present
+    expect(pathValue.toLowerCase()).toContain('c:\\users\\testuser\\.local\\bin')
+    expect(pathValue.toLowerCase()).toContain('c:\\fnm\\node\\v22.0.0')
+
+    // MSYS-internal paths should be filtered out — check as standalone segments
+    const segments = pathValue.split(';').map((s: string) => s.toLowerCase().trim())
+    expect(segments).not.toContain('/usr/bin')
+    expect(segments).not.toContain('/usr/local/bin')
+    expect(segments).not.toContain('/mingw64/bin')
+    expect(segments).not.toContain('/bin')
+    expect(segments).not.toContain('/cmd')
+  })
+
+  // T-P2-03: spawn receives fresh registry PATH as env
+  it('should pass fresh registry PATH to bash spawn env', async () => {
+    const { findGitBash } = await import('@main/utils/git-bash')
+    vi.mocked(findGitBash).mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    // Registry returns a path with a newly installed tool
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY)
+        return regOutput(keyPath, 'C:\\Windows\\system32;C:\\NewTool\\bin')
+      throw new Error('not found')
+    })
+
+    const bashEnvOutput = 'PATH=/c/Users/TestUser/.local/bin\nHOME=/c/Users/TestUser\n'
+    mockSpawnSuccess(bashEnvOutput)
+
+    await refreshShellEnv()
+
+    // spawn should have been called with an env option containing the fresh registry PATH
+    const spawnOptions = vi.mocked(spawn).mock.calls[0][2]
+    expect(spawnOptions?.env).toBeDefined()
+    const spawnEnv = spawnOptions!.env as Record<string, string>
+    const spawnPath = spawnEnv.Path || spawnEnv.PATH || ''
+    expect(spawnPath).toContain('C:\\NewTool\\bin')
+  })
 })

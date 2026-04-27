@@ -253,9 +253,14 @@ function normaliseBashEnvToWindows(env: Record<string, string>): Record<string, 
     } else if (/^[A-Za-z]:[\\/]/.test(trimmed)) {
       // Already Windows-style (e.g., C:/Python39), normalize slashes to backslashes
       windowsSegments.push(trimmed.replace(/\//g, '\\'))
+    } else if (/^\//.test(trimmed)) {
+      // MSYS-internal path (e.g., /usr/bin, /mingw64/bin, /bin, /cmd)
+      // These are virtual filesystem paths with no Windows equivalent.
+      // Git for Windows adds its cmd/ directory to the real Windows PATH
+      // during installation, so git.cmd remains accessible via registry merge.
+      logger.debug(`Filtering out MSYS-internal PATH segment: ${trimmed}`)
     } else {
-      // Other paths (e.g., /usr/bin) - pass through unchanged
-      // These are MSYS-internal paths that don't translate to Windows
+      // Relative paths or unusual entries — preserve as-is
       windowsSegments.push(trimmed)
     }
   }
@@ -311,11 +316,29 @@ function spawnShellEnv(shellPath: string): Promise<Record<string, string>> {
       reject(error)
     }
 
+    // Build spawn environment — on Windows, merge fresh registry PATH so that
+    // profile scripts can find tools installed after app launch.
+    let spawnEnv: Record<string, string> | undefined
+    if (isWin) {
+      spawnEnv = { ...(process.env as Record<string, string>) }
+      const freshRegistryPath = readWindowsRegistryPath(spawnEnv)
+      if (freshRegistryPath) {
+        const pathKeys = Object.keys(spawnEnv).filter((k) => k.toLowerCase() === 'path')
+        for (const key of pathKeys) {
+          spawnEnv[key] = freshRegistryPath
+        }
+        if (pathKeys.length === 0) {
+          spawnEnv.Path = freshRegistryPath
+        }
+      }
+    }
+
     const child = spawn(shellPath, commandArgs, {
       cwd: homeDirectory,
       detached: false,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false
+      shell: false,
+      ...(spawnEnv ? { env: spawnEnv } : {})
     })
 
     let output = ''
