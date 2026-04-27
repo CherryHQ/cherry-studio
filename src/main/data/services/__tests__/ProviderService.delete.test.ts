@@ -105,4 +105,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
     const survivingPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, claude))
     expect(survivingPins).toHaveLength(1)
   })
+
+  it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {
+    await expect(providerService.delete('does-not-exist')).rejects.toThrow(/not found/i)
+  })
 })

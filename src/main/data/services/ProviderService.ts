@@ -329,13 +329,21 @@ class ProviderService {
   async delete(providerId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    const provider = await this.getByProviderId(providerId)
-
-    if (provider.presetProviderId && provider.presetProviderId === providerId) {
-      throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
-    }
-
     await db.transaction(async (tx) => {
+      const [provider] = await tx
+        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+
+      if (!provider) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+
+      if (provider.presetProviderId && provider.presetProviderId === providerId) {
+        throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
+      }
+
       const models = await tx
         .select({ id: userModelTable.id })
         .from(userModelTable)
@@ -347,7 +355,14 @@ class ProviderService {
         models.map((model) => model.id)
       )
 
-      await tx.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+      const deleted = await tx
+        .delete(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning({ providerId: userProviderTable.providerId })
+
+      if (deleted.length === 0) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
     })
 
     logger.info('Deleted provider', { providerId })
