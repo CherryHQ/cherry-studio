@@ -16,7 +16,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { useNavigate } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -30,7 +30,7 @@ const logger = loggerService.withContext('AgentSelector')
 export type AgentSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
-  trigger: ReactNode
+  trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
@@ -86,19 +86,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     ]
   }, [data, t])
 
-  // Single-source refetch: only handleOpenChange. A parallel useEffect on the `open` prop would
-  // double-fire in controlled mode (handleOpenChange → parent setState → open prop changes →
-  // effect runs again). The trigger-driven path covers both controlled and uncontrolled.
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (nextOpen) {
-        refetchPins()
-      }
-      onOpenChange?.(nextOpen)
-    },
-    [onOpenChange, refetchPins]
-  )
-
   const handleTogglePin = useCallback(
     async (id: string) => {
       if (isPinActionDisabled) return
@@ -115,7 +102,10 @@ export function AgentSelector(props: AgentSelectorProps) {
   const shared = {
     trigger,
     open,
-    onOpenChange: handleOpenChange,
+    onOpenChange,
+    // Refetch on every open transition (uncontrolled trigger click + controlled external opens)
+    // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
+    onOpen: refetchPins,
     items,
     renderFallbackIcon: () => <Bot className="size-4 text-muted-foreground/70" />,
     sortOptions,

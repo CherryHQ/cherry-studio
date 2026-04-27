@@ -2,7 +2,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/compon
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  type ReactElement,
   useCallback,
   useEffect,
   useId,
@@ -163,6 +162,12 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      // IME composing: keydown still fires while the user is selecting candidates in CJK input
+      // methods. Without this guard, pressing Enter to confirm a candidate would also commit the
+      // currently highlighted row and close the popover. `keyCode === 229` is the legacy fallback
+      // for browsers that don't expose `isComposing` on the native event.
+      // oxlint-disable-next-line no-deprecated
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return
       switch (event.key) {
         case 'ArrowDown': {
           event.preventDefault()
@@ -262,7 +267,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>{trigger as ReactElement}</PopoverTrigger>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent
           align={userAlign ?? 'start'}
           sideOffset={userSideOffset ?? 6}

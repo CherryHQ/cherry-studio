@@ -293,6 +293,31 @@ describe('EntitySelector', () => {
       expect(onChange).toHaveBeenCalledWith('5')
     })
 
+    it('Enter is ignored while IME is composing (CJK candidate confirmation must not commit a row)', () => {
+      const onChange = vi.fn()
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          mode="single"
+          value={null}
+          onChange={onChange}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      const listbox = screen.getByRole('listbox')
+      // Confirm a candidate via Enter mid-composition: must not select the active row.
+      fireEvent.keyDown(listbox, { key: 'Enter', isComposing: true })
+      expect(onChange).not.toHaveBeenCalled()
+      // Legacy fallback: browsers that don't expose isComposing report keyCode 229.
+      fireEvent.keyDown(listbox, { key: 'Enter', keyCode: 229 })
+      expect(onChange).not.toHaveBeenCalled()
+      // Once composition ends, Enter commits as usual.
+      fireEvent.keyDown(listbox, { key: 'Enter' })
+      expect(onChange).toHaveBeenCalledWith('1')
+    })
+
     it('ArrowUp wraps and End jumps to last enabled', () => {
       render(
         <EntitySelector

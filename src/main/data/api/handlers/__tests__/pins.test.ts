@@ -136,10 +136,13 @@ describe('pinHandlers', () => {
       expect(pinMock).not.toHaveBeenCalled()
     })
 
-    it('should reject POST with an invalid entityId before calling the service', async () => {
+    it('should reject POST with an empty entityId before calling the service', async () => {
+      // Non-UUID strings are accepted at the schema layer because EntityIdSchema unions in
+      // AgentIdSchema (`string().min(1)`); deeper validation that a topic id actually exists
+      // is the service's job. The schema only guards the structural floor — empty string.
       await expect(
         pinHandlers['/pins'].POST({
-          body: { entityType: 'topic', entityId: 'not-a-uuid' }
+          body: { entityType: 'topic', entityId: '' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(pinMock).not.toHaveBeenCalled()

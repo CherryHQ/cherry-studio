@@ -14,7 +14,7 @@ import {
 import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -45,9 +45,16 @@ export type ResourceSelectorShellLabels = {
 }
 
 type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
-  trigger: ReactNode
+  trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /**
+   * Fires when the popover transitions from closed → open, regardless of whether the open was
+   * driven by a click on the trigger (uncontrolled / Radix-internal) or by an external state
+   * change on the controlled `open` prop. Pin refresh on open belongs here so it covers both
+   * paths — relying on `onOpenChange` alone misses external opens (e.g. global shortcut).
+   */
+  onOpen?: () => void
 
   items: T[]
   renderFallbackIcon?: (item: T) => ReactNode
@@ -165,6 +172,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     pinnedIds,
     onTogglePin,
     isPinActionDisabled = false,
+    onOpen,
     onEditItem,
     onCreateNew,
     labels,
@@ -194,6 +202,15 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   // Reset search text on close. Filter panel + right-click menu dismiss is handled by EntitySelector.
   useEffect(() => {
     if (!open) setSearchValue('')
+  }, [open])
+
+  // Fire onOpen for both Radix-internal and external (controlled) opens. Routing this through
+  // an effect on the effective `open` value covers the controlled `open=true` path that
+  // `handleOpenChange` misses entirely.
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
+  useEffect(() => {
+    if (open) onOpenRef.current?.()
   }, [open])
 
   // Normalize caller's value to an id list for both the EntitySelector contract (string/string[])

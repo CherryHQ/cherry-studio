@@ -20,12 +20,15 @@ describe('pin schemas', () => {
     expect(EntityTypeSchema.safeParse('agent').success).toBe(true)
   })
 
-  it('accepts UUID, UniqueModelId, and persisted agent ids through the shared entity id schema', () => {
+  it('accepts UUID, UniqueModelId, and any non-empty agent id through the shared entity id schema', () => {
     expect(EntityIdSchema.safeParse(UUID_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(AGENT_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse('cherry-claw-default').success).toBe(true)
-    expect(EntityIdSchema.safeParse('not-a-valid-entity-id').success).toBe(false)
+    // Agent ids are validated as `string().min(1)` to match AgentEntitySchema.id and accept
+    // historical / migrated ids that don't fit the generated `agent_<ts>_<rand>` template.
+    expect(EntityIdSchema.safeParse('legacy-agent-id-without-prefix').success).toBe(true)
+    expect(EntityIdSchema.safeParse('').success).toBe(false)
   })
 
   it('uses a flat pin schema over the shared entity type and id schemas', () => {

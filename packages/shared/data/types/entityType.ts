@@ -11,12 +11,17 @@ import { UniqueModelIdSchema } from './model'
 export const EntityTypeSchema = z.enum(['assistant', 'topic', 'session', 'model', 'agent'])
 export type EntityType = z.infer<typeof EntityTypeSchema>
 
-const AgentIdSchema = z.union([z.literal('cherry-claw-default'), z.string().regex(/^agent_\d+_[a-z0-9]+$/)])
+// Agent ids are validated only as non-empty strings here, matching AgentEntitySchema.id
+// (`packages/shared/data/api/schemas/agents.ts`). The generated format
+// `agent_<timestamp>_<random>` is a creation-side detail; pin / tag references must accept
+// historical and migrated ids that don't fit that template (including the `cherry-claw-default`
+// builtin). Tightening this would silently reject pinning legitimate agents.
+const AgentIdSchema = z.string().min(1)
 
 /**
  * Canonical ID schema for any entity referenced polymorphically
  * (entity_tag, pin, group, ...). Most entity tables use UUID v4 primary keys;
- * models use the provider/model composite UniqueModelId; agents use the
- * persisted agent id format.
+ * models use the provider/model composite UniqueModelId; agents use opaque
+ * non-empty strings (see AgentIdSchema).
  */
 export const EntityIdSchema = z.union([z.uuidv4(), UniqueModelIdSchema, AgentIdSchema])

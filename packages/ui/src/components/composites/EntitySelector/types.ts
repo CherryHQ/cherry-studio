@@ -1,5 +1,5 @@
 import type { PopoverContent } from '@cherrystudio/ui/components/primitives/popover'
-import type { ComponentProps, MouseEvent, ReactNode } from 'react'
+import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 
 export type EntityItemBase = {
   id: string
@@ -62,8 +62,12 @@ type EntitySelectorBaseProps<T extends EntityItemBase> = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
 
-  /** Trigger node, rendered outside the popover (any clickable element). */
-  trigger: ReactNode
+  /**
+   * Trigger node, rendered outside the popover. Must be a single ReactElement (not a fragment,
+   * string, or null) because Radix's `<PopoverTrigger asChild>` clones the child to attach
+   * pointer / aria props — passing anything else crashes at runtime.
+   */
+  trigger: ReactElement
 
   /** 'single' = single value; 'multi' = array of values. */
   mode: 'single' | 'multi'

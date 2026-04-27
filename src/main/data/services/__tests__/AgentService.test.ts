@@ -1,5 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentService } from '@data/services/AgentService'
+import { pinService } from '@data/services/PinService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -79,6 +80,28 @@ describe('AgentService', () => {
       expect(row?.deletedAt).toBeTruthy()
       // Row still exists in the table
       expect(row?.id).toBe('cherry-claw-default')
+    })
+
+    it('purges agent pins on hard delete (pin table has no FK)', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_pin_001' })
+      const otherAgent = await insertAgent({ id: 'agent_other_002' })
+      await pinService.pin({ entityType: 'agent', entityId: id })
+      const otherPin = await pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+
+      await agentService.deleteAgent(id)
+
+      const remaining = await pinService.listByEntityType('agent')
+      expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('purges agent pins on builtin soft delete (pin table has no FK)', async () => {
+      await insertAgent({ id: 'cherry-claw-default' })
+      await pinService.pin({ entityType: 'agent', entityId: 'cherry-claw-default' })
+
+      await agentService.deleteAgent('cherry-claw-default')
+
+      const remaining = await pinService.listByEntityType('agent')
+      expect(remaining).toEqual([])
     })
   })
 
