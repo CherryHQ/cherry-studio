@@ -25,6 +25,8 @@ import { pinHandlers } from '../pins'
 const PIN_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_PIN_ID = '22222222-2222-4222-8222-222222222222'
 const ENTITY_ID = '33333333-3333-4333-8333-333333333333'
+const MODEL_ID = 'openai::gpt-4o'
+const AGENT_ID = 'agent_1700000000000_abc123xyz'
 
 describe('pinHandlers', () => {
   beforeEach(() => {
@@ -56,6 +58,17 @@ describe('pinHandlers', () => {
       expect(listByEntityTypeMock).not.toHaveBeenCalled()
     })
 
+    it('should accept model as a pin entity type when listing', async () => {
+      listByEntityTypeMock.mockResolvedValueOnce([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+
+      const result = await pinHandlers['/pins'].GET({
+        query: { entityType: 'model' }
+      } as never)
+
+      expect(listByEntityTypeMock).toHaveBeenCalledWith('model')
+      expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+    })
+
     it('should delegate POST with parsed body (idempotency returns the same row on repeat calls)', async () => {
       const row = {
         id: PIN_ID,
@@ -77,18 +90,30 @@ describe('pinHandlers', () => {
       const row = {
         id: PIN_ID,
         entityType: 'agent',
-        entityId: 'agent_builtin_code',
+        entityId: AGENT_ID,
         orderKey: 'a0'
       }
       pinMock.mockResolvedValue(row)
 
       await expect(
         pinHandlers['/pins'].POST({
-          body: { entityType: 'agent', entityId: 'agent_builtin_code' }
+          body: { entityType: 'agent', entityId: AGENT_ID }
         } as never)
       ).resolves.toMatchObject(row)
 
-      expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: 'agent_builtin_code' })
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: AGENT_ID })
+    })
+
+    it('should accept UniqueModelId entityId values for model pins', async () => {
+      pinMock.mockResolvedValueOnce({ id: PIN_ID, entityType: 'model', entityId: MODEL_ID })
+
+      await expect(
+        pinHandlers['/pins'].POST({
+          body: { entityType: 'model', entityId: MODEL_ID }
+        } as never)
+      ).resolves.toMatchObject({ id: PIN_ID, entityType: 'model', entityId: MODEL_ID })
+
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'model', entityId: MODEL_ID })
     })
 
     it('should reject POST with an invalid entityType before calling the service', async () => {

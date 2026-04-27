@@ -7,8 +7,10 @@
  */
 
 import { application } from '@application'
+import { userModelTable } from '@data/db/schemas/userModel'
 import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -333,7 +335,20 @@ class ProviderService {
       throw DataApiErrorFactory.invalidOperation(`Cannot delete preset provider '${providerId}'`)
     }
 
-    await db.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+    await db.transaction(async (tx) => {
+      const models = await tx
+        .select({ id: userModelTable.id })
+        .from(userModelTable)
+        .where(eq(userModelTable.providerId, providerId))
+
+      await pinService.purgeForEntities(
+        tx,
+        'model',
+        models.map((model) => model.id)
+      )
+
+      await tx.delete(userProviderTable).where(eq(userProviderTable.providerId, providerId))
+    })
 
     logger.info('Deleted provider', { providerId })
   }

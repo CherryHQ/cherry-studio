@@ -11,6 +11,7 @@ import {
   type EntitySelectorSection,
   Separator
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
@@ -143,6 +144,8 @@ const SORT_ICON_DEFAULTS = {
   asc: <ArrowUp className="size-2.5" />
 } as const
 
+const logger = loggerService.withContext('BaseSelectorV2')
+
 export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelectorV2Props<T>) {
   const {
     trigger,
@@ -273,7 +276,9 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
 
   const togglePin = useCallback(
     (id: string) => {
-      void onTogglePin(id)
+      void (async () => onTogglePin(id))().catch((error) => {
+        logger.error('Failed to toggle pin', error as Error, { id })
+      })
     },
     [onTogglePin]
   )

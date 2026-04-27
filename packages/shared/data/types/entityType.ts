@@ -1,16 +1,22 @@
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from './model'
+
 /**
  * Canonical set of entity types that participate in cross-cutting features
  * (tagging, grouping, pinning). Single source of truth for schema validation
  * of entityType discriminators. DB storage is still `text()` on each table —
  * this enum enforces the value at the API boundary via Zod.
  */
-export const EntityTypeSchema = z.enum(['assistant', 'topic', 'session'])
+export const EntityTypeSchema = z.enum(['assistant', 'topic', 'session', 'model', 'agent'])
 export type EntityType = z.infer<typeof EntityTypeSchema>
+
+const AgentIdSchema = z.union([z.literal('cherry-claw-default'), z.string().regex(/^agent_\d+_[a-z0-9]+$/)])
 
 /**
  * Canonical ID schema for any entity referenced polymorphically
- * (entity_tag, pin, group, ...). All entity tables use UUID v4 primary keys.
+ * (entity_tag, pin, group, ...). Most entity tables use UUID v4 primary keys;
+ * models use the provider/model composite UniqueModelId; agents use the
+ * persisted agent id format.
  */
-export const EntityIdSchema = z.uuidv4()
+export const EntityIdSchema = z.union([z.uuidv4(), UniqueModelIdSchema, AgentIdSchema])

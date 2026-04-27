@@ -2,9 +2,11 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -574,6 +576,37 @@ describe('ModelService.delete', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(rows).toHaveLength(0)
+  })
+
+  it('purges pins that target the deleted model id', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: targetModelId,
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o'
+      },
+      {
+        id: siblingModelId,
+        providerId: 'openai',
+        modelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini'
+      }
+    ])
+    const targetPin = await pinService.pin({ entityType: 'model', entityId: targetModelId })
+    const siblingPin = await pinService.pin({ entityType: 'model', entityId: siblingModelId })
+
+    await modelService.delete('openai', 'gpt-4o')
+
+    const pins = await dbh.db.select().from(pinTable)
+    expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
+    expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {

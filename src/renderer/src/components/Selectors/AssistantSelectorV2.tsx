@@ -13,7 +13,7 @@
 //             hides the chip row automatically.
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { usePinnedEntityIds } from '@renderer/hooks/usePinnedEntityIds'
+import { usePins } from '@renderer/hooks/usePins'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -77,7 +77,7 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   const { data, isLoading } = useQuery('/assistants', { query: { limit: 500 } })
   const navigate = useNavigate()
 
-  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePinnedEntityIds('assistant')
+  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePins('assistant')
 
   const items: AssistantSelectorV2Item[] = useMemo(
     () =>

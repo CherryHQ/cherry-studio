@@ -12,7 +12,7 @@
 //             expected to follow the same shape once their DataApi lands.
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { usePinnedEntityIds } from '@renderer/hooks/usePinnedEntityIds'
+import { usePins } from '@renderer/hooks/usePins'
 import { useNavigate } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
@@ -48,7 +48,7 @@ export function AgentSelectorV2(props: AgentSelectorV2Props) {
   const navigate = useNavigate()
 
   const { data, isLoading } = useQuery('/agents', { query: { limit: 500 } })
-  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePinnedEntityIds('agent')
+  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePins('agent')
 
   const items: AgentSelectorV2Item[] = useMemo(
     () =>

@@ -3,11 +3,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { navigateMock, refetchPinsMock, togglePinMock, usePinnedEntityIdsMock, useQueryMock } = vi.hoisted(() => ({
+const { navigateMock, refetchPinsMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
   refetchPinsMock: vi.fn(),
   togglePinMock: vi.fn(),
-  usePinnedEntityIdsMock: vi.fn(),
+  usePinsMock: vi.fn(),
   useQueryMock: vi.fn()
 }))
 
@@ -20,8 +20,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
-vi.mock('@renderer/hooks/usePinnedEntityIds', () => ({
-  usePinnedEntityIds: usePinnedEntityIdsMock
+vi.mock('@renderer/hooks/usePins', () => ({
+  usePins: usePinsMock
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -106,8 +106,11 @@ beforeEach(() => {
     refetch: vi.fn(),
     mutate: vi.fn()
   })
-  usePinnedEntityIdsMock.mockReturnValue({
+  usePinsMock.mockReturnValue({
     isLoading: false,
+    isRefreshing: false,
+    isMutating: false,
+    error: undefined,
     pinnedIds: [],
     refetch: refetchPinsMock,
     togglePin: togglePinMock
@@ -169,8 +172,11 @@ describe('AgentSelectorV2', () => {
   })
 
   it('uses the agent pin hook and renders pinned agents in the pinned section', () => {
-    usePinnedEntityIdsMock.mockReturnValue({
+    usePinsMock.mockReturnValue({
       isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
       pinnedIds: ['agent-alpha'],
       refetch: refetchPinsMock,
       togglePin: togglePinMock
@@ -179,7 +185,7 @@ describe('AgentSelectorV2', () => {
     renderSelector()
     openPopover()
 
-    expect(usePinnedEntityIdsMock).toHaveBeenCalledWith('agent')
+    expect(usePinsMock).toHaveBeenCalledWith('agent')
     expect(screen.getByText('Pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))

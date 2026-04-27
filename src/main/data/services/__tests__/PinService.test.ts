@@ -10,6 +10,8 @@ const ENTITY_ID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
 const ENTITY_ID_2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
 const ENTITY_ID_3 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
 const PREEXISTING_PIN_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const MODEL_ID = 'openai::gpt-4o'
+const AGENT_ID = 'agent_1700000000000_abc123xyz'
 
 describe('PinService', () => {
   const dbh = setupTestDatabase()
@@ -81,6 +83,22 @@ describe('PinService', () => {
 
       const topicSecond = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       expect(topicSecond.orderKey > topicFirst.orderKey).toBe(true)
+    })
+
+    it('should accept UniqueModelId values for model pins', async () => {
+      const result = await pinService.pin({ entityType: 'model', entityId: MODEL_ID })
+
+      expect(result).toMatchObject({ entityType: 'model', entityId: MODEL_ID })
+
+      const rows = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, MODEL_ID))
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ entityType: 'model', entityId: MODEL_ID })
+    })
+
+    it('should accept persisted non-UUID agent ids for agent pins', async () => {
+      const result = await pinService.pin({ entityType: 'agent', entityId: AGENT_ID })
+
+      expect(result).toMatchObject({ entityType: 'agent', entityId: AGENT_ID })
     })
   })
 
