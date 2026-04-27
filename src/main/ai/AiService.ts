@@ -9,10 +9,8 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
-import type { ApprovalDecision } from '@shared/ai/transport'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
@@ -38,7 +36,6 @@ import { providerToAiSdkConfig } from './provider/config'
 import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
-import { applyApprovalDecisions } from './stream-manager/context/applyApprovalDecisions'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
@@ -420,10 +417,10 @@ export class AiService extends BaseService {
         })
         if (dispatched) return { ok: true }
 
-        // 2. MCP path — original stream paused at approval-request(s); we
-        // need to record this user decision on the DB anchor, then decide
-        // whether to start the continue-conversation stream now or wait
-        // for more clicks.
+        // 2. MCP path — renderer has already PATCHed the anchor's parts via
+        // DataApi (see useToolApprovalBridge). We just re-read from DB and,
+        // if no `approval-requested` remains, dispatch the
+        // continue-conversation stream.
         if (!payload.topicId || !payload.anchorId) {
           logger.warn('Tool-approval response had no live registry entry and no anchor context', {
             approvalId: payload.approvalId
@@ -431,28 +428,9 @@ export class AiService extends BaseService {
           return { ok: false }
         }
 
-        const decision: ApprovalDecision = {
-          approvalId: payload.approvalId,
-          approved: payload.approved,
-          ...(payload.reason !== undefined ? { reason: payload.reason } : {})
-        }
-
         const anchor = await messageService.getById(payload.anchorId)
-        const beforeParts = anchor.data.parts ?? []
-        const updatedParts = applyApprovalDecisions(beforeParts, [decision])
-
-        // Record the decision regardless of whether we dispatch now —
-        // the renderer relies on this DB write (via DataApi reactive)
-        // to flip the clicked card from `approval-requested` to
-        // `approval-responded` so the user gets immediate feedback even
-        // when other approvals on the same turn are still pending.
-        await messageService.update(payload.anchorId, {
-          data: { parts: updatedParts }
-        })
-
-        const stillPending = updatedParts.some(
-          (p: CherryMessagePart) => isToolUIPart(p) && p.state === 'approval-requested'
-        )
+        const parts = anchor.data.parts ?? []
+        const stillPending = parts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
         if (stillPending) {
           return { ok: true }
         }

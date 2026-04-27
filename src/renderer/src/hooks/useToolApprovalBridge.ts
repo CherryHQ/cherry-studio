@@ -1,6 +1,8 @@
 import type { Chat } from '@ai-sdk/react'
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback } from 'react'
 
 import type { ToolApprovalRespondFn } from './ToolApprovalContext'
@@ -8,33 +10,59 @@ import type { ToolApprovalRespondFn } from './ToolApprovalContext'
 const logger = loggerService.withContext('useToolApprovalBridge')
 
 /**
- * Tool approval responses for both transports route through the single
- * `Ai_ToolApproval_Respond` IPC. Main picks the right downstream:
+ * Tool-approval flow:
  *
- *  - **Claude-Agent** — `ToolApprovalRegistry` still has a pending entry,
- *    dispatch unblocks the in-flight `canUseTool`, the SAME stream resumes.
- *  - **MCP** — no registry entry; Main applies the decision to the DB
- *    anchor (`topicId` + `anchorId`) and dispatches a fresh
- *    `continue-conversation` turn.
+ *  1. PATCH /messages/:id with `applyApprovalDecisions(beforeParts, [decision])`
+ *     — DataApi `useMutation`'s `refresh` invalidates the topic's messages
+ *     query so SWR refetches and `uiMessages` flips to `approval-responded`
+ *     immediately, before the dispatched stream produces any chunk.
  *
- * Critically, **this never goes through `useChat`'s `addToolApprovalResponse`
- * + `sendAutomaticallyWhen` flow**. That flow extracts approvalIds out of
- * `chat.state.messages` to build the next request, but that state can drift
- * from Main's DB-truth (chunk loss, refresh races, etc.) and produces stale
- * decisions or phantom continues. By calling Main directly with ids pulled
- * from `mergedPartsMap` (which IS the DB-truth view), we keep the "Main is
- * the single writer of approval state" invariant intact.
- *
- * Main writes the DB anchor synchronously inside the IPC handler before
- * dispatching the stream, so the approval card naturally transitions to
- * `approval-responded` via the next DataApi reactive refresh — no separate
- * optimistic UI overlay is needed.
+ *  2. IPC `Ai_ToolApproval_Respond` only triggers the transport-specific
+ *     dispatch (Claude-Agent registry resolve, or MCP continue-conversation
+ *     when all approvals are decided). Main no longer writes parts —
+ *     renderer is the canonical writer for this user-driven mutation.
  */
-export function useToolApprovalBridge(chat: Chat<CherryUIMessage>): ToolApprovalRespondFn {
+export function useToolApprovalBridge(
+  chat: Chat<CherryUIMessage>,
+  uiMessages: CherryUIMessage[]
+): ToolApprovalRespondFn {
+  const { trigger: patchMessage } = useMutation('PATCH', '/messages/:id', {
+    // SWR cache keys for `/topics/:topicId/messages` use the **resolved** path
+    // (e.g. `/topics/abc/messages`), not the template — `createMultiKeyMatcher`
+    // does exact-string match. Resolve `:topicId` ourselves before handing the
+    // pattern to `refresh`, otherwise no key matches and SWR never refetches.
+    refresh: () => [`/topics/${chat.id}/messages`]
+  })
+
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
       if (!approvalId) return
+
+      const owner = uiMessages.find((m) => m.id === match.messageId)
+      if (owner) {
+        const before = (owner.parts ?? []) as CherryMessagePart[]
+        const after = applyApprovalDecisions(before, [
+          { approvalId, approved, ...(reason !== undefined && { reason }) }
+        ])
+        try {
+          await patchMessage({
+            params: { id: match.messageId },
+            body: { data: { parts: after } }
+          })
+        } catch (err) {
+          logger.error('Failed to PATCH approval state into DB', {
+            approvalId,
+            err: err instanceof Error ? err.message : String(err)
+          })
+          return
+        }
+      } else {
+        logger.warn('Approval click had no matching message in uiMessages — falling back to main DB write', {
+          approvalId,
+          messageId: match.messageId
+        })
+      }
 
       try {
         await window.api.ai.toolApproval.respond({
@@ -54,6 +82,6 @@ export function useToolApprovalBridge(chat: Chat<CherryUIMessage>): ToolApproval
         })
       }
     },
-    [chat]
+    [chat, uiMessages, patchMessage]
   )
 }

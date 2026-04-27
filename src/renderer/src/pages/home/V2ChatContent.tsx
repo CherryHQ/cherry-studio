@@ -133,7 +133,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     refresh
   )
 
-  const respondToToolApproval = useToolApprovalBridge(chat)
+  const respondToToolApproval = useToolApprovalBridge(chat, uiMessages)
 
   // Rendering: project uiMessages + layer per-execution streaming overlay.
   const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
