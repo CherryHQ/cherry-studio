@@ -73,13 +73,6 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
-                icon={<Blocks />}
-                label={t('settings.plugins.title')}
-                active={isActive('/settings/plugins')}
-                onClick={() => go('/settings/plugins')}
-              />
-              <MenuItem
-                className={menuItemClassName}
                 icon={<Search />}
                 label={t('settings.tool.websearch.title')}
                 active={isActive('/settings/websearch')}
@@ -94,17 +87,10 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
-                icon={<Radio />}
-                label={t('settings.channels.title')}
-                active={isActive('/settings/channels')}
-                onClick={() => go('/settings/channels')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<CalendarClock />}
-                label={t('settings.scheduledTasks.title')}
-                active={isActive('/settings/scheduled-tasks')}
-                onClick={() => go('/settings/scheduled-tasks')}
+                icon={<Blocks />}
+                label={t('settings.plugins.title')}
+                active={isActive('/settings/plugins')}
+                onClick={() => go('/settings/plugins')}
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.appSettings')}</div>
@@ -124,6 +110,20 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.productivity')}</div>
+              <MenuItem
+                className={menuItemClassName}
+                icon={<Radio />}
+                label={t('settings.channels.title')}
+                active={isActive('/settings/channels')}
+                onClick={() => go('/settings/channels')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<CalendarClock />}
+                label={t('settings.scheduledTasks.title')}
+                active={isActive('/settings/scheduled-tasks')}
+                onClick={() => go('/settings/scheduled-tasks')}
+              />
               <MenuItem
                 className={menuItemClassName}
                 icon={<Command />}

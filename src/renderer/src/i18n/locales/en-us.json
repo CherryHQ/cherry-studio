@@ -4918,7 +4918,7 @@
       "appSettings": "App Settings",
       "integrations": "Models",
       "productivity": "Productivity",
-      "services": "Services",
+      "services": "Plugins",
       "system": "System"
     },
     "messages": {
@@ -5170,7 +5170,7 @@
     },
     "plugins": {
       "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
-      "title": "Plugins",
+      "title": "System Plugins",
       "uvDescription": "Python package manager for MCP services and dependency installation."
     },
     "privacy": {

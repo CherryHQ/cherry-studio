@@ -4918,7 +4918,7 @@
       "appSettings": "应用设置",
       "integrations": "模型",
       "productivity": "效率",
-      "services": "服务",
+      "services": "插件",
       "system": "系统"
     },
     "messages": {
@@ -5170,7 +5170,7 @@
     },
     "plugins": {
       "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
-      "title": "插件",
+      "title": "系统插件",
       "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
     "privacy": {
