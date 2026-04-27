@@ -52,7 +52,7 @@ const RagSettings = () => {
 
   return (
     <>
-      <SettingRow>
+      <SettingRow className="py-2">
         <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
         <ModelSelector
           providers={providers}
@@ -66,7 +66,7 @@ const RagSettings = () => {
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow className="py-2">
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
           <InfoTooltip
@@ -88,7 +88,7 @@ const RagSettings = () => {
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow className="py-2">
         <SettingRowTitle>{t('models.rerank_model')}</SettingRowTitle>
         <ModelSelector
           providers={rerankProviders}
@@ -102,7 +102,7 @@ const RagSettings = () => {
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
+      <SettingRow className="py-3">
         <SettingRowTitle>
           {t('settings.tool.websearch.compression.rag.document_count.label')}
           <InfoTooltip

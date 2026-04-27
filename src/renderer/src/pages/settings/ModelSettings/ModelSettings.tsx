@@ -1,5 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -11,11 +11,11 @@ import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
+import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle } from '..'
 import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
@@ -25,6 +25,29 @@ interface ModelSettingsProps {
   showDescription?: boolean
   compact?: boolean
 }
+
+interface ModelSettingRowProps {
+  icon: ReactNode
+  title: ReactNode
+  description?: ReactNode
+  compact?: boolean
+  children: ReactNode
+}
+
+const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
+  <SettingRow className="flex-col items-stretch gap-3 py-1">
+    <div className="min-w-0">
+      <SettingRowTitle className="gap-2 font-semibold">
+        {icon}
+        {title}
+      </SettingRowTitle>
+      {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
+    </div>
+    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-full max-w-[420px] items-center gap-2'}>
+      {children}
+    </div>
+  </SettingRow>
+)
 
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
@@ -63,92 +86,93 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+  const selectorStyle = { width: '100%' }
 
   return (
     <SettingContainer theme={theme} style={containerStyle}>
       <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <MessageSquareMore size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
-          {t('settings.models.default_assistant_model')}
-        </SettingTitle>
-        <RowFlex className="items-center">
+        <ModelSettingRow
+          compact={compact}
+          icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+          title={t('settings.models.default_assistant_model')}
+          description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
           <ModelSelector
+            className="min-w-0 flex-1"
             providers={providers}
             predicate={modelPredicate}
             value={defaultModelValue}
             defaultValue={defaultModelValue}
-            style={{ width: compact ? '100%' : 360 }}
+            style={selectorStyle}
             size={compact ? 'large' : 'middle'}
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon" variant="outline">
+            <Button className="shrink-0" onClick={DefaultAssistantSettings.show} size="icon-sm" variant="outline">
               <Settings2 size={16} />
             </Button>
           )}
-        </RowFlex>
-        {showDescription && (
-          <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
-        )}
-      </SettingGroup>
-      <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <Rocket size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
-          {t('settings.models.quick_model.label')}
-          <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
-        </SettingTitle>
-        <RowFlex className="items-center">
+        </ModelSettingRow>
+        <SettingDivider />
+        <ModelSettingRow
+          compact={compact}
+          icon={<Rocket size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+          title={
+            <>
+              {t('settings.models.quick_model.label')}
+              <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
+            </>
+          }
+          description={showDescription ? t('settings.models.quick_model.description') : undefined}>
           <ModelSelector
+            className="min-w-0 flex-1"
             providers={providers}
             predicate={modelPredicate}
             value={defaultQuickModel}
             defaultValue={defaultQuickModel}
-            style={{ width: compact ? '100%' : 360 }}
+            style={selectorStyle}
             size={compact ? 'large' : 'middle'}
             onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
-            <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon" variant="outline">
+            <Button className="shrink-0" onClick={TopicNamingModalPopup.show} size="icon-sm" variant="outline">
               <Settings2 size={16} />
             </Button>
           )}
-        </RowFlex>
-        {showDescription && <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>}
-      </SettingGroup>
-      <SettingGroup theme={theme} style={groupStyle}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 10, marginBottom: 12 }}>
-          <Languages size={18} className="lucide-custom shrink-0 text-(--color-foreground)" />
-          {t('settings.models.translate_model')}
-        </SettingTitle>
-        <RowFlex className="items-center">
+        </ModelSettingRow>
+        <SettingDivider />
+        <ModelSettingRow
+          compact={compact}
+          icon={<Languages size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+          title={t('settings.models.translate_model')}
+          description={showDescription ? t('settings.models.translate_model_description') : undefined}>
           <ModelSelector
+            className="min-w-0 flex-1"
             providers={providers}
             predicate={modelPredicate}
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
-            style={{ width: compact ? '100%' : 360 }}
+            style={selectorStyle}
             size={compact ? 'large' : 'middle'}
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
           {showSettingsButton && (
             <>
-              <Button className="ml-2" onClick={TranslateSettingsPopup.show} size="icon" variant="outline">
+              <Button className="shrink-0" onClick={TranslateSettingsPopup.show} size="icon-sm" variant="outline">
                 <Settings2 size={16} />
               </Button>
               {translateModelPrompt !== TRANSLATE_PROMPT && (
                 <Tooltip title={t('common.reset')}>
-                  <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon" variant="outline">
+                  <Button className="shrink-0" onClick={onResetTranslatePrompt} size="icon-sm" variant="outline">
                     <RedoOutlined size={16} />
                   </Button>
                 </Tooltip>
               )}
             </>
           )}
-        </RowFlex>
-        <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
+        </ModelSettingRow>
       </SettingGroup>
     </SettingContainer>
   )

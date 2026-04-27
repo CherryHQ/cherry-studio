@@ -238,7 +238,7 @@ const BlacklistSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
         <SettingDivider />
-        <SettingRow style={{ marginBottom: 10 }}>
+        <SettingRow className="pt-2 pb-3">
           <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
         </SettingRow>
         <TextArea
@@ -266,7 +266,7 @@ const BlacklistSettings: FC = () => {
           </Button>
         </SettingTitle>
         <SettingDivider />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div className="mt-3 flex flex-col gap-2">
           <Table<DataType>
             rowSelection={{ type: 'checkbox', ...rowSelection }}
             columns={columns}
@@ -274,7 +274,7 @@ const BlacklistSettings: FC = () => {
             pagination={{ position: ['none'] }}
             tableLayout="fixed"
           />
-          <SettingRow style={{ height: 50 }}>
+          <SettingRow className="py-2">
             <Button
               variant={subscribeValid ? 'ghost' : 'default'}
               disabled={subscribeChecking || selectedRowKeys.length === 0}

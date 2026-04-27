@@ -24,7 +24,7 @@ const CutoffSettings = () => {
   ]
 
   return (
-    <SettingRow>
+    <SettingRow className="py-2">
       <SettingRowTitle>
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip

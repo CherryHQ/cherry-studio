@@ -86,7 +86,7 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow className="py-2">
           <SettingRowTitle>{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
           <Selector
             size={14}
@@ -103,12 +103,12 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow className="py-2">
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
-        <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
-        <SettingRow style={{ height: 40 }}>
+        <SettingDivider />
+        <SettingRow className="py-3">
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
