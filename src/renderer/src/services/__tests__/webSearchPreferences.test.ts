@@ -1,12 +1,23 @@
 import { preferenceService } from '@data/PreferenceService'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const webSearchEngineProviderMock = vi.hoisted(() => ({
+  search: vi.fn()
+}))
+
+vi.mock('@renderer/providers/WebSearchProvider', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    search: webSearchEngineProviderMock.search
+  }))
+}))
 
 import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
   resolveWebSearchProviders,
   updateWebSearchProviderOverride,
-  updateWebSearchProviderPreferenceOverride
+  updateWebSearchProviderPreferenceOverride,
+  WebSearchService
 } from '../WebSearchService'
 
 const preferenceServiceMock = preferenceService as typeof preferenceService & {
@@ -16,6 +27,8 @@ const preferenceServiceMock = preferenceService as typeof preferenceService & {
 describe('webSearchPreferences', () => {
   beforeEach(() => {
     preferenceServiceMock._resetMockState?.()
+    webSearchEngineProviderMock.search.mockReset()
+    webSearchEngineProviderMock.search.mockResolvedValue({ results: [] })
   })
 
   it('resolves renderer providers from preference overrides', () => {
@@ -215,5 +228,37 @@ describe('webSearchPreferences', () => {
     })
 
     expect(state.searchWithTime).toBe(false)
+  })
+
+  it('adds current date context to search queries when searchWithTime is enabled', async () => {
+    await preferenceService.set('chat.web_search.search_with_time', true)
+
+    const service = new WebSearchService()
+    await service.search(
+      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
+      'latest news'
+    )
+
+    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
+      expect.stringMatching(/^today is \d{4}-\d{2}-\d{2} \r\n latest news$/),
+      expect.objectContaining({ searchWithTime: true }),
+      undefined
+    )
+  })
+
+  it('passes the original search query when searchWithTime is disabled', async () => {
+    await preferenceService.set('chat.web_search.search_with_time', false)
+
+    const service = new WebSearchService()
+    await service.search(
+      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
+      'latest news'
+    )
+
+    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
+      'latest news',
+      expect.objectContaining({ searchWithTime: false }),
+      undefined
+    )
   })
 })

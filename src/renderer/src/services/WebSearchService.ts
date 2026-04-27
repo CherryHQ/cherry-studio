@@ -25,6 +25,7 @@ import type {
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
+import dayjs from 'dayjs'
 import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('WebSearchService')
@@ -187,7 +188,9 @@ export class WebSearchService {
     const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
-    return await webSearchEngine.search(query, websearch, httpOptions)
+    const formattedQuery = websearch.searchWithTime ? `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}` : query
+
+    return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
   }
 
   /**
