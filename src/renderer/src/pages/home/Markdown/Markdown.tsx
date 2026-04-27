@@ -1,5 +1,4 @@
 import 'katex/dist/katex.min.css'
-import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 import 'remark-github-blockquote-alert/alert.css'
 
@@ -30,12 +29,15 @@ import remarkMath from 'remark-math'
 import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
+import { initKatexCopyHandler } from './katex-copy-handler'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
 import rehypeHeadingIds from './plugins/rehypeHeadingIds'
 import rehypeScalableSvg from './plugins/rehypeScalableSvg'
 import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
+
+initKatexCopyHandler()
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
