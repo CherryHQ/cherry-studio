@@ -12,6 +12,7 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
+import { runPostMigrateBackfills } from './postMigrateBackfills'
 import { seeders } from './seeding'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbType } from './types'
@@ -125,6 +126,11 @@ export class DbService extends BaseService {
 
       // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
       await this.runCustomMigrations()
+
+      // Run one-time data backfills that need TS-level computation
+      // (e.g. fractional-indexing keys that pure SQL cannot generate).
+      // Each backfill is idempotent — see postMigrateBackfills.ts.
+      await runPostMigrateBackfills(this.db)
 
       logger.info('Database migration completed successfully')
     } catch (error) {
