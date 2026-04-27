@@ -17,6 +17,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { SettingDivider } from '@renderer/pages/settings'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -25,8 +26,6 @@ import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
-
-import { SettingDivider } from '..'
 
 interface Props {
   assistant: Assistant

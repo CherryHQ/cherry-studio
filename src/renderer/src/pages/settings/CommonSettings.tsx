@@ -1,10 +1,20 @@
-import { Button, CodeEditor, InfoTooltip, Input, MenuItem, MenuList, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  CodeEditor,
+  InfoTooltip,
+  Input,
+  MenuItem,
+  MenuList,
+  RowFlex,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
-import TextBadge from '@renderer/components/TextBadge'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -487,7 +497,7 @@ const CommonSettings: FC = () => {
 
       <SettingGroup theme={theme}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.font.title')} <TextBadge text="New" />
+          {t('settings.display.font.title')} <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -549,7 +559,8 @@ const CommonSettings: FC = () => {
 
       <SettingGroup theme={theme}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.assistant.title')} <TextBadge text="New" />
+          {t('settings.display.assistant.title')}{' '}
+          <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
         </SettingTitle>
         <SettingDivider />
         <SettingRow>

@@ -1,6 +1,7 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { ScrollbarProps } from '@renderer/components/Scrollbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingDivider } from '@renderer/pages/settings'
 import type {
   AgentConfiguration,
   AgentEntity,
@@ -16,8 +17,6 @@ import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { ModalProps } from 'antd'
 import React, { type ReactNode } from 'react'
-
-import { SettingDivider } from '..'
 
 // Shared types and constants for agent settings
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>

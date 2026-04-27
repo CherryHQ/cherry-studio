@@ -4,6 +4,7 @@ import { Button } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import FileItem from '@renderer/pages/files/FileItem'
+import { SettingDivider, SettingRow, SettingTitle } from '@renderer/pages/settings'
 import type { Assistant, QuickPhrase } from '@renderer/types'
 import { Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
@@ -11,8 +12,6 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
-
-import { SettingDivider, SettingRow, SettingTitle } from '..'
 
 interface AssistantRegularPromptsSettingsProps {
   assistant: Assistant
