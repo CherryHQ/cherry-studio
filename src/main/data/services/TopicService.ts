@@ -59,9 +59,18 @@ type Cursor =
   | { section: 'topic'; updatedAt: number; id: string }
   | { section: 'topic'; updatedAt: null; id: null }
 
+const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
+
+/**
+ * Cursors are server-issued opaque tokens. A renderer holding a stale cursor
+ * (older app version, schema rotated) should not be locked out with a 422 —
+ * fall back to the first page and warn so the renderer can transparently
+ * recover. Throwing here surfaces as a permanent client-side error with no
+ * recovery path.
+ */
 function decodeCursor(raw: string): Cursor {
   const firstColon = raw.indexOf(':')
-  if (firstColon < 0) throw DataApiErrorFactory.validation({ cursor: ['malformed cursor'] })
+  if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
   const section = raw.slice(0, firstColon)
   const rest = raw.slice(firstColon + 1)
 
@@ -71,15 +80,20 @@ function decodeCursor(raw: string): Cursor {
   if (section === 'topic') {
     if (rest === '') return { section: 'topic', updatedAt: null, id: null }
     const sep = rest.indexOf(':')
-    if (sep < 0) throw DataApiErrorFactory.validation({ cursor: ['malformed topic cursor'] })
+    if (sep < 0) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
     const updatedAt = Number(rest.slice(0, sep))
     const id = rest.slice(sep + 1)
     if (!Number.isFinite(updatedAt) || !id) {
-      throw DataApiErrorFactory.validation({ cursor: ['malformed topic cursor'] })
+      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt or empty id)')
     }
     return { section: 'topic', updatedAt, id }
   }
-  throw DataApiErrorFactory.validation({ cursor: ['unknown cursor section'] })
+  return warnAndFallback(raw, `unknown cursor section "${section}"`)
+}
+
+function warnAndFallback(raw: string, reason: string): Cursor {
+  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
+  return FIRST_PAGE_CURSOR
 }
 
 function encodePinCursor(orderKey: string): string {
