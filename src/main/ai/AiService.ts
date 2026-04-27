@@ -4,17 +4,21 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import type { ApprovalDecision } from '@shared/ai/transport'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   type ChatTransport,
   type EmbeddingModelUsage,
+  isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
   stepCountIs,
@@ -34,6 +38,7 @@ import { providerToAiSdkConfig } from './provider/config'
 import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
+import { applyApprovalDecisions } from './stream-manager/context/applyApprovalDecisions'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
 import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
@@ -415,16 +420,41 @@ export class AiService extends BaseService {
         })
         if (dispatched) return { ok: true }
 
-        // 2. MCP path — original stream already ended at approval-request.
-        // Synthesise a `continue-conversation` request and run the same
-        // dispatch pipeline as `Ai_Stream_Open`. We never read renderer-side
-        // `chat.state.messages` to figure out which call this is for; the
-        // renderer hands us `anchorId` straight from the DB-truth view.
+        // 2. MCP path — original stream paused at approval-request(s); we
+        // need to record this user decision on the DB anchor, then decide
+        // whether to start the continue-conversation stream now or wait
+        // for more clicks.
         if (!payload.topicId || !payload.anchorId) {
           logger.warn('Tool-approval response had no live registry entry and no anchor context', {
             approvalId: payload.approvalId
           })
           return { ok: false }
+        }
+
+        const decision: ApprovalDecision = {
+          approvalId: payload.approvalId,
+          approved: payload.approved,
+          ...(payload.reason !== undefined ? { reason: payload.reason } : {})
+        }
+
+        const anchor = await messageService.getById(payload.anchorId)
+        const beforeParts = anchor.data.parts ?? []
+        const updatedParts = applyApprovalDecisions(beforeParts, [decision])
+
+        // Record the decision regardless of whether we dispatch now —
+        // the renderer relies on this DB write (via DataApi reactive)
+        // to flip the clicked card from `approval-requested` to
+        // `approval-responded` so the user gets immediate feedback even
+        // when other approvals on the same turn are still pending.
+        await messageService.update(payload.anchorId, {
+          data: { parts: updatedParts }
+        })
+
+        const stillPending = updatedParts.some(
+          (p: CherryMessagePart) => isToolUIPart(p) && p.state === 'approval-requested'
+        )
+        if (stillPending) {
+          return { ok: true }
         }
 
         const aiStreamManager = application.get('AiStreamManager')
@@ -433,13 +463,7 @@ export class AiService extends BaseService {
           trigger: 'continue-conversation',
           topicId: payload.topicId,
           parentAnchorId: payload.anchorId,
-          approvalDecisions: [
-            {
-              approvalId: payload.approvalId,
-              approved: payload.approved,
-              ...(payload.reason !== undefined ? { reason: payload.reason } : {})
-            }
-          ]
+          approvalDecisions: []
         })
         return { ok: true }
       }

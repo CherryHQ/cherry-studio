@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { ExecutionTransport } from '@renderer/transport/IpcChatTransport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('ExecutionStreamCollector')
 
@@ -41,7 +41,14 @@ export default function ExecutionStreamCollector({
     }
   })
 
+  const seedRef = useRef(messages)
+  const hasReceivedChunkRef = useRef(false)
+
   useEffect(() => {
+    if (!hasReceivedChunkRef.current) {
+      if (messages === seedRef.current) return
+      hasReceivedChunkRef.current = true
+    }
     onMessagesChange(executionId, messages)
   }, [executionId, messages, onMessagesChange])
 
