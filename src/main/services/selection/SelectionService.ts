@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
@@ -15,6 +14,8 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
+
+import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from './selectionConfig'
 
 const logger = loggerService.withContext('SelectionService')
 

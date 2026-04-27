@@ -31,7 +31,6 @@ import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
-import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
@@ -41,10 +40,10 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
+import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
@@ -54,7 +53,6 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-const dxtService = new DxtService()
 
 export async function registerIpc() {
   const notificationService = new NotificationService()
@@ -536,24 +534,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
     const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
     return channelManager.getAllStatuses()
-  })
-
-  // DXT upload handler
-  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-    try {
-      // Create a temporary file with the uploaded content
-      const tempPath = await fileManager.createTempFile(event, fileName)
-      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
-
-      // Process DXT file using the temporary path
-      return await dxtService.uploadDxt(event, tempPath)
-    } catch (error) {
-      logger.error('DXT upload error:', error as Error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-      }
-    }
   })
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))

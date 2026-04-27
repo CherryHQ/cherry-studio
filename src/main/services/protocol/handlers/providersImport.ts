@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
-const logger = loggerService.withContext('URLSchema:handleProvidersProtocolUrl')
+const logger = loggerService.withContext('ProtocolService:providersImport')
 
 function ParseData(data: string) {
   try {

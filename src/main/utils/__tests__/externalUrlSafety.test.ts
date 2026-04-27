@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isSafeExternalUrl } from '../security'
+import { isSafeExternalUrl } from '../externalUrlSafety'
 
 describe('isSafeExternalUrl', () => {
   it('allows http URLs', () => {

@@ -58,17 +58,18 @@ import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 
-import DxtService from './DxtService'
-import { CallBackServer } from './mcp/oauth/callback'
-import { McpOAuthClientProvider } from './mcp/oauth/provider'
-import { ServerLogBuffer } from './mcp/ServerLogBuffer'
+import DxtService from '../DxtService'
+import { fileStorage } from '../FileStorage'
+import { CallBackServer } from './oauth/callback'
+import { McpOAuthClientProvider } from './oauth/provider'
+import { ServerLogBuffer } from './ServerLogBuffer'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
 type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
 
-const logger = loggerService.withContext('MCPService')
+const logger = loggerService.withContext('McpService')
 
 // Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
@@ -111,7 +112,7 @@ function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
     baseUrl: server?.baseUrl,
     type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
   }
-  return loggerService.withContext('MCPService', { ...base, ...extra })
+  return loggerService.withContext('McpService', { ...base, ...extra })
 }
 
 /**
@@ -148,10 +149,10 @@ function withCache<T extends unknown[], R>(
   }
 }
 
-@Injectable('MCPService')
+@Injectable('McpService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
-export class MCPService extends BaseService {
+export class McpService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
@@ -190,6 +191,19 @@ export class MCPService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
       const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
       return resolveHubToolName(nameOrId)
+    })
+    this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+      try {
+        const tempPath = await fileStorage.createTempFile(event, fileName)
+        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        return await this.dxtService.uploadDxt(event, tempPath)
+      } catch (error) {
+        logger.error('DXT upload error:', error as Error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to upload DXT file'
+        }
+      }
     })
   }
 

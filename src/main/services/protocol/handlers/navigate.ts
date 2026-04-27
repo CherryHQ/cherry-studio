@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
 
-const logger = loggerService.withContext('URLSchema:handleNavigateProtocolUrl')
+const logger = loggerService.withContext('ProtocolService:navigate')
 
 // Allowed route prefixes to prevent arbitrary navigation
 const ALLOWED_ROUTES = [

@@ -39,7 +39,8 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 import { mcpServerService } from '@data/services/McpServerService'
-import { MCPService } from '@main/services/MCPService'
+
+import { McpService } from '../McpService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
   type: 'object',
@@ -58,12 +59,12 @@ const createTool = (overrides: Partial<MCPTool>): MCPTool => ({
   ...overrides
 })
 
-describe('MCPService.listAllActiveServerTools', () => {
-  let mcpService: MCPService
+describe('McpService.listAllActiveServerTools', () => {
+  let mcpService: McpService
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mcpService = new MCPService()
+    mcpService = new McpService()
   })
 
   afterEach(() => {
