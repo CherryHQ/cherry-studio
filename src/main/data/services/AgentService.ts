@@ -252,6 +252,49 @@ export class AgentService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
+  async duplicateAgent(id: string): Promise<AgentEntity> {
+    const existing = await this.getAgent(id)
+    if (!existing) {
+      throw DataApiErrorFactory.notFound('Agent', id)
+    }
+
+    const newId = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const resolvedPaths = computeWorkspacePaths(existing.accessiblePaths, newId)
+
+    const insertData: InsertAgentRow = {
+      id: newId,
+      type: existing.type,
+      name: `${existing.name} (Copy)`,
+      description: existing.description,
+      instructions: existing.instructions,
+      model: existing.model,
+      planModel: existing.planModel,
+      smallModel: existing.smallModel,
+      mcps: existing.mcps ?? null,
+      allowedTools: existing.allowedTools ?? null,
+      configuration: existing.configuration ?? null,
+      accessiblePaths: resolvedPaths,
+      sortOrder: 0
+    }
+
+    const database = application.get('DbService').getDb()
+    await withSqliteErrors(
+      () =>
+        database.transaction(async (tx) => {
+          await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
+          await tx.insert(agentsTable).values(insertData)
+        }),
+      defaultHandlersFor('Agent', newId)
+    )
+
+    const result = await database.select().from(agentsTable).where(eq(agentsTable.id, newId)).limit(1)
+    if (!result[0]) {
+      throw DataApiErrorFactory.invalidOperation('duplicate agent', 'insert succeeded but select returned no row')
+    }
+
+    return rowToAgent(result[0])
+  }
+
   async deleteAgent(id: string): Promise<boolean> {
     const database = application.get('DbService').getDb()
     const agent = await this.findAgentRow(id)

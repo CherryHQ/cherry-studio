@@ -564,6 +564,35 @@ agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleVali
  */
 agentsRouter.delete('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.deleteAgent)
 
+/**
+ * @swagger
+ * /agents/{agentId}/duplicate:
+ *   post:
+ *     summary: Duplicate an agent
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent ID to duplicate
+ *     responses:
+ *       201:
+ *         description: Agent duplicated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AgentEntity'
+ *       404:
+ *         description: Agent not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+agentsRouter.post('/:agentId/duplicate', validateAgentId, handleValidationErrors, agentHandlers.duplicateAgent)
+
 // Create sessions router with agent context
 const createSessionsRouter = (): express.Router => {
   const sessionsRouter = express.Router({ mergeParams: true })

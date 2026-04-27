@@ -281,6 +281,9 @@
     "edit": {
       "title": "Edit Agent"
     },
+    "copy": {
+      "title": "Duplicate Agent"
+    },
     "empty": {
       "description": "Create an agent to handle complex tasks with AI-powered tools",
       "title": "No agents yet"

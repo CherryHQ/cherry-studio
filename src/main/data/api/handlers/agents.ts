@@ -71,6 +71,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  '/agents/:agentId/duplicate': {
+    POST: async ({ params }) => {
+      const duplicated = await agentService.duplicateAgent(params.agentId)
+      return duplicated
+    }
+  },
+
   '/agents/:agentId/sessions': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(query)

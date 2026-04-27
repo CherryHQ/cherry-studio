@@ -281,6 +281,9 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "copy": {
+      "title": "複製 Agent"
+    },
     "empty": {
       "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",
       "title": "尚無 Agent"

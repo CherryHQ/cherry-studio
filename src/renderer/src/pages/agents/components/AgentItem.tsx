@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -18,10 +18,11 @@ interface AgentItemProps {
   agent: AgentEntity
   isActive: boolean
   onDelete: (agent: AgentEntity) => void
+  onDuplicate: (agent: AgentEntity) => void
   onPress: () => void
 }
 
-const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
+const AgentItem = ({ agent, isActive, onDelete, onDuplicate, onPress }: AgentItemProps) => {
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
@@ -51,6 +52,12 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         onClick: () => AgentSettingsPopup.show({ agentId: agent.id })
       },
       {
+        label: t('agent.copy.title'),
+        key: 'duplicate',
+        icon: <CopyIcon size={14} />,
+        onClick: () => onDuplicate(agent)
+      },
+      {
         label: t('common.delete'),
         key: 'delete',
         icon: <DeleteIcon size={14} className="lucide-custom" />,
@@ -66,7 +73,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         }
       }
     ],
-    [t, agent, onDelete]
+    [t, agent, onDelete, onDuplicate]
   )
 
   return (

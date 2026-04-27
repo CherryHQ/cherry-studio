@@ -190,6 +190,17 @@ export class AgentApiClient {
     }
   }
 
+  public async duplicateAgent(id: string): Promise<CreateAgentResponse> {
+    const url = `${this.agentPaths.withId(id)}/duplicate`
+    try {
+      const response = await this.axios.post(url)
+      const data = CreateAgentResponseSchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to duplicate agent.')
+    }
+  }
+
   public async updateAgent(form: UpdateAgentForm): Promise<UpdateAgentResponse> {
     const url = this.agentPaths.withId(form.id)
     try {

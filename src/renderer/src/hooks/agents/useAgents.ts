@@ -121,12 +121,49 @@ export const useAgents = () => {
     [client, mutate, t]
   )
 
+  const duplicateAgent = useCallback(
+    async (id: string) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        const original = data?.find((a) => a.id === id)
+        const result = await client.duplicateAgent(id)
+        if (original) {
+          const index = data?.findIndex((a) => a.id === id) ?? -1
+          if (index !== -1) {
+            void mutate((prev) => {
+              if (!prev) return [result]
+              const updated = [...prev]
+              updated.splice(index + 1, 0, result)
+              return updated
+            })
+          } else {
+            void mutate((prev) => [result, ...(prev ?? [])])
+          }
+        }
+        window.toast.success(t('common.add_success'))
+        return { success: true, data: result }
+      } catch (error) {
+        const errorMessage = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
+        window.toast.error(errorMessage)
+        if (error instanceof Error) {
+          return { success: false, error }
+        } else {
+          return { success: false, error: new Error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))) }
+        }
+      }
+    },
+    [client, data, mutate, t]
+  )
+
   return {
     agents: data,
     error,
     isLoading,
     addAgent,
     deleteAgent,
+    duplicateAgent,
     getAgent,
     reorderAgents
   }

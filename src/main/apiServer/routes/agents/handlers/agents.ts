@@ -616,6 +616,72 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
 
 /**
  * @swagger
+ * /v1/agents/{agentId}/duplicate:
+ *   post:
+ *     summary: Duplicate an agent
+ *     description: Creates a copy of an existing agent with a new ID and "(Copy)" suffix in the name
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent ID to duplicate
+ *     responses:
+ *       201:
+ *         description: Agent duplicated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AgentEntity'
+ *       404:
+ *         description: Agent not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+export const duplicateAgent = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    logger.debug('Duplicating agent', { agentId })
+
+    const duplicated = await agentService.duplicateAgent(agentId)
+
+    logger.info('Agent duplicated', { originalAgentId: agentId, newAgentId: duplicated.id })
+    return res.status(201).json(duplicated)
+  } catch (error: any) {
+    if (error.status === 404) {
+      logger.warn('Agent not found for duplication', { agentId: req.params.agentId })
+      return res.status(404).json({
+        error: {
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
+        }
+      })
+    }
+
+    logger.error('Error duplicating agent', { error, agentId: req.params.agentId })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to duplicate agent',
+        type: 'internal_error',
+        code: 'agent_duplicate_failed'
+      }
+    })
+  }
+}
+
+/**
+ * @swagger
  * /v1/agents/reorder:
  *   put:
  *     summary: Reorder agents

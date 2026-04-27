@@ -17,7 +17,7 @@ interface AgentsProps {
 
 const Agents = ({ onSelectItem }: AgentsProps) => {
   const { t } = useTranslation()
-  const { agents, deleteAgent, isLoading, error, reorderAgents } = useAgents()
+  const { agents, deleteAgent, duplicateAgent, isLoading, error, reorderAgents } = useAgents()
   const { apiServerRunning, startApiServer } = useApiServer()
   const [activeAgentId] = useCache('agent.active_id')
   const { setActiveAgentId } = useActiveAgent()
@@ -67,6 +67,7 @@ const Agents = ({ onSelectItem }: AgentsProps) => {
             agent={agent}
             isActive={agent.id === activeAgentId}
             onDelete={() => deleteAgent(agent.id)}
+            onDuplicate={() => duplicateAgent(agent.id)}
             onPress={() => handleAgentPress(agent.id)}
           />
         )}
