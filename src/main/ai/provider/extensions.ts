@@ -4,13 +4,20 @@ import type { AmazonBedrockProvider, AmazonBedrockProviderSettings } from '@ai-s
 import type { ByteDanceProviderSettings } from '@ai-sdk/bytedance'
 import type { CerebrasProviderSettings } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
-import type { GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
-import type { GoogleVertexProvider, GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
-import type { GoogleVertexMaasProvider, GoogleVertexMaasProviderSettings } from '@ai-sdk/google-vertex/maas/edge'
-import type { GroqProviderSettings } from '@ai-sdk/groq'
-import type { HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
-import type { MistralProviderSettings } from '@ai-sdk/mistral'
-import type { PerplexityProviderSettings } from '@ai-sdk/perplexity'
+import {
+  type GoogleVertexAnthropicProvider,
+  type GoogleVertexAnthropicProviderSettings
+} from '@ai-sdk/google-vertex/anthropic/edge'
+import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import {
+  createVertexMaas,
+  type GoogleVertexMaasProvider,
+  type GoogleVertexMaasProviderSettings
+} from '@ai-sdk/google-vertex/maas/edge'
+import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
+import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
+import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
+import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perplexity'
 import type { ProviderV3 } from '@ai-sdk/provider'
 import type { TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
@@ -20,13 +27,18 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import type { VoyageProviderSettings } from 'voyage-ai-provider'
 
-import type { AihubmixProviderSettings } from './custom/aihubmix/aihubmixProvider'
-import type { DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
-import type { DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
-import type { LocalEmbeddingProviderSettings } from './custom/localEmbedding/localEmbeddingProvider'
-import type { MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
-import type { ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
-import type {
+import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix/aihubmixProvider'
+import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
+import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
+import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
+import { createGoogleVertexAnthropic } from './custom/google-vertex-anthropic-provider'
+import {
+  createLocalEmbeddingProvider,
+  type LocalEmbeddingProviderSettings
+} from './custom/localEmbedding/localEmbeddingProvider'
+import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
+import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
+import {
   createKimiWebSearchToolFor,
   KIMI_WEB_SEARCH_TOOL_NAME,
   KimiFormulaCredentials,
@@ -65,7 +77,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => (await import('@ai-sdk/google-vertex/anthropic/edge')).createVertexAnthropic(settings),
+  create: createGoogleVertexAnthropic,
   toolFactories: {
     webSearch:
       (provider: GoogleVertexAnthropicProvider) =>
@@ -74,7 +86,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
       })
   }
 } as const satisfies ProviderExtensionConfig<
-  GoogleVertexProviderSettings,
+  GoogleVertexAnthropicProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
 >)
