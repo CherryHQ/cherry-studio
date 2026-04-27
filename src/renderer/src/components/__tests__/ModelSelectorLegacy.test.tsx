@@ -26,7 +26,7 @@ vi.mock('@renderer/utils/naming', () => ({
 // Import after mocking
 import type { Provider } from '@renderer/types'
 
-import ModelSelector, { modelSelectFilter } from '../ModelSelector'
+import ModelSelector, { modelSelectFilter } from '../ModelSelectorLegacy'
 
 describe('ModelSelector', () => {
   const mockProviders: Provider[] = [
