@@ -13,7 +13,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, isNull, like, lt, notInArray, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 import { pinService } from './PinService'
@@ -108,6 +108,24 @@ function encodeTopicSectionStart(): string {
   return 'topic:'
 }
 
+/**
+ * Build a SQL predicate for substring search over `topic.name`. Escapes the
+ * SQL `LIKE` wildcards `%` and `_` (and the escape character `\` itself) so
+ * that user input like `100%` or `a_b` is matched literally rather than
+ * matching everything / matching `a-b` etc. Uses an explicit `ESCAPE '\'`
+ * clause because drizzle-orm's `like()` builder does not expose ESCAPE.
+ *
+ * The `q` value is bound parameterically (no SQL injection); only the
+ * wildcards are escaped to preserve LIKE semantics.
+ */
+function buildSearchPredicate(q: string | undefined): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+  const escaped = trimmed.replace(/[\\%_]/g, '\\$&')
+  const pattern = `%${escaped}%`
+  return sql`${topicTable.name} LIKE ${pattern} ESCAPE '\\'`
+}
+
 export class TopicService {
   /**
    * Get a topic by ID
@@ -150,7 +168,7 @@ export class TopicService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
-    const search = query.q?.trim() ? like(topicTable.name, `%${query.q.trim()}%`) : undefined
+    const search = buildSearchPredicate(query.q)
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
