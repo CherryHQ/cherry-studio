@@ -15,6 +15,48 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils:File')
 
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp'
+}
+
+function detectImageMimeFromBuffer(data: Buffer): string | null {
+  if (data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png'
+  }
+
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  if (data.length >= 6 && ['GIF87a', 'GIF89a'].includes(data.subarray(0, 6).toString('ascii'))) {
+    return 'image/gif'
+  }
+
+  if (
+    data.length >= 12 &&
+    data.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    data.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp'
+  }
+
+  if (data.length >= 2 && data.subarray(0, 2).toString('ascii') === 'BM') {
+    return 'image/bmp'
+  }
+
+  return null
+}
+
+function getImageMimeFromPath(filePath: string, data: Buffer): string {
+  const ext = path.extname(filePath).slice(1).toLowerCase()
+  return IMAGE_MIME_BY_EXT[ext] || detectImageMimeFromBuffer(data) || 'image/png'
+}
+
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileType>()
 
@@ -294,8 +336,7 @@ export async function base64Image(file: FileMetadata): Promise<{ mime: string; b
   const filePath = path.join(getFilesDir(), `${file.id}${file.ext}`)
   const data = await fs.promises.readFile(filePath)
   const base64 = data.toString('base64')
-  const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
-  const mime = `image/${ext}`
+  const mime = getImageMimeFromPath(filePath, data)
   return {
     mime,
     base64,

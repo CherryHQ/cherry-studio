@@ -96,4 +96,30 @@ describe('getEditableImageInput', () => {
     expect(mocks.base64Image).not.toHaveBeenCalled()
     expect(result).toBe('https://example.com/image.png')
   })
+
+  it('normalizes incomplete image data URL MIME types from the file API', async () => {
+    mocks.base64Image.mockResolvedValue({
+      mime: 'image',
+      base64: 'aGVsbG8=',
+      data: 'data:image;base64,aGVsbG8='
+    })
+
+    const result = await getEditableImageInput(
+      createImageBlock({
+        file: {
+          id: 'file-3',
+          name: 'file-3.png',
+          origin_name: 'file-3.png',
+          path: '/tmp/file-3.png',
+          size: 5,
+          ext: '.png',
+          type: 'image',
+          created_at: new Date().toISOString(),
+          count: 1
+        }
+      })
+    )
+
+    expect(result).toBe('data:image/png;base64,aGVsbG8=')
+  })
 })
