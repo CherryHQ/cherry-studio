@@ -325,13 +325,15 @@ export class ChatMigrator extends BaseMigrator {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
-      // Load valid assistant IDs for FK validation (set by AssistantMigrator).
-      // Always include DEFAULT_ASSISTANT_ID — the seeder guarantees that row
-      // exists post-migration, so it's a safe FK target for orphan-fallback.
+      // Load valid assistant IDs for FK validation (set by AssistantMigrator,
+      // which guarantees DEFAULT_ASSISTANT_ID is included via its backstop
+      // insert — see AssistantMigrator.execute()).
       const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
       if (!sharedAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
+      // Defensive copy so the local `add(DEFAULT_ASSISTANT_ID)` below doesn't
+      // leak into shared state if the upstream invariant ever regresses.
       this.validAssistantIds = new Set(sharedAssistantIds)
       this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       this.validModelIds = ctx.db?.select
@@ -626,22 +628,16 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
-    // Skip topics with no messages. v1 surfaced an empty topic on first
-    // launch (and on every "new topic" click that the user then abandoned),
-    // so a freshly-migrated DB ends up dotted with empty conversations the
-    // user never typed into. They have no usable timestamp source anyway —
-    // their only outcome would be cluttering the topic list. Topics that
-    // matter to the user have at least one message.
-    if (!Array.isArray(oldTopic.messages) || oldTopic.messages.length === 0) {
-      logger.info('Skipping empty topic (no messages in source)', { topicId: oldTopic.id })
-      return null
-    }
-
-    // Merge topic metadata from Redux (name, pinned, etc.)
-    // Dexie topics may have stale or missing metadata; Redux is authoritative for these fields
+    // Merge topic metadata from Redux (name, pinned, etc.) BEFORE the
+    // empty-topic skip below — a topic that has zero Dexie messages but
+    // whose Redux meta says `pinned: true` or `isNameManuallyEdited: true`
+    // is a "user touched this" signal that contradicts the
+    // "abandoned new-topic click" hypothesis. Skipping such a topic loses
+    // intentional state (empty pinned placeholder, named-but-empty draft).
+    // Dexie topics may have stale or missing metadata; Redux is authoritative
+    // for these fields.
     const topicMeta = this.topicMetaLookup.get(oldTopic.id)
     if (topicMeta) {
-      // Merge Redux metadata into Dexie topic
       // Note: Redux topic.name can also be empty from ancient version migrations (see store/migrate.ts:303-305)
       oldTopic.name = topicMeta.name || oldTopic.name
       oldTopic.pinned = topicMeta.pinned ?? oldTopic.pinned
@@ -654,6 +650,23 @@ export class ChatMigrator extends BaseMigrator {
       if (topicMeta.updatedAt && !oldTopic.updatedAt) {
         oldTopic.updatedAt = topicMeta.updatedAt
       }
+    }
+
+    // Skip topics with no messages AND no user-intent signal. v1 surfaced
+    // an empty topic on first launch (and on every "new topic" click that
+    // the user then abandoned), so a freshly-migrated DB ends up dotted
+    // with empty conversations the user never typed into. They have no
+    // usable timestamp source anyway — their only outcome would be
+    // cluttering the topic list.
+    //
+    // User-intent signals are `pinned` or `isNameManuallyEdited`. We do
+    // NOT use `name` as a signal because v1 generates a default name on
+    // creation, so every abandoned topic carries one.
+    const hasMessages = Array.isArray(oldTopic.messages) && oldTopic.messages.length > 0
+    const hasUserIntent = Boolean(oldTopic.pinned || oldTopic.isNameManuallyEdited)
+    if (!hasMessages && !hasUserIntent) {
+      logger.info('Skipping empty topic (no messages, no user-intent metadata)', { topicId: oldTopic.id })
+      return null
     }
 
     // Fallback: If name is still empty after merge, use a default name
@@ -669,8 +682,15 @@ export class ChatMigrator extends BaseMigrator {
     // and flood the top of the topic list. Topic.updatedAt should be at least
     // its latest message's createdAt, so use that.
     if (!oldTopic.createdAt || !oldTopic.updatedAt) {
+      // Older v1 versions occasionally stored `createdAt` as a numeric
+      // epoch-ms (Date.parse() returns NaN on those). Accept both.
+      const toMillis = (createdAt: unknown): number => {
+        if (typeof createdAt === 'number' && Number.isFinite(createdAt)) return createdAt
+        if (typeof createdAt === 'string' && createdAt.length > 0) return Date.parse(createdAt)
+        return NaN
+      }
       const messageMillis = (oldTopic.messages ?? [])
-        .map((m) => (m.createdAt ? Date.parse(m.createdAt) : NaN))
+        .map((m) => toMillis(m.createdAt))
         .filter((t) => Number.isFinite(t))
       if (messageMillis.length > 0) {
         if (!oldTopic.createdAt) {
@@ -680,12 +700,12 @@ export class ChatMigrator extends BaseMigrator {
           oldTopic.updatedAt = new Date(Math.max(...messageMillis)).toISOString()
         }
       } else {
-        // Topic has messages but none carry a parseable createdAt; downstream
-        // parseTimestamp() will fall back to Date.now() and pile this topic
-        // up at the migration moment. Surface the path so it's diagnosable.
+        // No parseable message timestamps; downstream parseTimestamp() will
+        // fall back to Date.now() and pile this topic up at the migration
+        // moment. Surface the path so it's diagnosable.
         logger.warn('Topic has no derivable timestamp source, falling back to Date.now()', {
           topicId: oldTopic.id,
-          messageCount: oldTopic.messages.length
+          messageCount: oldTopic.messages?.length ?? 0
         })
       }
     }

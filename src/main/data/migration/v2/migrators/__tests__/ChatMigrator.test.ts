@@ -253,6 +253,28 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
   })
 
+  it('accepts numeric epoch-ms timestamps when deriving from messages', () => {
+    // Older v1 versions stored message.createdAt as a number, not an ISO
+    // string. Date.parse(number) returns NaN, so without the typeof number
+    // branch these would be silently filtered and the topic would fall
+    // through to Date.now().
+    const b1 = block('b1', 'u1')
+    const numericTs = new Date('2025-03-15T10:00:00.000Z').getTime()
+    const oldTopic: OldTopic = {
+      id: 't-numeric-ts',
+      assistantId: 'ast-1',
+      name: 'Numeric Timestamps',
+      createdAt: '',
+      updatedAt: '',
+      // @ts-expect-error - exercising legacy numeric timestamp path
+      messages: [msg('u1', 'user', ['b1'], { createdAt: numericTs })]
+    }
+    const result = prepareTopic(oldTopic, [b1])
+    expect(result).not.toBeNull()
+    expect(result?.topic.createdAt).toBe(numericTs)
+    expect(result?.topic.updatedAt).toBe(numericTs)
+  })
+
   it('falls through to parseTimestamp when no message has a parseable createdAt', () => {
     // Edge case: topic has messages but none carry a parseable createdAt.
     // messageMillis is empty, so we cannot derive timestamps; downstream
@@ -293,6 +315,38 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: []
     }
     expect(prepareTopic(oldTopic, [])).toBeNull()
+  })
+
+  it('keeps empty topic when user pinned it (user-intent signal)', () => {
+    // A pinned empty topic is "user touched this" — the user explicitly
+    // pinned a placeholder. Dropping it would lose intentional state.
+    const oldTopic: OldTopic = {
+      id: 't-pinned-empty',
+      assistantId: 'ast-1',
+      name: 'Pinned Empty',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      pinned: true
+    }
+    const result = prepareTopic(oldTopic, [])
+    expect(result).not.toBeNull()
+    expect(result?.topic.isPinned).toBe(true)
+  })
+
+  it('keeps empty topic when user manually renamed it', () => {
+    // isNameManuallyEdited is set by the rename UI — also a clear
+    // user-intent signal that should survive the empty-topic skip.
+    const oldTopic: OldTopic = {
+      id: 't-renamed-empty',
+      assistantId: 'ast-1',
+      name: 'My Renamed Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      isNameManuallyEdited: true
+    }
+    expect(prepareTopic(oldTopic, [])).not.toBeNull()
   })
 
   it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
