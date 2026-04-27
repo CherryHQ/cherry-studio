@@ -45,6 +45,17 @@ describe('pinHandlers', () => {
       expect(result).toEqual([{ id: PIN_ID, entityType: 'topic', entityId: ENTITY_ID }])
     })
 
+    it('should accept model as a pin entity type when listing', async () => {
+      listByEntityTypeMock.mockResolvedValueOnce([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+
+      const result = await pinHandlers['/pins'].GET({
+        query: { entityType: 'model' }
+      } as never)
+
+      expect(listByEntityTypeMock).toHaveBeenCalledWith('model')
+      expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+    })
+
     it('should reject GET when query.entityType is missing', async () => {
       await expect(pinHandlers['/pins'].GET({ query: {} } as never)).rejects.toHaveProperty('name', 'ZodError')
       expect(listByEntityTypeMock).not.toHaveBeenCalled()
@@ -132,6 +143,18 @@ describe('pinHandlers', () => {
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(pinMock).not.toHaveBeenCalled()
+    })
+
+    it('should accept UniqueModelId entityId values for any shared entity type', async () => {
+      pinMock.mockResolvedValueOnce({ id: PIN_ID, entityType: 'topic', entityId: MODEL_ID })
+
+      await expect(
+        pinHandlers['/pins'].POST({
+          body: { entityType: 'topic', entityId: MODEL_ID }
+        } as never)
+      ).resolves.toMatchObject({ id: PIN_ID, entityType: 'topic', entityId: MODEL_ID })
+
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'topic', entityId: MODEL_ID })
     })
   })
 

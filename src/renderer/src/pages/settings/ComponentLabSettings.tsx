@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingGroup, SettingTitle } from '.'
 import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettings'
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
+import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
 
 const ComponentLabSettings: FC = () => {
   const { t } = useTranslation()
@@ -19,6 +20,7 @@ const ComponentLabSettings: FC = () => {
           <TabsList>
             <TabsTrigger value="assistant-selector">{t('settings.componentLab.assistantSelector.title')}</TabsTrigger>
             <TabsTrigger value="agent-selector">{t('settings.componentLab.agentSelector.title')}</TabsTrigger>
+            <TabsTrigger value="model-selector">{t('settings.componentLab.modelSelector.title')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="assistant-selector" className="mt-0">
@@ -26,6 +28,9 @@ const ComponentLabSettings: FC = () => {
           </TabsContent>
           <TabsContent value="agent-selector" className="mt-0">
             <ComponentLabAgentSelectorSettings />
+          </TabsContent>
+          <TabsContent value="model-selector" className="mt-0">
+            <ComponentLabModelSelectorSettings />
           </TabsContent>
         </Tabs>
       </SettingGroup>

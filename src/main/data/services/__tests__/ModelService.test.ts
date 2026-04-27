@@ -418,6 +418,39 @@ describe('ModelService.create', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ModelService.delete — pin cleanup
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.delete', () => {
+  const dbh = setupTestDatabase()
+
+  it('purges model pins when deleting the model row', async () => {
+    const modelId = createUniqueModelId('openai', 'gpt-4o')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: modelId,
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      name: 'GPT-4o'
+    })
+    await dbh.db.insert(pinTable).values({
+      entityType: 'model',
+      entityId: modelId,
+      orderKey: 'a0'
+    })
+
+    await modelService.delete('openai', 'gpt-4o')
+
+    const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, modelId))
+    expect(pins).toHaveLength(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.list — query and filter behavior
 // ─────────────────────────────────────────────────────────────────────────────
 
