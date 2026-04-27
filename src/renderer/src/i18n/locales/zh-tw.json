@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
       }
     },
+    "copy": {
+      "title": "複製 Agent"
+    },
     "delete": {
       "content": "刪除該 Agent 會強制停止並刪除該 Agent 的所有工作階段。確定要刪除嗎？",
       "error": {
@@ -280,9 +283,6 @@
     },
     "edit": {
       "title": "編輯 Agent"
-    },
-    "copy": {
-      "title": "複製 Agent"
     },
     "empty": {
       "description": "建立 Agent 以透過 AI 驅動的工具處理複雜任務",

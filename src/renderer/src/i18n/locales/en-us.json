@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       }
     },
+    "copy": {
+      "title": "Duplicate Agent"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -280,9 +283,6 @@
     },
     "edit": {
       "title": "Edit Agent"
-    },
-    "copy": {
-      "title": "Duplicate Agent"
     },
     "empty": {
       "description": "Create an agent to handle complex tasks with AI-powered tools",

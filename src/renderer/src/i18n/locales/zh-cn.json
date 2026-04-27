@@ -271,6 +271,9 @@
         "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
       }
     },
+    "copy": {
+      "title": "复制 Agent"
+    },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "error": {
@@ -280,9 +283,6 @@
     },
     "edit": {
       "title": "编辑 Agent"
-    },
-    "copy": {
-      "title": "复制 Agent"
     },
     "empty": {
       "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
