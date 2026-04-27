@@ -305,6 +305,63 @@ describe('TagService', () => {
     })
   })
 
+  describe('purgeForEntities', () => {
+    it('should be a no-op when entityIds is empty', async () => {
+      await seedTags()
+      await dbh.db
+        .insert(entityTagTable)
+        .values([{ entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 }])
+
+      await expect(tagService.purgeForEntities(dbh.db, 'assistant', [])).resolves.toBeUndefined()
+
+      const rows = await dbh.db.select().from(entityTagTable)
+      expect(rows).toHaveLength(1)
+    })
+
+    it('should be equivalent to purgeForEntity for a single id', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
+      ])
+
+      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1])
+
+      const rows = await dbh.db.select().from(entityTagTable)
+      expect(rows).toEqual([expect.objectContaining({ entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_2 })])
+    })
+
+    it('should bulk-delete associations for all listed ids and leave other entityTypes alone', async () => {
+      await seedTags()
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 },
+        { entityType: 'assistant', entityId: ASSISTANT_2, tagId: TAG_3, createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: TOPIC_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 }
+      ])
+
+      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1, ASSISTANT_2])
+
+      const rows = await dbh.db.select().from(entityTagTable)
+      expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: TOPIC_1, tagId: TAG_1 })])
+    })
+
+    it('should not affect rows where the same entityId belongs to a different entityType', async () => {
+      await seedTags()
+      // The same UUID is reused as both an assistant id and a topic id to verify
+      // the (entityType, entityId) compound match is exact, not entityId-only.
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: ASSISTANT_1, tagId: TAG_1, createdAt: 1, updatedAt: 1 },
+        { entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2, createdAt: 1, updatedAt: 1 }
+      ])
+
+      await tagService.purgeForEntities(dbh.db, 'assistant', [ASSISTANT_1])
+
+      const rows = await dbh.db.select().from(entityTagTable)
+      expect(rows).toEqual([expect.objectContaining({ entityType: 'topic', entityId: ASSISTANT_1, tagId: TAG_2 })])
+    })
+  })
+
   describe('getTagIdsByEntities', () => {
     it('should return a map with stable per-entity ordering', async () => {
       await seedTags()

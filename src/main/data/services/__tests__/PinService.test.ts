@@ -238,4 +238,51 @@ describe('PinService', () => {
       expect(rows.map((r) => r.id)).toEqual([existing.id])
     })
   })
+
+  describe('purgeForEntities', () => {
+    it('should be a no-op when entityIds is empty', async () => {
+      const seeded = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+
+      await expect(pinService.purgeForEntities(dbh.db, 'topic', [])).resolves.toBeUndefined()
+
+      const rows = await dbh.db.select().from(pinTable)
+      expect(rows.map((r) => r.id)).toEqual([seeded.id])
+    })
+
+    it('should be equivalent to purgeForEntity for a single id', async () => {
+      const target = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+      const sibling = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
+
+      await pinService.purgeForEntities(dbh.db, 'topic', [target.entityId])
+
+      const rows = await dbh.db.select().from(pinTable)
+      expect(rows.map((r) => r.id)).toEqual([sibling.id])
+    })
+
+    it('should bulk-delete only the listed ids and leave other entityTypes alone', async () => {
+      const a = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+      const b = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
+      const c = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
+      const sameIdOtherType = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+
+      await pinService.purgeForEntities(dbh.db, 'topic', [a.entityId, b.entityId])
+
+      const rows = await dbh.db.select().from(pinTable)
+      const remainingIds = rows.map((r) => r.id).sort()
+      expect(remainingIds).toEqual([c.id, sameIdOtherType.id].sort())
+    })
+
+    it('should not mutate neighbor orderKeys for survivors within the same entityType', async () => {
+      const a = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
+      const b = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
+      const c = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
+
+      await pinService.purgeForEntities(dbh.db, 'topic', [b.entityId])
+
+      const remaining = await pinService.listByEntityType('topic')
+      expect(remaining.map((p) => p.id)).toEqual([a.id, c.id])
+      expect(remaining[0].orderKey).toBe(a.orderKey)
+      expect(remaining[1].orderKey).toBe(c.orderKey)
+    })
+  })
 })
