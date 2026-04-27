@@ -304,6 +304,15 @@ export class TopicService {
    * deletion stay consistent — see `pinTable` JSDoc for the consumer-side
    * `purgeForEntity` contract.
    *
+   * **Soft-delete invariant**: this service treats `deletedAt`-set rows as
+   * not-existing for read paths (see `getById` / `listByCursor`'s `isNull`
+   * filters). The current `delete()` is hard delete, so the column stays
+   * NULL in practice. If a future caller introduces a soft-delete path for
+   * topics, it MUST also call `pinService.purgeForEntity(tx, 'topic', id)`
+   * in the same transaction — otherwise the pin row outlives the topic and
+   * `listByCursor`'s pin section JOIN silently hides the row from BOTH the
+   * pinned and unpinned sections, making the topic invisible with no log.
+   *
    * TODO: Clean up associated files (images, attachments) from disk.
    */
   async delete(id: string): Promise<void> {
