@@ -9,7 +9,7 @@ import type {
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { type Key, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { type Key, memo, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
 export interface DraggableVirtualListRef {
   measure: () => void
@@ -128,9 +128,9 @@ function DraggableVirtualList<T>({
     [virtualizer]
   )
 
-  useEffect(() => {
-    droppableInnerRef.current?.(scrollContainerRef.current)
+  useLayoutEffect(() => {
     parentRef.current = scrollContainerRef.current
+    droppableInnerRef.current?.(scrollContainerRef.current)
   })
 
   return (
