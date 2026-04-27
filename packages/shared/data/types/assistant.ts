@@ -111,6 +111,23 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   customParameters: []
 }
 
+/**
+ * Canonical "default assistant" row payload. Single source of truth shared
+ * between the seeder (`DefaultAssistantSeeder`) and the v2 migrator's
+ * fallback insert path (`AssistantMigrator.execute()`), so a default-row
+ * recovery during migration produces the same shape the post-migration
+ * seeder would. Edit this object to update both consumers.
+ */
+export const DEFAULT_ASSISTANT_PAYLOAD = {
+  id: DEFAULT_ASSISTANT_ID,
+  // TODO: i18n — must remain build-time-stable so seeder version hashes don't drift on locale switches
+  name: 'Default Assistant',
+  prompt: '',
+  emoji: '🌟',
+  description: '',
+  settings: DEFAULT_ASSISTANT_SETTINGS
+} as const
+
 // ============================================================================
 // Assistant Entity
 // ============================================================================

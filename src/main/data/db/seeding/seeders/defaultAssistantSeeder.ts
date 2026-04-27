@@ -1,5 +1,5 @@
 import { assistantTable } from '@data/db/schemas/assistant'
-import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_PAYLOAD } from '@shared/data/types/assistant'
 import { eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
@@ -13,24 +13,18 @@ import { hashObject } from '../hashObject'
  * Idempotent: if the row already exists (matched by id) this seeder is a
  * no-op. The hashed `version` only changes when the seeded payload below
  * does, so the seed runner re-applies it on payload changes only.
+ *
+ * The payload is shared with `AssistantMigrator.execute()`, which inserts
+ * the same row when v1 data has no id='default' source. Both paths must
+ * use {@link DEFAULT_ASSISTANT_PAYLOAD} so they don't drift.
  */
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
   readonly description = 'Insert the renderer-side default assistant row'
   readonly version: string
 
-  private static readonly seedPayload = {
-    id: DEFAULT_ASSISTANT_ID,
-    // TODO: i18n
-    name: 'Default Assistant',
-    prompt: '',
-    emoji: '🌟',
-    description: '',
-    settings: DEFAULT_ASSISTANT_SETTINGS
-  }
-
   constructor() {
-    this.version = hashObject(DefaultAssistantSeeder.seedPayload)
+    this.version = hashObject(DEFAULT_ASSISTANT_PAYLOAD)
   }
 
   async run(db: DbType): Promise<void> {
@@ -42,6 +36,6 @@ export class DefaultAssistantSeeder implements ISeeder {
 
     if (existing.length > 0) return
 
-    await db.insert(assistantTable).values(DefaultAssistantSeeder.seedPayload)
+    await db.insert(assistantTable).values(DEFAULT_ASSISTANT_PAYLOAD)
   }
 }
