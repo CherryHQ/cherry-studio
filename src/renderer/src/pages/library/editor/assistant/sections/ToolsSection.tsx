@@ -63,8 +63,8 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.tools.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.tools.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.tools.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.tools.desc')}</p>
       </div>
 
       <ModeGroup>
@@ -81,10 +81,10 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
       {mcpMode === 'manual' && (
         <div>
-          <label className="mb-2 block text-[10px] text-muted-foreground/60">{t('library.config.tools.added')}</label>
+          <label className="mb-2 block text-sm text-muted-foreground/60">{t('library.config.tools.added')}</label>
 
           {isLoading ? (
-            <p className="px-3 py-2 text-[10px] text-muted-foreground/40">{t('common.loading')}</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground/50">{t('common.loading')}</p>
           ) : boundServers.length === 0 ? (
             <EmptyHint />
           ) : (
@@ -100,25 +100,25 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
               <Button
                 variant="ghost"
                 disabled={isLoading}
-                className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-3xs border border-border/20 px-2.5 py-1.5 font-normal text-[10px] text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/30 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
+                className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2.5 py-1.5 font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
                 <Plus size={10} /> {t('library.config.tools.add_mcp')}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={4} className="w-64 rounded-2xs p-2">
+            <PopoverContent align="start" sideOffset={4} className="w-64 rounded-xs p-2">
               <div className="relative mb-2">
                 <Search
                   size={10}
-                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground/40"
+                  className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground/50"
                 />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t('library.config.tools.search')}
-                  className="h-auto rounded-3xs border border-border/20 bg-accent/10 py-1.5 pr-2 pl-6 text-[10px] shadow-none transition-all focus-visible:border-border/40 focus-visible:ring-0 md:text-[10px]"
+                  className="h-auto rounded-2xs border border-border/20 bg-accent/15 py-1.5 pr-2 pl-6 text-xs shadow-none transition-all focus-visible:border-border/40 focus-visible:ring-0"
                 />
               </div>
               {availableForPicker.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[9px] text-muted-foreground/40">
+                <p className="px-2 py-3 text-center text-xs text-muted-foreground/50">
                   {t('library.config.tools.no_more')}
                 </p>
               ) : (
@@ -129,7 +129,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
                         key={s.id}
                         size="sm"
                         variant="ghost"
-                        className="rounded-3xs"
+                        className="rounded-2xs"
                         icon={<ServerAvatar server={s} size={16} />}
                         label={s.name}
                         description={s.description || s.baseUrl || s.command}
@@ -145,13 +145,11 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
         </div>
       )}
 
-      <div className="flex items-start gap-2 rounded-2xs border border-blue-500/15 bg-blue-500/5 px-3 py-2.5">
-        <AlertCircle size={12} className="mt-px shrink-0 text-blue-500/50" />
+      <div className="flex items-start gap-2 rounded-xs border border-blue-500/15 bg-blue-500/5 px-3 py-2.5">
+        <AlertCircle size={12} className="mt-px shrink-0 text-blue-500/60" />
         <div>
-          <p className="text-[10px] text-blue-600/60 dark:text-blue-400/70">{t('library.config.tools.info_main')}</p>
-          <p className="mt-0.5 text-[9px] text-blue-600/40 dark:text-blue-400/50">
-            {t('library.config.tools.info_sub')}
-          </p>
+          <p className="text-xs text-blue-600/70 dark:text-blue-400/80">{t('library.config.tools.info_main')}</p>
+          <p className="mt-0.5 text-xs text-blue-600/50 dark:text-blue-400/60">{t('library.config.tools.info_sub')}</p>
         </div>
       </div>
     </div>
@@ -162,22 +160,22 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
   const { t } = useTranslation()
   const inactive = !server.isActive
   return (
-    <div className="flex items-center gap-3 rounded-2xs border border-border/15 bg-accent/10 px-3 py-2.5 transition-colors hover:border-border/30">
+    <div className="flex items-center gap-3 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/30">
       <ServerAvatar server={server} size={36} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <NormalTooltip content={server.name} side="top">
-            <span className="truncate text-[11px] text-foreground">{server.name}</span>
+            <span className="truncate text-sm text-foreground">{server.name}</span>
           </NormalTooltip>
           {inactive && (
-            <span className="shrink-0 rounded-4xs bg-warning/10 px-1 py-px text-[8px] text-warning">
+            <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-xs text-warning">
               {t('library.config.tools.inactive_badge')}
             </span>
           )}
         </div>
         {server.description && (
           <NormalTooltip content={<span className="whitespace-pre-wrap">{server.description}</span>} side="top">
-            <div className="mt-0.5 truncate text-[9px] text-muted-foreground/45">{server.description}</div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground/55">{server.description}</div>
           </NormalTooltip>
         )}
       </div>
@@ -205,14 +203,14 @@ function ServerAvatar({ server, size }: { server: MCPServer; size: number }) {
       <img
         src={server.logoUrl}
         alt=""
-        className="shrink-0 rounded-3xs bg-accent/40 object-cover"
+        className="shrink-0 rounded-2xs bg-accent/40 object-cover"
         style={{ width: size, height: size }}
       />
     )
   }
   return (
     <div
-      className="flex shrink-0 items-center justify-center rounded-3xs bg-accent/50"
+      className="flex shrink-0 items-center justify-center rounded-2xs bg-accent/50"
       style={{ width: size, height: size }}>
       <Wrench size={Math.round(size * 0.45)} strokeWidth={1.4} className="text-foreground/70" />
     </div>
@@ -238,19 +236,19 @@ function ModeRow({
     <Button
       variant="ghost"
       onClick={onClick}
-      className={`flex h-auto min-h-0 items-start justify-start gap-2.5 rounded-2xs border px-3 py-2.5 text-left font-normal shadow-none transition-all focus-visible:ring-0 ${
+      className={`flex h-auto min-h-0 items-start justify-start gap-2.5 rounded-xs border px-3 py-2.5 text-left font-normal shadow-none transition-all focus-visible:ring-0 ${
         active
           ? 'border-primary/35 bg-primary/[0.06] text-foreground hover:bg-primary/[0.06] hover:text-foreground'
-          : 'border-border/15 bg-accent/10 text-muted-foreground/70 hover:bg-accent/25 hover:text-foreground'
+          : 'border-border/15 bg-accent/15 text-muted-foreground/70 hover:bg-accent/30 hover:text-foreground'
       }`}>
       <span
         className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-          active ? 'bg-primary' : 'bg-muted-foreground/20'
+          active ? 'bg-primary' : 'bg-muted-foreground/30'
         }`}
       />
       <div className="min-w-0 flex-1">
-        <div className="text-[11px]">{label}</div>
-        <div className="mt-0.5 text-[9px] text-muted-foreground/50">{desc}</div>
+        <div className="text-sm">{label}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground/55">{desc}</div>
       </div>
     </Button>
   )
@@ -260,10 +258,10 @@ function EmptyHint() {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col items-center rounded-2xs border border-border/20 border-dashed p-6">
-      <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/20" />
-      <p className="mb-1 text-[10px] text-muted-foreground/40">{t('library.config.tools.empty_title')}</p>
-      <p className="text-[9px] text-muted-foreground/30">{t('library.config.tools.empty_desc')}</p>
+    <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
+      <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/40" />
+      <p className="mb-1 text-xs text-muted-foreground/60">{t('library.config.tools.empty_title')}</p>
+      <p className="text-xs text-muted-foreground/50">{t('library.config.tools.empty_desc')}</p>
     </div>
   )
 }

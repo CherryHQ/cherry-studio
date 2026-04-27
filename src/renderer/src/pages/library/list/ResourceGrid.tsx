@@ -139,7 +139,7 @@ export const ResourceGrid: FC<Props> = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
-      <div className="flex shrink-0 flex-col border-border/40 border-b">
+      <div className="flex shrink-0 flex-col border-border/30 border-b">
         {/* Row 1: Search + Sort + View + Create */}
         <div className="flex items-center gap-2 px-5 py-3">
           <div className="relative max-w-[260px] flex-1">
@@ -148,7 +148,7 @@ export const ResourceGrid: FC<Props> = ({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('library.toolbar.search_placeholder')}
-              className="h-auto w-full rounded-3xs border border-border/40 bg-accent/20 py-1.5 pr-7 pl-7 text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0 md:text-[11px]"
+              className="h-auto w-full rounded-2xs border border-border/40 bg-accent/25 py-1.5 pr-7 pl-7 text-xs text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
             />
             {search && (
               <Button
@@ -170,9 +170,9 @@ export const ResourceGrid: FC<Props> = ({
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
-                className={`flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border px-2.5 py-1.5 font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
+                className={`flex h-auto min-h-0 items-center gap-1.5 rounded-2xs border px-2.5 py-1.5 font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
                   showSort
-                    ? 'border-primary/30 bg-accent/60 text-foreground'
+                    ? 'border-primary/30 bg-accent/50 text-foreground'
                     : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
                 }`}>
                 <ArrowUpDown size={10} />
@@ -202,14 +202,14 @@ export const ResourceGrid: FC<Props> = ({
           </Popover>
 
           {/* View toggle */}
-          <ButtonGroup className="overflow-hidden rounded-3xs border border-border/40">
+          <ButtonGroup className="overflow-hidden rounded-2xs border border-border/40">
             <Button
               variant="ghost"
               onClick={() => onViewModeChange('grid')}
               className={`h-auto min-h-0 w-auto p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'grid'
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
+                  : 'text-muted-foreground/50 hover:bg-accent/50 hover:text-foreground'
               }`}>
               <LayoutGrid size={11} />
             </Button>
@@ -219,7 +219,7 @@ export const ResourceGrid: FC<Props> = ({
               className={`h-auto min-h-0 w-auto p-1.5 font-normal shadow-none transition-colors focus-visible:ring-0 ${
                 viewMode === 'list'
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground/50 hover:bg-accent/30 hover:text-foreground'
+                  : 'text-muted-foreground/50 hover:bg-accent/50 hover:text-foreground'
               }`}>
               <List size={11} />
             </Button>
@@ -240,7 +240,7 @@ export const ResourceGrid: FC<Props> = ({
             <PopoverTrigger asChild>
               <Button
                 variant="default"
-                className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 active:scale-[0.97]">
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-2xs px-3 py-1.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 active:scale-[0.97]">
                 <Plus size={11} className="lucide-custom" />
                 <span>{t('library.toolbar.new_resource')}</span>
                 <ChevronDown
@@ -319,14 +319,14 @@ export const ResourceGrid: FC<Props> = ({
               variant="ghost"
               key={tag.id}
               onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-              className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-[10px] shadow-none transition-all focus-visible:ring-0 ${
+              className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
                 activeTag === tag.name
-                  ? 'border-primary/40 bg-primary/10 text-foreground'
-                  : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/30 hover:text-foreground'
+                  ? 'border-foreground/30 bg-foreground/[0.06] text-foreground hover:border-foreground/40 hover:bg-foreground/[0.08] hover:text-foreground'
+                  : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/50 hover:text-foreground'
               }`}>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
               <span>{tag.name}</span>
-              <span className="text-[9px] text-muted-foreground/40 tabular-nums">{tag.count}</span>
+              <span className="text-xs text-muted-foreground/40 tabular-nums">{tag.count}</span>
             </Button>
           ))}
           {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
@@ -348,7 +348,7 @@ export const ResourceGrid: FC<Props> = ({
                 }}
                 disabled={addingTag}
                 placeholder={t('library.toolbar.add_tag_placeholder')}
-                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/20 px-2 py-[3px] text-[10px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-primary/40 focus-visible:ring-0 disabled:opacity-50"
+                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-xs text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
               />
               <Button
                 variant="ghost"
@@ -362,7 +362,7 @@ export const ResourceGrid: FC<Props> = ({
             <Button
               variant="ghost"
               onClick={() => setShowAddTag(true)}
-              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-[10px] text-muted-foreground/40 shadow-none transition-all hover:border-border/60 hover:bg-accent/30 hover:text-foreground focus-visible:ring-0">
+              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-xs text-muted-foreground/40 shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Plus size={9} /> {t('library.toolbar.tag_button')}
             </Button>
           )}
@@ -441,23 +441,21 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.02 }}
       whileHover={{ y: -2 }}
-      className="group relative cursor-pointer rounded-2xs border border-border/30 bg-card transition-all duration-200 hover:border-border/50 hover:shadow-lg"
+      className="group relative cursor-pointer rounded-xs border border-border/30 bg-card transition-all duration-200 hover:border-border/50 hover:shadow-black/[0.04] hover:shadow-lg"
       onClick={() => onEdit(r)}>
       <div className="p-4">
         <div className="mb-3 flex items-start gap-3">
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xs text-base ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xs text-base ${
               !isToolType ? 'bg-accent/50' : cfg.color
             }`}>
             {r.avatar}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h4 className="truncate text-[12px] text-foreground/75">{r.name}</h4>
+              <h4 className="truncate text-sm text-foreground">{r.name}</h4>
               {r.hasUpdate && (
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 border-0 bg-warning/10 px-1 py-px text-[7px] text-warning">
+                <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-xs text-warning">
                   {t('library.badge.update')}
                 </Badge>
               )}
@@ -465,11 +463,11 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
             <div className="mt-0.5 flex items-center gap-1.5">
               <Badge
                 variant="secondary"
-                className={`shrink-0 whitespace-nowrap border-0 px-1.5 py-px text-[8px] ${cfg.color}`}>
+                className={`shrink-0 whitespace-nowrap border-0 px-1.5 py-px text-xs ${cfg.color}`}>
                 {t(cfg.labelKey)}
               </Badge>
               {(r.model || r.version) && (
-                <span className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground/40">
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/50">
                   {[r.model, r.version && `v${r.version}`].filter(Boolean).join(' ')}
                 </span>
               )}
@@ -480,16 +478,16 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
               variant="ghost"
               size="icon-sm"
               onClick={(e) => onOpenMenu(r.id, e)}
-              className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs p-0 font-normal text-muted-foreground/25 opacity-0 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
+              className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs p-0 font-normal text-muted-foreground/40 opacity-0 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
               <MoreHorizontal size={12} />
             </Button>
           </div>
         </div>
-        <p className="mb-3 line-clamp-2 min-h-[2lh] text-[10px] text-muted-foreground/70 leading-relaxed">
+        <p className="mb-3 line-clamp-2 min-h-[2lh] text-xs text-muted-foreground/70 leading-relaxed">
           {r.description}
         </p>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/50">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
             <Clock size={8} />
             <span>{timeAgo(t, r.updatedAt)}</span>
           </div>
@@ -498,11 +496,11 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
               <Badge
                 key={`${t}-${i}`}
                 variant="secondary"
-                className="border-0 bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
+                className="border-0 bg-accent/50 px-1.5 py-px text-xs text-muted-foreground/60">
                 {t}
               </Badge>
             ))}
-            {r.tags.length > 2 && <span className="text-[8px] text-muted-foreground/45">+{r.tags.length - 2}</span>}
+            {r.tags.length > 2 && <span className="text-xs text-muted-foreground/50">+{r.tags.length - 2}</span>}
             {isToolType && (
               <div onClick={(e) => e.stopPropagation()}>
                 <Switch
@@ -533,41 +531,41 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15, delay: index * 0.015 }}
-      className="group flex cursor-pointer items-center gap-3 rounded-2xs px-3 py-2.5 transition-colors hover:bg-accent/30"
+      className="group flex cursor-pointer items-center gap-3 rounded-xs px-3 py-2.5 transition-colors hover:bg-accent/50"
       onClick={() => onEdit(r)}>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-3xs bg-accent/50 text-sm">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xs bg-accent/50 text-sm">
         {r.avatar}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-[11px] text-foreground">{r.name}</span>
-          <Badge variant="secondary" className={`shrink-0 border-0 px-1.5 py-px text-[8px] ${cfg.color}`}>
+          <span className="truncate text-sm text-foreground">{r.name}</span>
+          <Badge variant="secondary" className={`shrink-0 border-0 px-1.5 py-px text-xs ${cfg.color}`}>
             {t(cfg.labelKey)}
           </Badge>
           {r.hasUpdate && (
-            <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-[7px] text-warning">
+            <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-xs text-warning">
               {t('library.badge.update')}
             </Badge>
           )}
         </div>
-        <p className="mt-px truncate text-[9px] text-muted-foreground/55">{r.description}</p>
+        <p className="mt-px truncate text-xs text-muted-foreground/60">{r.description}</p>
       </div>
-      {r.model && <span className="hidden shrink-0 text-[9px] text-muted-foreground/50 sm:block">{r.model}</span>}
-      {r.version && <span className="hidden shrink-0 text-[9px] text-muted-foreground/50 sm:block">v{r.version}</span>}
+      {r.model && <span className="hidden shrink-0 text-xs text-muted-foreground/50 sm:block">{r.model}</span>}
+      {r.version && <span className="hidden shrink-0 text-xs text-muted-foreground/50 sm:block">v{r.version}</span>}
       {r.tags.length > 0 && (
         <div className="hidden shrink-0 items-center gap-1 lg:flex">
           {r.tags.slice(0, 2).map((t) => (
             <Badge
               key={t}
               variant="secondary"
-              className="border-0 bg-accent/50 px-1.5 py-px text-[8px] text-muted-foreground/50">
+              className="border-0 bg-accent/50 px-1.5 py-px text-xs text-muted-foreground/60">
               {t}
             </Badge>
           ))}
-          {r.tags.length > 2 && <span className="text-[8px] text-muted-foreground/35">+{r.tags.length - 2}</span>}
+          {r.tags.length > 2 && <span className="text-xs text-muted-foreground/50">+{r.tags.length - 2}</span>}
         </div>
       )}
-      <div className="hidden shrink-0 items-center gap-1 text-[9px] text-muted-foreground/45 md:flex">
+      <div className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/50 md:flex">
         <Clock size={8} />
         <span>{timeAgo(t, r.updatedAt)}</span>
       </div>
@@ -589,7 +587,7 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
           variant="ghost"
           size="icon-sm"
           onClick={(e) => onOpenMenu(r.id, e)}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs p-0 font-normal text-muted-foreground/35 opacity-0 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
+          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs p-0 font-normal text-muted-foreground/40 opacity-0 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 group-hover:opacity-100">
           <MoreHorizontal size={12} />
         </Button>
       </div>
@@ -696,7 +694,7 @@ function FixedCardMenu({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.1 }}
-        className="fixed z-[501] min-w-[140px] rounded-2xs border border-border/30 bg-popover p-1 shadow-xl"
+        className="fixed z-[501] min-w-[140px] rounded-xs border border-border/30 bg-popover p-1 shadow-xl"
         style={{ left: clampX, top: clampY }}>
         <MenuItem
           variant="ghost"
@@ -721,17 +719,17 @@ function FixedCardMenu({
               suffix={
                 <>
                   {localTags.length > 0 && (
-                    <span className="text-[8px] text-muted-foreground/25 tabular-nums">{localTags.length}</span>
+                    <span className="text-xs text-muted-foreground/40 tabular-nums">{localTags.length}</span>
                   )}
                   <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
                 </>
               }
               onClick={() => setShowTagPicker(!showTagPicker)}
             />
-            {bindingError && <p className="px-2.5 py-1 text-[9px] text-destructive/80">{bindingError}</p>}
+            {bindingError && <p className="px-2.5 py-1 text-xs text-destructive/80">{bindingError}</p>}
             {showTagPicker && (
               <div
-                className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-2xs border border-border/30 bg-popover p-1 shadow-xl`}>
+                className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-xs border border-border/30 bg-popover p-1 shadow-xl`}>
                 <div className="mb-0.5 flex items-center gap-1 px-2 py-1">
                   <Input
                     autoFocus
@@ -741,7 +739,7 @@ function FixedCardMenu({
                       if (e.key === 'Enter') addNewTag()
                     }}
                     placeholder={t('library.tag_picker.placeholder')}
-                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-[10px] text-foreground shadow-none outline-none placeholder:text-muted-foreground/20 focus-visible:ring-0"
+                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-xs text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
                   />
                   {tagInput.trim() && (
                     <Button
@@ -755,7 +753,7 @@ function FixedCardMenu({
                 <Separator className="mx-1 mb-0.5 bg-border/15" />
                 <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
                   {allTagNames.length === 0 && !tagInput.trim() && (
-                    <p className="px-2.5 py-2 text-center text-[9px] text-muted-foreground/20">
+                    <p className="px-2.5 py-2 text-center text-xs text-muted-foreground/40">
                       {t('library.tag_picker.no_tags')}
                     </p>
                   )}
@@ -764,12 +762,12 @@ function FixedCardMenu({
                     return (
                       <label
                         key={tag}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-4xs px-2.5 py-[5px] text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-3xs px-2.5 py-[5px] text-xs text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
                         <Checkbox
                           size="sm"
                           checked={checked}
                           onCheckedChange={() => toggleTag(tag)}
-                          className="size-3.5 rounded-4xs border-border/30 bg-transparent shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]_svg]:size-2"
+                          className="size-3.5 rounded-4xs border-border/30 bg-transparent shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 data-[state=checked]:border-primary/70 data-[state=checked]:bg-primary/70 data-[state=checked]:text-primary-foreground [&_[data-slot=checkbox-indicator]_svg]:size-2"
                         />
                         <span
                           className="h-1.5 w-1.5 shrink-0 rounded-full"

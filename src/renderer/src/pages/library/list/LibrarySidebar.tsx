@@ -11,13 +11,14 @@ interface Props {
   typeCounts?: Record<string, number>
 }
 
-// Preserve the original pixel-perfect styling of the sidebar item: 2px vertical padding bump
-// (py-[6px] vs MenuItem sm's py-1), 3xs radius, gap-2, normal weight, muted/70 idle color,
-// 35% accent hover, 70% accent active, no focus-visible ring, no border.
+// Sidebar item styling aligned to the library design spec:
+// py-[6px] keeps the 2px vertical padding bump (vs MenuItem sm's py-1), 2xs radius matches
+// the design's rounded-lg (12px), gap-2, normal weight, muted/60 idle with 50% accent hover,
+// 50% accent active, no focus-visible ring, no border.
 const ITEM_CLASS =
-  'gap-2 px-2.5 py-[6px] rounded-3xs font-normal cursor-pointer border-0 ' +
-  'text-muted-foreground/70 hover:bg-accent/35 hover:text-foreground ' +
-  'data-[active=true]:bg-accent/70 data-[active=true]:text-foreground ' +
+  'gap-2 px-2.5 py-[6px] rounded-2xs font-normal cursor-pointer border-0 ' +
+  'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground ' +
+  'data-[active=true]:bg-accent/50 data-[active=true]:text-foreground ' +
   'focus-visible:ring-0'
 
 export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }) => {
@@ -33,8 +34,8 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
     <div className="flex min-h-0 w-[200px] shrink-0 flex-col border-border/15 border-r bg-background">
       {/* Header */}
       <div className="px-4 pt-5 pb-3">
-        <h2 className="text-[13px] text-foreground tracking-tight">{t('library.sidebar.title')}</h2>
-        <p className="mt-0.5 text-[9px] text-muted-foreground/50">{t('library.sidebar.subtitle')}</p>
+        <h2 className="text-foreground text-sm tracking-tight">{t('library.sidebar.title')}</h2>
+        <p className="mt-0.5 text-muted-foreground/50 text-xs">{t('library.sidebar.subtitle')}</p>
       </div>
 
       {/* Scrollable */}
@@ -55,7 +56,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
                 label={t(meta.labelKey)}
                 suffix={
                   count != null ? (
-                    <span className="text-[9px] text-muted-foreground/35 tabular-nums">{count}</span>
+                    <span className="text-muted-foreground/50 text-xs tabular-nums">{count}</span>
                   ) : undefined
                 }
                 className={ITEM_CLASS}

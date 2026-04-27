@@ -151,7 +151,7 @@ export default AgentConfigPage
 function CreateAgentBanner() {
   const { t } = useTranslation()
   return (
-    <div className="flex shrink-0 items-center gap-2 border-border/10 border-b bg-accent/20 px-5 py-2 text-[10px] text-muted-foreground/70">
+    <div className="flex shrink-0 items-center gap-2 border-border/15 border-b bg-accent/20 px-5 py-2 text-xs text-muted-foreground/70">
       <span>{t('library.config.agent.create_banner')}</span>
     </div>
   )

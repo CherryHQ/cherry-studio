@@ -97,12 +97,12 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   return (
     <div className="flex max-w-lg flex-col gap-5">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.agent.section.basic.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.agent.section.basic.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.basic.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.basic.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -134,8 +134,8 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
                     type="button"
                     variant="ghost"
                     onClick={() => onChange({ avatar: a })}
-                    className={`flex size-7 min-h-0 items-center justify-center rounded-lg font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
-                      active ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/40'
+                    className={`flex size-7 min-h-0 items-center justify-center rounded-2xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
+                      active ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/50'
                     }`}>
                     {a}
                   </Button>
@@ -147,7 +147,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       </Field>
 
       <Field data-invalid={Boolean(nameError) || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           {t('library.config.agent.field.name.label')}
         </FieldLabel>
         <FieldContent>
@@ -156,9 +156,9 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
             onChange={(e) => onChange({ name: e.target.value })}
             placeholder={t('library.config.agent.field.name.placeholder')}
             aria-invalid={Boolean(nameError) || undefined}
-            className="rounded-xl border-border/20 bg-accent/10 text-[11px] focus:border-border/40 focus:bg-accent/15 aria-invalid:border-destructive/50"
+            className="rounded-xs border-border/20 bg-accent/15 text-xs focus:border-border/40 focus:bg-accent/20 aria-invalid:border-destructive/50"
           />
-          <FieldError className="text-[9px]" errors={nameError ? [{ message: nameError }] : undefined} />
+          <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
         </FieldContent>
       </Field>
 
@@ -185,19 +185,21 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       </ModelSubsection>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           {t('library.config.agent.field.accessible_paths.label')}
         </FieldLabel>
         <FieldContent>
           <div className="flex flex-col gap-1.5">
             {form.accessiblePaths.length === 0 ? (
-              <FieldDescription className="text-[10px] text-muted-foreground/40">
+              <FieldDescription className="text-xs text-muted-foreground/50">
                 {t('library.config.agent.field.accessible_paths.empty')}
               </FieldDescription>
             ) : null}
             {form.accessiblePaths.map((p) => (
-              <div key={p} className="flex items-center gap-2 rounded-xl border border-border/15 bg-accent/5 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/80" title={p}>
+              <div
+                key={p}
+                className="flex items-center gap-2 rounded-xs border border-border/15 bg-accent/15 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80" title={p}>
                   {p}
                 </span>
                 <Button
@@ -214,7 +216,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
               type="button"
               variant="ghost"
               onClick={() => void addPath()}
-              className="mt-1 h-auto min-h-0 w-fit rounded-lg border border-border/20 border-dashed px-2.5 py-1 font-normal text-[10px] text-muted-foreground/60 shadow-none transition hover:bg-accent/15 hover:text-foreground focus-visible:ring-0">
+              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-xs text-muted-foreground/60 shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Plus size={10} className="mr-1" />
               {t('library.config.agent.field.accessible_paths.add')}
             </Button>
@@ -237,7 +239,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
 
       {form.heartbeatEnabled ? (
         <Field className="gap-1.5">
-          <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+          <FieldLabel className="font-normal text-sm text-muted-foreground/60">
             {t('library.config.agent.field.heartbeat_interval.label')}
           </FieldLabel>
           <FieldContent>
@@ -247,14 +249,14 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
               max={1440}
               value={form.heartbeatInterval || ''}
               onChange={(e) => onChange({ heartbeatInterval: Number(e.target.value) || 0 })}
-              className="rounded-xl border-border/20 bg-accent/10 text-[11px] focus:border-border/40 focus:bg-accent/15"
+              className="rounded-xs border-border/20 bg-accent/15 text-xs focus:border-border/40 focus:bg-accent/20"
             />
           </FieldContent>
         </Field>
       ) : null}
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           {t('library.config.agent.field.description.label')}
         </FieldLabel>
         <FieldContent>
@@ -262,7 +264,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
             value={form.description}
             onChange={(e) => onChange({ description: e.target.value })}
             placeholder={t('library.config.agent.field.description.placeholder')}
-            className="min-h-18 rounded-xl border-border/20 bg-accent/10 px-3 py-2 text-[11px] focus:border-border/40 focus:bg-accent/15"
+            className="min-h-18 rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-xs focus:border-border/40 focus:bg-accent/20"
           />
         </FieldContent>
       </Field>
@@ -275,8 +277,8 @@ function ModelSubsection({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] text-muted-foreground/60">{t('library.config.agent.model_config')}</span>
-        <Separator className="flex-1 bg-border/10" />
+        <span className="text-sm text-muted-foreground/60">{t('library.config.agent.model_config')}</span>
+        <Separator className="flex-1 bg-border/30" />
       </div>
       {children}
     </div>
@@ -300,12 +302,12 @@ function ModelField({
   return (
     <Field data-invalid={invalid || undefined} className="gap-1.5">
       <div className="flex items-center justify-between gap-3">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{label}</FieldLabel>
-        <span className="text-[9px] text-muted-foreground/35">{hint}</span>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{label}</FieldLabel>
+        <span className="text-xs text-muted-foreground/50">{hint}</span>
       </div>
       <FieldContent>
         <div
-          className={`rounded-xl border bg-accent/10 transition-colors ${
+          className={`rounded-xs border bg-accent/15 transition-colors ${
             invalid ? 'border-destructive/50' : 'border-border/20'
           }`}>
           <SelectAgentBaseModelButton
@@ -319,7 +321,7 @@ function ModelField({
             buttonStyle={{ borderRadius: 12, padding: '4px 8px', width: '100%' }}
           />
         </div>
-        <FieldError className="text-[9px]" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
+        <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
       </FieldContent>
     </Field>
   )
@@ -365,10 +367,10 @@ function SwitchRow({
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-border/15 bg-accent/5 px-3 py-2.5">
+    <div className="flex items-start justify-between gap-4 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5">
       <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-foreground">{label}</span>
-        {help ? <span className="text-[9px] text-muted-foreground/40">{help}</span> : null}
+        <span className="text-sm text-foreground">{label}</span>
+        {help ? <span className="text-xs text-muted-foreground/55">{help}</span> : null}
       </div>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </div>

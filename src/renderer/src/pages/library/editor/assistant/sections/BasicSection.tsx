@@ -48,7 +48,7 @@ import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPop
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Plus, Trash2 } from 'lucide-react'
+import { Check, Plus, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -154,12 +154,12 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.basic.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.basic.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.basic.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.basic.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
@@ -189,8 +189,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                   type="button"
                   variant="ghost"
                   onClick={() => onChange({ emoji: a })}
-                  className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-3xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
-                    form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/40'
+                  className={`flex h-7 min-h-0 w-7 items-center justify-center rounded-2xs font-normal text-sm shadow-none transition-all focus-visible:ring-0 ${
+                    form.emoji === a ? 'bg-accent ring-1 ring-primary/20' : 'hover:bg-accent/50'
                   }`}>
                   {a}
                 </Button>
@@ -201,20 +201,20 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">{t('common.name')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.name')}</FieldLabel>
         <FieldContent>
           <Input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
             aria-invalid={nameInvalid || undefined}
-            className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 aria-invalid:border-destructive/50"
+            className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
           />
-          <FieldError className="text-[9px]" errors={nameError ? [{ message: nameError }] : undefined} />
+          <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
         </FieldContent>
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           {t('library.config.basic.description_label')}
         </FieldLabel>
         <FieldContent>
@@ -222,13 +222,13 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             value={form.description}
             onValueChange={(description) => onChange({ description })}
             rows={3}
-            className="min-h-0 w-full resize-none rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
+            className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
           />
         </FieldContent>
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           {t('library.config.basic.tags')}
         </FieldLabel>
         <FieldContent>
@@ -241,20 +241,98 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             placeholder={t('library.config.basic.tag_placeholder')}
             searchPlaceholder={t('library.config.basic.tag_search')}
             emptyText={t('library.config.basic.tag_empty')}
-            className="w-full"
+            className="min-h-8 w-full items-center rounded-xs border-border/20 bg-accent/15 px-2 py-1 text-xs shadow-none transition-all hover:border-border/40 hover:bg-accent/20 aria-expanded:border-border/40 aria-expanded:bg-accent/20 aria-expanded:ring-0"
+            popoverClassName="rounded-xs border-border/30 p-1 shadow-lg shadow-black/[0.06]"
+            renderValue={(value) => {
+              const selected = (Array.isArray(value) ? value : value ? [value] : []) as string[]
+              const hasSelection = selected.length > 0
+              return (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                    {hasSelection ? (
+                      selected.map((name) => (
+                        <span
+                          key={name}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-card py-0.5 pr-1 pl-2 text-foreground text-xs shadow-2xs shadow-black/[0.03] transition-colors hover:border-border/60">
+                          <span
+                            className="size-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: tagColor(name) }}
+                            aria-hidden="true"
+                          />
+                          <span>{name}</span>
+                          <button
+                            type="button"
+                            aria-label={t('common.remove')}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              e.preventDefault()
+                              onChange({ tags: form.tags.filter((tag) => tag !== name) })
+                            }}
+                            className="ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
+                            <X size={9} />
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground/50">{t('library.config.basic.tag_placeholder')}</span>
+                    )}
+                  </div>
+                  {hasSelection && (
+                    <button
+                      type="button"
+                      aria-label={t('common.clear')}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        onChange({ tags: [] })
+                      }}
+                      className="inline-flex size-3 shrink-0 items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
+                      <X size={8} />
+                    </button>
+                  )}
+                </div>
+              )
+            }}
+            renderOption={(option) => {
+              const checked = form.tags.includes(option.value)
+              const color = tagColor(option.value)
+              return (
+                <>
+                  <span
+                    className="size-2 shrink-0 rounded-full transition-all duration-200"
+                    style={{
+                      backgroundColor: color,
+                      boxShadow: checked ? `0 0 0 2.5px ${color}33` : undefined
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span
+                    className={`flex-1 truncate text-xs transition-colors ${
+                      checked ? 'text-foreground' : 'text-muted-foreground/80'
+                    }`}>
+                    {option.label}
+                  </span>
+                  {checked && <Check size={12} className="shrink-0 text-foreground" />}
+                </>
+              )
+            }}
           />
-          <FieldDescription className="text-[9px] text-muted-foreground/40">
+          <FieldDescription className="text-xs text-muted-foreground/50">
             {t('library.config.basic.tag_hint')}
           </FieldDescription>
         </FieldContent>
       </Field>
 
-      <Separator className="bg-border/10" />
+      <Separator className="bg-border/30" />
 
       {/* 默认模型 */}
       <Field className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+          <FieldLabel className="font-normal text-sm text-muted-foreground/60">
             {t('library.config.basic.model')}
           </FieldLabel>
           {selectedModel ? (
@@ -263,7 +341,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                 type="button"
                 variant="ghost"
                 onClick={handlePickModel}
-                className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-[11px] text-foreground shadow-none transition-colors hover:bg-accent/60 focus-visible:ring-0">
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-xs text-foreground shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
                 <ModelAvatar model={selectedModel} size={16} />
                 <span className="max-w-[180px] truncate">{selectedModel.name}</span>
               </Button>
@@ -272,7 +350,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                   type="button"
                   variant="ghost"
                   onClick={() => onChange({ modelId: null })}
-                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-4xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
+                  className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/50 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
                   <Trash2 size={12} />
                 </Button>
               </Tooltip>
@@ -282,13 +360,13 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
               type="button"
               variant="ghost"
               onClick={handlePickModel}
-              className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-[10px] text-muted-foreground/50 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
+              className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
               {t('library.config.basic.model_pick')}
             </Button>
           )}
         </div>
         {form.modelId && !selectedModel ? (
-          <FieldDescription className="text-[9px] text-muted-foreground/40">
+          <FieldDescription className="text-xs text-muted-foreground/50">
             {t('library.config.basic.model_not_found', { id: form.modelId })}
           </FieldDescription>
         ) : null}
@@ -310,8 +388,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
           className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
         />
         <div className="mt-1 flex justify-between">
-          <span className="text-[8px] text-muted-foreground/35">{t('library.config.basic.precise')}</span>
-          <span className="text-[8px] text-muted-foreground/35">{t('library.config.basic.creative')}</span>
+          <span className="text-xs text-muted-foreground/50">{t('library.config.basic.precise')}</span>
+          <span className="text-xs text-muted-foreground/50">{t('library.config.basic.creative')}</span>
         </div>
       </ToggleFieldGroup>
 
@@ -334,10 +412,10 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 上下文数 */}
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-[10px] text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
           <div className="flex items-center justify-between">
             <span>{t('library.config.basic.context_count')}</span>
-            <span className="text-muted-foreground/40">
+            <span className="text-muted-foreground/50">
               {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
             </span>
           </div>
@@ -355,7 +433,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
         </FieldContent>
       </Field>
 
-      <Separator className="bg-border/10" />
+      <Separator className="bg-border/30" />
 
       {/* 最大 Token 数 */}
       <ToggleFieldGroup
@@ -373,30 +451,30 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             const parsed = parseInt(e.target.value, 10)
             onChange({ maxTokens: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOKENS })
           }}
-          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
+          className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 
       {/* 流式输出 */}
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.stream_output')}</label>
+        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.stream_output')}</label>
         <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
       </div>
 
       {/* 工具调用方式 */}
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
-        <ButtonGroup className="overflow-hidden rounded-3xs border border-border/30">
+        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
+        <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
             <Button
               key={mode}
               type="button"
               variant="ghost"
               onClick={() => onChange({ toolUseMode: mode })}
-              className={`h-auto min-h-0 px-2.5 py-1 font-normal text-[10px] shadow-none transition-colors focus-visible:ring-0 ${
+              className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
                 form.toolUseMode === mode
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground/60 hover:bg-accent/30 hover:text-foreground'
+                  : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'
               }`}>
               {t(
                 mode === 'function' ? 'library.config.basic.tool_use_function' : 'library.config.basic.tool_use_prompt'
@@ -420,7 +498,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             const parsed = parseInt(e.target.value, 10)
             onChange({ maxToolCalls: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOOL_CALLS })
           }}
-          className="h-auto w-full rounded-2xs border border-border/20 bg-accent/10 px-3 py-2 text-[11px] text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0"
+          className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 
@@ -488,8 +566,8 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-muted-foreground/60">{t('library.config.basic.custom_params')}</label>
-        <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-[10px]">
+        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.custom_params')}</label>
+        <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
           <Plus size={11} />
           {t('library.config.basic.custom_params_add')}
         </Button>
@@ -546,16 +624,16 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-3xs border border-border/20 bg-accent/10 p-2">
+    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
           value={param.name}
           onChange={(e) => onNameChange(e.target.value)}
-          className="h-8 flex-1 text-[11px]"
+          className="h-8 flex-1 text-xs"
         />
         <Select value={param.type} onValueChange={(v) => onTypeChange(v as CustomParameterType)}>
-          <SelectTrigger className="h-8 w-[100px] text-[11px]">
+          <SelectTrigger className="h-8 w-[100px] text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -575,12 +653,12 @@ function CustomParameterRow({
                   const parsed = parseFloat(e.target.value)
                   onValueChange(Number.isFinite(parsed) ? parsed : 0)
                 }}
-                className="h-8 text-[11px] tabular-nums"
+                className="h-8 text-xs tabular-nums"
               />
             )}
             {param.type === 'boolean' && (
               <Select value={String(param.value)} onValueChange={(v) => onValueChange(v === 'true')}>
-                <SelectTrigger className="h-8 text-[11px]">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -593,7 +671,7 @@ function CustomParameterRow({
               <Input
                 value={String(param.value)}
                 onChange={(e) => onValueChange(e.target.value)}
-                className="h-8 text-[11px]"
+                className="h-8 text-xs"
               />
             )}
           </div>
@@ -612,13 +690,11 @@ function CustomParameterRow({
             rows={4}
             spellCheck={false}
             placeholder='{"key": "value"}'
-            className={`min-h-0 w-full resize-y rounded-3xs border bg-background px-2 py-1.5 font-mono text-[11px] text-foreground shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
+            className={`min-h-0 w-full resize-y rounded-xs border bg-background px-2 py-1.5 font-mono text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
               jsonInvalid ? 'border-destructive/50 focus-visible:border-destructive/70' : 'border-border/20'
             }`}
           />
-          {jsonInvalid && (
-            <p className="mt-1 text-[9px] text-destructive/80">{t('library.config.basic.json_invalid')}</p>
-          )}
+          {jsonInvalid && <p className="mt-1 text-xs text-destructive/80">{t('library.config.basic.json_invalid')}</p>}
         </div>
       )}
     </div>
@@ -647,9 +723,9 @@ function ToggleFieldGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground/60">
           <span>{label}</span>
-          <span className="text-muted-foreground/40">{valueLabel}</span>
+          <span className="text-muted-foreground/50">{valueLabel}</span>
         </label>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>

@@ -126,21 +126,21 @@ const ToolsSection: FC<Props> = ({ agent, form, onChange }) => {
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.agent.section.tools.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.agent.section.tools.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.tools.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.tools.desc')}</p>
       </div>
 
       <div className="relative">
-        <Search size={11} className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground/30" />
+        <Search size={11} className="-translate-y-1/2 absolute top-1/2 left-3 text-muted-foreground/40" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('library.config.agent.section.tools.search_placeholder')}
-          className="rounded-xl border-border/15 bg-accent/5 pl-8 text-[11px] placeholder:text-muted-foreground/30 focus:border-border/30 focus:bg-accent/10"
+          className="rounded-xs border-border/20 bg-accent/15 pl-8 text-xs placeholder:text-muted-foreground/40 focus:border-border/40 focus:bg-accent/20"
         />
       </div>
 
-      <div className="flex items-center border-border/10 border-b pb-px">
+      <div className="flex items-center border-border/30 border-b pb-px">
         {tabs.map((tab) => {
           const active = activeTab === tab.id
           return (
@@ -148,11 +148,11 @@ const ToolsSection: FC<Props> = ({ agent, form, onChange }) => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`relative px-3 py-1.5 text-[11px] transition-colors ${
-                active ? 'text-foreground' : 'text-muted-foreground/45 hover:text-foreground/70'
+              className={`relative px-3 py-1.5 text-sm transition-colors ${
+                active ? 'text-foreground' : 'text-muted-foreground/55 hover:text-foreground/70'
               }`}>
               {tab.label}
-              <span className={`ml-1.5 text-[9px] ${active ? 'text-muted-foreground/50' : 'text-muted-foreground/30'}`}>
+              <span className={`ml-1.5 text-xs ${active ? 'text-muted-foreground/50' : 'text-muted-foreground/40'}`}>
                 {tab.enabled}/{tab.total}
               </span>
               {active && (
@@ -245,14 +245,14 @@ function MCPIcon({ server, size }: { server: MCPServer; size: number }) {
       <img
         src={server.logoUrl}
         alt=""
-        className="shrink-0 rounded-3xs bg-accent/40 object-cover"
+        className="shrink-0 rounded-2xs bg-accent/40 object-cover"
         style={{ width: size, height: size }}
       />
     )
   }
   return (
     <div
-      className="flex shrink-0 items-center justify-center rounded-3xs bg-accent/50"
+      className="flex shrink-0 items-center justify-center rounded-2xs bg-accent/50"
       style={{ width: size, height: size }}>
       <Network size={Math.round(size * 0.5)} strokeWidth={1.5} className="text-blue-500/60" />
     </div>

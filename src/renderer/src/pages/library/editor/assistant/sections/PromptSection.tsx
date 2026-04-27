@@ -68,8 +68,8 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
 
   const variablesTip = (
     <div className="min-w-[200px]">
-      <div className="mb-1.5 font-medium text-[11px] text-foreground">{t('library.config.prompt.variables_title')}</div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[10px] text-muted-foreground">
+      <div className="mb-1.5 font-medium text-xs text-foreground">{t('library.config.prompt.variables_title')}</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-xs text-muted-foreground">
         {PROMPT_VARIABLES.map((v) => (
           <div key={v.name} className="contents">
             <span className="text-foreground/80">{v.name}</span>
@@ -83,13 +83,13 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.prompt.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.prompt.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.prompt.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.prompt.desc')}</p>
       </div>
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="flex items-center gap-1.5 font-normal text-[10px] text-muted-foreground/60">
+          <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/60">
             <span>{t('library.config.prompt.label')}</span>
             <Tooltip content={variablesTip} placement="top" classNames={{ content: 'max-w-none' }}>
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />
@@ -99,7 +99,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={prompt.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-3xs border border-border/20 px-2 py-[3px] font-normal text-[10px] text-muted-foreground/50 shadow-none transition-colors hover:bg-accent/30 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {showPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(showPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
@@ -108,14 +108,14 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
         <FieldContent>
           <div
             aria-invalid={promptInvalid || undefined}
-            className={`overflow-hidden rounded-2xs border bg-accent/10 transition-all focus-within:bg-accent/15 ${
+            className={`overflow-hidden rounded-xs border bg-accent/15 transition-all focus-within:bg-accent/20 ${
               promptInvalid
                 ? 'border-destructive/50 focus-within:border-destructive/60'
                 : 'border-border/20 focus-within:border-border/40'
             }`}>
             {showPreview ? (
               <div
-                className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-[11px] text-foreground"
+                className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-xs text-foreground"
                 onDoubleClick={() => setShowPreview(false)}>
                 <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
               </div>
@@ -133,8 +133,8 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
               />
             )}
           </div>
-          <FieldError className="text-[9px]" errors={promptError ? [{ message: promptError }] : undefined} />
-          <div className="flex justify-between text-[9px] text-muted-foreground/40">
+          <FieldError className="text-xs" errors={promptError ? [{ message: promptError }] : undefined} />
+          <div className="flex justify-between text-xs text-muted-foreground/50">
             <span>{t('library.config.prompt.dblclick_hint')}</span>
             <span className="tabular-nums">
               {t('library.config.prompt.tokens_label')}

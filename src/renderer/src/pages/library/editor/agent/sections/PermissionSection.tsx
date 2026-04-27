@@ -21,16 +21,16 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
-        <h3 className="mb-1 text-[14px] text-foreground">{t('library.config.agent.section.permission.title')}</h3>
-        <p className="text-[10px] text-muted-foreground/55">{t('library.config.agent.section.permission.desc')}</p>
+        <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.permission.title')}</h3>
+        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.permission.desc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] text-muted-foreground/60">
+        <label className="text-sm text-muted-foreground/60">
           {t('library.config.agent.field.permission_mode.label')}
         </label>
         <Select value={form.permissionMode || 'default'} onValueChange={(value) => onChange({ permissionMode: value })}>
-          <SelectTrigger className="rounded-xl border-border/20 bg-accent/10 text-[11px] hover:border-border/40">
+          <SelectTrigger className="rounded-xs border-border/20 bg-accent/15 text-xs hover:border-border/40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -41,9 +41,7 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
             ))}
           </SelectContent>
         </Select>
-        <span className="text-[9px] text-muted-foreground/40">
-          {t('library.config.agent.field.permission_mode.help')}
-        </span>
+        <span className="text-xs text-muted-foreground/55">{t('library.config.agent.field.permission_mode.help')}</span>
       </div>
     </div>
   )
