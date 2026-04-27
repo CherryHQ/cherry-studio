@@ -128,6 +128,10 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
   return status === 'pending' || status === 'streaming'
 }
 
+function errorFromStreamChunk(errorText: string): SerializedError {
+  return { name: 'StreamError', message: errorText, stack: null }
+}
+
 /**
  * Active-stream registry for AI streaming.
  *
@@ -723,10 +727,13 @@ export class AiStreamManager extends BaseService {
     if (signal.aborted) onAbort()
     else signal.addEventListener('abort', onAbort, { once: true })
 
+    let streamErrorText: string | undefined
+
     try {
       while (true) {
         const { done, value } = await broadcastReader.read()
         if (done) break
+        if (value.type === 'error') streamErrorText ??= value.errorText
         this.onChunk(topicId, modelId, value)
       }
 
@@ -742,6 +749,8 @@ export class AiStreamManager extends BaseService {
 
       if (signal.aborted && exec.status === 'aborted') {
         await this.onExecutionPaused(topicId, modelId)
+      } else if (streamErrorText !== undefined) {
+        await this.onExecutionError(topicId, modelId, errorFromStreamChunk(streamErrorText))
       } else {
         await this.onExecutionDone(topicId, modelId)
       }
@@ -758,7 +767,9 @@ export class AiStreamManager extends BaseService {
       } else {
         logger.error('Execution loop error', { topicId, modelId, err })
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err))
+      const serialized =
+        streamErrorText !== undefined && !signal.aborted ? errorFromStreamChunk(streamErrorText) : serializeError(err)
+      await this.onExecutionError(topicId, modelId, serialized)
     } finally {
       signal.removeEventListener('abort', onAbort)
       broadcastReader.releaseLock()
