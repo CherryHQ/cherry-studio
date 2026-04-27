@@ -696,7 +696,7 @@ class FileStorage {
         path: destPath,
         created_at: new Date().toISOString(),
         size: buffer.length,
-        ext: ext.slice(1),
+        ext: ext,
         type: getFileTypeByExt(ext),
         count: 1
       }
@@ -746,7 +746,7 @@ class FileStorage {
         path: destPath,
         created_at: new Date().toISOString(),
         size: stats.size,
-        ext: ext.slice(1),
+        ext: ext,
         type: getFileTypeByExt(ext),
         count: 1
       }
