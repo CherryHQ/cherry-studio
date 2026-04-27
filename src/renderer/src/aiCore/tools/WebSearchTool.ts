@@ -73,40 +73,46 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         return cachedSearchResultsPromise
       }
 
-      let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
+      cachedSearchResultsPromise = (async () => {
+        let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
 
-      if (additionalContext?.trim()) {
-        // 如果大模型提供了额外上下文，使用更具体的描述
-        const cleanContext = additionalContext.trim()
-        if (cleanContext) {
-          finalQueries = normalizeWebSearchQueries([cleanContext])
+        if (additionalContext?.trim()) {
+          // 如果大模型提供了额外上下文，使用更具体的描述
+          const cleanContext = additionalContext.trim()
+          if (cleanContext) {
+            finalQueries = normalizeWebSearchQueries([cleanContext])
+          }
         }
-      }
 
-      // 检查是否需要搜索
-      if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
-        return { query: '', results: [] }
-      }
-
-      const webSearchProvider = await webSearchService.getWebSearchProviderAsync(webSearchProviderId)
-
-      if (!webSearchProvider) {
-        logger.warn('Skip web search because provider is unavailable', {
-          webSearchProviderId,
-          requestId
-        })
-        return { query: '', results: [] }
-      }
-
-      // 构建 ExtractResults 结构用于 processWebsearch
-      const extractResults: ExtractResults = {
-        websearch: {
-          question: finalQueries,
-          links: extractedKeywords.links
+        // 检查是否需要搜索
+        if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
+          return { query: '', results: [] }
         }
-      }
 
-      cachedSearchResultsPromise = webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
+        const webSearchProvider = await webSearchService.getWebSearchProviderAsync(webSearchProviderId)
+
+        if (!webSearchProvider) {
+          logger.warn('Skip web search because provider is unavailable', {
+            webSearchProviderId,
+            requestId
+          })
+          return {
+            query: '',
+            results: []
+          }
+        }
+
+        // 构建 ExtractResults 结构用于 processWebsearch
+        const extractResults: ExtractResults = {
+          websearch: {
+            question: finalQueries,
+            links: extractedKeywords.links
+          }
+        }
+
+        return webSearchService.processWebsearch(webSearchProvider, extractResults, requestId)
+      })()
+
       try {
         return await cachedSearchResultsPromise
       } catch (error) {
