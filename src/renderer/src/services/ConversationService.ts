@@ -35,6 +35,21 @@ export class ConversationService {
     return userRoleStartMessages
   }
 
+  /**
+   * Dedicated image generation/editing needs the previous generated image even
+   * when chat context is disabled. Keep the normal cleanup rules, but do not
+   * trim by contextCount.
+   */
+  static prepareMessagesForImageGeneration(messages: Message[]): Message[] {
+    const messagesAfterContextClear = filterAfterContextClearMessages(messages)
+    const usefulMessages = filterUsefulMessages(messagesAfterContextClear)
+    const withoutErrorOnlyPairs = filterErrorOnlyMessagesWithRelated(usefulMessages)
+    const withoutTrailingAssistant = filterLastAssistantMessage(withoutErrorOnlyPairs)
+    const withoutAdjacentUsers = filterAdjacentUserMessaegs(withoutTrailingAssistant)
+    const nonEmptyMessages = filterEmptyMessages(withoutAdjacentUsers)
+    return filterUserRoleStartMessages(nonEmptyMessages)
+  }
+
   static async prepareMessagesForModel(
     messages: Message[],
     assistant: Assistant

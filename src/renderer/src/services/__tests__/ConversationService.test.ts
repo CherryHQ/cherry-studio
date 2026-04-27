@@ -1,7 +1,7 @@
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { createErrorBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
+import { createErrorBlock, createImageBlock, createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ConversationService } from '../ConversationService'
@@ -162,5 +162,38 @@ describe('ConversationService.filterMessagesPipeline', () => {
     expect(filtered.find((m) => m.id === 'user-2')).toBeUndefined()
     expect(filtered[0].role).toBe('user')
     expect(filtered[filtered.length - 1].role).toBe('user')
+  })
+
+  it('keeps the previous assistant image for dedicated image generation even when chat context is disabled', () => {
+    const topicId = 'topic-1'
+    const assistantId = 'assistant-1'
+
+    const user1Block = createMainTextBlock('user-1', 'Draw an image', { status: MessageBlockStatus.SUCCESS })
+    const user1 = createMessage('user', topicId, assistantId, { id: 'user-1', blocks: [user1Block.id] })
+
+    const assistantImageBlock = createImageBlock('assistant-1', {
+      url: 'data:image/png;base64,previous-image',
+      status: MessageBlockStatus.SUCCESS
+    })
+    const assistant1 = createMessage('assistant', topicId, assistantId, {
+      id: 'assistant-1',
+      askId: 'user-1',
+      blocks: [assistantImageBlock.id]
+    })
+
+    const user2Block = createMainTextBlock('user-2', 'Make it more concise', {
+      status: MessageBlockStatus.SUCCESS
+    })
+    const user2 = createMessage('user', topicId, assistantId, { id: 'user-2', blocks: [user2Block.id] })
+
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user1Block))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(assistantImageBlock))
+    mockStore.dispatch(messageBlocksSlice.actions.upsertOneBlock(user2Block))
+
+    const chatFiltered = ConversationService.filterMessagesPipeline([user1, assistant1, user2], 0)
+    expect(chatFiltered.map((m) => m.id)).toEqual(['user-2'])
+
+    const imageMessages = ConversationService.prepareMessagesForImageGeneration([user1, assistant1, user2])
+    expect(imageMessages.map((m) => m.id)).toEqual(['user-1', 'assistant-1', 'user-2'])
   })
 })

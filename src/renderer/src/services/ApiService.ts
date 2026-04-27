@@ -160,21 +160,22 @@ export async function transformMessagesAndFetch(
   const { messages, assistant } = request
 
   try {
-    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
+    // 专用图像生成模型直接走 fetchImageGeneration
+    const model = assistant.model || getDefaultModel()
 
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
-    // 专用图像生成模型直接走 fetchImageGeneration
-    const model = assistant.model || getDefaultModel()
     if (isDedicatedImageGenerationModel(model)) {
       await fetchImageGeneration({
-        messages: uiMessages,
+        messages: ConversationService.prepareMessagesForImageGeneration(messages),
         assistant,
         onChunkReceived
       })
       return
     }
+
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
 
     // inject knowledge search prompt into model messages
     await injectUserMessageWithKnowledgeSearchPrompt({
@@ -308,7 +309,7 @@ export async function fetchChatCompletion({
  * 从消息中收集图像（用于图像编辑）
  * 收集用户消息中上传的图像和助手消息中生成的图像
  */
-async function collectImagesFromMessages(userMessage: Message, assistantMessage?: Message): Promise<string[]> {
+async function collectImagesFromMessages(messages: Message[], userMessage: Message): Promise<string[]> {
   const images: string[] = []
   const loadImageDataUrl = async (message: Message): Promise<string[]> => {
     const imageBlocks = findImageBlocks(message)
@@ -327,9 +328,20 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   // 收集用户消息中的图像
   images.push(...(await loadImageDataUrl(userMessage)))
 
-  // 收集助手消息中的图像（用于继续编辑生成的图像）
-  if (assistantMessage) {
-    images.push(...(await loadImageDataUrl(assistantMessage)))
+  // 收集当前用户消息之前最近一条助手图片消息（用于继续编辑生成的图像）
+  const userMessageIndex = messages.findLastIndex((message) => message.id === userMessage.id)
+  const previousMessages = userMessageIndex === -1 ? messages : messages.slice(0, userMessageIndex)
+  for (let index = previousMessages.length - 1; index >= 0; index--) {
+    const message = previousMessages[index]
+    if (message.role !== 'assistant') {
+      continue
+    }
+
+    const assistantImages = await loadImageDataUrl(message)
+    if (assistantImages.length > 0) {
+      images.push(...assistantImages)
+      break
+    }
   }
 
   return images
@@ -364,14 +376,13 @@ export async function fetchImageGeneration({
   try {
     // 提取 prompt 和图像
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
-    const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
 
     if (!lastUserMessage) {
       throw new Error('No user message found for image generation.')
     }
 
     const prompt = getMainTextContent(lastUserMessage)
-    const inputImages = await collectImagesFromMessages(lastUserMessage, lastAssistantMessage)
+    const inputImages = await collectImagesFromMessages(messages, lastUserMessage)
 
     // 调用 generateImage 或 editImage
     // 使用默认图像生成配置
