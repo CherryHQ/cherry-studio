@@ -192,6 +192,7 @@ export type AssistantSettings = {
   streamOutput: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
+  enableCustomParameters?: boolean
   reasoning_effort: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'

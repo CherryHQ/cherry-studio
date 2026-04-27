@@ -65,6 +65,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
+  const enableCustomParameters = useMemo(
+    () => assistant?.settings?.enableCustomParameters ?? DEFAULT_ASSISTANT_SETTINGS.enableCustomParameters,
+    [assistant?.settings?.enableCustomParameters]
+  )
   const enableTemperature = useMemo(
     () => assistant?.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature,
     [assistant?.settings?.enableTemperature]
@@ -530,42 +534,54 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
-        <Button onClick={onAddCustomParameter}>
+        <Switch
+          checked={enableCustomParameters}
+          onCheckedChange={(enabled) => {
+            updateAssistantSettings({ enableCustomParameters: enabled })
+          }}
+        />
+      </SettingRow>
+      {enableCustomParameters && customParameters.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          {customParameters.map((param, index) => (
+            <div key={index} style={{ marginTop: 10 }}>
+              <Row align="stretch" gutter={10}>
+                <Col span={6}>
+                  <Input
+                    placeholder={t('models.parameter_name')}
+                    value={param.name}
+                    onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
+                  />
+                </Col>
+                <Col span={6}>
+                  <Select
+                    value={param.type}
+                    onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
+                    style={{ width: '100%' }}>
+                    <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
+                    <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
+                    <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
+                    <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
+                  </Select>
+                </Col>
+                {param.type !== 'json' && <Col span={10}>{renderParameterValueInput(param, index)}</Col>}
+                <Col span={param.type === 'json' ? 12 : 2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button variant="destructive" size="icon-sm" onClick={() => onDeleteCustomParameter(index)}>
+                    <DeleteIcon size={14} className="lucide-custom" />
+                  </Button>
+                </Col>
+              </Row>
+              {param.type === 'json' && <div style={{ marginTop: 6 }}>{renderParameterValueInput(param, index)}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {enableCustomParameters && (
+        <Button onClick={onAddCustomParameter} style={{ marginTop: 10 }}>
           <PlusIcon size={18} />
           {t('models.add_parameter')}
         </Button>
-      </SettingRow>
-      {customParameters.map((param, index) => (
-        <div key={index} style={{ marginTop: 10 }}>
-          <Row align="stretch" gutter={10}>
-            <Col span={6}>
-              <Input
-                placeholder={t('models.parameter_name')}
-                value={param.name}
-                onChange={(e) => onUpdateCustomParameter(index, 'name', e.target.value)}
-              />
-            </Col>
-            <Col span={6}>
-              <Select
-                value={param.type}
-                onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-                style={{ width: '100%' }}>
-                <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
-                <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
-                <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>
-                <Select.Option value="json">{t('models.parameter_type.json')}</Select.Option>
-              </Select>
-            </Col>
-            {param.type !== 'json' && <Col span={10}>{renderParameterValueInput(param, index)}</Col>}
-            <Col span={param.type === 'json' ? 12 : 2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="destructive" size="icon-sm" onClick={() => onDeleteCustomParameter(index)}>
-                <DeleteIcon size={14} className="lucide-custom" />
-              </Button>
-            </Col>
-          </Row>
-          {param.type === 'json' && <div style={{ marginTop: 6 }}>{renderParameterValueInput(param, index)}</div>}
-        </div>
-      ))}
+      )}
       <Divider style={{ margin: '15px 0' }} />
       <RowFlex className="justify-end">
         <Button onClick={onReset} variant="destructive">
