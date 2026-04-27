@@ -6,8 +6,11 @@
  */
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+const logger = loggerService.withContext('usePins')
 
 export interface UsePinsResult {
   /** Initial pin list load only. */
@@ -55,6 +58,12 @@ export function usePins(entityType: EntityType): UsePinsResult {
   const pinnedIds = useMemo(() => pins.map((pin) => pin.entityId), [pins])
   const isMutating = isCreatingPin || isDeletingPin
   const error = queryError ?? createError ?? deleteError
+
+  useEffect(() => {
+    if (queryError) {
+      logger.error('Failed to read pins', queryError as Error, { entityType })
+    }
+  }, [queryError, entityType])
 
   const stateRef = useRef({ isLoading, isRefreshing, isMutating })
   const pinsRef = useRef(pins)

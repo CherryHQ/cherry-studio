@@ -183,4 +183,16 @@ describe('usePins', () => {
     expect(result.current.isMutating).toBe(true)
     expect(result.current.error).toBe(queryError)
   })
+
+  it('logs query errors via logger so /pins read failures are not silent', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const queryError = new Error('query failed')
+    wirePins([], { error: queryError })
+    wireMutations()
+
+    renderHook(() => usePins('model'))
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to read pins', queryError, { entityType: 'model' })
+    consoleErrorSpy.mockRestore()
+  })
 })
