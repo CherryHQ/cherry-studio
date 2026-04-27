@@ -2,6 +2,7 @@ import type { AgentDetail } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCreateAgentPayload,
   buildInitialAgentFormState,
   diffAgentUpdate,
   isCreatePayloadValid,
@@ -15,6 +16,7 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     name: 'Agent',
     description: '',
     model: 'claude-sonnet-4-5',
+    modelName: null,
     accessiblePaths: [],
     instructions: '',
     mcps: [],
@@ -101,6 +103,23 @@ describe('agent create flow helpers', () => {
     expect(isCreatePayloadValid({ ...draft, name: 'Planner', model: 'claude-sonnet-4-5' })).toBe(true)
   })
 
+  it('preserves UniqueModelIds in the create payload without legacy conversion', () => {
+    const draft = buildInitialAgentFormState()
+    const form = {
+      ...draft,
+      name: 'Planner',
+      model: 'anthropic::claude-sonnet-4-5',
+      planModel: 'anthropic::claude-haiku-4-5',
+      smallModel: 'anthropic::claude-opus-4-5'
+    }
+
+    expect(buildCreateAgentPayload(form)).toMatchObject({
+      model: 'anthropic::claude-sonnet-4-5',
+      planModel: 'anthropic::claude-haiku-4-5',
+      smallModel: 'anthropic::claude-opus-4-5'
+    })
+  })
+
   it('reports missing required fields individually for page-level validation', () => {
     const draft = buildInitialAgentFormState()
 
@@ -135,6 +154,29 @@ describe('diffAgentUpdate', () => {
       instructions: 'new prompt'
     })
     expect(result?.tagsChanged).toBe(false)
+  })
+
+  it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
+    const agent = createAgent({
+      model: 'anthropic::claude-sonnet-4-5',
+      planModel: 'anthropic::claude-haiku-4-5',
+      smallModel: 'anthropic::claude-opus-4-5'
+    })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = {
+      ...baseline,
+      model: 'anthropic::claude-sonnet-4-6',
+      planModel: 'anthropic::claude-haiku-4-6',
+      smallModel: ''
+    }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+
+    expect(result?.dto).toMatchObject({
+      model: 'anthropic::claude-sonnet-4-6',
+      planModel: 'anthropic::claude-haiku-4-6',
+      smallModel: undefined
+    })
   })
 
   it('merges configuration-subkey patches on top of the existing configuration', () => {

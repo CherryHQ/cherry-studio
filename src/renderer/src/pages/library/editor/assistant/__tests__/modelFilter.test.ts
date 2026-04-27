@@ -1,44 +1,28 @@
-import type { Model } from '@renderer/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { describe, expect, it } from 'vitest'
 
 import { isSelectableAssistantModel } from '../modelFilter'
 
-const isEmbeddingModelMock = vi.hoisted(() => vi.fn())
-const isRerankModelMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: isEmbeddingModelMock,
-  isRerankModel: isRerankModelMock
-}))
-
 function createModel(overrides: Partial<Model> = {}): Model {
   return {
-    id: 'gpt-4o',
-    provider: 'openai',
+    id: 'openai::gpt-4o',
+    providerId: 'openai',
     name: 'GPT-4o',
-    group: 'default',
-    owned_by: 'openai',
+    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false,
     ...overrides
   } as Model
 }
 
 describe('isSelectableAssistantModel', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    isEmbeddingModelMock.mockReturnValue(false)
-    isRerankModelMock.mockReturnValue(false)
-  })
-
   it('rejects embedding models', () => {
-    isEmbeddingModelMock.mockReturnValue(true)
-
-    expect(isSelectableAssistantModel(createModel())).toBe(false)
+    expect(isSelectableAssistantModel(createModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING] }))).toBe(false)
   })
 
   it('rejects rerank models', () => {
-    isRerankModelMock.mockReturnValue(true)
-
-    expect(isSelectableAssistantModel(createModel())).toBe(false)
+    expect(isSelectableAssistantModel(createModel({ capabilities: [MODEL_CAPABILITY.RERANK] }))).toBe(false)
   })
 
   it('accepts chat-capable models', () => {

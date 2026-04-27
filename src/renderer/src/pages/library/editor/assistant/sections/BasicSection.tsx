@@ -25,33 +25,14 @@ import {
   Textarea,
   Tooltip
 } from '@cherrystudio/ui'
-// TODO(v2-llm-migration): three entry points below are the only remaining
-// Redux touch-points in the entire `pages/library` tree. They form one
-// closed loop and should be ripped out together in the llm-migration PR:
-//
-//   1. `ModelAvatar` — requires a full v1 `Model` object; the avatar's
-//      provider-icon decision reads Redux providers indirectly.
-//   2. `SelectChatModelPopup.show(...)` — picker UI whose option list is
-//      sourced from Redux providers + their models.
-//   3. `useProviders()` — only used here to reverse-look up `form.modelId`
-//      (UniqueModelId) into a full `Model` object so we can feed (1) and (2).
-//
-// Everything that needs to survive this migration (display name, modelId)
-// already lives on `assistant.modelName` / `assistant.modelId` via v2
-// AssistantService. Recommended replacement, inside this directory:
-//   - `library/components/V2ModelAvatar` — consumes `useQuery('/models/:id')`
-//   - `library/components/V2ModelPicker` — Combobox on `useQuery('/models')`
-// so the library tree becomes self-contained, and `SelectChatModelPopup` /
-// `ModelAvatar` can be rewritten or swapped at the global level separately.
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { useModels } from '@renderer/hooks/useModels'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
-import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Check, Plus, Trash2, X } from 'lucide-react'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { Check, ChevronsUpDown, Plus, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_TAG_COLOR } from '../../../constants'
@@ -66,6 +47,10 @@ const UI_MAX_CONTEXT_COUNT = 20
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 const AVATAR_OPTIONS = ['🤖', '💬', '✍️', '🎓', '💻', '🎨', '📝', '🌟', '🔮', '⚡', '🎭', '📊']
+
+function buildModelsById(models: Model[]): Map<UniqueModelId, Model> {
+  return new Map(models.map((model) => [model.id, model]))
+}
 
 interface Props {
   /** Present in edit mode; omitted during create. */
@@ -90,40 +75,29 @@ interface Props {
 export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByName, allTagNames }) => {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const tagColor = (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR
+  const tagColor = useCallback(
+    (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR,
+    [tagColorByName]
+  )
   const nameInvalid = Boolean(nameError)
+  const { models } = useModels({ enabled: true })
+  const modelsById = useMemo(() => buildModelsById(models), [models])
+  const selectedModel = form.modelId ? (modelsById.get(form.modelId) ?? null) : null
 
-  // Reverse-lookup: form.modelId (UniqueModelId) → full v1 `Model` object.
-  // Only exists to feed `ModelAvatar` / `SelectChatModelPopup`; the display
-  // name is already on `assistant.modelName` and does NOT need this lookup.
-  // See the consolidated v2-llm-migration TODO at the top of this file.
-  const { providers } = useProviders()
-  const selectedModel = useMemo(() => {
-    if (!form.modelId) return null
-    try {
-      const { providerId, modelId } = parseUniqueModelId(form.modelId)
-      const provider = providers.find((p) => p.id === providerId)
-      return provider?.models.find((m) => m.id === modelId) ?? null
-    } catch {
-      return null
+  const handleSelectModel = (modelId: UniqueModelId | undefined) => {
+    if (!modelId) {
+      onChange({ modelId: null })
+      return
     }
-  }, [form.modelId, providers])
-
-  const handlePickModel = async () => {
-    const picked = await SelectChatModelPopup.show({
-      model: selectedModel ?? undefined,
-      filter: isSelectableAssistantModel
-    })
-    if (!picked) return
 
     // Port the legacy AssistantModelSettings model-switch heuristic:
     // certain model families expect a specific temperature to behave well.
     // Applied as a form-state patch (no mutation until 保存), matching the
     // rest of BasicSection. Tracked as tech-debt upstream (see v1 comment
     // "TODO: 移除根据模型自动修改参数的逻辑").
-    const nameLower = picked.name.toLowerCase()
+    const nameLower = modelsById.get(modelId)?.name.toLowerCase() ?? ''
     const patch: Partial<AssistantFormState> = {
-      modelId: createUniqueModelId(picked.provider, picked.id)
+      modelId
     }
     if (nameLower.includes('kimi-k2')) {
       patch.temperature = 0.6
@@ -246,7 +220,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             className="min-h-8 w-full items-center rounded-xs border-border/20 bg-accent/15 px-2 py-1 text-xs shadow-none transition-all hover:border-border/40 hover:bg-accent/20 aria-expanded:border-border/40 aria-expanded:bg-accent/20 aria-expanded:ring-0"
             popoverClassName="rounded-xs border-border/30 p-1 shadow-lg shadow-black/[0.06]"
             renderValue={(value) => {
-              const selected = (Array.isArray(value) ? value : value ? [value] : []) as string[]
+              const selected = Array.isArray(value) ? value : value ? [value] : []
               const hasSelection = selected.length > 0
               return (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -338,20 +312,29 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
           <FieldLabel className="font-normal text-sm text-muted-foreground/80">
             {t('library.config.basic.model')}
           </FieldLabel>
-          {selectedModel ? (
+          {form.modelId ? (
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handlePickModel}
-                className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-xs text-foreground shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
-                <ModelAvatar model={selectedModel} size={16} />
-                <span className="max-w-[180px] truncate">{selectedModel.name}</span>
-              </Button>
+              <ModelSelector
+                multiple={false}
+                selectionType="id"
+                value={form.modelId}
+                filter={isSelectableAssistantModel}
+                onSelect={handleSelectModel}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-xs text-foreground shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
+                    <span className="max-w-[180px] truncate">{selectedModel?.name ?? form.modelId}</span>
+                    <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
+                  </Button>
+                }
+              />
               <Tooltip content={t('library.config.basic.model_clear')}>
                 <Button
                   type="button"
                   variant="ghost"
+                  aria-label={t('library.config.basic.model_clear')}
                   onClick={() => onChange({ modelId: null })}
                   className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/50 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
                   <Trash2 size={12} />
@@ -359,13 +342,20 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
               </Tooltip>
             </div>
           ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handlePickModel}
-              className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
-              {t('library.config.basic.model_pick')}
-            </Button>
+            <ModelSelector
+              multiple={false}
+              selectionType="id"
+              filter={isSelectableAssistantModel}
+              onSelect={handleSelectModel}
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
+                  {t('library.config.basic.model_pick')}
+                </Button>
+              }
+            />
           )}
         </div>
         {form.modelId && !selectedModel ? (

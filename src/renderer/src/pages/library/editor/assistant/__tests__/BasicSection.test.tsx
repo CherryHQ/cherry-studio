@@ -1,10 +1,17 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { type AssistantFormState } from '../descriptor'
 import { BasicSection } from '../sections/BasicSection'
+
+const models = [
+  { id: 'anthropic::claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+  { id: 'moonshot::moonshot-v1', name: 'Moonshot v1' },
+  { id: 'moonshot::kimi-k2', name: 'kimi-k2' }
+]
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -68,6 +75,27 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: [] })
 }))
 
+vi.mock('@renderer/hooks/useModels', () => ({
+  useModels: () => ({ models, isLoading: false })
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
+    <div>
+      <div data-testid="model-selector-trigger">{trigger}</div>
+      <button type="button" onClick={() => onSelect('anthropic::claude-sonnet-4-5')}>
+        select claude
+      </button>
+      <button type="button" onClick={() => onSelect('moonshot::moonshot-v1')}>
+        select moonshot
+      </button>
+      <button type="button" onClick={() => onSelect('moonshot::kimi-k2')}>
+        select kimi
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <div data-testid="model-avatar" />
 }))
@@ -120,9 +148,55 @@ describe('BasicSection avatar picker', () => {
 
     render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
 
-    await user.click(screen.getByRole('button', { name: '选择头像' }))
+    await user.click(screen.getByRole('button', { name: /选择头像|library\.config\.basic\.pick_avatar/ }))
     await user.click(await screen.findByRole('button', { name: 'pick emoji' }))
 
     expect(onChange).toHaveBeenCalledWith({ emoji: '🧠' })
+  })
+})
+
+describe('BasicSection model selector', () => {
+  it('writes the selected UniqueModelId directly into assistant form state', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
+
+    await user.click(screen.getByRole('button', { name: 'select claude' }))
+
+    expect(onChange).toHaveBeenCalledWith({ modelId: 'anthropic::claude-sonnet-4-5' })
+  })
+
+  it('keeps the model-switch temperature heuristics when selecting known models', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(<BasicSection form={createForm()} onChange={onChange} tagColorByName={new Map()} allTagNames={[]} />)
+
+    await user.click(screen.getByRole('button', { name: 'select moonshot' }))
+    await user.click(screen.getByRole('button', { name: 'select kimi' }))
+
+    expect(onChange).toHaveBeenCalledWith({ modelId: 'moonshot::moonshot-v1', temperature: 0.3 })
+    expect(onChange).toHaveBeenCalledWith({ modelId: 'moonshot::kimi-k2', temperature: 0.6 })
+  })
+
+  it('clears an existing assistant model to null', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(
+      <BasicSection
+        form={createForm({ modelId: 'anthropic::claude-sonnet-4-5' })}
+        onChange={onChange}
+        tagColorByName={new Map()}
+        allTagNames={[]}
+      />
+    )
+
+    expect(screen.getByText('Claude Sonnet 4.5')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /清空|library\.config\.basic\.model_clear/ }))
+
+    expect(onChange).toHaveBeenCalledWith({ modelId: null })
   })
 })

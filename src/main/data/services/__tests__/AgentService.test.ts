@@ -1,11 +1,12 @@
 import path from 'node:path'
 
 import { agentTable } from '@data/db/schemas/agent'
-import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
@@ -63,6 +64,20 @@ describe('AgentService', () => {
     }
     await dbh.db.insert(agentTable).values(base)
     return { id }
+  }
+
+  async function seedModelRefs() {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic' })
+    await dbh.db.insert(userModelTable).values({
+      id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5',
+      isEnabled: true,
+      isHidden: false,
+      sortOrder: 0
+    })
   }
 
   describe('createAgent', () => {
@@ -158,144 +173,48 @@ describe('AgentService', () => {
       expect(names).toEqual([...names].sort())
     })
 
-    it('embeds bound tags in each row', async () => {
-      const { id: a1 } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
-      const { id: a2 } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work', color: '#fff' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'play', color: '#000' }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'agent', entityId: a1, tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'agent', entityId: a1, tagId: '22222222-2222-4222-8222-222222222222' }
-      ])
+    it('does not expose tags in agent rows', async () => {
+      const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
+      const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
 
       const { agents } = await agentService.listAgents()
 
-      const tagged = agents.find((a) => a.id === a1)
-      const untagged = agents.find((a) => a.id === a2)
-      // Ordering contract: alphabetical by tag name within each agent.
-      expect(tagged?.tags.map((t) => t.name)).toEqual(['play', 'work'])
-      expect(untagged?.tags).toEqual([])
+      const tagged = agents.find((agent) => agent.id === taggedId)
+      const untagged = agents.find((agent) => agent.id === untaggedId)
+      expect(tagged).toBeDefined()
+      expect(untagged).toBeDefined()
+      expect('tags' in (tagged as object)).toBe(false)
+      expect('tags' in (untagged as object)).toBe(false)
     })
 
-    it('filters by search against name OR description (case-insensitive)', async () => {
+    it('embeds modelName resolved from user_model', async () => {
+      await seedModelRefs()
+      const bound = await insertAgent({
+        id: 'agent_model_test_1',
+        name: 'bound',
+        model: 'anthropic::claude-sonnet-4-5'
+      })
+      const missing = await insertAgent({
+        id: 'agent_model_test_2',
+        name: 'missing',
+        model: 'anthropic::deleted-model'
+      })
+
+      const { agents } = await agentService.listAgents()
+      const byId = new Map(agents.map((agent) => [agent.id, agent]))
+
+      expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
+      expect(byId.get(missing.id)?.modelName).toBeNull()
+    })
+
+    it('filters by search against name OR description', async () => {
       await insertAgent({ id: 'agent_search_1', name: 'Research Bot' })
       await insertAgent({ id: 'agent_search_2', name: 'unrelated', description: 'used for research' })
       await insertAgent({ id: 'agent_search_3', name: 'noise' })
 
       const { agents } = await agentService.listAgents({ search: 'research' })
 
-      expect(agents.map((a) => a.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
-    })
-
-    it('filters by tagIds with UNION semantics', async () => {
-      await insertAgent({ id: 'agent_uni_1', name: 'work-only' })
-      await insertAgent({ id: 'agent_uni_2', name: 'play-only' })
-      await insertAgent({ id: 'agent_uni_3', name: 'both' })
-      await insertAgent({ id: 'agent_uni_4', name: 'untagged' })
-      await dbh.db.insert(tagTable).values([
-        { id: '11111111-1111-4111-8111-111111111111', name: 'work' },
-        { id: '22222222-2222-4222-8222-222222222222', name: 'play' }
-      ])
-      await dbh.db.insert(entityTagTable).values([
-        { entityType: 'agent', entityId: 'agent_uni_1', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'agent', entityId: 'agent_uni_2', tagId: '22222222-2222-4222-8222-222222222222' },
-        { entityType: 'agent', entityId: 'agent_uni_3', tagId: '11111111-1111-4111-8111-111111111111' },
-        { entityType: 'agent', entityId: 'agent_uni_3', tagId: '22222222-2222-4222-8222-222222222222' }
-      ])
-
-      const { agents, total } = await agentService.listAgents({
-        tagIds: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']
-      })
-
-      expect(agents.map((a) => a.id).sort()).toEqual(['agent_uni_1', 'agent_uni_2', 'agent_uni_3'])
-      // Distinct entity count, not sum of bindings (3 vs 4 if double-counted).
-      expect(total).toBe(3)
-    })
-  })
-
-  describe('tag binding via create/update/delete', () => {
-    async function seedTags() {
-      await dbh.db.insert(tagTable).values([
-        { id: '33333333-3333-4333-8333-333333333333', name: 'alpha' },
-        { id: '44444444-4444-4444-8444-444444444444', name: 'beta' }
-      ])
-    }
-
-    it('createAgent persists tagIds in entity_tag inside the same txn', async () => {
-      await seedTags()
-      const created = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'with-tags',
-        model: 'claude-3-5-sonnet',
-        accessiblePaths: [],
-        tagIds: ['33333333-3333-4333-8333-333333333333']
-      })
-
-      expect(created.tags.map((t) => t.id)).toEqual(['33333333-3333-4333-8333-333333333333'])
-
-      const bindings = await dbh.db
-        .select()
-        .from(entityTagTable)
-        .where(and(eq(entityTagTable.entityType, 'agent'), eq(entityTagTable.entityId, created.id)))
-      expect(bindings).toHaveLength(1)
-    })
-
-    it('updateAgent with tagIds replaces existing bindings', async () => {
-      await seedTags()
-      const created = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'replace-tags',
-        model: 'claude-3-5-sonnet',
-        accessiblePaths: [],
-        tagIds: ['33333333-3333-4333-8333-333333333333']
-      })
-
-      const updated = await agentService.updateAgent(created.id, {
-        tagIds: ['44444444-4444-4444-8444-444444444444']
-      })
-
-      expect(updated?.tags.map((t) => t.id)).toEqual(['44444444-4444-4444-8444-444444444444'])
-    })
-
-    it('updateAgent with empty tagIds clears all bindings', async () => {
-      await seedTags()
-      const created = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'clear-tags',
-        model: 'claude-3-5-sonnet',
-        accessiblePaths: [],
-        tagIds: ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444']
-      })
-
-      const cleared = await agentService.updateAgent(created.id, { tagIds: [] })
-
-      expect(cleared?.tags).toEqual([])
-      const bindings = await dbh.db
-        .select()
-        .from(entityTagTable)
-        .where(and(eq(entityTagTable.entityType, 'agent'), eq(entityTagTable.entityId, created.id)))
-      expect(bindings).toHaveLength(0)
-    })
-
-    it('deleteAgent purges tag bindings for non-builtin agent', async () => {
-      await seedTags()
-      const created = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'doomed',
-        model: 'claude-3-5-sonnet',
-        accessiblePaths: [],
-        tagIds: ['33333333-3333-4333-8333-333333333333']
-      })
-
-      await agentService.deleteAgent(created.id)
-
-      const bindings = await dbh.db
-        .select()
-        .from(entityTagTable)
-        .where(and(eq(entityTagTable.entityType, 'agent'), eq(entityTagTable.entityId, created.id)))
-      expect(bindings).toHaveLength(0)
+      expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
   })
 })

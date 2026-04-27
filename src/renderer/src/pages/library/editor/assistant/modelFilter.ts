@@ -1,12 +1,13 @@
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import type { Model } from '@renderer/types'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+
+const DISALLOWED_ASSISTANT_CAPABILITIES = new Set<string>([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])
 
 /**
  * Keep assistant model selection aligned with the legacy assistant settings:
  * assistants can only pick chat-capable models, not embedding / rerank models.
  */
 export function isSelectableAssistantModel(model: Model): boolean {
-  return !isEmbeddingModel(model) && !isRerankModel(model)
+  return !model.capabilities.some((capability) => DISALLOWED_ASSISTANT_CAPABILITIES.has(capability))
 }
 
 // NOTE: Earlier versions exported a `resolveAssistantModelName` helper that

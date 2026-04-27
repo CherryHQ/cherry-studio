@@ -247,7 +247,10 @@ export const ResourceGrid: FC<Props> = ({
                 />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" sideOffset={4} className="w-auto min-w-[140px] rounded-lg border-border/40 p-1">
+            <PopoverContent
+              align="end"
+              sideOffset={4}
+              className="w-auto min-w-[140px] rounded-2xs border-border/40 p-1">
               <MenuList>
                 {(['agent', 'assistant'] as const).map((resourceType) => {
                   const meta = RESOURCE_TYPE_META[resourceType]

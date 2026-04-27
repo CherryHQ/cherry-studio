@@ -155,6 +155,18 @@ describe('assistant create flow helpers', () => {
       tagNames: ['alpha', 'beta']
     })
   })
+
+  it('preserves UniqueModelId in the create payload without legacy conversion', () => {
+    const baseline = buildCreateAssistantFormState()
+    const form = {
+      ...baseline,
+      name: 'Assistant',
+      prompt: 'You are helpful.',
+      modelId: 'anthropic::claude-sonnet-4-5' as const
+    }
+
+    expect(buildCreateAssistantPayload(form).modelId).toBe('anthropic::claude-sonnet-4-5')
+  })
 })
 
 describe('diffAssistantUpdate', () => {

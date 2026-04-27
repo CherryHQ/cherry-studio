@@ -16,13 +16,21 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Textarea
+  Textarea,
+  Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import SelectAgentBaseModelButton from '@renderer/pages/agents/components/SelectAgentBaseModelButton'
-import type { AgentBaseWithId, ApiModel } from '@renderer/types'
-import { Check, Plus, Trash2, X } from 'lucide-react'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { useModels } from '@renderer/hooks/useModels'
+import {
+  ENDPOINT_TYPE,
+  isUniqueModelId,
+  type Model,
+  MODEL_CAPABILITY,
+  type UniqueModelId
+} from '@shared/data/types/model'
+import { Check, ChevronsUpDown, Plus, Trash2, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,6 +60,26 @@ interface Props {
 
 // Avatar quick-pick presets shown next to the emoji picker button.
 const AVATAR_PRESETS = ['🤖', '🧠', '⚡', '🚀', '🛠️', '🎯', '📊', '🔬'] as const
+const DISALLOWED_AGENT_CAPABILITIES = new Set<string>([
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK,
+  MODEL_CAPABILITY.IMAGE_GENERATION
+])
+
+function buildModelsById(models: Model[]): Map<UniqueModelId, Model> {
+  return new Map(models.map((model) => [model.id, model]))
+}
+
+function isSelectableAgentModel(model: Model): boolean {
+  return (
+    model.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES) === true &&
+    !model.capabilities.some((capability) => DISALLOWED_AGENT_CAPABILITIES.has(capability))
+  )
+}
+
+function toSelectorValue(value: string): UniqueModelId | undefined {
+  return isUniqueModelId(value) ? value : undefined
+}
 
 /**
  * Mirrors the legacy AgentSettings **Essential** tab: the section where
@@ -72,7 +100,12 @@ const AVATAR_PRESETS = ['🤖', '🧠', '⚡', '🚀', '🛠️', '🎯', '📊'
 const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagColorByName, allTagNames }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
-  const tagColor = (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR
+  const tagColor = useCallback(
+    (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR,
+    [tagColorByName]
+  )
+  const { models } = useModels({ enabled: true })
+  const modelsById = useMemo(() => buildModelsById(models), [models])
 
   // Tag options for the select. `form.tags` may include names the backend list
   // doesn't know yet (e.g. typed in the card menu before /tags refreshed) —
@@ -91,24 +124,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
         />
       )
     }))
-  }, [allTagNames, form.tags, tagColorByName])
-
-  // Synthetic agent-base shapes per model field — `SelectAgentBaseModelButton`
-  // expects an `AgentBaseWithId` and passes `agent.type` to the model-filter
-  // resolver. We construct one per field (main / plan / small) so the picker
-  // highlights the currently-bound model and filters to the agent type.
-  const mainAgentBase = useMemo<AgentBaseWithId>(
-    () => buildAgentBaseShape({ id: 'draft-main', model: form.model, accessiblePaths: form.accessiblePaths }),
-    [form.model, form.accessiblePaths]
-  )
-  const planAgentBase = useMemo<AgentBaseWithId>(
-    () => buildAgentBaseShape({ id: 'draft-plan', model: form.planModel, accessiblePaths: form.accessiblePaths }),
-    [form.planModel, form.accessiblePaths]
-  )
-  const smallAgentBase = useMemo<AgentBaseWithId>(
-    () => buildAgentBaseShape({ id: 'draft-small', model: form.smallModel, accessiblePaths: form.accessiblePaths }),
-    [form.smallModel, form.accessiblePaths]
-  )
+  }, [allTagNames, form.tags, tagColor])
 
   const removePath = (path: string) => {
     onChange({ accessiblePaths: form.accessiblePaths.filter((p) => p !== path) })
@@ -203,21 +219,26 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
         <ModelField
           label={t('library.config.agent.field.model.label')}
           hint={t('library.config.agent.field.model.hint')}
-          agentBase={mainAgentBase}
+          value={form.model}
+          modelsById={modelsById}
           errorMessage={modelError}
-          onSelect={(model) => onChange({ model: model.id })}
+          onSelect={(modelId) => onChange({ model: modelId })}
         />
         <ModelField
           label={t('library.config.agent.field.plan_model.label')}
           hint={t('library.config.agent.field.plan_model.hint')}
-          agentBase={planAgentBase}
-          onSelect={(model) => onChange({ planModel: model.id })}
+          value={form.planModel}
+          modelsById={modelsById}
+          allowClear
+          onSelect={(modelId) => onChange({ planModel: modelId })}
         />
         <ModelField
           label={t('library.config.agent.field.small_model.label')}
           hint={t('library.config.agent.field.small_model.hint')}
-          agentBase={smallAgentBase}
-          onSelect={(model) => onChange({ smallModel: model.id })}
+          value={form.smallModel}
+          modelsById={modelsById}
+          allowClear
+          onSelect={(modelId) => onChange({ smallModel: modelId })}
         />
       </ModelSubsection>
 
@@ -323,7 +344,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
             className="min-h-8 w-full items-center rounded-xs border-border/20 bg-accent/15 px-2 py-1 text-xs shadow-none transition-all hover:border-border/40 hover:bg-accent/20 aria-expanded:border-border/40 aria-expanded:bg-accent/20 aria-expanded:ring-0"
             popoverClassName="rounded-xs border-border/30 p-1 shadow-lg shadow-black/[0.06]"
             renderValue={(value) => {
-              const selected = (Array.isArray(value) ? value : value ? [value] : []) as string[]
+              const selected = Array.isArray(value) ? value : value ? [value] : []
               const hasSelection = selected.length > 0
               return (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -425,17 +446,26 @@ function ModelSubsection({ children }: { children: React.ReactNode }) {
 function ModelField({
   label,
   hint,
-  agentBase,
+  value,
+  modelsById,
+  allowClear = false,
   errorMessage,
   onSelect
 }: {
   label: string
   hint: string
-  agentBase: AgentBaseWithId
+  value: string
+  modelsById: ReadonlyMap<UniqueModelId, Model>
+  allowClear?: boolean
   errorMessage?: string
-  onSelect: (model: ApiModel) => void
+  onSelect: (modelId: UniqueModelId | '') => void
 }) {
+  const { t } = useTranslation()
   const invalid = Boolean(errorMessage)
+  const selectorValue = toSelectorValue(value)
+  const selectedModel = selectorValue ? modelsById.get(selectorValue) : undefined
+  const triggerLabel = selectedModel?.name ?? (value || t('library.config.basic.model_pick'))
+
   return (
     <Field data-invalid={invalid || undefined} className="gap-1.5">
       <div className="flex items-center justify-between gap-3">
@@ -447,49 +477,46 @@ function ModelField({
           className={`rounded-xs border bg-accent/15 transition-colors ${
             invalid ? 'border-destructive/50' : 'border-border/20'
           }`}>
-          <SelectAgentBaseModelButton
-            agentBase={agentBase}
-            onSelect={async (model) => {
-              onSelect(model)
-            }}
-            className="w-full"
-            containerClassName="flex w-full items-center justify-between gap-1.5 px-2"
-            buttonSize="middle"
-            buttonStyle={{ borderRadius: 12, padding: '4px 8px', width: '100%' }}
-          />
+          <div className="flex items-center gap-1.5 px-2 py-1">
+            <ModelSelector
+              multiple={false}
+              selectionType="id"
+              value={selectorValue}
+              filter={isSelectableAgentModel}
+              onSelect={(modelId) => onSelect(modelId ?? '')}
+              trigger={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-xs text-foreground shadow-none hover:bg-accent/50 focus-visible:ring-0">
+                  <span className="min-w-0 truncate">{triggerLabel}</span>
+                  <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
+                </Button>
+              }
+            />
+            {allowClear && value ? (
+              <Tooltip content={t('library.config.basic.model_clear')}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={`${label} ${t('library.config.basic.model_clear')}`}
+                  onClick={() => onSelect('')}
+                  className="flex h-6 min-h-0 w-6 shrink-0 items-center justify-center rounded-3xs font-normal text-muted-foreground/50 shadow-none transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0">
+                  <Trash2 size={12} />
+                </Button>
+              </Tooltip>
+            ) : null}
+          </div>
         </div>
         <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
+        {value && !selectedModel ? (
+          <FieldDescription className="text-xs text-muted-foreground/50">
+            {t('library.config.basic.model_not_found', { id: value })}
+          </FieldDescription>
+        ) : null}
       </FieldContent>
     </Field>
   )
-}
-
-/**
- * Temporary shape bridge: feed `SelectAgentBaseModelButton` an `AgentEntity`-
- * shaped object so its internal `isAgentEntity` check passes and the picker
- * applies the correct model filter (`getModelFilterByAgentType('claude-code')`).
- * Draft sentinel id during create mode — real id once the agent is saved.
- */
-function buildAgentBaseShape({
-  id,
-  model,
-  accessiblePaths
-}: {
-  id: string
-  model: string
-  accessiblePaths: string[]
-}): AgentBaseWithId {
-  return {
-    id,
-    type: 'claude-code',
-    model,
-    accessiblePaths,
-    mcps: [],
-    allowedTools: [],
-    configuration: {},
-    createdAt: '1970-01-01T00:00:00.000Z',
-    updatedAt: '1970-01-01T00:00:00.000Z'
-  } as unknown as AgentBaseWithId
 }
 
 function SwitchRow({

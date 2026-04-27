@@ -81,7 +81,7 @@ export function useResourceLibrary({
         name: a.name ?? '',
         description: a.description ?? '',
         avatar: avatarFromConfig || '🤖',
-        model: a.model,
+        model: a.modelName ?? undefined,
         tags: tags.map((t) => t.name),
         tagRefs: tags,
         enabled: true,

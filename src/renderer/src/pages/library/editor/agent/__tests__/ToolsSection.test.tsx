@@ -82,6 +82,7 @@ describe('ToolsSection', () => {
           name: '',
           accessiblePaths: [],
           model: '',
+          modelName: null,
           createdAt: '',
           updatedAt: '',
           tools: [],
