@@ -7,7 +7,10 @@ import {
 } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
-import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
+import {
+  type GoogleVertexAnthropicProvider,
+  type GoogleVertexAnthropicProviderSettings
+} from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
@@ -28,6 +31,7 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix/aihubmixProvider'
 import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
+import { createGoogleVertexAnthropic } from '../custom/google-vertex-anthropic-provider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
@@ -58,7 +62,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: createVertexAnthropic,
+  create: createGoogleVertexAnthropic,
   toolFactories: {
     webSearch:
       (provider: GoogleVertexAnthropicProvider) =>
@@ -67,7 +71,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
       })
   }
 } as const satisfies ProviderExtensionConfig<
-  GoogleVertexProviderSettings,
+  GoogleVertexAnthropicProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
 >)
