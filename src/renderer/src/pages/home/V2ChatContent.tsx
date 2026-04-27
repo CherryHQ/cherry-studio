@@ -4,7 +4,6 @@ import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
-import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { FileMetadata, Topic } from '@renderer/types'
@@ -136,8 +135,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const respondToToolApproval = useToolApprovalBridge(chat)
 
-  const isAwaitingApproval = useTopicAwaitingApproval(topic.id, uiMessages)
-
   // Rendering: project uiMessages + layer per-execution streaming overlay.
   const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
     useV2RenderingPipeline(uiMessages, activeExecutionIds, topic)
@@ -227,12 +224,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     loadOlder={loadOlder}
                     hasOlder={hasOlder}
                   />
-                  <Inputbar
-                    topic={topic}
-                    setActiveTopic={setActiveTopic}
-                    onSend={handleSendV2}
-                    awaitingApproval={isAwaitingApproval}
-                  />
+                  <Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSendV2} />
                 </div>
               </ChatContextBridge>
             </ToolApprovalProvider>

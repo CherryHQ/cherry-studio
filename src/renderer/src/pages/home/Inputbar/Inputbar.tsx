@@ -10,6 +10,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
@@ -58,7 +59,6 @@ interface Props {
     text: string,
     options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
   ) => void | Promise<void>
-  awaitingApproval?: boolean
 }
 
 type ProviderActionHandlers = {
@@ -74,7 +74,7 @@ interface InputbarInnerProps extends Props {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp, awaitingApproval = false }) => {
+const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -109,24 +109,14 @@ const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp, awaiti
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <InputbarInner
-        setActiveTopic={setActiveTopic}
-        topic={topic}
-        actionsRef={actionsRef}
-        onSend={onSendProp}
-        awaitingApproval={awaitingApproval}
-      />
+      <InputbarInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({
-  setActiveTopic,
-  topic,
-  actionsRef,
-  onSend: onSendProp,
-  awaitingApproval = false
-}) => {
+const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsRef, onSend: onSendProp }) => {
+  const awaitingApproval = useTopicAwaitingApproval(topic.id)
+
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 

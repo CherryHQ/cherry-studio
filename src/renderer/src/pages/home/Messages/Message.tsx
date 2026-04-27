@@ -7,6 +7,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -124,9 +125,23 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
 
+  // Suppress menubar in three states where the message isn't really
+  // "settled" enough for copy/edit/regenerate/delete:
+  //   1. own status is `pending`/`processing`/`searching` (classic
+  //      streaming-target case)
+  //   2. topic is in `pending`/`streaming` and we're the stream target
+  //      (covers the small window between the execution overlay rolling
+  //      parts forward and DataApi pushing `status='pending'`)
+  //   3. topic is paused on a tool-approval-request and this is the last
+  //      assistant — `useTopicAwaitingApproval` already gates on
+  //      "stream not live + has approval-requested part"
+  // Cases 1+2 cover the active-stream side, case 3 covers the
+  // paused-on-user side. They're disjoint by construction; both needed.
   const { status: topicStreamStatus } = useTopicStreamStatus(topic.id)
   const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
-  const isProcessing = isMessageProcessing(message) || (isTopicStreaming && isLastMessage)
+  const isAwaitingApproval = useTopicAwaitingApproval(topic.id)
+  const isProcessing =
+    isMessageProcessing(message) || (isTopicStreaming && isLastMessage) || (isAwaitingApproval && isLastMessage)
   const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
