@@ -343,7 +343,12 @@ export class ChatMigrator extends BaseMigrator {
               this.skippedTopics++
             }
           } catch (error) {
-            logger.warn(`Failed to transform topic ${oldTopic.id}`, { error })
+            logger.error('Failed to transform topic', error as Error, {
+              topicId: oldTopic.id,
+              batchIndex,
+              messageCount: oldTopic.messages?.length ?? 0,
+              assistantId: oldTopic.assistantId
+            })
             this.skippedTopics++
           }
         }
