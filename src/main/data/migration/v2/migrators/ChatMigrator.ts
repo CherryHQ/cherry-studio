@@ -855,11 +855,14 @@ export class ChatMigrator extends BaseMigrator {
       )
     }
 
-    // Phase 3: emit pin rows for legacy pinned topics.
+    // Phase 3: emit pin rows for legacy pinned topics. Uses ON CONFLICT DO
+    // NOTHING on (entity_type, entity_id) so a retry after a partial phase-3
+    // failure is idempotent — verifyAndClearNewTables also clears `pin` so
+    // a fresh re-run starts clean. Wrapped in try/catch so a partial failure
+    // is logged with diagnostic counters rather than swallowed.
     const pinned = this.stagedTopics.filter((d) => d.pinned)
     let pinsInserted = 0
     if (pinned.length > 0) {
-      // Order pins newest-first so the most recently active pin is at the head.
       const sorted = [...pinned].sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       const now = Date.now()
       const pinRows = assignOrderKeysInSequence(
@@ -871,10 +874,19 @@ export class ChatMigrator extends BaseMigrator {
           updatedAt: now
         }))
       )
-      for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-        await db.insert(pinTable).values(pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+      try {
+        for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+          const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+          await db.insert(pinTable).values(batch).onConflictDoNothing()
+          pinsInserted += batch.length
+        }
+      } catch (error) {
+        logger.error('Pin row emission failed mid-batch', error as Error, {
+          pinsInserted,
+          pinsExpected: pinRows.length
+        })
+        throw error
       }
-      pinsInserted = pinRows.length
     }
 
     return { topicsInserted, messagesInserted, pinsInserted }
