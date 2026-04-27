@@ -56,7 +56,7 @@ type BaseSelectorV2SharedProps<T extends BaseSelectorV2Item> = {
   defaultSortId?: string
 
   pinnedIds: string[]
-  onPinnedIdsChange: (next: string[]) => void
+  onTogglePin: (id: string) => void | Promise<void>
 
   onEditItem: (id: string) => void
   onCreateNew: () => void
@@ -154,7 +154,7 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
     sortOptions,
     defaultSortId,
     pinnedIds,
-    onPinnedIdsChange,
+    onTogglePin,
     onEditItem,
     onCreateNew,
     labels,
@@ -273,9 +273,9 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
 
   const togglePin = useCallback(
     (id: string) => {
-      onPinnedIdsChange(pinnedIds.includes(id) ? pinnedIds.filter((x) => x !== id) : [...pinnedIds, id])
+      void onTogglePin(id)
     },
-    [pinnedIds, onPinnedIdsChange]
+    [onTogglePin]
   )
 
   const renderItem = useCallback(

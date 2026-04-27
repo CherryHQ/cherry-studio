@@ -17,6 +17,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
+import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -251,6 +252,7 @@ export class AssistantDataService {
     await this.db.transaction(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
       await tagService.purgeForEntity(tx, 'assistant', id)
+      await pinService.purgeForEntity(tx, 'assistant', id)
     })
 
     logger.info('Soft-deleted assistant', { id })

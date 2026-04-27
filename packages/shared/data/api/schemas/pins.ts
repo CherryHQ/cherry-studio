@@ -11,8 +11,7 @@
 
 import * as z from 'zod'
 
-import { EntityIdSchema, EntityTypeSchema } from '../../types/entityType'
-import { type Pin, PinIdSchema as SharedPinIdSchema } from '../../types/pin'
+import { type Pin, PinIdSchema as SharedPinIdSchema, PinTargetSchema, PinTargetTypeSchema } from '../../types/pin'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 export const PinIdSchema = SharedPinIdSchema
@@ -25,10 +24,7 @@ export const PinIdSchema = SharedPinIdSchema
  * DTO for creating (or re-using) a pin. Idempotent: when a pin already exists
  * for the same (entityType, entityId) the service returns the existing row.
  */
-export const CreatePinSchema = z.strictObject({
-  entityType: EntityTypeSchema,
-  entityId: EntityIdSchema
-})
+export const CreatePinSchema = PinTargetSchema
 export type CreatePinDto = z.infer<typeof CreatePinSchema>
 
 /**
@@ -36,7 +32,7 @@ export type CreatePinDto = z.infer<typeof CreatePinSchema>
  * entity types has no business use case.
  */
 export const ListPinsQuerySchema = z.strictObject({
-  entityType: EntityTypeSchema
+  entityType: PinTargetTypeSchema
 })
 export type ListPinsQuery = z.infer<typeof ListPinsQuerySchema>
 

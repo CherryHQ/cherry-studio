@@ -89,7 +89,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -109,7 +109,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -130,7 +130,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -152,7 +152,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -184,7 +184,7 @@ describe('BaseSelectorV2', () => {
               trigger={<button type="button">Open</button>}
               items={ITEMS}
               pinnedIds={[]}
-              onPinnedIdsChange={vi.fn()}
+              onTogglePin={vi.fn()}
               onEditItem={vi.fn()}
               onCreateNew={vi.fn()}
               labels={LABELS}
@@ -215,7 +215,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={['3', '1']}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -231,15 +231,15 @@ describe('BaseSelectorV2', () => {
       expect(options[1]).toHaveTextContent('Alpha')
     })
 
-    it('unpin icon in single mode fires onPinnedIdsChange without selecting the row', () => {
-      const onPinnedIdsChange = vi.fn()
+    it('unpin icon in single mode fires onTogglePin without selecting the row', () => {
+      const onTogglePin = vi.fn()
       const onChange = vi.fn()
       render(
         <BaseSelectorV2
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={['1']}
-          onPinnedIdsChange={onPinnedIdsChange}
+          onTogglePin={onTogglePin}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -250,7 +250,7 @@ describe('BaseSelectorV2', () => {
       openPopover()
       // Pin icon is a <button aria-label="Unpin"> inside the pinned row.
       fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
-      expect(onPinnedIdsChange).toHaveBeenCalledWith([])
+      expect(onTogglePin).toHaveBeenCalledWith('1')
       expect(onChange).not.toHaveBeenCalled()
     })
   })
@@ -264,7 +264,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={onEditItem}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -289,7 +289,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -316,7 +316,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={[ITEMS[1], ITEMS[0], ITEMS[2]]} // Beta, Alpha, Gamma
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
@@ -339,7 +339,7 @@ describe('BaseSelectorV2', () => {
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
-          onPinnedIdsChange={vi.fn()}
+          onTogglePin={vi.fn()}
           onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}

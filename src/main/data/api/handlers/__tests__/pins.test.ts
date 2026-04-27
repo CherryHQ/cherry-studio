@@ -73,6 +73,24 @@ describe('pinHandlers', () => {
       expect(pinMock).toHaveBeenNthCalledWith(2, { entityType: 'topic', entityId: ENTITY_ID })
     })
 
+    it('should accept non-UUID agent ids because agent storage owns its own id format', async () => {
+      const row = {
+        id: PIN_ID,
+        entityType: 'agent',
+        entityId: 'agent_builtin_code',
+        orderKey: 'a0'
+      }
+      pinMock.mockResolvedValue(row)
+
+      await expect(
+        pinHandlers['/pins'].POST({
+          body: { entityType: 'agent', entityId: 'agent_builtin_code' }
+        } as never)
+      ).resolves.toMatchObject(row)
+
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: 'agent_builtin_code' })
+    })
+
     it('should reject POST with an invalid entityType before calling the service', async () => {
       await expect(
         pinHandlers['/pins'].POST({

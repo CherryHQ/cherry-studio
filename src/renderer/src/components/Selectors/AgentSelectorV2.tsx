@@ -18,10 +18,10 @@
 //                   prerequisite from the resource library PR referenced above; both must land
 //                   before this selector reaches parity with AssistantSelectorV2.
 
-import { usePreference } from '@renderer/data/hooks/usePreference'
+import { usePinnedEntityIds } from '@renderer/hooks/usePinnedEntityIds'
 import { useNavigate } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSelectorV2, type BaseSelectorV2Item, type BaseSelectorV2SortOption } from './BaseSelectorV2'
@@ -44,7 +44,7 @@ export function AgentSelectorV2({ trigger, open, onOpenChange, value, onChange }
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const [pinnedIds, setPinnedIds] = usePreference('agent.pinned_ids')
+  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePinnedEntityIds('agent')
 
   const items: AgentRow[] = EMPTY_ITEMS
 
@@ -56,19 +56,35 @@ export function AgentSelectorV2({ trigger, open, onOpenChange, value, onChange }
     [t]
   )
 
+  useEffect(() => {
+    if (open) {
+      refetchPins()
+    }
+  }, [open, refetchPins])
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        refetchPins()
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, refetchPins]
+  )
+
   return (
     <BaseSelectorV2
       trigger={trigger}
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       items={items}
       renderFallbackIcon={() => <Bot className="size-4 text-muted-foreground/70" />}
       value={value}
       onChange={onChange}
       sortOptions={sortOptions}
       defaultSortId="desc"
-      pinnedIds={pinnedIds ?? []}
-      onPinnedIdsChange={setPinnedIds}
+      pinnedIds={[...pinnedIds]}
+      onTogglePin={togglePin}
       onEditItem={() => {
         // TODO(library-routing): replace with library agent edit route once `feat/v2/resource-library-agents` ships.
         void navigate({ to: '/app/agents' })
@@ -77,7 +93,7 @@ export function AgentSelectorV2({ trigger, open, onOpenChange, value, onChange }
         // TODO(library-routing): replace with library agent create route once `feat/v2/resource-library-agents` ships.
         void navigate({ to: '/app/agents' })
       }}
-      loading={false}
+      loading={isPinnedLoading}
       labels={{
         searchPlaceholder: t('selector.agent.search_placeholder'),
         sortLabel: t('selector.common.sort_label'),

@@ -13,9 +13,9 @@
 //             hides the chip row automatically.
 
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { usePreference } from '@renderer/data/hooks/usePreference'
+import { usePinnedEntityIds } from '@renderer/hooks/usePinnedEntityIds'
 import { useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSelectorV2, type BaseSelectorV2Item, type BaseSelectorV2SortOption } from './BaseSelectorV2'
@@ -77,7 +77,7 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   const { data, isLoading } = useQuery('/assistants', { query: { limit: 500 } })
   const navigate = useNavigate()
 
-  const [pinnedIds, setPinnedIds] = usePreference('assistant.pinned_ids')
+  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePinnedEntityIds('assistant')
 
   const items: AssistantSelectorV2Item[] = useMemo(
     () =>
@@ -102,16 +102,32 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
     ]
   }, [data, t])
 
+  useEffect(() => {
+    if (open) {
+      refetchPins()
+    }
+  }, [open, refetchPins])
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        refetchPins()
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, refetchPins]
+  )
+
   const shared = {
     trigger,
     open,
-    onOpenChange,
+    onOpenChange: handleOpenChange,
     items,
-    loading: isLoading,
+    loading: isLoading || isPinnedLoading,
     sortOptions,
     defaultSortId: 'desc',
-    pinnedIds: pinnedIds ?? [],
-    onPinnedIdsChange: setPinnedIds,
+    pinnedIds: [...pinnedIds],
+    onTogglePin: togglePin,
     onEditItem: () => {
       // TODO(library-routing): replace with library assistant edit route once `feat/v2/resource-library-agents` ships.
       void navigate({ to: '/app/assistant' })
