@@ -11,14 +11,17 @@
 //             tag association. The resource library PR adds the Assistant↔Tag model; agents are
 //             expected to follow the same shape once their DataApi lands.
 
+import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { useNavigate } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSelectorV2, type BaseSelectorV2Item, type BaseSelectorV2SortOption } from './BaseSelectorV2'
+
+const logger = loggerService.withContext('AgentSelectorV2')
 
 export type AgentSelectorV2Item = BaseSelectorV2Item
 
@@ -48,7 +51,15 @@ export function AgentSelectorV2(props: AgentSelectorV2Props) {
   const navigate = useNavigate()
 
   const { data, isLoading } = useQuery('/agents', { query: { limit: 500 } })
-  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePins('agent')
+  const {
+    isLoading: isPinnedLoading,
+    isRefreshing: isPinsRefreshing,
+    isMutating: isPinsMutating,
+    pinnedIds,
+    refetch: refetchPins,
+    togglePin
+  } = usePins('agent')
+  const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorV2Item[] = useMemo(
     () =>
@@ -71,12 +82,9 @@ export function AgentSelectorV2(props: AgentSelectorV2Props) {
     ]
   }, [data, t])
 
-  useEffect(() => {
-    if (open) {
-      refetchPins()
-    }
-  }, [open, refetchPins])
-
+  // Single-source refetch: only handleOpenChange. A parallel useEffect on the `open` prop would
+  // double-fire in controlled mode (handleOpenChange → parent setState → open prop changes →
+  // effect runs again). The trigger-driven path covers both controlled and uncontrolled.
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
@@ -85,6 +93,19 @@ export function AgentSelectorV2(props: AgentSelectorV2Props) {
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, refetchPins]
+  )
+
+  const handleTogglePin = useCallback(
+    async (id: string) => {
+      if (isPinActionDisabled) return
+      try {
+        await togglePin(id)
+      } catch (error) {
+        logger.error('Failed to toggle agent pin', error as Error, { id })
+        window.toast?.error(t('common.error'))
+      }
+    },
+    [isPinActionDisabled, togglePin, t]
   )
 
   const shared = {
@@ -96,7 +117,8 @@ export function AgentSelectorV2(props: AgentSelectorV2Props) {
     sortOptions,
     defaultSortId: 'desc',
     pinnedIds: [...pinnedIds],
-    onTogglePin: togglePin,
+    onTogglePin: handleTogglePin,
+    isPinActionDisabled,
     onEditItem: () => {
       // TODO(library-routing): replace with library agent edit route once `feat/v2/resource-library-agents` ships.
       void navigate({ to: '/app/agents' })

@@ -12,13 +12,16 @@
 //             filter panel source. Until it lands, the `tags` prop is omitted so BaseSelectorV2
 //             hides the chip row automatically.
 
+import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useCallback, useEffect, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BaseSelectorV2, type BaseSelectorV2Item, type BaseSelectorV2SortOption } from './BaseSelectorV2'
+
+const logger = loggerService.withContext('AssistantSelectorV2')
 
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
@@ -77,7 +80,15 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   const { data, isLoading } = useQuery('/assistants', { query: { limit: 500 } })
   const navigate = useNavigate()
 
-  const { isLoading: isPinnedLoading, pinnedIds, refetch: refetchPins, togglePin } = usePins('assistant')
+  const {
+    isLoading: isPinnedLoading,
+    isRefreshing: isPinsRefreshing,
+    isMutating: isPinsMutating,
+    pinnedIds,
+    refetch: refetchPins,
+    togglePin
+  } = usePins('assistant')
+  const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AssistantSelectorV2Item[] = useMemo(
     () =>
@@ -102,12 +113,9 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
     ]
   }, [data, t])
 
-  useEffect(() => {
-    if (open) {
-      refetchPins()
-    }
-  }, [open, refetchPins])
-
+  // Single-source refetch: only handleOpenChange. A parallel useEffect on the `open` prop would
+  // double-fire in controlled mode (handleOpenChange → parent setState → open prop changes →
+  // effect runs again). The trigger-driven path covers both controlled and uncontrolled.
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (nextOpen) {
@@ -116,6 +124,19 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
       onOpenChange?.(nextOpen)
     },
     [onOpenChange, refetchPins]
+  )
+
+  const handleTogglePin = useCallback(
+    async (id: string) => {
+      if (isPinActionDisabled) return
+      try {
+        await togglePin(id)
+      } catch (error) {
+        logger.error('Failed to toggle assistant pin', error as Error, { id })
+        window.toast?.error(t('common.error'))
+      }
+    },
+    [isPinActionDisabled, togglePin, t]
   )
 
   const shared = {
@@ -127,7 +148,8 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
     sortOptions,
     defaultSortId: 'desc',
     pinnedIds: [...pinnedIds],
-    onTogglePin: togglePin,
+    onTogglePin: handleTogglePin,
+    isPinActionDisabled,
     onEditItem: () => {
       // TODO(library-routing): replace with library assistant edit route once `feat/v2/resource-library-agents` ships.
       void navigate({ to: '/app/assistant' })

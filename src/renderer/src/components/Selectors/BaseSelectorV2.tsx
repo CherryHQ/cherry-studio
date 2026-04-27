@@ -58,6 +58,8 @@ type BaseSelectorV2SharedProps<T extends BaseSelectorV2Item> = {
 
   pinnedIds: string[]
   onTogglePin: (id: string) => void | Promise<void>
+  /** Disable pin toggles while a pin read/write is in flight (prevents over-fire from rapid clicks). */
+  isPinActionDisabled?: boolean
 
   onEditItem: (id: string) => void
   onCreateNew: () => void
@@ -158,6 +160,7 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
     defaultSortId,
     pinnedIds,
     onTogglePin,
+    isPinActionDisabled = false,
     onEditItem,
     onCreateNew,
     labels,
@@ -276,11 +279,12 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
 
   const togglePin = useCallback(
     (id: string) => {
-      void (async () => onTogglePin(id))().catch((error) => {
+      if (isPinActionDisabled) return
+      Promise.resolve(onTogglePin(id)).catch((error) => {
         logger.error('Failed to toggle pin', error as Error, { id })
       })
     },
-    [onTogglePin]
+    [onTogglePin, isPinActionDisabled]
   )
 
   const renderItem = useCallback(
@@ -319,11 +323,12 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
               ) : isPinned ? (
                 <button
                   type="button"
+                  disabled={isPinActionDisabled}
                   onClick={(e) => {
                     e.stopPropagation()
                     togglePin(item.id)
                   }}
-                  className="text-muted-foreground/40 transition-colors hover:text-destructive/60"
+                  className="text-muted-foreground/40 transition-colors hover:text-destructive/60 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground/40"
                   title={labels.unpin}
                   aria-label={labels.unpin}>
                   <Pin size={10} />
@@ -351,7 +356,7 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
         </div>
       )
     },
-    [selectedSet, pinnedSet, labels.unpin, labels.edit, renderFallbackIcon, togglePin, onEditItem]
+    [selectedSet, pinnedSet, labels.unpin, labels.edit, renderFallbackIcon, togglePin, onEditItem, isPinActionDisabled]
   )
 
   const hasFilterControls = (tags && tags.length > 0) || (sortOptions && sortOptions.length > 0)
@@ -488,11 +493,12 @@ export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelector
           </button>
           <button
             type="button"
+            disabled={isPinActionDisabled}
             onClick={() => {
               togglePin(item.id)
               close()
             }}
-            className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
+            className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent">
             <Pin size={10} className={pinnedSet.has(item.id) ? 'rotate-45' : ''} />
             <span>{pinnedSet.has(item.id) ? labels.unpin : labels.pin}</span>
           </button>
