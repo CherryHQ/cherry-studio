@@ -40,7 +40,7 @@ import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
 import { getProviderDisplayName } from './utils'
 
-const logger = loggerService.withContext('ModelSelectorV2')
+const logger = loggerService.withContext('ModelSelector')
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36

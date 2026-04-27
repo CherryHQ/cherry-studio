@@ -1,5 +1,5 @@
 import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
-import { ModelSelector, type ModelSelectorSelectionType } from '@renderer/components/ModelSelectorV2'
+import { ModelSelector, type ModelSelectorSelectionType } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModels'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'

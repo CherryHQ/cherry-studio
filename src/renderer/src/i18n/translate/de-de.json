@@ -3890,7 +3890,7 @@
         "behaviorConfig": "[to be translated]:Behavior & Display Config",
         "callbackEmpty": "[to be translated]:No component callback received yet",
         "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelectorV2 props above and inspect the input value plus callback payloads below.",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
         "configTitle": "[to be translated]:Props Playground",
         "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
         "currentProps": "[to be translated]:Current Props",

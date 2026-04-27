@@ -3890,7 +3890,7 @@
         "behaviorConfig": "互動與顯示設定",
         "callbackEmpty": "尚未收到元件回呼",
         "clearSelection": "清空選擇",
-        "configDescription": "在上方切換 ModelSelectorV2 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
         "configTitle": "Props Playground",
         "controlMultiSelectMode": "受控 multiSelectMode",
         "currentProps": "目前 props",

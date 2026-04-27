@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelSelector } from '../ModelSelectorV2'
+import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
 const { mockUseModelSelectorData, mockNavigate, mockScrollToIndex, mockLoggerError } = vi.hoisted(() => ({
@@ -208,7 +208,7 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
   }
 }
 
-describe('ModelSelectorV2', () => {
+describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
     mockNavigate.mockReset()
