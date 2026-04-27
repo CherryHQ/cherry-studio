@@ -16,9 +16,7 @@ import {
   Search,
   Server,
   Settings2,
-  Sparkles,
-  TextCursorInput,
-  Zap
+  TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,13 +62,6 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/api-server')}
                 onClick={() => go('/settings/api-server')}
               />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Radio />}
-                label={t('settings.channels.title')}
-                active={isActive('/settings/channels')}
-                onClick={() => go('/settings/channels')}
-              />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.services')}</div>
               <MenuItem
@@ -103,6 +94,13 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
+                icon={<Radio />}
+                label={t('settings.channels.title')}
+                active={isActive('/settings/channels')}
+                onClick={() => go('/settings/channels')}
+              />
+              <MenuItem
+                className={menuItemClassName}
                 icon={<CalendarClock />}
                 label={t('settings.scheduledTasks.title')}
                 active={isActive('/settings/scheduled-tasks')}
@@ -126,20 +124,6 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={sectionDividerClassName} />
               <div className={sectionTitleClassName}>{t('settings.menuGroups.productivity')}</div>
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Sparkles />}
-                label={t('settings.skills.title')}
-                active={isActive('/settings/skills')}
-                onClick={() => go('/settings/skills')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<Zap />}
-                label={t('settings.quickPhrase.title')}
-                active={isActive('/settings/quickphrase')}
-                onClick={() => go('/settings/quickphrase')}
-              />
               <MenuItem
                 className={menuItemClassName}
                 icon={<Command />}

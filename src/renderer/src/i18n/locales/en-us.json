@@ -735,7 +735,7 @@
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
@@ -4916,7 +4916,7 @@
     },
     "menuGroups": {
       "appSettings": "App Settings",
-      "integrations": "Integrations",
+      "integrations": "Models",
       "productivity": "Productivity",
       "services": "Services",
       "system": "System"

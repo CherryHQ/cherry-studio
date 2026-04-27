@@ -735,7 +735,7 @@
       "running": "运行中",
       "stopped": "已停止"
     },
-    "title": "API 服务器"
+    "title": "API 网关"
   },
   "appMenu": {
     "about": "关于",
@@ -4916,8 +4916,8 @@
     },
     "menuGroups": {
       "appSettings": "应用设置",
-      "integrations": "集成",
-      "productivity": "效率工具",
+      "integrations": "模型",
+      "productivity": "效率",
       "services": "服务",
       "system": "系统"
     },
