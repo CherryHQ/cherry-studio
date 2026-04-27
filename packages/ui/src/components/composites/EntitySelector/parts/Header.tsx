@@ -1,36 +1,19 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Filter, Search } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import type { RefObject } from 'react'
 
 import type { EntitySelectorSearch } from '../types'
 
 type Props = {
   search?: EntitySelectorSearch
+  searchInputRef?: RefObject<HTMLInputElement | null>
   showFilterButton: boolean
   filterActive: boolean
   filterOpen: boolean
   onToggleFilter: () => void
-  autoFocusSearch?: boolean
 }
 
-export function Header({
-  search,
-  showFilterButton,
-  filterActive,
-  filterOpen,
-  onToggleFilter,
-  autoFocusSearch = true
-}: Props) {
-  // Header mounts together with PopoverContent (Radix unmounts on close), so "mount" == "popover
-  // just opened". 50ms delay lets Radix finish its enter animation before moving focus — without
-  // it the focus ring can flicker during the transform.
-  const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (!autoFocusSearch || !search) return
-    const t = setTimeout(() => inputRef.current?.focus(), 50)
-    return () => clearTimeout(t)
-  }, [autoFocusSearch, search])
-
+export function Header({ search, searchInputRef, showFilterButton, filterActive, filterOpen, onToggleFilter }: Props) {
   if (!search && !showFilterButton) return null
 
   const filterButton = showFilterButton ? (
@@ -52,7 +35,7 @@ export function Header({
         <div className="flex h-8 flex-1 items-center gap-2 rounded-full bg-muted/40 px-3">
           <Search className="size-4 shrink-0 text-muted-foreground/70" />
           <input
-            ref={inputRef}
+            ref={searchInputRef}
             type="text"
             value={search.value}
             onChange={(e) => search.onChange(e.target.value)}

@@ -537,5 +537,49 @@ describe('EntitySelector', () => {
       await new Promise((resolve) => setTimeout(resolve, 80))
       expect(document.activeElement).not.toBe(input)
     })
+
+    it('does not steal focus back to search on parent rerender while open', async () => {
+      function RerenderHarness() {
+        const [searchValue, setSearchValue] = useState('')
+        const [renderCount, setRenderCount] = useState(0)
+
+        return (
+          <EntitySelector
+            trigger={<button type="button">Open</button>}
+            items={ITEMS}
+            mode="single"
+            value={null}
+            onChange={vi.fn()}
+            search={{
+              value: searchValue,
+              onChange: setSearchValue,
+              placeholder: `Search ${renderCount}`
+            }}
+            filterPanel={
+              <button type="button" onClick={() => setRenderCount((count) => count + 1)}>
+                Rerender inside
+              </button>
+            }
+            renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+          />
+        )
+      }
+
+      render(<RerenderHarness />)
+      openPopover()
+      const input = screen.getByPlaceholderText('Search 0') as HTMLInputElement
+      await waitFor(() => expect(document.activeElement).toBe(input), { timeout: 200 })
+
+      const filterToggle = screen.getByRole('button', { pressed: false })
+      fireEvent.click(filterToggle)
+      const panelButton = screen.getByRole('button', { name: 'Rerender inside' })
+      panelButton.focus()
+      expect(document.activeElement).toBe(panelButton)
+
+      fireEvent.click(panelButton)
+      await new Promise((resolve) => setTimeout(resolve, 80))
+
+      expect(document.activeElement).toBe(panelButton)
+    })
   })
 })

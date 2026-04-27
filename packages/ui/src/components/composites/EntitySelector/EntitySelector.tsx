@@ -75,6 +75,16 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   const ctxMenu = useItemContextMenu()
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const hasSearch = Boolean(search)
+
+  // Focus search once per popover open. Keeping this effect in EntitySelector avoids re-focusing
+  // when Header props (like the controlled search object) get recreated during normal rerenders.
+  useEffect(() => {
+    if (!open || autoFocusSearch === false || !hasSearch) return
+    const t = setTimeout(() => searchInputRef.current?.focus(), 50)
+    return () => clearTimeout(t)
+  }, [open, autoFocusSearch, hasSearch])
 
   // Reset transient panel/menu state when popover closes. Intentionally depend only on `open`:
   // `ctxMenu.close` is a stable useCallback from `useItemContextMenu`, but eslint-plugin-react-hooks
@@ -283,10 +293,10 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             }
             userOnEscapeKeyDown?.(event)
           }}
-          // Radix auto-focuses the first focusable on open; when the caller opts out via
-          // `autoFocusSearch={false}`, block that path too so their intended initial focus sticks.
+          // Radix auto-focuses the first focusable on Content mount. When search exists, block the
+          // default path and let our open-scoped effect above perform the one intentional focus.
           onOpenAutoFocus={(event) => {
-            if (autoFocusSearch === false) event.preventDefault()
+            if (autoFocusSearch === false || hasSearch) event.preventDefault()
             userOnOpenAutoFocus?.(event)
           }}
           className={cn(
@@ -296,7 +306,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
           )}>
           <Header
             search={search}
-            autoFocusSearch={autoFocusSearch}
+            searchInputRef={searchInputRef}
             showFilterButton={showFilterButton}
             filterActive={!!filterActive}
             filterOpen={filterOpen}
