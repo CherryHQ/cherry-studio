@@ -1,5 +1,5 @@
 import { Button, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
-import { AgentSelectorV2, type AgentSelectorV2Item } from '@renderer/components/Selectors'
+import { AgentSelector, type AgentSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -28,7 +28,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
   const { t } = useTranslation()
   const [selectionType, setSelectionType] = useState<SelectionType>('id')
   const [idValue, setIdValue] = useState<string | null>(null)
-  const [itemValue, setItemValue] = useState<AgentSelectorV2Item | null>(null)
+  const [itemValue, setItemValue] = useState<AgentSelectorItem | null>(null)
   const [hasLastChange, setHasLastChange] = useState(false)
   const [lastChange, setLastChange] = useState<unknown>(undefined)
 
@@ -53,7 +53,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
   )
 
   const handleItemChange = useCallback(
-    (next: AgentSelectorV2Item | null) => {
+    (next: AgentSelectorItem | null) => {
       record(next)
       setItemValue(next)
     },
@@ -95,9 +95,9 @@ const ComponentLabAgentSelectorSettings: FC = () => {
 
   const selectorNode =
     selectionType === 'item' ? (
-      <AgentSelectorV2 trigger={trigger} selectionType="item" value={itemValue} onChange={handleItemChange} />
+      <AgentSelector trigger={trigger} selectionType="item" value={itemValue} onChange={handleItemChange} />
     ) : (
-      <AgentSelectorV2 trigger={trigger} value={idValue} onChange={handleIdChange} />
+      <AgentSelector trigger={trigger} value={idValue} onChange={handleIdChange} />
     )
 
   return (

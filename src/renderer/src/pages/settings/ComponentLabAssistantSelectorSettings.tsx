@@ -1,5 +1,5 @@
 import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
-import { AssistantSelectorV2, type AssistantSelectorV2Item } from '@renderer/components/Selectors'
+import { AssistantSelector, type AssistantSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -29,11 +29,11 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
   const [multi, setMulti] = useState(false)
   const [selectionType, setSelectionType] = useState<SelectionType>('id')
 
-  // One state slot per API combination so TS matches AssistantSelectorV2 props strictly.
+  // One state slot per API combination so TS matches AssistantSelector props strictly.
   const [singleId, setSingleId] = useState<string | null>(null)
-  const [singleItem, setSingleItem] = useState<AssistantSelectorV2Item | null>(null)
+  const [singleItem, setSingleItem] = useState<AssistantSelectorItem | null>(null)
   const [multiIds, setMultiIds] = useState<string[]>([])
-  const [multiItems, setMultiItems] = useState<AssistantSelectorV2Item[]>([])
+  const [multiItems, setMultiItems] = useState<AssistantSelectorItem[]>([])
 
   const [hasLastChange, setHasLastChange] = useState(false)
   const [lastChange, setLastChange] = useState<unknown>(undefined)
@@ -61,7 +61,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
     [record]
   )
   const handleSingleItemChange = useCallback(
-    (next: AssistantSelectorV2Item | null) => {
+    (next: AssistantSelectorItem | null) => {
       record(next)
       setSingleItem(next)
     },
@@ -75,7 +75,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
     [record]
   )
   const handleMultiItemsChange = useCallback(
-    (next: AssistantSelectorV2Item[]) => {
+    (next: AssistantSelectorItem[]) => {
       record(next)
       setMultiItems(next)
     },
@@ -128,7 +128,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
   const selectorNode = (() => {
     if (multi && selectionType === 'item') {
       return (
-        <AssistantSelectorV2
+        <AssistantSelector
           trigger={trigger}
           multi
           selectionType="item"
@@ -138,11 +138,11 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
       )
     }
     if (multi) {
-      return <AssistantSelectorV2 trigger={trigger} multi value={multiIds} onChange={handleMultiIdsChange} />
+      return <AssistantSelector trigger={trigger} multi value={multiIds} onChange={handleMultiIdsChange} />
     }
     if (selectionType === 'item') {
       return (
-        <AssistantSelectorV2
+        <AssistantSelector
           trigger={trigger}
           selectionType="item"
           value={singleItem}
@@ -150,7 +150,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
         />
       )
     }
-    return <AssistantSelectorV2 trigger={trigger} value={singleId} onChange={handleSingleIdChange} />
+    return <AssistantSelector trigger={trigger} value={singleId} onChange={handleSingleIdChange} />
   })()
 
   return (

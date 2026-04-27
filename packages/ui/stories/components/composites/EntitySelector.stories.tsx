@@ -22,7 +22,7 @@ const ITEMS: ExampleItem[] = [
 const EMPTY_STATE = <div className="px-3 py-6 text-center text-xs text-muted-foreground/60">No matches</div>
 
 /**
- * Reference row renderer used across stories. Real consumers (AssistantSelectorV2, etc.) supply their own.
+ * Reference row renderer used across stories. Real consumers (AssistantSelector, etc.) supply their own.
  */
 function ExampleRow({
   item,

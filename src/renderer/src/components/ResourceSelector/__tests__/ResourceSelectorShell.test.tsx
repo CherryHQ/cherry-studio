@@ -11,13 +11,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 import {
-  BaseSelectorV2,
-  type BaseSelectorV2Item,
-  type BaseSelectorV2Labels,
-  type BaseSelectorV2SortOption
-} from '../BaseSelectorV2'
+  ResourceSelectorShell,
+  type ResourceSelectorShellItem,
+  type ResourceSelectorShellLabels,
+  type ResourceSelectorShellSortOption
+} from '../ResourceSelectorShell'
 
-type Item = BaseSelectorV2Item
+type Item = ResourceSelectorShellItem
 
 const ITEMS: Item[] = [
   { id: '1', name: 'Alpha', description: 'first letter' },
@@ -27,7 +27,7 @@ const ITEMS: Item[] = [
   { id: '5', name: 'Epsilon' }
 ]
 
-const LABELS: BaseSelectorV2Labels = {
+const LABELS: ResourceSelectorShellLabels = {
   searchPlaceholder: 'Search',
   sortLabel: 'Sort',
   edit: 'Edit',
@@ -80,12 +80,12 @@ function clickRowByName(name: string) {
   fireEvent.click(screen.getByText(name))
 }
 
-describe('BaseSelectorV2', () => {
+describe('ResourceSelectorShell', () => {
   describe('value adapter', () => {
     it('single + id: onChange fires the plain id on row click', () => {
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -105,7 +105,7 @@ describe('BaseSelectorV2', () => {
     it('single + item: onChange fires the full item object on row click', () => {
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -126,7 +126,7 @@ describe('BaseSelectorV2', () => {
     it('multi + id: click while OFF replaces and closes (radio-in-array)', () => {
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -148,7 +148,7 @@ describe('BaseSelectorV2', () => {
     it('multi + item: onChange fires items[] preserving order', () => {
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -180,7 +180,7 @@ describe('BaseSelectorV2', () => {
             <button type="button" data-testid="promote" onClick={() => setValue(['1', '2'])}>
               promote
             </button>
-            <BaseSelectorV2
+            <ResourceSelectorShell
               trigger={<button type="button">Open</button>}
               items={ITEMS}
               pinnedIds={[]}
@@ -211,7 +211,7 @@ describe('BaseSelectorV2', () => {
   describe('pinned section', () => {
     it('renders pinned header and orders pinned items by pinnedIds', () => {
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={['3', '1']}
@@ -235,7 +235,7 @@ describe('BaseSelectorV2', () => {
       const onTogglePin = vi.fn()
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={['1']}
@@ -260,7 +260,7 @@ describe('BaseSelectorV2', () => {
       const onEditItem = vi.fn()
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -285,7 +285,7 @@ describe('BaseSelectorV2', () => {
     it('ignores click and right-click on aria-disabled rows', () => {
       const onChange = vi.fn()
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}
@@ -307,12 +307,12 @@ describe('BaseSelectorV2', () => {
 
   describe('sort + search', () => {
     it('applies a sort comparator when selected', () => {
-      const sortOptions: BaseSelectorV2SortOption<Item>[] = [
+      const sortOptions: ResourceSelectorShellSortOption<Item>[] = [
         { id: 'asc', label: 'Asc', comparator: (a, b) => a.name.localeCompare(b.name) },
         { id: 'desc', label: 'Desc', comparator: (a, b) => b.name.localeCompare(a.name) }
       ]
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={[ITEMS[1], ITEMS[0], ITEMS[2]]} // Beta, Alpha, Gamma
           pinnedIds={[]}
@@ -335,7 +335,7 @@ describe('BaseSelectorV2', () => {
 
     it('filters by name (case-insensitive) and by description', () => {
       render(
-        <BaseSelectorV2
+        <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
           items={ITEMS}
           pinnedIds={[]}

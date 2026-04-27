@@ -50,7 +50,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { AgentSelectorV2, type AgentSelectorV2Item } from '../AgentSelectorV2'
+import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
 
 const AGENTS_RESPONSE = {
   items: [
@@ -123,7 +123,7 @@ afterEach(() => {
 })
 
 function renderSelector(onChange = vi.fn()) {
-  render(<AgentSelectorV2 trigger={<button type="button">Open</button>} value={null} onChange={onChange} />)
+  render(<AgentSelector trigger={<button type="button">Open</button>} value={null} onChange={onChange} />)
   return { onChange }
 }
 
@@ -131,7 +131,7 @@ function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 }
 
-describe('AgentSelectorV2', () => {
+describe('AgentSelector', () => {
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()
@@ -151,9 +151,9 @@ describe('AgentSelectorV2', () => {
   })
 
   it('fires onChange with the selected agent item when selectionType is item', () => {
-    const onChange = vi.fn<(value: AgentSelectorV2Item | null) => void>()
+    const onChange = vi.fn<(value: AgentSelectorItem | null) => void>()
     render(
-      <AgentSelectorV2
+      <AgentSelector
         trigger={<button type="button">Open</button>}
         selectionType="item"
         value={null}

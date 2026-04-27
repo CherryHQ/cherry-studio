@@ -16,7 +16,7 @@ import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
-export type BaseSelectorV2Item = {
+export type ResourceSelectorShellItem = {
   id: string
   name: string
   emoji?: string
@@ -25,14 +25,14 @@ export type BaseSelectorV2Item = {
   disabled?: boolean
 }
 
-export type BaseSelectorV2SortOption<T extends BaseSelectorV2Item> = {
+export type ResourceSelectorShellSortOption<T extends ResourceSelectorShellItem> = {
   id: string
   label: ReactNode
   icon?: ReactNode
   comparator: (a: T, b: T) => number
 }
 
-export type BaseSelectorV2Labels = {
+export type ResourceSelectorShellLabels = {
   searchPlaceholder: string
   sortLabel: string
   edit: string
@@ -44,7 +44,7 @@ export type BaseSelectorV2Labels = {
   pinnedTitle: string
 }
 
-type BaseSelectorV2SharedProps<T extends BaseSelectorV2Item> = {
+type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   trigger: ReactNode
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -53,7 +53,7 @@ type BaseSelectorV2SharedProps<T extends BaseSelectorV2Item> = {
   renderFallbackIcon?: (item: T) => ReactNode
 
   tags?: string[]
-  sortOptions?: BaseSelectorV2SortOption<T>[]
+  sortOptions?: ResourceSelectorShellSortOption<T>[]
   defaultSortId?: string
 
   pinnedIds: string[]
@@ -64,29 +64,31 @@ type BaseSelectorV2SharedProps<T extends BaseSelectorV2Item> = {
   onEditItem: (id: string) => void
   onCreateNew: () => void
 
-  labels: BaseSelectorV2Labels
+  labels: ResourceSelectorShellLabels
 
   loading?: boolean
   width?: number | string
 }
 
-export type BaseSelectorV2SelectionType = 'id' | 'item'
+export type ResourceSelectorShellSelectionType = 'id' | 'item'
 
 /** Single + id payload (default). */
-export type BaseSelectorV2SingleIdProps<T extends BaseSelectorV2Item> = BaseSelectorV2SharedProps<T> & {
-  multi?: false
-  selectionType?: 'id'
-  value: string | null
-  onChange: (value: string | null) => void
-}
+export type ResourceSelectorShellSingleIdProps<T extends ResourceSelectorShellItem> =
+  ResourceSelectorShellSharedProps<T> & {
+    multi?: false
+    selectionType?: 'id'
+    value: string | null
+    onChange: (value: string | null) => void
+  }
 
 /** Single + item object payload. */
-export type BaseSelectorV2SingleItemProps<T extends BaseSelectorV2Item> = BaseSelectorV2SharedProps<T> & {
-  multi?: false
-  selectionType: 'item'
-  value: T | null
-  onChange: (value: T | null) => void
-}
+export type ResourceSelectorShellSingleItemProps<T extends ResourceSelectorShellItem> =
+  ResourceSelectorShellSharedProps<T> & {
+    multi?: false
+    selectionType: 'item'
+    value: T | null
+    onChange: (value: T | null) => void
+  }
 
 type MultiCommon = {
   multiToggleLabel: ReactNode
@@ -94,22 +96,24 @@ type MultiCommon = {
 }
 
 /** Multi + id[] payload (default). */
-export type BaseSelectorV2MultiIdProps<T extends BaseSelectorV2Item> = BaseSelectorV2SharedProps<T> &
-  MultiCommon & {
-    multi: true
-    selectionType?: 'id'
-    value: string[]
-    onChange: (value: string[]) => void
-  }
+export type ResourceSelectorShellMultiIdProps<T extends ResourceSelectorShellItem> =
+  ResourceSelectorShellSharedProps<T> &
+    MultiCommon & {
+      multi: true
+      selectionType?: 'id'
+      value: string[]
+      onChange: (value: string[]) => void
+    }
 
 /** Multi + item[] payload. */
-export type BaseSelectorV2MultiItemProps<T extends BaseSelectorV2Item> = BaseSelectorV2SharedProps<T> &
-  MultiCommon & {
-    multi: true
-    selectionType: 'item'
-    value: T[]
-    onChange: (value: T[]) => void
-  }
+export type ResourceSelectorShellMultiItemProps<T extends ResourceSelectorShellItem> =
+  ResourceSelectorShellSharedProps<T> &
+    MultiCommon & {
+      multi: true
+      selectionType: 'item'
+      value: T[]
+      onChange: (value: T[]) => void
+    }
 
 /**
  * `multi` × `selectionType` produces four strict combinations; the caller picks one and TS enforces
@@ -118,17 +122,17 @@ export type BaseSelectorV2MultiItemProps<T extends BaseSelectorV2Item> = BaseSel
  * Toolbar semantics (only rendered in multi): UX-only state, initial ON/OFF derived from value
  * length on mount (>=2 → ON). ON = checkbox toggle; OFF = radio-in-array (replace + close).
  */
-export type BaseSelectorV2Props<T extends BaseSelectorV2Item> =
-  | BaseSelectorV2SingleIdProps<T>
-  | BaseSelectorV2SingleItemProps<T>
-  | BaseSelectorV2MultiIdProps<T>
-  | BaseSelectorV2MultiItemProps<T>
+export type ResourceSelectorShellProps<T extends ResourceSelectorShellItem> =
+  | ResourceSelectorShellSingleIdProps<T>
+  | ResourceSelectorShellSingleItemProps<T>
+  | ResourceSelectorShellMultiIdProps<T>
+  | ResourceSelectorShellMultiItemProps<T>
 
 /**
  * Normalize value of any supported shape to an id list — used internally for selection display
  * and toolbar initial state. Handles string, string[], item object, item[], and null.
  */
-function extractValueIds<T extends BaseSelectorV2Item>(value: unknown): string[] {
+function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): string[] {
   if (value == null) return []
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) {
@@ -146,9 +150,9 @@ const SORT_ICON_DEFAULTS = {
   asc: <ArrowUp className="size-2.5" />
 } as const
 
-const logger = loggerService.withContext('BaseSelectorV2')
+const logger = loggerService.withContext('ResourceSelectorShell')
 
-export function BaseSelectorV2<T extends BaseSelectorV2Item>(props: BaseSelectorV2Props<T>) {
+export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
   const {
     trigger,
     open: openProp,

@@ -3,13 +3,13 @@
 //               once that flow ships (landing branch: `feat/v2/resource-library-agents`):
 //                 - Edit → library assistant detail / config page scoped to the selected id
 //                 - Create → library "new assistant" entry flow
-//               Update this file together with the corresponding AgentSelectorV2 TODO when the
+//               Update this file together with the corresponding AgentSelector TODO when the
 //               library routes are finalized. Until then the stubs only keep the selector
 //               interactive without leaving the user stranded on a dead click.
 // TODO(tags): wire tag filter chips once the resource library PR (feat/v2/resource-library-agents,
 //             upstream PR #14442) is merged into main. That PR exposes Assistant↔Tag associations
 //             (tagIds on the Assistant DTO or a batch lookup endpoint) and a tag list API for the
-//             filter panel source. Until it lands, the `tags` prop is omitted so BaseSelectorV2
+//             filter panel source. Until it lands, the `tags` prop is omitted so ResourceSelectorShell
 //             hides the chip row automatically.
 
 import { loggerService } from '@logger'
@@ -19,9 +19,13 @@ import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BaseSelectorV2, type BaseSelectorV2Item, type BaseSelectorV2SortOption } from './BaseSelectorV2'
+import {
+  ResourceSelectorShell,
+  type ResourceSelectorShellItem,
+  type ResourceSelectorShellSortOption
+} from './ResourceSelectorShell'
 
-const logger = loggerService.withContext('AssistantSelectorV2')
+const logger = loggerService.withContext('AssistantSelector')
 
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
@@ -29,7 +33,7 @@ const logger = loggerService.withContext('AssistantSelectorV2')
  * the caller didn't ask about. Sort metadata (e.g. createdAt) is tracked side-band in this file,
  * not on the item, so callers with `selectionType: 'item'` still only see the base fields.
  */
-export type AssistantSelectorV2Item = BaseSelectorV2Item
+export type AssistantSelectorItem = ResourceSelectorShellItem
 
 type SharedProps = {
   trigger: ReactNode
@@ -37,41 +41,41 @@ type SharedProps = {
   onOpenChange?: (open: boolean) => void
 }
 
-export type AssistantSelectorV2SingleIdProps = SharedProps & {
+export type AssistantSelectorSingleIdProps = SharedProps & {
   multi?: false
   selectionType?: 'id'
   value: string | null
   onChange: (value: string | null) => void
 }
 
-export type AssistantSelectorV2SingleItemProps = SharedProps & {
+export type AssistantSelectorSingleItemProps = SharedProps & {
   multi?: false
   selectionType: 'item'
-  value: AssistantSelectorV2Item | null
-  onChange: (value: AssistantSelectorV2Item | null) => void
+  value: AssistantSelectorItem | null
+  onChange: (value: AssistantSelectorItem | null) => void
 }
 
-export type AssistantSelectorV2MultiIdProps = SharedProps & {
+export type AssistantSelectorMultiIdProps = SharedProps & {
   multi: true
   selectionType?: 'id'
   value: string[]
   onChange: (value: string[]) => void
 }
 
-export type AssistantSelectorV2MultiItemProps = SharedProps & {
+export type AssistantSelectorMultiItemProps = SharedProps & {
   multi: true
   selectionType: 'item'
-  value: AssistantSelectorV2Item[]
-  onChange: (value: AssistantSelectorV2Item[]) => void
+  value: AssistantSelectorItem[]
+  onChange: (value: AssistantSelectorItem[]) => void
 }
 
-export type AssistantSelectorV2Props =
-  | AssistantSelectorV2SingleIdProps
-  | AssistantSelectorV2SingleItemProps
-  | AssistantSelectorV2MultiIdProps
-  | AssistantSelectorV2MultiItemProps
+export type AssistantSelectorProps =
+  | AssistantSelectorSingleIdProps
+  | AssistantSelectorSingleItemProps
+  | AssistantSelectorMultiIdProps
+  | AssistantSelectorMultiItemProps
 
-export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
+export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
 
@@ -90,7 +94,7 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
-  const items: AssistantSelectorV2Item[] = useMemo(
+  const items: AssistantSelectorItem[] = useMemo(
     () =>
       (data?.items ?? []).map((a) => ({
         id: a.id,
@@ -101,10 +105,10 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
     [data]
   )
 
-  // Sort comparators live here (not on the row) so they don't widen the public AssistantSelectorV2Item
+  // Sort comparators live here (not on the row) so they don't widen the public AssistantSelectorItem
   // shape that callers receive via `selectionType: 'item'`. Lookup is O(1) via a Map keyed by id and
   // is stable across renders as long as the `data` reference is.
-  const sortOptions: BaseSelectorV2SortOption<AssistantSelectorV2Item>[] = useMemo(() => {
+  const sortOptions: ResourceSelectorShellSortOption<AssistantSelectorItem>[] = useMemo(() => {
     const createdAtById = new Map<string, number>((data?.items ?? []).map((a) => [a.id, Date.parse(a.createdAt) || 0]))
     const at = (id: string) => createdAtById.get(id) ?? 0
     return [
@@ -173,11 +177,11 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   const multiToggleLabel = t('selector.assistant.multi_label')
   const multiToggleHint = t('selector.assistant.multi_hint')
 
-  // Branch on each discriminated combination so TS can pass value/onChange to BaseSelectorV2
+  // Branch on each discriminated combination so TS can pass value/onChange to ResourceSelectorShell
   // without widening.
   if (props.multi === true && props.selectionType === 'item') {
     return (
-      <BaseSelectorV2
+      <ResourceSelectorShell
         {...shared}
         multi
         selectionType="item"
@@ -190,7 +194,7 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
   }
   if (props.multi === true) {
     return (
-      <BaseSelectorV2
+      <ResourceSelectorShell
         {...shared}
         multi
         value={props.value}
@@ -201,7 +205,7 @@ export function AssistantSelectorV2(props: AssistantSelectorV2Props) {
     )
   }
   if (props.selectionType === 'item') {
-    return <BaseSelectorV2 {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+    return <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
   }
-  return <BaseSelectorV2 {...shared} value={props.value} onChange={props.onChange} />
+  return <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
 }
