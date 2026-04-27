@@ -1,22 +1,12 @@
 {
-  "generated_at": "2026-04-26T00:00:00Z",
-  "snapshot_date": "2026-04-26",
-  "data_source": "GitHub Discussions (GraphQL API not available via MCP — partial data)",
-  "note": "Discussion data requires GraphQL API access. This file is a skeleton pending Conductor/Actions integration with full GraphQL token.",
-  "summary": {
-    "total_discussions_fetched": 0,
-    "answered": 0,
-    "unanswered": 0,
-    "categories": []
-  },
-  "top_discussions_by_upvotes": [],
-  "unanswered_discussions": [],
-  "recent_activity": {
-    "last_7d_new": "N/A",
-    "last_30d_new": "N/A"
-  },
-  "action_items": [
-    "Configure GraphQL token in Conductor/GitHub Actions to enable discussion data fetch",
-    "Run: gh api graphql -f query='{ repository(owner:\"CherryHQ\",name:\"cherry-studio\") { discussions(first:100) { nodes { number title createdAt updatedAt answer { author { login } } } } } }'"
-  ]
+  "generated_at": "2026-04-27T17:51:41.979654+00:00",
+  "note": "Discussion data not available — gh api graphql endpoint required. Run scripts/analyze_discussions.py with /tmp/gh_discussions.json",
+  "total_fetched": 0,
+  "answered": 0,
+  "unanswered_no_comments": 0,
+  "answer_rate_pct": 0,
+  "category_breakdown": {},
+  "active_30d": 0,
+  "high_engagement": [],
+  "unanswered_items": []
 }

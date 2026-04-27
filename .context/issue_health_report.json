@@ -1,125 +1,127 @@
 {
-  "generated_at": "2026-04-26T00:00:00Z",
-  "snapshot_date": "2026-04-26",
-  "methodology": "Age-based classification on open issues. 700 of 807 open issues sampled (86.7%), remaining estimated.",
-  "total_open_issues": 807,
-  "overall_health": {
-    "score": "MODERATE",
-    "notes": [
-      "High closure rate (251 closed in 30 days) indicates active maintenance",
-      "106 unlabeled issues (~13.1%) need triage",
-      "108 issues marked 'inactive' — consider closing or following up",
-      "3 P1 issues open including 1 critical security advisory (GHSA-qmgw-45x4-3626) — now 66 days old"
-    ]
+  "generated_at": "2026-04-27T17:51:41.979654+00:00",
+  "total_open": 816,
+  "sample_analyzed": 400,
+  "note": "Health counts extrapolated: Active/Aging from 400-issue sample; Stale=158 from GitHub search; Zombie=0",
+  "health_summary": {
+    "Active": 223,
+    "Aging": 435,
+    "Stale": 158,
+    "Zombie": 0
   },
-  "age_distribution": {
-    "methodology": "Calculated from 700 most recently updated open issues + extrapolation for remaining 107",
-    "active_0_7d": {
-      "count": 236,
-      "pct": 29.2,
-      "description": "Recently created or updated, likely actively being worked"
-    },
-    "aging_8_30d": {
-      "count": 449,
-      "pct": 55.6,
-      "description": "A few weeks old without recent update"
-    },
-    "stale_31_90d": {
-      "count": 125,
-      "pct": 15.5,
-      "description": "1–3 months old with no recent activity — needs triage"
-    },
-    "zombie_over_90d": {
-      "count": 12,
-      "pct": 1.5,
-      "description": "Over 3 months old — potential candidates for closure"
+  "category_summary": {
+    "Uncategorized": 122,
+    "UI/UX": 86,
+    "Models": 57,
+    "Assistant": 52,
+    "MCP": 33,
+    "Data": 15,
+    "Connectivity": 12,
+    "RAG": 11,
+    "Performance": 10,
+    "Linux": 1,
+    "Agent": 1
+  },
+  "p1_issues": [
+    {
+      "number": 12966,
+      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending T",
+      "health": "Active",
+      "priority": 1,
+      "category": "Uncategorized",
+      "labels": [
+        "BUG",
+        "P1",
+        "inactive"
+      ],
+      "days_idle": 2
     }
-  },
-  "bug_health": {
-    "total_open_bugs_estimated": 42,
-    "p1_count": 3,
-    "concern": "P1 security advisory #12966 has been open 66 days with no resolution"
-  },
-  "no_label_issues": {
-    "total": 106,
-    "pct_of_open": 13.1,
-    "action": "Triage needed — add at minimum bug/feature/question labels"
-  },
-  "inactive_issues": {
-    "total": 108,
-    "description": "Issues labeled 'inactive' — no response from author or stalled",
-    "recommendation": "Consider auto-closing after 14 more days of inactivity"
-  },
-  "p1_critical": {
-    "count": 3,
-    "oldest_open_days": 66,
-    "security_issue_open": true,
-    "security_issue_number": 12966,
-    "action_required": "Security advisory GHSA-qmgw-45x4-3626 (#12966) requires immediate triage response"
-  },
-  "closure_rate": {
-    "last_30d": 251,
-    "avg_per_day": 8.4,
-    "peak_days": [
-      {
-        "date": "2026-04-22",
-        "closed": 29
-      },
-      {
-        "date": "2026-04-26",
-        "closed": 17
-      },
-      {
-        "date": "2026-04-23",
-        "closed": 17
-      },
-      {
-        "date": "2026-04-24",
-        "closed": 15
-      },
-      {
-        "date": "2026-04-25",
-        "closed": 10
-      }
-    ]
-  },
-  "top_label_counts": {
-    "UI/UX": 203,
-    "Models": 148,
-    "feature": 132,
-    "inactive": 94,
-    "Assistant": 82,
-    "Blocked: v2": 62,
-    "MCP": 53,
-    "Data": 46,
-    "discussion": 43,
-    "help wanted": 41,
-    "needs-repro": 38,
-    "BUG": 36,
-    "RAG": 32,
-    "P3": 29,
-    "Connectivity": 28
-  },
-  "recommendations": [
+  ],
+  "p2_issues": [
     {
-      "priority": "CRITICAL",
-      "action": "Respond to security advisory GHSA-qmgw-45x4-3626 on issue #12966 immediately (66 days unaddressed)"
+      "number": 13708,
+      "title": "[Feature]: Re-enable temporarily disabled type-aware oxlint rules",
+      "health": "Active",
+      "priority": 2,
+      "category": "Uncategorized",
+      "labels": [
+        "P2",
+        "feature",
+        "inactive"
+      ],
+      "days_idle": 2
     },
     {
-      "priority": "HIGH",
-      "action": "Triage 106 unlabeled issues — add at minimum bug/feature/question labels"
+      "number": 13756,
+      "title": "[Feature]: Evaluate migrating API server from Express to a modern TypeScript-nat",
+      "health": "Active",
+      "priority": 2,
+      "category": "Uncategorized",
+      "labels": [
+        "P2",
+        "feature",
+        "inactive"
+      ],
+      "days_idle": 2
     },
     {
-      "priority": "HIGH",
-      "action": "Review 108 'inactive' issues for closure eligibility"
+      "number": 13187,
+      "title": "[Bug]: New version freezes with no response when clicking",
+      "health": "Aging",
+      "priority": 2,
+      "category": "UI/UX",
+      "labels": [
+        "P2",
+        "macOS",
+        "needs-repro",
+        "UI/UX",
+        "Performance",
+        "inactive"
+      ],
+      "days_idle": 8
     },
     {
-      "priority": "HIGH",
-      "action": "Investigate 'Blocked: v2' issues (62 in sample) — coordinate resolution timeline with v2 roadmap"
+      "number": 13602,
+      "title": "[Bug]: The agent cannot use Ollama deployed on the local network.",
+      "health": "Aging",
+      "priority": 2,
+      "category": "Connectivity",
+      "labels": [
+        "P2",
+        "Connectivity",
+        "inactive",
+        "Agent"
+      ],
+      "days_idle": 8
     },
     {
-      "priority": "MEDIUM",
-      "action": "Address P1 issues #13608 (mimo streaming) and #13193 (Azure OpenAI regression)"
+      "number": 13194,
+      "title": "[Bug]: VertexAI Provider Data Storage Architecture Flaw - Type Mismatch with Act",
+      "health": "Aging",
+      "priority": 2,
+      "category": "Data",
+      "labels": [
+        "BUG",
+        "P2",
+        "Data"
+      ],
+      "days_idle": 11
+    },
+    {
+      "number": 13961,
+      "title": "[Bug]: Assistant silently hangs after MCP tool call due to missing error handlin",
+      "health": "Aging",
+      "priority": 2,
+      "category": "MCP",
+      "labels": [
+        "P2",
+        "MCP",
+        "Assistant"
+      ],
+      "days_idle": 15
     }
-  ]
+  ],
+  "stale_issues": [],
+  "zombie_issues": [],
+  "inactive_labeled": 80
 }

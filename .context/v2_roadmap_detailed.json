@@ -1,161 +1,985 @@
 {
-  "generated_at": "2026-04-26T00:00:00Z",
-  "snapshot_date": "2026-04-26",
-  "v2_branch_overview": {
-    "branch": "v2",
-    "status": "active_development",
-    "policy": "All new features, refactoring, optimizations. New features accepted after current features fully refactored.",
-    "main_freeze": "main branch under code freeze since 2026-04-03. Only hotfix/* accepted."
-  },
+  "generated_at": "2026-04-27T17:51:41.979654+00:00",
   "open_prs": {
-    "total": 66,
-    "draft": 21,
-    "ready_for_review": 45,
-    "top_contributors": [
-      {
-        "login": "DeJeune",
-        "open_prs": 18,
-        "role": "Core maintainer"
-      },
-      {
-        "login": "EurFelux",
-        "open_prs": 12,
-        "role": "Contributor"
-      },
-      {
-        "login": "zhangjiadi225",
-        "open_prs": 5,
-        "role": "Contributor"
-      },
-      {
-        "login": "404-Page-Found",
-        "open_prs": 4,
-        "role": "Contributor"
-      },
-      {
-        "login": "jidan745le",
-        "open_prs": 3,
-        "role": "Contributor"
-      },
-      {
-        "login": "LWWZH",
-        "open_prs": 3,
-        "role": "Contributor"
-      },
-      {
-        "login": "kovsu",
-        "open_prs": 3,
-        "role": "Contributor"
-      },
-      {
-        "login": "Raymond8196",
-        "open_prs": 2,
-        "role": "Contributor"
-      },
-      {
-        "login": "kangfenmao",
-        "open_prs": 2,
-        "role": "Lead maintainer"
-      },
-      {
-        "login": "vaayne",
-        "open_prs": 2,
-        "role": "Contributor"
-      }
-    ]
-  },
-  "merged_prs_last_30d": {
-    "total": 45,
-    "period": "2026-03-27 to 2026-04-26",
-    "activity_by_date": {
-      "2026-04-24": 1,
-      "2026-04-21": 2,
-      "2026-04-20": 4,
-      "2026-04-18": 1,
-      "2026-04-17": 2,
-      "2026-04-16": 3,
-      "2026-04-15": 1,
-      "2026-04-14": 1,
-      "2026-04-13": 2,
-      "2026-04-11": 1
+    "total": 68,
+    "draft": 20,
+    "ready": 48,
+    "by_type": {
+      "other": 4,
+      "feat": 38,
+      "fix": 8,
+      "refactor": 17,
+      "chore": 1
     },
-    "avg_merges_per_week": 10.47,
-    "notable_recent_merges": [
+    "items": [
       {
+        "number": 14631,
+        "title": "Introduce ProviderSettingsV2 integration preview on v2",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "jidan745le",
+        "type": "other"
+      },
+      {
+        "number": 14627,
+        "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing pattern",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 14442,
+        "title": "feat(library): add v2 resource library page with assistant tag &amp; search APIs",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "zhangjiadi225",
+        "type": "feat"
+      },
+      {
+        "number": 14562,
+        "title": "fix(code-tools): improve dark mode visibility",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "Raymond8196",
+        "type": "fix"
+      },
+      {
+        "number": 14609,
+        "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v2 migration",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "fix"
+      },
+      {
+        "number": 14658,
+        "title": "feat(agents): add duplicate agent functionality",
+        "draft": false,
+        "labels": [],
+        "author": "LWWZH",
+        "type": "feat"
+      },
+      {
+        "number": 14443,
+        "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "kangfenmao",
+        "type": "refactor"
+      },
+      {
+        "number": 14556,
+        "title": "feat(selector-v2): assistant &amp; agent selectors on the EntitySelector composite",
+        "draft": false,
+        "labels": [
+          "UI/UX",
+          "v2"
+        ],
+        "author": "zhangjiadi225",
+        "type": "feat"
+      },
+      {
+        "number": 14656,
+        "title": "feat: add enable/disable toggle for custom parameters",
+        "draft": false,
+        "labels": [],
+        "author": "LWWZH",
+        "type": "feat"
+      },
+      {
+        "number": 14567,
+        "title": "feat(settings): refactor settings UI and add settings window",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "kangfenmao",
+        "type": "feat"
+      },
+      {
+        "number": 14647,
+        "title": "fix: prevent virtual draggable list setup warning",
+        "draft": false,
+        "labels": [],
+        "author": "kovsu",
+        "type": "fix"
+      },
+      {
+        "number": 13430,
+        "title": "refactor(data): migrate QuickPhrase to Prompt with version management",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "zhangjiadi225",
+        "type": "refactor"
+      },
+      {
+        "number": 14632,
         "title": "fix(draggable-list): bind scroll node via callback ref",
-        "category": "UI component fix",
-        "significance": "Fixes DraggableVirtualList remount issue (empty list after sidebar toggle)"
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "fix"
       },
       {
-        "title": "feat(ai): V2 AI streaming pipeline improvements",
-        "category": "AI Core refactor",
-        "significance": "Ongoing streaming pipeline migration to v2 architecture"
+        "number": 14431,
+        "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi",
+        "draft": false,
+        "labels": [],
+        "author": "vaayne",
+        "type": "refactor"
+      },
+      {
+        "number": 14464,
+        "title": "fix: preserve referenced models during v2 migration",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "kovsu",
+        "type": "fix"
+      },
+      {
+        "number": 14071,
+        "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 14489,
+        "title": "feat(notify): support image and file attachments across channels",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 14456,
+        "title": "feat: add session-based prompt cache expiration reminder per conversation",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "LWWZH",
+        "type": "feat"
+      },
+      {
+        "number": 14595,
+        "title": "feat(topics): Add folder grouping for pinned topics",
+        "draft": false,
+        "labels": [],
+        "author": "LWWZH",
+        "type": "feat"
+      },
+      {
+        "number": 14477,
+        "title": "feat(topics): Add sorting methods to topics page",
+        "draft": false,
+        "labels": [],
+        "author": "LWWZH",
+        "type": "feat"
+      },
+      {
+        "number": 14065,
+        "title": "fix(mcp): clear OAuth token when deleting MCP server",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "404-Page-Found",
+        "type": "fix"
+      },
+      {
+        "number": 14102,
+        "title": "fix: allow sending messages when QuickPanel is open with @ in content",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "404-Page-Found",
+        "type": "fix"
+      },
+      {
+        "number": 12659,
+        "title": "feat(backup): add v2 backup system refactor plan document",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "GeorgeDong32",
+        "type": "feat"
+      },
+      {
+        "number": 10090,
+        "title": "[WIP] feat: terminal",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "other"
+      },
+      {
+        "number": 14049,
+        "title": "refactor(miniapp): migrate to v2 data layer",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "chengcheng84",
+        "type": "refactor"
+      },
+      {
+        "number": 14429,
+        "title": "refactor(agents-db): FK-link agent/session model columns to user_model",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "refactor"
+      },
+      {
+        "number": 13871,
+        "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "refactor"
+      },
+      {
+        "number": 13451,
+        "title": "feat(file): Add schema and foundation for new file module",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 14555,
+        "title": "fix: respect trailing # in API host preview",
+        "draft": false,
+        "labels": [],
+        "author": "Raymond8196",
+        "type": "fix"
+      },
+      {
+        "number": 13968,
+        "title": "feat(v2): add main-side file processing backend",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "eeee0717",
+        "type": "feat"
+      },
+      {
+        "number": 12519,
+        "title": "refactor: replace antd Input/TextArea with Shadcn UI components",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "SherlockShemol",
+        "type": "refactor"
+      },
+      {
+        "number": 13589,
+        "title": "feat(v2): migrate PR12258 proxy api server into v2 api gateway",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "FactrueSolin",
+        "type": "feat"
+      },
+      {
+        "number": 14135,
+        "title": "feat(websearch): add toggle to disable prefilling search keywords in …",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "karuboniru",
+        "type": "feat"
+      },
+      {
+        "number": 10699,
+        "title": "feat: video generation",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 12060,
+        "title": "feat: context menu",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 13561,
+        "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "refactor"
+      },
+      {
+        "number": 13547,
+        "title": "refactor: redesign v2 migration window UI with shadcn components",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "kovsu",
+        "type": "refactor"
+      },
+      {
+        "number": 13517,
+        "title": "feat: integrate json-render for interactive UI in chat",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 13312,
+        "title": "feat(data): add note metadata DataApi and cache schemas for v2 migration",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 13238,
+        "title": "feat(data): add provider/model data API and catalog core",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 13173,
+        "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
+        "draft": false,
+        "labels": [
+          "v2",
+          "ready-to-merge"
+        ],
+        "author": "DeJeune",
+        "type": "refactor"
+      },
+      {
+        "number": 12506,
+        "title": "feat(import): add Claude conversation importer",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "linxule",
+        "type": "feat"
+      },
+      {
+        "number": 12150,
+        "title": "refactor(files): File Management System Architecture",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "refactor"
+      },
+      {
+        "number": 13687,
+        "title": "chore: migrate to vite 8",
+        "draft": false,
+        "labels": [
+          "Pending",
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "chore"
+      },
+      {
+        "number": 11878,
+        "title": "feat(ui): toast",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 11420,
+        "title": "feat: Model &amp; Provider Catalog",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 11054,
+        "title": "feat: reset default model",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 10933,
+        "title": "feat: show enabled provider only",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 10929,
+        "title": "refactor: Migrate to tiptap markdown",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "Copilot",
+        "type": "refactor"
+      },
+      {
+        "number": 10912,
+        "title": "refactor: i18n",
+        "draft": true,
+        "labels": [
+          "v2",
+          "Blocked: v2"
+        ],
+        "author": "EurFelux",
+        "type": "refactor"
+      },
+      {
+        "number": 10874,
+        "title": "feat: one-click fix mermaid error",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 13856,
+        "title": "feat(process-manager): add ProcessManager with unified lifecycle, events, and service integrations",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 13870,
+        "title": "refactor(tool-permissions): migrate Redux store to SharedCache with main-process writes",
+        "draft": false,
+        "labels": [
+          "WIP",
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "refactor"
+      },
+      {
+        "number": 13989,
+        "title": "[topic] Reuse assistant markdown heading for topic naming (v2)",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "404-Page-Found",
+        "type": "other"
+      },
+      {
+        "number": 14033,
+        "title": "feat(selection): add screenshot-to-translate action with OCR",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "404-Page-Found",
+        "type": "feat"
+      },
+      {
+        "number": 14064,
+        "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh cherry",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "EurFelux",
+        "type": "feat"
+      },
+      {
+        "number": 14096,
+        "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "other"
+      },
+      {
+        "number": 14125,
+        "title": "refactor(renderer): ProviderSettings v2 migration + ClassifiableModel compat layer",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "jidan745le",
+        "type": "refactor"
+      },
+      {
+        "number": 14146,
+        "title": "feat(layout): add split-view infrastructure for multi-pane tabs",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "feat"
+      },
+      {
+        "number": 14160,
+        "title": "feat: migrate agents data access to data api",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "vaayne",
+        "type": "feat"
+      },
+      {
+        "number": 14178,
+        "title": "refactor(copilot): separate business logic from IPC handler signatures",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "DeJeune",
+        "type": "refactor"
+      },
+      {
+        "number": 14218,
+        "title": "feat: Insert message",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "JorkeyLiu",
+        "type": "feat"
+      },
+      {
+        "number": 14261,
+        "title": "feat(anthropic): improve prompt caching with incremental strategy and cached token display",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "TakotsuboChen",
+        "type": "feat"
+      },
+      {
+        "number": 14262,
+        "title": "feat(minapp): add category-based display with cross-category drag-and-drop",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "Sisyphe42",
+        "type": "feat"
+      },
+      {
+        "number": 14313,
+        "title": "feat(data): migrate paintings to v2 data architecture",
+        "draft": true,
+        "labels": [
+          "v2"
+        ],
+        "author": "jidan745le",
+        "type": "feat"
+      },
+      {
+        "number": 14351,
+        "title": "refactor(translate): rebuild translate page on @cherrystudio/ui",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "zhangjiadi225",
+        "type": "refactor"
+      },
+      {
+        "number": 14357,
+        "title": "feat(memory): pluggable memory provider system with Hindsight integration",
+        "draft": false,
+        "labels": [
+          "v2"
+        ],
+        "author": "kwisser",
+        "type": "feat"
+      },
+      {
+        "number": 14410,
+        "title": "feat: show installed state for skill search results",
+        "draft": true,
+        "labels": [],
+        "author": "kovsu",
+        "type": "feat"
       }
     ]
   },
-  "issues_blocked_on_v2": {
-    "count_in_700_sample": 62,
-    "estimated_total": 71,
-    "note": "Issues labeled 'Blocked: v2' are waiting for v2 refactor to unblock"
-  },
-  "key_areas_in_progress": [
-    {
-      "area": "UI/UX Refactoring",
-      "open_issues_in_sample": 203,
-      "label": "UI/UX"
+  "merged": {
+    "total_fetched": 66,
+    "merged_30d": 46,
+    "merged_7d": 4,
+    "by_type_30d": {
+      "feat": 15,
+      "refactor": 14,
+      "fix": 12,
+      "chore": 4,
+      "other": 1
     },
-    {
-      "area": "Models Integration",
-      "open_issues_in_sample": 148,
-      "label": "Models"
+    "weekly_velocity": {
+      "2026-04-27": 1,
+      "2026-04-20": 7,
+      "2026-04-13": 10,
+      "2026-04-06": 13,
+      "2026-03-30": 14,
+      "2026-03-23": 16,
+      "2026-03-16": 5
     },
-    {
-      "area": "Feature Development",
-      "open_issues_in_sample": 132,
-      "label": "feature"
-    },
-    {
-      "area": "Assistant Improvements",
-      "open_issues_in_sample": 82,
-      "label": "Assistant"
-    },
-    {
-      "area": "MCP Server Support",
-      "open_issues_in_sample": 53,
-      "label": "MCP"
-    },
-    {
-      "area": "Data Layer Refactoring",
-      "open_issues_in_sample": 46,
-      "label": "Data"
-    },
-    {
-      "area": "RAG / Knowledge Base",
-      "open_issues_in_sample": 32,
-      "label": "RAG"
-    },
-    {
-      "area": "Connectivity / Networking",
-      "open_issues_in_sample": 28,
-      "label": "Connectivity"
-    },
-    {
-      "area": "Performance",
-      "open_issues_in_sample": 21,
-      "label": "Performance"
-    }
-  ],
-  "blocked_state": {
-    "redux_store_frozen": true,
-    "db_schema_frozen": true,
-    "new_redux_slices_blocked": true,
-    "note": "Redux store, IndexedDB schema, and new Redux slices blocked until v2.0.0"
-  },
-  "velocity": {
-    "merged_prs_30d": 45,
-    "avg_per_week": 10.5,
-    "open_pr_backlog": 66,
-    "ready_for_review": 45,
-    "draft_in_progress": 21
+    "recent_merges": [
+      {
+        "number": 14490,
+        "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
+        "merged_at": "2026-04-27T08:33:30Z",
+        "type": "feat"
+      },
+      {
+        "number": 14428,
+        "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseService, database/ shims, SkillRepositories",
+        "merged_at": "2026-04-24T10:23:18Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14269,
+        "title": "feat(data): add domain hooks for models/providers and batch model API",
+        "merged_at": "2026-04-21T11:45:16Z",
+        "type": "feat"
+      },
+      {
+        "number": 14315,
+        "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
+        "merged_at": "2026-04-21T03:39:15Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14159,
+        "title": "feat: migrate agents storage to v2 main database",
+        "merged_at": "2026-04-20T13:43:49Z",
+        "type": "feat"
+      },
+      {
+        "number": 14328,
+        "title": "refactor: stabilize ui package boundaries and theme contracts",
+        "merged_at": "2026-04-20T08:12:02Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14309,
+        "title": "refactor(settings): unify settings list item and action button patterns",
+        "merged_at": "2026-04-20T06:58:28Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14174,
+        "title": "refactor(v2): remove local web search backend",
+        "merged_at": "2026-04-20T06:52:10Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14359,
+        "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+        "merged_at": "2026-04-18T11:15:03Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14234,
+        "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
+        "merged_at": "2026-04-17T10:11:35Z",
+        "type": "feat"
+      },
+      {
+        "number": 14229,
+        "title": "feat(migration): migrate llm model preferences to v2 with UniqueModelId format",
+        "merged_at": "2026-04-17T10:07:15Z",
+        "type": "feat"
+      },
+      {
+        "number": 14257,
+        "title": "refactor(data): unify legacy model ID conversion and add FK references to user_model",
+        "merged_at": "2026-04-16T13:50:49Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14251,
+        "title": "refactor: remove memory module from v2",
+        "merged_at": "2026-04-16T05:22:31Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14086,
+        "title": "refactor: migrate shortcut system to Preference architecture",
+        "merged_at": "2026-04-16T03:38:22Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14280,
+        "title": "fix(v2): remove knowledge libsql vector indexes",
+        "merged_at": "2026-04-15T13:42:57Z",
+        "type": "fix"
+      },
+      {
+        "number": 14240,
+        "title": "feat(sidebar): implement tab bar UI with drag, pin, and context menu",
+        "merged_at": "2026-04-14T14:50:42Z",
+        "type": "feat"
+      },
+      {
+        "number": 13851,
+        "title": "feat(v2): decouple assistant from topic with dedicated table and migration",
+        "merged_at": "2026-04-13T04:55:06Z",
+        "type": "feat"
+      },
+      {
+        "number": 14220,
+        "title": "refactor: move rtk extraction into agent bootstrap service",
+        "merged_at": "2026-04-13T03:39:20Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14180,
+        "title": "fix: remove libsql_vector_idx",
+        "merged_at": "2026-04-11T09:55:57Z",
+        "type": "fix"
+      },
+      {
+        "number": 14090,
+        "title": "feat(v2):  knowledge service backend",
+        "merged_at": "2026-04-10T13:24:07Z",
+        "type": "feat"
+      },
+      {
+        "number": 14167,
+        "title": "docs: move provider-registry.md to provider-model directory",
+        "merged_at": "2026-04-10T12:16:56Z",
+        "type": "chore"
+      },
+      {
+        "number": 14166,
+        "title": "fix(data): log non-NotFound errors in getEffectiveReasoningConfig",
+        "merged_at": "2026-04-10T11:46:20Z",
+        "type": "fix"
+      },
+      {
+        "number": 14115,
+        "title": "feat(data): provider/model data migration and registry service (backend only)",
+        "merged_at": "2026-04-10T11:12:34Z",
+        "type": "feat"
+      },
+      {
+        "number": 14163,
+        "title": "docs: add design system specifications (DESIGN.md)",
+        "merged_at": "2026-04-10T09:46:34Z",
+        "type": "chore"
+      },
+      {
+        "number": 13954,
+        "title": "feat(sidebar): rewrite sidebar with Tailwind/shadcn UI and fix missing routes",
+        "merged_at": "2026-04-10T09:28:07Z",
+        "type": "feat"
+      },
+      {
+        "number": 14147,
+        "title": "refactor: replace HTTP MCP proxy with in-memory SDK transport for Claude Agent SDK",
+        "merged_at": "2026-04-10T05:16:25Z",
+        "type": "refactor"
+      },
+      {
+        "number": 12474,
+        "title": "feat(tabs): implement browser-like tab system with detach/attach support",
+        "merged_at": "2026-04-10T04:26:23Z",
+        "type": "feat"
+      },
+      {
+        "number": 14143,
+        "title": "fix: restore agents UI routing, auth, and message sending",
+        "merged_at": "2026-04-10T03:09:51Z",
+        "type": "fix"
+      },
+      {
+        "number": 14138,
+        "title": "docs: consolidate bilingual docs, add link checker and architecture overview",
+        "merged_at": "2026-04-09T08:01:40Z",
+        "type": "chore"
+      },
+      {
+        "number": 14058,
+        "title": "feat(ui): add Skeleton component",
+        "merged_at": "2026-04-07T06:10:30Z",
+        "type": "feat"
+      },
+      {
+        "number": 13563,
+        "title": "refactor(ui): migrate Tooltip from HeroUI to shadcn/Radix UI",
+        "merged_at": "2026-04-07T05:12:03Z",
+        "type": "refactor"
+      },
+      {
+        "number": 14037,
+        "title": "feat: add PopoverConfirm component",
+        "merged_at": "2026-04-05T08:22:44Z",
+        "type": "feat"
+      },
+      {
+        "number": 14017,
+        "title": "fix(i18n): update conversation title length constraint from 10 chars to 10 words",
+        "merged_at": "2026-04-05T02:24:04Z",
+        "type": "fix"
+      },
+      {
+        "number": 14032,
+        "title": "feat(aiCore): add createAgent factory for ToolLoopAgent with plugin pipeline",
+        "merged_at": "2026-04-04T08:20:18Z",
+        "type": "feat"
+      },
+      {
+        "number": 13468,
+        "title": "rerefactor(miniapp): Miniapp V2",
+        "merged_at": "2026-04-04T08:19:59Z",
+        "type": "other"
+      },
+      {
+        "number": 13943,
+        "title": "fix(migration): seed builtin languages before migrating translate history",
+        "merged_at": "2026-04-02T12:12:50Z",
+        "type": "fix"
+      },
+      {
+        "number": 13942,
+        "title": "feat(ui): add Drawer component and Storybook stories",
+        "merged_at": "2026-04-02T11:12:09Z",
+        "type": "feat"
+      },
+      {
+        "number": 13950,
+        "title": "fix: redux exporter",
+        "merged_at": "2026-04-01T02:44:24Z",
+        "type": "fix"
+      },
+      {
+        "number": 13940,
+        "title": "fix(migration): resolve dangling parentId in ChatMigrator for deleted user messages",
+        "merged_at": "2026-03-31T16:33:52Z",
+        "type": "fix"
+      },
+      {
+        "number": 13898,
+        "title": "fix: reset migrator state before each migration retry",
+        "merged_at": "2026-03-31T16:28:10Z",
+        "type": "fix"
+      },
+      {
+        "number": 13936,
+        "title": "fix: skip directory-based legacy knowledge stores in migration",
+        "merged_at": "2026-03-31T16:10:48Z",
+        "type": "fix"
+      },
+      {
+        "number": 13791,
+        "title": "refactor(ui): migrate provider icons to @cherrystudio/ui/icons",
+        "merged_at": "2026-03-31T08:16:48Z",
+        "type": "refactor"
+      },
+      {
+        "number": 13823,
+        "title": "fix(MemoryService): handle missing embedding model in memory configuration",
+        "merged_at": "2026-03-31T06:40:03Z",
+        "type": "fix"
+      },
+      {
+        "number": 13900,
+        "title": "fix: prevent concurrent v2 migration starts",
+        "merged_at": "2026-03-31T02:12:34Z",
+        "type": "fix"
+      },
+      {
+        "number": 13640,
+        "title": "Refactor(v2): add knowledge db schema",
+        "merged_at": "2026-03-30T08:47:39Z",
+        "type": "refactor"
+      },
+      {
+        "number": 13872,
+        "title": "chore(changeset): ignore @cherrystudio/ui in changeset checks",
+        "merged_at": "2026-03-29T02:14:48Z",
+        "type": "chore"
+      }
+    ]
   }
 }

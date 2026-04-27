@@ -1,160 +1,119 @@
 {
-  "generated_at": "2026-04-26T00:00:00Z",
-  "snapshot_date": "2026-04-26",
-  "data_source": "GitHub API via MCP (CherryHQ/cherry-studio)",
-  "issues": {
-    "open_total": 807,
-    "by_label": {
-      "bug": 42,
-      "feature": 152,
-      "enhancement": 0,
-      "P1": 3,
-      "inactive": 108,
-      "no_label": 106
+  "generated_at": "2026-04-27T17:51:11.269088+00:00",
+  "date": "2026-04-27",
+  "open_issues": {
+    "total": 816,
+    "sample_size": 400,
+    "unlabeled": 135,
+    "unlabeled_pct": 16.5,
+    "health": {
+      "Active": 223,
+      "Aging": 435,
+      "Stale": 158,
+      "Zombie": 0
     },
-    "unclassified_count": 106,
-    "unclassified_ratio_pct": 13.1,
-    "closed_last_30d": 251,
+    "top_labels": {
+      "UI/UX": 104,
+      "Models": 83,
+      "inactive": 80,
+      "Assistant": 56,
+      "MCP": 33,
+      "help wanted": 27,
+      "discussion": 27,
+      "needs-repro": 24,
+      "Data": 21,
+      "BUG": 19,
+      "Connectivity": 15,
+      "Performance": 15,
+      "feature": 13,
+      "RAG": 11,
+      "v2": 7,
+      "P2": 6,
+      "Planned": 5,
+      "OpenClaw": 5,
+      "needs-more-info": 5,
+      "P3": 3
+    },
     "p1_issues": [
       {
         "number": 12966,
-        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage",
+        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
         "labels": [
           "BUG",
           "P1",
           "inactive"
         ],
-        "created_at": "2026-02-19T16:12:01Z",
         "updated_at": "2026-04-25T00:51:12Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
-        "severity": "CRITICAL",
-        "note": "Security advisory GHSA-qmgw-45x4-3626 pending triage — now 66 days old"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": [
-          "P1",
-          "Models"
-        ],
-        "created_at": "2026-03-18T14:34:38Z",
-        "updated_at": "2026-03-19T14:22:09Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-        "severity": "HIGH",
-        "note": "Streaming display regression for mimo-v2-flash on v1.8.0"
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
-        "labels": [
-          "P1",
-          "Models"
-        ],
-        "created_at": "2026-03-04T05:07:40Z",
-        "updated_at": "2026-03-05T08:47:59Z",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-        "severity": "HIGH",
-        "assignee": "DeJeune",
-        "note": "Regression introduced in v1.7.22-1.7.23, was working in v1.7.19"
-      }
-    ],
-    "top_commented_bugs": [
-      {
-        "number": 13082,
-        "comments": 5,
-        "title": "[Bug]: Frequent lag during normal operations"
-      },
-      {
-        "number": 12694,
-        "comments": 4,
-        "title": "[Bug]: Performance issue causes severe overheating on MacBook Air M4"
-      },
-      {
-        "number": 12890,
-        "comments": 4,
-        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model"
-      },
-      {
-        "number": 13659,
-        "comments": 3,
-        "title": "[Bug]: Error message for automatic topic naming failure"
-      },
-      {
-        "number": 9943,
-        "comments": 13,
-        "title": "MCPB（原DXT）文件导入MCP服务器相关问题"
+        "url": ""
       }
     ]
   },
-  "pull_requests": {
-    "open_total": 267,
-    "open_to_main": 179,
-    "open_to_v2": 88,
-    "closed_last_30d": 100,
-    "open_v2_detail": {
-      "total": 66,
-      "draft": 21,
-      "ready_for_review": 45,
-      "top_authors": [
-        {
-          "login": "DeJeune",
-          "open_prs": 18,
-          "role": "Core maintainer"
-        },
-        {
-          "login": "EurFelux",
-          "open_prs": 12,
-          "role": "Contributor"
-        },
-        {
-          "login": "zhangjiadi225",
-          "open_prs": 5,
-          "role": "Contributor"
-        },
-        {
-          "login": "404-Page-Found",
-          "open_prs": 4,
-          "role": "Contributor"
-        },
-        {
-          "login": "jidan745le",
-          "open_prs": 3,
-          "role": "Contributor"
-        },
-        {
-          "login": "LWWZH",
-          "open_prs": 3,
-          "role": "Contributor"
-        }
-      ]
+  "open_prs": {
+    "total_page1": 100,
+    "by_base": {
+      "main": 38,
+      "v2": 62
     },
-    "open_age_distribution": {
-      "fresh_0_7d": 55,
-      "active_8_30d": 53,
-      "aging_31_90d": 28,
-      "stale_over_90d": 131
-    }
+    "draft": 23,
+    "ready": 77
   },
   "v2_branch": {
-    "open_prs": 66,
-    "merged_prs_last_30d": 45,
-    "merged_by_date": {
-      "2026-04-24": 1,
-      "2026-04-21": 2,
-      "2026-04-20": 4,
-      "2026-04-18": 1,
-      "2026-04-17": 2,
-      "2026-04-16": 3,
-      "2026-04-15": 1,
-      "2026-04-14": 1,
-      "2026-04-13": 2,
-      "2026-04-11": 1
-    }
-  },
-  "branch_strategy": {
-    "main_status": "code_freeze",
-    "main_accepts": "hotfix/* only (critical bug fixes, minimal scope)",
-    "v2_status": "active_development",
-    "v2_note": "All new features, refactoring, optimizations go to v2 branch"
+    "open_prs": 68,
+    "open_draft": 20,
+    "open_ready": 48,
+    "merged_30d": 46,
+    "merged_total_fetched": 66,
+    "recent_merges": [
+      {
+        "number": 14490,
+        "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
+        "merged_at": "2026-04-27T08:33:30Z"
+      },
+      {
+        "number": 14428,
+        "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseServ",
+        "merged_at": "2026-04-24T10:23:18Z"
+      },
+      {
+        "number": 14269,
+        "title": "feat(data): add domain hooks for models/providers and batch model API",
+        "merged_at": "2026-04-21T11:45:16Z"
+      },
+      {
+        "number": 14315,
+        "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
+        "merged_at": "2026-04-21T03:39:15Z"
+      },
+      {
+        "number": 14159,
+        "title": "feat: migrate agents storage to v2 main database",
+        "merged_at": "2026-04-20T13:43:49Z"
+      },
+      {
+        "number": 14328,
+        "title": "refactor: stabilize ui package boundaries and theme contracts",
+        "merged_at": "2026-04-20T08:12:02Z"
+      },
+      {
+        "number": 14309,
+        "title": "refactor(settings): unify settings list item and action button patterns",
+        "merged_at": "2026-04-20T06:58:28Z"
+      },
+      {
+        "number": 14174,
+        "title": "refactor(v2): remove local web search backend",
+        "merged_at": "2026-04-20T06:52:10Z"
+      },
+      {
+        "number": 14359,
+        "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
+        "merged_at": "2026-04-18T11:15:03Z"
+      },
+      {
+        "number": 14234,
+        "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
+        "merged_at": "2026-04-17T10:11:35Z"
+      }
+    ]
   }
 }
