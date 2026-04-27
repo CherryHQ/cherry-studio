@@ -97,6 +97,7 @@ export const useBlacklist = () => {
 
 export const useWebSearchSettings = (): WebSearchState & {
   setMaxResults: (value: number) => Promise<void>
+  setSearchWithTime: (value: boolean) => Promise<void>
   setCompressionConfig: (config: WebSearchState['compressionConfig']) => Promise<void>
   updateCompressionConfig: (config: Partial<WebSearchState['compressionConfig']>) => Promise<void>
 } => {
@@ -107,6 +108,9 @@ export const useWebSearchSettings = (): WebSearchState & {
     ...state,
     setMaxResults: async (value: number) => {
       await setPreferences({ maxResults: value })
+    },
+    setSearchWithTime: async (value: boolean) => {
+      await setPreferences({ searchWithTime: value })
     },
     setCompressionConfig: async (config) => {
       await setCompressionPreferences(config, state.compressionConfig)

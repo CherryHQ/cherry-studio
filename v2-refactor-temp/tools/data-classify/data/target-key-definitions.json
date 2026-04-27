@@ -97,6 +97,13 @@
       "description": "Web search max results (from complex migration)"
     },
     {
+      "targetKey": "chat.web_search.search_with_time",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether web search should include recent-date constraints where supported"
+    },
+    {
       "targetKey": "chat.web_search.provider_overrides",
       "type": "PreferenceTypes.WebSearchProviderOverrides",
       "defaultValue": {},

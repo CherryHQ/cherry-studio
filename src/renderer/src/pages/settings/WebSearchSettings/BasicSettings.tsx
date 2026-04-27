@@ -1,4 +1,4 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Switch } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -34,7 +34,7 @@ const BasicSettings: FC = () => {
   const { t } = useTranslation()
   const { providers } = useWebSearchProviders()
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
-  const { maxResults, compressionConfig, setMaxResults } = useWebSearchSettings()
+  const { searchWithTime, maxResults, compressionConfig, setSearchWithTime, setMaxResults } = useWebSearchSettings()
   const navigate = useNavigate()
   const [draftMaxResults, setDraftMaxResults] = useState(maxResults)
 
@@ -108,6 +108,11 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
+          <Switch checked={searchWithTime} onCheckedChange={(checked) => void setSearchWithTime(checked)} />
+        </SettingRow>
+        <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}

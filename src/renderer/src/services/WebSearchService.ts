@@ -35,6 +35,7 @@ type WebSearchPreferenceSnapshot = Pick<
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.provider_overrides'
+  | 'chat.web_search.search_with_time'
   | 'chat.web_search.subscribe_sources'
   | 'chat.web_search.compression.method'
   | 'chat.web_search.compression.cutoff_limit'
@@ -46,6 +47,7 @@ export const WEB_SEARCH_PREFERENCE_KEYS = {
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   providerOverrides: 'chat.web_search.provider_overrides',
+  searchWithTime: 'chat.web_search.search_with_time',
   subscribeSources: 'chat.web_search.subscribe_sources',
   compressionMethod: 'chat.web_search.compression.method',
   cutoffLimit: 'chat.web_search.compression.cutoff_limit',
@@ -494,7 +496,7 @@ export function buildRendererWebSearchState(preferences: WebSearchPreferenceValu
   return {
     defaultProvider: preferences.defaultProvider,
     providers: resolveWebSearchProviders(preferences.providerOverrides),
-    searchWithTime: false,
+    searchWithTime: preferences.searchWithTime,
     maxResults: Math.max(1, preferences.maxResults),
     excludeDomains: preferences.excludeDomains,
     subscribeSources: preferences.subscribeSources,

@@ -116,7 +116,7 @@ describe('webSearchPreferences', () => {
 
   it('builds renderer websearch state from preference snapshot', () => {
     const state = buildRendererWebSearchState({
-      defaultProvider: 'tavily',
+      defaultProvider: 'bocha',
       excludeDomains: ['example.com'],
       maxResults: 12,
       providerOverrides: {
@@ -124,6 +124,7 @@ describe('webSearchPreferences', () => {
           apiKeys: ['key-1']
         }
       },
+      searchWithTime: true,
       subscribeSources: [
         {
           key: 1,
@@ -137,8 +138,8 @@ describe('webSearchPreferences', () => {
       cutoffUnit: 'token'
     })
 
-    expect(state.defaultProvider).toBe('tavily')
-    expect(state.searchWithTime).toBe(false)
+    expect(state.defaultProvider).toBe('bocha')
+    expect(state.searchWithTime).toBe(true)
     expect(state.maxResults).toBe(12)
     expect(state.excludeDomains).toEqual(['example.com'])
     expect(state.subscribeSources).toHaveLength(1)
@@ -157,6 +158,7 @@ describe('webSearchPreferences', () => {
       excludeDomains: [],
       maxResults: 10,
       providerOverrides: {},
+      searchWithTime: true,
       subscribeSources: [],
       compressionMethod: 'cutoff',
       cutoffLimit: null as any,
@@ -164,5 +166,21 @@ describe('webSearchPreferences', () => {
     })
 
     expect(state.compressionConfig.cutoffLimit).toBe(2000)
+  })
+
+  it('uses the searchWithTime preference regardless of selected provider', () => {
+    const state = buildRendererWebSearchState({
+      defaultProvider: 'tavily',
+      excludeDomains: [],
+      maxResults: 5,
+      providerOverrides: {},
+      searchWithTime: false,
+      subscribeSources: [],
+      compressionMethod: 'none',
+      cutoffLimit: 2000,
+      cutoffUnit: 'char'
+    })
+
+    expect(state.searchWithTime).toBe(false)
   })
 })
