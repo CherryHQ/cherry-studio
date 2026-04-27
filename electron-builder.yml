@@ -77,6 +77,8 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
