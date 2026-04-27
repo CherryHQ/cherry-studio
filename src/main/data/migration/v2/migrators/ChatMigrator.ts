@@ -565,6 +565,15 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Strong signal that AssistantMigrator dropped most of its rows or that
+      // source data has shifted underfoot — surfaces before user notices every
+      // topic clustered under "default".
+      if (this.topicCount > 0 && this.orphanedAssistantTopics / this.topicCount > 0.5) {
+        logger.warn(
+          `High orphan-assistant ratio: ${this.orphanedAssistantTopics}/${this.topicCount} topics fell back to ${DEFAULT_ASSISTANT_ID}`
+        )
+      }
+
       const diagnostics = {
         skippedMessages: this.skippedMessages,
         orphanedAssistantTopics: this.orphanedAssistantTopics,
