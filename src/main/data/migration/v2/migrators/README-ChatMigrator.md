@@ -57,7 +57,7 @@ The migrator handles potential data inconsistencies from the old system:
 | **TopicId mismatch** | `message.topicId` ≠ parent `topic.id` | Use correct parent topic.id (silent fix) |
 | **Missing blocks** | Block ID not found in `message_blocks` | Skip missing block (silent) |
 | **Invalid topic** | Topic missing required `id` field | Skip entire topic |
-| **Empty source topic** | `topic.messages` missing or `[]` | Skip topic — v1 surfaced empty topics on first launch and on every abandoned "new topic" click; they have no timestamp source and would just clutter the post-migration list. Logged at info level. |
+| **Empty source topic** | `topic.messages` missing or `[]` AND no user-intent signal (`pinned` / `isNameManuallyEdited` from Redux meta) | Skip topic — v1 surfaced empty topics on first launch and on every abandoned "new topic" click; they have no timestamp source and would just clutter the post-migration list. Logged at info level. Empty topics that the user pinned or renamed are kept (intentional state). |
 | **Missing topic metadata** | Topic not found in Redux `assistants[].topics[]` / `defaultAssistant.topics[]` | Use Dexie values, fallback name if empty |
 | **Missing assistantId** | Topic not in any `assistant.topics[]`, or empty/null `assistantId` | Fall back to `DEFAULT_ASSISTANT_ID` (`'default'`) — `DefaultAssistantSeeder` guarantees that row exists, so the FK is always valid. Renderer hooks like `useAssistant(topic.assistantId)` need a routable id; `null` would drive `PATCH /assistants/` 400 loops. |
 | **Orphan assistantId** | `topic.assistantId` not in `validAssistantIds` | Same fallback as above; `orphanedAssistantTopics` counter increments and a warning is logged. |

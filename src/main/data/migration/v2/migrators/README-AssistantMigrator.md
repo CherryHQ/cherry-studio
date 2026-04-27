@@ -33,8 +33,9 @@ A field on `primary` "wins" only when it is **present**. Otherwise `secondary`'s
 |------|--------------------------------------------------|
 | `string` | `undefined`, `null`, `''` |
 | Array | `undefined`, `null`, `[]` |
+| Plain object | `undefined`, `null`, `{}` (e.g. default-seeded `customParameters: {}`) |
 | Boolean | `undefined`, `null` only — `false` is a real choice |
-| Object (settings) | `undefined`, `null` |
+| Object (settings root) | `undefined`, `null` (the settings root itself; nested keys follow the same rules) |
 
 The empty-array rule prevents a default-empty `mcpServers: []` on `assistants[0]` from clobbering a populated `mcpServers: [s1]` on `defaultAssistant`.
 
@@ -51,16 +52,24 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | Issue | Detection | Handling |
 |-------|-----------|----------|
 | Missing/invalid id | `!id` or `typeof id !== 'string'` | Skip source, log warning |
-| Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above), surface `Merged duplicate assistant id: ${id}` warning |
+| Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |
 | All sources skipped | `preparedResults.length === 0 && sourceById.size === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
 | Dangling MCP server ref | `mcpServerIdMapping` lookup miss | Drop the junction row, log warning |
 | Missing `mcpServerIdMapping` while assistants reference MCP servers | `sharedData.get('mcpServerIdMapping') === undefined` | Throw — `McpServerMigrator` must run before this one |
 
+## Default Assistant Backstop
+
+`AssistantMigrator.execute()` always inserts `DEFAULT_ASSISTANT_PAYLOAD` (canonical row defined in `@shared/data/types/assistant`) when no v1 source produced an `id='default'` row. This is wrapped in `ON CONFLICT DO NOTHING` so it's idempotent against the post-migration `DefaultAssistantSeeder`.
+
+**Why** — `ChatMigrator` falls back orphan/empty `topic.assistantId` to `'default'`. `MigrationEngine.run()` ends with `verifyForeignKeys()`, which checks the schema-level FK constraint regardless of `PRAGMA foreign_keys` mode. The post-migration seeder runs in `DbService.onInit()`, which fires **after** the migration gate completes — too late for FK validation. The backstop guarantees the FK target exists by the time the transaction commits.
+
+The shared payload also means seeder + backstop never drift; edit `DEFAULT_ASSISTANT_PAYLOAD` to update both consumers.
+
 ## Downstream Hand-off
 
-`AssistantMigrator.execute()` writes the set of migrated assistant IDs to `ctx.sharedData.set('assistantIds', validAssistantIds)`. `ChatMigrator.execute()` reads this set, **adds `DEFAULT_ASSISTANT_ID` to it**, and uses it as the FK whitelist when validating `topic.assistantId`. The seeded default assistant row (`DefaultAssistantSeeder`) guarantees that `default` is always a valid FK target post-migration even if no v1 source produced it.
+`AssistantMigrator.execute()` writes the set of migrated assistant IDs to `ctx.sharedData.set('assistantIds', validAssistantIds)` — always including `DEFAULT_ASSISTANT_ID`. `ChatMigrator.execute()` reads this set, defensively clones it, and uses it as the FK whitelist when validating `topic.assistantId`.
 
 ## Implementation Files
 
