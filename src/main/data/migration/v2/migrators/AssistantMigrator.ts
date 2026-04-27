@@ -70,10 +70,31 @@ export function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistan
     mcpMode: pickPrimaryThen('mcpMode'),
     mcpServers: pickPrimaryThen('mcpServers'),
     knowledge_bases: pickPrimaryThen('knowledge_bases'),
-    enableWebSearch: primary.enableWebSearch ?? secondary.enableWebSearch,
+    enableWebSearch: pickPrimaryThen('enableWebSearch'),
     tags: pickPrimaryThen('tags')
   }
 }
+
+// Compile-time exhaustiveness guard: adding a new field to OldAssistant fails
+// here until its merge rule is declared, preventing silent fall-through to the
+// `...secondary, ...primary` spread (which skips isPresent-based protection).
+const _MERGE_RULES_COVERED = {
+  id: 'identity',
+  name: 'pickPrimary',
+  prompt: 'pickPrimary',
+  emoji: 'pickPrimary',
+  description: 'pickPrimary',
+  type: 'pickPrimary',
+  model: 'pickPrimary',
+  defaultModel: 'pickPrimary',
+  settings: 'shallowMerge',
+  mcpMode: 'pickPrimary',
+  mcpServers: 'pickPrimary',
+  knowledge_bases: 'pickPrimary',
+  enableWebSearch: 'pickPrimary',
+  tags: 'pickPrimary'
+} as const satisfies Record<keyof OldAssistant, 'identity' | 'pickPrimary' | 'shallowMerge'>
+void _MERGE_RULES_COVERED
 
 export class AssistantMigrator extends BaseMigrator {
   readonly id = 'assistant'
