@@ -16,6 +16,7 @@ import {
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
+import { withoutTrailingApiVersion } from '@shared/utils'
 import { createGateway } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
@@ -26,6 +27,12 @@ import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from '
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
 
 const logger = loggerService.withContext('AiProvider')
+
+type OpenAICompatibleProviderSettingsWithEndpoint = ProviderConfig<'openai-compatible'>['providerSettings'] & {
+  customEndpoint?: string
+}
+
+const OPENAI_COMPATIBLE_IMAGE_ENDPOINTS = new Set(['images/generations', 'images/edits', 'predict'])
 
 export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
@@ -416,17 +423,22 @@ export default class AiProvider {
       ...(signal && { abortSignal: signal })
     }
 
-    const executor = await createExecutor<AppProviderSettingsMap>(
-      providerConfig.providerId,
-      providerConfig.providerSettings,
-      []
-    )
-    const result = await executor.generateImage({
-      model: model, // 直接使用 model ID 字符串，由 executor 内部解析
-      ...aiSdkParams
-    })
+    try {
+      return await this.executeImageRequest(providerConfig, {
+        model: model,
+        ...aiSdkParams
+      })
+    } catch (error) {
+      const fallbackConfig = this.buildOpenAICompatibleImageFallbackConfig(providerConfig, 'images/generations')
+      if (!fallbackConfig || !this.isNotFoundApiError(error)) {
+        throw error
+      }
 
-    return this.convertImageResult(result)
+      return await this.executeImageRequest(fallbackConfig, {
+        model: model,
+        ...aiSdkParams
+      })
+    }
   }
 
   /**
@@ -436,25 +448,80 @@ export default class AiProvider {
   private async modernEditImage(params: EditImageParams, providerConfig: ProviderConfig): Promise<string[]> {
     const { model, prompt, inputImages, mask, imageSize, signal } = params
 
+    const request = {
+      model: model,
+      prompt: {
+        text: prompt,
+        images: inputImages,
+        ...(mask && { mask })
+      },
+      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(signal && { abortSignal: signal })
+    }
+
+    try {
+      return await this.executeImageRequest(providerConfig, request)
+    } catch (error) {
+      const fallbackConfig = this.buildOpenAICompatibleImageFallbackConfig(providerConfig, 'images/edits')
+      if (!fallbackConfig || !this.isNotFoundApiError(error)) {
+        throw error
+      }
+
+      return await this.executeImageRequest(fallbackConfig, request)
+    }
+  }
+
+  private async executeImageRequest(
+    providerConfig: ProviderConfig,
+    params: Record<string, unknown>
+  ): Promise<string[]> {
     const executor = await createExecutor<AppProviderSettingsMap>(
       providerConfig.providerId,
       providerConfig.providerSettings,
       []
     )
 
-    // 使用 AI SDK 的 generateImage，通过 prompt.images 实现编辑
-    const result = await executor.generateImage({
-      model: model,
-      prompt: {
-        text: prompt,
-        images: inputImages, // 输入图像（必需）
-        ...(mask && { mask }) // 可选的 mask（用于 inpainting）
-      },
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
-      ...(signal && { abortSignal: signal })
-    })
-
+    const result = await executor.generateImage(params as Parameters<typeof executor.generateImage>[0])
     return this.convertImageResult(result)
+  }
+
+  private buildOpenAICompatibleImageFallbackConfig(
+    providerConfig: ProviderConfig,
+    customEndpoint: 'images/generations' | 'images/edits'
+  ): ProviderConfig | undefined {
+    if (providerConfig.providerId !== 'openai-compatible') {
+      return undefined
+    }
+
+    const settings = providerConfig.providerSettings as OpenAICompatibleProviderSettingsWithEndpoint
+    if (settings.customEndpoint && !OPENAI_COMPATIBLE_IMAGE_ENDPOINTS.has(settings.customEndpoint)) {
+      return undefined
+    }
+
+    const fallbackBaseURL = withoutTrailingApiVersion(settings.baseURL)
+    if (!fallbackBaseURL || fallbackBaseURL === settings.baseURL) {
+      return undefined
+    }
+
+    const fallbackEndpoint = settings.customEndpoint || customEndpoint
+
+    return {
+      ...providerConfig,
+      providerSettings: {
+        ...settings,
+        baseURL: fallbackBaseURL,
+        customEndpoint: fallbackEndpoint
+      } as OpenAICompatibleProviderSettingsWithEndpoint
+    }
+  }
+
+  private isNotFoundApiError(error: unknown): error is { statusCode: number } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'statusCode' in error &&
+      (error as { statusCode?: number }).statusCode === 404
+    )
   }
 
   /**

@@ -1002,6 +1002,25 @@ describe('providerToAiSdkConfig', () => {
       expect(config.endpoint).toBe('chat/completions')
     })
 
+    it('passes custom endpoint through provider settings for openai-compatible providers', async () => {
+      const provider = makeProvider({
+        id: 'some-openai-compat',
+        type: 'openai',
+        apiHost: 'https://api.custom.com/images/generations#'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('gpt-image-2', provider.id)
+      )) as ProviderConfig<'openai-compatible'>
+
+      const settings = config.providerSettings as OpenAICompatibleProviderSettings & { customEndpoint?: string }
+
+      expect(config.endpoint).toBe('images/generations')
+      expect(settings.baseURL).toBe('https://api.custom.com')
+      expect(settings.customEndpoint).toBe('images/generations')
+    })
+
     it('returns empty endpoint for normal URLs', async () => {
       const provider = makeProvider({
         id: 'some-openai-compat',

@@ -15,8 +15,13 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import {
+  createOpenAICompatible,
+  OpenAICompatibleImageModel,
+  VERSION as OPENAI_COMPATIBLE_VERSION
+} from '@ai-sdk/openai-compatible'
 import type { ProviderV3 } from '@ai-sdk/provider'
+import { withoutTrailingSlash, withUserAgentSuffix } from '@ai-sdk/provider-utils'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
@@ -35,6 +40,60 @@ import type {
 import { extensionRegistry } from './ExtensionRegistry'
 import type { ProviderExtensionConfig } from './ProviderExtension'
 import { ProviderExtension } from './ProviderExtension'
+
+type OpenAICompatibleProviderSettingsWithEndpoint = OpenAICompatibleProviderSettings & {
+  customEndpoint?: string
+}
+
+const OPENAI_COMPATIBLE_IMAGE_ENDPOINTS = new Set(['images/generations', 'images/edits', 'predict'])
+
+function createOpenAICompatibleWithEndpoint(settings: OpenAICompatibleProviderSettingsWithEndpoint): ProviderV3 {
+  const { customEndpoint, ...baseSettings } = settings
+
+  if (!customEndpoint || !OPENAI_COMPATIBLE_IMAGE_ENDPOINTS.has(customEndpoint)) {
+    return createOpenAICompatible(baseSettings)
+  }
+
+  const defaultProvider = createOpenAICompatible(baseSettings)
+
+  const baseURL = withoutTrailingSlash(baseSettings.baseURL)
+  const providerName = baseSettings.name
+  const normalizedEndpoint = customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`
+  const headers = {
+    ...(baseSettings.apiKey && { Authorization: `Bearer ${baseSettings.apiKey}` }),
+    ...baseSettings.headers
+  }
+
+  const getHeaders = () => withUserAgentSuffix(headers, `ai-sdk/openai-compatible/${OPENAI_COMPATIBLE_VERSION}`)
+
+  const url = ({ path }: { path: string }) => {
+    const resolvedPath = path.startsWith('/images/edits') ? path : normalizedEndpoint
+    const requestUrl = new URL(`${baseURL}${resolvedPath}`)
+
+    if (baseSettings.queryParams) {
+      requestUrl.search = new URLSearchParams(baseSettings.queryParams).toString()
+    }
+
+    return requestUrl.toString()
+  }
+
+  const getImageModelConfig = () => ({
+    provider: `${providerName}.image`,
+    url,
+    headers: getHeaders,
+    fetch: baseSettings.fetch
+  })
+
+  const createImageModel = (modelId: string) =>
+    new OpenAICompatibleImageModel(modelId, {
+      ...getImageModelConfig()
+    })
+
+  return Object.assign((modelId: string) => defaultProvider.languageModel(modelId), {
+    ...defaultProvider,
+    imageModel: createImageModel
+  }) as unknown as ReturnType<typeof createOpenAICompatible>
+}
 
 // ==================== Core Extensions ====================
 
@@ -171,7 +230,7 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
-    return createOpenAICompatible(settings)
+    return createOpenAICompatibleWithEndpoint(settings as OpenAICompatibleProviderSettingsWithEndpoint)
   }
 } as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, ProviderV3, 'openai-compatible'>)
 
