@@ -63,20 +63,18 @@ export const ListTopicsQuerySchema = z.strictObject({
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
 /**
- * DTO for setting active node.
+ * DTO for setting active node. Pins the exact `nodeId` — the conversation
+ * view truncates there; the user's next message forks the tree.
  *
- * `descend` toggles two distinct behaviors:
- *   - `false` / omitted (default): pin the exact `nodeId`. The conversation
- *     view truncates there; the user's next message forks the tree.
- *   - `true`: walk down from `nodeId` to any leaf. Used by navigators that
- *     switch between sibling branches and want the full follow-up chain
- *     visible.
+ * Note: a navigator-style `descend` flag (walk down to a leaf before pinning)
+ * lives on `DeJeune/ai-service` along with its renderer consumers
+ * (`MessageGroup.tsx`, `SiblingNavigator.tsx`). It will be reintroduced when
+ * that branch lands; shipping the flag without consumers leaves an unreachable
+ * contract surface.
  */
 export const SetActiveNodeSchema = z.strictObject({
   /** Node ID to set as active */
-  nodeId: z.string().min(1),
-  /** Whether to descend to a leaf under `nodeId` before pinning. */
-  descend: z.boolean().optional()
+  nodeId: z.string().min(1)
 })
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 

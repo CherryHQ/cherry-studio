@@ -13,7 +13,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, isNull, like, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, like, lt, notInArray, or } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 import { pinService } from './PinService'
@@ -385,21 +385,15 @@ export class TopicService {
   }
 
   /**
-   * Set the active node for a topic.
+   * Pin `nodeId` as the topic's active node. The conversation view truncates
+   * at that node; the user's next message forks the tree.
    *
-   * Two modes:
-   *   - `descend: true` (navigator semantics) — walk down from `nodeId` to
-   *     any leaf and pin that as active.
-   *   - `descend: false` (default, branch semantics) — pin `nodeId` itself
-   *     as active. The conversation view truncates at that node.
+   * A navigator-style `descend` mode (walk to the deepest leaf before pinning)
+   * lives on `DeJeune/ai-service` along with its renderer call sites and will
+   * be reintroduced when that branch lands — see SetActiveNodeSchema JSDoc.
    */
-  async setActiveNode(
-    topicId: string,
-    nodeId: string,
-    options: { descend?: boolean } = {}
-  ): Promise<{ activeNodeId: string }> {
+  async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
-    const { descend = false } = options
 
     // Verify topic exists
     await this.getById(topicId)
@@ -411,31 +405,11 @@ export class TopicService {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    let targetId = nodeId
-    if (descend) {
-      const [leaf] = await db.all<{ id: string }>(sql`
-        WITH RECURSIVE subtree AS (
-          SELECT id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-          UNION ALL
-          SELECT m.id FROM message m
-          INNER JOIN subtree s ON m.parent_id = s.id
-          WHERE m.deleted_at IS NULL
-        )
-        SELECT s.id FROM subtree s
-        WHERE NOT EXISTS (
-          SELECT 1 FROM message c
-          WHERE c.parent_id = s.id AND c.deleted_at IS NULL
-        )
-        LIMIT 1
-      `)
-      targetId = leaf?.id ?? nodeId
-    }
+    await db.update(topicTable).set({ activeNodeId: nodeId }).where(eq(topicTable.id, topicId))
 
-    await db.update(topicTable).set({ activeNodeId: targetId }).where(eq(topicTable.id, topicId))
+    logger.info('Set active node', { topicId, activeNodeId: nodeId })
 
-    logger.info('Set active node', { topicId, requestedNodeId: nodeId, activeNodeId: targetId, descend })
-
-    return { activeNodeId: targetId }
+    return { activeNodeId: nodeId }
   }
 }
 
