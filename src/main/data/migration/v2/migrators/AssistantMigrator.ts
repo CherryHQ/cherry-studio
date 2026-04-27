@@ -31,6 +31,7 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_PAYLOAD } from '@shared/data/types/assistant'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -57,6 +58,8 @@ interface AssistantState {
  * - Strings: must not be `''`.
  * - Arrays: must not be `[]` (so a default-empty `mcpServers: []` on primary
  *   does not clobber a populated `mcpServers: [s1]` on secondary).
+ * - Plain objects: must not be `{}` (same hazard for `customParameters: {}` /
+ *   `defaultModel: {}` on primary clobbering a populated value on secondary).
  * - Booleans: `false` is preserved (treated as a real choice).
  *
  * Settings is shallow-merged the same way (per-key first-non-empty wins).
@@ -65,10 +68,16 @@ interface AssistantState {
  * by future v1 versions) are preserved via object spread: secondary first,
  * then primary, so primary still wins on overlap.
  */
-function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
+export function mergeOldAssistants(primary: OldAssistant, secondary: OldAssistant): OldAssistant {
   const isPresent = (v: unknown): boolean => {
     if (v === undefined || v === null || v === '') return false
     if (Array.isArray(v) && v.length === 0) return false
+    // Plain empty object (e.g. default-seeded `customParameters: {}` /
+    // `defaultModel: {}`). We restrict to plain objects so non-plain values
+    // like `Date`, `Map`, or class instances aren't misclassified.
+    if (typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype && Object.keys(v).length === 0) {
+      return false
+    }
     return true
   }
   const pickPrimaryThen = <K extends keyof OldAssistant>(key: K): OldAssistant[K] => {
@@ -157,7 +166,9 @@ export class AssistantMigrator extends BaseMigrator {
       // copy left empty (less common, but happens when only the slot was
       // touched via `updateDefaultAssistant`).
       const sourceById = new Map<string, OldAssistant>()
+      let totalRawSources = 0
       const recordSource = (source: OldAssistant): void => {
+        totalRawSources++
         const { id } = source
         if (!id || typeof id !== 'string') {
           this.skippedCount++
@@ -166,8 +177,12 @@ export class AssistantMigrator extends BaseMigrator {
         }
         const existing = sourceById.get(id)
         if (existing) {
+          // Note: not pushed to user-facing `warnings[]`. The v1 slice's
+          // initialState seeds id='default' in BOTH `state.assistants[0]`
+          // and `state.defaultAssistant`, so this fires on essentially every
+          // real-user migration — surfacing it as a warning would noise the
+          // progress UI. Logged at info level for diagnostics only.
           sourceById.set(id, mergeOldAssistants(existing, source))
-          warnings.push(`Merged duplicate assistant id: ${id}`)
           logger.info('Merged duplicate assistant id from secondary slot', { id })
         } else {
           sourceById.set(id, source)
@@ -194,8 +209,11 @@ export class AssistantMigrator extends BaseMigrator {
         }
       }
 
-      // Fail if all items were skipped but source had data (indicates systemic issue)
-      if (this.skippedCount > 0 && this.preparedResults.length === 0 && sourceById.size === 0) {
+      // Fail if there was raw input but nothing produced output — covers both
+      // "every row had an invalid id" and "every row failed transformAssistant".
+      // Either case means a systemic bug; silently committing an empty assistant
+      // table would leave downstream FK validation (ChatMigrator) chasing a ghost.
+      if (this.skippedCount > 0 && this.preparedResults.length === 0 && totalRawSources > 0) {
         logger.error('All assistants were skipped during preparation', { skipped: this.skippedCount })
         return { success: false, itemCount: 0, warnings }
       }
@@ -221,10 +239,6 @@ export class AssistantMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
-    if (this.preparedResults.length === 0) {
-      return { success: true, processedCount: 0 }
-    }
-
     try {
       let processed = 0
 
@@ -248,12 +262,29 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
+      // Whether the migrated v1 data already produced an id='default' row.
+      // If not, we insert the canonical default payload so ChatMigrator's
+      // orphan-fallback FK target (`topic.assistantId = 'default'`) is
+      // valid before MigrationEngine's verifyForeignKeys() runs. The
+      // post-migration `DefaultAssistantSeeder` only fires later in
+      // DbService boot, which is too late for FK validation.
+      const hasDefaultFromSources = sanitizedAssistantRows.some((row) => row.id === DEFAULT_ASSISTANT_ID)
+
       await ctx.db.transaction(async (tx) => {
         // Insert assistant rows
         for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
           const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
+        }
+
+        // Backstop: insert the canonical default-assistant row if no v1
+        // source produced one. Idempotent against the post-migration
+        // seeder via PK conflict (the seeder is also a no-op when the
+        // row exists). Logged at info level for diagnostics.
+        if (!hasDefaultFromSources) {
+          await tx.insert(assistantTable).values(DEFAULT_ASSISTANT_PAYLOAD).onConflictDoNothing()
+          logger.info('Inserted default assistant backstop row (no v1 source produced one)')
         }
 
         // Remap mcpServer junction rows using oldId → newId mapping from McpServerMigrator.
@@ -353,7 +384,11 @@ export class AssistantMigrator extends BaseMigrator {
       // Track valid IDs for FK validation by downstream migrators.
       // Precondition: transaction above has committed, so these IDs are in the DB.
       // ChatMigrator.execute() reads this set to validate topic.assistantId references.
+      // Always include DEFAULT_ASSISTANT_ID — the backstop insert above
+      // guarantees the row exists in DB, so it's a safe FK target for
+      // orphan-topic fallback.
       this.validAssistantIds = new Set(this.preparedResults.map((r) => r.assistant.id as string))
+      this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       ctx.sharedData.set('assistantIds', this.validAssistantIds)
 
       this.reportProgress(100, `Migrated ${processed} assistants`, {

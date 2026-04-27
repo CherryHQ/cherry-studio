@@ -2,7 +2,8 @@ import { entityTagTable } from '@data/db/schemas/tagging'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
-import { AssistantMigrator } from '../AssistantMigrator'
+import { AssistantMigrator, mergeOldAssistants } from '../AssistantMigrator'
+import type { OldAssistant } from '../mappings/AssistantMappings'
 
 function createMockContext(reduxData: Record<string, unknown> = {}) {
   const reduxState = new ReduxStateReader(reduxData)
@@ -145,8 +146,10 @@ describe('AssistantMigrator', () => {
 
     it('should merge duplicate-id assistants instead of skipping', async () => {
       // Two id='dup-1' entries merge field-by-field, primary (first) wins on
-      // non-empty values — see mergeOldAssistants. The merge is surfaced as a
-      // warning so the migration progress UI can report it.
+      // non-empty values — see mergeOldAssistants. Merge is silent (logged
+      // at info level) — the v1 initialState seeds id='default' in both
+      // assistants[0] and defaultAssistant, so user-facing warnings would
+      // fire on every migration.
       const assistants = [
         { id: 'dup-1', name: 'first', prompt: 'p1' },
         { id: 'dup-1', name: '', prompt: 'p2-overridden', emoji: '🌟' },
@@ -157,7 +160,7 @@ describe('AssistantMigrator', () => {
       expect(result).toStrictEqual({
         success: true,
         itemCount: 2,
-        warnings: ['Merged duplicate assistant id: dup-1']
+        warnings: undefined
       })
     })
 
@@ -219,11 +222,7 @@ describe('AssistantMigrator', () => {
         }
       })
       const result = await migrator.prepare(ctx as any)
-      expect(result).toStrictEqual({
-        success: true,
-        itemCount: 1,
-        warnings: ['Merged duplicate assistant id: default']
-      })
+      expect(result).toStrictEqual({ success: true, itemCount: 1, warnings: undefined })
 
       const internal = migrator as unknown as { preparedResults: { assistant: Record<string, unknown> }[] }
       const merged = internal.preparedResults[0].assistant
@@ -277,39 +276,118 @@ describe('AssistantMigrator', () => {
       expect(r.knowledgeBases.map((kb) => kb.knowledgeBaseId)).toEqual(['kb-1'])
       expect(r.tags).toEqual(['t1'])
     })
+  })
 
-    it('should preserve unenumerated fields through merge via object spread', async () => {
-      // Older v1 versions could carry fields not listed in `OldAssistant`
-      // (e.g. some internal experiment flag). The merge must not silently
-      // drop those — the object-spread baseline preserves them, with primary
-      // winning on overlap.
-      const assistants = [
-        {
-          id: 'default',
-          name: 'Primary',
-          legacyExperimentFlag: 'fromPrimary'
+  describe('mergeOldAssistants', () => {
+    // Direct unit tests against the merge function. The migrator-level tests
+    // exercise the merge through prepare() but can only assert against the
+    // typed AssistantInsert row produced by transformAssistant — fields not
+    // in OldAssistant aren't observable that way. These tests pin the
+    // contracts documented in README-AssistantMigrator.md directly.
+    type WithExtras = OldAssistant & Record<string, unknown>
+
+    it('preserves unenumerated fields via object spread (primary wins on overlap)', () => {
+      const primary: WithExtras = {
+        id: 'default',
+        name: 'Primary',
+        legacyExperimentFlag: 'fromPrimary'
+      }
+      const secondary: WithExtras = {
+        id: 'default',
+        name: '',
+        legacyExperimentFlag: 'fromSecondary', // overlap → primary wins
+        secondaryOnlyField: 'kept' // unique → secondary survives
+      }
+      const merged = mergeOldAssistants(primary, secondary) as WithExtras
+      expect(merged.legacyExperimentFlag).toBe('fromPrimary')
+      expect(merged.secondaryOnlyField).toBe('kept')
+      expect(merged.id).toBe('default')
+      expect(merged.name).toBe('Primary')
+    })
+
+    it('treats empty arrays as absent so secondary populated arrays survive', () => {
+      const primary: OldAssistant = {
+        id: 'default',
+        mcpServers: [],
+        knowledge_bases: [],
+        tags: []
+      }
+      const secondary: OldAssistant = {
+        id: 'default',
+        mcpServers: [{ id: 's1' }],
+        knowledge_bases: [{ id: 'kb1' }],
+        tags: ['t1']
+      }
+      const merged = mergeOldAssistants(primary, secondary)
+      expect(merged.mcpServers).toEqual([{ id: 's1' }])
+      expect(merged.knowledge_bases).toEqual([{ id: 'kb1' }])
+      expect(merged.tags).toEqual(['t1'])
+    })
+
+    it('treats empty plain objects as absent (defaultModel / customParameters)', () => {
+      const primary: OldAssistant = {
+        id: 'default',
+        // Default-seeded empty model object — should not clobber secondary
+        defaultModel: {},
+        settings: {
+          // Nested empty object inside settings
+          defaultModel: {},
+          temperature: 0.5
         }
-      ]
-      const ctx = createMockContext({
-        assistants: {
-          assistants,
-          presets: [],
-          defaultAssistant: {
-            id: 'default',
-            name: '',
-            legacyExperimentFlag: 'fromSecondary',
-            secondaryOnlyField: 'kept'
-          }
+      }
+      const secondary: OldAssistant = {
+        id: 'default',
+        defaultModel: { id: 'gpt-4', provider: 'openai' },
+        settings: {
+          defaultModel: { id: 'claude', provider: 'anthropic' },
+          temperature: 0.9
         }
+      }
+      const merged = mergeOldAssistants(primary, secondary)
+      expect(merged.defaultModel).toEqual({ id: 'gpt-4', provider: 'openai' })
+      // Settings shallow-merge: primary's empty defaultModel falls through;
+      // primary's temperature (0.5) wins because it's populated.
+      expect(merged.settings?.defaultModel).toEqual({ id: 'claude', provider: 'anthropic' })
+      expect(merged.settings?.temperature).toBe(0.5)
+    })
+
+    it('preserves boolean false on primary (explicit user choice)', () => {
+      const primary: OldAssistant = { id: 'default', enableWebSearch: false }
+      const secondary: OldAssistant = { id: 'default', enableWebSearch: true }
+      const merged = mergeOldAssistants(primary, secondary)
+      expect(merged.enableWebSearch).toBe(false)
+    })
+
+    it('falls through to secondary when primary boolean is undefined', () => {
+      const primary: OldAssistant = { id: 'default' }
+      const secondary: OldAssistant = { id: 'default', enableWebSearch: true }
+      const merged = mergeOldAssistants(primary, secondary)
+      expect(merged.enableWebSearch).toBe(true)
+    })
+
+    it('shallow-merges settings per-key (first non-empty wins)', () => {
+      const primary: OldAssistant = {
+        id: 'default',
+        settings: { temperature: 0.7, maxTokens: undefined, topP: 1.0 }
+      }
+      const secondary: OldAssistant = {
+        id: 'default',
+        settings: { temperature: 0.2, maxTokens: 4096, topP: 0.5, contextCount: 10 }
+      }
+      const merged = mergeOldAssistants(primary, secondary)
+      expect(merged.settings?.temperature).toBe(0.7) // primary wins
+      expect(merged.settings?.maxTokens).toBe(4096) // primary undefined, secondary fills
+      expect(merged.settings?.topP).toBe(1.0) // primary wins
+      expect(merged.settings?.contextCount).toBe(10) // secondary-only key kept
+    })
+
+    it('returns primary settings when secondary has none, and vice versa', () => {
+      expect(mergeOldAssistants({ id: 'a', settings: { temperature: 0.5 } }, { id: 'a' }).settings).toEqual({
+        temperature: 0.5
       })
-      await migrator.prepare(ctx as any)
-
-      const internal = migrator as unknown as { preparedResults: unknown[] }
-      // The merged source is consumed by transformAssistant, which only emits
-      // the typed assistant row — but the merge itself must have kept the
-      // fields available. Smoke-test by verifying the migration didn't error
-      // and itemCount is 1 (i.e. no exception was thrown handling the extras).
-      expect(internal.preparedResults).toHaveLength(1)
+      expect(mergeOldAssistants({ id: 'a' }, { id: 'a', settings: { temperature: 0.5 } }).settings).toEqual({
+        temperature: 0.5
+      })
     })
   })
 
@@ -332,13 +410,140 @@ describe('AssistantMigrator', () => {
       expect(ids).toBeInstanceOf(Set)
       expect(ids.has('ast-1')).toBe(true)
       expect(ids.has('ast-2')).toBe(true)
+      // Backstop guarantee: DEFAULT_ASSISTANT_ID is always in the FK whitelist
+      // even when no v1 source produced an id='default' row.
+      expect(ids.has('default')).toBe(true)
     })
 
-    it('should handle empty assistants gracefully', async () => {
-      const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
+    it('inserts the default-assistant backstop row when no v1 source has id=default', async () => {
+      // Captures the values handed to tx.insert to verify the canonical
+      // payload was inserted. Failing this lets verifyForeignKeys() abort
+      // the migration when ChatMigrator emits topics with assistantId='default'.
+      const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
+      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
+
+      const inserted: unknown[][] = []
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown) => {
+              inserted.push(Array.isArray(vals) ? vals : [vals])
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue([]),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi
+              .fn()
+              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+          })
+        }
+        await fn(tx)
+      }) as any
+
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
+      expect(result.success).toBe(true)
+
+      // The flat list of every inserted row across all batches.
+      const allRows = inserted.flat() as { id?: string; name?: string }[]
+      const defaultRow = allRows.find((r) => r && typeof r === 'object' && r.id === 'default')
+      expect(defaultRow).toBeDefined()
+      expect(defaultRow?.name).toBe('Default Assistant')
+    })
+
+    it('does not double-insert the default-assistant row when v1 already provides id=default', async () => {
+      const ctx = createMockContext({
+        assistants: {
+          assistants: [{ id: 'default', name: 'User Customized Default', prompt: 'Custom' }],
+          presets: []
+        }
+      })
+
+      const inserted: unknown[][] = []
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown) => {
+              inserted.push(Array.isArray(vals) ? vals : [vals])
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue([]),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi
+              .fn()
+              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      await migrator.execute(ctx as any)
+
+      const allRows = inserted.flat() as { id?: string; name?: string }[]
+      const defaultRows = allRows.filter((r) => r && typeof r === 'object' && r.id === 'default')
+      // Exactly one — the v1 user-customized row, no backstop on top.
+      expect(defaultRows).toHaveLength(1)
+      expect(defaultRows[0]?.name).toBe('User Customized Default')
+    })
+
+    it('handles empty v1 assistants by inserting only the backstop default row', async () => {
+      // No v1 sources at all — the migrator must still ensure the default
+      // row exists so ChatMigrator's FK fallback resolves and
+      // verifyForeignKeys() succeeds.
+      const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
+
+      const inserted: unknown[][] = []
+      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn().mockImplementation((vals: unknown) => {
+              inserted.push(Array.isArray(vals) ? vals : [vals])
+              return {
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue([]),
+                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                }),
+                returning: vi.fn().mockResolvedValue([]),
+                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+              }
+            })
+          }),
+          select: vi.fn().mockReturnValue({
+            from: vi
+              .fn()
+              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+          })
+        }
+        await fn(tx)
+      }) as any
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      // processedCount counts user rows; the backstop is not counted.
       expect(result).toStrictEqual({ success: true, processedCount: 0 })
+
+      const allRows = inserted.flat() as { id?: string; name?: string }[]
+      const defaultRows = allRows.filter((r) => r && typeof r === 'object' && r.id === 'default')
+      expect(defaultRows).toHaveLength(1)
+
+      // Shared FK whitelist still includes the default id.
+      const ids = ctx.sharedData.get('assistantIds') as Set<string>
+      expect(ids.has('default')).toBe(true)
     })
 
     it('should return failure when transaction throws', async () => {
