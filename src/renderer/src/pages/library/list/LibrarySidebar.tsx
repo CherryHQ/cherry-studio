@@ -11,12 +11,8 @@ interface Props {
   typeCounts?: Record<string, number>
 }
 
-// Sidebar item styling aligned to the library design spec:
-// py-[6px] keeps the 2px vertical padding bump (vs MenuItem sm's py-1), 2xs radius matches
-// the design's rounded-lg (12px), gap-2, normal weight, muted/60 idle with 50% accent hover,
-// 50% accent active, no focus-visible ring, no border.
 const ITEM_CLASS =
-  'gap-2 px-2.5 py-[6px] rounded-2xs font-normal cursor-pointer border-0 ' +
+  'h-10 gap-2 px-2.5 text-sm font-normal cursor-pointer border-0 ' +
   'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground ' +
   'data-[active=true]:bg-accent/50 data-[active=true]:text-foreground ' +
   'focus-visible:ring-0'
@@ -31,7 +27,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
   }
 
   return (
-    <div className="flex min-h-0 w-[200px] shrink-0 flex-col border-border/15 border-r bg-background">
+    <div className="flex min-h-0 w-[200px] shrink-0 flex-col border-border/15 border-r bg-background/50">
       {/* Header */}
       <div className="px-4 pt-5 pb-3">
         <h2 className="text-foreground text-sm tracking-tight">{t('library.sidebar.title')}</h2>
@@ -52,7 +48,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
                 size="sm"
                 active={isActive({ type: 'resource', resourceType })}
                 onClick={() => onFilterChange({ type: 'resource', resourceType })}
-                icon={<Icon size={12} strokeWidth={1.6} />}
+                icon={<Icon size={16} strokeWidth={1.6} />}
                 label={t(meta.labelKey)}
                 suffix={
                   count != null ? (

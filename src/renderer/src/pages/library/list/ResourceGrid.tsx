@@ -146,7 +146,7 @@ export const ResourceGrid: FC<Props> = ({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('library.toolbar.search_placeholder')}
-              className="h-auto w-full rounded-2xs border border-border/40 bg-accent/25 py-1.5 pr-7 pl-7 text-xs text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
+              className="h-auto w-full rounded-lg border border-border/40 bg-accent/25 py-1.5 pr-7 pl-7 text-sm text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
             />
             {search && (
               <Button
@@ -168,7 +168,7 @@ export const ResourceGrid: FC<Props> = ({
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
-                className={`flex h-auto min-h-0 items-center gap-1.5 rounded-2xs border px-2.5 py-1.5 font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
+                className={`flex h-auto min-h-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
                   showSort
                     ? 'border-primary/30 bg-accent/50 text-foreground'
                     : 'border-border/40 text-muted-foreground/60 hover:border-border/60 hover:text-foreground'
@@ -180,7 +180,7 @@ export const ResourceGrid: FC<Props> = ({
             <PopoverContent
               align="start"
               sideOffset={4}
-              className="w-auto min-w-[110px] rounded-2xs border-border/40 p-1">
+              className="w-auto min-w-[110px] rounded-lg border-border/40 p-1">
               <MenuList>
                 {SORT_ORDER.map((k) => (
                   <MenuItem
@@ -200,7 +200,7 @@ export const ResourceGrid: FC<Props> = ({
           </Popover>
 
           {/* View toggle */}
-          <ButtonGroup className="overflow-hidden rounded-2xs border border-border/40">
+          <ButtonGroup className="overflow-hidden rounded-lg border border-border/40">
             <Button
               variant="ghost"
               onClick={() => onViewModeChange('grid')}
@@ -238,7 +238,7 @@ export const ResourceGrid: FC<Props> = ({
             <PopoverTrigger asChild>
               <Button
                 variant="default"
-                className="flex h-auto min-h-0 items-center gap-1.5 rounded-2xs px-3 py-1.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 active:scale-[0.97]">
+                className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg px-3 py-1.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 active:scale-[0.97]">
                 <Plus size={11} className="lucide-custom" />
                 <span>{t('library.toolbar.new_resource')}</span>
                 <ChevronDown
@@ -247,10 +247,7 @@ export const ResourceGrid: FC<Props> = ({
                 />
               </Button>
             </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              sideOffset={4}
-              className="w-auto min-w-[140px] rounded-2xs border-border/40 p-1">
+            <PopoverContent align="end" sideOffset={4} className="w-auto min-w-[140px] rounded-lg border-border/40 p-1">
               <MenuList>
                 {(['agent', 'assistant'] as const).map((resourceType) => {
                   const meta = RESOURCE_TYPE_META[resourceType]

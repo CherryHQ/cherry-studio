@@ -89,7 +89,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/60">
+          <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/80">
             <span>{t('library.config.prompt.label')}</span>
             <Tooltip content={variablesTip} placement="top" classNames={{ content: 'max-w-none' }}>
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />

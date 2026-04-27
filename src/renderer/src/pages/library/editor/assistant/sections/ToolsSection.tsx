@@ -1,5 +1,6 @@
 import {
   Button,
+  FieldLabel,
   Input,
   MenuItem,
   MenuList,
@@ -81,7 +82,9 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
       {mcpMode === 'manual' && (
         <div>
-          <label className="mb-2 block text-sm text-muted-foreground/60">{t('library.config.tools.added')}</label>
+          <FieldLabel className="mb-2 block font-normal text-sm text-muted-foreground/80">
+            {t('library.config.tools.added')}
+          </FieldLabel>
 
           {isLoading ? (
             <p className="px-3 py-2 text-xs text-muted-foreground/50">{t('common.loading')}</p>

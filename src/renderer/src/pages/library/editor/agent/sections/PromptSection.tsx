@@ -24,7 +24,7 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.agent.field.instructions.label')}
         </FieldLabel>
         <FieldContent>

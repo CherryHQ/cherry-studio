@@ -1,19 +1,21 @@
 import {
+  Badge,
   Button,
   Combobox,
   type ComboboxOption,
+  DescriptionSwitch,
   EmojiAvatar,
   Field,
   FieldContent,
   FieldDescription,
   FieldError,
   FieldLabel,
+  FieldSeparator,
+  FieldSet,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Separator,
-  Switch,
   Textarea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -136,19 +138,20 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
               <PopoverTrigger asChild>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   aria-label={t('library.config.basic.pick_avatar')}
-                  className="rounded-[20%] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  className="h-auto min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
                   <EmojiAvatar size={48} fontSize={24}>
                     {form.avatar || '🤖'}
                   </EmojiAvatar>
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <EmojiPicker
@@ -181,7 +184,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </Field>
 
       <Field data-invalid={Boolean(nameError) || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.agent.field.name.label')}
         </FieldLabel>
         <FieldContent>
@@ -219,7 +222,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </ModelSubsection>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.agent.field.accessible_paths.label')}
         </FieldLabel>
         <FieldContent>
@@ -273,7 +276,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
 
       {form.heartbeatEnabled ? (
         <Field className="gap-1.5">
-          <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
             {t('library.config.agent.field.heartbeat_interval.label')}
           </FieldLabel>
           <FieldContent>
@@ -290,7 +293,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       ) : null}
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.agent.field.description.label')}
         </FieldLabel>
         <FieldContent>
@@ -304,7 +307,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.basic.tags')}
         </FieldLabel>
         <FieldContent>
@@ -327,9 +330,10 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
                     {hasSelection ? (
                       selected.map((name) => (
-                        <span
+                        <Badge
                           key={name}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-card py-0.5 pr-1 pl-2 text-foreground text-xs shadow-2xs shadow-black/[0.03] transition-colors hover:border-border/60">
+                          variant="outline"
+                          className="gap-1.5 border-border/40 bg-card py-0.5 pr-1 pl-2 font-normal shadow-2xs shadow-black/[0.03] hover:border-border/60">
                           <span
                             className="size-1.5 shrink-0 rounded-full"
                             style={{ backgroundColor: tagColor(name) }}
@@ -349,7 +353,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
                             className="ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
                             <X size={9} />
                           </button>
-                        </span>
+                        </Badge>
                       ))
                     ) : (
                       <span className="text-muted-foreground/50">{t('library.config.basic.tag_placeholder')}</span>
@@ -409,13 +413,12 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
 function ModelSubsection({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground/60">{t('library.config.agent.model_config')}</span>
-        <Separator className="flex-1 bg-border/30" />
-      </div>
+    <FieldSet className="gap-3">
+      <FieldSeparator className="text-muted-foreground/80 [&>[data-slot=field-separator-content]]:bg-background [&>[data-slot=field-separator-content]]:font-normal">
+        {t('library.config.agent.model_config')}
+      </FieldSeparator>
       {children}
-    </div>
+    </FieldSet>
   )
 }
 
@@ -436,7 +439,7 @@ function ModelField({
   return (
     <Field data-invalid={invalid || undefined} className="gap-1.5">
       <div className="flex items-center justify-between gap-3">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{label}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{label}</FieldLabel>
         <span className="text-xs text-muted-foreground/50">{hint}</span>
       </div>
       <FieldContent>
@@ -501,12 +504,14 @@ function SwitchRow({
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm text-foreground">{label}</span>
-        {help ? <span className="text-xs text-muted-foreground/55">{help}</span> : null}
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    <div className="rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5">
+      <DescriptionSwitch
+        label={label}
+        description={help}
+        size="sm"
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+      />
     </div>
   )
 }

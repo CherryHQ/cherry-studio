@@ -1,4 +1,14 @@
-import { Button, Input, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import {
+  Button,
+  FieldLabel,
+  Input,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Scrollbar
+} from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { Database, Plus, Search, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -52,7 +62,9 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-muted-foreground/60">{t('library.config.knowledge.linked')}</label>
+        <FieldLabel className="mb-2 block font-normal text-sm text-muted-foreground/80">
+          {t('library.config.knowledge.linked')}
+        </FieldLabel>
         {linkedItems.length === 0 ? (
           <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
             <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/40" />

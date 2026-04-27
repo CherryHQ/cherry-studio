@@ -1,4 +1,4 @@
-import { Input, Textarea } from '@cherrystudio/ui'
+import { FieldLabel, Input, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,7 +26,9 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-sm text-muted-foreground/60">{t('library.config.agent.field.max_turns.label')}</label>
+          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+            {t('library.config.agent.field.max_turns.label')}
+          </FieldLabel>
           <span className="font-mono text-xs text-foreground/70">{form.maxTurns || 0}</span>
         </div>
         <Input
@@ -42,7 +44,9 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm text-muted-foreground/60">{t('library.config.agent.field.env_vars.label')}</label>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          {t('library.config.agent.field.env_vars.label')}
+        </FieldLabel>
         <Textarea.Input
           value={form.envVarsText}
           onChange={(e) => onChange({ envVarsText: e.target.value })}

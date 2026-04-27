@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   ButtonGroup,
   Combobox,
@@ -159,19 +160,20 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
               <PopoverTrigger asChild>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   aria-label={t('library.config.basic.pick_avatar')}
-                  className="rounded-[20%] outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  className="h-auto min-h-0 rounded-[20%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
                   <EmojiAvatar size={48} fontSize={24}>
                     {form.emoji || '🌟'}
                   </EmojiAvatar>
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <EmojiPicker
@@ -201,7 +203,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">{t('common.name')}</FieldLabel>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.name')}</FieldLabel>
         <FieldContent>
           <Input
             value={form.name}
@@ -214,7 +216,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.basic.description_label')}
         </FieldLabel>
         <FieldContent>
@@ -228,7 +230,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           {t('library.config.basic.tags')}
         </FieldLabel>
         <FieldContent>
@@ -251,9 +253,10 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
                     {hasSelection ? (
                       selected.map((name) => (
-                        <span
+                        <Badge
                           key={name}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-card py-0.5 pr-1 pl-2 text-foreground text-xs shadow-2xs shadow-black/[0.03] transition-colors hover:border-border/60">
+                          variant="outline"
+                          className="gap-1.5 border-border/40 bg-card py-0.5 pr-1 pl-2 font-normal shadow-2xs shadow-black/[0.03] hover:border-border/60">
                           <span
                             className="size-1.5 shrink-0 rounded-full"
                             style={{ backgroundColor: tagColor(name) }}
@@ -273,7 +276,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                             className="ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
                             <X size={9} />
                           </button>
-                        </span>
+                        </Badge>
                       ))
                     ) : (
                       <span className="text-muted-foreground/50">{t('library.config.basic.tag_placeholder')}</span>
@@ -332,7 +335,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       {/* 默认模型 */}
       <Field className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
             {t('library.config.basic.model')}
           </FieldLabel>
           {selectedModel ? (
@@ -412,7 +415,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 上下文数 */}
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/60">
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
           <div className="flex items-center justify-between">
             <span>{t('library.config.basic.context_count')}</span>
             <span className="text-muted-foreground/50">
@@ -457,13 +460,17 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 流式输出 */}
       <div className="flex items-center justify-between">
-        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.stream_output')}</label>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          {t('library.config.basic.stream_output')}
+        </FieldLabel>
         <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
       </div>
 
       {/* 工具调用方式 */}
       <div className="flex items-center justify-between">
-        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.tool_use_mode')}</label>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          {t('library.config.basic.tool_use_mode')}
+        </FieldLabel>
         <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
             <Button
@@ -566,7 +573,9 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <label className="text-sm text-muted-foreground/60">{t('library.config.basic.custom_params')}</label>
+        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          {t('library.config.basic.custom_params')}
+        </FieldLabel>
         <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
           <Plus size={11} />
           {t('library.config.basic.custom_params_add')}
@@ -723,10 +732,10 @@ function ToggleFieldGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <label className="flex items-center gap-1.5 text-sm text-muted-foreground/60">
+        <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/80">
           <span>{label}</span>
           <span className="text-muted-foreground/50">{valueLabel}</span>
-        </label>
+        </FieldLabel>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
       {enabled && <div className="mt-2">{children}</div>}
