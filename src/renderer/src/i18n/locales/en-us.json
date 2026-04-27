@@ -2486,6 +2486,10 @@
       "agent": {
         "content": "Are you sure you want to delete this agent? This action cannot be undone.",
         "title": "Delete agent"
+      },
+      "skill": {
+        "content": "Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
+        "title": "Uninstall skill"
       }
     },
     "delete_confirm": {
@@ -2534,6 +2538,14 @@
         "hint": "Import from a GitHub Gist, GitHub repo, or any public URL",
         "supports": "Raw file URLs are supported"
       }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "Drop a ZIP or directory here, or click to choose a ZIP",
+        "formats": "Supports .zip files and directories containing SKILL.md"
+      },
+      "subtitle": "Install a skill from a ZIP file or directory",
+      "title": "Import skill"
     },
     "no_match": "No matching results",
     "pending_backend": {

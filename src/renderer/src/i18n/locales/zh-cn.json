@@ -2486,6 +2486,10 @@
       "agent": {
         "content": "确定要删除这个 Agent 吗？该操作不可撤销。",
         "title": "删除 Agent"
+      },
+      "skill": {
+        "content": "确定要卸载这个技能吗？将从全局库移除并清理所有 Agent 工作区下的软链接。",
+        "title": "卸载技能"
       }
     },
     "delete_confirm": {
@@ -2534,6 +2538,14 @@
         "hint": "从 GitHub Gist、GitHub 仓库或任何公开 URL 导入配置",
         "supports": "支持 raw 文件链接"
       }
+    },
+    "import_skill_dialog": {
+      "local": {
+        "drop_hint": "拖放 ZIP 文件或目录到此处,或点击选择 ZIP",
+        "formats": "支持 .zip 文件或包含 SKILL.md 的目录"
+      },
+      "subtitle": "从 ZIP 文件或目录安装技能",
+      "title": "导入技能"
     },
     "no_match": "无匹配结果",
     "pending_backend": {

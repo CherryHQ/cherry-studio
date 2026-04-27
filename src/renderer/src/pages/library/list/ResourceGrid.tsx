@@ -11,8 +11,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Separator,
-  Switch
+  Separator
 } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import {
@@ -37,6 +36,7 @@ import type { FC, MouseEvent } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMutationsById } from '../adapters/agentAdapter'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META, SORT_META, SORT_ORDER } from '../constants'
@@ -54,7 +54,6 @@ interface Props {
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
-  onToggle: (id: string) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
   tags: TagItem[]
@@ -95,7 +94,6 @@ export const ResourceGrid: FC<Props> = ({
   onDuplicate,
   onDelete,
   onExport,
-  onToggle,
   onCreate,
   onImportAssistant,
   tags,
@@ -383,13 +381,13 @@ export const ResourceGrid: FC<Props> = ({
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {resources.map((r, i) => (
-              <GridCard key={r.id} resource={r} index={i} onEdit={onEdit} onToggle={onToggle} onOpenMenu={openMenu} />
+              <GridCard key={r.id} resource={r} index={i} onEdit={onEdit} onOpenMenu={openMenu} />
             ))}
           </div>
         ) : (
           <div className="space-y-1">
             {resources.map((r, i) => (
-              <ListRow key={r.id} resource={r} index={i} onEdit={onEdit} onToggle={onToggle} onOpenMenu={openMenu} />
+              <ListRow key={r.id} resource={r} index={i} onEdit={onEdit} onOpenMenu={openMenu} />
             ))}
           </div>
         )}
@@ -426,14 +424,15 @@ interface CardItemProps {
   resource: ResourceItem
   index: number
   onEdit: (r: ResourceItem) => void
-  onToggle: (id: string) => void
   onOpenMenu: (id: string, e: MouseEvent) => void
 }
 
-function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemProps) {
+function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
-  const isToolType = r.type === 'skill'
+  // Skills get the type-specific tinted background to match the menu icon;
+  // assistants / agents fall back to the neutral accent block.
+  const useTypedAvatarBg = r.type === 'skill'
 
   return (
     <motion.div
@@ -447,7 +446,7 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
         <div className="mb-3 flex items-start gap-3">
           <div
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xs text-base ${
-              !isToolType ? 'bg-accent/50' : cfg.color
+              useTypedAvatarBg ? cfg.color : 'bg-accent/50'
             }`}>
             {r.avatar}
           </div>
@@ -501,19 +500,6 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
               </Badge>
             ))}
             {r.tags.length > 2 && <span className="text-xs text-muted-foreground/50">+{r.tags.length - 2}</span>}
-            {isToolType && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={r.enabled}
-                  onCheckedChange={() => onToggle(r.id)}
-                  classNames={{
-                    root: 'h-4 w-7 shadow-none data-[state=checked]:bg-primary/70 data-[state=unchecked]:bg-accent/60',
-                    thumb: 'size-3 ml-[1px] mt-[2px] bg-white shadow-sm data-[state=checked]:translate-x-3',
-                    thumbSvg: 'hidden'
-                  }}
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -521,10 +507,9 @@ function GridCard({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItem
   )
 }
 
-function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemProps) {
+function ListRow({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
-  const isToolType = r.type === 'skill'
 
   return (
     <motion.div
@@ -569,19 +554,6 @@ function ListRow({ resource: r, index, onEdit, onToggle, onOpenMenu }: CardItemP
         <Clock size={8} />
         <span>{timeAgo(t, r.updatedAt)}</span>
       </div>
-      {isToolType && (
-        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-          <Switch
-            checked={r.enabled}
-            onCheckedChange={() => onToggle(r.id)}
-            classNames={{
-              root: 'h-4 w-7 shadow-none data-[state=checked]:bg-primary/70 data-[state=unchecked]:bg-accent/60',
-              thumb: 'size-3 ml-[1px] mt-[2px] bg-white shadow-sm data-[state=checked]:translate-x-3',
-              thumbSvg: 'hidden'
-            }}
-          />
-        </div>
-      )}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
         <Button
           variant="ghost"
@@ -626,13 +598,15 @@ function FixedCardMenu({
   const [tagInput, setTagInput] = useState('')
   const [bindingError, setBindingError] = useState<string | null>(null)
 
-  // Tag binding today is only wired for assistants. `updateAssistant` is
-  // instantiated for every resource via a stable path, but call-sites below
-  // guard on type. Tag ids ride on the assistant PATCH so the server binds
-  // them atomically with any other column change — no separate tag endpoint.
+  // Tag binding flows through the resource's own PATCH so the server binds
+  // ids atomically with any other column change — no separate tag endpoint.
+  // Both adapter hooks are instantiated unconditionally to keep hook order
+  // stable; `persistTags` dispatches on `resource.type`. Skill is read-only
+  // and stays excluded.
   const { ensureTags } = useEnsureTags()
   const { updateAssistant } = useAssistantMutationsById(resource.id)
-  const canBindTags = resource.type === 'assistant'
+  const { updateAgent } = useAgentMutationsById(resource.id)
+  const canBindTags = resource.type === 'assistant' || resource.type === 'agent'
 
   // Backend-assigned tag color (random-from-palette at POST time) — look up so
   // chip dots render consistently across Row 2, card menu, and BasicSection.
@@ -651,7 +625,12 @@ function FixedCardMenu({
       if (!canBindTags) return
       try {
         const tags = await ensureTags(nextNames)
-        await updateAssistant({ tagIds: tags.map((t) => t.id) })
+        const tagIds = tags.map((tag) => tag.id)
+        if (resource.type === 'assistant') {
+          await updateAssistant({ tagIds })
+        } else if (resource.type === 'agent') {
+          await updateAgent({ tagIds })
+        }
         onUpdateResourceTags(resource.id, nextNames)
       } catch (e) {
         // Roll back optimistic state on failure.
@@ -659,7 +638,7 @@ function FixedCardMenu({
         setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
       }
     },
-    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id, t]
+    [canBindTags, ensureTags, updateAssistant, updateAgent, onUpdateResourceTags, resource.id, resource.type, t]
   )
 
   const toggleTag = (tag: string) => {
@@ -707,7 +686,7 @@ function FixedCardMenu({
           }}
         />
 
-        {/* Tag picker — assistants only (agent/skill backend not ready) */}
+        {/* Tag picker — assistant + agent. Skill is read-only and stays excluded. */}
         {canBindTags && (
           <div className="relative">
             <MenuItem
@@ -812,7 +791,7 @@ function FixedCardMenu({
           variant="ghost"
           size="sm"
           icon={<Trash2 size={10} />}
-          label={t('common.delete')}
+          label={resource.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
           onClick={() => {
             onDelete(resource)
             onClose()

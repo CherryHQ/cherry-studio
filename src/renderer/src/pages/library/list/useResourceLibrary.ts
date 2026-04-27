@@ -49,25 +49,32 @@ export function useResourceLibrary({
   const tagList = useTagList()
 
   const allResources = useMemo<ResourceItem[]>(() => {
-    const assistantItems: ResourceItem[] = assistants.data.map((a) => ({
-      id: a.id,
-      type: 'assistant',
-      name: a.name,
-      description: a.description || '',
-      avatar: a.emoji || '💬',
-      // Embedded by AssistantService.list via JOIN on user_model; null when the
-      // bound model row was removed.
-      model: a.modelName ?? undefined,
-      tags: a.tags.map((t) => t.name),
-      tagRefs: a.tags,
-      enabled: true,
-      createdAt: a.createdAt,
-      updatedAt: a.updatedAt,
-      raw: a
-    }))
+    const assistantItems: ResourceItem[] = assistants.data.map((a) => {
+      // Defensive `?? []`: schema declares tags as required, but stale DataApi
+      // cache or a row from a code path that bypasses the embed helper can
+      // still hand us undefined here. `.map` would throw.
+      const tags = a.tags ?? []
+      return {
+        id: a.id,
+        type: 'assistant',
+        name: a.name,
+        description: a.description || '',
+        avatar: a.emoji || '💬',
+        // Embedded by AssistantService.list via JOIN on user_model; null when the
+        // bound model row was removed.
+        model: a.modelName ?? undefined,
+        tags: tags.map((t) => t.name),
+        tagRefs: tags,
+        enabled: true,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+        raw: a
+      }
+    })
 
     const agentItems: ResourceItem[] = agents.data.map((a) => {
       const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
+      const tags = a.tags ?? []
       return {
         id: a.id,
         type: 'agent',
@@ -75,8 +82,8 @@ export function useResourceLibrary({
         description: a.description ?? '',
         avatar: avatarFromConfig || '🤖',
         model: a.model,
-        tags: [],
-        tagRefs: [],
+        tags: tags.map((t) => t.name),
+        tagRefs: tags,
         enabled: true,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
@@ -89,17 +96,22 @@ export function useResourceLibrary({
       type: 'skill',
       name: s.name,
       description: s.description ?? '',
-      avatar: s.emoji || '⚡',
-      version: s.version,
-      author: s.author,
+      // No emoji on InstalledSkill — fall back to the lightning glyph.
+      avatar: '⚡',
+      author: s.author ?? undefined,
       source: s.source,
-      tags: [],
+      // Skills tag-binding is a follow-up: backend `agent_global_skill` has a
+      // `tags` text-array column already, but the resource library doesn't
+      // edit it yet. Surface read-only chips so the UI stays consistent.
+      tags: s.tags ?? [],
       tagRefs: [],
-      enabled: s.enabled ?? true,
+      // The library list is global (no agentId), so `isEnabled` is forced to
+      // false on the wire. Show every skill as available; per-agent toggling
+      // happens inside the agent editor.
+      enabled: true,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
-      raw: s,
-      pendingBackend: true
+      raw: s
     }))
 
     return [...assistantItems, ...agentItems, ...skillItems]

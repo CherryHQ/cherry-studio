@@ -1,4 +1,4 @@
-import type { AgentDetail } from '@shared/data/types/agent'
+import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { AnimatePresence, motion } from 'motion/react'
@@ -8,11 +8,13 @@ import { useTranslation } from 'react-i18next'
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from './adapters/tagAdapter'
 import { DEFAULT_TAG_COLOR } from './constants'
+import SkillDetailPage from './detail/skill/SkillDetailPage'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
 import { serializeAssistantForExport } from './editor/assistant/transfer'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
+import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
 import PendingBackendNotice from './list/PendingBackendNotice'
 import { ResourceGrid } from './list/ResourceGrid'
@@ -25,6 +27,7 @@ type ConfigView =
   | { type: 'assistant-edit'; assistant: Assistant }
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
+  | { type: 'skill-detail'; skill: InstalledSkill }
 
 /**
  * Build the top-bar chip list.
@@ -62,6 +65,7 @@ export default function LibraryPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
+  const [skillImportOpen, setSkillImportOpen] = useState(false)
 
   const { resources, allResources, typeCounts, pendingBackend, refetch } = useResourceLibrary({
     sidebarFilter,
@@ -106,6 +110,8 @@ export default function LibraryPage() {
       setConfigView({ type: 'assistant-edit', assistant: r.raw as Assistant })
     } else if (r.type === 'agent') {
       setConfigView({ type: 'agent-edit', agent: r.raw as AgentDetail })
+    } else if (r.type === 'skill') {
+      setConfigView({ type: 'skill-detail', skill: r.raw as InstalledSkill })
     }
   }, [])
 
@@ -151,6 +157,11 @@ export default function LibraryPage() {
       // navigates away, and matches the flow the user spec'd:
       // "新建智能体 要先进入到配置页 配置完后点击保存 才能成功新建".
       setConfigView({ type: 'agent-create' })
+    } else if (type === 'skill') {
+      // Skill install lives in a dialog (mirrors ImportAssistantDialog) so the
+      // ZIP / directory / marketplace flows from 设置 → Skills can be exposed
+      // here without leaving the library page.
+      setSkillImportOpen(true)
     }
   }, [])
 
@@ -214,6 +225,28 @@ export default function LibraryPage() {
     )
   }
 
+  if (configView.type === 'skill-detail') {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`skill-detail-${configView.skill.id}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex min-h-0 flex-1 flex-col bg-background">
+          <SkillDetailPage
+            skill={configView.skill}
+            onBack={handleBackToList}
+            onUninstalled={() => {
+              refetch()
+              setConfigView({ type: 'list' })
+            }}
+          />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
   return (
     <div className="flex min-h-0 flex-1 bg-background">
       <LibrarySidebar
@@ -241,7 +274,6 @@ export default function LibraryPage() {
           onExport={(resource) => {
             void handleExport(resource)
           }}
-          onToggle={noop}
           onCreate={handleCreate}
           onImportAssistant={() => setAssistantImportOpen(true)}
           tags={scopedTags}
@@ -263,6 +295,7 @@ export default function LibraryPage() {
 
       <DeleteConfirmDialog resource={deleteConfirm} onClose={() => setDeleteConfirm(null)} />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
+      <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
     </div>
   )
 }
