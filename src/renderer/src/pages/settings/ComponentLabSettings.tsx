@@ -1,0 +1,31 @@
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { SettingContainer, SettingGroup, SettingTitle } from '.'
+import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
+
+const ComponentLabSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+
+  return (
+    <SettingContainer theme={theme}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.componentLab.title')}</SettingTitle>
+        <Tabs defaultValue="model-selector" variant="line" className="mt-4 gap-4">
+          <TabsList>
+            <TabsTrigger value="model-selector">{t('settings.componentLab.modelSelector.title')}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="model-selector" className="mt-0">
+            <ComponentLabModelSelectorSettings />
+          </TabsContent>
+        </Tabs>
+      </SettingGroup>
+    </SettingContainer>
+  )
+}
+
+export default ComponentLabSettings

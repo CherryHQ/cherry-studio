@@ -24,7 +24,7 @@ export const PinSchema = z.strictObject({
   id: PinIdSchema,
   /** Entity type this pin targets (tag / group / pin share the enum) */
   entityType: EntityTypeSchema,
-  /** Target entity id (UUID v4) */
+  /** Target entity id (UUID v4 or UniqueModelId) */
   entityId: EntityIdSchema,
   /** Fractional-indexing order key within this entityType */
   orderKey: z.string().min(1),

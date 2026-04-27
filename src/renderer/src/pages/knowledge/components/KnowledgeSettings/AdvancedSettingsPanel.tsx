@@ -1,5 +1,5 @@
 import { InfoTooltip } from '@cherrystudio/ui'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
