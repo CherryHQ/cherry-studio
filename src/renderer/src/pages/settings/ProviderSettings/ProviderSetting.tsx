@@ -15,8 +15,7 @@ import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/Anthrop
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { useAppDispatch } from '@renderer/store'
-import { updateWebSearchProvider } from '@renderer/store/websearch'
+import { updateWebSearchProviderPreferenceOverride } from '@renderer/services/WebSearchService'
 import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
@@ -111,8 +110,6 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const { t, i18n } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
-  const dispatch = useAppDispatch()
-
   const isAzureOpenAI = isAzureOpenAIProvider(provider)
   const isDmxapi = provider.id === 'dmxapi'
   const isCherryIN = provider.id === 'cherryin'
@@ -137,9 +134,11 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
-      provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+      if (provider.id === 'zhipu') {
+        void updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: apiKey.split(',')[0] })
+      }
     },
-    [dispatch, provider.id]
+    [provider.id]
   )
 
   // Store callbacks in ref to avoid recreating debounce function when dependencies change

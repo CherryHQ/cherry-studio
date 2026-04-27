@@ -1,13 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { preferenceService } from '@data/PreferenceService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
   resolveWebSearchProviders,
-  updateWebSearchProviderOverride
+  updateWebSearchProviderOverride,
+  updateWebSearchProviderPreferenceOverride
 } from '../WebSearchService'
 
+const preferenceServiceMock = preferenceService as typeof preferenceService & {
+  _resetMockState?: () => void
+}
+
 describe('webSearchPreferences', () => {
+  beforeEach(() => {
+    preferenceServiceMock._resetMockState?.()
+  })
+
   it('resolves renderer providers from preference overrides', () => {
     const providers = resolveWebSearchProviders({
       tavily: {
@@ -70,6 +80,29 @@ describe('webSearchPreferences', () => {
     expect(overrides.tavily).toEqual({
       apiKeys: ['key-2', 'key-3'],
       apiHost: 'https://custom.tavily.dev'
+    })
+  })
+
+  it('updates provider overrides through PreferenceService while preserving other providers', async () => {
+    await preferenceService.set('chat.web_search.provider_overrides', {
+      tavily: {
+        apiKeys: ['tavily-key']
+      },
+      zhipu: {
+        apiHost: 'https://custom.zhipu.dev'
+      }
+    })
+
+    await updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: 'zhipu-key' })
+
+    await expect(preferenceService.get('chat.web_search.provider_overrides')).resolves.toEqual({
+      tavily: {
+        apiKeys: ['tavily-key']
+      },
+      zhipu: {
+        apiKeys: ['zhipu-key'],
+        apiHost: 'https://custom.zhipu.dev'
+      }
     })
   })
 

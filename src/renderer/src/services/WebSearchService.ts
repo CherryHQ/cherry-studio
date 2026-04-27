@@ -492,6 +492,15 @@ export function updateWebSearchProviderOverride(
   }
 }
 
+export async function updateWebSearchProviderPreferenceOverride(
+  providerId: WebSearchProviderId,
+  updates: Partial<WebSearchProvider>
+): Promise<void> {
+  const currentOverrides = await preferenceService.get(WEB_SEARCH_PREFERENCE_KEYS.providerOverrides)
+  const nextOverrides = updateWebSearchProviderOverride(currentOverrides ?? {}, providerId, updates)
+  await preferenceService.set(WEB_SEARCH_PREFERENCE_KEYS.providerOverrides, nextOverrides)
+}
+
 export function buildRendererWebSearchState(preferences: WebSearchPreferenceValues): WebSearchState {
   return {
     defaultProvider: preferences.defaultProvider,
