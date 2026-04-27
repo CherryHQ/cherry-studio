@@ -23,7 +23,7 @@ const { mockSavedFile } = vi.hoisted(() => ({
     path: '/mock/path/mock-image-id.png',
     created_at: new Date().toISOString(),
     size: 100,
-    ext: 'png',
+    ext: '.png',
     type: 'image',
     count: 1
   }
