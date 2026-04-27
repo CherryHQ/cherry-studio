@@ -325,15 +325,11 @@ export class ChatMigrator extends BaseMigrator {
       const db = ctx.db
       const topicReader = ctx.sources.dexieExport.createStreamReader('topics')
 
-      // Load valid assistant IDs for FK validation (set by AssistantMigrator,
-      // which guarantees DEFAULT_ASSISTANT_ID is included via its backstop
-      // insert — see AssistantMigrator.execute()).
       const sharedAssistantIds = (ctx.sharedData.get('assistantIds') as Set<string>) ?? null
       if (!sharedAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
-      // Defensive copy so the local `add(DEFAULT_ASSISTANT_ID)` below doesn't
-      // leak into shared state if the upstream invariant ever regresses.
+      // Defensive clone + ensure DEFAULT_ASSISTANT_ID even if upstream invariant regresses.
       this.validAssistantIds = new Set(sharedAssistantIds)
       this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       this.validModelIds = ctx.db?.select
@@ -628,40 +624,19 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
-    // Merge topic metadata from Redux (name, pinned, etc.) BEFORE the
-    // empty-topic skip below — a topic that has zero Dexie messages but
-    // whose Redux meta says `pinned: true` or `isNameManuallyEdited: true`
-    // is a "user touched this" signal that contradicts the
-    // "abandoned new-topic click" hypothesis. Skipping such a topic loses
-    // intentional state (empty pinned placeholder, named-but-empty draft).
-    // Dexie topics may have stale or missing metadata; Redux is authoritative
-    // for these fields.
+    // Merge Redux meta first so the empty-topic skip below can see user-intent flags.
     const topicMeta = this.topicMetaLookup.get(oldTopic.id)
     if (topicMeta) {
-      // Note: Redux topic.name can also be empty from ancient version migrations (see store/migrate.ts:303-305)
+      // Redux topic.name can be empty from ancient migrations (see store/migrate.ts:303-305).
       oldTopic.name = topicMeta.name || oldTopic.name
       oldTopic.pinned = topicMeta.pinned ?? oldTopic.pinned
       oldTopic.prompt = topicMeta.prompt ?? oldTopic.prompt
       oldTopic.isNameManuallyEdited = topicMeta.isNameManuallyEdited ?? oldTopic.isNameManuallyEdited
-      // Use Redux timestamps if available and Dexie lacks them
-      if (topicMeta.createdAt && !oldTopic.createdAt) {
-        oldTopic.createdAt = topicMeta.createdAt
-      }
-      if (topicMeta.updatedAt && !oldTopic.updatedAt) {
-        oldTopic.updatedAt = topicMeta.updatedAt
-      }
+      if (topicMeta.createdAt && !oldTopic.createdAt) oldTopic.createdAt = topicMeta.createdAt
+      if (topicMeta.updatedAt && !oldTopic.updatedAt) oldTopic.updatedAt = topicMeta.updatedAt
     }
 
-    // Skip topics with no messages AND no user-intent signal. v1 surfaced
-    // an empty topic on first launch (and on every "new topic" click that
-    // the user then abandoned), so a freshly-migrated DB ends up dotted
-    // with empty conversations the user never typed into. They have no
-    // usable timestamp source anyway — their only outcome would be
-    // cluttering the topic list.
-    //
-    // User-intent signals are `pinned` or `isNameManuallyEdited`. We do
-    // NOT use `name` as a signal because v1 generates a default name on
-    // creation, so every abandoned topic carries one.
+    // Drop empty topics (abandoned "new topic" clicks). `name` is not a signal — v1 auto-names on creation.
     const hasMessages = Array.isArray(oldTopic.messages) && oldTopic.messages.length > 0
     const hasUserIntent = Boolean(oldTopic.pinned || oldTopic.isNameManuallyEdited)
     if (!hasMessages && !hasUserIntent) {
@@ -669,21 +644,15 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
-    // Fallback: If name is still empty after merge, use a default name
-    // This handles cases where both Dexie and Redux have empty names (ancient version bug)
     if (!oldTopic.name) {
       // TODO: i18n
-      oldTopic.name = 'Unnamed Topic' // Default fallback for topics with no name
+      oldTopic.name = 'Unnamed Topic'
     }
 
-    // Derive topic timestamps from messages when neither Dexie nor Redux supplied
-    // them. parseTimestamp() falls back to Date.now() on missing input, which
-    // would stamp every "no source timestamp" topic with the migration moment
-    // and flood the top of the topic list. Topic.updatedAt should be at least
-    // its latest message's createdAt, so use that.
+    // Without this, parseTimestamp() falls back to Date.now() and stamps every
+    // missing-timestamp topic with the migration moment.
     if (!oldTopic.createdAt || !oldTopic.updatedAt) {
-      // Older v1 versions occasionally stored `createdAt` as a numeric
-      // epoch-ms (Date.parse() returns NaN on those). Accept both.
+      // Older v1 versions stored createdAt as numeric epoch-ms; Date.parse returns NaN on those.
       const toMillis = (createdAt: unknown): number => {
         if (typeof createdAt === 'number' && Number.isFinite(createdAt)) return createdAt
         if (typeof createdAt === 'string' && createdAt.length > 0) return Date.parse(createdAt)
@@ -700,9 +669,6 @@ export class ChatMigrator extends BaseMigrator {
           oldTopic.updatedAt = new Date(Math.max(...messageMillis)).toISOString()
         }
       } else {
-        // No parseable message timestamps; downstream parseTimestamp() will
-        // fall back to Date.now() and pile this topic up at the migration
-        // moment. Surface the path so it's diagnosable.
         logger.warn('Topic has no derivable timestamp source, falling back to Date.now()', {
           topicId: oldTopic.id,
           messageCount: oldTopic.messages?.length ?? 0
@@ -710,16 +676,9 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // Get assistantId from Redux mapping (Dexie topics don't store assistantId);
-    // fall back to the seeded default so renderer hooks like
-    // `useAssistant(topic.assistantId)` always have a valid id to PATCH against
-    // (a `null` / `''` here used to drive `PATCH /assistants/` infinite loops
-    // from `useReasoningEffortSync` on freshly migrated branches).
+    // Fall back to default — null/'' would drive PATCH /assistants/ 400 loops in renderer.
     let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || DEFAULT_ASSISTANT_ID
 
-    // Validate assistantId FK — fall back to default if orphaned. validAssistantIds
-    // always includes DEFAULT_ASSISTANT_ID (added in execute()), so this branch
-    // never strands a topic without an FK target.
     if (
       resolvedAssistantId !== DEFAULT_ASSISTANT_ID &&
       this.validAssistantIds &&

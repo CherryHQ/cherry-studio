@@ -6,17 +6,8 @@ import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 /**
- * Ensures the renderer's "default assistant" row exists in the DB on every
- * fresh install. The id is the stable {@link DEFAULT_ASSISTANT_ID} so
- * `useAssistantApiById(DEFAULT_ASSISTANT_ID)` always resolves on first run.
- *
- * Idempotent: if the row already exists (matched by id) this seeder is a
- * no-op. The hashed `version` only changes when the seeded payload below
- * does, so the seed runner re-applies it on payload changes only.
- *
- * The payload is shared with `AssistantMigrator.execute()`, which inserts
- * the same row when v1 data has no id='default' source. Both paths must
- * use {@link DEFAULT_ASSISTANT_PAYLOAD} so they don't drift.
+ * Idempotent insert of the renderer's id='default' assistant row.
+ * Payload is shared with `AssistantMigrator.execute()` via {@link DEFAULT_ASSISTANT_PAYLOAD}.
  */
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
