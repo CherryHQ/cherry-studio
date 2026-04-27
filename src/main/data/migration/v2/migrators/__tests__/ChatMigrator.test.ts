@@ -253,6 +253,32 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
   })
 
+  it('falls through to parseTimestamp when no message has a parseable createdAt', () => {
+    // Edge case: topic has messages but none carry a parseable createdAt.
+    // messageMillis is empty, so we cannot derive timestamps; downstream
+    // parseTimestamp() will fall back to Date.now(). The path is logged as
+    // a warning so it's diagnosable in real-user data dumps. We still
+    // produce a valid topic row (we can't drop it — the messages exist).
+    const b1 = block('b1', 'u1')
+    const oldTopic: OldTopic = {
+      id: 't-no-derivable-ts',
+      assistantId: 'ast-1',
+      name: 'No Derivable TS',
+      createdAt: '',
+      updatedAt: '',
+      messages: [msg('u1', 'user', ['b1'], { createdAt: 'not-a-date' })]
+    }
+    const before = Date.now()
+    const result = prepareTopic(oldTopic, [b1])
+    const after = Date.now()
+    expect(result).not.toBeNull()
+    // Both timestamps fell through to Date.now() bracketed by the test window
+    expect(result?.topic.createdAt).toBeGreaterThanOrEqual(before)
+    expect(result?.topic.createdAt).toBeLessThanOrEqual(after)
+    expect(result?.topic.updatedAt).toBeGreaterThanOrEqual(before)
+    expect(result?.topic.updatedAt).toBeLessThanOrEqual(after)
+  })
+
   it('skips topics with no messages (empty conversations are noise)', () => {
     // v1 created an empty topic on first launch and on every abandoned "new
     // topic" click — migrating those just clutters the post-migration list.

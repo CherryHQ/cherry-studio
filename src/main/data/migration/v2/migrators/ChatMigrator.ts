@@ -633,6 +633,7 @@ export class ChatMigrator extends BaseMigrator {
     // their only outcome would be cluttering the topic list. Topics that
     // matter to the user have at least one message.
     if (!Array.isArray(oldTopic.messages) || oldTopic.messages.length === 0) {
+      logger.info('Skipping empty topic (no messages in source)', { topicId: oldTopic.id })
       return null
     }
 
@@ -678,6 +679,14 @@ export class ChatMigrator extends BaseMigrator {
         if (!oldTopic.updatedAt) {
           oldTopic.updatedAt = new Date(Math.max(...messageMillis)).toISOString()
         }
+      } else {
+        // Topic has messages but none carry a parseable createdAt; downstream
+        // parseTimestamp() will fall back to Date.now() and pile this topic
+        // up at the migration moment. Surface the path so it's diagnosable.
+        logger.warn('Topic has no derivable timestamp source, falling back to Date.now()', {
+          topicId: oldTopic.id,
+          messageCount: oldTopic.messages.length
+        })
       }
     }
 
