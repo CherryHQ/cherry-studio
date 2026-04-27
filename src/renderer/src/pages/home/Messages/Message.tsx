@@ -7,6 +7,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Assistant, Topic } from '@renderer/types'
@@ -122,7 +123,10 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
-  const isProcessing = isMessageProcessing(message)
+
+  const { status: topicStreamStatus } = useTopicStreamStatus(topic.id)
+  const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
+  const isProcessing = isMessageProcessing(message) || (isTopicStreaming && isLastMessage)
   const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
