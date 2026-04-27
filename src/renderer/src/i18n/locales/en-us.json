@@ -3904,8 +3904,11 @@
     "componentLab": {
       "agentSelector": {
         "clearSelection": "Clear",
-        "description": "AgentSelectorV2 is an empty shell for now — the /agents DataApi endpoint isn't registered yet. This tab only verifies the trigger, empty state, pin interactions, and the onChange callback.",
-        "emptyShellNotice": "Empty shell — the /agents DataApi endpoint isn't registered yet. Once it lands, AgentSelectorV2 switches to useQuery('/agents').",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "AgentSelectorV2 now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "This preview uses the real agent list returned by /agents DataApi.",
         "lastOnChange": "Latest onChange",
         "previewDescription": "Click the trigger to open the selector",
         "previewTitle": "Preview",

@@ -1,10 +1,13 @@
-import { Button } from '@cherrystudio/ui'
-import { AgentSelectorV2 } from '@renderer/components/Selectors'
+import { Button, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { AgentSelectorV2, type AgentSelectorV2Item } from '@renderer/components/Selectors'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type SelectorValue = string | null
+import { SettingRow, SettingRowTitle } from '.'
+
+type SelectionType = 'id' | 'item'
 
 function formatSnapshot(value: unknown) {
   return JSON.stringify(value, null, 2)
@@ -23,17 +26,59 @@ function DebugPanel({ title, value }: { title: string; value?: string }) {
 
 const ComponentLabAgentSelectorSettings: FC = () => {
   const { t } = useTranslation()
-  const [value, setValue] = useState<SelectorValue>(null)
+  const [selectionType, setSelectionType] = useState<SelectionType>('id')
+  const [idValue, setIdValue] = useState<string | null>(null)
+  const [itemValue, setItemValue] = useState<AgentSelectorV2Item | null>(null)
   const [hasLastChange, setHasLastChange] = useState(false)
-  const [lastChange, setLastChange] = useState<SelectorValue | undefined>(undefined)
+  const [lastChange, setLastChange] = useState<unknown>(undefined)
 
-  const handleChange = useCallback((next: string | null) => {
+  useEffect(() => {
+    setIdValue(null)
+    setItemValue(null)
+    setHasLastChange(false)
+    setLastChange(undefined)
+  }, [selectionType])
+
+  const record = useCallback((next: unknown) => {
     setHasLastChange(true)
     setLastChange(next)
-    setValue(next)
   }, [])
 
-  const triggerLabel = useMemo(() => value ?? t('settings.componentLab.agentSelector.triggerPlaceholder'), [value, t])
+  const handleIdChange = useCallback(
+    (next: string | null) => {
+      record(next)
+      setIdValue(next)
+    },
+    [record]
+  )
+
+  const handleItemChange = useCallback(
+    (next: AgentSelectorV2Item | null) => {
+      record(next)
+      setItemValue(next)
+    },
+    [record]
+  )
+
+  const currentValue = useMemo(
+    () => (selectionType === 'item' ? itemValue : idValue),
+    [idValue, itemValue, selectionType]
+  )
+
+  // Mirror the selector's query so id-mode trigger labels can resolve id -> name.
+  const { data: agentData } = useQuery('/agents', { query: { limit: 500 } })
+  const idToName = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const agent of agentData?.items ?? []) m.set(agent.id, agent.name)
+    return m
+  }, [agentData])
+  const nameForId = useCallback((id: string) => idToName.get(id) ?? id, [idToName])
+
+  const triggerLabel = useMemo(() => {
+    const placeholder = t('settings.componentLab.agentSelector.triggerPlaceholder')
+    if (selectionType === 'item') return itemValue?.name ?? placeholder
+    return idValue ? nameForId(idValue) : placeholder
+  }, [idValue, itemValue, nameForId, selectionType, t])
 
   const trigger = (
     <Button variant="outline" className="min-w-[240px] justify-between gap-3 text-left">
@@ -41,28 +86,85 @@ const ComponentLabAgentSelectorSettings: FC = () => {
     </Button>
   )
 
+  const currentProps = useMemo(() => ({ selectionType }), [selectionType])
+
+  const clear = useCallback(() => {
+    if (selectionType === 'item') setItemValue(null)
+    else setIdValue(null)
+  }, [selectionType])
+
+  const selectorNode =
+    selectionType === 'item' ? (
+      <AgentSelectorV2 trigger={trigger} selectionType="item" value={itemValue} onChange={handleItemChange} />
+    ) : (
+      <AgentSelectorV2 trigger={trigger} value={idValue} onChange={handleIdChange} />
+    )
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
+        <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
           <div>
             <div className="font-medium text-foreground text-sm">
-              {t('settings.componentLab.agentSelector.previewTitle')}
+              {t('settings.componentLab.agentSelector.configTitle')}
             </div>
-            <div className="mt-1 max-w-[560px] text-muted-foreground text-xs leading-5">
-              {t('settings.componentLab.agentSelector.emptyShellNotice')}
+            <div className="mt-1 text-muted-foreground text-xs">
+              {t('settings.componentLab.agentSelector.configDescription')}
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setValue(null)}>
-            {t('settings.componentLab.agentSelector.clearSelection')}
-          </Button>
+
+          <SettingRow>
+            <SettingRowTitle>multi</SettingRowTitle>
+            <div className="text-muted-foreground text-xs">false</div>
+          </SettingRow>
+
+          <div className="space-y-1.5">
+            <div className="text-muted-foreground text-xs">selectionType</div>
+            <RadioGroup
+              className="grid grid-cols-2 gap-2"
+              value={selectionType}
+              onValueChange={(v) => setSelectionType(v as SelectionType)}>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
+                htmlFor="agent-selection-type-id">
+                <RadioGroupItem id="agent-selection-type-id" value="id" />
+                <span>id</span>
+              </label>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
+                htmlFor="agent-selection-type-item">
+                <RadioGroupItem id="agent-selection-type-item" value="item" />
+                <span>item</span>
+              </label>
+            </RadioGroup>
+          </div>
         </div>
 
-        <AgentSelectorV2 trigger={trigger} value={value} onChange={handleChange} />
+        <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-medium text-foreground text-sm">
+                {t('settings.componentLab.agentSelector.previewTitle')}
+              </div>
+              <div className="mt-1 text-muted-foreground text-xs">
+                {t('settings.componentLab.agentSelector.previewDescription')}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={clear}>
+              {t('settings.componentLab.agentSelector.clearSelection')}
+            </Button>
+          </div>
+
+          {selectorNode}
+        </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <DebugPanel title={t('settings.componentLab.agentSelector.valueProp')} value={formatSnapshot(value)} />
+      <div className="grid gap-3 lg:grid-cols-3">
+        <DebugPanel
+          title={t('settings.componentLab.agentSelector.currentProps')}
+          value={formatSnapshot(currentProps)}
+        />
+        <DebugPanel title={t('settings.componentLab.agentSelector.valueProp')} value={formatSnapshot(currentValue)} />
         <DebugPanel
           title={t('settings.componentLab.agentSelector.lastOnChange')}
           value={hasLastChange ? formatSnapshot(lastChange) : undefined}

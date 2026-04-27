@@ -1,4 +1,10 @@
-export { AgentSelectorV2 } from './AgentSelectorV2'
+export {
+  AgentSelectorV2,
+  type AgentSelectorV2Item,
+  type AgentSelectorV2Props,
+  type AgentSelectorV2SingleIdProps,
+  type AgentSelectorV2SingleItemProps
+} from './AgentSelectorV2'
 export {
   AssistantSelectorV2,
   type AssistantSelectorV2Item,
