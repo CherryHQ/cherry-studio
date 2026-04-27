@@ -190,7 +190,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
 }
 
 const IconSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex gap-5 bg-background p-2.5', className)} {...props} />
+  <div className={cn('flex gap-5 bg-background', className)} {...props} />
 )
 
 const IconColumn = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

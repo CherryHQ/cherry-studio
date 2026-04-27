@@ -284,15 +284,15 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
+            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon-sm">
+              <Minus size={13} />
             </Button>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
+            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon-sm">
+              <Plus size={13} />
             </Button>
-            <Button onClick={() => handleZoomFactor(0, true)} className="ml-2" variant="ghost" size="icon">
-              <ResetIcon size="14" />
+            <Button onClick={() => handleZoomFactor(0, true)} className="ml-1.5" variant="ghost" size="icon-sm">
+              <ResetIcon size={13} />
             </Button>
           </ZoomButtonGroup>
         </SettingRow>
@@ -468,11 +468,11 @@ const ResetButtonWrapper = ({ className, ...props }: React.ComponentPropsWithout
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-[210px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-[160px] items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('mx-1.25 w-10 text-center', className)} {...props} />
+  <span className={cn('mx-1 w-8 text-center text-xs', className)} {...props} />
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

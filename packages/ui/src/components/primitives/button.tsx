@@ -29,7 +29,7 @@ const buttonVariants = cva(
         sm: 'min-h-7 rounded-md gap-1.5 px-2.5 text-xs',
         lg: 'min-h-9 rounded-md px-4 text-sm',
         icon: 'size-9',
-        'icon-sm': 'size-8',
+        'icon-sm': 'size-7',
         'icon-lg': 'size-10'
       }
     },
@@ -62,7 +62,8 @@ function Button({
 
   // Determine spinner size based on button size
   const getSpinnerSize = () => {
-    if (size === 'sm' || size === 'icon-sm') return 14
+    if (size === 'icon-sm') return 13
+    if (size === 'sm') return 14
     if (size === 'lg' || size === 'icon-lg') return 18
     return 16
   }
