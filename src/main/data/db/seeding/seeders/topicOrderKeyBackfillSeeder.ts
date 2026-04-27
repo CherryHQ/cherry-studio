@@ -1,23 +1,6 @@
-/**
- * One-time backfill for topic/pin `order_key` values introduced by migration
- * 0015. The migration adds the column with `NOT NULL DEFAULT ''` (so SQLite
- * accepts ALTER on populated tables) and pre-emits pin rows from legacy
- * `is_pinned=1` topics with the same `''` sentinel — this seeder upgrades the
- * sentinel to canonical fractional-indexing keys.
- *
- * Why a seeder, not inline in DbService.migrateDb? Drizzle's `migrate()` only
- * executes SQL; pure SQL cannot generate fractional-indexing keys (a JS-side
- * algorithm). Seeders are the documented extension point for "stuff that runs
- * after migrate() and produces structured data" — see seeding/index.ts.
- *
- * Idempotency: the SeedRunner journal skips re-runs once applied; the body is
- * also self-idempotent (only touches rows where `order_key = ''`), so even
- * after a journal-bumping version change a re-run does nothing on already-
- * backfilled rows.
- *
- * Spec: docs/references/data/data-ordering-guide.md §7 step 6 +
- *       docs/references/data/v2-migration-guide.md §"Order-Key Stamping in Migrators"
- */
+// Migration 0015 inserts topic / pin rows with `order_key = ''` as a sentinel
+// because pure SQL can't generate fractional-indexing keys; this seeder
+// upgrades the sentinel to canonical keys.
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { sql } from 'drizzle-orm'
 
@@ -34,12 +17,6 @@ export class TopicOrderKeyBackfillSeeder implements ISeeder {
   }
 }
 
-/**
- * Upgrade `topic.order_key = ''` to canonical fractional-indexing keys,
- * partitioned by `group_id` and ordered by `updated_at DESC` within each
- * partition (matches the default unpinned-list sort, so the first reorder
- * feels natural).
- */
 async function backfillTopicOrderKey(db: DbType): Promise<void> {
   const result = await db.run(sql`
     SELECT id, group_id AS groupId
@@ -65,14 +42,9 @@ async function backfillTopicOrderKey(db: DbType): Promise<void> {
   }
 }
 
-/**
- * Upgrade `pin.order_key = ''` to canonical fractional-indexing keys,
- * partitioned by `entity_type`. For pin rows whose entity is a topic the
- * sort key is `topic.updated_at DESC` (recently-active pin lands at the
- * head); for non-topic entityTypes (none today, future-proof) fall back to
- * `pin.created_at`.
- */
 async function backfillPinOrderKey(db: DbType): Promise<void> {
+  // JOIN to topic so pin order matches the source topic's recency; non-topic
+  // entityTypes (none today) fall back to pin.created_at via COALESCE.
   const result = await db.run(sql`
     SELECT pin.id AS id, pin.entity_type AS entityType
     FROM pin
