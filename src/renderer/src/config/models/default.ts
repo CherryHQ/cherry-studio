@@ -606,10 +606,10 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   copilot: [
     {
-      id: 'gpt-4o-mini',
+      id: 'gpt-5-mini',
       provider: 'copilot',
-      name: 'OpenAI GPT-4o-mini',
-      group: 'OpenAI'
+      name: 'gpt-5-mini',
+      group: 'copilot'
     }
   ],
   yi: [
@@ -694,6 +694,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'zhipu',
       name: 'Embedding-3',
       group: 'Embedding'
+    },
+    {
+      id: 'cogView-4-250304',
+      provider: 'zhipu',
+      name: 'cogView-4',
+      group: 'cogView'
     }
   ],
   moonshot: [
@@ -723,6 +729,14 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'moonshot',
       name: 'Kimi K2.5',
       group: 'Kimi K2.5',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2.6',
+      provider: 'moonshot',
+      name: 'Kimi K2.6',
+      group: 'Kimi K2.6',
       owned_by: 'moonshot',
       capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
     },
@@ -1910,12 +1924,19 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   'new-api': [],
   'aws-bedrock': [],
   poe: [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
-      provider: 'poe',
-      group: 'poe'
-    }
+    { id: 'Claude-Opus-4.6', name: 'Claude Opus 4.6', provider: 'poe', group: 'Anthropic' },
+    { id: 'Claude-Sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'poe', group: 'Anthropic' },
+    { id: 'Claude-Haiku-4.5', name: 'Claude Haiku 4.5', provider: 'poe', group: 'Anthropic' },
+    { id: 'GPT-5.4', name: 'GPT 5.4', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.3-Codex', name: 'GPT 5.3 Codex', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.2', name: 'GPT 5.2', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.2-Codex', name: 'GPT 5.2 Codex', provider: 'poe', group: 'OpenAI' },
+    { id: 'GPT-5.1', name: 'GPT 5.1', provider: 'poe', group: 'OpenAI' },
+    { id: 'Gemini-3.1-Pro', name: 'Gemini 3.1 Pro', provider: 'poe', group: 'Google' },
+    { id: 'Grok-4', name: 'Grok 4', provider: 'poe', group: 'xAI' },
+    { id: 'DeepSeek-R1', name: 'DeepSeek R1', provider: 'poe', group: 'DeepSeek' },
+    { id: 'Kimi-K2.5', name: 'Kimi K2.5', provider: 'poe', group: 'Kimi' },
+    { id: 'Kimi-K2-Thinking', name: 'Kimi K2 Thinking', provider: 'poe', group: 'Kimi' }
   ],
   aionly: [
     {
@@ -2017,22 +2038,28 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   mimo: [
     {
+      id: 'mimo-v2.5',
+      name: 'Mimo V2.5',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
+      id: 'mimo-v2.5-pro',
+      name: 'Mimo V2.5 Pro',
+      provider: 'mimo',
+      group: 'mimo'
+    },
+    {
       id: 'mimo-v2-flash',
       name: 'Mimo V2 Flash',
       provider: 'mimo',
-      group: 'Mimo'
-    },
-    {
-      id: 'mimo-v2-pro',
-      name: 'Mimo V2 Pro',
-      provider: 'mimo',
-      group: 'Mimo'
+      group: 'mimo'
     },
     {
       id: 'mimo-v2-omni',
       name: 'Mimo V2 Omni',
       provider: 'mimo',
-      group: 'Mimo'
+      group: 'mimo'
     }
   ],
   zai: [

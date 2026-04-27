@@ -79,7 +79,13 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const sortFn = ctx.sortFn || defaultSortFn
   // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
   const list = useMemo(() => {
-    if (!ctx.isVisible && !ctx.symbol) return []
+    // Reset stale state when panel fully closes (both isVisible false AND symbol cleared)
+    if (!ctx.isVisible && !ctx.symbol) {
+      prevSymbolRef.current = ''
+      prevSearchTextRef.current = ''
+      setIndex(-1)
+      return []
+    }
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
 

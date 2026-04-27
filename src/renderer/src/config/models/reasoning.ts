@@ -27,7 +27,7 @@ import {
   isGemini3ProModel,
   isGemini31FlashLiteModel,
   isGemini31ProModel,
-  isKimi25Model,
+  isKimi25OrNewerModel,
   withModelIdAndNameAsId
 } from './utils'
 import { isTextToImageModel } from './vision'
@@ -79,11 +79,13 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
+  deepseek_v4: ['high', 'xhigh'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
   // Claude 3.7, 4.0, 4.5 reasoning models
   claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
-  claude46: ['low', 'medium', 'high', 'xhigh'] as const
+  claude46: ['low', 'medium', 'high', 'xhigh'] as const,
+  mistral: ['high'] as const
 } as const satisfies ReasoningEffortConfig
 
 // Model type to supported options mapping
@@ -118,9 +120,11 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
+  deepseek_v4: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
-  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
+  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const,
+  mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const
 } as const
 
 // TODO: add ut
@@ -202,12 +206,16 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'perplexity'
   } else if (isSupportedThinkingTokenZhipuModel(model)) {
     thinkingModelType = 'zhipu'
+  } else if (isDeepSeekV4PlusModel(model)) {
+    thinkingModelType = 'deepseek_v4'
   } else if (isDeepSeekHybridInferenceModel(model)) {
     thinkingModelType = 'deepseek_hybrid'
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
+  } else if (isMistralReasoningModel(model)) {
+    thinkingModelType = 'mistral'
   }
   return thinkingModelType
 }
@@ -318,7 +326,8 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
   return (
     isSupportedReasoningEffortOpenAIModel(model) ||
     isSupportedReasoningEffortGrokModel(model) ||
-    isSupportedReasoningEffortPerplexityModel(model)
+    isSupportedReasoningEffortPerplexityModel(model) ||
+    isMistralReasoningModel(model)
   )
 }
 
@@ -338,6 +347,14 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   return false
+}
+
+// Mistral Small models with adjustable reasoning (mistral-small-2603+)
+// Note: magistral-* models reason natively and do NOT accept reasoning_effort parameter
+export function isMistralReasoningModel(model?: Model): boolean {
+  if (!model) return false
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('mistral-small-2603')
 }
 
 /**
@@ -451,8 +468,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  // qwen 3.5 series models, all support
-  if (modelId.startsWith('qwen3.5')) {
+  // qwen 3.5~3.9 series models, all support
+  if (/^qwen3\.[5-9]/.test(modelId)) {
     return true
   }
 
@@ -464,9 +481,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   //    In the global deployment environment, qwen-max still points to the non-reasoning snapshot from 2025-09-23,
   //    whereas in mainland China, qwen-max has been updated to the latest 2026-01-23 snapshot, which supports reasoning control. - 2026-03-05
   const MAX_REGEX = /^(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)/i
-  const PLUS_REGEX = /^qwen(?:3\.5)?-plus(?:-|$)/i
-  const FLASH_REGEX = /^qwen(?:3\.5)?-flash(?:-|$)/i
-  const TURBO_REGEX = /^qwen(?:3\.5)?-turbo(?:-|$)/i
+  const PLUS_REGEX = /^qwen(?:3\.[5-9])?-plus(?:-|$)/i
+  const FLASH_REGEX = /^qwen(?:3\.[5-9])?-flash(?:-|$)/i
+  const TURBO_REGEX = /^qwen(?:3\.[5-9])?-turbo(?:-|$)/i
   // open-weight qwen3 models with numeric size (e.g. qwen3-8b, qwen3-72b)
   const QWEN3_OPEN_REGEX = /^qwen3-\d/i
 
@@ -609,24 +626,37 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 
 export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni'].some((id) => modelId.includes(id))
+  return ['mimo-v2-flash', 'mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2.5', 'mimo-v2.5-pro'].includes(modelId)
 }
 
 /**
  * Detects whether a Kimi model supports thinking control
  *
  * This function identifies Kimi models that support thinking token control.
- * Currently only supports Kimi K2.5 and its variants.
+ * Currently only supports Kimi K2.5 / K2.6 and their variants.
  *
  * @param model - The model object to check
  * @returns true if the model supports thinking control, false otherwise
  */
 const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
-  return isKimi25Model(model)
+  return isKimi25OrNewerModel(model)
 }
 
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenKimiModel)
+  return idResult || nameResult
+}
+
+/**
+ * Matches DeepSeek V4+ models (e.g., deepseek-v4-flash, deepseek-v4-pro, deepseek-v5-xxx).
+ * V4+ models default to thinking enabled and support reasoning_effort: "high" | "max".
+ */
+export const isDeepSeekV4PlusModel = (model: Model) => {
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    // Match deepseek-v{N} where N >= 4, with any optional suffix
+    return /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/.test(modelId)
+  })
   return idResult || nameResult
 }
 
@@ -647,7 +677,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
       modelId.includes('deepseek-chat')
     )
   })
-  return idResult || nameResult
+  return idResult || nameResult || isDeepSeekV4PlusModel(model)
 }
 
 export const isLingReasoningModel = (model?: Model): boolean => {
@@ -702,16 +732,15 @@ export const isBaichuanReasoningModel = (model?: Model): boolean => {
  * This function identifies Moonshot AI's Kimi series reasoning models.
  * Currently should only support:
  * - Kimi K2 Thinking and its variants (including -turbo suffix)
- * - Kimi K2.5
+ * - Kimi K2.5+ (K2.5, K2.6, ...) and K3+ (K3, K3.x, K4, ...)
  *
  * @param model - The model object to check, can be undefined
  * @returns true if it's a Kimi reasoning model, false otherwise
  */
 const _isKimiReasoningModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5
-  // The regex ensures no extra suffixes after these patterns
-  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k2\.5(?:-\w)*$/.test(modelId)
+  // Match kimi-k2-thinking, kimi-k2-thinking-turbo, or kimi-k2.5+ / kimi-k3+
+  return /^kimi-k2-thinking(?:-turbo)?$|^kimi-k(?:2\.[5-9]\d*|[3-9]\d*)(?:[.-]\w+)*$/.test(modelId)
 }
 
 export function isKimiReasoningModel(model?: Model): boolean {
@@ -760,9 +789,12 @@ export function isReasoningModel(model?: Model): boolean {
     isBaichuanReasoningModel(model) ||
     isKimiReasoningModel(model) ||
     modelId.includes('magistral') ||
+    modelId.includes('mistral-small-2603') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss') ||
-    modelId.includes('deepseek-v3.2-speciale')
+    modelId.includes('deepseek-v3.2-speciale') ||
+    modelId.includes('gemma-4') ||
+    modelId.includes('gemma4')
   ) {
     return true
   }
@@ -791,8 +823,8 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   // qwen3-max series (reasoning models, equivalent to qwen-plus for thinking budget)
   'qwen3-max(-.*)?$': { min: 0, max: 81_920 },
-  // Qwen3.5 series (max thinking budget: 81920)
-  '^qwen3\\.5': { min: 0, max: 81_920 },
+  // Qwen3.5+ series (max thinking budget: 81920)
+  '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
@@ -818,7 +850,12 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
 
   // Baichuan models
   'baichuan-m2$': { min: 0, max: 30_000 },
-  'baichuan-m3$': { min: 0, max: 30_000 }
+  'baichuan-m3$': { min: 0, max: 30_000 },
+
+  // Gemma 4 models (GenAI: gemma-4-*, Ollama: gemma4:*)
+  'gemma-?4[:-]?e[24]b': { min: 1024, max: 8192 },
+  'gemma-?4[:-]?26b': { min: 1024, max: 30720 },
+  'gemma-?4[:-]?31b': { min: 1024, max: 30720 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
@@ -849,7 +886,7 @@ export const isFixedReasoningModel = (model: Model) =>
 // https://platform.moonshot.cn/docs/guide/use-kimi-k2-thinking-model#%E5%A4%9A%E6%AD%A5%E5%B7%A5%E5%85%B7%E8%B0%83%E7%94%A8
 /** @deprecated No longer used. */
 const INTERLEAVED_THINKING_MODEL_REGEX =
-  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2.5$/i
+  /minimax-m2(.(\d+))?(?:-[\w-]+)?|mimo-v2-flash|glm-5(?:.\d+)?(?:-[\w-]+)?|glm-4.(\d+)(?:-[\w-]+)?|kimi-k2-thinking?|kimi-k2\.[56](?:-[\w-]+)?$/i
 
 /**
  * Determines whether the given model supports interleaved thinking.

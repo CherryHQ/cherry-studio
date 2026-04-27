@@ -12,6 +12,7 @@ import {
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
+  isGemini3Model,
   isGeminiModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
@@ -111,9 +112,11 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
       window.toast.error(t('error.model.not_exists'))
       return
     }
+    // Gemini 3+ supports combining built-in tools with function calling
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
+      !isGemini3Model(model) &&
       isToolUseModeFunction(assistant) &&
       update.enableWebSearch &&
       getEffectiveMcpMode(assistant) !== 'disabled'

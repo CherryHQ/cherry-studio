@@ -1,5 +1,6 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Card } from 'antd'
+import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
@@ -23,7 +24,7 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
       .then((packages) => {
         const readme = packages[0]?.original?.readme ?? t('settings.mcp.noDescriptionAvailable')
         void shikiMarkdownIt(readme).then((result) => {
-          if (isMounted) setMcpInfo(result)
+          if (isMounted) setMcpInfo(DOMPurify.sanitize(result))
         })
       })
       .finally(() => {

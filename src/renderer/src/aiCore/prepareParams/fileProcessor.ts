@@ -184,7 +184,7 @@ export async function handleLargeFileUpload(
   const provider = getProviderByModel(model)
   const aiSdkId = getAiSdkProviderId(provider)
 
-  if (['google', 'google-generative-ai', 'google-vertex'].includes(aiSdkId)) {
+  if (['google', 'google-vertex'].includes(aiSdkId)) {
     return await handleGeminiFileUpload(file, model)
   }
 

@@ -221,7 +221,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
       .filter((block) => {
         const searchableContent = stripMarkdownFormatting(block.content)
-        return searchRegexes.some((regex) => regex.test(searchableContent))
+        return searchRegexes.every((regex) => regex.test(searchableContent))
       })
 
     const messages = topics?.flatMap((topic) => topic.messages)
@@ -268,11 +268,15 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   }, [searchResults, sortOrder])
 
   const highlightText = (text: string) => {
+    // Escape HTML entities to prevent XSS from LLM response content
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const safeText = escapeHtml(text)
     const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode, flags: 'gi' })
     if (!highlightRegex) {
-      return <span dangerouslySetInnerHTML={{ __html: text }} />
+      return <span dangerouslySetInnerHTML={{ __html: safeText }} />
     }
-    const highlightedText = text.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
+    const highlightedText = safeText.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
     return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
   }
 

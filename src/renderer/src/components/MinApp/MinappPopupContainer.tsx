@@ -575,7 +575,7 @@ const TitleContainer = styled.div`
   bottom: 0;
   background-color: transparent;
   [navbar-position='left'] & {
-    padding-left: ${isMac ? '20px' : '10px'};
+    padding-left: ${isMac ? '40px' : '10px'};
   }
   [navbar-position='top'] & {
     padding-left: ${isMac ? '80px' : '10px'};

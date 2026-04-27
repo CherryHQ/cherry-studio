@@ -19,6 +19,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
 import { McpError, type Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
@@ -67,6 +68,11 @@ type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
 
 const logger = loggerService.withContext('MCPService')
+
+// Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
+// so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
+// still letting users raise it further via `server.timeout`.
+const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
 function redactSensitive(input: any): any {
@@ -312,9 +318,16 @@ class McpService {
         > => {
           // Create appropriate transport based on configuration
 
-          // Special case for nowledgeMem - uses HTTP transport instead of in-memory
-          if (isBuiltinMCPServer(server) && server.name === BuiltinMCPServerNames.nowledgeMem) {
-            const nowledgeMemUrl = 'http://127.0.0.1:14242/mcp'
+          // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
+          if (
+            isBuiltinMCPServer(server) &&
+            (server.name === BuiltinMCPServerNames.nowledgeMem || server.name === BuiltinMCPServerNames.flomo)
+          ) {
+            const httpUrlMap: Record<string, string> = {
+              [BuiltinMCPServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
+              [BuiltinMCPServerNames.flomo]: 'https://flomoapp.com/mcp'
+            }
+            const httpUrl = httpUrlMap[server.name]
             const options: StreamableHTTPClientTransportOptions = {
               fetch: async (url, init) => {
                 return net.fetch(typeof url === 'string' ? url : url.toString(), init)
@@ -328,7 +341,7 @@ class McpService {
               authProvider
             }
             getServerLogger(server).debug(`Using StreamableHTTPClientTransport for ${server.name}`)
-            return new StreamableHTTPClientTransport(new URL(nowledgeMemUrl), options)
+            return new StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
           if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
@@ -587,8 +600,16 @@ class McpService {
 
         try {
           const transport = await initTransport()
+          // Bound the MCP `initialize` request so a non-responsive server fails fast via the
+          // SDK's own abort path instead of hanging. Use a 180s floor (activation runs once,
+          // generous headroom is cheap) while still honoring larger `server.timeout` values
+          // that the user explicitly configured. transport.start() latency remains bounded
+          // by the underlying fetch / child_process, matching v1.8.4 behavior.
+          const connectOptions: RequestOptions = {
+            timeout: Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
+          }
           try {
-            await client.connect(transport)
+            await client.connect(transport, connectOptions)
           } catch (error: any) {
             if (
               error instanceof Error &&

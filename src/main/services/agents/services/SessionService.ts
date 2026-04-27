@@ -1,4 +1,8 @@
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+
 import { loggerService } from '@logger'
+import { parsePluginMetadata } from '@main/utils/markdownParser'
 import type { SlashCommand, UpdateSessionResponse } from '@types'
 import {
   AgentBaseSchema,
@@ -9,12 +13,11 @@ import {
   type ListOptions,
   type UpdateSessionRequest
 } from '@types'
-import { and, asc, count, desc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 import type { AgentModelField } from '../errors'
-import { pluginService } from '../plugins/PluginService'
 import { builtinSlashCommands } from './claudecode/commands'
 
 const logger = loggerService.withContext('SessionService')
@@ -44,27 +47,53 @@ export class SessionService extends BaseService {
     // Add local command plugins from .claude/commands/
     if (agentId) {
       try {
-        const installedPlugins = await pluginService.listInstalled(agentId)
+        const database = await this.getDatabase()
+        const result = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+        const agent = result[0] ? this.deserializeJsonFields(result[0]) : null
+        const workdir = (agent as AgentEntity | null)?.accessible_paths?.[0]
 
-        // Filter for command type plugins
-        const commandPlugins = installedPlugins.filter((p) => p.type === 'command')
+        if (workdir) {
+          const commandsDir = path.join(workdir, '.claude', 'commands')
+          try {
+            const entries = await fs.promises.readdir(commandsDir, { withFileTypes: true })
+            const ALLOWED_EXTENSIONS = ['.md', '.txt']
+            let localCount = 0
 
-        // Convert plugin metadata to SlashCommand format
-        for (const plugin of commandPlugins) {
-          const commandName = plugin.metadata.filename.replace(/\.md$/i, '')
-          commands.push({
-            command: `/${commandName}`,
-            description: plugin.metadata.description
-          })
+            for (const entry of entries) {
+              if (!entry.isFile()) continue
+              const ext = path.extname(entry.name).toLowerCase()
+              if (!ALLOWED_EXTENSIONS.includes(ext)) continue
+
+              try {
+                const filePath = path.join(commandsDir, entry.name)
+                const metadata = await parsePluginMetadata(
+                  filePath,
+                  path.join('commands', entry.name),
+                  'commands',
+                  'command'
+                )
+                const commandName = entry.name.replace(/\.md$/i, '')
+                commands.push({
+                  command: `/${commandName}`,
+                  description: metadata.description
+                })
+                localCount++
+              } catch {
+                // Skip files that fail to parse
+              }
+            }
+
+            logger.info('Listed slash commands', {
+              agentType,
+              agentId,
+              builtinCount: builtinSlashCommands.length,
+              localCount,
+              totalCount: commands.length
+            })
+          } catch {
+            // .claude/commands/ doesn't exist, that's fine
+          }
         }
-
-        logger.info('Listed slash commands', {
-          agentType,
-          agentId,
-          builtinCount: builtinSlashCommands.length,
-          localCount: commandPlugins.length,
-          totalCount: commands.length
-        })
       } catch (error) {
         logger.warn('Failed to list local command plugins', {
           agentId,
@@ -85,7 +114,11 @@ export class SessionService extends BaseService {
     // The database foreign key constraint will handle this
 
     const database = await this.getDatabase()
-    const agents = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+    const agents = await database
+      .select()
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deleted_at)))
+      .limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
@@ -216,11 +249,13 @@ export class SessionService extends BaseService {
 
     const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
-    for (const session of sessions) {
-      const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
-      session.tools = tools
-      session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
-    }
+    await Promise.all(
+      sessions.map(async (session) => {
+        const { tools, legacyIdMap } = await this.listMcpTools(session.agent_type, session.mcps)
+        session.tools = tools
+        session.allowed_tools = this.normalizeAllowedTools(session.allowed_tools, session.tools, legacyIdMap)
+      })
+    )
 
     return { sessions, total }
   }

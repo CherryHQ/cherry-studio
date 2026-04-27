@@ -61,10 +61,8 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
 
 vi.mock('@renderer/config/models', async (importOriginal) => ({
   ...(await importOriginal()),
-  isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
   isSupportFlexServiceTierModel: vi.fn(() => true),
-  isOpenAILLMModel: vi.fn(() => true),
   SYSTEM_MODELS: {
     defaultModel: [
       { id: 'default-1', name: 'Default 1' },
@@ -1125,13 +1123,132 @@ describe('options utils', () => {
         })
       })
 
+      it.each([
+        { providerId: 'newapi', providerName: 'NewAPI' },
+        { providerId: 'aihubmix', providerName: 'AiHubMix' },
+        { providerId: 'cherryin', providerName: 'CherryIN' }
+      ])(
+        'should route Gemini models to google providerOptions through $providerName',
+        async ({ providerId, providerName }) => {
+          const { getCustomParameters } = await import('../reasoning')
+          vi.mocked(getCustomParameters).mockReturnValue({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+
+          const provider: Provider = {
+            id: providerId,
+            name: providerName,
+            type: 'openai',
+            models: [] as Model[]
+          } as Provider
+
+          const geminiModel: Model = {
+            id: 'gemini-3.1-flash-image-preview',
+            name: 'Gemini 3.1 Flash Image Preview',
+            provider: providerId
+          } as Model
+
+          const result = buildProviderOptions(mockAssistant, geminiModel, provider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: true
+          })
+
+          expect(result.providerOptions).toHaveProperty('google')
+          expect(result.providerOptions).not.toHaveProperty(providerId)
+          expect(result.providerOptions.google).toMatchObject({
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            imageConfig: { aspectRatio: '3:4', imageSize: '4K' }
+          })
+        }
+      )
+
       // Note: For proxy providers like aihubmix/newapi, users should write AI SDK provider ID (google/anthropic)
       // instead of the Cherry Studio provider ID for custom parameters to work correctly
+
+      // model.endpoint_type takes priority over the short-name heuristic so the providerOptions key
+      // stays aligned with the SDK language-model class each proxy builds. Covers CherryIN's
+      // mixed-routing models (e.g. `minimax/minimax-m2.7` using the Anthropic endpoint) and
+      // NewAPI's endpoint_type-driven routing.
+      it.each([
+        {
+          providerId: 'cherryin',
+          modelId: 'minimax/minimax-m2.7',
+          endpointType: 'anthropic' as const,
+          expectedKey: 'anthropic'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'custom-id',
+          endpointType: 'gemini' as const,
+          expectedKey: 'google'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'gpt-5',
+          endpointType: 'openai-response' as const,
+          expectedKey: 'openai'
+        },
+        {
+          providerId: 'cherryin',
+          modelId: 'qwen-max',
+          endpointType: 'openai' as const,
+          expectedKey: 'openai-compatible'
+        },
+        {
+          providerId: 'newapi',
+          modelId: 'proxy/model',
+          endpointType: 'anthropic' as const,
+          expectedKey: 'anthropic'
+        },
+        {
+          providerId: 'newapi',
+          modelId: 'proxy/model',
+          endpointType: 'openai' as const,
+          expectedKey: 'openai-compatible'
+        }
+      ])(
+        'should honor model.endpoint_type=$endpointType for $providerId and produce providerOptions.$expectedKey',
+        async ({ providerId, modelId, endpointType, expectedKey }) => {
+          const { getCustomParameters } = await import('../reasoning')
+          vi.mocked(getCustomParameters).mockReturnValue({
+            customEndpointParam: 'custom_value'
+          })
+
+          const provider: Provider = {
+            id: providerId,
+            name: providerId,
+            type: 'openai',
+            models: [] as Model[]
+          } as Provider
+
+          const model: Model = {
+            id: modelId,
+            name: modelId,
+            provider: providerId,
+            endpoint_type: endpointType
+          } as Model
+
+          const result = buildProviderOptions(mockAssistant, model, provider, {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: false
+          })
+
+          expect(result.providerOptions).toHaveProperty(expectedKey)
+          expect(result.providerOptions).not.toHaveProperty(providerId)
+          expect(result.providerOptions[expectedKey]).toMatchObject({
+            customEndpointParam: 'custom_value'
+          })
+        }
+      )
 
       it('should handle cherryin fallback to openai-compatible with custom parameters', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
-        // Mock cherryin provider that falls back to openai-compatible (default case)
+        // Mock cherryin provider with a non-Gemini/Claude/GPT/Grok model that falls back
+        // to openai-compatible via buildAIGatewayOptions
         const cherryinProvider = {
           id: 'cherryin',
           name: 'Cherry In',
@@ -1158,10 +1275,11 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        // When cherryin falls back to default case, it should use rawProviderId (cherryin)
-        // User's cherryin params should merge with the provider options
-        expect(result.providerOptions).toHaveProperty('cherryin')
-        expect(result.providerOptions.cherryin).toMatchObject({
+        // Non-Gemini/Claude/GPT/Grok models fall back to openai-compatible via buildAIGatewayOptions.
+        // User's custom params (not matching any AI SDK provider ID) merge into the primary bucket.
+        expect(result.providerOptions).toHaveProperty('openai-compatible')
+        expect(result.providerOptions).not.toHaveProperty('cherryin')
+        expect(result.providerOptions['openai-compatible']).toMatchObject({
           customCherryinOption: 'cherryin_value'
         })
       })

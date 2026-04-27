@@ -112,6 +112,16 @@ export const hubMCPServer: BuiltinMCPServer = {
 export const builtinMCPServers: BuiltinMCPServer[] = [
   {
     id: nanoid(),
+    name: BuiltinMCPServerNames.flomo,
+    reference: 'https://flomoapp.com',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'flomo',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
+    id: nanoid(),
     name: BuiltinMCPServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',

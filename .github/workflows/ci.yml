@@ -29,7 +29,7 @@ jobs:
 
       - name: Detect code changes
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             main:
@@ -51,7 +51,7 @@ jobs:
 
   changeset-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -64,7 +64,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -103,7 +103,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -163,7 +163,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -214,7 +214,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -249,7 +249,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Get pnpm store directory
         id: pnpm-cache

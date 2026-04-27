@@ -1,0 +1,27 @@
+{
+  "query": "vercel",
+  "skills": [
+    {
+      "id": "vercel-labs/skills/find-skills",
+      "skillId": "find-skills",
+      "name": "find-skills",
+      "installs": 787460,
+      "source": "vercel-labs/skills"
+    },
+    {
+      "id": "vercel-labs/agent-skills/vercel-react-best-practices",
+      "skillId": "vercel-react-best-practices",
+      "name": "vercel-react-best-practices",
+      "installs": 263730,
+      "source": "vercel-labs/agent-skills"
+    },
+    {
+      "id": "vercel-labs/agent-skills/vercel-composition-patterns",
+      "skillId": "vercel-composition-patterns",
+      "name": "vercel-composition-patterns",
+      "installs": 107305,
+      "source": "vercel-labs/agent-skills"
+    }
+  ],
+  "count": 3
+}

@@ -12,7 +12,7 @@ import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScrip
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
+import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
 import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
@@ -701,7 +701,9 @@ class OpenClawService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+      // Use query string (not URL fragment) so dashboard app state can persist correctly.
+      // Fragment (#...) is often used by SPAs for transient client-side state.
+      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
@@ -1045,6 +1047,14 @@ class OpenClawService {
    * - Others: {host}/v1
    */
   private formatOpenAIUrl(provider: Provider): string {
+    // Special-case built-in GitHub / Copilot providers: these hosts should
+    // not have a `/v1` suffix appended by default (renderer applies
+    // `formatApiHost(..., false)` for these). Mirror that behavior here
+    // to avoid constructing incorrect endpoints that return 404.
+    if (provider.id === 'copilot' || provider.id === 'github') {
+      return formatApiHost(provider.apiHost, false)
+    }
+
     const url = withoutTrailingSlash(provider.apiHost)
     const providerType = provider.type
 

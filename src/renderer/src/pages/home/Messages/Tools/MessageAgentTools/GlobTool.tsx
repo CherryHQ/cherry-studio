@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
 import { ClickableFilePath } from './ClickableFilePath'
 import { ToolHeader, TruncatedIndicator } from './GenericTools'
+import { TerminalContainer } from './TerminalOutput'
 import {
   AgentToolsType,
   type GlobToolInput as GlobToolInputType,
@@ -35,7 +36,7 @@ export function GlobTool({
     ),
     children: (
       <div>
-        <div>
+        <TerminalContainer>
           {truncatedOutput?.split('\n').map((line, i) =>
             line.startsWith('/') ? (
               <div key={i}>
@@ -45,7 +46,7 @@ export function GlobTool({
               <div key={i}>{line}</div>
             )
           )}
-        </div>
+        </TerminalContainer>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )

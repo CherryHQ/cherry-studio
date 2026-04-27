@@ -2,12 +2,8 @@
 export type {
   AiPlugin,
   AiRequestContext,
-  AiRequestMetadata,
   GenerateTextParams,
   GenerateTextResult,
-  HookResult,
-  PluginManagerConfig,
-  RecursiveCallFn,
   StreamTextParams,
   StreamTextResult
 } from './types'

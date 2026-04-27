@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { AgentModelValidationError, sessionMessageService, sessionService } from '@main/services/agents'
+import { AgentModelValidationError, sessionService } from '@main/services/agents'
 import type { ListAgentSessionsResponse, UpdateSessionResponse } from '@types'
 import { type ReplaceSessionRequest } from '@types'
 import type { Request, Response } from 'express'
@@ -115,19 +115,7 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
     //     }
     //   })
     // }
-
-    // Fetch session messages
-    logger.debug('Fetching session messages', { sessionId })
-    const { messages } = await sessionMessageService.listSessionMessages(sessionId)
-
-    // Add messages to session
-    const sessionWithMessages = {
-      ...session,
-      messages: messages
-    }
-
-    logger.info('Session retrieved', { agentId, sessionId, messageCount: messages.length })
-    return res.json(sessionWithMessages)
+    return res.json(session)
   } catch (error: any) {
     logger.error('Error getting session', { error, agentId: req.params.agentId, sessionId: req.params.sessionId })
     return res.status(500).json({

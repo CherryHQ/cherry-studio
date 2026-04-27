@@ -49,7 +49,8 @@ vi.mock('../../constant', () => ({
 }))
 
 vi.mock('..', () => ({
-  getResourcePath: () => '/app/resources'
+  getResourcePath: () => '/app/resources',
+  toAsarUnpackedPath: (filePath: string) => filePath
 }))
 
 vi.mock('semver', () => ({
