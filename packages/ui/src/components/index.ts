@@ -68,6 +68,7 @@ export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
+export * from './primitives/alert'
 export * from './primitives/badge'
 export * from './primitives/breadcrumb'
 export * from './primitives/button'

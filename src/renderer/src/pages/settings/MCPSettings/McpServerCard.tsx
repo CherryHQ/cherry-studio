@@ -1,4 +1,4 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -9,7 +9,6 @@ import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { Alert, Space, Typography } from 'antd'
 import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -145,13 +144,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
           description={
-            <Typography.Paragraph style={{ color: 'var(--color-error-base)' }} ellipsis={{ rows: 3 }}>
-              {errorDetails}
-            </Typography.Paragraph>
+            <div className="line-clamp-3 text-[var(--color-error-base)] text-xs leading-5">{errorDetails}</div>
           }
           onClick={onClickDetails}
           action={
-            <Space.Compact>
+            <div className="flex items-center gap-1">
               <Button variant="destructive" size="sm" onClick={onClickDetails}>
                 <Tooltip content={t('error.boundary.details')}>
                   <CircleXIcon size={16} />
@@ -167,7 +164,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
                   <DeleteIcon size={16} />
                 </Tooltip>
               </Button>
-            </Space.Compact>
+            </div>
           }
         />
       )
@@ -182,9 +179,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           <ActiveDot $active={server.isActive} />
           <ServerNameWrapper>
             {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-            <ServerNameText
-              ellipsis={{ tooltip: true }}
-              className={server.isActive ? 'text-foreground' : 'text-foreground/45'}>
+            <ServerNameText title={server.name} className={server.isActive ? 'text-foreground' : 'text-foreground/45'}>
               {server.name}
             </ServerNameText>
             {version && <InlineMeta>{version}</InlineMeta>}
@@ -252,8 +247,8 @@ const ServerNameWrapper = ({ className, ...props }: React.ComponentPropsWithoutR
   />
 )
 
-const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
-  <Typography.Text className={cn('font-semibold text-[15px]', className)} {...props} />
+const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span className={cn('min-w-0 truncate font-semibold text-[15px]', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (

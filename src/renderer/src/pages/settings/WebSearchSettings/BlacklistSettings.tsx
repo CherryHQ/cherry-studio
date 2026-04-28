@@ -1,5 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -8,7 +8,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import type { TableProps } from 'antd'
-import { Alert, Table } from 'antd'
+import { Table } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
 import type { FC } from 'react'
@@ -252,7 +252,7 @@ const BlacklistSettings: FC = () => {
           {t('common.save')}
         </Button>
         {errFormat && (
-          <Alert style={{ marginTop: 10 }} message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
+          <Alert className="mt-2.5" message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>

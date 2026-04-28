@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, EmptyState, Spinner, Switch, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, EmptyState, Spinner, Switch, Tooltip } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -7,7 +7,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentConfiguration } from '@renderer/types'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import { Alert, Input, Modal, Popconfirm, Select, Tag } from 'antd'
+import { Input, Modal, Popconfirm, Select, Tag } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -239,8 +239,7 @@ const ChannelEditModal: FC<
                 type="warning"
                 showIcon
                 message={t('agent.cherryClaw.channels.soulModeRequired')}
-                className="mt-2"
-                style={{ fontSize: 12 }}
+                className="mt-2 text-xs"
               />
             )}
           </div>
