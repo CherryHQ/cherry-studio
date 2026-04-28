@@ -1,5 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Divider, Flex, InfoTooltip, Input, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
@@ -8,14 +8,20 @@ import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hoo
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Form, Input as AntdInput } from 'antd'
-import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import {
+  SettingDivider,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '..'
 
 const logger = loggerService.withContext('WebSearchProviderSetting')
 interface Props {
@@ -167,9 +173,9 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             )}
             <span className="font-medium text-sm">{provider.name}</span>
             {officialWebsite && webSearchProviderConfig?.websites && (
-              <Link target="_blank" href={webSearchProviderConfig.websites.official}>
-                <ExportOutlined style={{ color: 'var(--color-foreground)', fontSize: '12px' }} />
-              </Link>
+              <SettingTitleExternalLink href={webSearchProviderConfig.websites.official}>
+                <ExportOutlined style={{ fontSize: '12px' }} />
+              </SettingTitleExternalLink>
             )}
           </Flex>
           <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
@@ -272,44 +278,33 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               }}
             />
           </SettingSubtitle>
-          <Flex>
-            <Form
-              layout="vertical"
-              style={{ width: '100%' }}
-              initialValues={{
-                username: basicAuthUsername,
-                password: basicAuthPassword
-              }}
-              onValuesChange={(changedValues) => {
-                // Update local state when form values change
-                if ('username' in changedValues) {
-                  setBasicAuthUsername(changedValues.username || '')
-                }
-                if ('password' in changedValues) {
-                  setBasicAuthPassword(changedValues.password || '')
-                }
-              }}>
-              <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
-                <AntdInput
-                  placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                  onBlur={onUpdateBasicAuthUsername}
-                />
-              </Form.Item>
-              <Form.Item
-                label={t('settings.provider.basic_auth.password.label')}
-                name="password"
-                rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
-                help=""
-                hidden={!basicAuthUsername}>
-                <AntdInput.Password
+          <div className="flex w-full flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="websearch-basic-auth-username">{t('settings.provider.basic_auth.user_name.label')}</Label>
+              <Input
+                id="websearch-basic-auth-username"
+                value={basicAuthUsername}
+                placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                onChange={(e) => setBasicAuthUsername(e.target.value)}
+                onBlur={onUpdateBasicAuthUsername}
+              />
+            </div>
+            {basicAuthUsername && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="websearch-basic-auth-password">
+                  {t('settings.provider.basic_auth.password.label')}
+                </Label>
+                <Input
+                  id="websearch-basic-auth-password"
+                  type="password"
+                  value={basicAuthPassword}
                   placeholder={t('settings.provider.basic_auth.password.tip')}
+                  onChange={(e) => setBasicAuthPassword(e.target.value)}
                   onBlur={onUpdateBasicAuthPassword}
-                  disabled={!basicAuthUsername}
-                  visibilityToggle={true}
                 />
-              </Form.Item>
-            </Form>
-          </Flex>
+              </div>
+            )}
+          </div>
         </>
       )}
     </>
