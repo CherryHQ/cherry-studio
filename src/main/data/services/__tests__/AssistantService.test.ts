@@ -122,6 +122,20 @@ describe('AssistantDataService', () => {
       expect(result.knowledgeBaseIds).toEqual([])
     })
 
+    it('should merge default settings with partial legacy settings', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'ast-1',
+        name: 'test',
+        settings: { temperature: 0.7 } as typeof DEFAULT_ASSISTANT_SETTINGS
+      })
+
+      const result = await assistantDataService.getById('ast-1')
+      expect(result.settings).toEqual({
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        temperature: 0.7
+      })
+    })
+
     it('should return soft-deleted assistant when includeDeleted is true', async () => {
       await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
       await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })

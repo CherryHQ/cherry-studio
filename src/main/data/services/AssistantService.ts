@@ -33,6 +33,10 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
+function normalizeSettings(settings: AssistantRow['settings']): Assistant['settings'] {
+  return { ...DEFAULT_ASSISTANT_SETTINGS, ...settings }
+}
+
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
   return {
     id: row.id,
@@ -40,7 +44,7 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     prompt: row.prompt ?? '',
     emoji: row.emoji ?? '🌟',
     description: row.description ?? '',
-    settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
+    settings: normalizeSettings(row.settings),
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
