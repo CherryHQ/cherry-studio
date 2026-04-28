@@ -147,6 +147,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     form.reset({ token: selectedProvider.getToken() ?? '' })
   }, [selectedProvider, form])
 
+  const closeAndResolve = useCallback(() => {
+    setOpen(false)
+    resolve({})
+  }, [resolve])
+
   const handleSync = useCallback(
     async (values: FieldType) => {
       setIsSyncing(true)
@@ -171,7 +176,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             await refetch()
           }
           window.toast.success(result.message)
-          setOpen(false)
+          closeAndResolve()
         } else if (result.success) {
           window.toast.info(result.message)
         } else {
@@ -183,18 +188,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         setIsSyncing(false)
       }
     },
-    [addMCPServer, refetch, existingServers, selectedProvider, t]
+    [addMCPServer, refetch, existingServers, selectedProvider, t, closeAndResolve]
   )
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
-  }
-
-  SyncServersPopup.hide = onCancel
+  SyncServersPopup.hide = closeAndResolve
 
   const tokenValue = form.watch('token')
   const isSyncDisabled = !tokenValue?.trim()
@@ -203,10 +200,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) {
-          onCancel()
-          onClose()
-        }
+        if (!next) closeAndResolve()
       }}>
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
@@ -291,7 +285,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
                 </StepSection>
 
                 <ButtonContainer>
-                  <Button type="button" variant="outline" onClick={onCancel}>
+                  <Button type="button" variant="outline" onClick={closeAndResolve}>
                     {t('common.cancel')}
                   </Button>
                   <Button type="submit" disabled={isSyncing || isSyncDisabled}>
@@ -313,10 +307,6 @@ const ContentContainer = ({ className, ...props }: React.ComponentPropsWithoutRe
 
 const ProviderSelector = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mb-3.75 flex items-center gap-3', className)} {...props} />
-)
-
-const SelectorLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('whitespace-nowrap font-medium', className)} {...props} />
 )
 
 const ProviderContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
