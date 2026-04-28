@@ -202,6 +202,27 @@ describe('tagHandlers', () => {
       expect(syncEntityTagsMock).toHaveBeenCalledWith('assistant', ENTITY_ID, { tagIds: [TAG_ID, OTHER_TAG_ID] })
     })
 
+    it('should accept skill as a taggable entity type', async () => {
+      getTagsByEntityMock.mockResolvedValueOnce([{ id: TAG_ID, name: 'productivity' }])
+      syncEntityTagsMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].GET({
+          params: { entityType: 'skill', entityId: ENTITY_ID }
+        } as never)
+      ).resolves.toEqual([{ id: TAG_ID, name: 'productivity' }])
+
+      await expect(
+        tagHandlers['/tags/entities/:entityType/:entityId'].PUT({
+          params: { entityType: 'skill', entityId: ENTITY_ID },
+          body: { tagIds: [TAG_ID] }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(getTagsByEntityMock).toHaveBeenCalledWith('skill', ENTITY_ID)
+      expect(syncEntityTagsMock).toHaveBeenCalledWith('skill', ENTITY_ID, { tagIds: [TAG_ID] })
+    })
+
     it('should reject invalid entityType before calling the service', async () => {
       await expect(
         tagHandlers['/tags/entities/:entityType/:entityId'].GET({

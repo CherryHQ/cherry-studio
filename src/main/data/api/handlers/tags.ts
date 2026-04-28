@@ -15,10 +15,11 @@ import {
   CreateTagSchema,
   SetTagEntitiesSchema,
   SyncEntityTagsSchema,
+  TaggableEntityTypeSchema,
   TagIdSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
-import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
+import { EntityIdSchema } from '@shared/data/types/entityType'
 
 export const tagHandlers: HandlersFor<TagSchemas> = {
   '/tags': {
@@ -62,13 +63,13 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
 
   '/tags/entities/:entityType/:entityId': {
     GET: async ({ params }) => {
-      const entityType = EntityTypeSchema.parse(params.entityType)
+      const entityType = TaggableEntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
       return await tagService.getTagsByEntity(entityType, entityId)
     },
 
     PUT: async ({ params, body }) => {
-      const entityType = EntityTypeSchema.parse(params.entityType)
+      const entityType = TaggableEntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
       await tagService.syncEntityTags(entityType, entityId, parsed)
