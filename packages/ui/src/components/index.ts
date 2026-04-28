@@ -50,6 +50,17 @@ export { DraggableList, useDraggableReorder } from './composites/DraggableList'
 // EditableNumber
 export type { EditableNumberProps } from './composites/EditableNumber'
 export { default as EditableNumber } from './composites/EditableNumber'
+// Form (react-hook-form integration)
+export {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  useFormField
+} from './composites/Form'
 // Tooltip variants
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/IconTooltips'
 // ImageToolButton
