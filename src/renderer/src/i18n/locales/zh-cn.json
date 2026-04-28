@@ -5056,7 +5056,7 @@
         "outcome_success_short": "{{count}} 成功",
         "outcome_total": "共 {{count}} 项",
         "passed": "通过",
-        "pipeline_heading": "[to be translated]:Detection progress",
+        "pipeline_heading": "检测进度",
         "progress_count": "{{done}} / {{total}}",
         "progress_current": "正在检测：{{name}}",
         "progress_hint": "检测过程中请查看下方列表；完成后上方会显示摘要。",
@@ -5065,7 +5065,7 @@
         "select_api_key": "选择要使用的 API 密钥：",
         "single": "单个",
         "start": "开始",
-        "status_checking": "[to be translated]:Checking…",
+        "status_checking": "检查中…",
         "timeout": "超时",
         "title": "模型健康检测",
         "use_all_keys": "使用密钥"

@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, Input, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Input, RadioGroup, RadioGroupItem, Tooltip } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getModelLogo } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../components/ProviderSettingsDrawer'
 import { drawerClasses } from '../components/ProviderSettingsPrimitives'
+import { healthCheckErrorToDisplayString } from '../utils/healthCheck'
 
 interface HealthCheckDrawerProps {
   open: boolean
@@ -119,12 +120,7 @@ export default function HealthCheckDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer
-      open={open}
-      onClose={onClose}
-      title={title}
-      footer={footer}
-      size={showPipeline ? 'wide' : 'form'}>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer} size="wide">
       <div className="rounded-xl border border-warning/30 bg-warning/8 p-3 text-[12px] text-foreground/75 leading-[1.45]">
         <div className="flex items-start gap-2">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
@@ -135,7 +131,7 @@ export default function HealthCheckDrawer({
       {showPipeline && progressStats ? (
         <div className="space-y-0">
           {isChecking ? (
-            <div className="px-4 pb-2 pt-3">
+            <div className="px-4 pt-3 pb-2">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <span className="font-medium text-[13px] text-foreground/85">
                   {t('settings.models.check.pipeline_heading')}
@@ -159,12 +155,12 @@ export default function HealthCheckDrawer({
           ) : null}
 
           {!isChecking && showPipeline ? (
-            <div className="mx-4 mb-3 mt-3 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
+            <div className="mx-4 mt-3 mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
               <div className="flex items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-muted-foreground" />
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {t('settings.models.check.outcome_success_short', { count: successCount })}
                 </span>
               </div>
@@ -173,13 +169,13 @@ export default function HealthCheckDrawer({
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-destructive/12">
                     <XCircle size={9} className="text-destructive" />
                   </div>
-                  <span className="text-xs text-destructive/80">
+                  <span className="text-destructive/80 text-xs">
                     {t('settings.models.check.outcome_fail_short', { count: failCount })}
                   </span>
                 </div>
               ) : null}
               <div className="min-w-[1rem] flex-1" />
-              <span className="text-xs text-muted-foreground/60">
+              <span className="text-muted-foreground/60 text-xs">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
               </span>
             </div>
@@ -198,7 +194,7 @@ export default function HealthCheckDrawer({
                 if (checking) {
                   statusCell = <Loader2 className="size-4 shrink-0 animate-spin text-warning" aria-hidden />
                   rightCell = (
-                    <span className="shrink-0 text-[12px] font-medium text-warning">
+                    <span className="shrink-0 font-medium text-[12px] text-warning">
                       {t('settings.models.check.status_checking')}
                     </span>
                   )
@@ -211,7 +207,7 @@ export default function HealthCheckDrawer({
                   statusCell = <CheckCircle2 className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
                   rightCell =
                     latency != null ? (
-                      <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground/80">
+                      <span className="shrink-0 text-[12px] text-muted-foreground/80 tabular-nums">
                         {Math.round(latency)}ms
                       </span>
                     ) : (
@@ -221,12 +217,24 @@ export default function HealthCheckDrawer({
                     )
                 } else {
                   statusCell = <XCircle className="size-4 shrink-0 text-destructive/85" aria-hidden />
-                  const errText = error?.trim() ?? ''
+                  const errText = healthCheckErrorToDisplayString(error)
                   rightCell =
                     errText !== '' ? (
-                      <span className="max-w-[11rem] shrink-0 truncate text-[12px] text-destructive/85" title={errText}>
-                        {errText}
-                      </span>
+                      <Tooltip
+                        content={
+                          <span className="block max-w-full whitespace-pre-wrap break-all text-left text-[12px] leading-snug">
+                            {errText}
+                          </span>
+                        }
+                        placement="top"
+                        classNames={{
+                          placeholder: '!block relative z-10 min-w-0 w-full max-w-full overflow-hidden',
+                          content: '!max-w-[min(18rem,calc(100vw-2rem))]'
+                        }}>
+                        <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-destructive/85">
+                          {errText}
+                        </span>
+                      </Tooltip>
                     ) : (
                       <span className="shrink-0 text-[12px] text-destructive/85">
                         {t('settings.models.check.failed')}
@@ -238,7 +246,7 @@ export default function HealthCheckDrawer({
                   <li
                     key={model.id}
                     className={cn(
-                      'flex min-h-[44px] items-center gap-3 px-2 py-2.5 rounded-lg',
+                      'flex min-h-[44px] min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
                       status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
@@ -252,7 +260,15 @@ export default function HealthCheckDrawer({
                     <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground/85">
                       {model.name}
                     </span>
-                    <div className="min-w-0 max-w-[40%] shrink-0 text-right">{rightCell}</div>
+                    <div
+                      className={cn(
+                        'min-w-0 text-end',
+                        status === HealthStatus.FAILED
+                          ? 'max-w-[min(52%,15rem)] flex-1 basis-0'
+                          : 'max-w-[min(42%,14rem)] shrink-0'
+                      )}>
+                      {rightCell}
+                    </div>
                   </li>
                 )
               })}

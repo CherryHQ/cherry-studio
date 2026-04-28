@@ -30,13 +30,6 @@ vi.mock('@renderer/hooks/useModels', () => ({
   })
 }))
 
-vi.mock('../modelListHealthContext', () => ({
-  useModelListHealth: () => ({
-    isHealthChecking: false,
-    modelStatusMap: new Map([['openai::reasoning-alpha', { status: 'success', checking: false, keyResults: [] }]])
-  })
-}))
-
 describe('useProviderModelListBrowse', () => {
   beforeEach(() => {
     vi.clearAllMocks()

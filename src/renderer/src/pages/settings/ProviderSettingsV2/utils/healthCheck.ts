@@ -3,6 +3,24 @@ import i18n from '@renderer/i18n'
 import type { ApiKeyWithStatus, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
 
+export function healthCheckErrorToDisplayString(error: ApiKeyWithStatus['error'] | string | undefined | null): string {
+  if (error == null) {
+    return ''
+  }
+  if (typeof error === 'string') {
+    return error.trim()
+  }
+  const msg = error.message?.trim()
+  if (msg) {
+    return msg
+  }
+  const name = error.name?.trim()
+  if (name) {
+    return name
+  }
+  return ''
+}
+
 export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   status: HealthStatus
   error?: string
@@ -12,14 +30,14 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   const failedResults = keyResults.filter((result) => result.status === HealthStatus.FAILED)
 
   if (failedResults.length > 0) {
-    const errors = failedResults
-      .map((result) => result.error)
-      .filter((value, index, array) => array.indexOf(value) === index)
-      .join('; ')
+    const errorStrings = failedResults
+      .map((result) => healthCheckErrorToDisplayString(result.error))
+      .filter((s) => s !== '')
+    const errors = [...new Set(errorStrings)].join('; ')
 
     return {
       status: HealthStatus.FAILED,
-      error: errors,
+      error: errors || undefined,
       latency: successResults.length > 0 ? Math.min(...successResults.map((result) => result.latency!)) : undefined
     }
   }

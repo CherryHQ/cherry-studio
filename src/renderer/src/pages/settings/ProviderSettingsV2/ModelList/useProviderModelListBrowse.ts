@@ -13,7 +13,6 @@ import {
   type ModelListCapabilityFilter,
   type ModelSections
 } from './modelListDerivedState'
-import { useModelListHealth } from './modelListHealthContext'
 
 export interface ModelListGroupItem {
   model: Model
@@ -58,6 +57,8 @@ export interface ProviderModelListBrowseSectionsSurface {
 
 interface UseProviderModelListBrowseArgs {
   providerId: string
+  /** Supplied by `ModelListHealthProvider` so this hook does not depend on health context. */
+  isHealthChecking?: boolean
 }
 
 const toGroupSections = (
@@ -73,10 +74,9 @@ const toGroupSections = (
   }))
 }
 
-export function useProviderModelListBrowse({ providerId }: UseProviderModelListBrowseArgs) {
+export function useProviderModelListBrowse({ providerId, isHealthChecking = false }: UseProviderModelListBrowseArgs) {
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { updateModel } = useModelMutations()
-  const { isHealthChecking } = useModelListHealth()
   const [searchText, setSearchTextState] = useState('')
   const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)

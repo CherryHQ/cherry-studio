@@ -24,8 +24,11 @@ interface ModelListProps {
 
 function ModelListContent({ providerId }: { providerId: string }) {
   const { t } = useTranslation()
-  const browse = useProviderModelListBrowse({ providerId })
   const health = useModelListHealth()
+  const browse = useProviderModelListBrowse({
+    providerId,
+    isHealthChecking: health.isHealthChecking
+  })
   const membership = useProviderModelMembership()
   const pullReconcile = useProviderModelPullReconcile(providerId)
   const { openOvmsModelDownload } = useOvmsModelDownloadAction(providerId)
