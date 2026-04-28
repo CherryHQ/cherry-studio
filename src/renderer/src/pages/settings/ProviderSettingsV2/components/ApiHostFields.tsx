@@ -1,6 +1,6 @@
-import { HelpTooltip, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { HelpTooltip, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import CherryINSettings from '@renderer/pages/settings/ProviderSettingsV2/CherryINSettings'
-import { Settings2 } from 'lucide-react'
+import { RotateCcw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderField from './ProviderField'
@@ -105,18 +105,20 @@ export function ApiHostField({
               onChange={(event) => setApiHost(event.target.value)}
               onBlur={onCommitApiHost}
             />
-            {isApiHostResettable && (
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  variant="destructive"
-                  size="sm"
-                  className="rounded-lg text-[12px]"
-                  onClick={onResetApiHost}>
-                  {t('settings.provider.api.url.reset')}
-                </InputGroupButton>
-              </InputGroupAddon>
-            )}
           </InputGroup>
+          {isApiHostResettable ? (
+            <Tooltip content={t('settings.provider.api.url.reset')}>
+              <span className="inline-flex shrink-0">
+                <button
+                  type="button"
+                  aria-label={t('settings.provider.api.url.reset')}
+                  className={fieldClasses.iconButton}
+                  onClick={onResetApiHost}>
+                  <RotateCcw size={12} />
+                </button>
+              </span>
+            </Tooltip>
+          ) : null}
           <Tooltip content={t('settings.provider.copilot.custom_headers')}>
             <span className={fieldClasses.inputRowEndSlot}>
               <button type="button" className={fieldClasses.iconButton} onClick={onOpenCustomHeaders}>

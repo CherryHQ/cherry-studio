@@ -1,25 +1,22 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
-import type { ModelSyncMissingAction } from '@shared/data/api/schemas/providers'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ModelTagsWithLabelV2 from '../components/ModelTagsWithLabelV2'
 import { modelSyncClasses } from '../components/ProviderSettingsPrimitives'
+import type { ProviderSettingsDisplayModel } from '../config/models/types'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import ModelSyncReferenceImpact from './ModelSyncReferenceImpact'
+import type { ModelPullApplyPayload } from './useModelListSyncSelections'
+import { useModelListSyncSelections } from './useModelListSyncSelections'
 
 interface ModelSyncPreviewPanelProps {
   preview: ModelSyncPreviewResponse
-  selectedAddedIds: Set<UniqueModelId>
-  selectedMissingActions: Map<UniqueModelId, ModelSyncMissingAction>
   isApplying: boolean
-  onToggleAdded: (uniqueModelId: UniqueModelId) => void
-  onToggleMissing: (uniqueModelId: UniqueModelId) => void
-  onToggleMissingAction: (uniqueModelId: UniqueModelId) => void
-  onToggleAllAdded: () => void
-  onToggleAllMissing: () => void
-  onApply: () => void
+  onApply: (payload: ModelPullApplyPayload) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -35,27 +32,33 @@ function ModelGlyph({ model }: { model: Model }) {
 /**
  * Pull preview — layout aligned with `cherry-studio-ui-design` `ModelServicePage` `FetchResultPanel`.
  */
-export default function ModelSyncPreviewPanel({
-  preview,
-  selectedAddedIds,
-  selectedMissingActions,
-  isApplying,
-  onToggleAdded,
-  onToggleMissing,
-  onToggleMissingAction,
-  onToggleAllAdded,
-  onToggleAllMissing,
-  onApply,
-  onCancel
-}: ModelSyncPreviewPanelProps) {
+export default function ModelSyncPreviewPanel({ preview, isApplying, onApply, onCancel }: ModelSyncPreviewPanelProps) {
   const { t } = useTranslation()
 
-  const totalSelected = selectedAddedIds.size + selectedMissingActions.size
+  const {
+    selectedAddedIds,
+    selectedMissingIds,
+    toggleAddedSelection,
+    toggleMissingSelection,
+    toggleAllAdded,
+    toggleAllMissing,
+    totalSelected,
+    allAddedSelected,
+    allMissingSelected,
+    getApplyPayload
+  } = useModelListSyncSelections(preview)
+
+  const handleApply = useCallback(() => {
+    const payload = getApplyPayload()
+    if (!payload) {
+      return
+    }
+    void onApply(payload)
+  }, [getApplyPayload, onApply])
+
   const hasNew = preview.added.length > 0
   const hasMissing = preview.missing.length > 0
   const hasChanges = hasNew || hasMissing
-  const allAddedSelected = hasNew && selectedAddedIds.size === preview.added.length
-  const allMissingSelected = hasMissing && selectedMissingActions.size === preview.missing.length
 
   return (
     <div className={modelSyncClasses.fetchRoot}>
@@ -83,10 +86,9 @@ export default function ModelSyncPreviewPanel({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 disabled={isApplying}
                 className={modelSyncClasses.fetchGhostAll}
-                onClick={onToggleAllAdded}>
+                onClick={toggleAllAdded}>
                 {allAddedSelected
                   ? t('settings.models.manage.fetch_deselect_all_add')
                   : t('settings.models.manage.fetch_select_all_add')}
@@ -102,11 +104,11 @@ export default function ModelSyncPreviewPanel({
                     tabIndex={0}
                     className={modelSyncClasses.fetchRowNew}
                     data-checked={checked}
-                    onClick={() => onToggleAdded(model.id)}
+                    onClick={() => toggleAddedSelection(model.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        onToggleAdded(model.id)
+                        toggleAddedSelection(model.id)
                       }
                     }}>
                     <span
@@ -117,7 +119,7 @@ export default function ModelSyncPreviewPanel({
                         checked={checked}
                         disabled={isApplying}
                         className={modelSyncClasses.checkbox}
-                        onCheckedChange={() => onToggleAdded(model.id)}
+                        onCheckedChange={() => toggleAddedSelection(model.id)}
                       />
                     </span>
                     <ModelGlyph model={model} />
@@ -128,6 +130,9 @@ export default function ModelSyncPreviewPanel({
                     {model.contextWindow != null && model.contextWindow > 0 ? (
                       <span className="shrink-0 text-muted-foreground/60 text-xs">{model.contextWindow}</span>
                     ) : null}
+                    <div className={modelSyncClasses.fetchCapabilityStrip}>
+                      <ModelTagsWithLabelV2 model={model as ProviderSettingsDisplayModel} size={8} showLabel={false} />
+                    </div>
                   </div>
                 )
               })}
@@ -148,10 +153,9 @@ export default function ModelSyncPreviewPanel({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 disabled={isApplying}
                 className={modelSyncClasses.fetchGhostAllRemoved}
-                onClick={onToggleAllMissing}>
+                onClick={toggleAllMissing}>
                 {allMissingSelected
                   ? t('settings.models.manage.fetch_deselect_all_remove')
                   : t('settings.models.manage.fetch_select_all_remove')}
@@ -164,8 +168,7 @@ export default function ModelSyncPreviewPanel({
               </div>
               <div className="space-y-[2px]">
                 {preview.missing.map((item) => {
-                  const checked = selectedMissingActions.has(item.model.id)
-                  const action = selectedMissingActions.get(item.model.id) ?? item.defaultAction
+                  const checked = selectedMissingIds.has(item.model.id)
                   return (
                     <div key={item.model.id}>
                       <div
@@ -173,11 +176,11 @@ export default function ModelSyncPreviewPanel({
                         tabIndex={0}
                         className={modelSyncClasses.fetchRowRemoved}
                         data-checked={checked}
-                        onClick={() => onToggleMissing(item.model.id)}
+                        onClick={() => toggleMissingSelection(item.model.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
-                            onToggleMissing(item.model.id)
+                            toggleMissingSelection(item.model.id)
                           }
                         }}>
                         <span
@@ -188,7 +191,7 @@ export default function ModelSyncPreviewPanel({
                             checked={checked}
                             disabled={isApplying}
                             className={modelSyncClasses.checkbox}
-                            onCheckedChange={() => onToggleMissing(item.model.id)}
+                            onCheckedChange={() => toggleMissingSelection(item.model.id)}
                           />
                         </span>
                         <ModelGlyph model={item.model} />
@@ -198,31 +201,24 @@ export default function ModelSyncPreviewPanel({
                             {modelIdLine(item.model.id, item.model.apiModelId)}
                           </p>
                         </div>
-                      </div>
-                      {checked && item.canDelete ? (
-                        <div className="mt-1.5 ps-8">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isApplying}
-                            className={modelSyncClasses.toggleButton}
-                            onClick={() => onToggleMissingAction(item.model.id)}>
-                            {action === 'delete'
-                              ? t('settings.models.manage.sync_switch_to_deprecate')
-                              : t('settings.models.manage.sync_switch_to_delete')}
-                          </Button>
+                        {item.model.contextWindow != null && item.model.contextWindow > 0 ? (
+                          <span className="shrink-0 text-muted-foreground/60 text-xs">{item.model.contextWindow}</span>
+                        ) : null}
+                        <div className={modelSyncClasses.fetchCapabilityStrip}>
+                          <ModelTagsWithLabelV2
+                            model={item.model as ProviderSettingsDisplayModel}
+                            size={8}
+                            showLabel={false}
+                          />
                         </div>
-                      ) : null}
+                      </div>
                       {item.strongReferenceCount > 0 || item.replacement || item.preferenceReferences.length > 0 ? (
                         <div className="mt-1.5 space-y-0.5 ps-8 text-[length:var(--font-size-caption)] text-muted-foreground/70">
                           <span>
                             {item.strongReferenceCount > 0
                               ? t('settings.models.manage.sync_references', { count: item.strongReferenceCount })
                               : t('settings.models.manage.sync_no_references')}
-                            {action === 'delete'
-                              ? ` · ${t('common.delete')}`
-                              : ` · ${t('settings.models.manage.sync_will_deprecate')}`}
+                            {` · ${t('common.delete')}`}
                             {item.replacement
                               ? ` · ${t('settings.models.manage.sync_replacement', {
                                   model: parseUniqueModelId(item.replacement).modelId
@@ -267,7 +263,7 @@ export default function ModelSyncPreviewPanel({
               <span className="inline-flex items-center gap-1">
                 <Trash2 className="size-2 text-destructive/60" aria-hidden />
                 {t('settings.models.manage.fetch_summary_remove', {
-                  selected: selectedMissingActions.size,
+                  selected: selectedMissingIds.size,
                   total: preview.missing.length
                 })}
               </span>
@@ -277,7 +273,6 @@ export default function ModelSyncPreviewPanel({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               disabled={isApplying}
               className={modelSyncClasses.fetchFooterBtn}
               onClick={onCancel}>
@@ -285,22 +280,16 @@ export default function ModelSyncPreviewPanel({
             </Button>
             <Button
               type="button"
-              size="sm"
               disabled={isApplying || totalSelected === 0}
-              className={modelSyncClasses.fetchFooterBtn}
-              onClick={onApply}>
+              className={modelSyncClasses.fetchFooterPrimary}
+              onClick={handleApply}>
               {t('settings.models.manage.sync_apply_changes')}
             </Button>
           </div>
         </div>
       ) : (
         <div className={modelSyncClasses.fetchFooter}>
-          <Button
-            type="button"
-            size="sm"
-            className={modelSyncClasses.fetchOkBtn}
-            disabled={isApplying}
-            onClick={onCancel}>
+          <Button type="button" className={modelSyncClasses.fetchOkBtn} disabled={isApplying} onClick={onCancel}>
             {t('settings.models.manage.fetch_ok')}
           </Button>
         </div>

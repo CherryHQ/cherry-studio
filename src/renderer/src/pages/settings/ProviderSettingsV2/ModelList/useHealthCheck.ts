@@ -5,10 +5,9 @@ import { isRerankModel } from '@renderer/pages/settings/ProviderSettingsV2/confi
 import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettingsV2/services/HealthCheckService'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
-import { summarizeHealthResults } from '@renderer/pages/settings/ProviderSettingsV2/utils/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
 import { isEmpty } from 'lodash'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 
@@ -19,6 +18,12 @@ export const useHealthCheck = (providerId: string) => {
   const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const [healthCheckOpen, setHealthCheckOpen] = useState(false)
+
+  useEffect(() => {
+    setModelStatuses([])
+    setIsChecking(false)
+    setHealthCheckOpen(false)
+  }, [providerId])
 
   const enabledApiKeys = useMemo(
     () =>
@@ -37,6 +42,11 @@ export const useHealthCheck = (providerId: string) => {
 
   const closeHealthCheck = useCallback(() => {
     setHealthCheckOpen(false)
+  }, [])
+
+  const resetHealthCheckRun = useCallback(() => {
+    setModelStatuses([])
+    setIsChecking(false)
   }, [])
 
   const startHealthCheck = useCallback(
@@ -65,7 +75,7 @@ export const useHealthCheck = (providerId: string) => {
       setModelStatuses(initialStatuses)
       setIsChecking(true)
 
-      const checkResults = await checkModelsHealth(
+      await checkModelsHealth(
         {
           provider,
           models: modelsToCheck,
@@ -88,13 +98,7 @@ export const useHealthCheck = (providerId: string) => {
         }
       )
 
-      window.toast.info({
-        timeout: 5000,
-        title: summarizeHealthResults(checkResults, provider.name)
-      })
-
       setIsChecking(false)
-      setHealthCheckOpen(false)
     },
     [models, provider]
   )
@@ -106,6 +110,7 @@ export const useHealthCheck = (providerId: string) => {
     healthCheckOpen,
     openHealthCheck,
     closeHealthCheck,
+    resetHealthCheckRun,
     startHealthCheck
   }
 }

@@ -1,13 +1,8 @@
 import { Avatar, AvatarFallback, RowFlex, Switch } from '@cherrystudio/ui'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { getModelLogo } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
-import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
-import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import { cn } from '@renderer/utils'
-import { maskApiKey } from '@renderer/utils/api'
 import type { Model } from '@shared/data/types/model'
-import React, { memo, useCallback, useMemo } from 'react'
+import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FreeTrialModelTagV2 } from '../components/FreeTrialModelTagV2'
@@ -17,7 +12,6 @@ import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
-  modelStatus: ModelWithStatus | undefined
   showIdentifier?: boolean
   disabled?: boolean
   onEdit: (model: Model) => void
@@ -27,43 +21,13 @@ interface ModelListItemProps {
 const ModelListItem: React.FC<ModelListItemProps> = ({
   ref,
   model,
-  modelStatus,
   showIdentifier = false,
   disabled,
   onEdit,
   onToggleEnabled
 }) => {
   const { t } = useTranslation()
-  const isChecking = modelStatus?.checking === true
   const shouldShowIdentifier = showIdentifier && model.id !== model.name
-
-  const healthResults = useMemo(
-    () =>
-      modelStatus?.keyResults?.map((keyResult) => ({
-        status: keyResult.status,
-        latency: keyResult.latency,
-        error: keyResult.error,
-        label: maskApiKey(keyResult.key)
-      })) || [],
-    [modelStatus?.keyResults]
-  )
-
-  const hasFailedResult = useMemo(
-    () => healthResults.some((result) => result.status === HealthStatus.FAILED),
-    [healthResults]
-  )
-
-  const handleErrorClick = useMemo(() => {
-    if (!hasFailedResult) {
-      return undefined
-    }
-
-    return (result: HealthResult) => {
-      if (result.error) {
-        showErrorDetailPopup({ error: result.error })
-      }
-    }
-  }, [hasFailedResult])
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -75,30 +39,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
     },
     [model, onToggleEnabled]
   )
-
-  const metaLine = useMemo(() => {
-    const parts: string[] = []
-
-    if (model.pricing?.input?.perMillionTokens != null) {
-      parts.push(`Input $${model.pricing.input.perMillionTokens.toFixed(2)}/M`)
-    }
-
-    if (model.pricing?.output?.perMillionTokens != null) {
-      parts.push(`Output $${model.pricing.output.perMillionTokens.toFixed(2)}/M`)
-    }
-
-    if (model.contextWindow) {
-      const contextLabel =
-        model.contextWindow >= 1_000_000
-          ? `${Math.round(model.contextWindow / 1_000_000)}M`
-          : model.contextWindow >= 1_000
-            ? `${Math.round(model.contextWindow / 1_000)}K`
-            : `${model.contextWindow}`
-      parts.push(contextLabel)
-    }
-
-    return parts.join(' · ')
-  }, [model.contextWindow, model.pricing?.input?.perMillionTokens, model.pricing?.output?.perMillionTokens])
 
   return (
     <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')} onClick={handleEdit}>
@@ -124,21 +64,12 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
               </span>
             )}
           </div>
-          {metaLine ? <div className={modelListClasses.rowMeta}>{metaLine}</div> : null}
         </div>
       </RowFlex>
       <RowFlex className={modelListClasses.rowActions}>
-        <div className={modelListClasses.healthStatusSlot}>
-          <HealthStatusIndicator
-            results={healthResults}
-            loading={isChecking}
-            showLatency
-            onErrorClick={handleErrorClick}
-          />
-        </div>
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
-            <ModelTagsWithLabelV2 model={model} size={11} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+            <ModelTagsWithLabelV2 model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
             <FreeTrialModelTagV2 modelId={model.id} providerId={model.providerId} />
           </div>
           <div onClick={(event) => event.stopPropagation()}>

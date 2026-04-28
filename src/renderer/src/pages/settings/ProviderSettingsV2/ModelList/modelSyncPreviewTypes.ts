@@ -7,6 +7,12 @@ import { ModelSyncReferenceImpactSchema } from '@shared/data/api/schemas/provide
 import { ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
+/** Client-only: optional catalog preset trace for sync diff (not on shared `Model`). */
+export const ModelSyncPreviewModelSchema = ModelSchema.extend({
+  presetModelId: z.string().nullable().optional()
+})
+export type ModelSyncPreviewModel = z.infer<typeof ModelSyncPreviewModelSchema>
+
 export const ModelSyncReplacementSuggestionSchema = z.strictObject({
   uniqueModelId: UniqueModelIdSchema,
   replacement: UniqueModelIdSchema.optional()
@@ -14,9 +20,7 @@ export const ModelSyncReplacementSuggestionSchema = z.strictObject({
 export type ModelSyncReplacementSuggestion = z.infer<typeof ModelSyncReplacementSuggestionSchema>
 
 export const ModelSyncPreviewMissingItemSchema = z.strictObject({
-  model: ModelSchema,
-  canDelete: z.boolean(),
-  defaultAction: z.literal('deprecated'),
+  model: ModelSyncPreviewModelSchema,
   assistantCount: z.number().int().nonnegative(),
   knowledgeCount: z.number().int().nonnegative(),
   preferenceReferences: z.array(z.string()),
@@ -33,7 +37,7 @@ export const ModelSyncReferenceSummarySchema = z.strictObject({
 export type ModelSyncReferenceSummary = z.infer<typeof ModelSyncReferenceSummarySchema>
 
 export const ModelSyncPreviewResponseSchema = z.strictObject({
-  added: z.array(ModelSchema),
+  added: z.array(ModelSyncPreviewModelSchema),
   missing: z.array(ModelSyncPreviewMissingItemSchema),
   referenceSummary: ModelSyncReferenceSummarySchema,
   replacementSuggestions: z.array(ModelSyncReplacementSuggestionSchema)

@@ -3,23 +3,12 @@ import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
-import {
-  groupQwenModels,
-  isEmbeddingModel,
-  isFreeModel,
-  isFunctionCallingModel,
-  isReasoningModel,
-  isRerankModel,
-  isVisionModel,
-  isWebSearchModel
-} from '@renderer/pages/settings/ProviderSettingsV2/config/models'
-import { getFancyProviderName, isNewApiProvider } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
+import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { cn } from '@renderer/utils'
 import { getDefaultGroupName } from '@renderer/utils'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { debounce, groupBy, isEmpty, uniqBy } from 'lodash'
+import { isEmpty } from 'lodash'
 import {
   ArrowDownWideNarrow,
   Brain,
@@ -36,60 +25,55 @@ import {
   X
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../components/ProviderActions'
 import ProviderSettingsDrawer from '../components/ProviderSettingsDrawer'
-import { normalizeModelGroupName } from './grouping'
+import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import ManageModelsList from './ManageModelsList'
 import { getModelApiId, splitModelIds } from './ModelDrawer/helpers'
-import { fetchResolvedProviderModels, toCreateModelDto } from './modelSync'
-import { filterProviderSettingModelsByKeywords } from './utils'
+import { toCreateModelDto } from './modelSync'
+import { useManageModelsDrawerBrowse } from './useManageModelsDrawerBrowse'
 
 const logger = loggerService.withContext('ManageModelsDrawer')
 
 interface ManageModelsDrawerProps {
   open: boolean
   providerId: string
-  openWithInlineCustomAdd: boolean
-  onConsumeOpenWithInlineCustomAdd: () => void
   onClose: () => void
 }
 
-export default function ManageModelsDrawer({
-  open,
-  providerId,
-  openWithInlineCustomAdd,
-  onConsumeOpenWithInlineCustomAdd,
-  onClose
-}: ManageModelsDrawerProps) {
+export default function ManageModelsDrawer({ open, providerId, onClose }: ManageModelsDrawerProps) {
   const { provider } = useProvider(providerId)
   const { models: existingModels, refetch: refetchExistingModels } = useModels({ providerId })
   const { createModel, deleteModel, updateModel } = useModelMutations()
-  const existingModelIds = useMemo(() => new Set<string>(existingModels.map((m) => m.id)), [existingModels])
-  const existingById = useMemo(() => new Map(existingModels.map((m) => [m.id, m] as const)), [existingModels])
-  const [listModels, setListModels] = useState<Model[]>([])
-  const [loadingModels, setLoadingModels] = useState(false)
-  const [searchText, setSearchText] = useState('')
-  const [filterSearchText, setFilterSearchText] = useState('')
-  const [actualFilterType, setActualFilterType] = useState<string>('all')
-  const [optimisticFilterType, setOptimisticFilterType] = useOptimistic(
-    actualFilterType,
-    (_current, next: string) => next
-  )
-  const [isSearchPending, startSearchTransition] = useTransition()
-  const [isFilterTypePending, startFilterTypeTransition] = useTransition()
-  const [isStatusPending, startStatusTransition] = useTransition()
-  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
-  const [optimisticStatusFilter, setOptimisticStatusFilter] = useOptimistic(
-    statusFilter,
-    (_c, next: 'all' | 'enabled' | 'disabled') => next
-  )
+
+  const {
+    loadingModels,
+    loadModels,
+    searchText,
+    searchInputRef,
+    onSearchInputChange,
+    optimisticStatusFilter,
+    setStatusFilterKey,
+    optimisticFilterType,
+    setCapabilityFilterKey,
+    modelGroups,
+    existingModelIds,
+    existingById,
+    list,
+    browseLoading
+  } = useManageModelsDrawerBrowse({
+    open,
+    providerId,
+    provider,
+    existingModels
+  })
+
   const [customAddExpanded, setCustomAddExpanded] = useState(false)
   const [customAddModelId, setCustomAddModelId] = useState('')
   const [customAddSubmitting, setCustomAddSubmitting] = useState(false)
-  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const customAddInputRef = useRef<HTMLInputElement | null>(null)
   const { t } = useTranslation()
 
@@ -108,132 +92,13 @@ export default function ManageModelsDrawer({
     [t]
   )
 
-  const debouncedSetFilterText = useMemo(
-    () =>
-      debounce((value: string) => {
-        startSearchTransition(() => {
-          setFilterSearchText(value)
-        })
-      }, 300),
-    []
-  )
-
-  useEffect(() => {
-    return () => {
-      debouncedSetFilterText.cancel()
-    }
-  }, [debouncedSetFilterText])
-
-  const allModels = useMemo(() => uniqBy([...listModels, ...existingModels], 'id'), [existingModels, listModels])
-
-  const capabilityFiltered = useMemo(
-    () =>
-      filterProviderSettingModelsByKeywords(filterSearchText, allModels).filter((model) => {
-        switch (actualFilterType) {
-          case 'reasoning':
-            return isReasoningModel(model)
-          case 'vision':
-            return isVisionModel(model)
-          case 'websearch':
-            return isWebSearchModel(model)
-          case 'free':
-            return isFreeModel(model)
-          case 'embedding':
-            return isEmbeddingModel(model)
-          case 'function_calling':
-            return isFunctionCallingModel(model)
-          case 'rerank':
-            return isRerankModel(model)
-          default:
-            return true
-        }
-      }),
-    [actualFilterType, allModels, filterSearchText]
-  )
-
-  const list = useMemo(() => {
-    return capabilityFiltered.filter((model) => {
-      const inProvider = existingModelIds.has(model.id)
-      const enabled = inProvider ? (existingById.get(model.id)?.isEnabled ?? true) : false
-      switch (statusFilter) {
-        case 'enabled':
-          return inProvider && enabled
-        case 'disabled':
-          return !inProvider || !enabled
-        default:
-          return true
-      }
-    })
-  }, [capabilityFiltered, existingById, existingModelIds, statusFilter])
-
-  const modelGroups: Record<string, Model[]> = useMemo(() => {
-    const groupFn = (model: Model) => normalizeModelGroupName(model.group, provider?.id)
-    if (provider?.id === 'dashscope') {
-      const isQwen = (model: Model) => parseUniqueModelId(model.id).modelId.startsWith('qwen')
-      const qwenModels = list.filter(isQwen)
-      const nonQwenModels = list.filter((model) => !isQwen(model))
-      return {
-        ...groupBy(nonQwenModels, groupFn),
-        ...groupQwenModels(qwenModels)
-      }
-    }
-
-    return groupBy(list, groupFn)
-  }, [list, provider?.id])
-
-  const browseLoading = loadingModels || isSearchPending || isFilterTypePending || isStatusPending
-
-  const loadModels = useCallback(
-    async (currentProvider: Provider) => {
-      setLoadingModels(true)
-      try {
-        setListModels(await fetchResolvedProviderModels(providerId, currentProvider))
-      } catch (error) {
-        logger.error(`Failed to load models for provider ${getFancyProviderName(currentProvider)}`, error as Error)
-      } finally {
-        setLoadingModels(false)
-      }
-    },
-    [providerId]
-  )
-
-  useEffect(() => {
-    if (!open || !provider) {
-      return
-    }
-    void loadModels(provider)
-  }, [loadModels, open, provider])
-
   useEffect(() => {
     if (!open) {
-      setStatusFilter('all')
       setCustomAddExpanded(false)
       setCustomAddModelId('')
       setCustomAddSubmitting(false)
-      return
     }
-
-    if (openWithInlineCustomAdd) {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      searchInputRef.current?.focus()
-    }, 100)
-
-    return () => window.clearTimeout(timer)
-  }, [open, openWithInlineCustomAdd])
-
-  useEffect(() => {
-    if (open && openWithInlineCustomAdd) {
-      setCustomAddExpanded(true)
-      setCustomAddModelId('')
-      onConsumeOpenWithInlineCustomAdd()
-      window.setTimeout(() => {
-        customAddInputRef.current?.focus()
-      }, 0)
-    }
-  }, [open, openWithInlineCustomAdd, onConsumeOpenWithInlineCustomAdd])
+  }, [open])
 
   const cancelInlineCustomModel = useCallback(() => {
     setCustomAddExpanded(false)
@@ -391,12 +256,12 @@ export default function ManageModelsDrawer({
     }
 
     return (
-      <div className="flex w-full min-w-0 items-center justify-between gap-2">
+      <div className="flex w-full min-w-0 flex-shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-semibold text-foreground text-sm">
             {t('settings.models.manage.drawer_title')}
           </span>
-          <span className="shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-muted-foreground/60 text-xs tabular-nums">
+          <span className={modelListClasses.manageDrawerCountBadge}>
             {enabledInProviderCount} / {existingModels.length}
           </span>
         </div>
@@ -404,20 +269,34 @@ export default function ManageModelsDrawer({
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             disabled={loadingModels || existingModels.length === 0 || allEnabledInProvider}
-            className="h-auto min-h-0 gap-1 rounded-[var(--radius-control)] px-1.5 py-[2px] text-muted-foreground/60 text-xs hover:bg-accent hover:text-primary has-[>svg]:px-1.5"
+            className={cn(
+              modelListClasses.manageDrawerBulkGhost,
+              modelListClasses.manageDrawerBulkGhostEnableHover,
+              '!text-muted-foreground/60'
+            )}
             onClick={() => void onEnableAllInProvider()}>
             {t('settings.models.bulk_enable')}
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="sm"
             disabled={loadingModels || existingModels.length === 0 || allDisabledInProvider}
-            className="h-auto min-h-0 gap-1 rounded-[var(--radius-control)] px-1.5 py-[2px] text-muted-foreground/60 text-xs hover:bg-accent hover:text-destructive has-[>svg]:px-1.5"
+            className={cn(
+              modelListClasses.manageDrawerBulkGhost,
+              modelListClasses.manageDrawerBulkGhostDisableHover,
+              '!text-muted-foreground/60'
+            )}
             onClick={() => void onDisableAllInProvider()}>
             {t('settings.models.bulk_disable')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t('common.close')}
+            className={modelListClasses.manageDrawerCloseInTitle}
+            onClick={onClose}>
+            <X size={11} aria-hidden />
           </Button>
         </div>
       </div>
@@ -430,6 +309,7 @@ export default function ManageModelsDrawer({
     loadingModels,
     onDisableAllInProvider,
     onEnableAllInProvider,
+    onClose,
     provider,
     t
   ])
@@ -439,8 +319,7 @@ export default function ManageModelsDrawer({
       <Button
         type="button"
         variant="outline"
-        size="sm"
-        className="h-auto min-h-0 gap-1.5 px-2.5 py-1.5 text-muted-foreground text-xs hover:bg-accent hover:text-foreground"
+        className={cn(modelListClasses.fetchOutline, '!h-auto !min-h-0 text-xs')}
         disabled={loadingModels || !provider}
         onClick={() => {
           if (provider) {
@@ -451,7 +330,7 @@ export default function ManageModelsDrawer({
         {t('settings.models.manage.reload_catalog')}
       </Button>
       <div className="min-w-0 flex-1" />
-      <Button type="button" size="sm" className="h-auto min-h-0 px-3 py-1 text-xs" onClick={onClose}>
+      <Button type="button" className="!shadow-none h-auto min-h-0 px-3 py-1 text-xs" onClick={onClose}>
         {t('settings.models.manage.footer_done')}
       </Button>
     </ProviderActions>
@@ -464,21 +343,20 @@ export default function ManageModelsDrawer({
       title={panelTitle}
       footer={panelFooter}
       size="manage"
+      showHeaderCloseButton={false}
       bodyClassName="min-h-0 flex-1 flex-col overflow-hidden !gap-0 !py-0">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="shrink-0 pt-3 pb-1.5">
-          <div className="flex items-center gap-2 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 py-[5px]">
-            <Search className="size-2.5 shrink-0 text-muted-foreground/40" aria-hidden />
+          <div className={modelListClasses.searchWrap}>
+            <Search className={modelListClasses.searchIcon} aria-hidden />
             <input
               ref={searchInputRef}
               value={searchText}
               disabled={loadingModels}
               placeholder={t('settings.models.manage.search_models_placeholder')}
-              className="h-auto min-w-0 flex-1 border-none bg-transparent p-0 text-foreground text-sm shadow-none outline-none ring-0 placeholder:text-muted-foreground/60 focus-visible:ring-0"
+              className={modelListClasses.searchInput}
               onChange={(event) => {
-                const nextValue = event.target.value
-                setSearchText(nextValue)
-                debouncedSetFilterText(nextValue)
+                onSearchInputChange(event.target.value)
               }}
             />
           </div>
@@ -499,17 +377,12 @@ export default function ManageModelsDrawer({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'h-auto min-h-0 gap-1 rounded-full px-2 py-[2px] font-medium text-xs',
+                  modelListClasses.manageDrawerFilterChipBase,
                   optimisticStatusFilter === item.key
-                    ? 'bg-accent/50 text-background'
-                    : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'
+                    ? modelListClasses.manageDrawerFilterChipActive
+                    : modelListClasses.manageDrawerFilterChipIdle
                 )}
-                onClick={() => {
-                  setOptimisticStatusFilter(item.key)
-                  startStatusTransition(() => {
-                    setStatusFilter(item.key)
-                  })
-                }}>
+                onClick={() => setStatusFilterKey(item.key)}>
                 {item.label}
               </Button>
             ))}
@@ -522,17 +395,12 @@ export default function ManageModelsDrawer({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] font-medium text-xs',
+                  modelListClasses.manageDrawerCapChipBase,
                   optimisticFilterType === key
-                    ? 'bg-accent/50 text-background'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                    ? modelListClasses.manageDrawerCapChipActive
+                    : modelListClasses.manageDrawerCapChipIdle
                 )}
-                onClick={() => {
-                  setOptimisticFilterType(key)
-                  startFilterTypeTransition(() => {
-                    setActualFilterType(key)
-                  })
-                }}>
+                onClick={() => setCapabilityFilterKey(key)}>
                 <Icon className="size-2 min-[380px]:size-2.5" aria-hidden />
                 {label}
               </Button>
@@ -550,7 +418,11 @@ export default function ManageModelsDrawer({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto py-1">
               {isEmpty(list) ? (
-                <div className="flex min-h-40 flex-col items-center justify-center px-6 py-8 text-center text-[13px] text-muted-foreground/75">
+                <div
+                  className={cn(
+                    modelListClasses.emptyState,
+                    'min-h-32 border-none bg-transparent py-8 text-[length:var(--font-size-body-sm)]'
+                  )}>
                   {t('settings.models.empty')}
                 </div>
               ) : (

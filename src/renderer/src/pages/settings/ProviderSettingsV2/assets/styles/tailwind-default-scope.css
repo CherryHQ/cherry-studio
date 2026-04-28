@@ -57,6 +57,8 @@
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
+  /* `cherry-studio-ui-design` ModelServicePage Connection Config — `rounded-[var(--radius-button)]` */
+  --radius-button: var(--radius-lg);
   /* `cherry-studio-ui-design` ModelServicePage provider column — `border-section-border` */
   --section-border: #f0f0ef;
   --sidebar: oklch(0.985 0 0);

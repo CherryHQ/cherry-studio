@@ -9,7 +9,7 @@ import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import ModelListCapabilityChips from './ModelListCapabilityChips'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 
-interface ModelListHeaderProps {
+export interface ModelListHeaderProps {
   enabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean

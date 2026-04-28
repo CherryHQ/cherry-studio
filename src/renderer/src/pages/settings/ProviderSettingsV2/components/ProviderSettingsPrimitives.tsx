@@ -12,7 +12,8 @@ import type { ReactNode } from 'react'
  * - **CSS** — `assets/styles/tailwind-default-scope.css`: atomic vars only (`--font-size-*`, `--space-*`, soft
  *   surfaces, `--color-*` → shadcn/Tailwind). No screen- or feature-prefixed names. When mock px hurts a11y /
  *   readability, prefer named steps and note the tradeoff in a CSS comment.
- * - **TS (this file)** — merge atoms into `actionClasses`, `fieldClasses`, `modelListClasses`, `apiKeyListClasses`.
+ * - **TS (this file)** — merge atoms into `actionClasses`, `fieldClasses`, `modelListClasses`, `providerDetailColumnClasses`,
+ *   `apiKeyListClasses`, …
  *   Use `var(--*)` in class strings; avoid scattered `text-[Npx]` and inline `fontWeight` styles.
  *
  * **Rules (short)** — Do not satisfy this page by editing global `:root` unless product wants a global change.
@@ -33,14 +34,35 @@ export const providerSettingsTypography = {
  * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
  * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
  */
+/** `ModelServicePage` Connection — `bg-muted/50` strip + `border-section-border` (`tailwind-default-scope.css`). */
 const providerSettingsInputGroupBase =
-  'rounded-lg border border-[color:color-mix(in_srgb,var(--border)_30%,transparent)] bg-foreground/[0.03] px-2.5 py-[5px] shadow-none'
+  'rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 py-[5px] shadow-none'
 
 /** 连接认证、`ProviderSection`：14px、`/85`、section label 行高；字重用 scope `--font-weight-medium`。 */
 const sectionHeadingBase =
   'm-0 text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-section-label)]'
 
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
+
+/**
+ * `cherry-studio-ui-design` ModelServicePage — 「连接认证」卡片：描边容器 + 卡内小号标题（区别于模型列表 semibold tier）。
+ */
+export const authConnectionClasses = {
+  shell: 'rounded-[length:var(--radius-button)] border border-[color:var(--section-border)] px-3.5 py-3',
+  blockTitle: 'mb-2.5 text-xs font-[weight:var(--font-weight-medium)] text-foreground/70',
+  body: 'space-y-2.5'
+} as const
+
+/**
+ * Provider detail column (`ProviderSetting.tsx`) — padding + scrollbar + gap between Authentication + ModelList.
+ * Mirrors `ModelServicePage` provider column scroll: `flex-1 overflow-y-auto px-5 py-4` … `gap-4` / `space-y-4`.
+ */
+export const providerDetailColumnClasses = {
+  headerPad: 'shrink-0 px-5 py-3.5',
+  scrollStrip:
+    'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[3px]',
+  sectionStack: 'flex min-h-full w-full min-w-0 flex-col gap-4'
+} as const
 
 /** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
 export const actionClasses = {
@@ -86,6 +108,28 @@ export const providerListClasses = {
   itemMenuContent:
     'provider-settings-default-scope rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-1.5 shadow-2xl',
   itemMenuEntry: 'rounded-xl px-3 py-[6px] text-sm hover:bg-[var(--color-surface-hover-soft)]'
+} as const
+
+/**
+ * `cherry-studio-ui-design` `ModelServicePage` — custom request headers side panel (one card per header).
+ */
+export const customHeaderDrawerClasses = {
+  headerTitleRow: 'flex w-full min-w-0 items-center justify-between gap-2',
+  headerTitleText: 'truncate font-semibold text-foreground text-sm',
+  bodyScroll: 'flex flex-col gap-2.5 py-3',
+  card: 'space-y-1.5 rounded-xl border border-[color:var(--section-border)] bg-muted/50 p-2.5',
+  cardRow: 'flex items-center gap-1.5',
+  cardRowLabel: 'w-10 shrink-0 text-xs text-muted-foreground/40',
+  cardInput:
+    'min-w-0 flex-1 border-0 border-b border-[color:var(--section-border)] bg-transparent p-0 pb-0.5 text-sm text-muted-foreground shadow-none outline-none focus-visible:ring-0 placeholder:text-muted-foreground/50',
+  cardRemoveRow: 'flex justify-end',
+  removeIconButton:
+    'size-6 text-destructive/50 shadow-none hover:bg-transparent hover:text-destructive [&_svg]:size-[9px]',
+  addRowButton:
+    'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[color:var(--section-border)] py-2 text-xs text-muted-foreground/40 shadow-none hover:border-[color:var(--section-border)] hover:text-foreground',
+  footerOutlineBtn:
+    'h-auto px-2.5 py-1 text-xs text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground',
+  footerPrimaryBtn: 'h-auto px-3 py-1 text-xs'
 } as const
 
 export const drawerClasses = {
@@ -198,6 +242,34 @@ export const modelListClasses = {
     'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-(--color-muted-foreground)',
   listScroller:
     '-mx-1 min-h-0 min-w-0 w-full flex-1 overflow-x-hidden overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[2px]',
+  /**
+   * `ModelServicePage` `ModelManagementPanel` — grouped catalog inside manage drawer (flat headers, no collapse).
+   */
+  manageListGroupShell: 'mb-1',
+  manageListGroupHeader: 'flex items-center gap-1.5 px-1 py-[3px]',
+  manageListGroupTitle:
+    'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-muted-foreground',
+  manageListGroupRule: 'h-px min-w-0 flex-1 bg-muted/50',
+  manageListRow: 'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
+  manageListRowLast: 'mb-0.5',
+  manageDrawerFilterChipBase: 'h-auto min-h-0 rounded-full px-2 py-[2px] font-medium text-xs transition-colors',
+  manageDrawerFilterChipActive: 'bg-accent/50 !text-foreground',
+  manageDrawerFilterChipIdle: 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground',
+  manageDrawerCapChipBase:
+    'h-auto min-h-0 min-w-0 items-center gap-[3px] rounded-full px-1.5 py-[2px] font-medium text-xs transition-colors',
+  manageDrawerCapChipActive: 'bg-accent/50 !text-foreground',
+  manageDrawerCapChipIdle: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+  manageDrawerCountBadge:
+    'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-[length:var(--font-size-body-xs)] text-muted-foreground/60 tabular-nums',
+  /** Trailing close in ModelManagementPanel title row (paired with bulk actions); matches `hover:bg-accent`. */
+  manageDrawerCloseInTitle:
+    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-[length:var(--radius-control)] p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
+  manageDrawerBulkGhost:
+    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-[length:var(--radius-control)] px-1.5 py-[2px] text-[length:var(--font-size-body-xs)] font-medium tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
+  /** Enable-all hover — brand `--primary` in this shell (design `hover:text-cherry-primary`). */
+  manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
+  /** Disable-all hover — destructive (design draft). */
+  manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   groupShell: 'min-w-0 w-full group [&_.ant-collapse-content-box]:!p-0',
   groupHeaderLabel: 'flex min-w-0 flex-1 items-center gap-2 overflow-hidden',
   groupTitle:
@@ -255,7 +327,10 @@ export const modelSyncClasses = {
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-[var(--color-surface-fg-sunken)] px-3 py-3',
-  checkbox: 'mt-0.5 size-4 rounded-4xs shadow-none',
+  /** Pull preview rows — `FetchResultPanel`: circular control, white check on primary fill (`Checkbox` indicator SVG). */
+  checkbox:
+    'mt-0.5 size-4 rounded-full border-[color:color-mix(in_srgb,var(--border)_45%,transparent)] bg-background shadow-none ' +
+    'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:[&_svg]:text-white',
   rowBody: 'min-w-0 flex-1',
   rowTitle: 'truncate text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground/85',
   rowMeta: 'mt-1 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
@@ -281,30 +356,38 @@ export const modelSyncClasses = {
   fetchSectionTitleRow: 'flex items-center gap-1.5',
   fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-[var(--cherry-primary)]',
   fetchDotRemoved: 'h-[6px] w-[6px] shrink-0 rounded-full bg-destructive',
-  fetchSectionTitle: 'text-sm font-medium text-foreground',
-  fetchSectionCount: 'text-xs text-muted-foreground/60',
+  fetchSectionTitle:
+    'text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] text-foreground leading-tight',
+  fetchSectionCount: 'text-[length:var(--font-size-body-xs)] leading-tight text-muted-foreground/60',
   fetchGhostAll:
-    'h-auto min-h-0 px-1.5 py-[2px] text-xs text-muted-foreground/60 shadow-none hover:bg-[var(--cherry-active-bg)] hover:text-[var(--cherry-primary)]',
+    'inline-flex !h-auto !min-h-0 items-center justify-center px-1.5 py-[2px] !text-[length:var(--font-size-body-xs)] !leading-none text-muted-foreground/60 shadow-none hover:bg-[var(--cherry-active-bg)] hover:text-[var(--cherry-primary)]',
   fetchGhostAllRemoved:
-    'h-auto min-h-0 px-1.5 py-[2px] text-xs text-muted-foreground/60 shadow-none hover:bg-destructive/[0.06] hover:text-destructive',
+    'inline-flex !h-auto !min-h-0 items-center justify-center px-1.5 py-[2px] !text-[length:var(--font-size-body-xs)] !leading-none text-muted-foreground/60 shadow-none hover:bg-destructive/[0.06] hover:text-destructive',
   fetchRowNew:
-    'flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors hover:bg-accent/50 data-[checked=true]:bg-[var(--cherry-active-bg)]',
+    'flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-accent/50 data-[checked=true]:bg-[var(--cherry-active-bg)]',
   fetchRowRemoved:
-    'flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-[7px] transition-colors hover:bg-accent/50 data-[checked=true]:bg-destructive/[0.06]',
+    'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/50 data-[checked=true]:bg-destructive/[0.06]',
   fetchAvatar:
-    'flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-muted/50 text-[10px] font-medium text-muted-foreground',
-  fetchRowTitle: 'truncate text-sm font-medium text-foreground',
-  fetchRowTitleStrike: 'truncate text-sm font-medium text-muted-foreground line-through',
+    'flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted/50 font-medium text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground',
+  fetchRowTitle:
+    'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
+  fetchRowTitleStrike:
+    'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-muted-foreground line-through',
   fetchRowId: 'mt-[1px] truncate font-mono text-xs text-muted-foreground/60',
   fetchRowIdStrike: 'mt-[1px] truncate font-mono text-xs text-muted-foreground/40',
+  /** Trailing capability icons — `ModelServicePage` FetchResultPanel strip */
+  fetchCapabilityStrip: 'flex shrink-0 flex-wrap items-center justify-end gap-[3px]',
   fetchRemovedShell: 'rounded-xl border border-destructive/[0.08] bg-destructive/[0.03] p-2.5',
   fetchRemovedHint: 'mb-2.5 flex items-start gap-1.5',
   fetchMeta: 'text-xs text-muted-foreground/60',
   fetchFooter: 'shrink-0 space-y-2.5 border-t border-[color:var(--section-border)] px-4 py-3',
   fetchFooterSummary: 'flex flex-wrap items-center gap-3 text-xs text-muted-foreground/60',
   fetchFooterActions: 'flex items-center gap-2',
-  fetchFooterBtn: 'h-auto min-h-0 flex-1 px-3 py-[5px] text-xs',
-  fetchOkBtn: 'h-auto min-h-0 w-full px-3 py-[5px] text-xs'
+  fetchFooterBtn: 'inline-flex !h-auto !min-h-0 flex-1 items-center justify-center px-3 py-[5px] text-xs',
+  /** Primary confirm — design `FetchResultPanel` disabled:opacity-30 */
+  fetchFooterPrimary:
+    'inline-flex !h-auto !min-h-0 flex-1 items-center justify-center px-3 py-[5px] text-xs disabled:opacity-30',
+  fetchOkBtn: 'inline-flex !h-auto !min-h-0 w-full items-center justify-center px-3 py-[5px] text-xs'
 } as const
 
 export const apiKeyListClasses = {
@@ -349,14 +432,14 @@ export const oauthCardClasses = {
     'w-full min-w-0 overflow-hidden rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-gradient-to-br from-muted/50 to-muted/30 p-4',
   loginHeaderRow: 'mb-3 flex items-center gap-3',
   loginIconWrap:
-    'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-foreground/50 to-foreground/55 text-white shadow-lg shadow-foreground/[0.1]',
+    'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/50 text-foreground shadow-sm',
   loginTextBlock: 'min-w-0 flex-1',
   loginTitle: 'm-0 text-sm font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
   loginSubtitle:
     'm-0 mt-0.5 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-muted-foreground/60',
-  /** Primary CTA: gradient bar button (design: OAuth authorize). */
+  /** Primary CTA: Cherry primary; hover stays solid brand green (no gradient). */
   loginPrimaryCta:
-    'h-auto w-full justify-center gap-2 rounded-xl border-0 bg-gradient-to-r from-foreground/50 to-foreground/55 px-4 py-[7px] text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] text-white shadow-sm transition-all hover:from-foreground/60 hover:to-foreground/55',
+    'h-auto w-full justify-center gap-2 rounded-xl border-0 bg-primary px-4 py-[7px] text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] text-white shadow-sm transition-colors hover:bg-primary',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-[length:var(--font-size-body-xs)] text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
@@ -369,9 +452,9 @@ export const oauthCardClasses = {
     'w-full min-w-0 overflow-hidden rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-background p-3.5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
-  /** Design: 32px round avatar, gradient fill, initials. */
+  /** Design: 32px round avatar, primary fill, initials (`ModelServicePage` / CherryIN row). */
   avatarSm:
-    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-foreground/40 to-foreground/55 text-xs font-[weight:var(--font-weight-semibold)] text-white',
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-[weight:var(--font-weight-semibold)] text-white',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
@@ -402,14 +485,17 @@ export const fieldClasses = {
   /** Reserves 24×24 next to `inputGroup` in `inputRow` when there is no trailing action (aligns with `iconButton`). */
   inputRowEndSlot: 'inline-flex h-6 w-6 shrink-0',
   /** In a `inputRow` next to a 24px icon button */
-  inputGroup: ['min-w-0 flex-1 h-8 py-[5px]', providerSettingsInputGroupBase].join(' '),
+  inputGroup: ['flex min-h-0 min-w-0 flex-1 items-center py-[5px]', providerSettingsInputGroupBase].join(' '),
   /** Full-width field (no side icon) */
-  inputGroupBlock: ['w-full', providerSettingsInputGroupBase].join(' '),
+  inputGroupBlock: ['flex w-full items-center', providerSettingsInputGroupBase].join(' '),
   /**
-   * Body text: 14px. Must repeat at `md:` — `Input` ships `md:text-sm` and plain `text-[14px]` does not
-   * remove that responsive class, so ≥md would still use `text-sm` otherwise.
+   * Matches `ModelServicePage` connection row: body-md, full foreground, muted placeholder; flush in group.
+   * Repeat `md:` so `InputGroupInput` defaults do not re-assert `md:text-sm` alone on the base layer.
    */
-  input: 'text-[12px] text-foreground/75 placeholder:text-foreground/30 md:text-[12px] h-8',
+  input:
+    'min-h-0 h-auto min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none outline-none focus-visible:ring-0 ' +
+    'text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground ' +
+    'placeholder:text-muted-foreground/60 md:text-[length:var(--font-size-body-md)]',
   /**
    * Small 24px icon control (e.g. copy / settings) — `var(--cherry-*)` match `tailwind-default-scope.css`.
    */

@@ -18,15 +18,20 @@ interface ProviderSettingsDrawerProps {
   /** Matches `cherry-studio-ui-design` ModelManagementPanel chrome (border under title, px-4). */
   headerClassName?: string
   footerClassName?: string
+  /** When false, hides the default trailing close so the title row can include its own X (ModelManagementPanel). */
+  showHeaderCloseButton?: boolean
 }
 
-/** `manage` ≈ design model management panel; `fetch` ≈ `ModelServicePage` `FetchResultPanel` w-[320px]. */
+/**
+ * Width: `clamp(min_rem, preferred_vw, min(max_vw, 100vw - gutter))` — lower/upper bounds scale with the viewport
+ * (`vw` / `100vw`), no fixed `px`/`rem` ceiling. Gutter keeps the panel inside the window when narrow.
+ */
 const drawerSizeClasses: Record<ProviderSettingsDrawerSize, string> = {
-  compact: '!w-[clamp(17rem,36cqw,min(480px,calc(100vw-1.5rem)))]',
-  form: '!w-[clamp(18rem,44cqw,min(480px,calc(100vw-1.5rem)))]',
-  wide: '!w-[clamp(24rem,56cqw,min(480px,calc(100vw-1.5rem)))]',
-  manage: '!w-[min(21.25rem,calc(100vw-1.5rem))]',
-  fetch: '!w-[min(20rem,calc(100vw-1.5rem))]'
+  compact: '!w-[clamp(17rem,28vw,min(37vw,calc(100vw-1.5rem)))]',
+  form: '!w-[clamp(18rem,36vw,min(42vw,calc(100vw-1.5rem)))]',
+  wide: '!w-[clamp(24rem,44vw,min(52vw,calc(100vw-1.5rem)))]',
+  manage: '!w-[clamp(18rem,32vw,min(37vw,calc(100vw-1.5rem)))]',
+  fetch: '!w-[clamp(18rem,30vw,min(34vw,calc(100vw-1.5rem)))]'
 }
 
 export default function ProviderSettingsDrawer({
@@ -40,7 +45,8 @@ export default function ProviderSettingsDrawer({
   bodyClassName,
   contentClassName,
   headerClassName: headerClassNameProp,
-  footerClassName: footerClassNameProp
+  footerClassName: footerClassNameProp,
+  showHeaderCloseButton = true
 }: ProviderSettingsDrawerProps) {
   const { t } = useTranslation()
   const isManageLayout = size === 'manage' || size === 'fetch'
@@ -63,8 +69,9 @@ export default function ProviderSettingsDrawer({
       header={header}
       footer={footer}
       closeLabel={t('common.close')}
+      showCloseButton={showHeaderCloseButton}
       closeButtonClassName={
-        isManageLayout
+        isManageLayout && showHeaderCloseButton
           ? 'ml-1 shrink-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground'
           : undefined
       }

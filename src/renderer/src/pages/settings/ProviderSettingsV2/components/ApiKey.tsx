@@ -89,17 +89,6 @@ export default function ApiKey({
               </InputGroupAddon>
             )}
           </InputGroup>
-          <Tooltip content={t('settings.provider.check')}>
-            <span className="inline-flex">
-              <button
-                type="button"
-                disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
-                className={fieldClasses.iconButton}
-                onClick={onOpenConnectionCheck}>
-                {apiKeyConnectivity.checking ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
-              </button>
-            </span>
-          </Tooltip>
           <Tooltip content={t('settings.provider.api_key.copy')}>
             <span className="inline-flex">
               <button
@@ -113,6 +102,17 @@ export default function ApiKey({
                   void navigator.clipboard.writeText(inputApiKey)
                 }}>
                 <Copy size={12} />
+              </button>
+            </span>
+          </Tooltip>
+          <Tooltip content={t('settings.provider.check')}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
+                className={fieldClasses.iconButton}
+                onClick={onOpenConnectionCheck}>
+                {apiKeyConnectivity.checking ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
               </button>
             </span>
           </Tooltip>

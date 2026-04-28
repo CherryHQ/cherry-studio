@@ -10,6 +10,7 @@ interface ModelListHealthContextValue {
   healthCheckOpen: boolean
   openHealthCheck: () => void
   closeHealthCheck: () => void
+  resetHealthCheckRun: () => void
   startHealthCheck: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
   modelStatusMap: Map<string, ModelWithStatus>
   modelStatuses: ModelWithStatus[]
@@ -25,6 +26,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
     healthCheckOpen,
     openHealthCheck,
     closeHealthCheck,
+    resetHealthCheckRun,
     startHealthCheck
   } = useHealthCheck(providerId)
   const value = useMemo(
@@ -34,6 +36,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       healthCheckOpen,
       openHealthCheck,
       closeHealthCheck,
+      resetHealthCheckRun,
       startHealthCheck,
       modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status])),
       modelStatuses
@@ -45,6 +48,7 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       isHealthChecking,
       modelStatuses,
       openHealthCheck,
+      resetHealthCheckRun,
       startHealthCheck
     ]
   )

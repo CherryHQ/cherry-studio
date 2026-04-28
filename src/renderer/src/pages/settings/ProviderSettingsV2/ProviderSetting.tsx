@@ -3,7 +3,7 @@ import { useProvider } from '@renderer/hooks/useProviders'
 
 import AuthenticationSection from './components/AuthenticationSection'
 import ProviderHeader from './components/ProviderHeader'
-import { ProviderSettingsContainer } from './components/ProviderSettingsPrimitives'
+import { providerDetailColumnClasses, ProviderSettingsContainer } from './components/ProviderSettingsPrimitives'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
@@ -57,11 +57,11 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
         <div
           data-testid="provider-detail-shell"
           className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 px-5 py-3.5">
+          <div className={providerDetailColumnClasses.headerPad}>
             <ProviderHeader providerId={providerId} />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/20 [&::-webkit-scrollbar]:w-[3px]">
-            <div className="flex min-h-full w-full min-w-0 flex-col gap-4">
+          <div className={providerDetailColumnClasses.scrollStrip}>
+            <div className={providerDetailColumnClasses.sectionStack}>
               <AuthenticationSection providerId={providerId} />
               <ModelList providerId={providerId} />
             </div>

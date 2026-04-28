@@ -25,7 +25,7 @@ export default function ProviderField({
         <div
           className={cn(
             // Draft: field labels use muted foreground (e.g. text-foreground/65), not /85 — plain string titles inherit this.
-            'font-medium text-[11px] text-foreground/65 leading-[1.35]',
+            'font-medium text-[13px] text-foreground/65 leading-[1.35]',
             titleClassName
           )}>
           {title}

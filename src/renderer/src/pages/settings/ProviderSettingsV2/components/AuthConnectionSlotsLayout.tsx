@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import ProviderBlockHeading from './ProviderBlockHeading'
+import { authConnectionClasses } from './ProviderSettingsPrimitives'
 import ProviderSpecificSettings from './ProviderSpecificSettings'
 
 interface AuthConnectionSlotsLayoutProps {
@@ -9,12 +10,21 @@ interface AuthConnectionSlotsLayoutProps {
 }
 
 export default function AuthConnectionSlotsLayout({ providerId, children }: AuthConnectionSlotsLayoutProps) {
+  const { t } = useTranslation()
+  const headingId = 'provider-auth-connection-heading'
+
   return (
-    <section className="shrink-0 space-y-2.5" aria-label="provider-connection-sections">
-      <ProviderBlockHeading className="mb-4">连接认证 (Authentication)</ProviderBlockHeading>
+    <section className="shrink-0 space-y-2.5">
       <ProviderSpecificSettings providerId={providerId} placement="beforeAuth" />
-      {children}
-      <ProviderSpecificSettings providerId={providerId} placement="afterAuth" />
+      <div className={authConnectionClasses.shell} aria-labelledby={headingId}>
+        <h2 id={headingId} className={authConnectionClasses.blockTitle}>
+          {t('settings.provider.auth_connection_section')}
+        </h2>
+        <div className={authConnectionClasses.body}>
+          {children}
+          <ProviderSpecificSettings providerId={providerId} placement="afterAuth" />
+        </div>
+      </div>
     </section>
   )
 }

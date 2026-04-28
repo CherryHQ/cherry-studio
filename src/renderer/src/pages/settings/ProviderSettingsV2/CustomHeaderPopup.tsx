@@ -8,7 +8,6 @@ import { Modal, Space } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpText } from '..'
 import { applyProviderCustomHeaderSideEffects } from './adapters/providerSettingsSideEffects'
 
 interface ShowParams {
@@ -78,7 +77,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       transitionName="animation-move-down"
       centered>
       <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
-        <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
         <CodeEditor
           theme={activeCmTheme}
           fontSize={fontSize - 1}

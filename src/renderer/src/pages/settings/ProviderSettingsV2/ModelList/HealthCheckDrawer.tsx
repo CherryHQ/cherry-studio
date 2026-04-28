@@ -5,7 +5,7 @@ import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import { cn } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,23 +19,8 @@ interface HealthCheckDrawerProps {
   isChecking: boolean
   modelStatuses: ModelWithStatus[]
   onClose: () => void
+  onResetRun: () => void
   onStart: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
-}
-
-function ToggleButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-lg border px-3 py-1.5 font-medium text-[12px] transition-colors',
-        active
-          ? 'border-primary/40 bg-primary/10 text-primary'
-          : 'border-border/60 bg-transparent text-foreground/70 hover:bg-accent/40 hover:text-foreground'
-      )}>
-      {label}
-    </button>
-  )
 }
 
 export default function HealthCheckDrawer({
@@ -45,6 +30,7 @@ export default function HealthCheckDrawer({
   isChecking,
   modelStatuses,
   onClose,
+  onResetRun,
   onStart
 }: HealthCheckDrawerProps) {
   const { t } = useTranslation()
@@ -54,15 +40,23 @@ export default function HealthCheckDrawer({
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
 
-  const progress = useMemo(() => {
-    if (!isChecking || modelStatuses.length === 0) {
+  const showPipeline = modelStatuses.length > 0
+
+  const progressStats = useMemo(() => {
+    if (modelStatuses.length === 0) {
       return null
     }
     const total = modelStatuses.length
     const done = modelStatuses.filter((s) => !s.checking).length
     const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0
     return { done, total, pct }
-  }, [isChecking, modelStatuses])
+  }, [modelStatuses])
+
+  const successCount = useMemo(
+    () => modelStatuses.filter((s) => s.status === HealthStatus.SUCCESS).length,
+    [modelStatuses]
+  )
+  const failCount = useMemo(() => modelStatuses.filter((s) => s.status === HealthStatus.FAILED).length, [modelStatuses])
 
   useEffect(() => {
     if (!open) {
@@ -76,15 +70,8 @@ export default function HealthCheckDrawer({
   }, [open])
 
   const hasMultipleKeys = apiKeys.length > 1
-  const showProgress = progress != null
 
-  const footer = showProgress ? (
-    <div className={drawerClasses.footer}>
-      <Button variant="outline" onClick={onClose}>
-        {t('common.cancel')}
-      </Button>
-    </div>
-  ) : (
+  const footer = !showPipeline ? (
     <div className={drawerClasses.footer}>
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
@@ -108,6 +95,27 @@ export default function HealthCheckDrawer({
         {t('settings.models.check.start')}
       </Button>
     </div>
+  ) : isChecking ? (
+    <div className={drawerClasses.footer}>
+      <Button variant="outline" onClick={onClose}>
+        {t('common.cancel')}
+      </Button>
+    </div>
+  ) : (
+    <div className={drawerClasses.footer}>
+      <Button variant="outline" onClick={onClose}>
+        {t('common.close')}
+      </Button>
+      <Button
+        variant="default"
+        className="gap-1.5"
+        onClick={() => {
+          onResetRun()
+        }}>
+        <RotateCcw className="size-3.5 shrink-0" />
+        {t('settings.models.check.retry')}
+      </Button>
+    </div>
   )
 
   return (
@@ -116,7 +124,7 @@ export default function HealthCheckDrawer({
       onClose={onClose}
       title={title}
       footer={footer}
-      size={showProgress ? 'wide' : 'form'}>
+      size={showPipeline ? 'wide' : 'form'}>
       <div className="rounded-xl border border-warning/30 bg-warning/8 p-3 text-[12px] text-foreground/75 leading-[1.45]">
         <div className="flex items-start gap-2">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
@@ -124,28 +132,63 @@ export default function HealthCheckDrawer({
         </div>
       </div>
 
-      {showProgress && progress ? (
-        <div className="space-y-0 rounded-xl border border-border/60 bg-muted/10">
-          <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
-            <span className="font-medium text-[13px] text-foreground/85">
-              {t('settings.models.check.pipeline_heading')}
-            </span>
-            <span className={drawerClasses.healthProgressMeta}>
-              {t('settings.models.check.progress_count', { done: progress.done, total: progress.total })}
-            </span>
-          </div>
-          <div
-            className={drawerClasses.healthProgressTrack}
-            role="progressbar"
-            aria-valuenow={progress.pct}
-            aria-valuemin={0}
-            aria-valuemax={100}>
-            <div className={drawerClasses.healthProgressFill} style={{ width: `${progress.pct}%` }} />
-          </div>
+      {showPipeline && progressStats ? (
+        <div className="space-y-0">
+          {isChecking ? (
+            <div className="px-4 pb-2 pt-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="font-medium text-[13px] text-foreground/85">
+                  {t('settings.models.check.pipeline_heading')}
+                </span>
+                <span className={drawerClasses.healthProgressMeta}>
+                  {t('settings.models.check.progress_count', {
+                    done: progressStats.done,
+                    total: progressStats.total
+                  })}
+                </span>
+              </div>
+              <div
+                className={drawerClasses.healthProgressTrack}
+                role="progressbar"
+                aria-valuenow={progressStats.pct}
+                aria-valuemin={0}
+                aria-valuemax={100}>
+                <div className={drawerClasses.healthProgressFill} style={{ width: `${progressStats.pct}%` }} />
+              </div>
+            </div>
+          ) : null}
+
+          {!isChecking && showPipeline ? (
+            <div className="mx-4 mb-3 mt-3 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
+                  <CheckCircle2 size={9} className="text-muted-foreground" />
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {t('settings.models.check.outcome_success_short', { count: successCount })}
+                </span>
+              </div>
+              {failCount > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  <div className="flex size-3.5 items-center justify-center rounded-full bg-destructive/12">
+                    <XCircle size={9} className="text-destructive" />
+                  </div>
+                  <span className="text-xs text-destructive/80">
+                    {t('settings.models.check.outcome_fail_short', { count: failCount })}
+                  </span>
+                </div>
+              ) : null}
+              <div className="min-w-[1rem] flex-1" />
+              <span className="text-xs text-muted-foreground/60">
+                {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
+              </span>
+            </div>
+          ) : null}
+
           <Scrollbar className="max-h-[min(42vh,22rem)] px-2">
             <ul className="divide-y divide-border/50 py-1">
               {modelStatuses.map((row) => {
-                const { model, checking, status, latency } = row
+                const { model, checking, status, latency, error } = row
                 const Icon = getModelLogo(model)
                 const pending = !checking && status === HealthStatus.NOT_CHECKED
 
@@ -178,15 +221,26 @@ export default function HealthCheckDrawer({
                     )
                 } else {
                   statusCell = <XCircle className="size-4 shrink-0 text-destructive/85" aria-hidden />
-                  rightCell = (
-                    <span className="shrink-0 text-[12px] text-destructive/85">
-                      {t('settings.models.check.failed')}
-                    </span>
-                  )
+                  const errText = error?.trim() ?? ''
+                  rightCell =
+                    errText !== '' ? (
+                      <span className="max-w-[11rem] shrink-0 truncate text-[12px] text-destructive/85" title={errText}>
+                        {errText}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-[12px] text-destructive/85">
+                        {t('settings.models.check.failed')}
+                      </span>
+                    )
                 }
 
                 return (
-                  <li key={model.id} className="flex min-h-[44px] items-center gap-3 px-2 py-2.5">
+                  <li
+                    key={model.id}
+                    className={cn(
+                      'flex min-h-[44px] items-center gap-3 px-2 py-2.5 rounded-lg',
+                      status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
+                    )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
                     {Icon ? (
                       <Icon.Avatar size={22} />
@@ -198,82 +252,96 @@ export default function HealthCheckDrawer({
                     <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground/85">
                       {model.name}
                     </span>
-                    <div className="min-w-[4.5rem] shrink-0 text-right">{rightCell}</div>
+                    <div className="min-w-0 max-w-[40%] shrink-0 text-right">{rightCell}</div>
                   </li>
                 )
               })}
             </ul>
           </Scrollbar>
-          <p className={cn(drawerClasses.helpText, 'px-4 pb-3 pt-1 text-muted-foreground/75')}>
-            {t('settings.models.check.progress_hint')}
-          </p>
         </div>
       ) : null}
 
-      <div className={cn('space-y-4', showProgress && 'pointer-events-none opacity-45')}>
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-[13px] text-foreground/85">{t('settings.models.check.use_all_keys')}</span>
-          <div className="flex items-center gap-2">
-            <ToggleButton
-              active={keyCheckMode === 'single'}
-              label={t('settings.models.check.single')}
-              onClick={() => setKeyCheckMode('single')}
-            />
-            <ToggleButton
-              active={keyCheckMode === 'all'}
-              label={t('settings.models.check.all')}
-              onClick={() => setKeyCheckMode('all')}
-            />
-          </div>
-        </div>
+      {!showPipeline ? (
+        <>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-[13px] text-foreground/85">
+                {t('settings.models.check.use_all_keys')}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(
+                    drawerClasses.toggleButton,
+                    keyCheckMode === 'single' && 'border-primary/35 bg-primary/8'
+                  )}
+                  onClick={() => setKeyCheckMode('single')}>
+                  {t('settings.models.check.single')}
+                </button>
+                <button
+                  type="button"
+                  className={cn(drawerClasses.toggleButton, keyCheckMode === 'all' && 'border-primary/35 bg-primary/8')}
+                  onClick={() => setKeyCheckMode('all')}>
+                  {t('settings.models.check.all')}
+                </button>
+              </div>
+            </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-[13px] text-foreground/85">
-            {t('settings.models.check.enable_concurrent')}
-          </span>
-          <div className="flex items-center gap-2">
-            <ToggleButton
-              active={!isConcurrent}
-              label={t('settings.models.check.disabled')}
-              onClick={() => setIsConcurrent(false)}
-            />
-            <ToggleButton
-              active={isConcurrent}
-              label={t('settings.models.check.enabled')}
-              onClick={() => setIsConcurrent(true)}
-            />
-          </div>
-        </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-[13px] text-foreground/85">
+                {t('settings.models.check.enable_concurrent')}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={cn(drawerClasses.toggleButton, !isConcurrent && 'border-primary/35 bg-primary/8')}
+                  onClick={() => setIsConcurrent(false)}>
+                  {t('settings.models.check.disabled')}
+                </button>
+                <button
+                  type="button"
+                  className={cn(drawerClasses.toggleButton, isConcurrent && 'border-primary/35 bg-primary/8')}
+                  onClick={() => setIsConcurrent(true)}>
+                  {t('settings.models.check.enabled')}
+                </button>
+              </div>
+            </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-[13px] text-foreground/85">{t('settings.models.check.timeout')}</span>
-          <div className="flex w-[112px] items-center gap-2">
-            <Input
-              type="number"
-              min={5}
-              max={60}
-              value={String(timeoutSeconds)}
-              onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
-            />
-            <span className="text-[12px] text-muted-foreground/80">s</span>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-[13px] text-foreground/85">{t('settings.models.check.timeout')}</span>
+              <div className="flex w-[112px] items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={60}
+                  value={String(timeoutSeconds)}
+                  onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
+                />
+                <span className="text-[12px] text-muted-foreground/80">s</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {keyCheckMode === 'single' && hasMultipleKeys ? (
-        <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-          <div className="font-medium text-[13px] text-foreground/85">{t('settings.models.check.select_api_key')}</div>
-          <RadioGroup value={String(selectedKeyIndex)} onValueChange={(value) => setSelectedKeyIndex(Number(value))}>
-            {apiKeys.map((key, index) => (
-              <label
-                key={`${key}-${index}`}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:bg-accent/30">
-                <RadioGroupItem value={String(index)} size="sm" />
-                <span className="truncate font-mono text-[12px] text-foreground/70">{maskApiKey(key)}</span>
-              </label>
-            ))}
-          </RadioGroup>
-        </div>
+          {keyCheckMode === 'single' && hasMultipleKeys ? (
+            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+              <div className="font-medium text-[13px] text-foreground/85">
+                {t('settings.models.check.select_api_key')}
+              </div>
+              <RadioGroup
+                value={String(selectedKeyIndex)}
+                onValueChange={(value) => setSelectedKeyIndex(Number(value))}>
+                {apiKeys.map((key, index) => (
+                  <label
+                    key={`${key}-${index}`}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:bg-accent/30">
+                    <RadioGroupItem value={String(index)} size="sm" />
+                    <span className="truncate font-mono text-[12px] text-foreground/70">{maskApiKey(key)}</span>
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </ProviderSettingsDrawer>
   )

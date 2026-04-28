@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
-import type { ModelListSectionsSurface } from './useModelListSections'
+import type { ModelListSectionsSurface } from './useProviderModelListBrowse'
 
 interface ModelListSectionsProps {
   sections: ModelListSectionsSurface
@@ -23,7 +23,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
   }
 
   if (sections.hasNoModels) {
-    return <div className={modelListClasses.emptyState}>{t('settings.models.empty')}</div>
+    return null
   }
 
   if (!sections.hasVisibleModels) {

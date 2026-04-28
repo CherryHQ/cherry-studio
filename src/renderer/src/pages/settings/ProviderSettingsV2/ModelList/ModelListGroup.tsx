@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
-import type { ModelListGroupItem } from './useModelListSections'
+import type { ModelListGroupItem } from './useProviderModelListBrowse'
 
 interface ModelListGroupProps {
   groupName: string
@@ -53,11 +53,10 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           background: 'transparent'
         }}>
         <div className="flex min-w-0 w-full flex-col gap-1 px-3 pb-[2px] pt-[2px]">
-          {items.map(({ model, modelStatus, showIdentifier }) => (
+          {items.map(({ model, showIdentifier }) => (
             <ModelListItem
               key={model.id}
               model={model}
-              modelStatus={modelStatus}
               showIdentifier={showIdentifier}
               onEdit={onEditModel}
               onToggleEnabled={onToggleModel}

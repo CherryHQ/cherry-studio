@@ -38,7 +38,7 @@ const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
   showFree = true,
   showReasoning = true,
   showToolsCalling = true,
-  size = 12,
+  size = 8,
   showLabel = true,
   showTooltip = true,
   style
@@ -91,7 +91,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;

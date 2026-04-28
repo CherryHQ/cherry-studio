@@ -62,12 +62,7 @@ export default function ProviderConnectionCheckDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer
-      open={open}
-      onClose={onClose}
-      title={t('message.api.check.model.title')}
-      size="form"
-      footer={footer}>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('message.api.check.model.title')} footer={footer}>
       <div className={drawerClasses.section}>
         <div className={drawerClasses.fieldList}>
           <div className="space-y-2">
@@ -75,7 +70,7 @@ export default function ProviderConnectionCheckDrawer({
             <SelectDropdown
               items={sortedModels.map((item) => ({ id: item.id, label: item.name }))}
               selectedId={selectedModel?.id}
-              onSelect={(value) => setSelectedModelId(value as string)}
+              onSelect={(value) => setSelectedModelId(value)}
               renderSelected={(item) => <span className="truncate">{item.label}</span>}
               renderItem={(item) => <span className="truncate">{item.label}</span>}
             />
