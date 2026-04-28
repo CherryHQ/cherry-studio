@@ -1,3 +1,4 @@
+import { pinTable } from '@data/db/schemas/pin'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,23 +25,37 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+interface MockContextOptions {
+  failOnPinInsert?: boolean
+}
+
 function createMockContext(
   reduxState: Record<string, unknown> = {},
-  dexieTables: Record<string, unknown[]> = {}
+  sourceData: Record<string, unknown> = {},
+  options: MockContextOptions = {}
 ): MigrationContext {
   const insertValues: unknown[][] = []
+  let stagedInsertValues: unknown[][] = []
   const flattenInsertedRows = () =>
     insertValues
       .flatMap((batch) => batch)
       .filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
-  const getInsertedProviders = () => flattenInsertedRows().filter((row) => !Object.hasOwn(row, 'modelId'))
+  const getInsertedProviders = () =>
+    flattenInsertedRows().filter((row) => Object.hasOwn(row, 'providerId') && !Object.hasOwn(row, 'modelId'))
   const getInsertedModels = () => flattenInsertedRows().filter((row) => Object.hasOwn(row, 'modelId'))
+  const getInsertedPins = () => flattenInsertedRows().filter((row) => row.entityType === 'model')
 
   const mockTx = {
-    insert: vi.fn(() => ({
+    insert: vi.fn((table: unknown) => ({
       values: vi.fn((vals: unknown) => {
-        insertValues.push(Array.isArray(vals) ? vals : [vals])
-        return Promise.resolve()
+        const rows = Array.isArray(vals) ? vals : [vals]
+        if (options.failOnPinInsert && table === pinTable) {
+          throw new Error('pin insert failed')
+        }
+        stagedInsertValues.push(rows)
+        return {
+          onConflictDoNothing: vi.fn(() => Promise.resolve())
+        }
       })
     }))
   }
@@ -50,14 +65,15 @@ function createMockContext(
       reduxState: {
         getCategory: vi.fn((cat: string) => reduxState[cat])
       },
+      dexieSettings: {
+        get: vi.fn((key: string) => sourceData[key])
+      },
       dexieExport: {
-        tableExists: vi.fn((table: string) =>
-          Promise.resolve(Object.prototype.hasOwnProperty.call(dexieTables, table))
-        ),
+        tableExists: vi.fn((table: string) => Promise.resolve(Array.isArray(sourceData[table]))),
         createStreamReader: vi.fn((table: string) => ({
           readInBatches: vi.fn(
             async (batchSize: number, callback: (items: unknown[], index: number) => Promise<void>) => {
-              const rows = dexieTables[table] ?? []
+              const rows = Array.isArray(sourceData[table]) ? sourceData[table] : []
               const safeBatchSize = Math.max(batchSize, 1)
 
               for (let index = 0; index < rows.length; index += safeBatchSize) {
@@ -69,18 +85,33 @@ function createMockContext(
       }
     },
     db: {
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx)),
+      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+        stagedInsertValues = []
+        const result = await fn(mockTx)
+        insertValues.push(...stagedInsertValues)
+        return result
+      }),
       select: vi.fn(() => ({
-        from: vi.fn((table: unknown) => ({
-          get: vi.fn(() =>
+        from: vi.fn((table: unknown) => {
+          const getCount = vi.fn(() =>
             Promise.resolve({
-              count: table === userProviderTable ? getInsertedProviders().length : getInsertedModels().length
+              count:
+                table === userProviderTable
+                  ? getInsertedProviders().length
+                  : table === pinTable
+                    ? getInsertedPins().length
+                    : getInsertedModels().length
             })
-          ),
-          limit: vi.fn(() => ({
-            all: vi.fn(() => Promise.resolve(table === userProviderTable ? getInsertedProviders().slice(0, 5) : []))
-          }))
-        }))
+          )
+
+          return {
+            get: getCount,
+            where: vi.fn(() => ({ get: getCount })),
+            limit: vi.fn(() => ({
+              all: vi.fn(() => Promise.resolve(table === userProviderTable ? getInsertedProviders().slice(0, 5) : []))
+            }))
+          }
+        })
       }))
     },
     _insertValues: insertValues
