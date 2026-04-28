@@ -9,7 +9,6 @@ import {
   Dropzone,
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -390,7 +389,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 <span>{dxtFile?.name ?? t('settings.mcp.addServer.importFrom.selectDxtFile')}</span>
               </div>
             </Dropzone>
-            <FormDescription>{t('settings.mcp.addServer.importFrom.dxtHelp')}</FormDescription>
+            <p className="text-muted-foreground text-sm">{t('settings.mcp.addServer.importFrom.dxtHelp')}</p>
           </div>
         )}
         <DialogFooter>

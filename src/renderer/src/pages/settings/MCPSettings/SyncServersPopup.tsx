@@ -24,7 +24,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { cn } from '@renderer/utils/style'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -132,6 +132,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
   const [open, setOpen] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [selectedProviderKey, setSelectedProviderKey] = useState(providers[0].key)
+  const didResolveRef = useRef(false)
   const { t } = useTranslation()
 
   // Get the currently selected provider config
@@ -148,6 +149,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
   }, [selectedProvider, form])
 
   const closeAndResolve = useCallback(() => {
+    if (didResolveRef.current) {
+      return
+    }
+    didResolveRef.current = true
     setOpen(false)
     resolve({})
   }, [resolve])

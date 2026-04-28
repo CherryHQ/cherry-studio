@@ -494,7 +494,11 @@ const McpSettings: React.FC = () => {
       return
     }
 
-    await form.trigger()
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+
     let serverForUpdate = server
     if (active) {
       const trustedServer = await ensureServerTrusted(server)
@@ -939,7 +943,13 @@ const McpSettings: React.FC = () => {
                     <FormItem className="mb-4">
                       <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
                       <FormControl>
-                        <TagsInput value={field.value ?? []} onChange={field.onChange} />
+                        <TagsInput
+                          value={field.value ?? []}
+                          onChange={(next) => {
+                            field.onChange(next)
+                            setIsFormChanged(true)
+                          }}
+                        />
                       </FormControl>
                     </FormItem>
                   )}
@@ -1178,7 +1188,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
       {value.map((tag, index) => (
         <span
           key={`${tag}-${index}`}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
           {tag}
           <button
             type="button"
@@ -1189,7 +1199,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
         </span>
       ))}
       <input
-        className="flex-1 min-w-[120px] bg-transparent text-sm outline-none"
+        className="min-w-[120px] flex-1 bg-transparent text-sm outline-none"
         value={draft}
         placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
         onChange={(e) => {
