@@ -1,4 +1,4 @@
-import { Button, MenuItem } from '@cherrystudio/ui'
+import { Badge, Button, MenuItem } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -17,7 +17,7 @@ import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uu
 import { isAnthropicSupportedProvider } from '@renderer/utils/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
-import { Dropdown, Input, Tag } from 'antd'
+import { Dropdown, Input } from 'antd'
 import { Check, Filter, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
@@ -438,9 +438,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
                 }
                 suffix={
                   provider.enabled ? (
-                    <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                      ON
-                    </Tag>
+                    <Badge className="mr-0 ml-auto border-success/30 bg-success/10 text-success">ON</Badge>
                   ) : undefined
                 }
               />
@@ -448,7 +446,7 @@ const ProviderList: FC<ProviderListProps> = ({ isOnboarding = false }) => {
           )}
         </DraggableVirtualList>
         <div className="flex h-12.5 flex-row items-center justify-center px-2 py-2.5">
-          <Button size="sm" style={{ width: '100%', borderRadius: 10 }} onClick={onAddProvider} disabled={dragging}>
+          <Button size="sm" variant="outline" className="h-8 w-full" onClick={onAddProvider} disabled={dragging}>
             <PlusIcon size={16} />
             {t('button.add')}
           </Button>

@@ -1,5 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -9,7 +9,6 @@ import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import type { TableProps } from 'antd'
 import { Table } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -241,11 +240,11 @@ const BlacklistSettings: FC = () => {
         <SettingRow className="pt-2 pb-3">
           <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
         </SettingRow>
-        <TextArea
+        <Textarea.Input
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
           placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-          autoSize={{ minRows: 4, maxRows: 8 }}
+          className="max-h-48 min-h-24"
           rows={4}
         />
         <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>

@@ -1,6 +1,6 @@
-import { ColFlex, EmptyState, Flex } from '@cherrystudio/ui'
+import { Badge, ColFlex, EmptyState, Flex } from '@cherrystudio/ui'
 import type { MCPResource } from '@renderer/types'
-import { Collapse, Descriptions, Tag, Typography } from 'antd'
+import { Collapse, Descriptions, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 interface MCPResourcesSectionProps {
@@ -32,7 +32,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
       <Descriptions column={1} size="small" bordered>
         {resource.mimeType && (
           <Descriptions.Item label={t('settings.mcp.resources.mimeType') || 'MIME Type'}>
-            <Tag color="blue">{resource.mimeType}</Tag>
+            <Badge className="border-primary/30 bg-primary/10 text-primary">{resource.mimeType}</Badge>
           </Descriptions.Item>
         )}
         {resource.size !== undefined && (

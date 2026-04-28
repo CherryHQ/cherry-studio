@@ -47,12 +47,12 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId, apiHost, setA
 
   return (
     <Select value={getCurrentHost} onValueChange={handleHostChange}>
-      <SelectTrigger className="mt-1.25 w-full">
+      <SelectTrigger className="mt-1.25 h-9 min-h-9 w-full">
         <SelectValue>{currentHostLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {API_HOST_OPTIONS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem key={option.value} value={option.value} className="py-2">
             <div className="flex flex-col gap-0.5">
               <span>{option.labelKey}</span>
               <span className="text-muted-foreground text-xs">{option.description}</span>

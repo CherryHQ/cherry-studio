@@ -1,5 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import {
+  Badge,
   Button,
   Combobox,
   Dialog,
@@ -26,7 +27,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { DatePicker, Input, Popconfirm, Table, Tag } from 'antd'
+import { DatePicker, Input, Popconfirm, Table } from 'antd'
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
@@ -124,7 +125,6 @@ const TaskDetail: FC<{
   const { theme } = useTheme()
 
   const isCompleted = task.status === 'completed'
-  const statusColors: Record<string, string> = { active: 'green', paused: 'orange', completed: 'blue' }
   const statusLabels: Record<string, string> = {
     active: t('agent.cherryClaw.tasks.status.active'),
     paused: t('agent.cherryClaw.tasks.status.paused'),
@@ -204,7 +204,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>
           <div className="flex items-center gap-2">
-            <Tag color={statusColors[task.status] ?? 'default'}>{statusLabels[task.status] ?? task.status}</Tag>
+            <Badge className={badgeColorClass(task.status)}>{statusLabels[task.status] ?? task.status}</Badge>
             <span className="text-(--color-foreground-muted) text-xs">{agentName}</span>
           </div>
           <div className="flex items-center gap-1">
@@ -236,9 +236,9 @@ const TaskDetail: FC<{
         </SettingTitle>
         <SettingDivider />
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Tag color={scheduleTypeColors[task.scheduleType] ?? 'default'}>
+          <Badge className={badgeColorClass(task.scheduleType)}>
             {scheduleTypeLabels[task.scheduleType] ?? task.scheduleType}
-          </Tag>
+          </Badge>
           <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
             <Clock size={12} />
             {formatScheduleValue()}
@@ -519,13 +519,12 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
       key: 'status',
       width: 70,
       render: (val: string) => {
-        const color = val === 'success' ? 'green' : val === 'running' ? 'processing' : 'red'
         const logStatusLabels: Record<string, string> = {
           success: t('agent.cherryClaw.tasks.logs.success'),
           running: t('agent.cherryClaw.tasks.logs.running'),
           error: t('agent.cherryClaw.tasks.logs.error')
         }
-        return <Tag color={color}>{logStatusLabels[val] ?? val}</Tag>
+        return <Badge className={badgeColorClass(val)}>{logStatusLabels[val] ?? val}</Badge>
       }
     },
     {
@@ -606,6 +605,30 @@ const scheduleTypeColors: Record<string, string> = {
   cron: 'purple',
   interval: 'blue',
   once: 'orange'
+}
+
+const badgeColorClass = (value: string) => {
+  const color = scheduleTypeColors[value] ?? value
+  switch (color) {
+    case 'active':
+    case 'success':
+    case 'green':
+      return 'border-success/30 bg-success/10 text-success'
+    case 'paused':
+    case 'running':
+    case 'orange':
+      return 'border-warning/30 bg-warning/10 text-warning'
+    case 'completed':
+    case 'blue':
+      return 'border-primary/30 bg-primary/10 text-primary'
+    case 'purple':
+      return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
+    case 'error':
+    case 'red':
+      return 'border-destructive/30 bg-destructive/10 text-destructive'
+    default:
+      return 'border-border bg-background-subtle text-foreground'
+  }
 }
 
 const statusDotColors: Record<string, string> = {

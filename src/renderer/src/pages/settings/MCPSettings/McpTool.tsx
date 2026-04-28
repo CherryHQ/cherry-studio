@@ -1,8 +1,8 @@
-import { ColFlex, EmptyState, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, ColFlex, EmptyState, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Table, Tag, Typography } from 'antd'
+import { Descriptions, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -32,20 +32,20 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     onToggleAutoApprove(tool, checked)
   }
 
-  const getTypeColor = (type: string) => {
+  const getTypeBadgeClass = (type: string) => {
     switch (type) {
       case 'string':
-        return 'blue'
+        return 'border-primary/30 bg-primary/10 text-primary'
       case 'number':
-        return 'green'
+        return 'border-success/30 bg-success/10 text-success'
       case 'boolean':
-        return 'purple'
+        return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
       case 'object':
-        return 'orange'
+        return 'border-warning/30 bg-warning/10 text-warning'
       case 'array':
-        return 'cyan'
+        return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
       default:
-        return 'default'
+        return 'border-border bg-background-subtle text-foreground'
     }
   }
 
@@ -58,12 +58,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     return (
       <ColFlex className="gap-1">
         <Flex className="items-center gap-2">
-          {itemType && (
-            <Badge
-              color={getTypeColor(prop.type)}
-              text={<Typography.Text type="secondary">{itemType}</Typography.Text>}
-            />
-          )}
+          {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
         {prop.description && (
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
@@ -75,7 +70,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Text type="secondary">{t('settings.mcp.tools.inputSchema.enum.allowedValues')}</Typography.Text>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
               {prop.enum.map((value: string, idx: number) => (
-                <Tag key={idx}>{value}</Tag>
+                <Badge key={idx} variant="outline">
+                  {value}
+                </Badge>
               ))}
             </div>
           </div>

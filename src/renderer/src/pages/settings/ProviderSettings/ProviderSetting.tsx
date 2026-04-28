@@ -1,4 +1,4 @@
-import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Flex, Input, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { HelpTooltip } from '@cherrystudio/ui'
 import { Divider } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
@@ -36,10 +36,10 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { Input, Select } from 'antd'
+import { Input as AntdInput, Select } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { Bolt, Check, Eye, EyeOff, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -130,6 +130,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const fancyProviderName = getFancyProviderName(provider)
 
   const [localApiKey, setLocalApiKey] = useState(provider.apiKey)
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState(false)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     status: HealthStatus.NOT_CHECKED,
     checking: false
@@ -445,7 +446,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
 
   return (
-    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
+    <SettingContainer theme={theme}>
       <SettingTitle>
         <Flex className="items-center gap-2">
           <span className="mr-[-2px] font-medium text-sm">{fancyProviderName}</span>
@@ -520,21 +521,34 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                 )}
               </SettingSubtitle>
               <div className="mt-1.25 flex w-full">
-                <Input.Password
-                  value={localApiKey}
-                  placeholder={t('settings.provider.api_key.label')}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  spellCheck={false}
-                  autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
-                  disabled={provider.id === 'copilot'}
-                  suffix={renderStatusIndicator()}
-                  className="flex-1"
-                />
+                <div className="relative flex-1">
+                  <Input
+                    type={isApiKeyVisible ? 'text' : 'password'}
+                    value={localApiKey}
+                    placeholder={t('settings.provider.api_key.label')}
+                    onChange={(e) => setLocalApiKey(e.target.value)}
+                    spellCheck={false}
+                    autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
+                    disabled={provider.id === 'copilot'}
+                    className="rounded-r-none border-r-0 pr-16"
+                  />
+                  <div className="-translate-y-1/2 absolute top-1/2 right-1.5 flex items-center gap-1">
+                    {renderStatusIndicator()}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setIsApiKeyVisible((visible) => !visible)}
+                      className="size-7 text-muted-foreground shadow-none hover:text-foreground">
+                      {isApiKeyVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </Button>
+                  </div>
+                </div>
                 <Button
                   variant={isApiKeyConnectable ? 'ghost' : undefined}
                   onClick={onCheckApi}
                   disabled={!apiHost || apiKeyConnectivity.checking}
-                  className="shrink-0">
+                  className="h-9 shrink-0 rounded-l-none">
                   {apiKeyConnectivity.checking ? (
                     <LoadingIcon />
                   ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
@@ -584,7 +598,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                     <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
                   ) : (
                     <div className="mt-1.25 flex w-full">
-                      <Input
+                      <AntdInput
                         value={apiHost}
                         placeholder={t('settings.provider.api_host')}
                         onChange={(e) => setApiHost(e.target.value)}
@@ -620,7 +634,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
               {activeHostField === 'anthropicApiHost' && canConfigureAnthropicHost && (
                 <>
                   <div className="mt-1.25 flex w-full">
-                    <Input
+                    <AntdInput
                       value={anthropicApiHost ?? ''}
                       placeholder={t('settings.provider.anthropic_api_host')}
                       onChange={(e) => setAnthropicHost(e.target.value)}
@@ -646,7 +660,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
         <>
           <SettingSubtitle>{t('settings.provider.api_version')}</SettingSubtitle>
           <div className="mt-1.25 flex w-full">
-            <Input
+            <AntdInput
               value={apiVersion}
               placeholder="2024-xx-xx-preview"
               onChange={(e) => setApiVersion(e.target.value)}

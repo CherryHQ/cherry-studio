@@ -1,7 +1,6 @@
-import { Alert, Input, RowFlex } from '@cherrystudio/ui'
+import { Alert, Input, RowFlex, Textarea } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Input as AntdInput } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -88,14 +87,14 @@ const VertexAISettings = () => {
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.private_key')}
       </SettingSubtitle>
-      <AntdInput.TextArea
+      <Textarea.Input
         value={serviceAccount.privateKey}
         placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
         onChange={handleServiceAccountPrivateKeyChange}
         onBlur={handleServiceAccountPrivateKeyBlur}
-        style={{ marginTop: 5 }}
+        className="mt-1.25 max-h-24 min-h-24"
         spellCheck={false}
-        autoSize={{ minRows: 4, maxRows: 4 }}
+        rows={4}
       />
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>

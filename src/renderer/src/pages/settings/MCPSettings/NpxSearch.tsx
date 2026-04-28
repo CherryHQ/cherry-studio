@@ -1,12 +1,12 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
-import { Center, RowFlex, Spinner } from '@cherrystudio/ui'
+import { Badge, Center, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Card, Input, Tag, Typography } from 'antd'
+import { Card, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -111,26 +111,26 @@ const NpxSearch: FC = () => {
               placeholder={t('settings.mcp.npx_list.scope_placeholder')}
               value={npmScope}
               onChange={(e) => setNpmScope(e.target.value)}
-              onPressEnter={() => handleNpmSearch(npmScope)}
-              size="large"
-              styles={{ input: { borderRadius: 100 } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  void handleNpmSearch(npmScope)
+                }
+              }}
+              className="h-10 rounded-full"
             />
           </div>
           <RowFlex className="items-center justify-center">
             {npmScopes.map((scope) => (
-              <Tag
+              <Badge
                 key={scope}
                 onClick={() => {
                   setNpmScope(scope)
                   void handleNpmSearch(scope)
                 }}
-                style={{
-                  cursor: searchLoading ? 'not-allowed' : 'pointer',
-                  borderRadius: 100,
-                  backgroundColor: 'var(--color-muted)'
-                }}>
+                className="cursor-pointer border-border bg-background-subtle text-foreground hover:bg-accent data-[disabled=true]:cursor-not-allowed"
+                data-disabled={searchLoading}>
                 {scope}
-              </Tag>
+              </Badge>
             ))}
           </RowFlex>
         </div>
@@ -162,9 +162,7 @@ const NpxSearch: FC = () => {
                 }
                 extra={
                   <Flex>
-                    <Tag color="success" style={{ borderRadius: 100 }}>
-                      v{record.version}
-                    </Tag>
+                    <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
                       variant="ghost"
                       size="icon-sm"

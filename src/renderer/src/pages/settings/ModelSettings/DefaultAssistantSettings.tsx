@@ -1,5 +1,16 @@
 import { CloseCircleFilled } from '@ant-design/icons'
-import { Button, Divider, EditableNumber, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Divider,
+  EditableNumber,
+  Flex,
+  HelpTooltip,
+  Input,
+  RowFlex,
+  Switch,
+  Textarea,
+  Tooltip
+} from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import Selector from '@renderer/components/Selector'
@@ -10,8 +21,7 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Input, Modal, Popover, Slider } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import { Modal, Popover, Slider } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -133,11 +143,11 @@ const AssistantSettings: FC = () => {
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
           onChange={handleNameChange}
-          style={{ flex: 1 }}
+          className="flex-1"
         />
       </RowFlex>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.prompt')}</SettingSubtitle>
-      <TextArea
+      <Textarea.Input
         rows={4}
         placeholder={t('common.assistant') + t('common.prompt')}
         value={defaultAssistant.prompt}

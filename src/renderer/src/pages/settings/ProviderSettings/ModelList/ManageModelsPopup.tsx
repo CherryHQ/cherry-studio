@@ -1,6 +1,5 @@
-import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, Flex, Input, RowFlex, Spinner, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { LoadingIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -21,11 +20,10 @@ import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getDuplicateModelNames, isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { cn } from '@renderer/utils/style'
-import { Empty, Modal, Spin, Tabs } from 'antd'
-import Input from 'antd/es/input/Input'
+import { Modal, Tabs } from 'antd'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
-import { ListMinus, ListPlus, RefreshCcw, Search } from 'lucide-react'
+import { ListMinus, ListPlus, RefreshCcw, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -268,20 +266,32 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       centered>
       <SearchContainer>
         <TopToolsWrapper>
-          <Input
-            prefix={<Search size={16} style={{ marginRight: 4 }} />}
-            size="large"
-            ref={searchInputRef}
-            placeholder={t('settings.provider.search_placeholder')}
-            allowClear
-            value={searchText}
-            onChange={(e) => {
-              const newSearchValue = e.target.value
-              setSearchText(newSearchValue) // Update input field immediately
-              debouncedSetFilterText(newSearchValue)
-            }}
-            disabled={loadingModels}
-          />
+          <div className="relative flex-1">
+            <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              placeholder={t('settings.provider.search_placeholder')}
+              value={searchText}
+              onChange={(e) => {
+                const newSearchValue = e.target.value
+                setSearchText(newSearchValue) // Update input field immediately
+                debouncedSetFilterText(newSearchValue)
+              }}
+              disabled={loadingModels}
+              className="h-10 pr-8 pl-9"
+            />
+            {searchText && (
+              <button
+                type="button"
+                className="-translate-y-1/2 absolute top-1/2 right-2 flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  setSearchText('')
+                  debouncedSetFilterText('')
+                }}>
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
           {renderTopTools()}
         </TopToolsWrapper>
         <Tabs
@@ -306,36 +316,25 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           }}
         />
       </SearchContainer>
-      <Spin
-        spinning={isLoading}
-        indicator={
-          <LoadingIcon color="var(--color-foreground-secondary)" style={{ opacity: loadingModels ? 1 : 0 }} />
-        }>
-        <ListContainer>
-          {loadingModels || isEmpty(list) ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={t('settings.models.empty')}
-              style={{
-                visibility: loadingModels ? 'hidden' : 'visible',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-                margin: '0'
-              }}
-            />
-          ) : (
-            <ManageModelsList
-              modelGroups={modelGroups}
-              duplicateModelNames={duplicateModelNames}
-              provider={provider}
-              onAddModel={onAddModel}
-              onRemoveModel={onRemoveModel}
-            />
-          )}
-        </ListContainer>
-      </Spin>
+      <ListContainer>
+        {isLoading ? (
+          <Flex className="h-full items-center justify-center">
+            <Spinner text={t('common.loading')} />
+          </Flex>
+        ) : isEmpty(list) ? (
+          <Flex className="h-full items-center justify-center">
+            <EmptyState compact preset="no-result" description={t('settings.models.empty')} />
+          </Flex>
+        ) : (
+          <ManageModelsList
+            modelGroups={modelGroups}
+            duplicateModelNames={duplicateModelNames}
+            provider={provider}
+            onAddModel={onAddModel}
+            onRemoveModel={onRemoveModel}
+          />
+        )}
+      </ListContainer>
     </Modal>
   )
 }

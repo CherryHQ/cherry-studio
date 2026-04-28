@@ -1,6 +1,6 @@
-import { Button, ButtonGroup, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, ColFlex, Flex, RowFlex, Spinner, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -15,7 +15,6 @@ import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
-import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -156,8 +155,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             {!hasNoModels && (
               <>
                 <Tooltip title={t('settings.models.check.button_caption')}>
-                  <Button size="icon" onClick={runHealthCheck}>
-                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} color="var(--color-icon)" />
+                  <Button size="icon" variant="ghost" onClick={runHealthCheck}>
+                    <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
                   </Button>
                 </Tooltip>
                 <CollapsibleSearchBar
@@ -172,8 +171,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         </RowFlex>
       </SettingSubtitle>
       {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
-      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-foreground-secondary)" />}>
-        {displayedModelGroups && !isEmpty(displayedModelGroups) && (
+      {isLoading ? (
+        <Flex className="justify-center py-5">
+          <Spinner text={t('common.loading')} />
+        </Flex>
+      ) : (
+        displayedModelGroups &&
+        !isEmpty(displayedModelGroups) && (
           <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
@@ -189,8 +193,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               />
             ))}
           </ColFlex>
-        )}
-      </Spin>
+        )
+      )}
       <Flex className="items-center justify-between">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>

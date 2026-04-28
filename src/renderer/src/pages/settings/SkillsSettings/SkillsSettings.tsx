@@ -1,4 +1,4 @@
-import { Checkbox, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
+import { Badge, Checkbox, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -7,7 +7,7 @@ import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/h
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import { Button, Dropdown, Input, message, Modal, Popconfirm, Tag, Typography, Upload } from 'antd'
+import { Button, Dropdown, Input, message, Modal, Popconfirm, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,
@@ -632,8 +632,12 @@ const SkillsSettings: FC = () => {
             <TopBarRight ref={searchContainerRef}>
               {selectedSkill ? (
                 <DetailMeta>
-                  {selectedSkill.author ? <Tag color="blue">{selectedSkill.author}</Tag> : null}
-                  <Tag>{selectedSkill.source === 'builtin' ? t('settings.skills.builtin') : selectedSkill.source}</Tag>
+                  {selectedSkill.author ? (
+                    <Badge className="border-primary/30 bg-primary/10 text-primary">{selectedSkill.author}</Badge>
+                  ) : null}
+                  <Badge variant="outline">
+                    {selectedSkill.source === 'builtin' ? t('settings.skills.builtin') : selectedSkill.source}
+                  </Badge>
                   {selectedSkill.source !== 'builtin' ? (
                     <Popconfirm
                       title={t('settings.skills.confirmUninstall')}
@@ -792,7 +796,7 @@ const SkillsSettings: FC = () => {
                 </MetaItem>
               ) : null}
               <MetaItem>
-                <Tag color="blue">{previewResult.sourceRegistry}</Tag>
+                <Badge className="border-primary/30 bg-primary/10 text-primary">{previewResult.sourceRegistry}</Badge>
               </MetaItem>
               {previewResult.sourceUrl ? (
                 <MetaItem>
