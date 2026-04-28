@@ -1,13 +1,21 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex, Input, Textarea } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Flex,
+  Input,
+  Textarea
+} from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Modal, Popconfirm } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -22,6 +30,7 @@ const QuickPhraseSettings: FC = () => {
   const [editingPhrase, setEditingPhrase] = useState<QuickPhrase | null>(null)
   const [formData, setFormData] = useState({ title: '', content: '' })
   const [dragging, setDragging] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const { theme } = useTheme()
 
   const loadPhrases = async () => {
@@ -101,17 +110,9 @@ const QuickPhraseSettings: FC = () => {
                         <Button key="edit" variant="ghost" onClick={() => handleEdit(phrase)} size="icon">
                           <EditIcon size={14} />
                         </Button>
-                        <Popconfirm
-                          title={t('settings.quickPhrase.delete')}
-                          description={t('settings.quickPhrase.deleteConfirm')}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={() => handleDelete(phrase.id)}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button key="delete" variant="ghost" onClick={() => {}} size="icon">
-                            <DeleteIcon size={14} className="lucide-custom" />
-                          </Button>
-                        </Popconfirm>
+                        <Button key="delete" variant="ghost" onClick={() => setPendingDeleteId(phrase.id)} size="icon">
+                          <DeleteIcon size={14} className="lucide-custom" />
+                        </Button>
                       </Flex>
                     )
                   }}
@@ -122,36 +123,58 @@ const QuickPhraseSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <Modal
-        title={editingPhrase ? t('settings.quickPhrase.edit') : t('settings.quickPhrase.add')}
-        open={isModalOpen}
-        onOk={handleModalOk}
-        onCancel={() => setIsModalOpen(false)}
-        width={520}
-        transitionName="animation-move-down"
-        centered
-        maskClosable={false}>
-        <div className="flex w-full flex-col gap-4">
-          <div>
-            <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.titleLabel')}</div>
-            <Input
-              placeholder={t('settings.quickPhrase.titlePlaceholder')}
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent
+          className="sm:max-w-[520px]"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{editingPhrase ? t('settings.quickPhrase.edit') : t('settings.quickPhrase.add')}</DialogTitle>
+          </DialogHeader>
+          <div className="flex w-full flex-col gap-4">
+            <div>
+              <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.titleLabel')}</div>
+              <Input
+                placeholder={t('settings.quickPhrase.titlePlaceholder')}
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.contentLabel')}</div>
+              <Textarea.Input
+                placeholder={t('settings.quickPhrase.contentPlaceholder')}
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                rows={6}
+                style={{ resize: 'none' }}
+              />
+            </div>
           </div>
-          <div>
-            <div className="mb-2 text-foreground text-sm">{t('settings.quickPhrase.contentLabel')}</div>
-            <Textarea.Input
-              placeholder={t('settings.quickPhrase.contentPlaceholder')}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              rows={6}
-              style={{ resize: 'none' }}
-            />
-          </div>
-        </div>
-      </Modal>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleModalOk}>{t('common.confirm')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => !open && setPendingDeleteId(null)}
+        title={t('settings.quickPhrase.delete')}
+        description={t('settings.quickPhrase.deleteConfirm')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          if (pendingDeleteId) {
+            await handleDelete(pendingDeleteId)
+            setPendingDeleteId(null)
+          }
+        }}
+      />
     </SettingContainer>
   )
 }

@@ -1,7 +1,6 @@
-import { InfoTooltip, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Input, Space } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -37,9 +36,9 @@ const CutoffSettings = () => {
           }}
         />
       </SettingRowTitle>
-      <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
+      <div className="flex" style={{ width: INPUT_BOX_WIDTH }}>
         <Input
-          style={{ maxWidth: '60%' }}
+          className="max-w-[60%] rounded-r-none border-r-0 focus-visible:z-10"
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
           onChange={(e) => {
@@ -65,7 +64,7 @@ const CutoffSettings = () => {
             ))}
           </SelectContent>
         </Select>
-      </Space.Compact>
+      </div>
     </SettingRow>
   )
 }

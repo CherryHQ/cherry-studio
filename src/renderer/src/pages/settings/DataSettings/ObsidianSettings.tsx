@@ -1,7 +1,15 @@
-import { EmptyState, RowFlex } from '@cherrystudio/ui'
+import {
+  EmptyState,
+  RowFlex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Select, Spin } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,8 +17,6 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('ObsidianSettings')
-
-const { Option } = Select
 
 const ObsidianSettings: FC = () => {
   const { t } = useTranslation()
@@ -63,31 +69,28 @@ const ObsidianSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
-          <Spin spinning={loading} size="small">
-            {vaults.length > 0 ? (
-              <Select
-                value={defaultObsidianVault || undefined}
-                onChange={handleChange}
-                placeholder={t('settings.data.obsidian.default_vault_placeholder')}
-                style={{ width: 300 }}>
+          {loading ? (
+            <Spinner />
+          ) : vaults.length > 0 ? (
+            <Select value={defaultObsidianVault || undefined} onValueChange={handleChange}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder={t('settings.data.obsidian.default_vault_placeholder')} />
+              </SelectTrigger>
+              <SelectContent>
                 {vaults.map((vault) => (
-                  <Option key={vault.name} value={vault.name}>
+                  <SelectItem key={vault.name} value={vault.name}>
                     {vault.name}
-                  </Option>
+                  </SelectItem>
                 ))}
-              </Select>
-            ) : (
-              <EmptyState
-                compact
-                preset="no-resource"
-                description={
-                  loading
-                    ? t('settings.data.obsidian.default_vault_loading')
-                    : error || t('settings.data.obsidian.default_vault_no_vaults')
-                }
-              />
-            )}
-          </Spin>
+              </SelectContent>
+            </Select>
+          ) : (
+            <EmptyState
+              compact
+              preset="no-resource"
+              description={error || t('settings.data.obsidian.default_vault_no_vaults')}
+            />
+          )}
         </RowFlex>
       </SettingRow>
     </SettingGroup>

@@ -1,9 +1,18 @@
-import { Button, Input, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tabs,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
-import { Popover, Tag } from 'antd'
 import { Check, Plus, Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -84,45 +93,50 @@ const BuiltinMCPServerList: FC = () => {
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2 overflow-hidden">
                   <span className="truncate font-semibold text-[15px]">{server.name}</span>
-                  <Tag color="warning" style={{ borderRadius: 8, margin: 0, fontWeight: 600 }}>
+                  <Badge
+                    variant="outline"
+                    className="rounded-md border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
                     {t('settings.mcp.builtinServers')}
-                  </Tag>
+                  </Badge>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
                       target="_blank"
                       rel="noopener noreferrer">
-                      <Tag color="error" style={{ borderRadius: 8, margin: 0, fontWeight: 600 }}>
+                      <Badge
+                        variant="outline"
+                        className="rounded-md border-red-500/30 bg-red-500/10 px-2 py-0.5 font-semibold text-red-600 dark:text-red-400">
                         {t('settings.mcp.requiresConfig')}
-                      </Tag>
+                      </Badge>
                     </a>
                   )}
                 </div>
-                <Popover
-                  content={
-                    <div className="wrap-break-word max-w-87.5 whitespace-pre-wrap text-[14px] text-foreground leading-normal">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <div className="line-clamp-2 cursor-pointer text-muted-foreground text-sm leading-5 hover:text-foreground">
+                      {getBuiltInMcpServerDescriptionLabel(server.name)}
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" side="top" className="max-w-100 w-auto">
+                    <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
+                    <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
                       {getBuiltInMcpServerDescriptionLabel(server.name)}
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block max-w-87.5 text-primary no-underline hover:text-primary/80 hover:underline">
+                          className="wrap-break-word mt-2 inline-block text-primary hover:underline">
                           {server.reference}
                         </a>
                       )}
                     </div>
-                  }
-                  title={server.name}
-                  trigger="hover"
-                  placement="topLeft"
-                  overlayStyle={{ maxWidth: 400 }}>
-                  <div className="line-clamp-2 cursor-pointer text-muted-foreground text-sm leading-5 hover:text-foreground">
-                    {getBuiltInMcpServerDescriptionLabel(server.name)}
-                  </div>
+                  </PopoverContent>
                 </Popover>
                 <div className="mt-1.5 flex items-center gap-1">
-                  <Tag color="processing" style={{ borderRadius: 8, margin: 0, fontWeight: 500 }}>
+                  <Badge
+                    variant="outline"
+                    className="rounded-md border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-medium text-blue-600 dark:text-blue-400">
                     {getMcpTypeLabel(server.type ?? 'stdio')}
-                  </Tag>
+                  </Badge>
                 </div>
               </div>
               <div className="ml-3 flex shrink-0 items-center self-center">
