@@ -1491,7 +1491,7 @@
       "unpin": "Bỏ ghim chủ đề"
     },
     "translate": "Dịch",
-    "user": "User",
+    "user": "[to be translated]:User",
     "web_search": {
       "warning": {
         "openai": "Mô hình GPT-5 với nỗ lực suy luận tối thiểu không hỗ trợ tìm kiếm web."
@@ -1503,8 +1503,8 @@
     "bun_required_message": "Môi trường Bun là bắt buộc để chạy các công cụ CLI",
     "cli_tool": "Công cụ CLI",
     "cli_tool_placeholder": "Chọn công cụ CLI để sử dụng",
-    "count_one": "{{count}} item",
-    "count_other": "{{count}} items",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Đường dẫn tùy chỉnh",
     "custom_path_error": "Falha ao definir caminho personalizado do terminal",
     "custom_path_required": "Chemin personnalisé requis pour ce terminal",
@@ -1512,12 +1512,12 @@
     "description": "Khởi chạy nhanh nhiều công cụ CLI mã để nâng cao hiệu suất phát triển",
     "empty": {
       "no_match": {
-        "description": "Try adjusting your search terms",
-        "title": "No matching tools found"
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
       },
       "no_tool": {
-        "description": "Add a CLI tool or code assistant to get started",
-        "title": "No code tools yet"
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
       }
     },
     "env_vars_help": "Nhập các biến môi trường tùy chỉnh (mỗi dòng một biến, định dạng: KEY=value)",
@@ -1529,28 +1529,28 @@
       "bun_required": "Vui lòng cài đặt môi trường Bun trước khi khởi chạy các công cụ CLI",
       "error": "Lancement échoué, veuillez réessayer",
       "label": "Lanzamiento",
-      "launched": "Launched",
+      "launched": "[to be translated]:Launched",
       "success": "Khởi chạy thành công",
       "validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc"
     },
     "launching": "Lanzando...",
     "model": "Modelo",
-    "model_hint": "Choose which AI model the CLI tool should use",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Chọn mô hình cần sử dụng",
     "model_required": "Vui lòng chọn một mô hình",
-    "official_tag": "Official",
-    "official_tools": "Official",
-    "search_placeholder": "Search CLI tools…",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Pilih Folder",
     "set_custom_path": "Đặt đường dẫn terminal tùy chỉnh",
     "supported_providers": "Nhà cung cấp được hỗ trợ",
     "terminal": "Thiết bị đầu cuối",
-    "terminal_hint": "Choose which terminal application to run the CLI in",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Chọn ứng dụng thiết bị đầu cuối",
     "title": "Công cụ mã",
     "update_options": "Tùy chọn Cập nhật",
     "working_directory": "Thư mục làm việc",
-    "working_directory_hint": "The working directory that the CLI tool launches in"
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Colapso",
@@ -2554,6 +2554,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Thêm tham số",
     "all": "Tất cả",
     "custom_parameters": "Tham số Tùy chỉnh",
@@ -2571,6 +2575,9 @@
     "function_calling": "Gọi Hàm",
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Không có mô hình nào khả dụng",
     "parameter_name": "Tên tham số",
     "parameter_type": {
@@ -3341,33 +3348,33 @@
   },
   "quickAssistant": {
     "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+      "google_login": "[to be translated]:Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
     },
     "clipboard": {
-      "empty": "Clipboard is empty"
+      "empty": "[to be translated]:Clipboard is empty"
     },
     "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
+      "chat": "[to be translated]:Answer this question",
+      "explanation": "[to be translated]:Explanation",
+      "summary": "[to be translated]:Content summary",
+      "translate": "[to be translated]:Text translation"
     },
     "footer": {
-      "backspace_clear": "Backspace to clear",
-      "copy_last_message": "Press C to copy",
-      "esc": "ESC to {{action}}",
-      "esc_back": "return",
-      "esc_close": "close",
-      "esc_pause": "pause"
+      "backspace_clear": "[to be translated]:Backspace to clear",
+      "copy_last_message": "[to be translated]:Press C to copy",
+      "esc": "[to be translated]:ESC to {{action}}",
+      "esc_back": "[to be translated]:return",
+      "esc_close": "[to be translated]:close",
+      "esc_pause": "[to be translated]:pause"
     },
     "input": {
       "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
+        "empty": "[to be translated]:Ask {{model}} for help...",
+        "title": "[to be translated]:What do you want to do with this text?"
       }
     },
     "tooltip": {
-      "pin": "Keep Window on Top"
+      "pin": "[to be translated]:Keep Window on Top"
     }
   },
   "restore": {
@@ -3875,6 +3882,47 @@
     "channels": {
       "description": "Kết nối các tác nhân với các nền tảng nhắn tin như Telegram, Feishu, Discord và nhiều hơn nữa.",
       "title": "Kênh"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5033,15 +5081,12 @@
       },
       "api_key": "Khóa API",
       "base_url": "URL cơ sở",
-      "bulk_disable": "Disable all",
-      "bulk_enable": "Enable all",
       "check": {
         "all": "Todo",
         "all_models_passed": "Tất cả các mô hình đã vượt qua kiểm tra",
         "button_caption": "Kiểm tra sức khỏe",
         "disabled": "Vô hiệu hóa",
         "disclaimer": "Việc kiểm tra sức khỏe yêu cầu gửi các yêu cầu, vui lòng sử dụng một cách thận trọng. Các mô hình tính phí theo từng yêu cầu có thể phát sinh chi phí bổ sung, vui lòng tự chịu trách nhiệm.",
-        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Đồng thời",
         "enabled": "Đã bật",
         "failed": "Thất bại",
@@ -5052,39 +5097,43 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "Không tìm thấy khóa API, vui lòng thêm khóa API trước.",
         "no_results": "Không có kết quả",
+        "passed": "Đã thông qua",
+        "select_api_key": "Chọn khóa API để sử dụng:",
+        "single": "Unico",
+        "start": "Bắt đầu",
+        "timeout": "Hết thời gian",
+        "title": "Kontrola zdraví modelu",
+        "use_all_keys": "Clave(s)",
+        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "outcome_fail_short": "{{count}} failed",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
-        "passed": "Đã thông qua",
         "pipeline_heading": "Detection progress",
         "progress_count": "{{done}} / {{total}}",
         "progress_current": "Đang kiểm tra: {{name}}",
         "progress_hint": "Bạn có thể đóng bảng này; quá trình kiểm tra vẫn tiếp tục ở nền.",
         "progress_title": "Đang chạy kiểm tra sức khỏe",
         "retry": "Check again",
-        "select_api_key": "Chọn khóa API để sử dụng:",
-        "single": "Unico",
-        "start": "Bắt đầu",
-        "status_checking": "Checking…",
-        "timeout": "Hết thời gian",
-        "title": "Kontrola zdraví modelu",
-        "use_all_keys": "Clave(s)"
+        "status_checking": "Checking…"
       },
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
       "empty": "Không tìm thấy mô hình nào",
-      "list_title": "Model list",
       "manage": {
-        "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm các mô hình vào danh sách"
         },
         "add_whole_group": "Thêm toàn bộ nhóm",
+        "fetch_list": "Lấy danh sách mô hình",
+        "refetch_list": "Tải lại danh sách mô hình",
+        "remove_listed": "Xóa các mô hình khỏi danh sách",
+        "remove_model": "Xóa mô hình",
+        "remove_whole_group": "Xóa toàn bộ nhóm",
+        "add_custom_model": "Add custom model",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
-        "fetch_list": "Lấy danh sách mô hình",
         "fetch_ok": "OK",
         "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
         "fetch_result_title": "Pull result",
@@ -5097,11 +5146,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
-        "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
-        "remove_listed": "Xóa các mô hình khỏi danh sách",
-        "remove_model": "Xóa mô hình",
-        "remove_whole_group": "Xóa toàn bộ nhóm",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
         "status_all": "All",
@@ -5156,11 +5201,6 @@
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Khuyến nghị chọn mô hình nhẹ và không nên chọn mô hình suy nghĩ."
       },
-      "toolbar": {
-        "filter_close": "Close filter",
-        "filter_open": "Filter by capability",
-        "pull_short": "Pull"
-      },
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
@@ -5171,7 +5211,15 @@
       "translate_model_prompt_message": "Vui lòng nhập lời nhắc mô hình dịch",
       "translate_model_prompt_title": "Dịch Mô hình Nhắc",
       "use_assistant": "Sử dụng Trợ lý",
-      "use_model": "Mô hình Mặc định"
+      "use_model": "Mô hình Mặc định",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
+      "list_title": "Model list",
+      "toolbar": {
+        "filter_close": "Close filter",
+        "filter_open": "Filter by capability",
+        "pull_short": "Pull"
+      }
     },
     "moresetting": {
       "check": {
@@ -5326,7 +5374,6 @@
         "tip": "Dùng dấu phẩy để phân tách nhiều khóa"
       },
       "api_version": "Phiên bản API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID Khóa Truy Cập AWS",
         "access_key_id_help": "Votre ID de clé d'accès AWS pour accéder aux services AWS Bedrock",
@@ -5367,7 +5414,6 @@
       "check_all_keys": "Kiểm tra tất cả các phím",
       "check_multiple_keys": "Kiểm tra nhiều khóa API",
       "copilot": {
-        "add_request_header": "Add header",
         "auth_failed": "Xác thực Github Copilot thất bại.",
         "auth_success": "Xác thực GitHub Copilot thành công.",
         "auth_success_title": "Chứng nhận thành công.",
@@ -5380,11 +5426,7 @@
         "description": "Tài khoản GitHub của bạn cần đăng ký Copilot.",
         "description_detail": "GitHub Copilot là một trợ lý mã nguồn được hỗ trợ bởi AI, yêu cầu có đăng ký GitHub Copilot hợp lệ để sử dụng.",
         "expand": "Mở rộng",
-        "header_field_name": "Header",
-        "header_field_value": "Value",
-        "header_name_placeholder": "Header name",
-        "header_value_placeholder": "Header value",
-        "headers_description": "Custom request headers (JSON format)",
+        "headers_description": "Tiêu đề yêu cầu tùy chỉnh (định dạng JSON)",
         "invalid_json": "Lỗi định dạng JSON",
         "login": "Đăng nhập vào Github",
         "logout": "Thoát GitHub",
@@ -5405,7 +5447,12 @@
         "step_copy_code_desc": "Sao chép mã ủy quyền thiết bị",
         "step_copy_code_detail": "Mã xác thực đã được sao chép tự động, bạn cũng có thể sao chép thủ công",
         "step_get_code": "Lấy Mã Ủy Quyền",
-        "step_get_code_desc": "Tạo mã ủy quyền thiết bị"
+        "step_get_code_desc": "Tạo mã ủy quyền thiết bị",
+        "add_request_header": "Add header",
+        "header_field_name": "Header",
+        "header_field_value": "Value",
+        "header_name_placeholder": "Header name",
+        "header_value_placeholder": "Header value"
       },
       "delete": {
         "content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
@@ -5437,15 +5484,15 @@
         "balance": "Cân bằng",
         "button": "Iniciar sesión con {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
           "login_button": "Đăng nhập bằng OAuth",
           "logout_button": "Keluar",
+          "title": "Đăng nhập OAuth",
+          "account_title": "Cherry IN account",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
-          "title": "Đăng nhập OAuth",
           "use_api_key": "Use API key instead"
         },
         "connect": "Kết nối {{provider}}",
@@ -5493,7 +5540,8 @@
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
           "title": "Cấu hình Tài khoản Dịch vụ"
         }
-      }
+      },
+      "auth_connection_section": "Connection & authentication"
     },
     "proxy": {
       "address": "Địa chỉ Proxy",
@@ -5549,29 +5597,29 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
-      "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
+      "bind_first_to_enable": "[to be translated]:Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
-      "conflict_with": "Already used by \"{{name}}\"",
+      "conflict_with": "[to be translated]:Already used by \"{{name}}\"",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
       "new_topic": "Chủ đề mới",
-      "occupied_by_other_application": "This shortcut is already used by the system or another application",
+      "occupied_by_other_application": "[to be translated]:This shortcut is already used by the system or another application",
       "press_shortcut": "Nhấn Phím tắt",
-      "quick_assistant": "Quick Assistant",
+      "quick_assistant": "[to be translated]:Quick Assistant",
       "rename_topic": "Đổi tên chủ đề",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
-      "reset_defaults_failed": "Failed to reset shortcuts to defaults",
+      "reset_defaults_failed": "[to be translated]:Failed to reset shortcuts to defaults",
       "reset_to_default": "Đặt lại về mặc định",
-      "save_failed": "Failed to save shortcut",
-      "save_failed_with_name": "Failed to save shortcut: {{name}}",
+      "save_failed": "[to be translated]:Failed to save shortcut",
+      "save_failed_with_name": "[to be translated]:Failed to save shortcut: {{name}}",
       "search_message": "Tin nhắn tìm kiếm",
       "search_message_in_chat": "Tìm Tin nhắn trong Cuộc trò chuyện Hiện tại",
-      "search_placeholder": "Search shortcuts...",
+      "search_placeholder": "[to be translated]:Search shortcuts...",
       "select_model": "Chọn Mô hình",
       "selection_assistant_select_text": "Trợ lý Lựa chọn: Chọn Văn bản",
       "selection_assistant_toggle": "Bật Trợ lý Chọn",
@@ -5580,7 +5628,7 @@
       "title": "Phím tắt",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
       "toggle_show_topics": "Chuyển đổi chủ đề",
-      "toggle_sidebar": "Toggle Sidebar",
+      "toggle_sidebar": "[to be translated]:Toggle Sidebar",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"
@@ -5849,11 +5897,11 @@
     }
   },
   "tab": {
-    "close": "Close Tab",
-    "moveToFirst": "Move to First",
-    "new": "New Tab",
-    "pin": "Pin Tab",
-    "unpin": "Unpin Tab"
+    "close": "[to be translated]:Close Tab",
+    "moveToFirst": "[to be translated]:Move to First",
+    "new": "[to be translated]:New Tab",
+    "pin": "[to be translated]:Pin Tab",
+    "unpin": "[to be translated]:Unpin Tab"
   },
   "title": {
     "apps": "Ứng dụng",
@@ -6020,7 +6068,7 @@
   },
   "tray": {
     "quit": "Thôi",
-    "show_quick_assistant": "Quick Assistant",
+    "show_quick_assistant": "[to be translated]:Quick Assistant",
     "show_window": "Hiển thị cửa sổ"
   },
   "update": {

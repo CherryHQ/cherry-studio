@@ -95,6 +95,21 @@ export const allHandlers: ApiImplementation = {
 - Domain workflows
 - Data access via Drizzle ORM
 
+### Cross-Service Table Access
+
+Each table has exactly **one owning service** — the rule is split by access kind:
+
+- **Writes (`insert` / `update` / `delete`) to a table you do not own: forbidden.** Call the owner's method (pass `tx` for transactional writes — owners' mutation methods accept `Pick<DbType, 'delete' | 'insert' | ...>` as the first arg). If a needed shape is missing, add a method on the owner; bulk needs get a bulk method (e.g. `purgeForEntities`).
+- **Reads from a table you do not own: allowed when inlining is the simpler path.** A cross-table JOIN that combines the owner's table into your query in one round-trip is fine; reach for the owner's read API only when the read needs business logic the owner already encapsulates.
+
+Why writes are strict: the owning service is the single source of truth for the table's invariants (unique indices, `orderKey` semantics, soft-delete, audit timestamps) and emits its mutation logs. Foreign writes split that knowledge across every caller and silence the log narrative.
+
+✅ `ProviderService.delete` → `pinService.purgeForEntities(tx, 'model', ids)`
+✅ `AssistantService.list` JOINs `entity_tag` + `tag` inline to load tags per assistant
+❌ `ProviderService.delete` → `tx.delete(pinTable).where(...)` directly
+
+If you're tempted to write "going through `XxxService` would be over-engineering" — stop. A 5-line method on the owner is not over-engineering; a foreign service writing to its table is.
+
 ### Example Service
 
 ```typescript

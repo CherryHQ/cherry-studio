@@ -1,16 +1,25 @@
 /**
  * Migrates legacy Redux llm providers/models into v2 user tables.
+ *
+ * Also owns the one-shot migration of the legacy Dexie `pinned:models` key
+ * into the `pin` table (entityType='model'). `pinned:models` is therefore
+ * intentionally NOT classified as a preference in classification.json —
+ * codegen must not emit a generic preference mapping for it, or the same
+ * data would be written twice.
  */
 
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as LegacyProvider } from '@types'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 
@@ -23,6 +32,70 @@ interface LlmState {
   settings?: OldLlmSettings
 }
 
+function createModelId(providerId: string, modelId: string): UniqueModelId | null {
+  try {
+    return createUniqueModelId(providerId, modelId)
+  } catch {
+    return null
+  }
+}
+
+function normalizePinnedModelObject(value: unknown): UniqueModelId | null {
+  if (!value || typeof value !== 'object') return null
+
+  const { id, provider } = value as { id?: unknown; provider?: unknown }
+  if (typeof provider !== 'string' || typeof id !== 'string') return null
+
+  return createModelId(provider.trim(), id.trim())
+}
+
+function normalizePinnedModelId(value: unknown): UniqueModelId | null {
+  const objectModelId = normalizePinnedModelObject(value)
+  if (objectModelId) return objectModelId
+
+  if (typeof value !== 'string') return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (isUniqueModelId(trimmed)) return trimmed
+
+  if (trimmed.startsWith('{')) {
+    try {
+      return normalizePinnedModelObject(JSON.parse(trimmed))
+    } catch {
+      return null
+    }
+  }
+
+  const separatorIndex = trimmed.indexOf('/')
+  if (separatorIndex <= 0) return null
+
+  const providerId = trimmed.slice(0, separatorIndex).trim()
+  const modelId = trimmed.slice(separatorIndex + 1).trim()
+  if (!providerId || !modelId) return null
+
+  return createModelId(providerId, modelId)
+}
+
+function normalizePinnedModelIds(rawValue: unknown, validModelIds: ReadonlySet<string>): UniqueModelId[] {
+  if (!Array.isArray(rawValue)) return []
+
+  const normalized: UniqueModelId[] = []
+  const seen = new Set<string>()
+
+  for (const value of rawValue) {
+    const modelId = normalizePinnedModelId(value)
+    if (!modelId || !validModelIds.has(modelId) || seen.has(modelId)) {
+      continue
+    }
+
+    seen.add(modelId)
+    normalized.push(modelId)
+  }
+
+  return normalized
+}
+
 export class ProviderModelMigrator extends BaseMigrator {
   readonly id = 'provider_model'
   readonly name = 'Provider Model'
@@ -32,11 +105,13 @@ export class ProviderModelMigrator extends BaseMigrator {
   private providers: LegacyProvider[] = []
   private settings: OldLlmSettings = {}
   private totalModelCount = 0
+  private pinnedModelIds: UniqueModelId[] = []
 
   override reset(): void {
     this.providers = []
     this.settings = {}
     this.totalModelCount = 0
+    this.pinnedModelIds = []
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -73,6 +148,14 @@ export class ProviderModelMigrator extends BaseMigrator {
         const uniqueModelIds = new Set((provider.models ?? []).map((model) => model.id))
         return count + uniqueModelIds.size
       }, 0)
+      const validModelIds = new Set(
+        this.providers.flatMap((provider) =>
+          Array.from(new Set((provider.models ?? []).map((model) => model.id)))
+            .map((modelId) => createModelId(provider.id, modelId))
+            .filter((modelId): modelId is UniqueModelId => Boolean(modelId))
+        )
+      )
+      this.pinnedModelIds = normalizePinnedModelIds(ctx.sources.dexieSettings.get('pinned:models'), validModelIds)
 
       if (skippedProviders > 0) {
         warnings.push(`Skipped ${skippedProviders} duplicate provider(s)`)
@@ -81,7 +164,8 @@ export class ProviderModelMigrator extends BaseMigrator {
       logger.info('Preparation completed', {
         providerCount: this.providers.length,
         skippedProviders,
-        modelCount: this.totalModelCount
+        modelCount: this.totalModelCount,
+        pinnedModelCount: this.pinnedModelIds.length
       })
 
       return {
@@ -136,11 +220,22 @@ export class ProviderModelMigrator extends BaseMigrator {
             `Migrated ${processedProviders}/${this.providers.length} providers and ${processedModels} models`
           )
         }
+
+        const pinRows = assignOrderKeysInSequence(
+          this.pinnedModelIds.map((entityId) => ({
+            entityType: 'model' as const,
+            entityId
+          }))
+        )
+        if (pinRows.length > 0) {
+          await tx.insert(pinTable).values(pinRows).onConflictDoNothing()
+        }
       })
 
       logger.info('Execute completed', {
         processedProviders,
-        processedModels
+        processedModels,
+        processedPins: this.pinnedModelIds.length
       })
 
       return {
@@ -163,8 +258,14 @@ export class ProviderModelMigrator extends BaseMigrator {
 
       const providerResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(userProviderTable).get()
       const modelResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(userModelTable).get()
+      const pinResult = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(pinTable)
+        .where(eq(pinTable.entityType, 'model'))
+        .get()
       const targetProviderCount = providerResult?.count ?? 0
       const targetModelCount = modelResult?.count ?? 0
+      const targetPinCount = pinResult?.count ?? 0
 
       if (targetProviderCount !== this.providers.length) {
         errors.push({
@@ -177,6 +278,13 @@ export class ProviderModelMigrator extends BaseMigrator {
         errors.push({
           key: 'model_count_mismatch',
           message: `Expected ${this.totalModelCount} models but found ${targetModelCount}`
+        })
+      }
+
+      if (targetPinCount !== this.pinnedModelIds.length) {
+        errors.push({
+          key: 'pin_count_mismatch',
+          message: `Expected ${this.pinnedModelIds.length} model pins but found ${targetPinCount}`
         })
       }
 

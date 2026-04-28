@@ -38,7 +38,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 // Mock ModelSelector component
-vi.mock('@renderer/components/ModelSelector', () => ({
+vi.mock('@renderer/components/ModelSelectorLegacy', () => ({
   default: ({ value, onChange, placeholder, allowClear, providers }: any) => {
     // Use providers parameter to avoid lint error
     const hasProviders = providers && providers.length > 0

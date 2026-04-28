@@ -2,12 +2,14 @@ import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isDev } from '@renderer/config/constant'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   CalendarClock,
   Cloud,
   Command,
   FileCode,
+  FlaskConical,
   HardDrive,
   Info,
   MonitorCog,
@@ -154,6 +156,14 @@ const SettingsPage: FC = () => {
               active={isActive('/settings/about')}
               onClick={() => go('/settings/about')}
             />
+            {isDev && (
+              <MenuItem
+                icon={<FlaskConical size={18} />}
+                label={t('settings.componentLab.label')}
+                active={isActive('/settings/component-lab')}
+                onClick={() => go('/settings/component-lab')}
+              />
+            )}
           </MenuList>
         </SettingMenus>
         <SettingContent>

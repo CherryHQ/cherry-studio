@@ -2,6 +2,7 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelService'
@@ -418,6 +419,39 @@ describe('ModelService.create', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-new')))
 
     expect(rows).toHaveLength(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModelService.delete — pin cleanup
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.delete', () => {
+  const dbh = setupTestDatabase()
+
+  it('purges model pins when deleting the model row', async () => {
+    const modelId = createUniqueModelId('openai', 'gpt-4o')
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      name: 'OpenAI'
+    })
+    await dbh.db.insert(userModelTable).values({
+      id: modelId,
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      name: 'GPT-4o'
+    })
+    await dbh.db.insert(pinTable).values({
+      entityType: 'model',
+      entityId: modelId,
+      orderKey: 'a0'
+    })
+
+    await modelService.delete('openai', 'gpt-4o')
+
+    const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, modelId))
+    expect(pins).toHaveLength(0)
   })
 })
 
