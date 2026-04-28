@@ -7,6 +7,12 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { ErrorCode } from '@shared/data/api'
+import {
+  type CreateAssistantBody,
+  type CreateAssistantDto,
+  CreateAssistantSchema
+} from '@shared/data/api/schemas/assistants'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -71,6 +77,10 @@ describe('AssistantDataService', () => {
     })
   }
 
+  function createAssistantDto(body: CreateAssistantBody): CreateAssistantDto {
+    return CreateAssistantSchema.parse(body)
+  }
+
   it('should export a module-level singleton', () => {
     expect(assistantDataService).toBeInstanceOf(AssistantDataService)
   })
@@ -107,6 +117,7 @@ describe('AssistantDataService', () => {
       expect(result.prompt).toBe('')
       expect(result.emoji).toBe('🌟')
       expect(result.description).toBe('')
+      expect(result.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
       expect(result.mcpServerIds).toEqual([])
       expect(result.knowledgeBaseIds).toEqual([])
     })
@@ -206,7 +217,7 @@ describe('AssistantDataService', () => {
 
   describe('create', () => {
     it('should create and return assistant with generated id', async () => {
-      const result = await assistantDataService.create({ name: 'test-assistant' })
+      const result = await assistantDataService.create(createAssistantDto({ name: 'test-assistant' }))
 
       expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
@@ -215,7 +226,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should persist assistant to database', async () => {
-      const created = await assistantDataService.create({ name: 'test-assistant' })
+      const created = await assistantDataService.create(createAssistantDto({ name: 'test-assistant' }))
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.id).toBe(created.id)
@@ -226,12 +237,14 @@ describe('AssistantDataService', () => {
       await seedMcpServer()
       await seedKnowledgeBase()
 
-      const result = await assistantDataService.create({
-        name: 'test-assistant',
-        modelId: 'openai::gpt-4',
-        mcpServerIds: ['srv-1'],
-        knowledgeBaseIds: ['kb-1']
-      })
+      const result = await assistantDataService.create(
+        createAssistantDto({
+          name: 'test-assistant',
+          modelId: 'openai::gpt-4',
+          mcpServerIds: ['srv-1'],
+          knowledgeBaseIds: ['kb-1']
+        })
+      )
 
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
@@ -244,13 +257,15 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw validation error when name is empty', async () => {
-      await expect(assistantDataService.create({ name: '' })).rejects.toMatchObject({
+      await expect(
+        assistantDataService.create({ ...createAssistantDto({ name: 'valid' }), name: '' })
+      ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
 
     it('should throw validation error when name is whitespace only', async () => {
-      await expect(assistantDataService.create({ name: '   ' })).rejects.toMatchObject({
+      await expect(assistantDataService.create(createAssistantDto({ name: '   ' }))).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })
