@@ -1,4 +1,4 @@
-import { FieldLabel, Input, Textarea } from '@cherrystudio/ui'
+import { EditableNumber, FieldLabel, Textarea } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,14 +31,18 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           </FieldLabel>
           <span className="font-mono text-xs text-foreground/70">{form.maxTurns || 0}</span>
         </div>
-        <Input
-          type="number"
+        <EditableNumber
+          block
           min={0}
           max={100}
-          value={form.maxTurns || ''}
-          onChange={(e) => onChange({ maxTurns: Number(e.target.value) || 0 })}
+          step={1}
+          precision={0}
+          align="start"
+          changeOnBlur
+          value={form.maxTurns || null}
+          onChange={(v) => onChange({ maxTurns: typeof v === 'number' ? v : 0 })}
           placeholder="0"
-          className="rounded-xs border-border/20 bg-accent/15 text-xs focus:border-border/40 focus:bg-accent/20"
+          className="rounded-xs border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
         <span className="text-xs text-muted-foreground/55">{t('library.config.agent.field.max_turns.help')}</span>
       </div>

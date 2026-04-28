@@ -4,6 +4,7 @@ import {
   ButtonGroup,
   Combobox,
   type ComboboxOption,
+  EditableNumber,
   EmojiAvatar,
   Field,
   FieldContent,
@@ -434,17 +435,19 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
         valueLabel={form.enableMaxTokens ? form.maxTokens.toLocaleString() : t('library.config.basic.default_value')}
         enabled={form.enableMaxTokens}
         onEnabledChange={(v) => onChange({ enableMaxTokens: v })}>
-        <Input
-          type="number"
+        <EditableNumber
+          block
           min={1}
+          step={1}
+          precision={0}
+          align="start"
+          changeOnBlur
           value={form.maxTokens}
-          onChange={(e) => {
-            // Schema requires maxTokens to be a positive int — fall back to the
-            // UI default instead of 0 for empty / invalid input.
-            const parsed = parseInt(e.target.value, 10)
-            onChange({ maxTokens: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOKENS })
-          }}
-          className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+          // Schema requires maxTokens to be a positive int — fall back to the
+          // UI default for null/non-positive on commit. EditableNumber's local
+          // editing state lets the user clear+retype without snapping back.
+          onChange={(v) => onChange({ maxTokens: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOKENS })}
+          className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 
@@ -487,15 +490,16 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
         valueLabel={form.enableMaxToolCalls ? form.maxToolCalls.toString() : t('library.config.basic.unlimited')}
         enabled={form.enableMaxToolCalls}
         onEnabledChange={(v) => onChange({ enableMaxToolCalls: v })}>
-        <Input
-          type="number"
+        <EditableNumber
+          block
           min={1}
+          step={1}
+          precision={0}
+          align="start"
+          changeOnBlur
           value={form.maxToolCalls}
-          onChange={(e) => {
-            const parsed = parseInt(e.target.value, 10)
-            onChange({ maxToolCalls: Number.isFinite(parsed) && parsed > 0 ? parsed : UI_DEFAULT_MAX_TOOL_CALLS })
-          }}
-          className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground tabular-nums shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+          onChange={(v) => onChange({ maxToolCalls: typeof v === 'number' && v > 0 ? v : UI_DEFAULT_MAX_TOOL_CALLS })}
+          className="h-auto rounded-xs border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs tabular-nums shadow-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
       </ToggleFieldGroup>
 

@@ -4,6 +4,7 @@ import {
   Combobox,
   type ComboboxOption,
   DescriptionSwitch,
+  EditableNumber,
   EmojiAvatar,
   Field,
   FieldContent,
@@ -301,13 +302,17 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
             {t('library.config.agent.field.heartbeat_interval.label')}
           </FieldLabel>
           <FieldContent>
-            <Input
-              type="number"
+            <EditableNumber
+              block
               min={1}
               max={1440}
-              value={form.heartbeatInterval || ''}
-              onChange={(e) => onChange({ heartbeatInterval: Number(e.target.value) || 0 })}
-              className="rounded-xs border-border/20 bg-accent/15 text-xs focus:border-border/40 focus:bg-accent/20"
+              step={1}
+              precision={0}
+              align="start"
+              changeOnBlur
+              value={form.heartbeatInterval || null}
+              onChange={(v) => onChange({ heartbeatInterval: typeof v === 'number' ? v : 0 })}
+              className="rounded-xs border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
             />
           </FieldContent>
         </Field>
