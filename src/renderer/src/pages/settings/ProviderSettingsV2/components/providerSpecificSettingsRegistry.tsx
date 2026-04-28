@@ -1,4 +1,3 @@
-import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import AwsBedrockSettings from '@renderer/pages/settings/ProviderSettingsV2/AwsBedrockSettings'
 import CherryINOAuth from '@renderer/pages/settings/ProviderSettingsV2/CherryINOAuth'
 import DMXAPISettings from '@renderer/pages/settings/ProviderSettingsV2/DMXAPISettings'
@@ -14,6 +13,7 @@ import type { ReactNode } from 'react'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AnthropicAuthSection from './AnthropicAuthSection'
+import OpenAIAlert from './OpenAIAlert'
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 

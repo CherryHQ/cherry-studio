@@ -19,7 +19,7 @@ vi.mock('@renderer/pages/settings/ProviderSettingsV2/utils/provider', () => ({
   isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args)
 }))
 
-vi.mock('@renderer/components/Alert/OpenAIAlert', () => ({
+vi.mock('../OpenAIAlert', () => ({
   default: () => <div>openai-alert</div>
 }))
 
