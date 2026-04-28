@@ -5,7 +5,7 @@ import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettingsV
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettingsV2/types/healthCheck'
 import { cn } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
-import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -109,11 +109,9 @@ export default function HealthCheckDrawer({
       </Button>
       <Button
         variant="default"
-        className="gap-1.5"
         onClick={() => {
           onResetRun()
         }}>
-        <RotateCcw className="size-3.5 shrink-0" />
         {t('settings.models.check.retry')}
       </Button>
     </div>
@@ -121,7 +119,7 @@ export default function HealthCheckDrawer({
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer} size="wide">
-      <div className="rounded-xl border border-warning/30 bg-warning/8 p-3 text-[12px] text-foreground/75 leading-[1.45]">
+      <div className="shrink-0 rounded-xl border border-warning/30 bg-warning/8 p-3 text-[12px] text-foreground/75 leading-[1.45]">
         <div className="flex items-start gap-2">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
           <span>{t('settings.models.check.disclaimer')}</span>
@@ -129,7 +127,7 @@ export default function HealthCheckDrawer({
       </div>
 
       {showPipeline && progressStats ? (
-        <div className="space-y-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-0">
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
               <div className="mb-2 flex items-center justify-between gap-3">
@@ -155,7 +153,7 @@ export default function HealthCheckDrawer({
           ) : null}
 
           {!isChecking && showPipeline ? (
-            <div className="mx-4 mt-3 mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
+            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
               <div className="flex items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-muted-foreground" />
@@ -181,8 +179,8 @@ export default function HealthCheckDrawer({
             </div>
           ) : null}
 
-          <Scrollbar className="max-h-[min(42vh,22rem)] px-2">
-            <ul className="divide-y divide-border/50 py-1">
+          <Scrollbar className="max-h-[min(56vh,30rem)] min-h-0 flex-1 px-2 pb-0">
+            <ul className="divide-y divide-border/50 pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row
                 const Icon = getModelLogo(model)
