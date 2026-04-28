@@ -271,6 +271,14 @@
         "bypassPermissions": "CherryClaw Agent 預設以全自動模式執行。所有工具執行時不會請求批准。"
       }
     },
+    "clear": {
+      "content": "清空工作階段將刪除該 Agent 下的所有工作階段，此操作無法撤銷。確定要繼續嗎？",
+      "error": {
+        "failed": "清空工作階段失敗"
+      },
+      "success": "工作階段已清空",
+      "title": "清空工作階段"
+    },
     "copy": {
       "title": "複製 Agent"
     },
@@ -329,6 +337,13 @@
       "error": {
         "failed": "無法列出 Agent。"
       }
+    },
+    "manage": {
+      "batch_delete": {
+        "confirm": "刪除選中的 Agent",
+        "content": "確定要刪除 {{count}} 個 Agent 嗎？此操作無法撤銷。"
+      },
+      "title": "管理"
     },
     "reorder": {
       "error": {

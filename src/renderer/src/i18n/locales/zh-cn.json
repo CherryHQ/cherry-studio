@@ -271,6 +271,14 @@
         "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
       }
     },
+    "clear": {
+      "content": "清空会话将删除该 Agent 下的所有会话，此操作无法撤销。确定要继续吗？",
+      "error": {
+        "failed": "清空会话失败"
+      },
+      "success": "会话已清空",
+      "title": "清空会话"
+    },
     "copy": {
       "title": "复制 Agent"
     },
@@ -329,6 +337,13 @@
       "error": {
         "failed": "获取智能体列表失败"
       }
+    },
+    "manage": {
+      "batch_delete": {
+        "confirm": "删除选中的 Agent",
+        "content": "确定要删除 {{count}} 个 Agent 吗？此操作无法撤销。"
+      },
+      "title": "管理"
     },
     "reorder": {
       "error": {

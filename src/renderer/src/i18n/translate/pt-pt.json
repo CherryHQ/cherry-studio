@@ -271,6 +271,14 @@
         "bypassPermissions": "Os agentes CherryClaw funcionam em modo automático completo por predefinição. Todas as ferramentas são executadas sem pedir aprovação."
       }
     },
+    "clear": {
+      "content": "[to be translated]:Clearing sessions will delete all sessions for this agent. This action cannot be undone. Continue?",
+      "error": {
+        "failed": "[to be translated]:Failed to clear sessions"
+      },
+      "success": "[to be translated]:Sessions cleared successfully",
+      "title": "[to be translated]:Clear sessions"
+    },
     "copy": {
       "title": "[to be translated]:Duplicate Agent"
     },
@@ -329,6 +337,13 @@
       "error": {
         "failed": "Falha ao listar agentes."
       }
+    },
+    "manage": {
+      "batch_delete": {
+        "confirm": "[to be translated]:Delete selected agents",
+        "content": "[to be translated]:Are you sure you want to delete {{count}} agents? This action cannot be undone."
+      },
+      "title": "[to be translated]:Manage"
     },
     "reorder": {
       "error": {

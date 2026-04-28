@@ -157,6 +157,39 @@ export const useAgents = () => {
     [client, data, mutate, t]
   )
 
+  const clearAgentSessions = useCallback(
+    async (id: string) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        await client.deleteAllSessions(id)
+        window.toast.success(t('agent.clear.success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.clear.error.failed')))
+      }
+    },
+    [client, t]
+  )
+
+  const deleteAgents = useCallback(
+    async (ids: string[]) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        for (const id of ids) {
+          await client.deleteAgent(id)
+        }
+        void mutate((prev) => prev?.filter((a) => !ids.includes(a.id)) ?? [])
+        window.toast.success(t('common.delete_success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+      }
+    },
+    [client, mutate, t]
+  )
+
   return {
     agents: data,
     error,
@@ -164,6 +197,8 @@ export const useAgents = () => {
     addAgent,
     deleteAgent,
     duplicateAgent,
+    clearAgentSessions,
+    deleteAgents,
     getAgent,
     reorderAgents
   }

@@ -251,6 +251,15 @@ export class AgentApiClient {
     }
   }
 
+  public async deleteAllSessions(agentId: string): Promise<void> {
+    const url = this.getSessionPaths(agentId).base
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete all sessions.')
+    }
+  }
+
   public async getSession(agentId: string, sessionId: string): Promise<GetAgentSessionResponse> {
     const url = this.getSessionPaths(agentId).withId(sessionId)
     try {

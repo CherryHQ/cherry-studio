@@ -735,6 +735,32 @@ const createSessionsRouter = (): express.Router => {
    *               $ref: '#/components/schemas/ErrorResponse'
    */
   sessionsRouter.get('/', validatePagination, handleValidationErrors, sessionHandlers.listSessions)
+
+  /**
+   * @swagger
+   * /agents/{agentId}/sessions:
+   *   delete:
+   *     summary: Delete all sessions for an agent
+   *     tags: [Sessions]
+   *     parameters:
+   *       - in: path
+   *         name: agentId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Agent ID
+   *     responses:
+   *       204:
+   *         description: All sessions deleted successfully
+   *       404:
+   *         description: Agent not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  sessionsRouter.delete('/', sessionHandlers.deleteAllSessions)
+
   /**
    * @swagger
    * /agents/{agentId}/sessions/{sessionId}:

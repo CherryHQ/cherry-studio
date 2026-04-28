@@ -93,6 +93,11 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
         throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
       }
       return session
+    },
+
+    DELETE: async ({ params }) => {
+      await sessionService.deleteAllSessions(params.agentId)
+      return undefined
     }
   },
 

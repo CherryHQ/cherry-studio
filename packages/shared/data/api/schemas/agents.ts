@@ -279,6 +279,10 @@ export type AgentSchemas = {
       body: CreateSessionDto
       response: AgentSessionEntity
     }
+    DELETE: {
+      params: { agentId: string }
+      response: void
+    }
   }
 
   /** Get, update, or delete a specific session */
