@@ -55,8 +55,8 @@ async function handleCallToolRequest(request: any, extra: any): Promise<any> {
       })
     },
     timeout: serverConfig.timeout ? serverConfig.timeout * 1000 : 60000,
-    resetTimeoutOnProgress: serverConfig.longRunning,
-    maxTotalTimeout: serverConfig.longRunning ? 10 * 60 * 1000 : undefined
+    resetTimeoutOnProgress: true,
+    maxTotalTimeout: 10 * 60 * 1000 // 10 minutes
   })
 }
 
