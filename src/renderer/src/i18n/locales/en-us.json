@@ -2560,6 +2560,18 @@
       "tags": "Tags",
       "title": "Library"
     },
+    "skill_detail": {
+      "created_at": "Created",
+      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "Delete skill",
+      "description": "Description",
+      "file_preview": "File preview",
+      "installed": "Installed",
+      "no_description": "No description",
+      "source_files": "Source files",
+      "tags": "Tags",
+      "updated_at": "Recently updated"
+    },
     "sort": {
       "created": "Sort by created",
       "name": "Sort by name",

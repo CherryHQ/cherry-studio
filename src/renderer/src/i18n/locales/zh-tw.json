@@ -2560,6 +2560,18 @@
       "tags": "標籤",
       "title": "[to be translated]:Library"
     },
+    "skill_detail": {
+      "created_at": "建立時間",
+      "delete_description": "移除此技能及其所有配置,此操作無法復原",
+      "delete_title": "刪除技能",
+      "description": "描述",
+      "file_preview": "檔案預覽",
+      "installed": "已安裝",
+      "no_description": "暫無描述",
+      "source_files": "來源檔案",
+      "tags": "標籤",
+      "updated_at": "最近更新"
+    },
     "sort": {
       "created": "依建立時間",
       "name": "依名稱",
