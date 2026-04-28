@@ -38,7 +38,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAgentMutationsById } from '../adapters/agentAdapter'
 import { useAssistantMutationsById } from '../adapters/assistantAdapter'
-import { useEnsureTags, useTagList } from '../adapters/tagAdapter'
+import { useEnsureTags, useSyncEntityTags, useTagList } from '../adapters/tagAdapter'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META, SORT_META, SORT_ORDER } from '../constants'
 import type { ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from '../types'
 
@@ -146,7 +146,7 @@ export const ResourceGrid: FC<Props> = ({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('library.toolbar.search_placeholder')}
-              className="h-auto w-full rounded-lg border border-border/40 bg-accent/25 py-1.5 pr-7 pl-7 text-sm text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
+              className="h-auto w-full rounded-lg border border-border/40 bg-accent/25 py-1.5 pr-7 pl-7 text-foreground text-sm shadow-none outline-none transition-all placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:bg-accent/30 focus-visible:ring-0"
             />
             {search && (
               <Button
@@ -324,7 +324,7 @@ export const ResourceGrid: FC<Props> = ({
               }`}>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
               <span>{tag.name}</span>
-              <span className="text-xs text-muted-foreground/40 tabular-nums">{tag.count}</span>
+              <span className="text-muted-foreground/40 text-xs tabular-nums">{tag.count}</span>
             </Button>
           ))}
           {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
@@ -346,7 +346,7 @@ export const ResourceGrid: FC<Props> = ({
                 }}
                 disabled={addingTag}
                 placeholder={t('library.toolbar.add_tag_placeholder')}
-                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-xs text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
+                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-foreground text-xs shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
               />
               <Button
                 variant="ghost"
@@ -360,7 +360,7 @@ export const ResourceGrid: FC<Props> = ({
             <Button
               variant="ghost"
               onClick={() => setShowAddTag(true)}
-              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-xs text-muted-foreground/40 shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-muted-foreground/40 text-xs shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Plus size={9} /> {t('library.toolbar.tag_button')}
             </Button>
           )}
@@ -452,9 +452,9 @@ function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h4 className="truncate text-sm text-foreground">{r.name}</h4>
+              <h4 className="truncate text-foreground text-sm">{r.name}</h4>
               {r.hasUpdate && (
-                <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-xs text-warning">
+                <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-warning text-xs">
                   {t('library.badge.update')}
                 </Badge>
               )}
@@ -466,7 +466,7 @@ function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
                 {t(cfg.labelKey)}
               </Badge>
               {(r.model || r.version) && (
-                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground/50">
+                <span className="min-w-0 flex-1 truncate text-muted-foreground/50 text-xs">
                   {[r.model, r.version && `v${r.version}`].filter(Boolean).join(' ')}
                 </span>
               )}
@@ -482,11 +482,11 @@ function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
             </Button>
           </div>
         </div>
-        <p className="mb-3 line-clamp-2 min-h-[2lh] text-xs text-muted-foreground/70 leading-relaxed">
+        <p className="mb-3 line-clamp-2 min-h-[2lh] text-muted-foreground/70 text-xs leading-relaxed">
           {r.description}
         </p>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/50">
+          <div className="flex items-center gap-1.5 text-muted-foreground/50 text-xs">
             <Clock size={8} />
             <span>{timeAgo(t, r.updatedAt)}</span>
           </div>
@@ -495,11 +495,11 @@ function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
               <Badge
                 key={`${t}-${i}`}
                 variant="secondary"
-                className="border-0 bg-accent/50 px-1.5 py-px text-xs text-muted-foreground/60">
+                className="border-0 bg-accent/50 px-1.5 py-px text-muted-foreground/60 text-xs">
                 {t}
               </Badge>
             ))}
-            {r.tags.length > 2 && <span className="text-xs text-muted-foreground/50">+{r.tags.length - 2}</span>}
+            {r.tags.length > 2 && <span className="text-muted-foreground/50 text-xs">+{r.tags.length - 2}</span>}
           </div>
         </div>
       </div>
@@ -523,34 +523,34 @@ function ListRow({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm text-foreground">{r.name}</span>
+          <span className="truncate text-foreground text-sm">{r.name}</span>
           <Badge variant="secondary" className={`shrink-0 border-0 px-1.5 py-px text-xs ${cfg.color}`}>
             {t(cfg.labelKey)}
           </Badge>
           {r.hasUpdate && (
-            <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-xs text-warning">
+            <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-warning text-xs">
               {t('library.badge.update')}
             </Badge>
           )}
         </div>
-        <p className="mt-px truncate text-xs text-muted-foreground/60">{r.description}</p>
+        <p className="mt-px truncate text-muted-foreground/60 text-xs">{r.description}</p>
       </div>
-      {r.model && <span className="hidden shrink-0 text-xs text-muted-foreground/50 sm:block">{r.model}</span>}
-      {r.version && <span className="hidden shrink-0 text-xs text-muted-foreground/50 sm:block">v{r.version}</span>}
+      {r.model && <span className="hidden shrink-0 text-muted-foreground/50 text-xs sm:block">{r.model}</span>}
+      {r.version && <span className="hidden shrink-0 text-muted-foreground/50 text-xs sm:block">v{r.version}</span>}
       {r.tags.length > 0 && (
         <div className="hidden shrink-0 items-center gap-1 lg:flex">
           {r.tags.slice(0, 2).map((t) => (
             <Badge
               key={t}
               variant="secondary"
-              className="border-0 bg-accent/50 px-1.5 py-px text-xs text-muted-foreground/60">
+              className="border-0 bg-accent/50 px-1.5 py-px text-muted-foreground/60 text-xs">
               {t}
             </Badge>
           ))}
-          {r.tags.length > 2 && <span className="text-xs text-muted-foreground/50">+{r.tags.length - 2}</span>}
+          {r.tags.length > 2 && <span className="text-muted-foreground/50 text-xs">+{r.tags.length - 2}</span>}
         </div>
       )}
-      <div className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/50 md:flex">
+      <div className="hidden shrink-0 items-center gap-1 text-muted-foreground/50 text-xs md:flex">
         <Clock size={8} />
         <span>{timeAgo(t, r.updatedAt)}</span>
       </div>
@@ -598,15 +598,14 @@ function FixedCardMenu({
   const [tagInput, setTagInput] = useState('')
   const [bindingError, setBindingError] = useState<string | null>(null)
 
-  // Tag binding flows through the resource's own PATCH so the server binds
-  // ids atomically with any other column change — no separate tag endpoint.
-  // Both adapter hooks are instantiated unconditionally to keep hook order
-  // stable; `persistTags` dispatches on `resource.type`. Skill is read-only
-  // and stays excluded.
+  // Assistant / agent tag binding flows through the resource's own PATCH so
+  // row updates and tag ids land together. Skills have no editable row fields
+  // in DataApi, so they use the generic entity_tag endpoint.
   const { ensureTags } = useEnsureTags()
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const { updateAgent } = useAgentMutationsById(resource.id)
-  const canBindTags = resource.type === 'assistant' || resource.type === 'agent'
+  const { syncEntityTags } = useSyncEntityTags()
+  const canBindTags = resource.type === 'assistant' || resource.type === 'agent' || resource.type === 'skill'
 
   // Backend-assigned tag color (random-from-palette at POST time) — look up so
   // chip dots render consistently across Row 2, card menu, and BasicSection.
@@ -630,6 +629,8 @@ function FixedCardMenu({
           await updateAssistant({ tagIds })
         } else if (resource.type === 'agent') {
           await updateAgent({ tagIds })
+        } else if (resource.type === 'skill') {
+          await syncEntityTags('skill', resource.id, tagIds)
         }
         onUpdateResourceTags(resource.id, nextNames)
       } catch (e) {
@@ -638,7 +639,17 @@ function FixedCardMenu({
         setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
       }
     },
-    [canBindTags, ensureTags, updateAssistant, updateAgent, onUpdateResourceTags, resource.id, resource.type, t]
+    [
+      canBindTags,
+      ensureTags,
+      updateAssistant,
+      updateAgent,
+      syncEntityTags,
+      onUpdateResourceTags,
+      resource.id,
+      resource.type,
+      t
+    ]
   )
 
   const toggleTag = (tag: string) => {
@@ -686,7 +697,7 @@ function FixedCardMenu({
           }}
         />
 
-        {/* Tag picker — assistant + agent. Skill is read-only and stays excluded. */}
+        {/* Tag picker — assistant / agent / skill. */}
         {canBindTags && (
           <div className="relative">
             <MenuItem
@@ -698,14 +709,14 @@ function FixedCardMenu({
               suffix={
                 <>
                   {localTags.length > 0 && (
-                    <span className="text-xs text-muted-foreground/40 tabular-nums">{localTags.length}</span>
+                    <span className="text-muted-foreground/40 text-xs tabular-nums">{localTags.length}</span>
                   )}
                   <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
                 </>
               }
               onClick={() => setShowTagPicker(!showTagPicker)}
             />
-            {bindingError && <p className="px-2.5 py-1 text-xs text-destructive/80">{bindingError}</p>}
+            {bindingError && <p className="px-2.5 py-1 text-destructive/80 text-xs">{bindingError}</p>}
             {showTagPicker && (
               <div
                 className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-xs border border-border/30 bg-popover p-1 shadow-xl`}>
@@ -718,7 +729,7 @@ function FixedCardMenu({
                       if (e.key === 'Enter') addNewTag()
                     }}
                     placeholder={t('library.tag_picker.placeholder')}
-                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-xs text-foreground shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
+                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-foreground text-xs shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
                   />
                   {tagInput.trim() && (
                     <Button
@@ -732,7 +743,7 @@ function FixedCardMenu({
                 <Separator className="mx-1 mb-0.5 bg-border/15" />
                 <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
                   {allTagNames.length === 0 && !tagInput.trim() && (
-                    <p className="px-2.5 py-2 text-center text-xs text-muted-foreground/40">
+                    <p className="px-2.5 py-2 text-center text-muted-foreground/40 text-xs">
                       {t('library.tag_picker.no_tags')}
                     </p>
                   )}
@@ -741,7 +752,7 @@ function FixedCardMenu({
                     return (
                       <label
                         key={tag}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-3xs px-2.5 py-[5px] text-xs text-muted-foreground/60 transition-colors hover:bg-accent/50 hover:text-foreground">
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-3xs px-2.5 py-[5px] text-muted-foreground/60 text-xs transition-colors hover:bg-accent/50 hover:text-foreground">
                         <Checkbox
                           size="sm"
                           checked={checked}

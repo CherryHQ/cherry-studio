@@ -56,6 +56,7 @@ export function useResourceLibrary({
   //   there's no extra network hit until the user actually filters.
   const baseAssistants = assistantAdapter.useList()
   const baseAgents = agentAdapter.useList()
+  const skills = skillAdapter.useList()
 
   // Resolve tag names to ids primarily from the embedded `tagRefs` we already
   // have on base data — every chip the user can click was rendered from a
@@ -63,7 +64,7 @@ export function useResourceLibrary({
   // `useTagList()` alone would race: if `/tags` is slow or fails after the user
   // clicks a chip, we'd send `tagIds: undefined` and silently show the full
   // unfiltered list. `tagList.tags` only fills in for tags that exist
-  // server-side but aren't bound to any assistant/agent yet (sidebar `tag`
+  // server-side but aren't bound to any visible resource yet (sidebar `tag`
   // mode), so it stays as a tail fallback.
   const tagIdByName = useMemo(() => {
     const map = new Map<string, string>()
@@ -73,9 +74,10 @@ export function useResourceLibrary({
     }
     for (const a of baseAssistants.data) collect(a.tags)
     for (const a of baseAgents.data) collect(a.tags)
+    for (const s of skills.data) collect(s.tags)
     for (const t of tagList.tags) if (!map.has(t.name)) map.set(t.name, t.id)
     return map
-  }, [baseAssistants.data, baseAgents.data, tagList.tags])
+  }, [baseAssistants.data, baseAgents.data, skills.data, tagList.tags])
 
   // Resolved query filter (omitted entirely if no tag is selected). Empty
   // arrays are forbidden by the backend schema (`tagIds.min(1)`), so we drop
@@ -101,10 +103,11 @@ export function useResourceLibrary({
 
   const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
   const filteredAgents = agentAdapter.useList({ search: trimmedSearch, tagIds })
-  // Skill backend (`GET /skills`) doesn't accept `search` / `tagIds` yet — the
-  // resource library is a follow-up consumer of that work. Until it lands we
-  // pull the full list and narrow client-side below for skill view only.
-  const skills = skillAdapter.useList()
+  // Skip the filtered fetch when skills are not displayed (sidebar pinned to
+  // assistant or agent). With no args the adapter shares the same cache key
+  // as the unfiltered `skills` call above, so we don't pay an extra request.
+  const skillsVisible = sidebarFilter.type !== 'resource' || sidebarFilter.resourceType === 'skill'
+  const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch, tagIds } : undefined)
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
     // Defensive `?? []`: schema declares tags as required, but stale DataApi
@@ -149,6 +152,7 @@ export function useResourceLibrary({
   }, [])
 
   const buildSkillItem = useCallback((s: InstalledSkill): ResourceItem => {
+    const tags = s.tags ?? []
     return {
       id: s.id,
       type: 'skill',
@@ -158,11 +162,11 @@ export function useResourceLibrary({
       avatar: '⚡',
       author: s.author ?? undefined,
       source: s.source,
-      // Skills tag-binding is a follow-up: backend `agent_global_skill` has a
-      // `tags` text-array column already, but the resource library doesn't
-      // edit it yet. Surface read-only chips so the UI stays consistent.
-      tags: s.tags ?? [],
-      tagRefs: [],
+      // `tags` are user-bound global tags from entity_tag. Skill metadata
+      // tags from SKILL.md live on `sourceTags` and are intentionally not used
+      // for resource-library filtering.
+      tags: tags.map((t) => t.name),
+      tagRefs: tags,
       // The library list is global (no agentId), so `isEnabled` is forced to
       // false on the wire. Show every skill as available; per-agent toggling
       // happens inside the agent editor.
@@ -196,7 +200,7 @@ export function useResourceLibrary({
     () => filteredAgents.data.map(buildAgentItem),
     [filteredAgents.data, buildAgentItem]
   )
-  const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
+  const skillItems = useMemo(() => filteredSkills.data.map(buildSkillItem), [filteredSkills.data, buildSkillItem])
 
   const resources = useMemo<ResourceItem[]>(() => {
     // Tag selected but unresolvable → return empty rather than degrading to
@@ -215,31 +219,8 @@ export function useResourceLibrary({
       list = [...filteredAssistantItems, ...filteredAgentItems, ...skillItems]
     }
 
-    // Skills don't yet flow through the server-side filter, so apply the same
-    // search/tag narrowing locally to keep the grid honest in skill view.
-    // assistants/agents already arrive pre-filtered from the API.
-    const includesSkill = list.some((r) => r.type === 'skill')
-    if (includesSkill && (trimmedSearch || activeTag)) {
-      const q = trimmedSearch?.toLowerCase()
-      list = list.filter((r) => {
-        if (r.type !== 'skill') return true
-        if (q && !r.name.toLowerCase().includes(q) && !r.description.toLowerCase().includes(q)) return false
-        if (activeTag && !r.tags.includes(activeTag)) return false
-        return true
-      })
-    }
-
     return [...list].sort((a, b) => compareItems(a, b, sort))
-  }, [
-    hasUnresolvedTagSelection,
-    sidebarFilter,
-    filteredAssistantItems,
-    filteredAgentItems,
-    skillItems,
-    trimmedSearch,
-    activeTag,
-    sort
-  ])
+  }, [hasUnresolvedTagSelection, sidebarFilter, filteredAssistantItems, filteredAgentItems, skillItems, sort])
 
   const pendingBackend = useMemo(() => {
     if (sidebarFilter.type === 'resource') return PENDING_BACKEND_TYPES.has(sidebarFilter.resourceType)
@@ -251,15 +232,22 @@ export function useResourceLibrary({
     filteredAssistants.isLoading ||
     baseAgents.isLoading ||
     filteredAgents.isLoading ||
-    skills.isLoading
+    skills.isLoading ||
+    filteredSkills.isLoading
   const isRefreshing =
     baseAssistants.isRefreshing ||
     filteredAssistants.isRefreshing ||
     baseAgents.isRefreshing ||
     filteredAgents.isRefreshing ||
-    skills.isRefreshing
+    skills.isRefreshing ||
+    filteredSkills.isRefreshing
   const error =
-    baseAssistants.error ?? filteredAssistants.error ?? baseAgents.error ?? filteredAgents.error ?? skills.error
+    baseAssistants.error ??
+    filteredAssistants.error ??
+    baseAgents.error ??
+    filteredAgents.error ??
+    skills.error ??
+    filteredSkills.error
 
   const refetch = useCallback(() => {
     baseAssistants.refetch()
@@ -267,8 +255,9 @@ export function useResourceLibrary({
     baseAgents.refetch()
     filteredAgents.refetch()
     skills.refetch()
+    filteredSkills.refetch()
     tagList.refetch()
-  }, [baseAssistants, filteredAssistants, baseAgents, filteredAgents, skills, tagList])
+  }, [baseAssistants, filteredAssistants, baseAgents, filteredAgents, skills, filteredSkills, tagList])
 
   return {
     resources,

@@ -1,6 +1,8 @@
+import type { Tag } from '@shared/data/types/tag'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ResourceListQuery } from '../../adapters/types'
 import { useResourceLibrary } from '../useResourceLibrary'
 
 const mocks = vi.hoisted(() => ({
@@ -42,13 +44,24 @@ function listResult(data: unknown[]) {
   }
 }
 
-function renderResourceLibrary() {
+function createTag(id: string, name: string): Tag {
+  return {
+    id,
+    name,
+    color: '#8b5cf6',
+    createdAt: '2026-04-27T00:00:00.000Z',
+    updatedAt: '2026-04-27T00:00:00.000Z'
+  }
+}
+
+function renderResourceLibrary(options: Partial<Parameters<typeof useResourceLibrary>[0]> = {}) {
   return renderHook(() =>
     useResourceLibrary({
       sidebarFilter: { type: 'resource', resourceType: 'assistant' },
       activeTag: null,
       search: '',
-      sort: 'updatedAt'
+      sort: 'updatedAt',
+      ...options
     })
   )
 }
@@ -124,5 +137,92 @@ describe('useResourceLibrary model display names', () => {
     const { result } = renderResourceLibrary()
 
     expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
+  })
+
+  it('uses global tag refs for skill resource cards instead of source metadata tags', () => {
+    const productivity = createTag('tag-1', '生产力')
+    mocks.useSkillList.mockReturnValue(
+      listResult([
+        {
+          id: 'skill-1',
+          name: '网页摘要',
+          description: '自动提取网页核心内容',
+          folderName: 'web-summary',
+          source: 'marketplace',
+          sourceUrl: null,
+          namespace: null,
+          author: 'CherryStudio',
+          tags: [productivity],
+          sourceTags: ['metadata-only'],
+          contentHash: 'hash',
+          isEnabled: false,
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary({
+      sidebarFilter: { type: 'resource', resourceType: 'skill' }
+    })
+    const skill = result.current.allResources.find((resource) => resource.type === 'skill')
+
+    expect(skill?.tags).toEqual(['生产力'])
+    expect(skill?.tagRefs).toEqual([productivity])
+  })
+
+  it('passes skill search and tag filters to the backend without local filtering', () => {
+    const productivity = createTag('tag-1', '生产力')
+    mocks.useSkillList.mockImplementation((query?: ResourceListQuery) => {
+      if (query) {
+        return listResult([
+          {
+            id: 'skill-filtered',
+            name: '后端结果',
+            description: '由 /skills 返回',
+            folderName: 'backend-filtered',
+            source: 'marketplace',
+            sourceUrl: null,
+            namespace: null,
+            author: null,
+            tags: [],
+            sourceTags: [],
+            contentHash: 'filtered-hash',
+            isEnabled: false,
+            createdAt: '2026-04-27T00:00:00.000Z',
+            updatedAt: '2026-04-27T00:00:00.000Z'
+          }
+        ])
+      }
+
+      return listResult([
+        {
+          id: 'skill-base',
+          name: '网页摘要',
+          description: '自动提取网页核心内容',
+          folderName: 'web-summary',
+          source: 'marketplace',
+          sourceUrl: null,
+          namespace: null,
+          author: null,
+          tags: [productivity],
+          sourceTags: ['metadata-only'],
+          contentHash: 'base-hash',
+          isEnabled: false,
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    })
+
+    const { result } = renderResourceLibrary({
+      sidebarFilter: { type: 'resource', resourceType: 'skill' },
+      activeTag: '生产力',
+      search: ' summary '
+    })
+
+    expect(mocks.useSkillList.mock.calls[0]).toEqual([])
+    expect(mocks.useSkillList.mock.calls[1]).toEqual([{ search: 'summary', tagIds: ['tag-1'] }])
+    expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
   })
 })

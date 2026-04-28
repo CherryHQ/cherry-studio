@@ -2,7 +2,7 @@ import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 
-import type { ResourceAdapter, ResourceListResult } from './types'
+import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
 /**
  * List hook for skill resources. `GET /skills` is read-only — install / uninstall
@@ -10,12 +10,19 @@ import type { ResourceAdapter, ResourceListResult } from './types'
  * filesystem (clone repos, extract ZIPs, manage symlinks under each agent's
  * `.claude/skills/`) and aren't a good fit for the DataApi contract.
  *
- * No `agentId` is passed: the library list is the global skill library, so
- * `isEnabled` is always `false` here. Per-agent enablement state belongs to
- * the agent editor's Skills tab (`useInstalledSkills(agentId)`).
+ * No `agentId` is passed by the resource library: it reads the global skill
+ * library, so `isEnabled` is always `false` there. Per-agent enablement state
+ * belongs to the agent editor's Skills tab (`useInstalledSkills(agentId)`).
+ *
+ * `search` / `tagIds` are forwarded to `GET /skills` and evaluated server-side.
  */
-function useSkillList(): ResourceListResult<InstalledSkill> {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', { query: {} })
+function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+    query: {
+      ...(query?.search ? { search: query.search } : {}),
+      ...(query?.tagIds && query.tagIds.length > 0 ? { tagIds: query.tagIds } : {})
+    }
+  })
 
   const items = Array.isArray(data) ? data : []
   const stableRefetch = useCallback(() => refetch(), [refetch])
