@@ -1,4 +1,14 @@
-import { Button, Flex, Input, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  ButtonGroup,
+  ButtonGroupItem,
+  Flex,
+  Input,
+  RowFlex,
+  Switch,
+  Tooltip,
+  WarnTooltip
+} from '@cherrystudio/ui'
 import { HelpTooltip } from '@cherrystudio/ui'
 import { Divider } from '@cherrystudio/ui'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
@@ -520,8 +530,8 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   </Tooltip>
                 )}
               </SettingSubtitle>
-              <div className="mt-1.25 flex w-full">
-                <div className="relative flex-1">
+              <ButtonGroup className="mt-1.25 w-full">
+                <ButtonGroupItem className="flex-1">
                   <Input
                     type={isApiKeyVisible ? 'text' : 'password'}
                     value={localApiKey}
@@ -530,7 +540,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                     spellCheck={false}
                     autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
                     disabled={provider.id === 'copilot'}
-                    className="rounded-r-none border-r-0 pr-16"
+                    className="pr-16"
                   />
                   <div className="-translate-y-1/2 absolute top-1/2 right-1.5 flex items-center gap-1">
                     {renderStatusIndicator()}
@@ -543,12 +553,12 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                       {isApiKeyVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                     </Button>
                   </div>
-                </div>
+                </ButtonGroupItem>
                 <Button
                   variant={isApiKeyConnectable ? 'ghost' : undefined}
                   onClick={onCheckApi}
                   disabled={!apiHost || apiKeyConnectivity.checking}
-                  className="h-9 shrink-0 rounded-l-none">
+                  className="h-9 shrink-0">
                   {apiKeyConnectivity.checking ? (
                     <LoadingIcon />
                   ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
@@ -557,7 +567,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                     t('settings.provider.check')
                   )}
                 </Button>
-              </div>
+              </ButtonGroup>
               <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                 <RowFlex>
                   {apiKeyWebsite && !isDmxapi && (
@@ -597,8 +607,8 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   {isCherryIN && isChineseUser ? (
                     <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
                   ) : (
-                    <div className="mt-1.25 flex w-full">
-                      <AntdInput
+                    <ButtonGroup className="mt-1.25 w-full">
+                      <Input
                         value={apiHost}
                         placeholder={t('settings.provider.api_host')}
                         onChange={(e) => setApiHost(e.target.value)}
@@ -610,7 +620,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                           {t('settings.provider.api.url.reset')}
                         </Button>
                       )}
-                    </div>
+                    </ButtonGroup>
                   )}
                   {isVertexProvider(provider) && (
                     <SettingHelpTextRow>
