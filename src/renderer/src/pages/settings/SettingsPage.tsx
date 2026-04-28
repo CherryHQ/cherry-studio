@@ -12,7 +12,6 @@ import {
   FlaskConical,
   HardDrive,
   Info,
-  MonitorCog,
   Package,
   PictureInPicture2,
   Radio,
@@ -112,13 +111,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.general.common.title')}
                 active={isActive('/settings/general')}
                 onClick={() => go('/settings/general')}
-              />
-              <MenuItem
-                className={menuItemClassName}
-                icon={<MonitorCog />}
-                label={t('settings.display.title')}
-                active={isActive('/settings/display')}
-                onClick={() => go('/settings/display')}
               />
               <MenuItem
                 className={menuItemClassName}
