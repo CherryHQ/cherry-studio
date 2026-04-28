@@ -1,4 +1,4 @@
-import { Button, Divider } from '@cherrystudio/ui'
+import { Button, Divider, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,8 +6,6 @@ import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
-import { Flex, Input, Space } from 'antd'
-import Link from 'antd/es/typography/Link'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -124,43 +122,44 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   return (
     <DetailContainer>
       <ProviderHeader>
-        <Flex className="items-center">
+        <div className="flex items-center">
           <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
           {provider.discoverUrl && (
-            <Link target="_blank" href={provider.discoverUrl} style={{ display: 'flex' }}>
-              <Button variant="ghost" size="icon-sm">
+            <Button asChild variant="ghost" size="icon-sm">
+              <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
                 <SquareArrowOutUpRight size={14} />
-              </Button>
-            </Link>
+              </a>
+            </Button>
           )}
-        </Flex>
+        </div>
         <Button onClick={handleFetch} disabled={isFetching || isFetchDisabled}>
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key.label')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input.Password
+      <div className="mt-1.25 w-full">
+        <Input
+          type="password"
           value={token}
           placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
           onChange={(e) => handleTokenChange(e.target.value)}
           spellCheck={false}
         />
-      </Space.Compact>
+      </div>
       <SettingHelpTextRow>
-        <Flex dir="row">
+        <div className="flex flex-row">
           {provider.apiKeyUrl && (
             <SettingHelpLink target="_blank" href={provider.apiKeyUrl}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
           )}
-        </Flex>
+        </div>
       </SettingHelpTextRow>
 
       {sortedServers.length > 0 && (
         <>
-          <Flex justify="space-between" align="center" style={{ marginTop: 20 }}>
+          <div className="mt-5 flex items-center justify-between">
             <SettingSubtitle style={{ margin: 0 }}>
               {t('settings.mcp.servers', 'Available MCP Servers')}
             </SettingSubtitle>
@@ -171,7 +170,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               maxWidth={200}
               style={{ borderRadius: 20 }}
             />
-          </Flex>
+          </div>
           <ServerList>
             {filteredServers.map((server) => (
               <ServerItem key={server.id}>

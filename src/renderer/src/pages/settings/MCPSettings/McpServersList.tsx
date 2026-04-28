@@ -1,4 +1,17 @@
-import { Button, EmptyState, Sortable, Tabs, TabsList, TabsTrigger, useDndReorder } from '@cherrystudio/ui'
+import {
+  Button,
+  EmptyState,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Sortable,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  useDndReorder
+} from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,7 +20,6 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Dropdown } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -23,6 +35,7 @@ const McpServersList: FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
   const [isEditing, setIsEditing] = useState(false)
   const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'>('all')
@@ -107,34 +120,22 @@ const McpServersList: FC = () => {
     [addMCPServer, t]
   )
 
-  const menuItems = useMemo(
-    () => [
-      {
-        key: 'manual',
-        label: t('settings.mcp.addServer.create'),
-        onClick: () => {
-          void onAddMcpServer()
-        }
-      },
-      {
-        key: 'json',
-        label: t('settings.mcp.addServer.importFrom.json'),
-        onClick: () => {
-          setModalType('json')
-          setIsAddModalVisible(true)
-        }
-      },
-      {
-        key: 'dxt',
-        label: t('settings.mcp.addServer.importFrom.dxt'),
-        onClick: () => {
-          setModalType('dxt')
-          setIsAddModalVisible(true)
-        }
-      }
-    ],
-    [onAddMcpServer, t]
-  )
+  const handleManualAdd = useCallback(() => {
+    setIsAddMenuOpen(false)
+    void onAddMcpServer()
+  }, [onAddMcpServer])
+
+  const handleImportJson = useCallback(() => {
+    setIsAddMenuOpen(false)
+    setModalType('json')
+    setIsAddModalVisible(true)
+  }, [])
+
+  const handleImportDxt = useCallback(() => {
+    setIsAddMenuOpen(false)
+    setModalType('dxt')
+    setIsAddModalVisible(true)
+  }, [])
 
   return (
     <Scrollbar
@@ -159,12 +160,21 @@ const McpServersList: FC = () => {
             <EditIcon size={14} />
             {isEditing ? t('common.completed') : t('common.edit')}
           </Button>
-          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-            <Button>
-              <Plus size={16} />
-              {t('common.add')}
-            </Button>
-          </Dropdown>
+          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button>
+                <Plus size={16} />
+                {t('common.add')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="w-auto p-1">
+              <MenuList className="gap-1">
+                <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
+                <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={handleImportJson} />
+                <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={handleImportDxt} />
+              </MenuList>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
       <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>

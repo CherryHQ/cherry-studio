@@ -1,11 +1,24 @@
-import { QuestionCircleOutlined } from '@ant-design/icons'
-import { ColFlex, Divider, Flex, RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  ColFlex,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Divider,
+  Flex,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex,
+  Switch,
+  Textarea
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { Input, Modal, Popover } from 'antd'
-import { useCallback, useMemo, useState } from 'react'
+import { CircleHelp } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../../../components/TopView'
@@ -22,15 +35,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
 
-  const onOk = () => {
+  const closePopup = () => {
     setOpen(false)
-  }
-
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
     resolve({})
   }
 
@@ -38,52 +44,64 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     void setTopicNamingPrompt('')
   }, [setTopicNamingPrompt])
 
-  TopicNamingModalPopup.hide = onCancel
-
-  const promptVarsContent = useMemo(() => <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>, [t])
+  TopicNamingModalPopup.hide = closePopup
 
   return (
-    <Modal
-      title={t('settings.models.quick_model.setting_title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered
-      style={{ padding: '24px' }}>
-      <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
-        {t('settings.models.topic_naming.label')}
-      </SettingSubtitle>
-      <ColFlex className="items-stretch gap-2">
-        <RowFlex className="items-center gap-4">
-          <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
-        </RowFlex>
-        <Divider style={{ margin: 0 }} />
-        <div>
-          <Flex className="mb-1 h-[30px] items-center gap-1">
-            <div>{t('settings.models.topic_naming.prompt')}</div>
-            <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
-              <QuestionCircleOutlined size={14} style={{ color: 'var(--color-foreground-secondary)' }} />
-            </Popover>
-            {topicNamingPrompt && (
-              <Button onClick={handleReset} variant="ghost" size="icon">
-                <ResetIcon size={14} />
-              </Button>
-            )}
-          </Flex>
-          <Input.TextArea
-            autoSize={{ minRows: 3, maxRows: 10 }}
-            value={topicNamingPrompt || t('prompts.title')}
-            onChange={(e) => setTopicNamingPrompt(e.target.value)}
-            placeholder={t('prompts.title')}
-            style={{ width: '100%' }}
-          />
-        </div>
-      </ColFlex>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
+      <DialogContent className="p-6" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{t('settings.models.quick_model.setting_title')}</DialogTitle>
+        </DialogHeader>
+        <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
+          {t('settings.models.topic_naming.label')}
+        </SettingSubtitle>
+        <ColFlex className="items-stretch gap-2">
+          <RowFlex className="items-center gap-4">
+            <div>{t('settings.models.topic_naming.auto')}</div>
+            <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
+          </RowFlex>
+          <Divider style={{ margin: 0 }} />
+          <div>
+            <Flex className="mb-1 h-[30px] items-center gap-1">
+              <div>{t('settings.models.topic_naming.prompt')}</div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" className="size-6 text-foreground-muted">
+                    <CircleHelp size={14} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80">
+                  <div className="mb-2 font-medium text-sm">
+                    {t('assistants.presets.add.prompt.variables.tip.title')}
+                  </div>
+                  <pre className="whitespace-pre-wrap text-muted-foreground text-xs leading-5">
+                    {t('assistants.presets.add.prompt.variables.tip.content')}
+                  </pre>
+                </PopoverContent>
+              </Popover>
+              {topicNamingPrompt && (
+                <Button onClick={handleReset} variant="ghost" size="icon">
+                  <ResetIcon size={14} />
+                </Button>
+              )}
+            </Flex>
+            <Textarea.Input
+              rows={3}
+              className="max-h-60 min-h-20 w-full"
+              value={topicNamingPrompt || t('prompts.title')}
+              onChange={(e) => void setTopicNamingPrompt(e.target.value)}
+              placeholder={t('prompts.title')}
+            />
+          </div>
+        </ColFlex>
+        <DialogFooter>
+          <Button variant="outline" onClick={closePopup}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={closePopup}>{t('common.confirm')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
