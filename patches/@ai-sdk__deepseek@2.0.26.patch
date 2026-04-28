@@ -1,0 +1,84 @@
+diff --git a/dist/index.js b/dist/index.js
+index 47c40376a7d35409b5802fe7a6f323a219aa988f..ffa02bbb9d11f9430952d608b47952aea76cec17 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -283,6 +283,17 @@ var deepseekChatChunkSchema = (0, import_provider_utils.lazySchema)(
+                     arguments: import_v4.z.string().nullish()
+                   })
+                 })
++              ).nullish(),
++              annotations: import_v4.z.array(
++                import_v4.z.object({
++                  type: import_v4.z.literal("url_citation"),
++                  url_citation: import_v4.z.object({
++                    start_index: import_v4.z.number(),
++                    end_index: import_v4.z.number(),
++                    url: import_v4.z.string(),
++                    title: import_v4.z.string()
++                  })
++                })
+               ).nullish()
+             }).nullish(),
+             finish_reason: import_v4.z.string().nullish()
+@@ -648,6 +659,19 @@ var DeepSeekChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
++            if (delta.annotations != null) {
++              for (const annotation of delta.annotations) {
++                if (annotation.type === "url_citation") {
++                  controller.enqueue({
++                    type: "source",
++                    sourceType: "url",
++                    id: (0, import_provider_utils.generateId)(),
++                    url: annotation.url_citation.url,
++                    title: annotation.url_citation.title
++                  });
++                }
++              }
++            }
+             if (delta.tool_calls != null) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
+diff --git a/dist/index.mjs b/dist/index.mjs
+index a3c595f66d2c85d38f4c8cc41c5fd406b7ccd08c..5112c2042cdbd9d1cef839fb792bdadd4a8f4e55 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -272,6 +272,17 @@ var deepseekChatChunkSchema = lazySchema(
+                     arguments: z.string().nullish()
+                   })
+                 })
++              ).nullish(),
++              annotations: z.array(
++                z.object({
++                  type: z.literal("url_citation"),
++                  url_citation: z.object({
++                    start_index: z.number(),
++                    end_index: z.number(),
++                    url: z.string(),
++                    title: z.string()
++                  })
++                })
+               ).nullish()
+             }).nullish(),
+             finish_reason: z.string().nullish()
+@@ -637,6 +648,19 @@ var DeepSeekChatLanguageModel = class {
+                 delta: delta.content
+               });
+             }
++            if (delta.annotations != null) {
++              for (const annotation of delta.annotations) {
++                if (annotation.type === "url_citation") {
++                  controller.enqueue({
++                    type: "source",
++                    sourceType: "url",
++                    id: generateId(),
++                    url: annotation.url_citation.url,
++                    title: annotation.url_citation.title
++                  });
++                }
++              }
++            }
+             if (delta.tool_calls != null) {
+               if (isActiveReasoning) {
+                 controller.enqueue({
