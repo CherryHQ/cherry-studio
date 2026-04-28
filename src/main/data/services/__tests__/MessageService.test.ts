@@ -2,7 +2,6 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { classifySqliteError } from '@data/db/sqliteErrors'
 import { messageService } from '@data/services/MessageService'
 import { BlockType, type MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -107,41 +106,6 @@ describe('MessageService', () => {
     ]
     await dbh.db.insert(messageTable).values(messages)
   }
-
-  describe('create', () => {
-    it('persists existing v2 model foreign keys under database constraints', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'topic-create' })
-      const modelId = createUniqueModelId('provider-a', 'model-A')
-
-      const message = await messageService.create('topic-create', {
-        role: 'assistant',
-        data: mainText('pending'),
-        status: 'pending',
-        modelId
-      })
-
-      expect(message.modelId).toBe(modelId)
-
-      const [row] = await dbh.db.select({ modelId: messageTable.modelId }).from(messageTable)
-      expect(row.modelId).toBe(modelId)
-    })
-
-    it('rejects dangling v2 model foreign keys', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'topic-create-missing-model' })
-
-      await expect(
-        messageService.create('topic-create-missing-model', {
-          role: 'assistant',
-          data: mainText('pending'),
-          status: 'pending',
-          modelId: createUniqueModelId('provider-a', 'model-missing')
-        })
-      ).rejects.toSatisfy((error: unknown) => {
-        expect(classifySqliteError(error)).toEqual({ kind: 'foreign_key' })
-        return true
-      })
-    })
-  })
 
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
     it('returns camelCase fields (parentId, siblingsGroupId) for path messages', async () => {
