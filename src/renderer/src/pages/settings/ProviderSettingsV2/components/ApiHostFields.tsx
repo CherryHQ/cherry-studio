@@ -88,9 +88,9 @@ export function ApiHostField({
               {t('settings.provider.vertex_ai.api_host_help')}
             </div>
           )}
-          <div className="break-all text-[12px] text-foreground/55 leading-[1.35]">
+          {/* <div className="break-all text-[12px] text-foreground/55 leading-[1.35]">
             {t('settings.provider.api_host_preview', { url: hostPreview })}
-          </div>
+          </div> */}
         </div>
       }>
       {isCherryIN && isChineseUser ? (

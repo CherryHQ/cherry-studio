@@ -43,17 +43,18 @@ export default function ApiKey({
       <ProviderField
         className="space-y-2.5"
         title={t('settings.provider.api_key.label')}
-        action={
-          meta.apiKeyWebsite && !meta.isDmxapi ? (
-            <a
-              href={meta.apiKeyWebsite}
-              target="_blank"
-              rel="noreferrer"
-              className="shrink-0 text-(--color-primary) text-[12px] leading-[1.35] hover:underline">
-              {t('settings.provider.get_api_key')}
-            </a>
-          ) : undefined
-        }>
+        // action={
+        //   meta.apiKeyWebsite && !meta.isDmxapi ? (
+        //     <a
+        //       href={meta.apiKeyWebsite}
+        //       target="_blank"
+        //       rel="noreferrer"
+        //       className="shrink-0 text-(--color-primary) text-[12px] leading-[1.35] hover:underline">
+        //       {t('settings.provider.get_api_key')}
+        //     </a>
+        //   ) : undefined
+        // }
+      >
         <div className={fieldClasses.inputRow}>
           <InputGroup className={fieldClasses.inputGroup}>
             <InputGroupInput

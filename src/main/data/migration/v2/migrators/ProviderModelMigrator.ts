@@ -19,7 +19,6 @@ import type { Provider as LegacyProvider } from '@types'
 import { eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 

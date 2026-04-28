@@ -256,7 +256,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
                 )}
               </div>
             </div>
-            <Button className={oauthCardClasses.topupOutlineButton} onClick={handleTopup} variant="outline">
+            <Button className={oauthCardClasses.topupPrimaryButton} onClick={handleTopup} size="sm" variant="default">
               {t('settings.provider.oauth.topup')}
             </Button>
             <Button

@@ -475,8 +475,8 @@ export const oauthCardClasses = {
   inlineBalanceLabel: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/40',
   inlineBalanceValue: 'text-sm font-semibold leading-tight text-foreground tabular-nums',
   balanceValueSkeleton: 'inline-block w-20',
-  topupOutlineButton:
-    'h-auto min-h-0 rounded-md border border-[color:var(--color-border-fg-muted)] px-2.5 py-[3px] text-xs text-muted-foreground shadow-none hover:text-foreground',
+  /** CherryIN top-up CTA — solid primary background, white label (compact inline size). */
+  topupPrimaryButton: 'h-auto min-h-0 px-2.5 py-[3px] text-xs shadow-none',
   logoutCompact:
     'h-auto min-h-0 rounded-md px-1.5 py-[3px] text-xs text-muted-foreground/30 shadow-none hover:bg-transparent hover:text-foreground',
   serviceAttribution:
