@@ -91,6 +91,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
 }) => {
   const [isEditing, setIsEditing] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(() => toInputValue(value, precision))
+  const inputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     if (!isEditing) {
@@ -113,6 +114,12 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     }
     setIsEditing(true)
   }
+
+  React.useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus()
+    }
+  }, [isEditing])
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextValue = event.target.value
@@ -145,10 +152,29 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   }
 
   const displayValue = formatter ? formatter(value ?? null) : (value ?? placeholder)
+  const shouldRenderDisplayValue = Boolean(formatter || prefix || suffix)
+  const inputAlignClass = align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right'
+  const inputClassName = cn(
+    'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+    'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+    sizeClasses[size],
+    inputAlignClass,
+    shouldRenderDisplayValue && !isEditing && 'hidden',
+    className
+  )
+
+  const handleDisplayKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleFocus()
+    }
+  }
 
   return (
     <div className="relative inline-block">
       <input
+        ref={inputRef}
         type="number"
         value={inputValue}
         min={min}
@@ -159,34 +185,30 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
         onBlur={handleBlur}
         onFocus={handleFocus}
         onKeyDown={handleKeyDown}
-        className={cn(
-          'border-input bg-background w-full rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-          'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-          'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
-          sizeClasses[size],
-          align === 'start' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right',
-          className
-        )}
-        style={{
-          ...style,
-          opacity: isEditing ? 1 : 0
-        }}
+        className={inputClassName}
+        style={style}
       />
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-0 flex items-center px-3',
-          !isEditing ? 'flex' : 'hidden',
-          alignClasses[align],
-          sizeClasses[size],
-          className
-        )}
-        style={style}>
-        <span className="truncate">
-          {prefix}
-          {displayValue}
-          {suffix}
-        </span>
-      </div>
+      {shouldRenderDisplayValue && !isEditing && (
+        <div
+          className={cn(
+            'border-input bg-background flex w-full cursor-text items-center rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow]',
+            'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+            disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+            alignClasses[align],
+            sizeClasses[size],
+            className
+          )}
+          onClick={handleFocus}
+          onKeyDown={handleDisplayKeyDown}
+          tabIndex={disabled ? -1 : 0}
+          style={style}>
+          <span className="truncate">
+            {prefix}
+            {displayValue}
+            {suffix}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

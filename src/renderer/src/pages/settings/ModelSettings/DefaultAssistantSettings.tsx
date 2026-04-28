@@ -1,5 +1,5 @@
 import { CloseCircleFilled } from '@ant-design/icons'
-import { Button, Divider, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Divider, EditableNumber, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import Selector from '@renderer/components/Selector'
@@ -10,7 +10,7 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
+import { Col, Input, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -190,13 +190,15 @@ const AssistantSettings: FC = () => {
             />
           </Col>
           <Col span={4}>
-            <InputNumber
+            <EditableNumber
               min={0}
               max={2}
               step={0.01}
               value={temperature}
               onChange={onTemperatureChange}
-              style={{ width: '100%' }}
+              size="small"
+              align="start"
+              className="w-full"
             />
           </Col>
         </Row>
@@ -233,7 +235,16 @@ const AssistantSettings: FC = () => {
             />
           </Col>
           <Col span={4}>
-            <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
+            <EditableNumber
+              min={0}
+              max={1}
+              step={0.01}
+              value={topP}
+              onChange={onTopPChange}
+              size="small"
+              align="start"
+              className="w-full"
+            />
           </Col>
         </Row>
       )}
@@ -258,13 +269,15 @@ const AssistantSettings: FC = () => {
           />
         </Col>
         <Col span={5}>
-          <InputNumber
+          <EditableNumber
             min={0}
             max={20}
             step={1}
             value={contextCount}
             onChange={onContextCountChange}
-            style={{ width: '100%' }}
+            size="small"
+            align="start"
+            className="w-full"
           />
         </Col>
       </Row>
@@ -300,7 +313,7 @@ const AssistantSettings: FC = () => {
       {enableMaxTokens && (
         <Row align="middle" gutter={20}>
           <Col span={24}>
-            <InputNumber
+            <EditableNumber
               disabled={!enableMaxTokens}
               min={0}
               max={10000000}
@@ -308,7 +321,9 @@ const AssistantSettings: FC = () => {
               value={maxTokens}
               changeOnBlur
               onChange={onMaxTokensChange}
-              style={{ width: '100%' }}
+              size="small"
+              align="start"
+              className="w-full"
             />
           </Col>
         </Row>

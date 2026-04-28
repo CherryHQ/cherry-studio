@@ -1,5 +1,4 @@
-import { Flex, Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -15,8 +14,7 @@ import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import type { TabsProps } from 'antd'
-import { Badge, Form, Input, Modal, Radio, Select, Tabs, Tag, Typography } from 'antd'
+import { Badge, Form, Input, Modal, Radio, Select, Tag, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -67,6 +65,11 @@ const PipRegistry: Registry[] = [
 ]
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
+type McpTabItem = {
+  key: TabKey
+  label: React.ReactNode
+  children: React.ReactNode
+}
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -526,7 +529,7 @@ const McpSettings: React.FC = () => {
     return null
   }
 
-  const tabs: TabsProps['items'] = [
+  const tabs: McpTabItem[] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
@@ -762,6 +765,8 @@ const McpSettings: React.FC = () => {
     )
   }
 
+  const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
+
   return (
     <Container>
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
@@ -790,7 +795,7 @@ const McpSettings: React.FC = () => {
                 size="sm"
                 variant="default"
                 onClick={onSave}
-                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
                 className="rounded-full">
                 <SaveIcon size={14} />
                 {t('common.save')}
@@ -799,11 +804,23 @@ const McpSettings: React.FC = () => {
           </SettingTitle>
           <SettingDivider />
           <Tabs
-            defaultActiveKey="settings"
-            items={tabs}
-            onChange={(key) => setActiveTab(key as TabKey)}
-            style={{ marginTop: 8, backgroundColor: 'transparent' }}
-          />
+            value={activeTabValue}
+            onValueChange={(value) => setActiveTab(value as TabKey)}
+            variant="line"
+            className="mt-2 bg-transparent">
+            <TabsList>
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.key} value={tab.key}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {tabs.map((tab) => (
+              <TabsContent key={tab.key} value={tab.key} className="mt-2 min-h-0">
+                {tab.children}
+              </TabsContent>
+            ))}
+          </Tabs>
         </div>
       </SettingContainer>
 
