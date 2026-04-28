@@ -1,8 +1,5 @@
 import {
-  Badge,
   Button,
-  Combobox,
-  type ComboboxOption,
   DescriptionSwitch,
   EditableNumber,
   EmojiAvatar,
@@ -31,12 +28,12 @@ import {
   MODEL_CAPABILITY,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { Check, ChevronsUpDown, Plus, Trash2, X } from 'lucide-react'
+import { ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_TAG_COLOR } from '../../../constants'
+import { TagSelector } from '../../../TagSelector'
 import type { AgentFormState } from '../descriptor'
 
 const logger = loggerService.withContext('AgentConfig:BasicSection')
@@ -101,31 +98,8 @@ function toSelectorValue(value: string): UniqueModelId | undefined {
 const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagColorByName, allTagNames }) => {
   const { t } = useTranslation()
   const [emojiOpen, setEmojiOpen] = useState(false)
-  const tagColor = useCallback(
-    (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR,
-    [tagColorByName]
-  )
   const { models } = useModels({ enabled: true })
   const modelsById = useMemo(() => buildModelsById(models), [models])
-
-  // Tag options for the select. `form.tags` may include names the backend list
-  // doesn't know yet (e.g. typed in the card menu before /tags refreshed) —
-  // union them so they stay visible as currently-selected.
-  const tagOptions = useMemo<ComboboxOption[]>(() => {
-    const names = Array.from(new Set([...allTagNames, ...form.tags]))
-    names.sort((a, b) => a.localeCompare(b, 'zh'))
-    return names.map((name) => ({
-      value: name,
-      label: name,
-      icon: (
-        <span
-          className="inline-block size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: tagColor(name) }}
-          aria-hidden="true"
-        />
-      )
-    }))
-  }, [allTagNames, form.tags, tagColor])
 
   const removePath = (path: string) => {
     onChange({ accessiblePaths: form.accessiblePaths.filter((p) => p !== path) })
@@ -151,11 +125,11 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
     <div className="flex max-w-lg flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.basic.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.basic.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.basic.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -201,7 +175,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </Field>
 
       <Field data-invalid={Boolean(nameError) || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.name.label')}
         </FieldLabel>
         <FieldContent>
@@ -244,13 +218,13 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </ModelSubsection>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.accessible_paths.label')}
         </FieldLabel>
         <FieldContent>
           <div className="flex flex-col gap-1.5">
             {form.accessiblePaths.length === 0 ? (
-              <FieldDescription className="text-xs text-muted-foreground/50">
+              <FieldDescription className="text-muted-foreground/50 text-xs">
                 {t('library.config.agent.field.accessible_paths.empty')}
               </FieldDescription>
             ) : null}
@@ -258,7 +232,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
               <div
                 key={p}
                 className="flex items-center gap-2 rounded-xs border border-border/15 bg-accent/15 px-3 py-2">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/80" title={p}>
+                <span className="min-w-0 flex-1 truncate font-mono text-foreground/80 text-xs" title={p}>
                   {p}
                 </span>
                 <Button
@@ -275,7 +249,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
               type="button"
               variant="ghost"
               onClick={() => void addPath()}
-              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-xs text-muted-foreground/60 shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+              className="mt-1 h-auto min-h-0 w-fit rounded-2xs border border-border/20 border-dashed px-2.5 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
               <Plus size={10} className="mr-1" />
               {t('library.config.agent.field.accessible_paths.add')}
             </Button>
@@ -298,7 +272,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
 
       {form.heartbeatEnabled ? (
         <Field className="gap-1.5">
-          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
             {t('library.config.agent.field.heartbeat_interval.label')}
           </FieldLabel>
           <FieldContent>
@@ -319,7 +293,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       ) : null}
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.description.label')}
         </FieldLabel>
         <FieldContent>
@@ -333,101 +307,17 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.tags')}
         </FieldLabel>
         <FieldContent>
-          <Combobox
-            multiple
-            searchable
-            options={tagOptions}
+          <TagSelector
             value={form.tags}
-            onChange={(v) => onChange({ tags: Array.isArray(v) ? v : v ? [v] : [] })}
-            placeholder={t('library.config.basic.tag_placeholder')}
-            searchPlaceholder={t('library.config.basic.tag_search')}
-            emptyText={t('library.config.basic.tag_empty')}
-            className="min-h-8 w-full items-center rounded-xs border-border/20 bg-accent/15 px-2 py-1 text-xs shadow-none transition-all hover:border-border/40 hover:bg-accent/20 aria-expanded:border-border/40 aria-expanded:bg-accent/20 aria-expanded:ring-0"
-            popoverClassName="rounded-xs border-border/30 p-1 shadow-lg shadow-black/[0.06]"
-            renderValue={(value) => {
-              const selected = Array.isArray(value) ? value : value ? [value] : []
-              const hasSelection = selected.length > 0
-              return (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-                    {hasSelection ? (
-                      selected.map((name) => (
-                        <Badge
-                          key={name}
-                          variant="outline"
-                          className="gap-1.5 border-border/40 bg-card py-0.5 pr-1 pl-2 font-normal shadow-2xs shadow-black/[0.03] hover:border-border/60">
-                          <span
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: tagColor(name) }}
-                            aria-hidden="true"
-                          />
-                          <span>{name}</span>
-                          <button
-                            type="button"
-                            aria-label={t('common.remove')}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              e.preventDefault()
-                              onChange({ tags: form.tags.filter((tag) => tag !== name) })
-                            }}
-                            className="ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
-                            <X size={9} />
-                          </button>
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground/50">{t('library.config.basic.tag_placeholder')}</span>
-                    )}
-                  </div>
-                  {hasSelection && (
-                    <button
-                      type="button"
-                      aria-label={t('common.clear')}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        onChange({ tags: [] })
-                      }}
-                      className="inline-flex size-3 shrink-0 items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
-                      <X size={8} />
-                    </button>
-                  )}
-                </div>
-              )
-            }}
-            renderOption={(option) => {
-              const checked = form.tags.includes(option.value)
-              const color = tagColor(option.value)
-              return (
-                <>
-                  <span
-                    className="size-2 shrink-0 rounded-full transition-all duration-200"
-                    style={{
-                      backgroundColor: color,
-                      boxShadow: checked ? `0 0 0 2.5px ${color}33` : undefined
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={`flex-1 truncate text-xs transition-colors ${
-                      checked ? 'text-foreground' : 'text-muted-foreground/80'
-                    }`}>
-                    {option.label}
-                  </span>
-                  {checked && <Check size={12} className="shrink-0 text-foreground" />}
-                </>
-              )
-            }}
+            onChange={(tags) => onChange({ tags })}
+            tagColorByName={tagColorByName}
+            allTagNames={allTagNames}
           />
-          <FieldDescription className="text-xs text-muted-foreground/50">
+          <FieldDescription className="text-muted-foreground/50 text-xs">
             {t('library.config.basic.tag_hint')}
           </FieldDescription>
         </FieldContent>
@@ -474,8 +364,8 @@ function ModelField({
   return (
     <Field data-invalid={invalid || undefined} className="gap-1.5">
       <div className="flex items-center justify-between gap-3">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{label}</FieldLabel>
-        <span className="text-xs text-muted-foreground/50">{hint}</span>
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{label}</FieldLabel>
+        <span className="text-muted-foreground/50 text-xs">{hint}</span>
       </div>
       <FieldContent>
         <div
@@ -493,7 +383,7 @@ function ModelField({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-xs text-foreground shadow-none hover:bg-accent/50 focus-visible:ring-0">
+                  className="flex h-auto min-h-0 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-[12px] px-2 py-1 font-normal text-foreground text-xs shadow-none hover:bg-accent/50 focus-visible:ring-0">
                   <span className="min-w-0 truncate">{triggerLabel}</span>
                   <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
                 </Button>
@@ -515,7 +405,7 @@ function ModelField({
         </div>
         <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
         {value && !selectedModel ? (
-          <FieldDescription className="text-xs text-muted-foreground/50">
+          <FieldDescription className="text-muted-foreground/50 text-xs">
             {t('library.config.basic.model_not_found', { id: value })}
           </FieldDescription>
         ) : null}

@@ -1,9 +1,6 @@
 import {
-  Badge,
   Button,
   ButtonGroup,
-  Combobox,
-  type ComboboxOption,
   EditableNumber,
   EmojiAvatar,
   Field,
@@ -31,12 +28,12 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModels'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Check, ChevronsUpDown, Plus, Trash2, X } from 'lucide-react'
+import { ChevronsUpDown, Plus, Trash2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_TAG_COLOR } from '../../../constants'
+import { TagSelector } from '../../../TagSelector'
 import type { AssistantFormState } from '../descriptor'
 import { isSelectableAssistantModel } from '../modelFilter'
 
@@ -76,10 +73,6 @@ interface Props {
 export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByName, allTagNames }) => {
   const { t } = useTranslation()
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const tagColor = useCallback(
-    (name: string): string => tagColorByName.get(name) ?? DEFAULT_TAG_COLOR,
-    [tagColorByName]
-  )
   const nameInvalid = Boolean(nameError)
   const { models } = useModels({ enabled: true })
   const modelsById = useMemo(() => buildModelsById(models), [models])
@@ -108,34 +101,15 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
     onChange(patch)
   }
 
-  // Tag options for the select. `form.tags` may contain names the backend list
-  // doesn't include yet (e.g. if the user typed one in the card menu before
-  // /tags refreshed) — union them so they stay visible as currently-selected.
-  const tagOptions = useMemo<ComboboxOption[]>(() => {
-    const names = Array.from(new Set([...allTagNames, ...form.tags]))
-    names.sort((a, b) => a.localeCompare(b, 'zh'))
-    return names.map((name) => ({
-      value: name,
-      label: name,
-      icon: (
-        <span
-          className="inline-block size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: tagColor(name) }}
-          aria-hidden="true"
-        />
-      )
-    }))
-  }, [allTagNames, form.tags, tagColor])
-
   return (
     <div className="max-w-lg space-y-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.basic.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.basic.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.basic.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.avatar')}</FieldLabel>
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.avatar')}</FieldLabel>
         <FieldContent>
           <div className="flex items-center gap-2">
             <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
@@ -178,20 +152,20 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       </Field>
 
       <Field data-invalid={nameInvalid || undefined} className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">{t('common.name')}</FieldLabel>
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">{t('common.name')}</FieldLabel>
         <FieldContent>
           <Input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
             aria-invalid={nameInvalid || undefined}
-            className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
+            className="h-auto w-full rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0 aria-invalid:border-destructive/50"
           />
           <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
         </FieldContent>
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.description_label')}
         </FieldLabel>
         <FieldContent>
@@ -199,107 +173,23 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
             value={form.description}
             onValueChange={(description) => onChange({ description })}
             rows={3}
-            className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
+            className="min-h-0 w-full resize-none rounded-xs border border-border/20 bg-accent/15 px-3 py-2 text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
           />
         </FieldContent>
       </Field>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.tags')}
         </FieldLabel>
         <FieldContent>
-          <Combobox
-            multiple
-            searchable
-            options={tagOptions}
+          <TagSelector
             value={form.tags}
-            onChange={(v) => onChange({ tags: Array.isArray(v) ? v : v ? [v] : [] })}
-            placeholder={t('library.config.basic.tag_placeholder')}
-            searchPlaceholder={t('library.config.basic.tag_search')}
-            emptyText={t('library.config.basic.tag_empty')}
-            className="min-h-8 w-full items-center rounded-xs border-border/20 bg-accent/15 px-2 py-1 text-xs shadow-none transition-all hover:border-border/40 hover:bg-accent/20 aria-expanded:border-border/40 aria-expanded:bg-accent/20 aria-expanded:ring-0"
-            popoverClassName="rounded-xs border-border/30 p-1 shadow-lg shadow-black/[0.06]"
-            renderValue={(value) => {
-              const selected = Array.isArray(value) ? value : value ? [value] : []
-              const hasSelection = selected.length > 0
-              return (
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-                    {hasSelection ? (
-                      selected.map((name) => (
-                        <Badge
-                          key={name}
-                          variant="outline"
-                          className="gap-1.5 border-border/40 bg-card py-0.5 pr-1 pl-2 font-normal shadow-2xs shadow-black/[0.03] hover:border-border/60">
-                          <span
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: tagColor(name) }}
-                            aria-hidden="true"
-                          />
-                          <span>{name}</span>
-                          <button
-                            type="button"
-                            aria-label={t('common.remove')}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              e.preventDefault()
-                              onChange({ tags: form.tags.filter((tag) => tag !== name) })
-                            }}
-                            className="ml-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full text-muted-foreground/50 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
-                            <X size={9} />
-                          </button>
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground/50">{t('library.config.basic.tag_placeholder')}</span>
-                    )}
-                  </div>
-                  {hasSelection && (
-                    <button
-                      type="button"
-                      aria-label={t('common.clear')}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        onChange({ tags: [] })
-                      }}
-                      className="inline-flex size-3 shrink-0 items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none">
-                      <X size={8} />
-                    </button>
-                  )}
-                </div>
-              )
-            }}
-            renderOption={(option) => {
-              const checked = form.tags.includes(option.value)
-              const color = tagColor(option.value)
-              return (
-                <>
-                  <span
-                    className="size-2 shrink-0 rounded-full transition-all duration-200"
-                    style={{
-                      backgroundColor: color,
-                      boxShadow: checked ? `0 0 0 2.5px ${color}33` : undefined
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={`flex-1 truncate text-xs transition-colors ${
-                      checked ? 'text-foreground' : 'text-muted-foreground/80'
-                    }`}>
-                    {option.label}
-                  </span>
-                  {checked && <Check size={12} className="shrink-0 text-foreground" />}
-                </>
-              )
-            }}
+            onChange={(tags) => onChange({ tags })}
+            tagColorByName={tagColorByName}
+            allTagNames={allTagNames}
           />
-          <FieldDescription className="text-xs text-muted-foreground/50">
+          <FieldDescription className="text-muted-foreground/50 text-xs">
             {t('library.config.basic.tag_hint')}
           </FieldDescription>
         </FieldContent>
@@ -310,7 +200,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
       {/* 默认模型 */}
       <Field className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
             {t('library.config.basic.model')}
           </FieldLabel>
           {form.modelId ? (
@@ -325,7 +215,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                   <Button
                     type="button"
                     variant="ghost"
-                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-xs text-foreground shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
+                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-full bg-accent/40 px-2 py-[3px] font-normal text-foreground text-xs shadow-none transition-colors hover:bg-accent/50 focus-visible:ring-0">
                     <span className="max-w-[180px] truncate">{selectedModel?.name ?? form.modelId}</span>
                     <ChevronsUpDown size={12} className="shrink-0 text-muted-foreground/50" />
                   </Button>
@@ -352,7 +242,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
+                  className="h-auto min-h-0 rounded-full border border-border/40 border-dashed px-2.5 py-[3px] font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:border-border/60 hover:text-foreground focus-visible:ring-0">
                   {t('library.config.basic.model_pick')}
                 </Button>
               }
@@ -360,7 +250,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
           )}
         </div>
         {form.modelId && !selectedModel ? (
-          <FieldDescription className="text-xs text-muted-foreground/50">
+          <FieldDescription className="text-muted-foreground/50 text-xs">
             {t('library.config.basic.model_not_found', { id: form.modelId })}
           </FieldDescription>
         ) : null}
@@ -382,8 +272,8 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
           className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
         />
         <div className="mt-1 flex justify-between">
-          <span className="text-xs text-muted-foreground/50">{t('library.config.basic.precise')}</span>
-          <span className="text-xs text-muted-foreground/50">{t('library.config.basic.creative')}</span>
+          <span className="text-muted-foreground/50 text-xs">{t('library.config.basic.precise')}</span>
+          <span className="text-muted-foreground/50 text-xs">{t('library.config.basic.creative')}</span>
         </div>
       </ToggleFieldGroup>
 
@@ -406,7 +296,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 上下文数 */}
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           <div className="flex items-center justify-between">
             <span>{t('library.config.basic.context_count')}</span>
             <span className="text-muted-foreground/50">
@@ -453,7 +343,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 流式输出 */}
       <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.stream_output')}
         </FieldLabel>
         <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
@@ -461,7 +351,7 @@ export const BasicSection: FC<Props> = ({ form, onChange, nameError, tagColorByN
 
       {/* 工具调用方式 */}
       <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.tool_use_mode')}
         </FieldLabel>
         <ButtonGroup className="overflow-hidden rounded-2xs border border-border/30">
@@ -567,7 +457,7 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.basic.custom_params')}
         </FieldLabel>
         <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
@@ -693,11 +583,11 @@ function CustomParameterRow({
             rows={4}
             spellCheck={false}
             placeholder='{"key": "value"}'
-            className={`min-h-0 w-full resize-y rounded-xs border bg-background px-2 py-1.5 font-mono text-xs text-foreground shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
+            className={`min-h-0 w-full resize-y rounded-xs border bg-background px-2 py-1.5 font-mono text-foreground text-xs shadow-none outline-none transition-all focus-visible:border-border/60 focus-visible:ring-0 ${
               jsonInvalid ? 'border-destructive/50 focus-visible:border-destructive/70' : 'border-border/20'
             }`}
           />
-          {jsonInvalid && <p className="mt-1 text-xs text-destructive/80">{t('library.config.basic.json_invalid')}</p>}
+          {jsonInvalid && <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>}
         </div>
       )}
     </div>
@@ -726,7 +616,7 @@ function ToggleFieldGroup({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="flex items-center gap-1.5 font-normal text-muted-foreground/80 text-sm">
           <span>{label}</span>
           <span className="text-muted-foreground/50">{valueLabel}</span>
         </FieldLabel>
