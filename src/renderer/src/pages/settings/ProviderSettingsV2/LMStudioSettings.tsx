@@ -1,9 +1,8 @@
+import { EditableNumber } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
-import { InputNumber } from 'antd'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
@@ -18,30 +17,37 @@ const LMStudioSettings: FC<Props> = ({ providerId }) => {
   const keepAliveTime = provider?.settings?.keepAliveTime ?? 0
   const [keepAliveMinutes, setKeepAliveMinutes] = useState(keepAliveTime)
 
+  useEffect(() => {
+    setKeepAliveMinutes(provider?.settings?.keepAliveTime ?? 0)
+  }, [provider?.settings?.keepAliveTime])
+
   const handleBlur = async () => {
     if (keepAliveMinutes === keepAliveTime) return
     await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
   }
 
   return (
-    <Container>
-      <SettingSubtitle style={{ marginBottom: 5 }}>{t('lmstudio.keep_alive_time.title')}</SettingSubtitle>
-      <InputNumber
-        style={{ width: '100%' }}
-        value={keepAliveMinutes}
-        min={0}
-        onChange={(e) => setKeepAliveMinutes(Math.floor(Number(e)))}
-        onBlur={handleBlur}
-        suffix={t('lmstudio.keep_alive_time.placeholder')}
-        step={5}
-      />
+    <div>
+      <SettingSubtitle className="mb-1">{t('lmstudio.keep_alive_time.title')}</SettingSubtitle>
+      <div className="w-full [&>div]:block [&>div]:w-full">
+        <EditableNumber
+          value={keepAliveMinutes}
+          min={0}
+          step={5}
+          suffix={t('lmstudio.keep_alive_time.placeholder')}
+          align="start"
+          changeOnBlur={false}
+          onChange={(v) => setKeepAliveMinutes(Math.floor(Number(v ?? 0)))}
+          onBlur={() => {
+            void handleBlur()
+          }}
+        />
+      </div>
       <SettingHelpTextRow>
         <SettingHelpText>{t('lmstudio.keep_alive_time.description')}</SettingHelpText>
       </SettingHelpTextRow>
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div``
 
 export default LMStudioSettings

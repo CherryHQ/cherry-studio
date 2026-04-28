@@ -12,22 +12,13 @@ import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 interface ModelListItemProps {
   ref?: React.RefObject<HTMLDivElement>
   model: Model
-  showIdentifier?: boolean
   disabled?: boolean
   onEdit: (model: Model) => void
   onToggleEnabled: (model: Model, enabled: boolean) => Promise<void>
 }
 
-const ModelListItem: React.FC<ModelListItemProps> = ({
-  ref,
-  model,
-  showIdentifier = false,
-  disabled,
-  onEdit,
-  onToggleEnabled
-}) => {
+const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onToggleEnabled }) => {
   const { t } = useTranslation()
-  const shouldShowIdentifier = showIdentifier && model.id !== model.name
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -54,16 +45,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
           )
         })()}
         <div className={modelListClasses.rowBody}>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
-              {model.name}
-            </span>
-            {shouldShowIdentifier && (
-              <span className={modelListClasses.modelIdBadge} title={model.id}>
-                {model.id}
-              </span>
-            )}
-          </div>
+          <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+            {model.name}
+          </span>
         </div>
       </RowFlex>
       <RowFlex className={modelListClasses.rowActions}>

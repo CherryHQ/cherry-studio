@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Endpoint Type",
           "placeholder": "Select endpoint type",
+          "remove_chip": "Remove",
           "required": "Please select an endpoint type",
           "tooltip": "Select the API endpoint type format"
         },

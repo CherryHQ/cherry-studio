@@ -1,11 +1,10 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettingsV2/components/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { Skeleton } from 'antd'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -175,7 +174,9 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
     return (
       <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
-          <Skeleton active title={{ width: 220 }} paragraph={{ rows: 2, width: ['100%', '82%'] }} />
+          <Skeleton className="h-5 w-[220px]" />
+          <Skeleton className="mt-2 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-[82%]" />
         </div>
       </div>
     )
@@ -249,12 +250,7 @@ const CherryINOAuth: FC<CherryINOAuthProps> = ({ providerId }) => {
               <p className={oauthCardClasses.inlineBalanceLabel}>{t('settings.provider.oauth.balance')}</p>
               <div className={oauthCardClasses.inlineBalanceValue}>
                 {isLoadingData && !balanceInfo ? (
-                  <Skeleton.Input
-                    active
-                    className={oauthCardClasses.balanceValueSkeleton}
-                    size="small"
-                    style={{ height: 20 }}
-                  />
+                  <Skeleton className={`${oauthCardClasses.balanceValueSkeleton} h-5`} />
                 ) : (
                   formatCurrency(balanceInfo?.balance)
                 )}

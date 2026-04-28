@@ -1,6 +1,6 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Input, RowFlex, Textarea } from '@cherrystudio/ui'
 import { useProviderAuthConfig, useProviderMutations, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
-import { Alert, Input } from 'antd'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,44 +51,43 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle style={{ marginTop: 5 }}>
-        {t('settings.provider.vertex_ai.service_account.title')}
-      </SettingSubtitle>
-      <Alert
-        type="info"
-        style={{ marginTop: 5 }}
-        message={t('settings.provider.vertex_ai.service_account.description')}
-        showIcon
-      />
+      <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.service_account.title')}</SettingSubtitle>
+      <div
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        role="status">
+        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <span>{t('settings.provider.vertex_ai.service_account.description')}</span>
+      </div>
 
-      <SettingSubtitle style={{ marginTop: 5 }}>
+      <SettingSubtitle className="mt-1.5">
         {t('settings.provider.vertex_ai.service_account.client_email')}
       </SettingSubtitle>
-      <Input.Password
+      <Input
+        className="mt-1.5 w-full"
+        type="password"
         value={localClientEmail}
         placeholder={t('settings.provider.vertex_ai.service_account.client_email_placeholder')}
         onChange={(e) => setLocalClientEmail(e.target.value)}
         onBlur={saveAuthConfig}
-        style={{ marginTop: 5 }}
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.vertex_ai.service_account.client_email_help')}</SettingHelpText>
       </SettingHelpTextRow>
 
-      <SettingSubtitle style={{ marginTop: 5 }}>
+      <SettingSubtitle className="mt-1.5">
         {t('settings.provider.vertex_ai.service_account.private_key')}
       </SettingSubtitle>
-      <Input.TextArea
+      <Textarea.Input
+        className="mt-1.5 min-h-24 w-full"
         value={localPrivateKey}
         placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
         onChange={(e) => setLocalPrivateKey(e.target.value)}
         onBlur={saveAuthConfig}
-        style={{ marginTop: 5 }}
         spellCheck={false}
-        autoSize={{ minRows: 4, maxRows: 4 }}
+        rows={4}
       />
       {apiKeyWebsite && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+        <SettingHelpTextRow className="justify-between">
           <RowFlex>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
@@ -98,25 +97,26 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         </SettingHelpTextRow>
       )}
       <>
-        <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
-        <Input.Password
+        <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
+        <Input
+          className="mt-1.5 w-full"
+          type="password"
           value={localProjectId}
           placeholder={t('settings.provider.vertex_ai.project_id_placeholder')}
           onChange={(e) => setLocalProjectId(e.target.value)}
           onBlur={saveAuthConfig}
-          style={{ marginTop: 5 }}
         />
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.vertex_ai.project_id_help')}</SettingHelpText>
         </SettingHelpTextRow>
 
-        <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.location')}</SettingSubtitle>
+        <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.location')}</SettingSubtitle>
         <Input
+          className="mt-1.5 w-full"
           value={localLocation}
           placeholder="us-central1"
           onChange={(e) => setLocalLocation(e.target.value)}
           onBlur={saveAuthConfig}
-          style={{ marginTop: 5 }}
         />
         <SettingHelpTextRow>
           <SettingHelpText>{t('settings.provider.vertex_ai.location_help')}</SettingHelpText>

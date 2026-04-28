@@ -1,4 +1,4 @@
-import { Button, SelectDropdown, WarnTooltip } from '@cherrystudio/ui'
+import { Button, WarnTooltip } from '@cherrystudio/ui'
 import {
   EmbeddingTag,
   ReasoningTag,
@@ -14,8 +14,8 @@ import { useTranslation } from 'react-i18next'
 
 import ProviderField from '../../components/ProviderField'
 import { drawerClasses } from '../../components/ProviderSettingsPrimitives'
-import { MODEL_ENDPOINT_OPTIONS } from './helpers'
-import type { ModelBasicFormState, ModelCapabilityToggle } from './types'
+import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
+import type { ModelBasicFormState, ModelCapabilityToggle, ModelDrawerEndpointType } from './types'
 
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
@@ -26,7 +26,7 @@ interface ModelBasicFieldsProps {
   onModelIdChange: (value: string) => void
   onNameChange: (value: string) => void
   onGroupChange: (value: string) => void
-  onEndpointTypeChange: (value: string) => void
+  onEndpointTypesChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
 const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
@@ -40,7 +40,7 @@ export function ModelBasicFields({
   onModelIdChange,
   onNameChange,
   onGroupChange,
-  onEndpointTypeChange
+  onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
 
@@ -91,14 +91,7 @@ export function ModelBasicFields({
           titleClassName={drawerFieldTitleClassName}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            <SelectDropdown
-              items={MODEL_ENDPOINT_OPTIONS.map((option) => ({ id: option.id, label: t(option.label) }))}
-              selectedId={values.endpointType ?? null}
-              placeholder={t('settings.models.add.endpoint_type.placeholder')}
-              onSelect={(value) => onEndpointTypeChange(value)}
-              renderSelected={(item) => <span className="truncate">{item.label}</span>}
-              renderItem={(item) => <span className="truncate">{item.label}</span>}
-            />
+            <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
           </div>
         </ProviderField>
       )}
@@ -127,7 +120,7 @@ export function ModelCapabilityToggles({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] font-[weight:var(--font-weight-semibold)] text-foreground/90">
+        <div className="flex items-center gap-1 font-[weight:var(--font-weight-semibold)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
         </div>

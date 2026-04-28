@@ -2,7 +2,6 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getDefaultGroupName } from '@renderer/utils'
-import type { EndpointType } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -87,7 +86,7 @@ export default function AddModelFormPanel({
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes: mode === 'new-api' && values.endpointType ? [values.endpointType as EndpointType] : undefined
+        endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined
       })
 
       return true
@@ -96,7 +95,7 @@ export default function AddModelFormPanel({
   )
 
   const submitAddModel = useCallback(async () => {
-    if (mode === 'new-api' && !formState.endpointType) {
+    if (mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)) {
       setEndpointTypeTouched(true)
       return
     }
@@ -109,7 +108,7 @@ export default function AddModelFormPanel({
           modelId: singleId,
           name: singleId,
           group: '',
-          endpointType: undefined
+          endpointTypes: undefined
         })
       }
 
@@ -155,9 +154,9 @@ export default function AddModelFormPanel({
               onModelIdChange={handleModelIdChange}
               onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
               onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
-              onEndpointTypeChange={(value) => {
+              onEndpointTypesChange={(next) => {
                 setEndpointTypeTouched(false)
-                setFormState((current) => ({ ...current, endpointType: value }))
+                setFormState((current) => ({ ...current, endpointTypes: [...next] }))
               }}
             />
           </div>

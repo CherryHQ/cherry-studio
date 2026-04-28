@@ -1,6 +1,6 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { useProvider, useProviderAuthConfig, useProviderPresetMetadata } from '@renderer/hooks/useProviders'
-import { Alert, Input, Radio } from 'antd'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,54 +58,68 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
     }
   }
 
+  const authMode = isIamMode ? 'iam' : 'apiKey'
+
   return (
     <>
-      <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.aws-bedrock.title')}</SettingSubtitle>
-      <Alert type="info" style={{ marginTop: 5 }} message={t('settings.provider.aws-bedrock.description')} showIcon />
+      <SettingSubtitle className="mt-1.5">{t('settings.provider.aws-bedrock.title')}</SettingSubtitle>
+      <div
+        className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
+        role="status">
+        <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+        <span>{t('settings.provider.aws-bedrock.description')}</span>
+      </div>
 
-      {/* Authentication Type Selector */}
-      <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
-      <Radio.Group
-        value={isIamMode ? 'iam' : 'apiKey'}
-        onChange={(e) => handleAuthTypeChange(e.target.value)}
-        style={{ marginTop: 5 }}>
-        <Radio value="iam">{t('settings.provider.aws-bedrock.auth_type_iam')}</Radio>
-        <Radio value="apiKey">{t('settings.provider.aws-bedrock.auth_type_api_key')}</Radio>
-      </Radio.Group>
+      <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
+      <RadioGroup
+        className="mt-1.5 flex flex-col gap-2"
+        value={authMode}
+        onValueChange={(v) => {
+          void handleAuthTypeChange(v)
+        }}>
+        <div className="flex items-start gap-2">
+          <RadioGroupItem value="iam" id="aws-bedrock-auth-iam" className="mt-0.5" />
+          <Label htmlFor="aws-bedrock-auth-iam" className="cursor-pointer font-normal leading-snug">
+            {t('settings.provider.aws-bedrock.auth_type_iam')}
+          </Label>
+        </div>
+        <div className="flex items-start gap-2">
+          <RadioGroupItem value="apiKey" id="aws-bedrock-auth-apikey" className="mt-0.5" />
+          <Label htmlFor="aws-bedrock-auth-apikey" className="cursor-pointer font-normal leading-snug">
+            {t('settings.provider.aws-bedrock.auth_type_api_key')}
+          </Label>
+        </div>
+      </RadioGroup>
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</SettingHelpText>
       </SettingHelpTextRow>
 
-      {/* IAM Credentials Fields */}
       {isIamMode && (
         <>
-          <SettingSubtitle style={{ marginTop: 15 }}>
-            {t('settings.provider.aws-bedrock.access_key_id')}
-          </SettingSubtitle>
+          <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.access_key_id')}</SettingSubtitle>
           <Input
+            className="mt-1.5 w-full"
             value={localAccessKeyId}
             placeholder={t('settings.provider.aws-bedrock.access_key_id')}
             onChange={(e) => setLocalAccessKeyId(e.target.value)}
             onBlur={saveIamConfig}
-            style={{ marginTop: 5 }}
           />
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.aws-bedrock.access_key_id_help')}</SettingHelpText>
           </SettingHelpTextRow>
 
-          <SettingSubtitle style={{ marginTop: 15 }}>
-            {t('settings.provider.aws-bedrock.secret_access_key')}
-          </SettingSubtitle>
-          <Input.Password
+          <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.secret_access_key')}</SettingSubtitle>
+          <Input
+            className="mt-1.5 w-full"
+            type="password"
             value={localSecretAccessKey}
             placeholder={t('settings.provider.aws-bedrock.secret_access_key')}
             onChange={(e) => setLocalSecretAccessKey(e.target.value)}
             onBlur={saveIamConfig}
-            style={{ marginTop: 5 }}
             spellCheck={false}
           />
           {apiKeyWebsite && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <SettingHelpTextRow className="justify-between">
               <RowFlex>
                 <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
@@ -117,13 +131,13 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         </>
       )}
 
-      <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.region')}</SettingSubtitle>
+      <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.region')}</SettingSubtitle>
       <Input
+        className="mt-1.5 w-full"
         value={localRegion}
         placeholder="us-east-1"
         onChange={(e) => setLocalRegion(e.target.value)}
         onBlur={saveRegion}
-        style={{ marginTop: 5 }}
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.aws-bedrock.region_help')}</SettingHelpText>

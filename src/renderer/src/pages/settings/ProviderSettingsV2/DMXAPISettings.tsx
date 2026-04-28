@@ -1,12 +1,11 @@
+import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
-import type { RadioChangeEvent } from 'antd'
-import { Radio, Space } from 'antd'
+import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingSubtitle } from '..'
 
@@ -14,11 +13,21 @@ interface DMXAPISettingsProps {
   providerId: string
 }
 
-// DMXAPI platform domain options
 enum PlatformDomain {
   OFFICIAL = 'www.DMXAPI.cn',
   INTERNATIONAL = 'www.DMXAPI.com',
   OVERSEA = 'ssvip.DMXAPI.com'
+}
+
+function resolveDmxPlatformFromProvider(provider: Provider | undefined): PlatformDomain {
+  if (!provider?.endpointConfigs) return PlatformDomain.OFFICIAL
+  const firstConfig = Object.values(provider.endpointConfigs)[0]
+  const firstUrl = firstConfig?.baseUrl
+  if (!firstUrl) return PlatformDomain.OFFICIAL
+  if (firstUrl.includes('DMXAPI.com') || firstUrl.includes('dmxapi.com')) {
+    return firstUrl.includes('ssvip') ? PlatformDomain.OVERSEA : PlatformDomain.INTERNATIONAL
+  }
+  return PlatformDomain.OFFICIAL
 }
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
@@ -43,72 +52,62 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
     }
   ]
 
-  const getCurrentPlatform = (): PlatformDomain => {
-    if (!provider?.endpointConfigs) return PlatformDomain.OFFICIAL
-    const firstConfig = Object.values(provider.endpointConfigs)[0]
-    const firstUrl = firstConfig?.baseUrl
-    if (!firstUrl) return PlatformDomain.OFFICIAL
-    if (firstUrl.includes('DMXAPI.com') || firstUrl.includes('dmxapi.com')) {
-      return firstUrl.includes('ssvip') ? PlatformDomain.OVERSEA : PlatformDomain.INTERNATIONAL
-    }
-    return PlatformDomain.OFFICIAL
-  }
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformDomain>(() =>
+    resolveDmxPlatformFromProvider(provider)
+  )
 
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformDomain>(getCurrentPlatform())
+  useEffect(() => {
+    setSelectedPlatform(resolveDmxPlatformFromProvider(provider))
+  }, [provider])
 
   const handlePlatformChange = useCallback(
-    async (e: RadioChangeEvent) => {
-      const domain = e.target.value as PlatformDomain
-      setSelectedPlatform(domain)
-      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, domain)
+    async (domain: string) => {
+      const next = domain as PlatformDomain
+      setSelectedPlatform(next)
+      const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, next)
       await updateProvider({ endpointConfigs: newEndpointConfigs })
     },
-    [provider?.endpointConfigs, updateProvider]
+    [provider?.endpointConfigs, provider, updateProvider]
   )
 
   return (
-    <Container>
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <LogoContainer>
-          <Dmxapi.Color height={70} width="auto" />
-        </LogoContainer>
+    <div className="mt-4 mb-[30px]">
+      <div className="mb-[30px] flex flex-col items-center justify-center">
+        <Dmxapi.Color height={70} width="auto" />
+      </div>
 
-        <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
-        <Radio.Group
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8
-          }}
-          onChange={handlePlatformChange}
+      <div className="flex w-full flex-col gap-2">
+        <SettingSubtitle className="mt-1.5">{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
+        <RadioGroup
+          className="flex w-full flex-col gap-2"
           value={selectedPlatform}
-          options={PlatformOptions.map((option) => ({
-            ...option,
-            label: (
-              <span>
-                {option.label}{' '}
-                <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer">
-                  ({t('settings.provider.get_api_key')})
-                </a>
-              </span>
+          onValueChange={(v) => {
+            void handlePlatformChange(v)
+          }}>
+          {PlatformOptions.map((option) => {
+            const id = `dmx-platform-${option.value}`
+            return (
+              <div key={option.value} className="flex items-start gap-2">
+                <RadioGroupItem value={option.value} id={id} className="mt-0.5" />
+                <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
+                  <span>
+                    {option.label}{' '}
+                    <a
+                      href={option.apiKeyWebsite}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline-offset-4 hover:underline">
+                      ({t('settings.provider.get_api_key')})
+                    </a>
+                  </span>
+                </Label>
+              </div>
             )
-          }))}></Radio.Group>
-      </Space>
-    </Container>
+          })}
+        </RadioGroup>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  margin-top: 16px;
-  margin-bottom: 30px;
-`
-
-const LogoContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 30px;
-`
 
 export default DMXAPISettings

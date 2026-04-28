@@ -52,12 +52,11 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           border: 'none',
           background: 'transparent'
         }}>
-        <div className="flex min-w-0 w-full flex-col gap-1 px-3 pb-[2px] pt-[2px]">
-          {items.map(({ model, showIdentifier }) => (
+        <div className="flex w-full min-w-0 flex-col gap-1 px-3 pt-[2px] pb-[2px]">
+          {items.map(({ model }) => (
             <ModelListItem
               key={model.id}
               model={model}
-              showIdentifier={showIdentifier}
               onEdit={onEditModel}
               onToggleEnabled={onToggleModel}
               disabled={disabled}

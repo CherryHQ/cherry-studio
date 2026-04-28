@@ -16,7 +16,6 @@ import {
 
 export interface ModelListGroupItem {
   model: Model
-  showIdentifier: boolean
 }
 
 export interface ModelListGroupSection {
@@ -61,16 +60,10 @@ interface UseProviderModelListBrowseArgs {
   isHealthChecking?: boolean
 }
 
-const toGroupSections = (
-  groups: ModelSections['enabled'],
-  duplicateModelNames: Set<string>
-): ModelListGroupSection[] => {
+const toGroupSections = (groups: ModelSections['enabled']): ModelListGroupSection[] => {
   return Object.entries(groups).map(([groupName, models]) => ({
     groupName,
-    items: models.map((model) => ({
-      model,
-      showIdentifier: duplicateModelNames.has(model.name)
-    }))
+    items: models.map((model) => ({ model }))
   }))
 }
 
@@ -175,13 +168,10 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
     [derivedState.filteredModels, updateModel]
   )
 
-  const enabledSections = useMemo(
-    () => toGroupSections(displayedSections?.enabled ?? {}, derivedState.duplicateModelNames),
-    [derivedState.duplicateModelNames, displayedSections?.enabled]
-  )
+  const enabledSections = useMemo(() => toGroupSections(displayedSections?.enabled ?? {}), [displayedSections?.enabled])
   const disabledSections = useMemo(
-    () => toGroupSections(displayedSections?.disabled ?? {}, derivedState.duplicateModelNames),
-    [derivedState.duplicateModelNames, displayedSections?.disabled]
+    () => toGroupSections(displayedSections?.disabled ?? {}),
+    [displayedSections?.disabled]
   )
 
   const header: ProviderModelListBrowseHeaderSurface = {

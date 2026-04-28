@@ -47,7 +47,7 @@ export default function InlineSelector<V extends string | number>({
           <ChevronsUpDown size={14} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-48 p-1">
+      <PopoverContent align="start" className="w-48 rounded-3xs p-1">
         <MenuList>
           {options.map((option) => (
             <MenuItem

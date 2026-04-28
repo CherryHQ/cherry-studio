@@ -1,5 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
@@ -10,7 +9,6 @@ import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   providerId: string
@@ -38,8 +36,14 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   const Icon = resolveProviderIcon(provider.id)
 
   return (
-    <Container>
-      {Icon ? <Icon.Avatar size={60} /> : <ProviderLogoFallback>{provider.name[0]}</ProviderLogoFallback>}
+    <div className="flex flex-col items-center justify-center gap-3 py-3 pb-2">
+      {Icon ? (
+        <Icon.Avatar size={60} />
+      ) : (
+        <div className="flex size-[60px] shrink-0 items-center justify-center rounded-full bg-[var(--color-background-soft)] font-bold text-[24px]">
+          {provider.name[0]}
+        </div>
+      )}
       {!hasApiKeys(provider) ? (
         <OAuthButton
           provider={{ id: provider.id } as any}
@@ -52,63 +56,35 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           <Button
             className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
             onClick={() => providerCharge(provider.id)}>
-            <CircleDollarSign size={16} />
+            <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
             {t('settings.provider.charge')}
           </Button>
           <Button
             className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
             onClick={() => providerBills(provider.id)}>
-            <ReceiptText size={16} />
+            <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
             {t('settings.provider.bills')}
           </Button>
         </RowFlex>
       )}
-      <Description>
+      <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-text-2)] leading-[1.35]">
         <Trans
           i18nKey="settings.provider.oauth.description"
           components={{
-            website: <OfficialWebsite href={officialWebsite ?? ''} target="_blank" rel="noreferrer" />
+            website: (
+              <a
+                className="text-[var(--color-text-2)] no-underline"
+                href={officialWebsite ?? ''}
+                rel="noreferrer"
+                target="_blank"
+              />
+            )
           }}
           values={{ provider: providerWebsite }}
         />
-      </Description>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 0 8px;
-`
-
-const ProviderLogoFallback = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-background-soft);
-  font-size: 24px;
-  font-weight: bold;
-`
-
-const Description = styled.div`
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--color-text-2);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`
-
-const OfficialWebsite = styled.a`
-  text-decoration: none;
-  color: var(--color-text-2);
-`
 
 export default ProviderOAuth

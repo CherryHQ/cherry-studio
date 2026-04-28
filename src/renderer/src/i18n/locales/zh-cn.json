@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "端点类型",
           "placeholder": "选择端点类型",
+          "remove_chip": "移除",
           "required": "请选择端点类型",
           "tooltip": "选择 API 的端点类型格式"
         },

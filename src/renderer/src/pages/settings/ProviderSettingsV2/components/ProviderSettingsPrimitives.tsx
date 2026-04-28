@@ -38,6 +38,10 @@ export const providerSettingsTypography = {
 const providerSettingsInputGroupBase =
   'rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 py-[5px] shadow-none'
 
+/** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
+const providerSettingsInputGroupFocusOverride =
+  'has-[[data-slot=input-group-control]:focus-visible]:ring-[1px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/35'
+
 /** 连接认证、`ProviderSection`：14px、`/85`、section label 行高；字重用 scope `--font-weight-medium`。 */
 const sectionHeadingBase =
   'm-0 text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-section-label)]'
@@ -45,11 +49,12 @@ const sectionHeadingBase =
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
 
 /**
- * `cherry-studio-ui-design` ModelServicePage — 「连接认证」卡片：描边容器 + 卡内小号标题（区别于模型列表 semibold tier）。
+ * `cherry-studio-ui-design` ModelServicePage — 「连接认证」卡片：描边容器 + 卡内标题（body-md，与 ProviderField 13px 标签同级对比略大一档）。
  */
 export const authConnectionClasses = {
   shell: 'rounded-[length:var(--radius-button)] border border-[color:var(--section-border)] px-3.5 py-3',
-  blockTitle: 'mb-2.5 text-xs font-[weight:var(--font-weight-medium)] text-foreground/70',
+  blockTitle:
+    'mb-2.5 text-[length:var(--font-size-body-md)] text-foreground/85 leading-[var(--line-height-section-label)] font-[weight:var(--font-weight-medium)]',
   body: 'space-y-2.5'
 } as const
 
@@ -486,9 +491,17 @@ export const fieldClasses = {
   /** Reserves 24×24 next to `inputGroup` in `inputRow` when there is no trailing action (aligns with `iconButton`). */
   inputRowEndSlot: 'inline-flex h-6 w-6 shrink-0',
   /** In a `inputRow` next to a 24px icon button */
-  inputGroup: ['flex min-h-0 min-w-0 flex-1 items-center py-[5px]', providerSettingsInputGroupBase].join(' '),
+  inputGroup: [
+    'flex min-h-0 min-w-0 flex-1 items-center py-[5px]',
+    providerSettingsInputGroupBase,
+    providerSettingsInputGroupFocusOverride
+  ].join(' '),
   /** Full-width field (no side icon) */
-  inputGroupBlock: ['flex w-full items-center', providerSettingsInputGroupBase].join(' '),
+  inputGroupBlock: [
+    'flex w-full items-center',
+    providerSettingsInputGroupBase,
+    providerSettingsInputGroupFocusOverride
+  ].join(' '),
   /**
    * Matches `ModelServicePage` connection row: body-md, full foreground, muted placeholder; flush in group.
    * Repeat `md:` so `InputGroupInput` defaults do not re-assert `md:text-sm` alone on the base layer.

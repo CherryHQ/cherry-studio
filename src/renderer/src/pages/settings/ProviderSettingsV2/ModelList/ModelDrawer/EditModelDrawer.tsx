@@ -51,7 +51,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
   const { updateModel } = useModelMutations()
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
-  const [endpointType, setEndpointType] = useState<string>('')
+  const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
   const [hasUserModified, setHasUserModified] = useState(false)
@@ -80,7 +80,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
 
     setName(model.name)
     setGroup(model.group ?? '')
-    setEndpointType(model.endpointTypes?.[0] ?? '')
+    setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
     setShowMoreSettings(false)
     setSelectedCaps(getInitialSelectedCapabilities(model))
     setHasUserModified(false)
@@ -128,7 +128,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
       return {
         name: name || model.name,
         group: group || model.group,
-        endpointTypes: mode === 'new-api' && endpointType ? [endpointType as EndpointType] : undefined,
+        endpointTypes: mode === 'new-api' && endpointTypes.length ? [...endpointTypes] : undefined,
         capabilities: toggleSetToCaps(
           model.capabilities ?? [],
           overrides?.caps ?? selectedCaps
@@ -149,7 +149,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     [
       currencySymbol,
       customCurrencySymbol,
-      endpointType,
+      endpointTypes,
       group,
       inputPrice,
       isCustomCurrency,
@@ -196,7 +196,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
   }, [savedCaps])
 
   const saveModel = useCallback(async () => {
-    if (mode === 'new-api' && !endpointType) {
+    if (mode === 'new-api' && endpointTypes.length === 0) {
       setEndpointTypeTouched(true)
       return
     }
@@ -204,7 +204,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     await handleUpdateModel(buildPatch())
     setShowMoreSettings(false)
     onClose()
-  }, [buildPatch, endpointType, handleUpdateModel, mode, onClose])
+  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, onClose])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -224,7 +224,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
         {t('common.cancel')}
       </Button>
       <Button type="button" onClick={() => void saveModel()}>
-        <SaveIcon size={16} />
+        <SaveIcon aria-hidden className="size-4 shrink-0 text-white" />
         {t('common.save')}
       </Button>
     </ProviderActions>
@@ -246,7 +246,7 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
                 modelId: apiModelId,
                 name,
                 group,
-                endpointType
+                endpointTypes
               }}
               showEndpointType={mode === 'new-api'}
               modelIdDisabled
@@ -269,9 +269,9 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
               }}
               onNameChange={setName}
               onGroupChange={setGroup}
-              onEndpointTypeChange={(value) => {
+              onEndpointTypesChange={(next) => {
                 setEndpointTypeTouched(false)
-                setEndpointType(value)
+                setEndpointTypes([...next])
               }}
             />
           </div>

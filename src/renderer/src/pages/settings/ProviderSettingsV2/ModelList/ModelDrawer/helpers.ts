@@ -43,6 +43,22 @@ export function getModelApiId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
+function resolveInitialEndpointTypes(
+  prefill: AddModelDrawerPrefill | null | undefined,
+  defaultEndpointType: ModelDrawerEndpointType
+): ModelDrawerEndpointType[] {
+  if (prefill?.endpointTypes?.length) {
+    return [...prefill.endpointTypes]
+  }
+  if (prefill?.model?.endpointTypes?.length) {
+    return [...prefill.model.endpointTypes]
+  }
+  if (prefill?.endpointType) {
+    return [prefill.endpointType]
+  }
+  return [defaultEndpointType]
+}
+
 export function getInitialAddModelFormState(
   prefill: AddModelDrawerPrefill | null | undefined,
   defaultEndpointType: ModelDrawerEndpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
@@ -51,7 +67,7 @@ export function getInitialAddModelFormState(
     modelId: prefill?.model ? getModelApiId(prefill.model) : '',
     name: prefill?.model?.name ?? '',
     group: prefill?.model?.group ?? '',
-    endpointType: prefill?.endpointType ?? defaultEndpointType
+    endpointTypes: resolveInitialEndpointTypes(prefill, defaultEndpointType)
   }
 }
 
