@@ -1,7 +1,5 @@
 import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
-import { Button, RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
@@ -14,7 +12,6 @@ import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { cn } from '@renderer/utils/style'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Typography } from 'antd'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -233,7 +230,7 @@ const BasicDataSettings: React.FC = () => {
           <MigrationNotice>
             <p>{t('settings.data.app_data.copying')}</p>
             <div style={{ marginTop: '12px' }}>
-              <Progress percent={currentProgress} status="active" strokeWidth={8} />
+              <MigrationProgressBar percent={currentProgress} status="active" strokeWidth={8} />
             </div>
             <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
               {t('settings.data.app_data.copying_warning')}
@@ -256,7 +253,7 @@ const BasicDataSettings: React.FC = () => {
             <MigrationNotice>
               <p>{t('settings.data.app_data.copying')}</p>
               <div style={{ marginTop: '12px' }}>
-                <Progress percent={Math.round(progress)} status={status} strokeWidth={8} />
+                <MigrationProgressBar percent={Math.round(progress)} status={status} strokeWidth={8} />
               </div>
               <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
                 {t('settings.data.app_data.copying_warning')}
@@ -569,19 +566,44 @@ const BasicDataSettings: React.FC = () => {
   )
 }
 
-const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
-  <Typography.Text
+const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span
     className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
     {...props}
   />
 )
 
-const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Typography.Text>) => (
-  <Typography.Text
+const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
+  <span
     className={cn('ml-1.25 inline-block min-w-0 flex-1 cursor-pointer truncate text-right align-middle', className)}
     {...props}
   />
 )
+
+interface MigrationProgressBarProps {
+  percent: number
+  status: 'active' | 'success'
+  strokeWidth: number
+}
+
+const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgressBarProps) => {
+  const normalizedPercent = Math.min(100, Math.max(0, Math.round(percent)))
+
+  return (
+    <div className="flex w-full items-center gap-2">
+      <div className="w-full overflow-hidden rounded-full bg-border" style={{ height: strokeWidth }}>
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width] duration-300',
+            status === 'success' ? 'bg-success' : 'bg-primary'
+          )}
+          style={{ width: `${normalizedPercent}%` }}
+        />
+      </div>
+      <span className="min-w-10 text-right text-foreground-muted text-xs">{normalizedPercent}%</span>
+    </div>
+  )
+}
 
 const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
   <RowFlex className={cn('w-0 min-w-0 flex-1 items-center gap-1.25', className)} {...props} />

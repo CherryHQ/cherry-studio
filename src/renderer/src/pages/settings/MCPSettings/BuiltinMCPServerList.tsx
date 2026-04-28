@@ -117,7 +117,7 @@ const BuiltinMCPServerList: FC = () => {
                       {getBuiltInMcpServerDescriptionLabel(server.name)}
                     </div>
                   </PopoverTrigger>
-                  <PopoverContent align="start" side="top" className="max-w-100 w-auto">
+                  <PopoverContent align="start" side="top" className="w-auto max-w-100">
                     <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
                     <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
                       {getBuiltInMcpServerDescriptionLabel(server.name)}

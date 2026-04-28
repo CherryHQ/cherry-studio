@@ -70,7 +70,7 @@ const ObsidianSettings: FC = () => {
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           {loading ? (
-            <Spinner />
+            <Spinner text={t('common.loading')} />
           ) : vaults.length > 0 ? (
             <Select value={defaultObsidianVault || undefined} onValueChange={handleChange}>
               <SelectTrigger className="w-[300px]">

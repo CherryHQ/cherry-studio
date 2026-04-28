@@ -1,5 +1,5 @@
 import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
@@ -19,7 +19,6 @@ import {
 import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Input, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -237,7 +236,7 @@ const NutstoreSettings: FC = () => {
         <>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <Typography.Text style={{ color: 'var(--color-foreground-muted)' }}>{nutstoreUsername}</Typography.Text>
+            <span className="text-foreground-muted">{nutstoreUsername}</span>
           </SettingRow>
 
           <SettingDivider />

@@ -1,6 +1,6 @@
+import { Spinner } from '@cherrystudio/ui'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Card } from 'antd'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
@@ -38,16 +38,18 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
 
   return (
     <div className="max-w-[calc(100vw-var(--sidebar-width)-var(--settings-width)-75px)] pt-2">
-      <Card
-        className="border border-border bg-card"
-        loading={loading}
+      <div
+        className="rounded-lg border border-border bg-card p-6"
         style={{
-          borderRadius: 'var(--radius-lg)',
           backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
           borderColor: 'var(--border)'
         }}>
-        <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
-      </Card>
+        {loading ? (
+          <Spinner text={t('common.loading')} />
+        ) : (
+          <div className="markdown" dangerouslySetInnerHTML={{ __html: mcpInfo }} />
+        )}
+      </div>
     </div>
   )
 }

@@ -1,10 +1,8 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { RowFlex, Textarea, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { Input } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,11 +37,12 @@ const TranslatePromptSettings = () => {
           )}
         </RowFlex>
       </SettingTitle>
-      <Input.TextArea
+      <Textarea.Input
         value={localPrompt}
         onChange={(e) => setLocalPrompt(e.target.value)}
-        onBlur={(e) => setTranslateModelPrompt(e.target.value)}
-        autoSize={{ minRows: 4, maxRows: 10 }}
+        onBlur={(e) => void setTranslateModelPrompt(e.target.value)}
+        rows={4}
+        className="max-h-60 min-h-24"
         placeholder={t('settings.models.translate_model_prompt_message')}
       />
     </SettingGroup>

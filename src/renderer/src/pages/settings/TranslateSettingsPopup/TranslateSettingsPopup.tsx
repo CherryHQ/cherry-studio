@@ -1,6 +1,6 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,38 +17,27 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
 
-  const onOk = () => {
+  const closePopup = () => {
     setOpen(false)
-  }
-
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
     resolve({})
   }
 
-  TranslateSettingsPopup.hide = onCancel
+  TranslateSettingsPopup.hide = closePopup
 
   return (
-    <Modal
-      title={t('settings.translate.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      transitionName="animation-move-down"
-      width="80vw"
-      footer={null}
-      centered>
-      <SettingContainer theme={theme} style={{ padding: '10px 0', background: 'transparent' }}>
-        <TranslatePromptSettings />
-        <SettingGroup theme={theme} style={{ flex: 1 }}>
-          <CustomLanguageSettings />
-        </SettingGroup>
-      </SettingContainer>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
+      <DialogContent className="max-h-[90vh] max-w-[80vw] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t('settings.translate.title')}</DialogTitle>
+        </DialogHeader>
+        <SettingContainer theme={theme} style={{ padding: '10px 0', background: 'transparent' }}>
+          <TranslatePromptSettings />
+          <SettingGroup theme={theme} style={{ flex: 1 }}>
+            <CustomLanguageSettings />
+          </SettingGroup>
+        </SettingContainer>
+      </DialogContent>
+    </Dialog>
   )
 }
 
