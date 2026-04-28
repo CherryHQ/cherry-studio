@@ -67,7 +67,7 @@ describe('PinService', () => {
     it('should return distinct rows for different (entityType, entityId) pairs', async () => {
       const a = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const b = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
-      const c = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      const c = await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       const ids = new Set([a.id, b.id, c.id])
       expect(ids.size).toBe(3)
@@ -75,11 +75,11 @@ describe('PinService', () => {
 
     it('should maintain independent orderKey sequences per entityType', async () => {
       const topicFirst = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
-      const sessionFirst = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      const assistantFirst = await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       // Each scope starts from the same fractional-indexing starter key because
       // neither bucket has a predecessor.
-      expect(topicFirst.orderKey).toBe(sessionFirst.orderKey)
+      expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
 
       const topicSecond = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       expect(topicSecond.orderKey > topicFirst.orderKey).toBe(true)
@@ -139,7 +139,7 @@ describe('PinService', () => {
     it('should return pins ordered by orderKey, scoped to the requested entityType', async () => {
       const topicA = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const topicB = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
-      await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       const topics = await pinService.listByEntityType('topic')
       expect(topics.map((p) => p.id)).toEqual([topicA.id, topicB.id])
@@ -198,12 +198,12 @@ describe('PinService', () => {
 
     it('should reject a batch spanning multiple entityTypes with VALIDATION_ERROR', async () => {
       const topic = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
-      const session = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      const assistant = await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       await expect(
         pinService.reorderBatch([
           { id: topic.id, anchor: { position: 'first' } },
-          { id: session.id, anchor: { position: 'first' } }
+          { id: assistant.id, anchor: { position: 'first' } }
         ])
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
     })
@@ -224,7 +224,7 @@ describe('PinService', () => {
     it('should delete only pins targeting the specified (entityType, entityId)', async () => {
       const target = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const siblingSameType = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
-      const sameIdOtherType = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      const sameIdOtherType = await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       await pinService.purgeForEntity(dbh.db, 'topic', ENTITY_ID_1)
 
@@ -281,7 +281,7 @@ describe('PinService', () => {
       const a = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
       const b = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
       const c = await pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_3 })
-      const sameIdOtherType = await pinService.pin({ entityType: 'session', entityId: ENTITY_ID_1 })
+      const sameIdOtherType = await pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
 
       await pinService.purgeForEntities(dbh.db, 'topic', [a.entityId, b.entityId])
 
