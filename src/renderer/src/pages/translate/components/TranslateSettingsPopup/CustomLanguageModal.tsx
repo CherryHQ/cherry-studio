@@ -4,7 +4,7 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
-import { Form, Modal, Popover, Space } from 'antd'
+import { Form, Modal, Popover } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -172,10 +172,10 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
 
 const Label = (label: string, help: string) => {
   return (
-    <Space>
+    <div className="flex items-center gap-2">
       <span>{label}</span>
       <InfoTooltip content={help} />
-    </Space>
+    </div>
   )
 }
 

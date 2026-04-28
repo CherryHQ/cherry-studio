@@ -36,7 +36,7 @@ import {
   isSupportAnthropicPromptCacheProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { Input, Select, Space } from 'antd'
+import { Input, Select } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
@@ -519,7 +519,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   </Tooltip>
                 )}
               </SettingSubtitle>
-              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+              <div className="mt-1.25 flex w-full">
                 <Input.Password
                   value={localApiKey}
                   placeholder={t('settings.provider.api_key.label')}
@@ -528,11 +528,13 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
                   disabled={provider.id === 'copilot'}
                   suffix={renderStatusIndicator()}
+                  className="flex-1"
                 />
                 <Button
                   variant={isApiKeyConnectable ? 'ghost' : undefined}
                   onClick={onCheckApi}
-                  disabled={!apiHost || apiKeyConnectivity.checking}>
+                  disabled={!apiHost || apiKeyConnectivity.checking}
+                  className="shrink-0">
                   {apiKeyConnectivity.checking ? (
                     <LoadingIcon />
                   ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
@@ -541,7 +543,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                     t('settings.provider.check')
                   )}
                 </Button>
-              </Space.Compact>
+              </div>
               <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                 <RowFlex>
                   {apiKeyWebsite && !isDmxapi && (
@@ -581,19 +583,20 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                   {isCherryIN && isChineseUser ? (
                     <CherryINSettings providerId={provider.id} apiHost={apiHost} setApiHost={setApiHost} />
                   ) : (
-                    <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                    <div className="mt-1.25 flex w-full">
                       <Input
                         value={apiHost}
                         placeholder={t('settings.provider.api_host')}
                         onChange={(e) => setApiHost(e.target.value)}
                         onBlur={onUpdateApiHost}
+                        className="flex-1"
                       />
                       {isApiHostResettable && (
-                        <Button variant="destructive" onClick={onReset}>
+                        <Button variant="destructive" onClick={onReset} className="shrink-0">
                           {t('settings.provider.api.url.reset')}
                         </Button>
                       )}
-                    </Space.Compact>
+                    </div>
                   )}
                   {isVertexProvider(provider) && (
                     <SettingHelpTextRow>
@@ -616,15 +619,16 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
 
               {activeHostField === 'anthropicApiHost' && canConfigureAnthropicHost && (
                 <>
-                  <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                  <div className="mt-1.25 flex w-full">
                     <Input
                       value={anthropicApiHost ?? ''}
                       placeholder={t('settings.provider.anthropic_api_host')}
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
+                      className="flex-1"
                     />
                     {/* TODO: Add a reset button here. */}
-                  </Space.Compact>
+                  </div>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
                       {t('settings.provider.anthropic_api_host_preview', {
@@ -641,14 +645,15 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
       {isAzureOpenAI && (
         <>
           <SettingSubtitle>{t('settings.provider.api_version')}</SettingSubtitle>
-          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+          <div className="mt-1.25 flex w-full">
             <Input
               value={apiVersion}
               placeholder="2024-xx-xx-preview"
               onChange={(e) => setApiVersion(e.target.value)}
               onBlur={onUpdateApiVersion}
+              className="flex-1"
             />
-          </Space.Compact>
+          </div>
           <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
             <SettingHelpText style={{ minWidth: 'fit-content' }}>
               {t('settings.provider.azure.apiversion.tip')}

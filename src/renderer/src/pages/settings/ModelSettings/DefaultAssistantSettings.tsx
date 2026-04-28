@@ -10,7 +10,7 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Input, Modal, Popover, Row, Slider } from 'antd'
+import { Input, Modal, Popover, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -177,31 +177,27 @@ const AssistantSettings: FC = () => {
         />
       </SettingRow>
       {enableTemperature && (
-        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
-          <Col span={20}>
-            <Slider
-              min={0}
-              max={2}
-              onChange={setTemperature}
-              onChangeComplete={onTemperatureChange}
-              value={typeof temperature === 'number' ? temperature : 0}
-              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
-              step={0.01}
-            />
-          </Col>
-          <Col span={4}>
-            <EditableNumber
-              min={0}
-              max={2}
-              step={0.01}
-              value={temperature}
-              onChange={onTemperatureChange}
-              size="small"
-              align="start"
-              className="w-full"
-            />
-          </Col>
-        </Row>
+        <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3">
+          <Slider
+            min={0}
+            max={2}
+            onChange={setTemperature}
+            onChangeComplete={onTemperatureChange}
+            value={typeof temperature === 'number' ? temperature : 0}
+            marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+            step={0.01}
+          />
+          <EditableNumber
+            min={0}
+            max={2}
+            step={0.01}
+            value={temperature}
+            onChange={onTemperatureChange}
+            size="small"
+            align="start"
+            className="w-full"
+          />
+        </div>
       )}
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>
@@ -222,65 +218,57 @@ const AssistantSettings: FC = () => {
         />
       </SettingRow>
       {enableTopP && (
-        <Row align="middle" gutter={12} style={{ marginTop: -5, marginBottom: -10 }}>
-          <Col span={20}>
-            <Slider
-              min={0}
-              max={1}
-              onChange={setTopP}
-              onChangeComplete={onTopPChange}
-              value={typeof topP === 'number' ? topP : 1}
-              marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
-              step={0.01}
-            />
-          </Col>
-          <Col span={4}>
-            <EditableNumber
-              min={0}
-              max={1}
-              step={0.01}
-              value={topP}
-              onChange={onTopPChange}
-              size="small"
-              align="start"
-              className="w-full"
-            />
-          </Col>
-        </Row>
+        <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3">
+          <Slider
+            min={0}
+            max={1}
+            onChange={setTopP}
+            onChangeComplete={onTopPChange}
+            value={typeof topP === 'number' ? topP : 1}
+            marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
+            step={0.01}
+          />
+          <EditableNumber
+            min={0}
+            max={1}
+            step={0.01}
+            value={topP}
+            onChange={onTopPChange}
+            size="small"
+            align="start"
+            className="w-full"
+          />
+        </div>
       )}
       <Divider style={{ margin: '2px 0' }} />
-      <Row align="middle">
+      <div className="flex items-center">
         <p className="m-0 mr-1.25 text-sm">{t('chat.settings.context_count.label')}</p>
         <HelpTooltip
           content={t('chat.settings.context_count.tip')}
           iconProps={{ className: 'cursor-pointer text-color-text-3' }}
         />
-      </Row>
-      <Row align="middle" gutter={20} style={{ marginTop: -5, marginBottom: -10 }}>
-        <Col span={19}>
-          <Slider
-            min={0}
-            max={20}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
-            onChange={setContextCount}
-            onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            step={1}
-          />
-        </Col>
-        <Col span={5}>
-          <EditableNumber
-            min={0}
-            max={20}
-            step={1}
-            value={contextCount}
-            onChange={onContextCountChange}
-            size="small"
-            align="start"
-            className="w-full"
-          />
-        </Col>
-      </Row>
+      </div>
+      <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_104px] items-center gap-5">
+        <Slider
+          min={0}
+          max={20}
+          marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+          onChange={setContextCount}
+          onChangeComplete={onContextCountChange}
+          value={typeof contextCount === 'number' ? contextCount : 0}
+          step={1}
+        />
+        <EditableNumber
+          min={0}
+          max={20}
+          step={1}
+          value={contextCount}
+          onChange={onContextCountChange}
+          size="small"
+          align="start"
+          className="w-full"
+        />
+      </div>
       <Divider style={{ margin: '2px 0' }} />
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
@@ -311,22 +299,18 @@ const AssistantSettings: FC = () => {
         />
       </Flex>
       {enableMaxTokens && (
-        <Row align="middle" gutter={20}>
-          <Col span={24}>
-            <EditableNumber
-              disabled={!enableMaxTokens}
-              min={0}
-              max={10000000}
-              step={100}
-              value={maxTokens}
-              changeOnBlur
-              onChange={onMaxTokensChange}
-              size="small"
-              align="start"
-              className="w-full"
-            />
-          </Col>
-        </Row>
+        <EditableNumber
+          disabled={!enableMaxTokens}
+          min={0}
+          max={10000000}
+          step={100}
+          value={maxTokens}
+          changeOnBlur
+          onChange={onMaxTokensChange}
+          size="small"
+          align="start"
+          className="w-full"
+        />
       )}
       <Divider style={{ margin: '2px 0' }} />
       <SettingRow>

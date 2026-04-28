@@ -1,7 +1,7 @@
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { RadioChangeEvent } from 'antd'
-import { Radio, Space } from 'antd'
+import { Radio } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,7 +68,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
 
   return (
     <div className="mt-4 mb-7.5">
-      <Space direction="vertical" style={{ width: '100%' }}>
+      <div className="flex w-full flex-col">
         <div className="mb-7.5 flex flex-col items-center justify-center">
           <Dmxapi.Color height={70} width="auto" />
         </div>
@@ -93,7 +93,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
               </span>
             )
           }))}></Radio.Group>
-      </Space>
+      </div>
     </div>
   )
 }

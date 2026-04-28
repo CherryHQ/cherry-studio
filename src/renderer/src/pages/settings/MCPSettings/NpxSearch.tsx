@@ -6,7 +6,7 @@ import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Card, Input, Space, Tag, Typography } from 'antd'
+import { Card, Input, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -102,11 +102,11 @@ const NpxSearch: FC = () => {
   return (
     <div className="flex flex-1 flex-col gap-2 pt-5">
       <Center>
-        <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
+        <div className="mb-[25px] flex w-[500px] flex-col">
           <Center className="mb-3.75">
             <img src={logo} alt="npm" width={120} />
           </Center>
-          <Space.Compact style={{ width: '100%' }}>
+          <div className="w-full">
             <Input
               placeholder={t('settings.mcp.npx_list.scope_placeholder')}
               value={npmScope}
@@ -115,7 +115,7 @@ const NpxSearch: FC = () => {
               size="large"
               styles={{ input: { borderRadius: 100 } }}
             />
-          </Space.Compact>
+          </div>
           <RowFlex className="items-center justify-center">
             {npmScopes.map((scope) => (
               <Tag
@@ -133,7 +133,7 @@ const NpxSearch: FC = () => {
               </Tag>
             ))}
           </RowFlex>
-        </Space>
+        </div>
       </Center>
       {searchLoading && (
         <Center>
@@ -196,7 +196,7 @@ const NpxSearch: FC = () => {
                     </Button>
                   </Flex>
                 }>
-                <Space direction="vertical" size="small">
+                <div className="flex flex-col gap-1">
                   <Text className="selectable">{record.description}</Text>
                   <Text type="secondary" className="selectable">
                     {t('settings.mcp.npx_list.usage')}: {record.usage}
@@ -204,7 +204,7 @@ const NpxSearch: FC = () => {
                   <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
                     {record.npmLink}
                   </Link>
-                </Space>
+                </div>
               </Card>
             )
           })}

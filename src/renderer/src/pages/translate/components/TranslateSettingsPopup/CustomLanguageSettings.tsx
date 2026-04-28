@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
 import type { TableProps } from 'antd'
-import { Popconfirm, Space, Table } from 'antd'
+import { Popconfirm, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -84,7 +84,7 @@ const CustomLanguageSettings = () => {
         key: 'action',
         render: (_, record) => {
           return (
-            <Space>
+            <div className="flex items-center gap-2">
               <Button onClick={() => onClickEdit(record)}>
                 <EditOutlined />
                 {t('common.edit')}
@@ -98,7 +98,7 @@ const CustomLanguageSettings = () => {
                   {t('common.delete')}
                 </Button>
               </Popconfirm>
-            </Space>
+            </div>
           )
         }
       }
