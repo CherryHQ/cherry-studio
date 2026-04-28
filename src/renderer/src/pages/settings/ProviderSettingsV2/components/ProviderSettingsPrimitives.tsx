@@ -80,7 +80,8 @@ export const providerListClasses = {
   shell:
     'flex h-full w-[clamp(220px,20vw,250px)] shrink-0 basis-[clamp(220px,20vw,250px)] flex-col border-r border-[color:var(--section-border)] bg-(--color-background)',
   header: 'mb-2 flex shrink-0 items-center justify-between gap-2 px-3 pb-0 pt-3.5',
-  headerTitle: 'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-medium)] text-foreground',
+  headerTitle:
+    'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-semibold)] text-foreground',
   filterTrigger:
     'flex size-5 items-center justify-center rounded-md text-foreground/40 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/70 disabled:pointer-events-none disabled:opacity-30',
   searchWrap:
