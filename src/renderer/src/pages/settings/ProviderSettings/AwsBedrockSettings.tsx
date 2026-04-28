@@ -1,7 +1,6 @@
-import { Input, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { Alert, Input, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
-import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +33,7 @@ const AwsBedrockSettings: FC = () => {
   return (
     <>
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.aws-bedrock.title')}</SettingSubtitle>
-      <Alert type="info" style={{ marginTop: 5 }} message={t('settings.provider.aws-bedrock.description')} showIcon />
+      <Alert type="info" className="mt-1.25" message={t('settings.provider.aws-bedrock.description')} showIcon />
 
       {/* Authentication Type Selector */}
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>

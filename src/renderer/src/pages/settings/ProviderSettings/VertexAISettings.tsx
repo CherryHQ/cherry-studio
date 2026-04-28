@@ -1,7 +1,7 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { Alert, Input, RowFlex } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert, Input as AntdInput } from 'antd'
+import { Input as AntdInput } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -65,7 +65,7 @@ const VertexAISettings = () => {
       </SettingSubtitle>
       <Alert
         type="info"
-        style={{ marginTop: 5 }}
+        className="mt-1.25"
         message={t('settings.provider.vertex_ai.service_account.description')}
         showIcon
       />

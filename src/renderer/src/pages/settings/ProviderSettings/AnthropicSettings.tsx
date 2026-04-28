@@ -1,7 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button, Input } from '@cherrystudio/ui'
+import { Alert, Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Alert, Modal } from 'antd'
+import { Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -156,7 +156,7 @@ const AnthropicSettings = () => {
         type="warning"
         message={t('settings.provider.anthropic.oauth_disabled_warning')}
         showIcon
-        style={{ marginBottom: 10 }}
+        className="mb-2.5"
       />
       {renderAuthContent()}
     </div>
