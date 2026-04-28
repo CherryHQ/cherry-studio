@@ -58,6 +58,20 @@ export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttribu
   />
 )
 
+export const SettingTitleExternalLink = ({
+  className,
+  target = '_blank',
+  rel = 'noreferrer',
+  ...props
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+  <a
+    target={target}
+    rel={rel}
+    className={cn('inline-flex items-center text-(--color-primary) hover:underline', className)}
+    {...props}
+  />
+)
+
 export const SettingGroup = ({
   className,
   theme,

@@ -6,13 +6,19 @@ import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
+import {
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '..'
 
 interface Props {
   provider: PreprocessProvider
@@ -77,9 +83,9 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider, hideHeader
               <LogoAvatar logo={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
               <span className="font-medium text-sm">{preprocessProvider.name}</span>
               {officialWebsite && preprocessProviderConfig?.websites && (
-                <Link target="_blank" href={preprocessProviderConfig.websites.official}>
+                <SettingTitleExternalLink href={preprocessProviderConfig.websites.official}>
                   <ExportOutlined className="text-[--color-foreground] text-[12px]" />
-                </Link>
+                </SettingTitleExternalLink>
               )}
             </Flex>
           </SettingTitle>

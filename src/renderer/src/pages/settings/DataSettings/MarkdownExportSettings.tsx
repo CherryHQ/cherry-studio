@@ -1,10 +1,15 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  RowFlex,
+  Switch
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import Input from 'antd/es/input/Input'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -74,21 +79,23 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-1.25">
-          <Input
-            type="text"
-            value={markdownExportPath || ''}
-            readOnly
-            style={{ width: 250 }}
-            placeholder={t('settings.data.markdown_export.path_placeholder')}
-            suffix={
-              markdownExportPath ? (
-                <DeleteOutlined
+          <InputGroup className="w-[250px]">
+            <InputGroupInput
+              type="text"
+              value={markdownExportPath || ''}
+              readOnly
+              placeholder={t('settings.data.markdown_export.path_placeholder')}
+            />
+            {markdownExportPath && (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
                   onClick={handleClearPath}
-                  style={{ color: 'var(--color-error-base)', cursor: 'pointer' }}
-                />
-              ) : null
-            }
-          />
+                  className="text-[var(--color-error-base)] hover:text-[var(--color-error-base)]">
+                  <DeleteOutlined />
+                </InputGroupButton>
+              </InputGroupAddon>
+            )}
+          </InputGroup>
           <Button onClick={handleSelectFolder} variant="outline">
             <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}

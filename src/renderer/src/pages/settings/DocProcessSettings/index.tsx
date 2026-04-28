@@ -2,17 +2,18 @@ import { Badge, MenuDivider, MenuItem, MenuList, Switch } from '@cherrystudio/ui
 import { LogoAvatar } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getPreprocessProviderLogo } from '@renderer/config/preprocessProviders'
+import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import type { OcrProvider, PreprocessProvider } from '@renderer/types'
 import { isBuiltinOcrProvider, isImageOcrProvider } from '@renderer/types'
-import { Sparkles } from 'lucide-react'
+import { ExternalLink, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingTitleExternalLink } from '..'
 import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
@@ -275,10 +276,20 @@ const DocProcessSettings: FC = () => {
                   <div className="flex min-w-0 items-center gap-4">
                     {renderHeaderIcon()}
                     <div className="min-w-0">
-                      <div className="truncate font-semibold text-base text-foreground leading-5">
-                        {activeEntry.kind === 'ocr'
-                          ? getOcrProviderName(activeEntry.provider)
-                          : activeEntry.provider.name}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-base text-foreground leading-5">
+                          {activeEntry.kind === 'ocr'
+                            ? getOcrProviderName(activeEntry.provider)
+                            : activeEntry.provider.name}
+                        </span>
+                        {activeEntry.kind === 'preprocess' &&
+                          PREPROCESS_PROVIDER_CONFIG[activeEntry.provider.id]?.websites?.official && (
+                            <SettingTitleExternalLink
+                              href={PREPROCESS_PROVIDER_CONFIG[activeEntry.provider.id].websites.official}
+                              className="shrink-0">
+                              <ExternalLink size={14} className="lucide-custom" />
+                            </SettingTitleExternalLink>
+                          )}
                       </div>
                       {providerDescription && (
                         <p className="mt-1 text-[13px] text-foreground-muted leading-5">{providerDescription}</p>
