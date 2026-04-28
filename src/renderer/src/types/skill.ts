@@ -4,6 +4,7 @@
  * Zod schemas serve as both runtime validators and TypeScript type source.
  */
 
+import { TagSchema } from '@shared/data/types/tag'
 import * as z from 'zod'
 
 // ============================================================================
@@ -146,7 +147,8 @@ export const InstalledSkillSchema = z.object({
   sourceUrl: z.string().nullable(),
   namespace: z.string().nullable(),
   author: z.string().nullable(),
-  tags: z.array(z.string()),
+  tags: z.array(TagSchema),
+  sourceTags: z.array(z.string()).optional(),
   contentHash: z.string(),
   isEnabled: z.boolean(),
   createdAt: z.iso.datetime(),

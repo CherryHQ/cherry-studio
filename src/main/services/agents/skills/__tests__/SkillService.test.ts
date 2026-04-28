@@ -1,6 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -18,6 +19,8 @@ const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
 const SKILL_ID_2 = '22222222-2222-4222-8222-222222222222'
 const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
+const TAG_ID_1 = '44444444-4444-4444-8444-444444444444'
+const TAG_ID_2 = '55555555-5555-4555-8555-555555555555'
 
 describe('SkillService', () => {
   const dbh = setupTestDatabase()
@@ -38,6 +41,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_1,
         name: 'skill-one',
+        description: 'Extract web content',
         folderName: 'skill-one',
         source: 'marketplace',
         contentHash: 'abc123',
@@ -46,6 +50,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_2,
         name: 'skill-two',
+        description: 'Summarize local documents',
         folderName: 'skill-two',
         source: 'marketplace',
         contentHash: 'def456',
@@ -54,6 +59,7 @@ describe('SkillService', () => {
       {
         id: SKILL_ID_BUILTIN,
         name: 'builtin-skill',
+        description: 'Builtin helper',
         folderName: 'builtin-skill',
         source: 'builtin',
         contentHash: 'bbb999',
@@ -77,6 +83,30 @@ describe('SkillService', () => {
       expect(result).toHaveLength(3)
       expect(result.every((s) => s.isEnabled === false)).toBe(true)
       expect(result.map((s) => s.name)).toContain('skill-one')
+    })
+
+    it('returns user tags separately from source metadata tags', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ tags: ['source-ai'] })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+      await dbh.db.insert(tagTable).values([
+        { id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' },
+        { id: TAG_ID_2, name: 'beta', color: '#10b981' }
+      ])
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_2 },
+        { entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 }
+      ])
+
+      const result = await skillService.list()
+      const skill = result.find((s) => s.id === SKILL_ID_1)
+
+      expect(skill?.sourceTags).toEqual(['source-ai'])
+      expect(skill?.tags.map((tag) => tag.name)).toEqual(['alpha', 'beta'])
+      expect(skill?.tags[0]).toMatchObject({ id: TAG_ID_1, color: '#8b5cf6' })
     })
 
     it('reflects per-agent enablement when agentId is provided', async () => {
@@ -108,6 +138,60 @@ describe('SkillService', () => {
 
       expect(result.every((s) => s.isEnabled === false)).toBe(true)
     })
+
+    it('filters by search against name or description in the database', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+
+      const byName = await skillService.list({ search: 'two' })
+      const byDescription = await skillService.list({ search: 'web content' })
+
+      expect(byName.map((s) => s.id)).toEqual([SKILL_ID_2])
+      expect(byDescription.map((s) => s.id)).toEqual([SKILL_ID_1])
+    })
+
+    it('treats LIKE wildcards in search as literal characters', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ name: 'percent-%-skill' })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+
+      const result = await skillService.list({ search: '%' })
+
+      expect(result.map((s) => s.id)).toEqual([SKILL_ID_1])
+    })
+
+    it('filters by global tagIds with union semantics', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db.insert(tagTable).values([
+        { id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' },
+        { id: TAG_ID_2, name: 'beta', color: '#10b981' }
+      ])
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 },
+        { entityType: 'skill', entityId: SKILL_ID_2, tagId: TAG_ID_2 }
+      ])
+
+      const result = await skillService.list({ tagIds: [TAG_ID_2] })
+      const unionResult = await skillService.list({ tagIds: [TAG_ID_1, TAG_ID_2] })
+
+      expect(result.map((s) => s.id)).toEqual([SKILL_ID_2])
+      expect(unionResult.map((s) => s.id)).toEqual([SKILL_ID_1, SKILL_ID_2])
+    })
+
+    it('ANDs search with global tagIds', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db.insert(tagTable).values({ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 })
+
+      const result = await skillService.list({ search: 'two', tagIds: [TAG_ID_1] })
+
+      expect(result).toEqual([])
+    })
   })
 
   describe('getById', () => {
@@ -119,6 +203,8 @@ describe('SkillService', () => {
     it('returns the skill when found', async () => {
       const skillService = new SkillService()
       await seedSkills()
+      await dbh.db.insert(tagTable).values({ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 })
 
       const result = await skillService.getById(SKILL_ID_1)
 
@@ -126,7 +212,8 @@ describe('SkillService', () => {
         id: SKILL_ID_1,
         name: 'skill-one',
         folderName: 'skill-one',
-        source: 'marketplace'
+        source: 'marketplace',
+        tags: [{ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' }]
       })
     })
   })
@@ -237,6 +324,19 @@ describe('SkillService', () => {
       const rows = await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
       expect(rows).toHaveLength(0)
       expect(skillService['installer'].uninstall).toHaveBeenCalledOnce()
+    })
+
+    it('removes global tag bindings for the uninstalled skill', async () => {
+      const skillService = new SkillService()
+      await seedSkills()
+      await dbh.db.insert(tagTable).values({ id: TAG_ID_1, name: 'alpha', color: '#8b5cf6' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'skill', entityId: SKILL_ID_1, tagId: TAG_ID_1 })
+      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
+
+      await skillService.uninstall(SKILL_ID_1)
+
+      const rows = await dbh.db.select().from(entityTagTable).where(eq(entityTagTable.entityId, SKILL_ID_1))
+      expect(rows).toHaveLength(0)
     })
 
     it('removes symlinks for enabled agents before deleting', async () => {

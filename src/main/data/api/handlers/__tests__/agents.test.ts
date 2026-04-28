@@ -538,7 +538,7 @@ describe('agentHandlers', () => {
 
       const result = await agentHandlers['/skills'].GET({ query: {} } as never)
 
-      expect(listSkillsMock).toHaveBeenCalledWith(undefined)
+      expect(listSkillsMock).toHaveBeenCalledWith({})
       expect(result).toEqual([mockSkill])
     })
 
@@ -549,8 +549,29 @@ describe('agentHandlers', () => {
       const result = await agentHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
 
       expect(getAgentMock).toHaveBeenCalledWith(AGENT_ID)
-      expect(listSkillsMock).toHaveBeenCalledWith(AGENT_ID)
+      expect(listSkillsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockSkill])
+    })
+
+    it('forwards search and tagIds to skillService.list', async () => {
+      const tagId = '11111111-1111-4111-8111-111111111111'
+      listSkillsMock.mockResolvedValueOnce([mockSkill])
+
+      await agentHandlers['/skills'].GET({
+        query: { search: 'summary', tagIds: [tagId] }
+      } as never)
+
+      expect(listSkillsMock).toHaveBeenCalledWith({ search: 'summary', tagIds: [tagId] })
+    })
+
+    it('rejects invalid skill tag filters before calling the service', async () => {
+      await expect(
+        agentHandlers['/skills'].GET({ query: { tagIds: ['not-a-tag-id'] } } as never)
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+
+      expect(listSkillsMock).not.toHaveBeenCalled()
     })
 
     it('throws notFound for /skills when agentId is provided but agent does not exist', async () => {
