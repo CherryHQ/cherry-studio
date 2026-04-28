@@ -1,3 +1,5 @@
+import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
 
@@ -17,7 +19,6 @@ function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
 
 export interface UseResourceLibraryOptions {
   sidebarFilter: LibrarySidebarFilter
-  activeType: ResourceType | null
   activeTag: string | null
   search: string
   sort: SortKey
@@ -38,60 +39,117 @@ export interface UseResourceLibraryResult {
 
 export function useResourceLibrary({
   sidebarFilter,
-  activeType,
   activeTag,
   search,
   sort
 }: UseResourceLibraryOptions): UseResourceLibraryResult {
-  const assistants = assistantAdapter.useList()
-  const agents = agentAdapter.useList()
-  const skills = skillAdapter.useList()
   const tagList = useTagList()
 
-  const allResources = useMemo<ResourceItem[]>(() => {
-    const assistantItems: ResourceItem[] = assistants.data.map((a) => {
-      // Defensive `?? []`: schema declares tags as required, but stale DataApi
-      // cache or a row from a code path that bypasses the embed helper can
-      // still hand us undefined here. `.map` would throw.
-      const tags = a.tags ?? []
-      return {
-        id: a.id,
-        type: 'assistant',
-        name: a.name,
-        description: a.description || '',
-        avatar: a.emoji || '💬',
-        // Embedded by AssistantService.list via JOIN on user_model; null when the
-        // bound model row was removed.
-        model: a.modelName ?? undefined,
-        tags: tags.map((t) => t.name),
-        tagRefs: tags,
-        enabled: true,
-        createdAt: a.createdAt,
-        updatedAt: a.updatedAt,
-        raw: a
-      }
-    })
+  const trimmedSearch = search.trim() || undefined
 
-    const agentItems: ResourceItem[] = agents.data.map((a) => {
-      const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
-      const tags = a.tags ?? []
-      return {
-        id: a.id,
-        type: 'agent',
-        name: a.name ?? '',
-        description: a.description ?? '',
-        avatar: avatarFromConfig || '🤖',
-        model: a.modelName ?? undefined,
-        tags: tags.map((t) => t.name),
-        tagRefs: tags,
-        enabled: true,
-        createdAt: a.createdAt,
-        updatedAt: a.updatedAt,
-        raw: a
-      }
-    })
+  // Two reads per filterable type:
+  // - Base (no params): powers `typeCounts` and `allResources` so the sidebar
+  //   numbers / chip set don't collapse when the user types in the search box.
+  //   Also the authoritative source for tag-name → tag-id resolution below.
+  // - Filtered: powers the visible grid. When `trimmedSearch`/`tagIds` are
+  //   undefined the SWR key matches the base read and the call is deduped, so
+  //   there's no extra network hit until the user actually filters.
+  const baseAssistants = assistantAdapter.useList()
+  const baseAgents = agentAdapter.useList()
 
-    const skillItems: ResourceItem[] = skills.data.map((s) => ({
+  // Resolve tag names to ids primarily from the embedded `tagRefs` we already
+  // have on base data — every chip the user can click was rendered from a
+  // resource in this set, so its id is guaranteed to be here. Falling back to
+  // `useTagList()` alone would race: if `/tags` is slow or fails after the user
+  // clicks a chip, we'd send `tagIds: undefined` and silently show the full
+  // unfiltered list. `tagList.tags` only fills in for tags that exist
+  // server-side but aren't bound to any assistant/agent yet (sidebar `tag`
+  // mode), so it stays as a tail fallback.
+  const tagIdByName = useMemo(() => {
+    const map = new Map<string, string>()
+    const collect = (refs: Tag[] | undefined) => {
+      if (!refs) return
+      for (const t of refs) if (!map.has(t.name)) map.set(t.name, t.id)
+    }
+    for (const a of baseAssistants.data) collect(a.tags)
+    for (const a of baseAgents.data) collect(a.tags)
+    for (const t of tagList.tags) if (!map.has(t.name)) map.set(t.name, t.id)
+    return map
+  }, [baseAssistants.data, baseAgents.data, tagList.tags])
+
+  // Resolved query filter (omitted entirely if no tag is selected). Empty
+  // arrays are forbidden by the backend schema (`tagIds.min(1)`), so we drop
+  // the param when nothing resolves rather than sending a 400.
+  const tagIds = useMemo(() => {
+    const names = [activeTag, sidebarFilter.type === 'tag' ? sidebarFilter.tagName : null].filter((x): x is string =>
+      Boolean(x)
+    )
+    if (names.length === 0) return undefined
+    const ids = names.flatMap((name) => {
+      const id = tagIdByName.get(name)
+      return id ? [id] : []
+    })
+    return ids.length > 0 ? ids : undefined
+  }, [activeTag, sidebarFilter, tagIdByName])
+
+  // Defensive guard for the rare race where the user has a chip selected but
+  // we can't resolve its id (e.g. base data reset between click and filter
+  // resolve, or the tag was deleted server-side). Without this, the filtered
+  // query would degrade to "no tag filter" and surface every resource —
+  // misleading for a user who explicitly picked a tag.
+  const hasUnresolvedTagSelection = (Boolean(activeTag) || sidebarFilter.type === 'tag') && tagIds === undefined
+
+  const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
+  const filteredAgents = agentAdapter.useList({ search: trimmedSearch, tagIds })
+  // Skill backend (`GET /skills`) doesn't accept `search` / `tagIds` yet — the
+  // resource library is a follow-up consumer of that work. Until it lands we
+  // pull the full list and narrow client-side below for skill view only.
+  const skills = skillAdapter.useList()
+
+  const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
+    // Defensive `?? []`: schema declares tags as required, but stale DataApi
+    // cache or a row from a code path that bypasses the embed helper can
+    // still hand us undefined here. `.map` would throw.
+    const tags = a.tags ?? []
+    return {
+      id: a.id,
+      type: 'assistant',
+      name: a.name,
+      description: a.description || '',
+      avatar: a.emoji || '💬',
+      // Embedded by AssistantService.list via JOIN on user_model; null when the
+      // bound model row was removed.
+      model: a.modelName ?? undefined,
+      tags: tags.map((t) => t.name),
+      tagRefs: tags,
+      enabled: true,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+      raw: a
+    }
+  }, [])
+
+  const buildAgentItem = useCallback((a: AgentDetail): ResourceItem => {
+    const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
+    const tags = a.tags ?? []
+    return {
+      id: a.id,
+      type: 'agent',
+      name: a.name ?? '',
+      description: a.description ?? '',
+      avatar: avatarFromConfig || '🤖',
+      model: a.modelName ?? undefined,
+      tags: tags.map((t) => t.name),
+      tagRefs: tags,
+      enabled: true,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+      raw: a
+    }
+  }, [])
+
+  const buildSkillItem = useCallback((s: InstalledSkill): ResourceItem => {
+    return {
       id: s.id,
       type: 'skill',
       name: s.name,
@@ -112,10 +170,17 @@ export function useResourceLibrary({
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       raw: s
-    }))
+    }
+  }, [])
 
-    return [...assistantItems, ...agentItems, ...skillItems]
-  }, [assistants.data, agents.data, skills.data])
+  const allResources = useMemo<ResourceItem[]>(
+    () => [
+      ...baseAssistants.data.map(buildAssistantItem),
+      ...baseAgents.data.map(buildAgentItem),
+      ...skills.data.map(buildSkillItem)
+    ],
+    [baseAssistants.data, baseAgents.data, skills.data, buildAssistantItem, buildAgentItem, buildSkillItem]
+  )
 
   const typeCounts = useMemo<Record<ResourceType, number>>(() => {
     const counts: Record<ResourceType, number> = { agent: 0, assistant: 0, skill: 0 }
@@ -123,38 +188,87 @@ export function useResourceLibrary({
     return counts
   }, [allResources])
 
+  const filteredAssistantItems = useMemo(
+    () => filteredAssistants.data.map(buildAssistantItem),
+    [filteredAssistants.data, buildAssistantItem]
+  )
+  const filteredAgentItems = useMemo(
+    () => filteredAgents.data.map(buildAgentItem),
+    [filteredAgents.data, buildAgentItem]
+  )
+  const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
+
   const resources = useMemo<ResourceItem[]>(() => {
-    let list = allResources
+    // Tag selected but unresolvable → return empty rather than degrading to
+    // an unfiltered grid. See `hasUnresolvedTagSelection` above.
+    if (hasUnresolvedTagSelection) return []
+
+    // Pick the active resource bucket. Sidebar's `tag` mode is currently
+    // unused (no UI dispatches it), but we honor the type union by falling
+    // back to the union of all server-filtered results.
+    let list: ResourceItem[]
     if (sidebarFilter.type === 'resource') {
-      list = list.filter((r) => r.type === sidebarFilter.resourceType)
-    } else if (sidebarFilter.type === 'tag') {
-      list = list.filter((r) => r.tags.includes(sidebarFilter.tagName))
+      if (sidebarFilter.resourceType === 'assistant') list = filteredAssistantItems
+      else if (sidebarFilter.resourceType === 'agent') list = filteredAgentItems
+      else list = skillItems
+    } else {
+      list = [...filteredAssistantItems, ...filteredAgentItems, ...skillItems]
     }
-    if (activeTag) list = list.filter((r) => r.tags.includes(activeTag))
-    if (activeType) list = list.filter((r) => r.type === activeType)
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((r) => r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q))
+
+    // Skills don't yet flow through the server-side filter, so apply the same
+    // search/tag narrowing locally to keep the grid honest in skill view.
+    // assistants/agents already arrive pre-filtered from the API.
+    const includesSkill = list.some((r) => r.type === 'skill')
+    if (includesSkill && (trimmedSearch || activeTag)) {
+      const q = trimmedSearch?.toLowerCase()
+      list = list.filter((r) => {
+        if (r.type !== 'skill') return true
+        if (q && !r.name.toLowerCase().includes(q) && !r.description.toLowerCase().includes(q)) return false
+        if (activeTag && !r.tags.includes(activeTag)) return false
+        return true
+      })
     }
+
     return [...list].sort((a, b) => compareItems(a, b, sort))
-  }, [allResources, sidebarFilter, activeTag, activeType, search, sort])
+  }, [
+    hasUnresolvedTagSelection,
+    sidebarFilter,
+    filteredAssistantItems,
+    filteredAgentItems,
+    skillItems,
+    trimmedSearch,
+    activeTag,
+    sort
+  ])
 
   const pendingBackend = useMemo(() => {
     if (sidebarFilter.type === 'resource') return PENDING_BACKEND_TYPES.has(sidebarFilter.resourceType)
-    if (activeType) return PENDING_BACKEND_TYPES.has(activeType)
     return false
-  }, [sidebarFilter, activeType])
+  }, [sidebarFilter])
 
-  const isLoading = assistants.isLoading || agents.isLoading || skills.isLoading
-  const isRefreshing = assistants.isRefreshing || agents.isRefreshing || skills.isRefreshing
-  const error = assistants.error ?? agents.error ?? skills.error
+  const isLoading =
+    baseAssistants.isLoading ||
+    filteredAssistants.isLoading ||
+    baseAgents.isLoading ||
+    filteredAgents.isLoading ||
+    skills.isLoading
+  const isRefreshing =
+    baseAssistants.isRefreshing ||
+    filteredAssistants.isRefreshing ||
+    baseAgents.isRefreshing ||
+    filteredAgents.isRefreshing ||
+    skills.isRefreshing
+  const error =
+    baseAssistants.error ?? filteredAssistants.error ?? baseAgents.error ?? filteredAgents.error ?? skills.error
 
   const refetch = useCallback(() => {
-    assistants.refetch()
-    agents.refetch()
+    baseAssistants.refetch()
+    filteredAssistants.refetch()
+    baseAgents.refetch()
+    filteredAgents.refetch()
     skills.refetch()
     tagList.refetch()
-  }, [assistants, agents, skills, tagList])
+  }, [baseAssistants, filteredAssistants, baseAgents, filteredAgents, skills, tagList])
 
   return {
     resources,

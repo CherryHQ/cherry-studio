@@ -69,7 +69,6 @@ export default function LibraryPage() {
 
   const { resources, allResources, typeCounts, pendingBackend, refetch } = useResourceLibrary({
     sidebarFilter,
-    activeType: null,
     activeTag,
     search,
     sort: sortKey

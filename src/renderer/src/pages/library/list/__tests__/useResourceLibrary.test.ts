@@ -46,7 +46,6 @@ function renderResourceLibrary() {
   return renderHook(() =>
     useResourceLibrary({
       sidebarFilter: { type: 'resource', resourceType: 'assistant' },
-      activeType: null,
       activeTag: null,
       search: '',
       sort: 'updatedAt'
