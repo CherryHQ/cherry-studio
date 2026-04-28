@@ -193,7 +193,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider, hideHeader
           <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
           <SettingRow>
             <SettingRowTitle>{t('settings.tool.preprocess.mac_system_ocr_options.min_confidence')}</SettingRowTitle>
-            <InputNumber
+            <EditableNumber
               value={options.minConfidence}
               onChange={(value) => onUpdateOptions('minConfidence', value)}
               min={0}

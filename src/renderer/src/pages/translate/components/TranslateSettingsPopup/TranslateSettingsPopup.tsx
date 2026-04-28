@@ -1,10 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { SettingContainer, SettingGroup } from '@renderer/pages/settings'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingGroup } from '..'
 import CustomLanguageSettings from './CustomLanguageSettings'
 import TranslatePromptSettings from './TranslatePromptSettings'
 

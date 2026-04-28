@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SettingRowTitle } from '@renderer/pages/settings'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
 import type { TableProps } from 'antd'
@@ -9,7 +10,6 @@ import { Popconfirm, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingRowTitle } from '..'
 import CustomLanguageModal from './CustomLanguageModal'
 
 const logger = loggerService.withContext('CustomLanguageSettings')

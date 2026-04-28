@@ -2,11 +2,10 @@ import { RedoOutlined } from '@ant-design/icons'
 import { RowFlex, Textarea, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { SettingGroup, SettingTitle } from '@renderer/pages/settings'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingGroup, SettingTitle } from '..'
 
 const TranslatePromptSettings = () => {
   const { t } = useTranslation()

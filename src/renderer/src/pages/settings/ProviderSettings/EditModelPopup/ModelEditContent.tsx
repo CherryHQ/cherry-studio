@@ -1,4 +1,4 @@
-import { Button, Divider, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Divider, EditableNumber, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -22,7 +22,7 @@ import type { Model, ModelCapability, ModelType, Provider } from '@renderer/type
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import type { ModalProps } from 'antd'
-import { Form, Input, InputNumber, Modal, Select } from 'antd'
+import { Form, Input, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -405,14 +405,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             )}
 
             <Form.Item label={t('models.price.input')} style={{ marginBottom: 10 }} name="input_per_million_tokens">
-              <InputNumber
+              <EditableNumber
                 placeholder="0.00"
-                defaultValue={model.pricing?.input_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
-                style={{ width: '240px' }}
-                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+                className="w-[240px]"
+                suffix={`${currencySymbol} / ${t('models.price.million_tokens')}`}
                 onChange={() => {
                   // 自动保存
                   autoSave()
@@ -420,14 +419,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               />
             </Form.Item>
             <Form.Item label={t('models.price.output')} style={{ marginBottom: 10 }} name="output_per_million_tokens">
-              <InputNumber
+              <EditableNumber
                 placeholder="0.00"
-                defaultValue={model.pricing?.output_per_million_tokens}
                 min={0}
                 step={0.01}
                 precision={2}
-                style={{ width: '240px' }}
-                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+                className="w-[240px]"
+                suffix={`${currencySymbol} / ${t('models.price.million_tokens')}`}
                 onChange={() => {
                   // 自动保存
                   autoSave()

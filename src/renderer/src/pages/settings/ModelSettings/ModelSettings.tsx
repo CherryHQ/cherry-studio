@@ -6,6 +6,7 @@ import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/c
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
+import TranslateSettingsPopup from '@renderer/pages/translate/components/TranslateSettingsPopup/TranslateSettingsPopup'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -16,7 +17,6 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle } from '..'
-import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 

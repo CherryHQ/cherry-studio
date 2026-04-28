@@ -1,9 +1,9 @@
-import { Alert, Box, ColFlex, Divider } from '@cherrystudio/ui'
+import { Alert, Box, ColFlex, Divider, EditableNumber } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
+import { Modal, Radio, Segmented, Typography } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -160,13 +160,14 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
         </Flex>
         <Flex className="w-full items-center justify-between">
           <Typography.Text strong>{t('settings.models.check.timeout')}:</Typography.Text>
-          <InputNumber
+          <EditableNumber
             value={timeoutSeconds}
             onChange={(value) => dispatch({ type: 'SET_TIMEOUT_SECONDS', payload: value || 15 })}
             min={5}
             max={60}
-            style={{ width: 110 }}
-            addonAfter="s"
+            step={1}
+            className="w-[110px]"
+            suffix="s"
           />
         </Flex>
       </ColFlex>
