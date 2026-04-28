@@ -2117,5 +2117,55 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GLM-4.5V',
       group: 'GLM-4.5V'
     }
+  ],
+  futurmix: [
+    {
+      id: 'claude-sonnet-4-20250514',
+      name: 'Claude Sonnet 4',
+      provider: 'futurmix',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3.5-haiku',
+      name: 'Claude 3.5 Haiku',
+      provider: 'futurmix',
+      group: 'Anthropic'
+    },
+    {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'futurmix',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-mini',
+      name: 'GPT-4o Mini',
+      provider: 'futurmix',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
+      provider: 'futurmix',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-2.0-flash',
+      name: 'Gemini 2.0 Flash',
+      provider: 'futurmix',
+      group: 'Google'
+    },
+    {
+      id: 'deepseek-chat',
+      name: 'DeepSeek Chat',
+      provider: 'futurmix',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      name: 'DeepSeek Reasoner',
+      provider: 'futurmix',
+      group: 'DeepSeek'
+    }
   ]
 }
