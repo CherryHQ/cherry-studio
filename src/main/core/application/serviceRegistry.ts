@@ -13,18 +13,18 @@ import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/se
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { MCPService } from '@main/services/MCPService'
+import { McpService } from '@main/services/mcp/McpService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
-import { ProtocolService } from '@main/services/ProtocolService'
+import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProxyManager } from '@main/services/ProxyManager'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
-import { SelectionService } from '@main/services/SelectionService'
+import { SelectionService } from '@main/services/selection/SelectionService'
 import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
@@ -85,7 +85,7 @@ export const services = {
   WebviewService,
   MainWindowService,
   QuickAssistantService,
-  MCPService,
+  McpService,
   OpenClawService,
   SearchService,
   KnowledgeOrchestrationService,

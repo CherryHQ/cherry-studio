@@ -47,12 +47,12 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   const locale = i18n.language
 
   const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
-    if (task.schedule_type === 'interval') return `${task.schedule_value} min`
-    if (task.schedule_type === 'once' && task.schedule_value) {
-      return new Date(task.schedule_value).toLocaleString(locale)
+    if (task.scheduleType === 'cron') return task.scheduleValue
+    if (task.scheduleType === 'interval') return `${task.scheduleValue} min`
+    if (task.scheduleType === 'once' && task.scheduleValue) {
+      return new Date(task.scheduleValue).toLocaleString(locale)
     }
-    return task.schedule_value
+    return task.scheduleValue
   }
 
   const formatTime = (iso: string | null | undefined) => {
@@ -68,7 +68,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   }
 
   const isCompleted = task.status === 'completed'
-  const typeConfig = scheduleTypeConfig[task.schedule_type] ?? { label: task.schedule_type, color: 'default' }
+  const typeConfig = scheduleTypeConfig[task.scheduleType] ?? { label: task.scheduleType, color: 'default' }
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3">
@@ -87,12 +87,12 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
             <Clock size={11} className="mr-0.5 inline" />
             {formatScheduleValue()}
           </span>
-          {task.next_run && <span className="text-foreground-400">→ Next: {formatTime(task.next_run)}</span>}
-          {task.last_run && <span className="text-foreground-400">Last: {formatTime(task.last_run)}</span>}
+          {task.nextRun && <span className="text-foreground-400">→ Next: {formatTime(task.nextRun)}</span>}
+          {task.lastRun && <span className="text-foreground-400">Last: {formatTime(task.lastRun)}</span>}
         </div>
-        {task.last_result && (
-          <Tooltip title={task.last_result}>
-            <div className="mt-1 max-w-[400px] truncate text-foreground-500 text-xs">{task.last_result}</div>
+        {task.lastResult && (
+          <Tooltip title={task.lastResult}>
+            <div className="mt-1 max-w-[400px] truncate text-foreground-500 text-xs">{task.lastResult}</div>
           </Tooltip>
         )}
       </div>

@@ -20,8 +20,8 @@ export const VALID_WINDOW_TYPES = new Set<string>(Object.values(WindowType))
 /** Window lifecycle mode — determines how WindowManager handles creation, reuse, and destruction */
 export type WindowLifecycleMode = 'default' | 'singleton' | 'pooled'
 
-/** Pool warmup strategy */
-export type PoolWarmup = 'eager' | 'lazy'
+/** Warmup strategy shared by singleton and pooled lifecycles. */
+export type WarmupMode = 'eager' | 'lazy'
 
 /**
  * Two-axis pool configuration.
@@ -48,7 +48,7 @@ export type PoolWarmup = 'eager' | 'lazy'
  * temporarily have `managed = in-use + standbySize` windows during bursts
  * where in-use exceeds `recycleMaxSize`; close paths converge back over time.
  *
- * See `docs/references/window-manager/window-manager-pool-mechanics.md` for the
+ * See `docs/references/window-manager/window-manager-warmup-mechanics.md` for the
  * full behavior matrix and scenario walk-throughs.
  */
 export interface PoolConfig {
@@ -114,7 +114,36 @@ export interface PoolConfig {
    * is omitted, defaults to `'eager'` (standby implies zero-wait intent).
    * When both are unset, defaults to `'lazy'`.
    */
-  warmup?: PoolWarmup
+  warmup?: WarmupMode
+}
+
+/**
+ * Optional configuration for singleton windows to enable pre-warm and
+ * close→hide + delayed destroy. All fields optional; omitting the whole
+ * config preserves the legacy singleton behavior exactly.
+ */
+export interface SingletonConfig {
+  /**
+   * When to create the hidden instance.
+   *   - `'eager'` : create during `onAllReady()` (pay cost at boot, zero-wait first open)
+   *   - `'lazy'`  : defer until the first `open()` (default when omitted)
+   */
+  warmup?: WarmupMode
+
+  /**
+   * Retention policy for the hidden instance after close. Seconds.
+   *   - `undefined` : no retention — close destroys the window (legacy default)
+   *   - `N` (> 0)   : close is intercepted; the instance stays hidden for N
+   *                   seconds of no `open()` activity, then destroyed
+   *   - `-1`        : retain indefinitely — close always hides, never destroys
+   *                   (tray-style pattern — declarative version of what
+   *                   MainWindowService does imperatively today)
+   *
+   * Interaction with `warmup: 'eager'`: the eager-created hidden instance is
+   * preserved as long as `retentionTime` keeps it alive. `retentionTime: -1`
+   * + `warmup: 'eager'` gives a permanent hidden singleton.
+   */
+  retentionTime?: number
 }
 
 /**
@@ -293,7 +322,11 @@ interface WindowTypeMetadataBase {
  * TypeScript narrows `poolConfig` to be present only when `lifecycle === 'pooled'`.
  */
 export type WindowTypeMetadata = WindowTypeMetadataBase &
-  ({ lifecycle: 'default' } | { lifecycle: 'singleton' } | { lifecycle: 'pooled'; poolConfig: PoolConfig })
+  (
+    | { lifecycle: 'default' }
+    | { lifecycle: 'singleton'; singletonConfig?: SingletonConfig }
+    | { lifecycle: 'pooled'; poolConfig: PoolConfig }
+  )
 
 /**
  * Managed window instance.
@@ -357,17 +390,34 @@ export interface OpenWindowArgs<T = unknown> {
   options?: Partial<WindowOptions>
 }
 
-/** Runtime state for a single pool type */
-export interface PoolState {
+/**
+ * Input to `getOrCreateWarmupState` — the atomic values the generic warmup
+ * state machine needs. Each lifecycle (pooled / singleton) has its own
+ * adapter that maps its config to this shape. Neither lifecycle disguises
+ * itself as the other; they are symmetric sources that feed the same algorithm.
+ */
+export interface WarmupStateInit {
+  standbyFloor: number
+  decayFloor: number
+  inactivityTimeoutMs: number
+  decayIntervalMs: number
+}
+
+/**
+ * Runtime state for a window type's warmup state machine — shared by both
+ * pooled and singleton lifecycles. Singleton is the degenerate case with
+ * capacity ∈ {0, 1} and no decay path; pooled uses the full two-axis model.
+ */
+export interface WarmupState {
   /** Idle windows available for reuse (FIFO queue) */
   idle: string[]
-  /** All pool-managed window IDs (in-use + idle) */
+  /** All managed window IDs for this type (in-use + idle) */
   managed: Set<string>
-  /** Timestamp of last open() for this type */
-  lastOpenAt: number
+  /** Timestamp of last `open()` or `close()` activity for this type */
+  lastActivityAt: number
   /** Timestamp of last decay action */
   lastDecayAt: number
-  /** When true, pool is suspended — no warmup, no pool tracking for new windows */
+  /** When true, warmup is suspended — no warmup, no state tracking for new windows */
   suspended: boolean
   /**
    * Count of standby replenishment creates scheduled via `setImmediate` but not
@@ -376,18 +426,18 @@ export interface PoolState {
    */
   inflightCreates: number
   /**
-   * Pre-computed pool config values, populated once at PoolState creation and
-   * never mutated. Caching them on the state lets `poolGcTick` skip per-tick
+   * Pre-computed config values, populated once at WarmupState creation and
+   * never mutated. Caching them on the state lets `warmupGcTick` skip per-tick
    * `getWindowTypeMetadata` lookups, `?? 0` coalescing, and `* 1000` arithmetic.
    */
-  /** `cfg.standbySize ?? 0` — inactivity-trim floor. */
+  /** Pool: `cfg.standbySize ?? 0`. Singleton: 1 iff permanent-hidden intent. Inactivity-trim floor. */
   readonly standbyFloor: number
-  /** `max(standbySize, recycleMinSize) ?? 0` — decay floor. */
+  /** Pool: `max(standbySize, recycleMinSize)`. Singleton: equals standbyFloor. Decay floor. */
   readonly decayFloor: number
-  /** `cfg.inactivityTimeout * 1000` (0 means feature disabled). */
+  /** `inactivityTimeout` (pool) or `retentionTime` (singleton) in ms. 0 means disabled. */
   readonly inactivityTimeoutMs: number
-  /** `cfg.decayInterval * 1000` (0 means feature disabled). */
+  /** `cfg.decayInterval * 1000` for pool; always 0 for singleton. */
   readonly decayIntervalMs: number
-  /** True when both inactivity and decay are disabled — GC tick can skip this pool entirely. */
+  /** True when both inactivity and decay are disabled — GC tick can skip this entry entirely. */
   readonly gcDisabled: boolean
 }

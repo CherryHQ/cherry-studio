@@ -135,25 +135,25 @@ const TaskDetail: FC<{
     interval: t('agent.cherryClaw.tasks.scheduleType.interval'),
     once: t('agent.cherryClaw.tasks.scheduleType.once')
   }
-  const agentName = agents.find((a) => a.id === task.agent_id)?.name ?? task.agent_id
+  const agentName = agents.find((a) => a.id === task.agentId)?.name ?? task.agentId
 
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
-  const [agentId, setAgentId] = useState(task.agent_id)
-  const [scheduleType, setScheduleType] = useState(task.schedule_type)
-  const [scheduleValue, setScheduleValue] = useState(task.schedule_value)
-  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeout_minutes?.toString() ?? '')
-  const [channelIds, setChannelIds] = useState<string[]>(task.channel_ids ?? [])
+  const [agentId, setAgentId] = useState(task.agentId)
+  const [scheduleType, setScheduleType] = useState(task.scheduleType)
+  const [scheduleValue, setScheduleValue] = useState(task.scheduleValue)
+  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeoutMinutes?.toString() ?? '')
+  const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
 
   useEffect(() => {
     setName(task.name)
     setPrompt(task.prompt)
-    setAgentId(task.agent_id)
-    setScheduleType(task.schedule_type)
-    setScheduleValue(task.schedule_value)
-    setTimeoutMinutes(task.timeout_minutes?.toString() ?? '')
-    setChannelIds(task.channel_ids ?? [])
+    setAgentId(task.agentId)
+    setScheduleType(task.scheduleType)
+    setScheduleValue(task.scheduleValue)
+    setTimeoutMinutes(task.timeoutMinutes?.toString() ?? '')
+    setChannelIds(task.channelIds ?? [])
   }, [task])
 
   const saveField = useCallback(
@@ -190,12 +190,12 @@ const TaskDetail: FC<{
   }
 
   const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
-    if (task.schedule_type === 'interval') return `${task.schedule_value} ${t('agent.cherryClaw.tasks.intervalUnit')}`
-    if (task.schedule_type === 'once' && task.schedule_value) {
-      return formatDateTime(task.schedule_value)
+    if (task.scheduleType === 'cron') return task.scheduleValue
+    if (task.scheduleType === 'interval') return `${task.scheduleValue} ${t('agent.cherryClaw.tasks.intervalUnit')}`
+    if (task.scheduleType === 'once' && task.scheduleValue) {
+      return formatDateTime(task.scheduleValue)
     }
-    return task.schedule_value
+    return task.scheduleValue
   }
 
   return (
@@ -236,23 +236,23 @@ const TaskDetail: FC<{
         </SettingTitle>
         <SettingDivider />
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Tag color={scheduleTypeColors[task.schedule_type] ?? 'default'}>
-            {scheduleTypeLabels[task.schedule_type] ?? task.schedule_type}
+          <Tag color={scheduleTypeColors[task.scheduleType] ?? 'default'}>
+            {scheduleTypeLabels[task.scheduleType] ?? task.scheduleType}
           </Tag>
           <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
             <Clock size={12} />
             {formatScheduleValue()}
           </span>
-          {task.last_run && (
+          {task.lastRun && (
             <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
               <History size={12} />
-              {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.last_run)}
+              {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.lastRun)}
             </span>
           )}
-          {task.next_run && (
+          {task.nextRun && (
             <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
               <CalendarClock size={12} />
-              {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.next_run)}
+              {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.nextRun)}
             </span>
           )}
         </div>
@@ -281,7 +281,7 @@ const TaskDetail: FC<{
                   disabled={isCompleted}
                   onValueChange={(value) => {
                     setAgentId(value)
-                    saveField({ agent_id: value })
+                    saveField({ agentId: value })
                   }}>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue />
@@ -330,7 +330,7 @@ const TaskDetail: FC<{
                 onValueChange={(value: 'cron' | 'interval' | 'once') => {
                   setScheduleType(value)
                   setScheduleValue('')
-                  saveField({ schedule_type: value, schedule_value: '' })
+                  saveField({ scheduleType: value, scheduleValue: '' })
                 }}>
                 <SelectTrigger size="sm" className="w-full">
                   <SelectValue />
@@ -350,8 +350,8 @@ const TaskDetail: FC<{
                   onChange={(e) => setScheduleValue(e.target.value)}
                   onBlur={() =>
                     scheduleValue.trim() &&
-                    scheduleValue !== task.schedule_value &&
-                    saveField({ schedule_value: scheduleValue.trim() })
+                    scheduleValue !== task.scheduleValue &&
+                    saveField({ scheduleValue: scheduleValue.trim() })
                   }
                   placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
                   disabled={isCompleted}
@@ -366,8 +366,8 @@ const TaskDetail: FC<{
                     onChange={(e) => setScheduleValue(e.target.value)}
                     onBlur={() =>
                       scheduleValue.trim() &&
-                      scheduleValue !== task.schedule_value &&
-                      saveField({ schedule_value: scheduleValue.trim() })
+                      scheduleValue !== task.scheduleValue &&
+                      saveField({ scheduleValue: scheduleValue.trim() })
                     }
                     placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
                     disabled={isCompleted}
@@ -388,7 +388,7 @@ const TaskDetail: FC<{
                     if (val) {
                       const iso = val.toISOString()
                       setScheduleValue(iso)
-                      saveField({ schedule_value: iso })
+                      saveField({ scheduleValue: iso })
                     }
                   }}
                   disabled={isCompleted}
@@ -405,8 +405,8 @@ const TaskDetail: FC<{
                   onChange={(e) => setTimeoutMinutes(e.target.value)}
                   onBlur={() => {
                     const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
-                    const prev = task.timeout_minutes ?? null
-                    if (val !== prev) saveField({ timeout_minutes: val })
+                    const prev = task.timeoutMinutes ?? null
+                    if (val !== prev) saveField({ timeoutMinutes: val })
                   }}
                   placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
                   disabled={isCompleted}
@@ -423,7 +423,7 @@ const TaskDetail: FC<{
             channelIds={channelIds}
             onChange={(value) => {
               setChannelIds(value)
-              saveField({ channel_ids: value })
+              saveField({ channelIds: value })
             }}
             disabled={isCompleted}
           />
@@ -434,7 +434,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.logs.label')}</SettingTitle>
         <SettingDivider />
-        <TaskLogsInline taskId={task.id} agentId={task.agent_id} />
+        <TaskLogsInline taskId={task.id} agentId={task.agentId} />
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
@@ -472,7 +472,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.run_at).toLocaleString(locale).toLowerCase().includes(query)
+        new Date(log.runAt).toLocaleString(locale).toLowerCase().includes(query)
     )
   }, [locale, logs, searchText])
 
@@ -489,8 +489,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   const columns = [
     {
       title: t('agent.cherryClaw.tasks.logs.runAt'),
-      dataIndex: 'run_at',
-      key: 'run_at',
+      dataIndex: 'runAt',
+      key: 'runAt',
       width: 160,
       render: (val: string) =>
         new Date(val).toLocaleString(undefined, {
@@ -503,8 +503,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     },
     {
       title: t('agent.cherryClaw.tasks.logs.duration'),
-      dataIndex: 'duration_ms',
-      key: 'duration_ms',
+      dataIndex: 'durationMs',
+      key: 'durationMs',
       width: 80,
       render: (val: number, record: TaskRunLogEntity) => {
         if (record.status === 'running') return '-'
@@ -540,7 +540,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
             : record.status === 'error'
               ? record.error
               : (val ?? '-')
-        const hasSession = !!record.session_id
+        const hasSession = !!record.sessionId
 
         return (
           <div className="flex items-center gap-1">
@@ -555,7 +555,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                   variant="ghost"
                   size="icon-sm"
                   className="shrink-0"
-                  onClick={() => navigateToSession(record.session_id!)}>
+                  onClick={() => navigateToSession(record.sessionId!)}>
                   <ExternalLink size={12} />
                 </Button>
               </Tooltip>
@@ -645,10 +645,10 @@ const CreateForm: FC<{
       await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
-        schedule_type: scheduleType,
-        schedule_value: scheduleValue.trim(),
-        timeout_minutes: timeout && timeout > 0 ? timeout : undefined,
-        channel_ids: channelIds.length > 0 ? channelIds : undefined
+        scheduleType: scheduleType,
+        scheduleValue: scheduleValue.trim(),
+        timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
+        channelIds: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
@@ -995,7 +995,7 @@ const TasksSettings: FC = () => {
                   key={task.id}
                   active={selectedTaskId === task.id && !creating}
                   title={task.name}
-                  subtitle={`${getAgentName(task.agent_id)} · ${scheduleTypeLabelsMap[task.schedule_type] ?? task.schedule_type}`}
+                  subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.scheduleType] ?? task.scheduleType}`}
                   icon={
                     <span
                       className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}

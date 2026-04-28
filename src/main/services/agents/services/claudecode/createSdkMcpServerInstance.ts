@@ -9,7 +9,7 @@ const logger = loggerService.withContext('SdkMcpBridge')
 /**
  * Creates an `McpServer` instance that acts as an in-process bridge,
  * proxying tool list/call requests to an existing MCP server managed
- * by `MCPService`.
+ * by `McpService`.
  *
  * The returned instance is designed for use with the Claude Agent SDK's
  * in-memory (`type: 'sdk'`) transport, keeping all communication
@@ -32,7 +32,7 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       logger.debug('SDK bridge: listing tools', { mcpId })
-      const mcpService = application.get('MCPService')
+      const mcpService = application.get('McpService')
       const client = await mcpService.initClient(serverConfig)
       return client.listTools()
     } catch (error) {
@@ -44,7 +44,7 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
   rawServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
       logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
-      const mcpService = application.get('MCPService')
+      const mcpService = application.get('McpService')
       const client = await mcpService.initClient(serverConfig)
       return client.callTool(request.params)
     } catch (error) {

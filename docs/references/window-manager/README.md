@@ -14,7 +14,7 @@ This is the main entry point for Cherry Studio's WindowManager documentation. Wi
 
 ### Reference Guides
 
-- [Pool Mechanics](./window-manager-pool-mechanics.md) — Two-axis pool model, config matrix, GC timer, warmup, suspend/resume, `WindowManager_Reused` IPC
+- [Warmup Mechanics](./window-manager-warmup-mechanics.md) — Shared warmup state machine (pooled two-axis model + singleton variant), config matrix, GC timer, suspend/resume, `WindowManager_Reused` IPC
 - [Platform Configuration](./window-manager-platform.md) — Static `platformOverrides`, declarative `behavior`, and OS `quirks` (macOS focus / hover / always-on-top)
 - [API Reference](./window-manager-api-reference.md) — Full method tables: open/close/create/destroy, window ops, queries, broadcast, init data, pool management, runtime setters, events
 - [Migration Guide](./window-manager-migration-guide.md) — Converting direct `BrowserWindow` usage to WindowManager
@@ -100,7 +100,7 @@ Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@
 | Mode | Instances | `open()` behavior | `close()` behavior | Use for |
 |---|---|---|---|---|
 | `default` | many | fresh create every call | destroys permanently | Windows that appear in parallel (e.g. sub windows) |
-| `singleton` | at most one | creates, or shows + focuses the existing one | destroys the sole instance | Unique windows (main, settings) |
+| `singleton` | at most one | creates, or shows + focuses the existing one | destroys by default; hides and later destroys when `singletonConfig.retentionTime` is set | Unique windows (main, settings). See Warmup Mechanics → Singleton Variant for `singletonConfig` options. |
 | `pooled` | many, reusable | pops an idle window, or creates fresh if empty | returns to the idle pool, or destroys if over cap | Frequently opened windows where creation cost matters (selection actions) |
 
 Full mode semantics and registry examples: [Overview → Three Lifecycle Modes](./window-manager-overview.md#three-lifecycle-modes).
@@ -139,7 +139,7 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 - `src/main/core/window/WindowManager.ts` — Service implementation; runtime behavior setters live on `wm.behavior` (see `behavior.ts`)
 - `src/main/core/window/behavior.ts` — Initial `applyWindowBehavior` + `BehaviorController` (runtime setters: `setHideOnBlur`, `setAlwaysOnTop`, `setMacShowInDockByType`)
 - `src/main/core/window/windowRegistry.ts` — Per-type metadata (lifecycle, pool config, `windowOptions`, `behavior`, `quirks`, platform overrides)
-- `src/main/core/window/types.ts` — `WindowType`, `WindowTypeMetadata`, `WindowBehavior`, `WindowQuirks`, `PoolConfig`, `ManagedWindow`
+- `src/main/core/window/types.ts` — `WindowType`, `WindowTypeMetadata`, `WindowBehavior`, `WindowQuirks`, `PoolConfig`, `SingletonConfig`, `WarmupMode`, `WarmupState`, `WarmupStateInit`, `ManagedWindow`
 - `src/main/core/window/quirks.ts` — macOS method-slot monkey-patches
 
 ### Renderer Integration

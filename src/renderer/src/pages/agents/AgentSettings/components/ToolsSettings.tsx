@@ -76,11 +76,11 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
-    const allowed = agentBase?.allowed_tools ?? []
+    const allowed = agentBase?.allowedTools ?? []
     const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
     const merged = uniq([...sanitized, ...autoToolIds])
     return merged
-  }, [agentBase?.allowed_tools, autoToolIds, availableTools])
+  }, [agentBase?.allowedTools, autoToolIds, availableTools])
   const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
   const isSoulEnabled = isSoulModeEnabled(agentBase?.configuration)
 
@@ -118,7 +118,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
       const next = isApproved ? [...approvedToolIds, toolId] : approvedToolIds.filter((id) => id !== toolId)
       const sanitized = uniq(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
       try {
-        await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
+        await update({ id: agentBase.id, allowedTools: sanitized } satisfies UpdateAgentBaseForm)
       } finally {
         setIsUpdatingTools(false)
       }

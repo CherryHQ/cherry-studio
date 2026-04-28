@@ -55,7 +55,7 @@ const permissionModeTool = defineTool({
         const currentAutoToolIds = computeModeDefaults(currentMode, availableTools)
         const nextAutoToolIds = computeModeDefaults(nextMode, availableTools)
 
-        const currentAllowed = session.allowed_tools ?? []
+        const currentAllowed = session.allowedTools ?? []
         const userAddedIds = currentAllowed.filter((id) => !currentAutoToolIds.includes(id))
         const mergedAllowed = uniq([...nextAutoToolIds, ...userAddedIds])
 
@@ -78,7 +78,7 @@ const permissionModeTool = defineTool({
           {
             id: session.id,
             configuration: updatedConfiguration,
-            allowed_tools: mergedAllowed
+            allowedTools: mergedAllowed
           },
           { showSuccessToast: false }
         )

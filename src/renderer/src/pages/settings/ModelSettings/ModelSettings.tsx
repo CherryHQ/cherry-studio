@@ -1,7 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'

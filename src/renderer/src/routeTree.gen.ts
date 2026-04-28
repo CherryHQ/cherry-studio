@@ -30,6 +30,7 @@ import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
+import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -162,6 +163,11 @@ const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsComponentLabRoute = SettingsComponentLabRouteImport.update({
+  id: '/component-lab',
+  path: '/component-lab',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
@@ -320,6 +326,7 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
@@ -470,6 +479,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
@@ -755,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/settings/data'
       preLoaderRoute: typeof SettingsDataRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/component-lab': {
+      id: '/settings/component-lab'
+      path: '/component-lab'
+      fullPath: '/settings/component-lab'
+      preLoaderRoute: typeof SettingsComponentLabRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/channels': {
@@ -1029,6 +1048,7 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiServerRoute: typeof SettingsApiServerRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
+  SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
@@ -1052,6 +1072,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiServerRoute: SettingsApiServerRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
+  SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,

@@ -39,7 +39,7 @@ export const useAgents = () => {
     if (!client) {
       throw new Error(t('apiServer.messages.notEnabled'))
     }
-    const result = await client.listAgents({ sortBy: 'sort_order', orderBy: 'asc' })
+    const result = await client.listAgents({ sortBy: 'sortOrder', orderBy: 'asc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])

@@ -2554,6 +2554,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
@@ -2571,6 +2575,9 @@
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
+    "multi_select": {
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -3875,6 +3882,47 @@
     "channels": {
       "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
       "title": "Channels"
+    },
+    "componentLab": {
+      "description": "Visible only in development for testing the new model selector directly inside the app.",
+      "label": "Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "Behavior & Display Config",
+        "callbackEmpty": "No component callback received yet",
+        "clearSelection": "Clear Selection",
+        "configDescription": "Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "Controlled multiSelectMode",
+        "currentProps": "Current Props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "Latest onSelect Return",
+        "loading": "Loading models...",
+        "modelId": "Model ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "Normalized Selected IDs",
+        "outputEmpty": "No data to display yet",
+        "provider": "Provider",
+        "resetOutputs": "Reset Outputs",
+        "resultsDescription": "This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "Outputs & State",
+        "selected": "Current Selection",
+        "selectedEmpty": "No model selected yet",
+        "selectionConfig": "Selection Value Config",
+        "selectionType": "selectionType",
+        "selectionTypeId": "Return Model IDs",
+        "selectionTypeModel": "Return Model Objects",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "Model Selector",
+        "triggerPlaceholder": "Select a model",
+        "triggerSelectedCount": "{{count}} models selected",
+        "valueProp": "Current Value Prop"
+      },
+      "title": "Development Component Lab"
     },
     "data": {
       "app_data": {

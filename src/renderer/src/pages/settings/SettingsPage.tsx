@@ -1,6 +1,7 @@
 import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isDev } from '@renderer/config/constant'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   Blocks,
@@ -8,15 +9,19 @@ import {
   Cloud,
   Command,
   FileCode,
+  FlaskConical,
   HardDrive,
   Info,
+  MonitorCog,
   Package,
   PictureInPicture2,
   Radio,
   Search,
   Server,
   Settings2,
-  TextCursorInput
+  Sparkles,
+  TextCursorInput,
+  Zap
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -73,6 +78,13 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
+                icon={<Sparkles />}
+                label={t('settings.skills.title')}
+                active={isActive('/settings/skills')}
+                onClick={() => go('/settings/skills')}
+              />
+              <MenuItem
+                className={menuItemClassName}
                 icon={<Search />}
                 label={t('settings.tool.websearch.title')}
                 active={isActive('/settings/websearch')}
@@ -98,8 +110,15 @@ const SettingsPage: FC = () => {
                 className={menuItemClassName}
                 icon={<Settings2 />}
                 label={t('settings.general.common.title')}
-                active={isActive('/settings/general') || isActive('/settings/display')}
+                active={isActive('/settings/general')}
                 onClick={() => go('/settings/general')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<MonitorCog />}
+                label={t('settings.display.title')}
+                active={isActive('/settings/display')}
+                onClick={() => go('/settings/display')}
               />
               <MenuItem
                 className={menuItemClassName}
@@ -123,6 +142,13 @@ const SettingsPage: FC = () => {
                 label={t('settings.scheduledTasks.title')}
                 active={isActive('/settings/scheduled-tasks')}
                 onClick={() => go('/settings/scheduled-tasks')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<Zap />}
+                label={t('settings.quickPhrase.title')}
+                active={isActive('/settings/quickphrase')}
+                onClick={() => go('/settings/quickphrase')}
               />
               <MenuItem
                 className={menuItemClassName}
@@ -154,6 +180,15 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/about')}
                 onClick={() => go('/settings/about')}
               />
+              {isDev && (
+                <MenuItem
+                  className={menuItemClassName}
+                  icon={<FlaskConical />}
+                  label={t('settings.componentLab.label')}
+                  active={isActive('/settings/component-lab')}
+                  onClick={() => go('/settings/component-lab')}
+                />
+              )}
             </MenuList>
           </Scrollbar>
         </div>
