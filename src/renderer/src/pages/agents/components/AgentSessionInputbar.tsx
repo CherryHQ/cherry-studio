@@ -196,10 +196,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     [assistant.model]
   )
 
-  // Agent sessions don't support model mentions yet, so we only check the assistant's model
-  const canAddImageFile = useMemo(() => {
-    return isVisionAssistant || isGenerateImageAssistant
-  }, [isVisionAssistant, isGenerateImageAssistant])
+  // Agent sessions allow image attachments regardless of model capabilities
+  const canAddImageFile = true
 
   const canAddTextFile = useMemo(() => {
     return isVisionAssistant || (!isVisionAssistant && !isGenerateImageAssistant)

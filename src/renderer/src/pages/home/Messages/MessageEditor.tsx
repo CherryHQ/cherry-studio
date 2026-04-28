@@ -15,6 +15,7 @@ import { FILE_TYPE } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
@@ -64,7 +65,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
     []
   )
 
+  const isAgentSession = isAgentSessionTopicId(topicId)
+
   const couldAddImageFile = useMemo(() => {
+    if (isAgentSession) return true
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
     if (relatedAssistantMessages.length === 0) {
       // 无关联消息时fallback到助手模型
@@ -78,7 +82,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         return true
       }
     })
-  }, [message.id, model, topicMessages])
+  }, [isAgentSession, message.id, model, topicMessages])
 
   const couldAddTextFile = useMemo(() => {
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
