@@ -441,7 +441,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should remove pin rows for the deleted assistant', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.insert(pinTable).values({
         id: '11111111-1111-4111-8111-111111111111',
         entityType: 'assistant',
