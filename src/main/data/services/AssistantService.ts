@@ -18,7 +18,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { tagService } from './TagService'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -33,22 +33,13 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
-function normalizeSettings(settings: AssistantRow['settings']): Assistant['settings'] {
-  return { ...DEFAULT_ASSISTANT_SETTINGS, ...settings }
-}
-
-// TODO(R3 transitional): remove these `??` fallbacks once the follow-up migration
-// tightens prompt/emoji/description to NOT NULL with DB DEFAULTs and settings to NOT NULL.
-// See docs/references/data/best-practice-default-values-and-nullability.md § R3 + Case Study A.
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
+  // deletedAt is internal-only and not part of the Assistant entity contract.
+  const { deletedAt: _deletedAt, ...rest } = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    prompt: row.prompt ?? '',
-    emoji: row.emoji ?? '🌟',
-    description: row.description ?? '',
-    settings: normalizeSettings(row.settings),
-    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    ...rest,
+    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    modelId: row.modelId as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
@@ -175,22 +166,15 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const row = await this.db.transaction(async (tx) => {
+      // Strip relation arrays (synced via junction tables, not assistant columns).
+      // `prompt` / `description` are omitted when undefined so the DB DEFAULT '' takes over.
+      // `emoji` and `settings` are filled here — Service is the single source of truth for
+      // their product-chosen / tunable defaults (spec § Decision Matrix 2).
+      const { mcpServerIds: _mcps, knowledgeBaseIds: _kbs, ...columnDto } = dto
       const insertValues: typeof assistantTable.$inferInsert = {
-        name: dto.name,
+        ...columnDto,
+        emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
-      }
-
-      if (dto.prompt !== undefined) {
-        insertValues.prompt = dto.prompt
-      }
-      if (dto.emoji !== undefined) {
-        insertValues.emoji = dto.emoji
-      }
-      if (dto.description !== undefined) {
-        insertValues.description = dto.description
-      }
-      if (dto.modelId !== undefined) {
-        insertValues.modelId = dto.modelId
       }
 
       const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()

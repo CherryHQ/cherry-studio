@@ -72,13 +72,29 @@ describe('AssistantDataService', () => {
     })
   }
 
+  // Raw-insert helper that fills the NOT-NULL columns the DB has no DEFAULT for (emoji / settings).
+  // Tests that exercise read-path semantics on hand-crafted rows go through this helper so they
+  // don't need to repeat boilerplate every call site.
+  type SeedAssistantValues = Partial<typeof assistantTable.$inferInsert>
+  async function seedAssistantRow(values: SeedAssistantValues | SeedAssistantValues[]) {
+    const rows = Array.isArray(values) ? values : [values]
+    await dbh.db.insert(assistantTable).values(
+      rows.map((v) => ({
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        name: 'test',
+        ...v
+      }))
+    )
+  }
+
   it('should export a module-level singleton', () => {
     expect(assistantDataService).toBeInstanceOf(AssistantDataService)
   })
 
   describe('getById', () => {
     it('should return an assistant with relation ids when found', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
       await seedMcpServer()
       await seedKnowledgeBase()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
@@ -95,40 +111,26 @@ describe('AssistantDataService', () => {
     })
 
     it('should return null modelId when not set', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
       const result = await assistantDataService.getById('ast-1')
       expect(result.modelId).toBeNull()
     })
 
-    it('should apply default values for nullable fields', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+    it('should surface DB DEFAULT empty strings for prompt and description', async () => {
+      // emoji and settings are NOT NULL with no DB DEFAULT, so the helper supplies them.
+      // prompt and description carry DB DEFAULT '' — confirm SQLite fills them when omitted.
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
       const result = await assistantDataService.getById('ast-1')
       expect(result.prompt).toBe('')
-      expect(result.emoji).toBe('🌟')
       expect(result.description).toBe('')
-      expect(result.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
       expect(result.mcpServerIds).toEqual([])
       expect(result.knowledgeBaseIds).toEqual([])
     })
 
-    it('should merge default settings with partial legacy settings', async () => {
-      await dbh.db.insert(assistantTable).values({
-        id: 'ast-1',
-        name: 'test',
-        settings: { temperature: 0.7 } as typeof DEFAULT_ASSISTANT_SETTINGS
-      })
-
-      const result = await assistantDataService.getById('ast-1')
-      expect(result.settings).toEqual({
-        ...DEFAULT_ASSISTANT_SETTINGS,
-        temperature: 0.7
-      })
-    })
-
     it('should return soft-deleted assistant when includeDeleted is true', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
       const result = await assistantDataService.getById('ast-1', { includeDeleted: true })
@@ -136,7 +138,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should NOT return soft-deleted assistant by default', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.update(assistantTable).set({ deletedAt: Date.now() })
 
       await expect(assistantDataService.getById('ast-1')).rejects.toMatchObject({
@@ -153,7 +155,7 @@ describe('AssistantDataService', () => {
 
   describe('list', () => {
     it('should return all assistants with relation ids', async () => {
-      await dbh.db.insert(assistantTable).values([
+      await seedAssistantRow([
         { id: 'ast-1', name: 'first', modelId: 'openai::gpt-4', createdAt: 100 },
         { id: 'ast-2', name: 'second', modelId: 'anthropic::claude-3', createdAt: 200 }
       ])
@@ -170,7 +172,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should exclude soft-deleted assistants', async () => {
-      await dbh.db.insert(assistantTable).values([
+      await seedAssistantRow([
         { id: 'ast-1', name: 'active' },
         { id: 'ast-2', name: 'deleted', deletedAt: Date.now() }
       ])
@@ -182,7 +184,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should filter by id', async () => {
-      await dbh.db.insert(assistantTable).values([
+      await seedAssistantRow([
         { id: 'ast-1', name: 'first' },
         { id: 'ast-2', name: 'second' }
       ])
@@ -193,12 +195,13 @@ describe('AssistantDataService', () => {
     })
 
     it('should respect page and limit parameters', async () => {
-      const values = Array.from({ length: 5 }, (_, i) => ({
-        id: `ast-${i}`,
-        name: `assistant-${i}`,
-        createdAt: i * 100
-      }))
-      await dbh.db.insert(assistantTable).values(values)
+      await seedAssistantRow(
+        Array.from({ length: 5 }, (_, i) => ({
+          id: `ast-${i}`,
+          name: `assistant-${i}`,
+          createdAt: i * 100
+        }))
+      )
 
       const result = await assistantDataService.list({ page: 2, limit: 2 })
       expect(result.page).toBe(2)
@@ -209,7 +212,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should order by createdAt ascending', async () => {
-      await dbh.db.insert(assistantTable).values([
+      await seedAssistantRow([
         { id: 'ast-new', name: 'new', createdAt: 300 },
         { id: 'ast-old', name: 'old', createdAt: 100 },
         { id: 'ast-mid', name: 'mid', createdAt: 200 }
@@ -245,6 +248,35 @@ describe('AssistantDataService', () => {
 
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
+    })
+
+    it("should apply '🌟' as the default emoji when omitted", async () => {
+      const created = await assistantDataService.create({ name: 'test-assistant' })
+
+      expect(created.emoji).toBe('🌟')
+
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row.emoji).toBe('🌟')
+    })
+
+    it('should apply DB DEFAULT empty strings to prompt and description when omitted', async () => {
+      const created = await assistantDataService.create({ name: 'test-assistant' })
+
+      expect(created.prompt).toBe('')
+      expect(created.description).toBe('')
+
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row.prompt).toBe('')
+      expect(row.description).toBe('')
+    })
+
+    it('should preserve client-supplied emoji over the service default', async () => {
+      const created = await assistantDataService.create({ name: 'test-assistant', emoji: '🤖' })
+
+      expect(created.emoji).toBe('🤖')
+
+      const [row] = await dbh.db.select().from(assistantTable)
+      expect(row.emoji).toBe('🤖')
     })
 
     it('should sync junction rows when relation ids are provided', async () => {
@@ -283,14 +315,14 @@ describe('AssistantDataService', () => {
 
   describe('update', () => {
     it('should update and return assistant', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
       const result = await assistantDataService.update('ast-1', { name: 'updated-name' })
       expect(result.name).toBe('updated-name')
     })
 
     it('should persist update to database', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
       await assistantDataService.update('ast-1', { name: 'updated-name' })
 
@@ -299,7 +331,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should not pass relation fields to the column update', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original' })
       await seedMcpServer()
 
       const result = await assistantDataService.update('ast-1', {
@@ -315,7 +347,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should handle relation-only updates without modifying assistant columns', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original', modelId: 'openai::gpt-4' })
       await seedMcpServer()
       await seedKnowledgeBase()
 
@@ -333,7 +365,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should replace existing junction rows on relation update', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await seedMcpServer('srv-1', 'MCP1')
       await seedMcpServer('srv-2', 'MCP2')
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
@@ -346,7 +378,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should preserve junction createdAt for unchanged relations on PATCH', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await seedMcpServer('srv-1', 'MCP1')
       await seedMcpServer('srv-2', 'MCP2')
       await dbh.db
@@ -368,7 +400,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw validation error when name is set to empty', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'original' })
+      await seedAssistantRow({ id: 'ast-1', name: 'original' })
 
       await expect(assistantDataService.update('ast-1', { name: '' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
@@ -378,7 +410,7 @@ describe('AssistantDataService', () => {
 
   describe('delete', () => {
     it('should soft-delete by setting deletedAt timestamp', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
       await assistantDataService.delete('ast-1')
 
@@ -388,7 +420,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should not physically remove the row', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
 
       await assistantDataService.delete('ast-1')
 
@@ -397,7 +429,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should remove entity_tag rows for the deleted assistant', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
       await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
 
@@ -414,7 +446,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should throw NOT_FOUND when deleting already-deleted assistant', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
+      await seedAssistantRow({ id: 'ast-1', name: 'test', deletedAt: Date.now() })
 
       await expect(assistantDataService.delete('ast-1')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -424,7 +456,7 @@ describe('AssistantDataService', () => {
 
   describe('db constraints', () => {
     it('should cascade-delete junction rows when assistant is physically deleted', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
@@ -435,7 +467,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should cascade-delete junction rows when mcp_server is deleted', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
@@ -446,7 +478,7 @@ describe('AssistantDataService', () => {
     })
 
     it('should reject duplicate junction rows', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'ast-1', name: 'test' })
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await seedMcpServer()
       await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
 
