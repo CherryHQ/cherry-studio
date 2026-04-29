@@ -61,6 +61,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const isDone = status === 'done'
   const isError = status === 'error'
   const isStreaming = status === 'streaming'
+  const willAwaitApproval = approval.isWaiting || (!autoApproved && status === 'invoking')
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -142,7 +143,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
             {progress > 0 ? (
               <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
             ) : (
-              <ToolStatusIndicator status={getEffectiveStatus(status, approval.isWaiting)} hasError={hasError} />
+              <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
             )}
             {!isPending && (
               <Tooltip content={t('common.copy')} delay={500}>
@@ -207,7 +208,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
             {(isPending || approval.isWaiting || approval.isExecuting) && (
               <ActionsBar>
                 <ActionLabel>
-                  {approval.isWaiting
+                  {willAwaitApproval
                     ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
                     : t('message.tools.invoking')}
                 </ActionLabel>
