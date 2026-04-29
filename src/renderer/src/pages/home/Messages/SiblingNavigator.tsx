@@ -29,7 +29,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
       const nextIndex = (activeIndex + direction + group.length) % group.length
       const target = group[nextIndex]
       try {
-        await v2.setActiveNode(target.id)
+        await v2.setActiveBranch(target.id)
       } catch (error) {
         logger.error('Failed to switch sibling branch', error as Error)
       }

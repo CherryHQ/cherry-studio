@@ -12,13 +12,19 @@
  * this file exists to get the ~300 lines of handler code out of
  * `V2ChatContent.tsx`, not to change behaviour.
  */
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { V2ChatOverrides } from '@renderer/hooks/V2ChatContext'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { BranchMessagesResponse, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import type {
+  BranchMessagesResponse,
+  CherryUIMessage,
+  Message as DbMessage,
+  ModelSnapshot
+} from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
@@ -277,6 +283,41 @@ export function useV2ChatOverrides(params: Params): Result {
     [setActiveNodeTrigger, topic.id, refresh, setMessages]
   )
 
+  const handleSetActiveBranch = useCallback<V2ChatOverrides['setActiveBranch']>(
+    async (throughNodeId) => {
+      let leafId = throughNodeId
+      try {
+        // Cast: TS can't disambiguate `/topics/:id` vs `/topics/:topicId/path`
+        // when both match a template literal — concrete handler returns DbMessage[].
+        const path = (await dataApiService.get(`/topics/${topic.id}/path`, {
+          query: { nodeId: throughNodeId }
+        })) as DbMessage[]
+        if (path.length > 0) {
+          leafId = path[path.length - 1].id
+        }
+      } catch (err) {
+        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
+          logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
+          window.toast.warning('Message is still syncing — try again in a moment')
+          return
+        }
+        throw err
+      }
+      try {
+        await setActiveNodeTrigger({ params: { id: topic.id }, body: { nodeId: leafId } })
+      } catch (err) {
+        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
+          logger.warn('setActiveBranch leaf vanished mid-flight', { leafId, topicId: topic.id })
+          return
+        }
+        throw err
+      }
+      const refreshed = await refresh()
+      setMessages(refreshed)
+    },
+    [setActiveNodeTrigger, topic.id, refresh, setMessages]
+  )
+
   const overrides = useMemo<V2ChatOverrides>(
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
@@ -288,6 +329,7 @@ export function useV2ChatOverrides(params: Params): Result {
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
+      setActiveBranch: handleSetActiveBranch,
       refresh
     }),
     [
@@ -299,6 +341,7 @@ export function useV2ChatOverrides(params: Params): Result {
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,
+      handleSetActiveBranch,
       refresh
     ]
   )

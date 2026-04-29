@@ -104,7 +104,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       setSelectedMessageIdState(message.id)
 
       if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void v2Chat?.setActiveNode(message.id)
+        void v2Chat?.setActiveBranch(message.id)
       }
 
       setTimeoutTimer(

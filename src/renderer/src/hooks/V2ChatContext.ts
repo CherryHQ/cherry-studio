@@ -62,6 +62,17 @@ export interface V2ChatOverrides {
    * there; the user's next message becomes the new leaf and the tree forks.
    */
   setActiveNode: (messageId: string) => Promise<void>
+  /**
+   * Switch to the branch passing through `throughNodeId`. Resolves the
+   * branch's leaf (most recent live descendant of `throughNodeId`, or
+   * the node itself if it has no live children) and pins it as the
+   * topic's active node — so the conversation view shows the full
+   * follow-up chain rather than truncating mid-branch.
+   *
+   * Used by sibling navigation (per-message `< i/N >`) and multi-model
+   * tab switches.
+   */
+  setActiveBranch: (throughNodeId: string) => Promise<void>
   refresh: () => Promise<unknown>
 }
 
