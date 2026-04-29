@@ -19,7 +19,7 @@ import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -35,14 +35,11 @@ function createEmptyRelations(): AssistantRelationIds {
 }
 
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    prompt: row.prompt ?? '',
-    emoji: row.emoji ?? '🌟',
-    description: row.description ?? '',
-    settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    ...clean,
+    // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
+    modelId: row.modelId as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
@@ -169,20 +166,21 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const row = await this.db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(assistantTable)
-        .values({
-          name: dto.name,
-          prompt: dto.prompt,
-          emoji: dto.emoji,
-          description: dto.description,
-          modelId: dto.modelId ?? null,
-          settings: dto.settings
-        })
-        .returning()
+      // Split column fields from relation arrays — relations are synced via junction tables.
+      // `prompt` / `description` stay omitted when undefined so the DB DEFAULT '' takes over.
+      // `emoji` and `settings` are filled here — Service is the single source of truth for
+      // their product-chosen / tunable defaults (spec § Decision Matrix 2).
+      const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+      const insertValues: typeof assistantTable.$inferInsert = {
+        ...columnDto,
+        emoji: dto.emoji ?? '🌟',
+        settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+      }
+
+      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
       // Insert junction table rows
-      await this.syncRelations(tx, inserted.id, dto)
+      await this.syncRelations(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
       return inserted
     })
