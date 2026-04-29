@@ -74,7 +74,7 @@ vi.mock('antd', () => ({
   )
 }))
 
-vi.mock('@renderer/components/ModelSelector', () => ({
+vi.mock('@renderer/components/ModelSelectorLegacy', () => ({
   default: ({ value, onChange, placeholder }: any) => (
     <select value={value} onChange={(e) => onChange(e.target.value)} data-testid="model-selector">
       <option value="">{placeholder}</option>
