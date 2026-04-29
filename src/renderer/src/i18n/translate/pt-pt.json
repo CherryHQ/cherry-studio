@@ -3325,6 +3325,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "opencode-go": "OpenCode Go",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexidade",
     "ph8": "PH8",

@@ -1432,6 +1432,22 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'mistralai'
     }
   ],
+  'opencode-go': [
+    { id: 'minimax/MiniMax-M2.5', provider: 'opencode-go', name: 'MiniMax M2.5', group: 'minimax' },
+    { id: 'minimax/MiniMax-M2.7', provider: 'opencode-go', name: 'MiniMax M2.7', group: 'minimax' },
+    { id: 'moonshotai/Kimi-K2.5', provider: 'opencode-go', name: 'Kimi K2.5', group: 'moonshot' },
+    { id: 'moonshotai/Kimi-K2.6', provider: 'opencode-go', name: 'Kimi K2.6', group: 'moonshot' },
+    { id: 'xiaomi/MiMo-V2', provider: 'opencode-go', name: 'MiMo V2', group: 'xiaomi' },
+    { id: 'xiaomi/MiMo-V2.5', provider: 'opencode-go', name: 'MiMo V2.5', group: 'xiaomi' },
+    { id: 'xiaomi/MiMo-V2.5-Pro', provider: 'opencode-go', name: 'MiMo V2.5 Pro', group: 'xiaomi' },
+    { id: 'xiaomi/MiMo-V2-Omni', provider: 'opencode-go', name: 'MiMo V2 Omni', group: 'xiaomi' },
+    { id: 'zhipu/GLM-5', provider: 'opencode-go', name: 'GLM-5', group: 'zhipu' },
+    { id: 'zhipu/GLM-5.1', provider: 'opencode-go', name: 'GLM-5.1', group: 'zhipu' },
+    { id: 'qwen/Qwen3.5-Plus', provider: 'opencode-go', name: 'Qwen3.5 Plus', group: 'qwen' },
+    { id: 'qwen/Qwen3.6-Plus', provider: 'opencode-go', name: 'Qwen3.6 Plus', group: 'qwen' },
+    { id: 'deepseek/DeepSeek-V4-Flash', provider: 'opencode-go', name: 'DeepSeek V4 Flash', group: 'deepseek' },
+    { id: 'deepseek/DeepSeek-V4-Pro', provider: 'opencode-go', name: 'DeepSeek V4 Pro', group: 'deepseek' }
+  ],
   groq: [
     {
       id: 'llama3-8b-8192',

@@ -283,6 +283,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  'opencode-go': {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://opencode.ai/zen/go/v1',
+    models: SYSTEM_MODELS['opencode-go'],
+    isSystem: true,
+    enabled: false
+  },
   'new-api': {
     id: 'new-api',
     name: 'New API',
@@ -1028,6 +1038,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
       models: 'https://openrouter.ai/models'
+    }
+  },
+  'opencode-go': {
+    api: {
+      url: 'https://opencode.ai/zen/go/v1'
+    },
+    websites: {
+      official: 'https://opencode.ai',
+      apiKey: 'https://opencode.ai',
+      docs: 'https://opencode.ai/docs/zen',
+      models: 'https://opencode.ai/docs/zen'
     }
   },
   groq: {
