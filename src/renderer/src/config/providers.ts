@@ -283,6 +283,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  'opencode-go': {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://opencode.ai/zen/go/v1',
+    models: SYSTEM_MODELS['opencode-go'],
+    isSystem: true,
+    enabled: false
+  },
   'new-api': {
     id: 'new-api',
     name: 'New API',
@@ -1030,252 +1040,15 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://openrouter.ai/models'
     }
   },
-  groq: {
+  'opencode-go': {
     api: {
-      url: 'https://api.groq.com/openai'
+      url: 'https://opencode.ai/zen/go/v1'
     },
     websites: {
-      official: 'https://groq.com/',
-      apiKey: 'https://console.groq.com/keys',
-      docs: 'https://console.groq.com/docs/quickstart',
-      models: 'https://console.groq.com/docs/models'
-    }
-  },
-  ovms: {
-    api: {
-      url: 'http://localhost:8000/v3/'
-    },
-    websites: {
-      official: 'https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html',
-      docs: 'https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html',
-      models: 'https://www.modelscope.cn/organization/OpenVINO'
-    }
-  },
-  ollama: {
-    api: {
-      url: 'http://localhost:11434'
-    },
-    websites: {
-      official: 'https://ollama.com/',
-      docs: 'https://github.com/ollama/ollama/tree/main/docs',
-      models: 'https://ollama.com/library'
-    }
-  },
-  lmstudio: {
-    api: {
-      url: 'http://localhost:1234'
-    },
-    websites: {
-      official: 'https://lmstudio.ai/',
-      docs: 'https://lmstudio.ai/docs',
-      models: 'https://lmstudio.ai/models'
-    }
-  },
-  anthropic: {
-    api: {
-      url: 'https://api.anthropic.com'
-    },
-    websites: {
-      official: 'https://anthropic.com/',
-      apiKey: 'https://console.anthropic.com/settings/keys',
-      docs: 'https://docs.anthropic.com/en/docs',
-      models: 'https://docs.anthropic.com/en/docs/about-claude/models'
-    }
-  },
-  grok: {
-    api: {
-      url: 'https://api.x.ai'
-    },
-    websites: {
-      official: 'https://x.ai/',
-      docs: 'https://docs.x.ai/',
-      models: 'https://docs.x.ai/docs/models'
-    }
-  },
-  hyperbolic: {
-    api: {
-      url: 'https://api.hyperbolic.xyz'
-    },
-    websites: {
-      official: 'https://app.hyperbolic.xyz',
-      apiKey: 'https://app.hyperbolic.xyz/settings',
-      docs: 'https://docs.hyperbolic.xyz',
-      models: 'https://app.hyperbolic.xyz/models'
-    }
-  },
-  mistral: {
-    api: {
-      url: 'https://api.mistral.ai'
-    },
-    websites: {
-      official: 'https://mistral.ai',
-      apiKey: 'https://console.mistral.ai/api-keys/',
-      docs: 'https://docs.mistral.ai',
-      models: 'https://docs.mistral.ai/getting-started/models/models_overview'
-    }
-  },
-  jina: {
-    api: {
-      url: 'https://api.jina.ai'
-    },
-    websites: {
-      official: 'https://jina.ai',
-      apiKey: 'https://jina.ai/',
-      docs: 'https://jina.ai',
-      models: 'https://jina.ai'
-    }
-  },
-  aihubmix: {
-    api: {
-      url: 'https://aihubmix.com'
-    },
-    websites: {
-      official: 'https://aihubmix.com?aff=SJyh',
-      apiKey: 'https://aihubmix.com?aff=SJyh',
-      docs: 'https://doc.aihubmix.com/',
-      models: 'https://aihubmix.com/models'
-    }
-  },
-  fireworks: {
-    api: {
-      url: 'https://api.fireworks.ai/inference'
-    },
-    websites: {
-      official: 'https://fireworks.ai/',
-      apiKey: 'https://fireworks.ai/account/api-keys',
-      docs: 'https://docs.fireworks.ai/getting-started/introduction',
-      models: 'https://fireworks.ai/dashboard/models'
-    }
-  },
-  hunyuan: {
-    api: {
-      url: 'https://api.hunyuan.cloud.tencent.com'
-    },
-    websites: {
-      official: 'https://cloud.tencent.com/product/hunyuan',
-      apiKey: 'https://console.cloud.tencent.com/hunyuan/api-key',
-      docs: 'https://cloud.tencent.com/document/product/1729/111007',
-      models: 'https://cloud.tencent.com/document/product/1729/104753'
-    }
-  },
-  nvidia: {
-    api: {
-      url: 'https://integrate.api.nvidia.com'
-    },
-    websites: {
-      official: 'https://build.nvidia.com/explore/discover',
-      apiKey: 'https://build.nvidia.com/meta/llama-3_1-405b-instruct',
-      docs: 'https://docs.api.nvidia.com/nim/reference/llm-apis',
-      models: 'https://build.nvidia.com/nim'
-    }
-  },
-  'azure-openai': {
-    api: {
-      url: ''
-    },
-    websites: {
-      official: 'https://azure.microsoft.com/en-us/products/ai-services/openai-service',
-      apiKey: 'https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/OpenAI',
-      docs: 'https://learn.microsoft.com/en-us/azure/ai-services/openai/',
-      models: 'https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models'
-    }
-  },
-  'baidu-cloud': {
-    api: {
-      url: 'https://qianfan.baidubce.com/v2/'
-    },
-    websites: {
-      official: 'https://cloud.baidu.com/',
-      apiKey: 'https://console.bce.baidu.com/iam/#/iam/apikey/list',
-      docs: 'https://cloud.baidu.com/doc/index.html',
-      models: 'https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu'
-    }
-  },
-  'tencent-cloud-ti': {
-    api: {
-      url: 'https://api.lkeap.cloud.tencent.com'
-    },
-    websites: {
-      official: 'https://cloud.tencent.com/product/ti',
-      apiKey: 'https://console.cloud.tencent.com/lkeap/api',
-      docs: 'https://cloud.tencent.com/document/product/1772',
-      models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
-    }
-  },
-  gpustack: {
-    api: {
-      url: ''
-    },
-    websites: {
-      official: 'https://gpustack.ai/',
-      docs: 'https://docs.gpustack.ai/latest/',
-      models: 'https://docs.gpustack.ai/latest/overview/#supported-models'
-    }
-  },
-  voyageai: {
-    api: {
-      url: 'https://api.voyageai.com'
-    },
-    websites: {
-      official: 'https://www.voyageai.com/',
-      apiKey: 'https://dashboard.voyageai.com/organization/api-keys',
-      docs: 'https://docs.voyageai.com/docs',
-      models: 'https://docs.voyageai.com/docs'
-    }
-  },
-  qiniu: {
-    api: {
-      url: 'https://api.qnaigc.com'
-    },
-    websites: {
-      official: 'https://qiniu.com',
-      apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
-      docs: 'https://developer.qiniu.com/aitokenapi',
-      models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
-    }
-  },
-  tokenflux: {
-    api: {
-      url: TOKENFLUX_HOST
-    },
-    websites: {
-      official: TOKENFLUX_HOST,
-      apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
-      docs: `${TOKENFLUX_HOST}/docs`,
-      models: `${TOKENFLUX_HOST}/models`
-    }
-  },
-  cephalon: {
-    api: {
-      url: 'https://cephalon.cloud/user-center/v1/model'
-    },
-    websites: {
-      official: 'https://cephalon.cloud/share/register-landing?invite_id=jSdOYA',
-      apiKey: 'https://cephalon.cloud/api',
-      docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
-      models: 'https://cephalon.cloud/model'
-    }
-  },
-  lanyun: {
-    api: {
-      url: 'https://maas-api.lanyun.net'
-    },
-    websites: {
-      official: 'https://maas.lanyun.net',
-      apiKey: 'https://maas.lanyun.net/#/system/apiKey',
-      docs: 'https://archive.lanyun.net/#/maas/',
-      models: 'https://maas.lanyun.net/#/model/modelSquare'
-    }
-  },
-  vertexai: {
-    api: {
-      url: ''
-    },
-    websites: {
-      official: 'https://cloud.google.com/vertex-ai',
-      apiKey: 'https://console.cloud.google.com/apis/credentials',
-      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
-      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
+      official: 'https://opencode.ai',
+      apiKey: 'https://opencode.ai',
+      docs: 'https://opencode.ai/docs/zen',
+      models: 'https://opencode.ai/docs/zen'
     }
   },
   'new-api': {
