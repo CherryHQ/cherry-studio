@@ -33,7 +33,7 @@ jobs:
           cutoff_date=$(date -d "14 days ago" +%Y-%m-%d)
 
           gh api repos/$REPO/actions/artifacts --paginate | \
-          jq -r '.artifacts[] | select(.name | startswith("cherry-studio-next-v2-preview-")) | select(.created_at < "'$cutoff_date'") | .id' | \
+          jq -r '.artifacts[] | select(.name | startswith("cherry-studio-v2-preview-")) | select(.created_at < "'$cutoff_date'") | .id' | \
           while read artifact_id; do
             echo "Deleting artifact $artifact_id"
             gh api repos/$REPO/actions/artifacts/$artifact_id -X DELETE
@@ -200,8 +200,7 @@ jobs:
         run: |
           mkdir -p renamed-artifacts
           DATE="${{ needs.metadata.outputs.date }}"
-          SHORT_SHA="${{ needs.metadata.outputs.short_sha }}"
-          PREFIX="cherry-studio-next-v2-preview-${DATE}-${SHORT_SHA}"
+          PREFIX="cherry-studio-v2-preview-${DATE}"
 
           copy_first() {
             local pattern="$1"
@@ -239,32 +238,6 @@ jobs:
           cp dist/latest*.yml renamed-artifacts/ 2>/dev/null || true
           cp dist/*.blockmap renamed-artifacts/ 2>/dev/null || true
 
-      - name: Generate SHA256 checksums (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd renamed-artifacts
-          echo "# SHA256 checksums for Windows - $(Get-Date -Format 'yyyy-MM-dd')" > SHA256SUMS.txt
-          Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
-            $file = $_.Name
-            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
-            Add-Content -Path SHA256SUMS.txt -Value "$hash  $file"
-          }
-          cat SHA256SUMS.txt
-
-      - name: Generate SHA256 checksums (macOS/Linux)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd renamed-artifacts
-          echo "# SHA256 checksums for ${{ runner.os }} - $(date +'%Y-%m-%d')" > SHA256SUMS.txt
-          if command -v shasum &>/dev/null; then
-            shasum -a 256 * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
-          else
-            sha256sum * 2>/dev/null | grep -v SHA256SUMS.txt >> SHA256SUMS.txt || echo "No files to hash" >> SHA256SUMS.txt
-          fi
-          cat SHA256SUMS.txt
-
       - name: List files to be uploaded
         shell: bash
         run: |
@@ -278,13 +251,145 @@ jobs:
           fi
           echo "Total: $(find renamed-artifacts -type f | wc -l) files"
 
-      - name: Upload artifacts
+      - name: Upload Windows x64 setup
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-next-v2-preview-${{ needs.metadata.outputs.date }}-${{ needs.metadata.outputs.short_sha }}-${{ matrix.os }}
-          path: renamed-artifacts/*
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-setup.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-setup.exe
+          if-no-files-found: ignore
           retention-days: 7
-          compression-level: 8
+          compression-level: 0
+
+      - name: Upload Windows arm64 setup
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-setup.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-setup.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Windows x64 portable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-portable.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-portable.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Windows arm64 portable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-portable.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-portable.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS arm64 dmg
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.dmg
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.dmg
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS x64 dmg
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.dmg
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.dmg
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS arm64 zip
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.zip
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.zip
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS x64 zip
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.zip
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.zip
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux x86_64 AppImage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.AppImage
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.AppImage
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 AppImage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.AppImage
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.AppImage
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux amd64 deb
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-amd64.deb
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-amd64.deb
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 deb
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.deb
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.deb
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux x86_64 rpm
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.rpm
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.rpm
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 rpm
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.rpm
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.rpm
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
 
   build-summary:
     needs:
@@ -311,13 +416,6 @@ jobs:
       - name: Install notification dependencies
         run: pnpm install
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: all-artifacts
-          merge-multiple: false
-        continue-on-error: true
-
       - name: Create summary report
         shell: bash
         env:
@@ -327,7 +425,7 @@ jobs:
           SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "## Cherry Studio Next v2 Preview Build" >> $GITHUB_STEP_SUMMARY
+          echo "## Cherry Studio v2 Preview Build" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: \`v2\`" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: \`${SHORT_SHA}\`" >> $GITHUB_STEP_SUMMARY
@@ -336,25 +434,12 @@ jobs:
           echo "- Download: [Actions artifacts](${RUN_URL})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          for platform in windows-latest macos-latest ubuntu-latest; do
-            artifact_dir="all-artifacts/cherry-studio-next-v2-preview-${BUILD_DATE}-${SHORT_SHA}-${platform}"
-            echo "### ${platform}" >> $GITHUB_STEP_SUMMARY
-            if [ -d "$artifact_dir" ] && [ -f "$artifact_dir/SHA256SUMS.txt" ]; then
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              cat "$artifact_dir/SHA256SUMS.txt" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-            else
-              echo "Build did not produce artifacts for this platform." >> $GITHUB_STEP_SUMMARY
-            fi
-            echo "" >> $GITHUB_STEP_SUMMARY
-          done
-
       - name: Send Feishu notification
         if: always()
         shell: bash
         env:
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
-          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_RELEASE_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_RELEASE_WEBHOOK_SECRET }}
           BUILD_RESULT: ${{ needs.preview-build.result }}
           BUILD_DATE: ${{ needs.metadata.outputs.date }}
           BUILD_SHA: ${{ needs.metadata.outputs.sha }}
@@ -379,6 +464,6 @@ jobs:
           DESCRIPTION=$(printf "**Branch:** v2\n\n**Commit:** %.7s\n\n**Date:** %s\n\n**Status:** %s\n\n**Download:** [Actions Artifacts](%s)" "$BUILD_SHA" "$BUILD_DATE" "$STATUS_TEXT" "$RUN_URL")
 
           pnpm tsx scripts/feishu-notify.ts send \
-            -t "Cherry Studio Next v2 preview build ${STATUS_TEXT}" \
+            -t "Cherry Studio v2 preview build ${STATUS_TEXT}" \
             -d "$DESCRIPTION" \
             -c "$COLOR"

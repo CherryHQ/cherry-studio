@@ -142,46 +142,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.3 - Bug Fixes & Improvements
+    Cherry Studio 1.9.4 - Bug Fixes & Model Support
 
     🐛 Bug Fixes
-    - [Web Search] Fix built-in web search repeatedly running and consuming excessive tokens
-    - [Backup] Fix Windows backup failures caused by symlinks in the Data directory
-    - [UI] Fix horizontal multi-model message scrolling issue on card edges
-    - [Models] Add support for OpenAI's gpt-image-2 model
-    - [MCP] Fix MCP SSE/streamableHttp servers timing out during initialization
-    - [AI Core] Fix native tool-call conversations stopping after first execution
-    - [Bedrock] Fix AWS Bedrock requests failing when API Host is blank
-    - [Agents] Fix agent skills page scroll position reset when toggling skills
-    - [Feishu] Restore image message support from Feishu/Lark bot users
-    - [Proxy Providers] Fix structured output error with Claude models through AiHubMix/NewAPI
-    - [API Server] Fix API server failing for providers with comma-separated API keys
-    - [Agents] Fix Soul Mode dropping user-provided session instructions
-    - [File Upload] Support case-insensitive file extensions for drag-and-drop uploads
-    - [Deep Links] Fix "Open in VS Code/Cursor/Zed" buttons being blocked
-    - [Proxy Providers] Fix custom parameters not being passed for CherryIN/NewAPI
-    - [Claude Code] Fix Claude Code failing to launch on all platforms
-    - [Quick Panel] Fix model deselection bug when pasting messages with "@"
+    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
+    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
+    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
+    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
+    - [Copilot] Fixed GitHub Copilot model synchronization
+
+    ✨ New Features
+    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
+    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
+    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+
+    💄 Improvements
+    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.3 - 错误修复与改进
+    Cherry Studio 1.9.4 - 错误修复与模型支持
 
     🐛 问题修复
-    - [网络搜索] 修复内置网络搜索重复运行并消耗过多 token 的问题
-    - [备份] 修复 Windows 平台因 Data 目录中的符号链接导致备份失败的问题
-    - [UI] 修复水平多模型消息卡片边缘滚动问题
-    - [模型] 添加对 OpenAI gpt-image-2 模型的支持
-    - [MCP] 修复 MCP SSE/streamableHttp 服务器初始化超时问题
-    - [AI 核心] 修复原生工具调用对话在首次执行后停止的问题
-    - [Bedrock] 修复 AWS Bedrock 在 API Host 为空时请求失败的问题
-    - [智能体] 修复切换技能时技能页面滚动位置重置的问题
-    - [飞书] 恢复飞书/Lark 机器人用户的图片消息接收功能
-    - [代理服务商] 修复通过 AiHubMix/NewAPI 调用 Claude 模型时的结构化输出错误
-    - [API 服务器] 修复使用逗号分隔 API 密钥的服务商在 API 服务器中失败的问题
-    - [智能体] 修复灵魂模式丢弃用户提供的会话指令的问题
-    - [文件上传] 支持拖放上传时不区分大小写的文件扩展名
-    - [深度链接] 修复"在 VS Code/Cursor/Zed 中打开"按钮被阻止的问题
-    - [代理服务商] 修复 CherryIN/NewAPI 自定义参数未传递的问题
-    - [Claude Code] 修复 Claude Code 在所有平台上无法启动的问题
-    - [快速面板] 修复粘贴包含"@"的消息时模型取消选择的 bug
+    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
+    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
+    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
+    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
+    - [Copilot] 修复 GitHub Copilot 模型同步问题
+
+    ✨ 新功能
+    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
+    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
+    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+
+    💄 改进
+    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
     <!--LANG:END-->
