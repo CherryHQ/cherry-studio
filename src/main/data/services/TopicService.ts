@@ -425,33 +425,23 @@ export class TopicService {
     })
   }
 
-  /**
-   * Pin `nodeId` as the topic's active node. The conversation view truncates
-   * at that node; the user's next message forks the tree.
-   *
-   * A navigator-style `descend` mode (walk to the deepest leaf before pinning)
-   * lives on `DeJeune/ai-service` along with its renderer call sites and will
-   * be reintroduced when that branch lands — see SetActiveNodeSchema JSDoc.
-   */
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
 
     // Verify topic exists
     await this.getById(topicId)
 
-    const [message] = await db
-      .select()
-      .from(messageTable)
-      .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
-      .limit(1)
+    // Verify node exists and belongs to this topic
+    const [message] = await db.select().from(messageTable).where(eq(messageTable.id, nodeId)).limit(1)
 
     if (!message || message.topicId !== topicId) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
+    // Update active node
     await db.update(topicTable).set({ activeNodeId: nodeId }).where(eq(topicTable.id, topicId))
 
-    logger.info('Set active node', { topicId, activeNodeId: nodeId })
+    logger.info('Set active node', { topicId, nodeId })
 
     return { activeNodeId: nodeId }
   }
