@@ -1,9 +1,8 @@
-import { ArrowLeftOutlined } from '@ant-design/icons'
 import { Button, Flex, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { FolderCog, Package, ShoppingBag } from 'lucide-react'
+import { ArrowLeft, FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -103,7 +102,7 @@ const MCPSettings: FC = () => {
             <div className="absolute top-0 right-0 left-0 z-[1000] flex items-center bg-transparent px-5 py-2.5">
               <Link to="/settings/mcp/servers">
                 <Button variant="secondary" size="icon-sm" className="rounded-full">
-                  <ArrowLeftOutlined />
+                  <ArrowLeft size={16} />
                 </Button>
               </Link>
             </div>

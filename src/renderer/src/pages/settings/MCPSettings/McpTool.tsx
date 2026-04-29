@@ -4,11 +4,12 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Descriptions, Typography } from 'antd'
 import { Zap } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
 interface MCPToolsSectionProps {
   tools: MCPTool[]
@@ -65,15 +66,13 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
         <Flex className="items-center gap-2">
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
-        {prop.description && (
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-            {prop.description}
-          </Typography.Paragraph>
-        )}
+        {prop.description && <p className="m-0 text-foreground-secondary text-sm leading-5">{prop.description}</p>}
         {prop.enum && (
-          <div style={{ marginTop: 4 }}>
-            <Typography.Text type="secondary">{t('settings.mcp.tools.inputSchema.enum.allowedValues')}</Typography.Text>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+          <div className="mt-1">
+            <span className="text-foreground-secondary text-sm">
+              {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
+            </span>
+            <div className="mt-1 flex flex-wrap gap-1">
               {prop.enum.map((value: string, idx: number) => (
                 <Badge key={idx} variant="outline">
                   {value}
@@ -90,10 +89,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           prop.type === 'array' &&
           prop.items?.type === 'object' &&
           prop.items.properties && (
-            <div style={{ marginTop: 4 }}>
-              <Typography.Text type="secondary" italic>
-                items:
-              </Typography.Text>
+            <div className="mt-1">
+              <span className="text-foreground-secondary text-sm italic">items:</span>
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
@@ -101,27 +98,27 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     )
   }
 
-  // Render a set of schema properties as a Descriptions list
+  // Render a set of schema properties as a read-only detail list
   const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
     return (
-      <Descriptions bordered size="small" column={1} style={{ userSelect: 'text', marginTop: 4 }}>
+      <McpDetailList className="mt-1 select-text">
         {Object.entries(properties).map(([key, prop]: [string, any]) => (
-          <Descriptions.Item
+          <McpDetailItem
             key={key}
             label={
               <Flex className="gap-1">
-                <Typography.Text strong>{key}</Typography.Text>
+                <span className="font-medium">{key}</span>
                 {required?.includes(key) && (
-                  <Tooltip title={t('common.required_field')}>
-                    <span style={{ color: '#f5222d' }}>*</span>
+                  <Tooltip content={t('common.required_field')}>
+                    <RequiredMark />
                   </Tooltip>
                 )}
               </Flex>
             }>
             {renderPropertyValue(prop, depth)}
-          </Descriptions.Item>
+          </McpDetailItem>
         ))}
-      </Descriptions>
+      </McpDetailList>
     )
   }
 
@@ -146,7 +143,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   const columns: ColumnDef<MCPTool>[] = [
     {
       id: 'name',
-      header: () => <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
+      header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
       meta: { width: 400, maxWidth: 400 },
       cell: ({ row }) => {
         const tool = row.original
@@ -154,18 +151,15 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
         return (
           <ColFlex className="gap-1">
             <Flex className="items-center gap-1">
-              <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
+              <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
                 {tool.name}
-              </Typography.Text>
+              </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
-              <Typography.Paragraph
-                type="secondary"
-                style={{ fontSize: '13px' }}
-                ellipsis={{ rows: 1, expandable: true }}>
-                {tool.description}
-              </Typography.Paragraph>
+              <Tooltip content={tool.description}>
+                <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
+              </Tooltip>
             )}
           </ColFlex>
         )
@@ -176,7 +170,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       header: () => (
         <Flex className="items-center justify-center gap-1">
           <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
-          <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
+          <span className="font-medium">{t('settings.mcp.tools.enable')}</span>
         </Flex>
       ),
       meta: { width: 150, maxWidth: 150, align: 'center' },
@@ -191,7 +185,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       header: () => (
         <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
-          <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
+          <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>
       ),
       meta: { width: 150, maxWidth: 150, align: 'center' },

@@ -1,7 +1,17 @@
-import { ColFlex, EmptyState, Flex, Tooltip } from '@cherrystudio/ui'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  ColFlex,
+  EmptyState,
+  Flex,
+  Tooltip
+} from '@cherrystudio/ui'
 import type { MCPPrompt } from '@renderer/types'
-import { Collapse, Descriptions, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
+
+import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
 interface MCPPromptsSectionProps {
   prompts: MCPPrompt[]
@@ -15,32 +25,30 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
     if (!prompt.arguments || prompt.arguments.length === 0) return null
 
     return (
-      <div style={{ marginTop: 12 }}>
-        <Typography.Title level={5}>{t('settings.mcp.tools.inputSchema.label')}:</Typography.Title>
-        <Descriptions bordered size="small" column={1} style={{ marginTop: 8 }}>
+      <div className="mt-3">
+        <h4 className="mb-2 font-medium text-foreground text-sm">{t('settings.mcp.tools.inputSchema.label')}:</h4>
+        <McpDetailList>
           {prompt.arguments.map((arg, index) => (
-            <Descriptions.Item
+            <McpDetailItem
               key={index}
               label={
                 <Flex className="gap-1">
-                  <Typography.Text strong>{arg.name}</Typography.Text>
+                  <span className="font-medium">{arg.name}</span>
                   {arg.required && (
                     <Tooltip content={t('common.required_field')}>
-                      <span style={{ color: '#f5222d' }}>*</span>
+                      <RequiredMark />
                     </Tooltip>
                   )}
                 </Flex>
               }>
               <ColFlex className="gap-1">
                 {arg.description && (
-                  <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
-                    {arg.description}
-                  </Typography.Paragraph>
+                  <p className="m-0 text-foreground-secondary text-sm leading-5">{arg.description}</p>
                 )}
               </ColFlex>
-            </Descriptions.Item>
+            </McpDetailItem>
           ))}
-        </Descriptions>
+        </McpDetailList>
       </div>
     )
   }
@@ -51,26 +59,23 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
         {t('settings.mcp.prompts.availablePrompts')}
       </h3>
       {prompts.length > 0 ? (
-        <Collapse bordered={false} ghost>
+        <Accordion type="multiple">
           {prompts.map((prompt) => (
-            <Collapse.Panel
-              key={prompt.id || prompt.name}
-              header={
-                <ColFlex className="items-start">
-                  <Flex className="w-full items-center">
-                    <Typography.Text strong>{prompt.name}</Typography.Text>
+            <AccordionItem key={prompt.id || prompt.name} value={prompt.id || prompt.name}>
+              <AccordionTrigger className="py-3">
+                <ColFlex className="min-w-0 items-start">
+                  <Flex className="w-full min-w-0 items-center">
+                    <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
                   </Flex>
                   {prompt.description && (
-                    <Typography.Text type="secondary" style={{ fontSize: '13px', marginTop: 4 }}>
-                      {prompt.description}
-                    </Typography.Text>
+                    <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>
                   )}
                 </ColFlex>
-              }>
-              <div className="select-text px-3">{renderPromptArguments(prompt)}</div>
-            </Collapse.Panel>
+              </AccordionTrigger>
+              <AccordionContent className="select-text px-3">{renderPromptArguments(prompt)}</AccordionContent>
+            </AccordionItem>
           ))}
-        </Collapse>
+        </Accordion>
       ) : (
         <EmptyState compact preset="no-result" description={t('settings.mcp.prompts.noPromptsAvailable')} />
       )}
