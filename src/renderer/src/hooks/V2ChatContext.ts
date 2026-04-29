@@ -58,17 +58,10 @@ export interface V2ChatOverrides {
    */
   forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
-   * Switch the topic's active node.
-   *
-   * - Default (`descend: false`) pins the exact `messageId`. The scroll
-   *   view truncates there; the user's next message becomes the new leaf
-   *   and the tree forks. This is the "分支" menu action — it stays inside
-   *   the current topic.
-   * - `descend: true` walks from `messageId` down to any leaf before
-   *   pinning, so the sibling navigator's branch-switch still shows the
-   *   full follow-up chain of the target branch.
+   * Pin `messageId` as the topic's active node. The scroll view truncates
+   * there; the user's next message becomes the new leaf and the tree forks.
    */
-  setActiveNode: (messageId: string, options?: { descend?: boolean }) => Promise<void>
+  setActiveNode: (messageId: string) => Promise<void>
   refresh: () => Promise<unknown>
 }
 

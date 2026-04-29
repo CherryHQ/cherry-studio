@@ -257,11 +257,11 @@ export function useV2ChatOverrides(params: Params): Result {
   )
 
   const handleSetActiveNode = useCallback<V2ChatOverrides['setActiveNode']>(
-    async (messageId, options) => {
+    async (messageId) => {
       try {
         await setActiveNodeTrigger({
           params: { id: topic.id },
-          body: { nodeId: messageId, ...(options?.descend !== undefined && { descend: options.descend }) }
+          body: { nodeId: messageId }
         })
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {

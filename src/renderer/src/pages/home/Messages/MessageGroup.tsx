@@ -103,14 +103,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       updateMessageUiState(message.id, { foldSelected: true })
       setSelectedMessageIdState(message.id)
 
-      // Switch the topic's active branch to this model's sibling, walking
-      // down to its deepest leaf so any descendants this sibling might have
-      // (a conversation continuation rooted on this model's previous
-      // response) become part of the rendered path. Without this, clicking
-      // the tab only flips local `selectedMessageId` — descendants stay
-      // off-path and the user-visible list truncates at this group.
       if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void v2Chat?.setActiveNode(message.id, { descend: true })
+        void v2Chat?.setActiveNode(message.id)
       }
 
       setTimeoutTimer(
