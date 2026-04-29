@@ -21,12 +21,13 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Modal, Popover, Slider } from 'antd'
+import { Modal, Popover } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingRow, SettingSubtitle } from '..'
+import ParameterSlider from './ParameterSlider'
 
 const AssistantSettings: FC = () => {
   const { defaultAssistant, updateDefaultAssistant } = useDefaultAssistant()
@@ -188,24 +189,14 @@ const AssistantSettings: FC = () => {
       </SettingRow>
       {enableTemperature && (
         <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3">
-          <Slider
+          <ParameterSlider
             min={0}
             max={2}
-            onChange={setTemperature}
-            onChangeComplete={onTemperatureChange}
             value={typeof temperature === 'number' ? temperature : 0}
             marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
             step={0.01}
-          />
-          <EditableNumber
-            min={0}
-            max={2}
-            step={0.01}
-            value={temperature}
-            onChange={onTemperatureChange}
-            size="small"
-            align="start"
-            className="w-full"
+            onChange={setTemperature}
+            onCommit={onTemperatureChange}
           />
         </div>
       )}
@@ -229,24 +220,14 @@ const AssistantSettings: FC = () => {
       </SettingRow>
       {enableTopP && (
         <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_96px] items-center gap-3">
-          <Slider
+          <ParameterSlider
             min={0}
             max={1}
-            onChange={setTopP}
-            onChangeComplete={onTopPChange}
             value={typeof topP === 'number' ? topP : 1}
             marks={{ 0: '0', 0.5: '0.5', 1: '1' }}
             step={0.01}
-          />
-          <EditableNumber
-            min={0}
-            max={1}
-            step={0.01}
-            value={topP}
-            onChange={onTopPChange}
-            size="small"
-            align="start"
-            className="w-full"
+            onChange={setTopP}
+            onCommit={onTopPChange}
           />
         </div>
       )}
@@ -259,24 +240,14 @@ const AssistantSettings: FC = () => {
         />
       </div>
       <div className="mt-[-5px] mb-[-10px] grid grid-cols-[minmax(0,1fr)_104px] items-center gap-5">
-        <Slider
+        <ParameterSlider
           min={0}
           max={20}
           marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
-          onChange={setContextCount}
-          onChangeComplete={onContextCountChange}
           value={typeof contextCount === 'number' ? contextCount : 0}
           step={1}
-        />
-        <EditableNumber
-          min={0}
-          max={20}
-          step={1}
-          value={contextCount}
-          onChange={onContextCountChange}
-          size="small"
-          align="start"
-          className="w-full"
+          onChange={setContextCount}
+          onCommit={onContextCountChange}
         />
       </div>
       <Divider style={{ margin: '2px 0' }} />

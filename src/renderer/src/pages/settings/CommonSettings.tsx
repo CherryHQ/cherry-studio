@@ -7,6 +7,7 @@ import {
   MenuItem,
   MenuList,
   RowFlex,
+  SegmentedControl,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -30,7 +31,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { ColorPicker, Segmented, Select } from 'antd'
+import { Select } from 'antd'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -46,6 +47,7 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from './shared/menuStyles'
+import ThemeColorPicker from './shared/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
@@ -63,28 +65,6 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
-
-const ColorCircleWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('relative flex h-6 w-6 items-center justify-center', className)} {...props} />
-)
-
-const ColorCircle = ({
-  color,
-  isActive,
-  className,
-  style,
-  ...props
-}: React.ComponentPropsWithoutRef<'div'> & { color: string; isActive?: boolean }) => (
-  <div
-    className={cn(
-      '-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 h-5 w-5 cursor-pointer rounded-full border-2 transition-opacity hover:opacity-80',
-      isActive ? 'border-border' : 'border-transparent',
-      className
-    )}
-    style={{ backgroundColor: color, ...style }}
-    {...props}
-  />
-)
 
 const CommonSettings: FC = () => {
   const { t } = useTranslation()
@@ -431,33 +411,12 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <RowFlex className="items-center gap-3">
-            <RowFlex className="gap-3">
-              {THEME_COLOR_PRESETS.map((color) => (
-                <ColorCircleWrapper key={color}>
-                  <ColorCircle
-                    color={color}
-                    isActive={userTheme.colorPrimary === color}
-                    onClick={() => handleColorPrimaryChange(color)}
-                  />
-                </ColorCircleWrapper>
-              ))}
-            </RowFlex>
-            <ColorPicker
-              style={{ fontFamily: 'inherit' }}
-              className="color-picker"
-              value={userTheme.colorPrimary}
-              onChange={(color) => handleColorPrimaryChange(color.toHexString())}
-              showText
-              size="small"
-              presets={[
-                {
-                  label: 'Presets',
-                  colors: THEME_COLOR_PRESETS
-                }
-              ]}
-            />
-          </RowFlex>
+          <ThemeColorPicker
+            value={userTheme.colorPrimary}
+            presets={THEME_COLOR_PRESETS}
+            onChange={handleColorPrimaryChange}
+            ariaLabel={t('settings.theme.color_primary')}
+          />
         </SettingRow>
         {isMac && (
           <>
@@ -565,10 +524,9 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
-          <Segmented
+          <SegmentedControl
             value={assistantIconType}
-            shape="round"
-            onChange={(value) => setAssistantIconType(value as AssistantIconType)}
+            onValueChange={(value) => setAssistantIconType(value as AssistantIconType)}
             options={assistantIconTypeOptions}
           />
         </SettingRow>
@@ -579,10 +537,9 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
-          <Segmented
+          <SegmentedControl
             value={topicPosition || 'right'}
-            shape="round"
-            onChange={setTopicPosition}
+            onValueChange={setTopicPosition}
             options={[
               { value: 'left', label: t('settings.topic.position.left') },
               { value: 'right', label: t('settings.topic.position.right') }
