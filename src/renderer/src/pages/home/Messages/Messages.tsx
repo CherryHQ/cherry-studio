@@ -11,15 +11,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getContextCount, getGroupedMessages } from '@renderer/services/MessagesService'
-import { estimateHistoryTokens } from '@renderer/services/TokenService'
+import { getGroupedMessages } from '@renderer/services/MessagesService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
-  removeSpecialCharactersForFileName,
-  runAsyncFunction
+  removeSpecialCharactersForFileName
 } from '@renderer/utils'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -184,12 +182,7 @@ const Messages: React.FC<MessagesProps> = ({
 
   useEffect(() => {
     if (!assistant) return
-    void runAsyncFunction(async () => {
-      void EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
-        tokensCount: await estimateHistoryTokens(assistant, messages),
-        contextCount: getContextCount(assistant, messages)
-      })
-    }).then(() => onFirstUpdate?.())
+    onFirstUpdate?.()
   }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {

@@ -15,10 +15,10 @@ import { routeToEndpoint } from '@renderer/utils'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
 import { formatProviderApiHost } from '@renderer/utils/providerHost'
+import { estimateTokenCount } from 'tokenx'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
-import { estimateTextTokens } from './TokenService'
 
 const logger = loggerService.withContext('RendererKnowledgeService')
 
@@ -143,7 +143,7 @@ export const searchKnowledgeBase = async (
   // Truncate query based on embedding model's max_context to prevent embedding errors
   const maxContext = getEmbeddingMaxContext(base.model.id)
   if (maxContext) {
-    const estimatedTokens = estimateTextTokens(query)
+    const estimatedTokens = estimateTokenCount(query)
     if (estimatedTokens > maxContext) {
       const ratio = maxContext / estimatedTokens
       query = query.slice(0, Math.floor(query.length * ratio))

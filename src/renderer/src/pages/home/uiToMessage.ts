@@ -85,6 +85,7 @@ export function uiToMessage(uiMsg: CherryUIMessage, ctx: UiToMessageContext): Me
     siblingsGroupId: meta.siblingsGroupId,
     status: projectStatus(uiMsg.role, meta.status),
     ...(meta.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
-    blocks: []
+    blocks: [],
+    parts: uiMsg.parts ?? []
   }
 }

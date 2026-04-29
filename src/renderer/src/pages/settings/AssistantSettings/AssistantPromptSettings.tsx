@@ -18,7 +18,6 @@ import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useModelById } from '@renderer/hooks/useModels'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -28,6 +27,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
+import { estimateTokenCount } from 'tokenx'
 
 import { SettingDivider } from '..'
 
@@ -50,7 +50,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const editorRef = useRef<RichEditorRef>(null)
 
   useEffect(() => {
-    setTokenCount(estimateTextTokens(prompt))
+    setTokenCount(estimateTokenCount(prompt))
   }, [prompt])
 
   const { model } = useModelById(assistant.modelId as UniqueModelId)

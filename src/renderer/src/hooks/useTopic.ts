@@ -3,8 +3,6 @@ import { dataApiService } from '@data/DataApiService'
 import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopicDataApi'
 import { fetchMessagesFromDataApi } from '@renderer/services/db/DataApiMessageDataSource'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
-import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import type { Message, Topic } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -123,17 +121,15 @@ export const finishTopicRenaming = (topicId: string) => {
 /**
  * Load and return all messages for a topic.
  *
- * Fetches directly from DataApi (SQLite) and hydrates the renderer's
- * message-blocks Redux slice so downstream `findAllBlocks` /
- * `getMainTextContent` keep working without extra wiring.
+ * Fetches directly from DataApi (SQLite). Each returned `Message` carries
+ * its `parts` (V2 source-of-truth), so `find.ts` / `filters.ts` utils
+ * resolve content from `message.parts` without touching the renderer's
+ * legacy `messageBlocks` Redux slice.
  *
  * Used by one-off consumers (export, knowledge analysis, topic rename
  * pre-check). The main chat UI reads messages via `useTopicMessagesV2`.
  */
 export async function getTopicMessages(id: string): Promise<Message[]> {
-  const { messages, blocks } = await fetchMessagesFromDataApi(id)
-  if (blocks.length > 0) {
-    store.dispatch(upsertManyBlocks(blocks))
-  }
+  const { messages } = await fetchMessagesFromDataApi(id)
   return messages
 }

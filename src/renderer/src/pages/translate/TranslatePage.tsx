@@ -17,7 +17,6 @@ import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 // import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
@@ -51,6 +50,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { estimateTokenCount } from 'tokenx'
 
 import TranslateHistoryList from './TranslateHistory'
 import TranslateSettings from './TranslateSettings'
@@ -488,7 +488,7 @@ const TranslatePage: FC = () => {
   )
 
   // 控制token估计
-  const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
+  const tokenCount = useMemo(() => estimateTokenCount(text + prompt), [prompt, text])
 
   const readFile = useCallback(
     async (file: FileMetadata) => {

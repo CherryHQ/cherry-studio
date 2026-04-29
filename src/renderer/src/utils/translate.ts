@@ -4,7 +4,6 @@ import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/trans
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { readQuickModel } from '@renderer/services/ModelService'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
@@ -12,7 +11,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { franc } from 'franc-min'
 import type { RefObject } from 'react'
 import React from 'react'
-import { sliceByTokens } from 'tokenx'
+import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('Utils:translate')
 
@@ -34,7 +33,7 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
   switch (method) {
     case 'auto':
       // hard encoded threshold
-      if (estimateTextTokens(text) < 100) {
+      if (estimateTokenCount(text) < 100) {
         result = await detectLanguageByLLM(text)
       } else {
         result = detectLanguageByFranc(text)

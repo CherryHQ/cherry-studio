@@ -21,13 +21,11 @@ import {
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { type FileMetadata, type KnowledgeBase, type Model, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { debounce } from 'lodash'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +35,6 @@ import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
-import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -145,11 +142,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   const { createTopic } = useTopicMutations()
   const v1Model = useMemo(() => (model ? fromSharedModel(model) : undefined), [model])
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
-  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
-  const [estimateTokenCount, setEstimateTokenCount] = useState(0)
-  const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
 
   const { t } = useTranslation()
   const v2Chat = useV2Chat()
@@ -257,18 +251,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     }
   }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
 
-  const tokenCountProps = useMemo(() => {
-    if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
-      return undefined
-    }
-
-    return {
-      estimateTokenCount,
-      inputTokenCount: estimateTokenCount,
-      contextCount
-    }
-  }, [config.showTokenCount, contextCount, estimateTokenCount, showInputEstimatedTokens])
-
   const onPause = useCallback(() => {
     v2Chat?.pause()
   }, [v2Chat])
@@ -351,31 +333,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   })
 
   useEffect(() => {
-    const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
-        _setEstimateTokenCount(tokensCount)
-        setContextCount({ current: contextCount.current, max: contextCount.max })
-      }),
-      ...[EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
-    ]
-
+    const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
     return () => {
       unsubscribes.forEach((unsubscribe) => unsubscribe())
     }
   }, [addNewTopic])
-
-  useEffect(() => {
-    const debouncedEstimate = debounce((value: string) => {
-      if (showInputEstimatedTokens) {
-        const count = estimateTxtTokens(value) || 0
-        setEstimateTokenCount(count)
-      }
-    }, 500)
-
-    debouncedEstimate(text)
-    return () => debouncedEstimate.cancel()
-  }, [showInputEstimatedTokens, text])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
@@ -425,20 +387,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       <InputbarTools scope={scope} assistant={assistant} model={v1Model} />
     ) : null
 
-  // rightToolbar: 右侧工具栏
-  const rightToolbar = (
-    <>
-      {tokenCountProps && (
-        <TokenCount
-          estimateTokenCount={tokenCountProps.estimateTokenCount}
-          inputTokenCount={tokenCountProps.inputTokenCount}
-          contextCount={tokenCountProps.contextCount}
-          onClick={onNewContext}
-        />
-      )}
-    </>
-  )
-
   return (
     <InputbarCore
       scope={scope}
@@ -455,7 +403,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       onPause={onPause}
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
-      rightToolbar={rightToolbar}
       primaryActionMode={loading ? 'pause' : 'send'}
       topContent={topContent}
     />

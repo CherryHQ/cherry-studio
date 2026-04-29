@@ -34,10 +34,6 @@ vi.mock('@renderer/store', () => ({
   default: mocks.store
 }))
 
-vi.mock('@renderer/store/messageBlock', () => ({
-  messageBlocksSelectors: mocks.messageBlocksSelectors
-}))
-
 vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))

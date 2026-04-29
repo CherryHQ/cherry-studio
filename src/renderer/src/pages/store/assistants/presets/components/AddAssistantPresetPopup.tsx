@@ -8,7 +8,6 @@ import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useDefaultModel } from '@renderer/hooks/useModels'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
 import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
@@ -20,6 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import stringWidth from 'string-width'
 import styled from 'styled-components'
+import { estimateTokenCount } from 'tokenx'
 
 interface Props {
   resolve: (data: AssistantPreset | null) => void
@@ -61,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   useEffect(() => {
     const prompt = formRef.current?.getFieldValue('prompt')
-    setTokenCount(prompt ? estimateTextTokens(prompt) : 0)
+    setTokenCount(prompt ? estimateTokenCount(prompt) : 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('prompt')])
 
@@ -180,7 +180,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         onFinish={onFinish}
         onValuesChange={(changedValues) => {
           if (changedValues.prompt) {
-            const count = estimateTextTokens(changedValues.prompt)
+            const count = estimateTokenCount(changedValues.prompt)
             setTokenCount(count)
             setShowUndoButton(false)
           }

@@ -12,12 +12,10 @@ import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages, locateToMessage } from '@renderer/services/MessagesService'
-import { useAppSelector } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { classNames, runAsyncFunction } from '@renderer/utils'
-import { blocksToParts } from '@renderer/utils/blocksToparts'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { Divider, Empty } from 'antd'
 import { t } from 'i18next'
@@ -36,7 +34,6 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
   const [messageStyle] = usePreference('chat.message.style')
   const { setTimeoutTimer } = useTimer()
-  const blockEntities = useAppSelector(messageBlocksSelectors.selectEntities)
 
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
 
@@ -57,21 +54,13 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   }, [topic?.messages])
 
   const partsMap = useMemo(() => {
-    const map: Record<string, ReturnType<typeof blocksToParts>> = {}
-
+    const map: Record<string, CherryMessagePart[]> = {}
     for (const message of topic?.messages || []) {
-      const blocks = message.blocks
-        .map((blockId) => blockEntities[blockId])
-        .filter((block): block is MessageBlock => Boolean(block))
-      const parts = blocksToParts(blocks)
-
-      if (parts.length > 0) {
-        map[message.id] = parts
-      }
+      const parts = message.parts ?? []
+      if (parts.length > 0) map[message.id] = parts
     }
-
     return map
-  }, [blockEntities, topic?.messages])
+  }, [topic?.messages])
 
   if (!topic) {
     return null

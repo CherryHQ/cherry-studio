@@ -1,5 +1,6 @@
 //TODO [v2] 类型将转移至 packages/shared/data/types/message.ts。 转移后此文件将废弃(deprecated)
 
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ProviderMetadata } from 'ai'
 
 import type {
@@ -209,8 +210,10 @@ export type Message = {
   multiModelMessageStyle?: 'horizontal' | 'vertical' | 'fold' | 'grid'
   foldSelected?: boolean
 
-  // 块集合
+  // 块集合 (v1 — 仅 v1 路径填充，v2 全靠 parts)
   blocks: MessageBlock['id'][]
+
+  parts?: CherryMessagePart[]
 
   // 跟踪Id
   traceId?: string

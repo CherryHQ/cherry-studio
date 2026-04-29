@@ -2,7 +2,6 @@ import { Button, SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { UpdateAgentBaseForm } from '@renderer/types'
 import { Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
@@ -10,6 +9,7 @@ import { type FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
+import { estimateTokenCount } from 'tokenx'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
 
@@ -21,7 +21,7 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
 
   useEffect(() => {
     const updateTokenCount = async () => {
-      const count = estimateTextTokens(instructions)
+      const count = estimateTokenCount(instructions)
       setTokenCount(count)
     }
     void updateTokenCount()

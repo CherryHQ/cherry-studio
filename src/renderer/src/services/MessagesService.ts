@@ -1,15 +1,12 @@
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
-import type { Assistant } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTitleFromString } from '@renderer/utils/export'
 import { resetMessage } from '@renderer/utils/messageUtils/create'
-import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
@@ -21,18 +18,6 @@ import { EVENT_NAMES, EventEmitter } from './EventService'
 const logger = loggerService.withContext('MessagesService')
 
 export { getGroupedMessages } from '@renderer/utils/messageUtils/filters'
-
-export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const settingContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const actualContextCount = settingContextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : settingContextCount
-
-  const contextMsgs = filterContextMessages(messages, actualContextCount)
-
-  return {
-    current: contextMsgs.length,
-    max: settingContextCount
-  }
-}
 
 export async function locateToMessage(navigate: UseNavigateResult<string>, message: Message) {
   SearchPopup.hide()

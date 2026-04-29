@@ -1,4 +1,3 @@
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   },
   getCodeBlockId: vi.fn(),
   isOpenFenceBlock: vi.fn(),
-  selectById: vi.fn(),
   useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
@@ -45,12 +43,6 @@ vi.mock('@renderer/utils/markdown', () => ({
 vi.mock('@renderer/store', () => ({
   default: {
     getState: vi.fn(() => ({})) // Mock store, state doesn't matter here
-  }
-}))
-
-vi.mock('@renderer/store/messageBlock', () => ({
-  messageBlocksSelectors: {
-    selectById: mocks.selectById
   }
 }))
 
@@ -92,10 +84,6 @@ describe('CodeBlock', () => {
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isOpenFenceBlock.mockReturnValue(false)
-    mocks.selectById.mockReturnValue({
-      id: 'test-msg-block-id',
-      status: MessageBlockStatus.SUCCESS
-    })
   })
 
   describe('rendering', () => {

@@ -1,5 +1,12 @@
-import store from '@renderer/store'
-import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/store/messageBlock'
+/**
+ * `Message` content readers.
+ *
+ * Synthesise V1-shaped `MessageBlock`s from `Message.parts` so block-shape
+ * consumers (export, knowledge analysis, etc.) keep their signatures. Pure
+ * — no Redux, no DataApi. The parameter `BlockEntities` is retained for
+ * call-site compatibility but is no longer consulted: the v1 message-blocks
+ * Redux slice is gone, parts are the single source of truth.
+ */
 import type { FileMetadata } from '@renderer/types'
 import type {
   CitationMessageBlock,
@@ -10,194 +17,211 @@ import type {
   MessageBlock,
   ThinkingMessageBlock
 } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
 
-/**
- * Block entity lookup map — either from V2BlockContext or Redux.
- * When callers pass this, Redux is bypassed entirely.
- */
+// Retained as a no-op signature alias so existing call sites don't have to
+// drop their second argument when the v1 Redux-backed lookup goes away.
 type BlockEntities = Record<string, MessageBlock | undefined>
 
-/**
- * Resolve block entities: use the provided map if available, otherwise fall back to Redux.
- */
-function resolveBlockEntities(entities?: BlockEntities): BlockEntities {
-  if (entities) return entities
-  const state = store.getState()
-  return messageBlocksSelectors.selectEntities(state)
+function syntheticBase(
+  messageId: string,
+  index: number
+): Pick<MessageBlock, 'id' | 'messageId' | 'createdAt' | 'status'> {
+  return {
+    id: `${messageId}-part-${index}`,
+    messageId,
+    createdAt: '',
+    status: MessageBlockStatus.SUCCESS
+  }
 }
 
-export const findAllBlocks = (message: Message, blockEntities?: BlockEntities): MessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
+function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
+  if ('providerMetadata' in part && part.providerMetadata) {
+    return (part.providerMetadata as { cherry?: CherryProviderMetadata }).cherry
   }
-  const entities = resolveBlockEntities(blockEntities)
-  const allBlocks: MessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block) {
-      allBlocks.push(block)
+  return undefined
+}
+
+function getParts(message: Message): CherryMessagePart[] {
+  return message.parts ?? []
+}
+
+// ── Public API ───────────────────────────────────────────────────────
+
+export const findAllBlocks = (message: Message): MessageBlock[] => {
+  const parts = getParts(message)
+  if (parts.length === 0) return []
+  const out: MessageBlock[] = []
+  parts.forEach((part, i) => {
+    const base = syntheticBase(message.id, i)
+    const partType = part.type as string
+    switch (partType) {
+      case 'text':
+        out.push({
+          ...base,
+          type: MessageBlockType.MAIN_TEXT,
+          content: (part as { text?: string }).text ?? ''
+        } as MainTextMessageBlock)
+        break
+      case 'reasoning':
+        out.push({
+          ...base,
+          type: MessageBlockType.THINKING,
+          content: (part as { text?: string }).text ?? '',
+          thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+        } as ThinkingMessageBlock)
+        break
+      case 'file': {
+        const filePart = part as { mediaType?: string; url?: string; filename?: string }
+        if (filePart.mediaType?.startsWith('image/')) {
+          out.push({
+            ...base,
+            type: MessageBlockType.IMAGE,
+            url: filePart.url,
+            file: filePart.url
+              ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
+              : undefined
+          } as ImageMessageBlock)
+        } else if (filePart.url) {
+          out.push({
+            ...base,
+            type: MessageBlockType.FILE,
+            file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
+          } as FileMessageBlock)
+        }
+        break
+      }
+      default:
+        if (partType.startsWith('tool-') || partType === 'dynamic-tool') {
+          out.push({
+            ...base,
+            type: MessageBlockType.TOOL,
+            toolId: (part as { toolCallId?: string }).toolCallId ?? base.id
+          } as MessageBlock)
+        }
+        break
     }
-  }
-  return allBlocks
+  })
+  return out
 }
 
-/**
- * Finds all MainTextMessageBlocks associated with a given message, in order.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of MainTextMessageBlocks (empty if none found).
- */
-export const findMainTextBlocks = (message: Message, blockEntities?: BlockEntities): MainTextMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const textBlocks: MainTextMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.MAIN_TEXT) {
-      textBlocks.push(block)
-    }
-  }
-  return textBlocks
+export const findMainTextBlocks = (message: Message, _blockEntities?: BlockEntities): MainTextMessageBlock[] => {
+  const out: MainTextMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'text') return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.MAIN_TEXT,
+      content: part.text ?? ''
+    })
+  })
+  return out
 }
 
-/**
- * Finds all ThinkingMessageBlocks associated with a given message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of ThinkingMessageBlocks (empty if none found).
- */
-export const findThinkingBlocks = (message: Message, blockEntities?: BlockEntities): ThinkingMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const thinkingBlocks: ThinkingMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.THINKING) {
-      thinkingBlocks.push(block)
-    }
-  }
-  return thinkingBlocks
+export const findThinkingBlocks = (message: Message, _blockEntities?: BlockEntities): ThinkingMessageBlock[] => {
+  const out: ThinkingMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'reasoning') return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.THINKING,
+      content: part.text ?? '',
+      thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+    })
+  })
+  return out
 }
 
-/**
- * Finds all ImageMessageBlocks associated with a given message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of ImageMessageBlocks (empty if none found).
- */
-export const findImageBlocks = (message: Message, blockEntities?: BlockEntities): ImageMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const imageBlocks: ImageMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.IMAGE) {
-      imageBlocks.push(block)
-    }
-  }
-  return imageBlocks
+export const findImageBlocks = (message: Message): ImageMessageBlock[] => {
+  const out: ImageMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'file') return
+    const filePart = part as { mediaType?: string; url?: string; filename?: string }
+    if (!filePart.mediaType?.startsWith('image/')) return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.IMAGE,
+      url: filePart.url,
+      file: filePart.url
+        ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
+        : undefined
+    })
+  })
+  return out
 }
 
-/**
- * Finds all FileMessageBlocks associated with a given message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns An array of FileMessageBlocks (empty if none found).
- */
-export const findFileBlocks = (message: Message, blockEntities?: BlockEntities): FileMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const fileBlocks: FileMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.FILE) {
-      fileBlocks.push(block)
-    }
-  }
-  return fileBlocks
+export const findFileBlocks = (message: Message): FileMessageBlock[] => {
+  const out: FileMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'file') return
+    const filePart = part as { mediaType?: string; url?: string; filename?: string }
+    if (filePart.mediaType?.startsWith('image/')) return
+    if (!filePart.url) return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.FILE,
+      file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
+    })
+  })
+  return out
 }
 
-/**
- * Gets the concatenated content string from all MainTextMessageBlocks of a message, in order.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns The concatenated content string or an empty string if no text blocks are found.
- */
-export const getMainTextContent = (message: Message, blockEntities?: BlockEntities): string => {
-  const textBlocks = findMainTextBlocks(message, blockEntities)
-  return textBlocks.map((block) => block.content).join('\n\n')
-}
-
-/**
- * Gets the concatenated content string from all ThinkingMessageBlocks of a message, in order.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns The concatenated content string or an empty string if no thinking blocks are found.
- */
-export const getThinkingContent = (message: Message, blockEntities?: BlockEntities): string => {
-  const thinkingBlocks = findThinkingBlocks(message, blockEntities)
-  return thinkingBlocks.map((block) => block.content).join('\n\n')
-}
-
-/**
- * Finds all CitationBlocks associated with a given message.
- * Internal helper for {@link getCitationContent}.
- */
-const findCitationBlocks = (message: Message, blockEntities?: BlockEntities): CitationMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const entities = resolveBlockEntities(blockEntities)
-  const citationBlocks: CitationMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = entities[blockId]
-    if (block && block.type === MessageBlockType.CITATION) {
-      citationBlocks.push(block)
-    }
-  }
-  return citationBlocks
-}
-
-export const getCitationContent = (message: Message, blockEntities?: BlockEntities): string => {
-  const citationBlocks = findCitationBlocks(message, blockEntities)
-  return citationBlocks
-    .map((block) => formatCitationsFromBlock(block))
-    .flat()
-    .map(
-      (citation) =>
-        `[${citation.number}] [${citation.title || citation.url.slice(0, 1999)}](${citation.url.slice(0, 1999)})`
-    )
+export const getMainTextContent = (message: Message): string => {
+  return getParts(message)
+    .filter((p): p is Extract<CherryMessagePart, { type: 'text' }> => p.type === 'text')
+    .map((p) => p.text ?? '')
+    .filter((t) => t.trim().length > 0)
     .join('\n\n')
 }
 
-/**
- * Gets the file content from all FileMessageBlocks and ImageMessageBlocks of a message.
- * @param message - The message object.
- * @param blockEntities - Optional pre-resolved block map (V2 mode). Falls back to Redux.
- * @returns The file content or an empty string if no file blocks are found.
- */
-export const getFileContent = (message: Message, blockEntities?: BlockEntities): FileMetadata[] => {
-  const files: FileMetadata[] = []
-  const fileBlocks = findFileBlocks(message, blockEntities)
-  for (const block of fileBlocks) {
-    if (block.file) {
-      files.push(block.file)
+export const getThinkingContent = (message: Message, _blockEntities?: BlockEntities): string => {
+  return getParts(message)
+    .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
+    .map((p) => p.text ?? '')
+    .filter((t) => t.trim().length > 0)
+    .join('\n\n')
+}
+
+export const getCitationContent = (message: Message, _blockEntities?: BlockEntities): string => {
+  // V2 stores citations on text parts via `providerMetadata.cherry.references`
+  // (not as separate `data-citation` parts). Walk text parts and format each
+  // citation-category reference into `[N] [title](url)` — same shape v1's
+  // `formatCitationsFromBlock` produced. Non-web reference categories are
+  // dropped just like the v1 path did.
+  const lines: string[] = []
+  for (const part of getParts(message)) {
+    if (part.type !== 'text') continue
+    const refs = (getCherryMeta(part)?.references ?? []) as Array<{
+      category?: string
+      number?: number
+      title?: string
+      url?: string
+    }>
+    for (const ref of refs) {
+      if (ref.category !== 'citation') continue
+      if (!ref.url) continue
+      const number = ref.number ?? lines.length + 1
+      const title = ref.title || ref.url.slice(0, 1999)
+      lines.push(`[${number}] [${title}](${ref.url.slice(0, 1999)})`)
     }
   }
-  const imageBlocks = findImageBlocks(message, blockEntities)
-  for (const block of imageBlocks) {
-    if (block.file) {
-      files.push(block.file)
-    }
+  return lines.join('\n\n')
+}
+
+export const getFileContent = (message: Message, _blockEntities?: BlockEntities): FileMetadata[] => {
+  const files: FileMetadata[] = []
+  for (const block of findFileBlocks(message)) {
+    if (block.file) files.push(block.file)
+  }
+  for (const block of findImageBlocks(message)) {
+    if (block.file) files.push(block.file)
   }
   return files
 }
+
+// `findCitationBlocks` from the v1 path is no longer exposed — V2 has no
+// standalone citation blocks; consumers wanting the formatted text should
+// call `getCitationContent` directly.
+export type { CitationMessageBlock }
