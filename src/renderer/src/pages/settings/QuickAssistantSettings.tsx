@@ -166,7 +166,7 @@ const QuickAssistantSettings: FC = () => {
                       <Command>
                         <CommandInput placeholder={t('settings.models.quick_assistant_selection')} />
                         <CommandList>
-                          <CommandEmpty>{t('common.noData')}</CommandEmpty>
+                          <CommandEmpty>{t('common.no_results')}</CommandEmpty>
                           <CommandGroup>
                             {assistantOptions.map((assistant) => (
                               <CommandItem

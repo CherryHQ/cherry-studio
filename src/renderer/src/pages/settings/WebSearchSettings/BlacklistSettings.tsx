@@ -272,7 +272,7 @@ const BlacklistSettings: FC = () => {
             data={dataSource}
             columns={columns}
             rowKey="key"
-            emptyText={t('common.noData')}
+            emptyText={t('common.no_results')}
             selection={{
               type: 'multiple',
               selectedRowKeys,

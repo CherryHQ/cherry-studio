@@ -93,7 +93,7 @@ const TaskChannelSelector: FC<{
           }}
           placeholder={t('agent.cherryClaw.tasks.channels.placeholder')}
           searchPlaceholder={t('agent.cherryClaw.tasks.channels.placeholder')}
-          emptyText={t('common.noData')}
+          emptyText={t('common.no_results')}
           options={channels.map((ch) => ({
             value: ch.id,
             label: ch.name,
