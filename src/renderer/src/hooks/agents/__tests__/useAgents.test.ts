@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import { useMutation } from '@data/hooks/useDataApi'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -70,7 +69,7 @@ describe('useAgents', () => {
     it('calls createTrigger and shows success toast', async () => {
       const mockAgent = { id: 'new-agent', name: 'New Agent', model: 'claude-3' }
       const mockTrigger = vi.fn().mockResolvedValue(mockAgent)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
@@ -94,7 +93,7 @@ describe('useAgents', () => {
     it('returns failure result when createTrigger throws', async () => {
       const error = new Error('Create failed')
       const mockTrigger = vi.fn().mockRejectedValue(error)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
@@ -116,7 +115,7 @@ describe('useAgents', () => {
   describe('deleteAgent', () => {
     it('calls deleteTrigger and updates cache', async () => {
       const mockTrigger = vi.fn().mockResolvedValue(undefined)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', {
         data: {
           items: [
@@ -138,7 +137,7 @@ describe('useAgents', () => {
 
     it('shows error toast when deleteTrigger throws', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('Delete failed'))
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
@@ -156,7 +155,6 @@ describe('useAgents', () => {
         reorderAgents,
         reorderSessions: vi.fn().mockResolvedValue(undefined)
       })
-      vi.mocked(useMutation).mockReturnValue({ trigger: vi.fn(), isLoading: false, error: undefined })
       MockUseDataApiUtils.mockQueryResult('/agents', {
         data: { items: [], total: 0, page: 1 } as any,
         refetch: mockRefetch

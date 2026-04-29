@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import { useMutation } from '@data/hooks/useDataApi'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
@@ -44,7 +43,7 @@ describe('useUpdateAgent', () => {
         updatedAt: '2024-01-01T00:00:00Z'
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }))
@@ -72,7 +71,7 @@ describe('useUpdateAgent', () => {
         updatedAt: '2024-01-01T00:00:00Z'
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
       vi.spyOn(cacheService, 'get').mockReturnValue({ 'agent-1': 'session-123' } as any)
 
       const { result } = renderHook(() => useUpdateAgent())
@@ -94,7 +93,7 @@ describe('useUpdateAgent', () => {
         updatedAt: ''
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }, { showSuccessToast: false }))
@@ -104,7 +103,7 @@ describe('useUpdateAgent', () => {
 
     it('shows error toast and returns undefined on failure', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Fail' }))
@@ -127,7 +126,7 @@ describe('useUpdateAgent', () => {
         createdAt: '',
         updatedAt: ''
       })
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateModel('agent-1', 'new-model'))

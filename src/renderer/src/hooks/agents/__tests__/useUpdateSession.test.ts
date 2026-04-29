@@ -1,4 +1,3 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,8 +23,6 @@ describe('useUpdateSession', () => {
   })
 
   it('returns undefined when agentId is null', async () => {
-    vi.mocked(useMutation).mockReturnValue({ trigger: vi.fn(), isLoading: false, error: undefined })
-
     const { result } = renderHook(() => useUpdateSession(null))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))
 
@@ -46,7 +43,7 @@ describe('useUpdateSession', () => {
       updatedAt: '2024-01-01T00:00:00Z'
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1', model: 'claude-3' }))
@@ -75,7 +72,7 @@ describe('useUpdateSession', () => {
       updatedAt: ''
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
@@ -85,7 +82,7 @@ describe('useUpdateSession', () => {
 
   it('shows error toast and returns undefined on failure', async () => {
     const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-    vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))
@@ -109,7 +106,7 @@ describe('useUpdateSession', () => {
         updatedAt: ''
       }
       const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-      vi.mocked(useMutation).mockReturnValue({ trigger: mockTrigger, isLoading: false, error: undefined })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId/sessions/:sessionId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateSession('agent-1'))
       await act(async () => result.current.updateModel('session-1', 'new-model'))

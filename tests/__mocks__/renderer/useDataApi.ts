@@ -563,6 +563,41 @@ export const MockUseDataApiUtils = {
   },
 
   /**
+   * Set up useMutation to use a caller-provided trigger function.
+   *
+   * Unlike `mockMutationSuccess`/`mockMutationError` (which create an internal
+   * trigger), this variant lets the test supply its own `vi.fn()` so it can
+   * assert on call arguments and control resolve/reject behavior.
+   *
+   * @example
+   * const mockTrigger = vi.fn().mockResolvedValue({ id: '1', name: 'New' })
+   * MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
+   * // ...render hook, exercise mutation...
+   * expect(mockTrigger).toHaveBeenCalledWith({ body: { name: 'New' } })
+   */
+  mockMutationWithTrigger: <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+    method: TMethod,
+    path: TPath,
+    trigger: ReturnType<typeof vi.fn>,
+    options?: { isLoading?: boolean; error?: Error }
+  ) => {
+    mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
+      if (mutationPath === path && mutationMethod === method) {
+        return {
+          trigger,
+          isLoading: options?.isLoading ?? false,
+          error: options?.error
+        }
+      }
+      return {
+        trigger: vi.fn().mockResolvedValue({ success: true }),
+        isLoading: false,
+        error: undefined
+      }
+    })
+  },
+
+  /**
    * Set up usePaginatedQuery to return specific items
    */
   mockPaginatedData: <TPath extends ApiPath>(
