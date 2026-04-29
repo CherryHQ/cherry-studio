@@ -318,6 +318,39 @@ describe('ResourceSelectorShell', () => {
       expect(onEditItem).toHaveBeenCalledTimes(1)
       expect(onChange).not.toHaveBeenCalled()
     })
+
+    it('renders a custom item action slot without triggering row select', () => {
+      const onEditItem = vi.fn()
+      const onChange = vi.fn()
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onEditItem={onEditItem}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={onChange}
+          renderItemAction={({ item, buttonProps }) => (
+            <button {...buttonProps} data-testid={`action-${item.id}`}>
+              Configure {item.name}
+            </button>
+          )}
+        />
+      )
+      openPopover()
+
+      const customAction = screen.getByTestId('action-1')
+      expect(customAction).toHaveTextContent('Configure Alpha')
+
+      fireEvent.click(customAction)
+
+      expect(onEditItem).toHaveBeenCalledTimes(1)
+      expect(onEditItem).toHaveBeenCalledWith('1')
+      expect(onChange).not.toHaveBeenCalled()
+    })
   })
 
   describe('disabled rows', () => {

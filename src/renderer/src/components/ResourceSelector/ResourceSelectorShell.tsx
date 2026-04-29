@@ -13,7 +13,17 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
+import {
+  type ButtonHTMLAttributes,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState
+} from 'react'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -43,6 +53,14 @@ export type ResourceSelectorShellLabels = {
   pinnedTitle: string
 }
 
+export type ResourceSelectorShellItemActionSlotProps<T extends ResourceSelectorShellItem> = {
+  item: T
+  buttonProps: ButtonHTMLAttributes<HTMLButtonElement> & {
+    type: 'button'
+    'aria-label': string
+  }
+}
+
 type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   trigger: ReactElement
   open?: boolean
@@ -68,6 +86,8 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   isPinActionDisabled?: boolean
 
   onEditItem: (id: string) => void
+  /** Optional trailing action button slot for row-level configuration/edit affordances. */
+  renderItemAction?: (props: ResourceSelectorShellItemActionSlotProps<T>) => ReactNode
   onCreateNew: () => void
 
   labels: ResourceSelectorShellLabels
@@ -155,6 +175,9 @@ const SORT_ICON_DEFAULTS = {
   desc: <ArrowDown className="size-2.5" />,
   asc: <ArrowUp className="size-2.5" />
 } as const
+const ITEM_ACTION_BUTTON_CLASS =
+  'flex size-5 shrink-0 items-center justify-center text-muted-foreground/15 opacity-0 transition-all hover:text-muted-foreground/40 group-hover:opacity-100'
+const DEFAULT_ITEM_ACTION_ICON = <Bolt size={13} />
 
 export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
   const {
@@ -171,6 +194,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     isPinActionDisabled = false,
     onOpen,
     onEditItem,
+    renderItemAction,
     onCreateNew,
     labels,
     loading,
@@ -299,6 +323,22 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     (item: T, ctx: EntitySelectorRowContext) => {
       const isSelected = selectedSet.has(item.id)
       const isPinned = pinnedSet.has(item.id)
+      const actionButtonProps: ResourceSelectorShellItemActionSlotProps<T>['buttonProps'] = {
+        type: 'button',
+        onClick: (event: MouseEvent<HTMLButtonElement>) => {
+          event.stopPropagation()
+          onEditItem(item.id)
+        },
+        className: ITEM_ACTION_BUTTON_CLASS,
+        'aria-label': labels.edit,
+        title: labels.edit
+      }
+      const itemAction = renderItemAction ? (
+        renderItemAction({ item, buttonProps: actionButtonProps })
+      ) : (
+        <button {...actionButtonProps}>{DEFAULT_ITEM_ACTION_ICON}</button>
+      )
+
       // Row root is a div, not a button, because it hosts real child buttons (Checkbox, pin
       // toggle, edit) — nested <button> is invalid HTML and trips React's validateDOMNesting.
       // EntitySelector already wraps this div in a listbox option (role / aria-selected /
@@ -351,20 +391,21 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           ) : null}
           <span className={cn('min-w-0 flex-1 truncate text-sm', isSelected && 'font-medium')}>{item.name}</span>
           {/* Trailing hover-revealed config button. Right-click menu offers the same entry. */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onEditItem(item.id)
-            }}
-            className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/15 opacity-0 transition-all hover:text-muted-foreground/40 group-hover:opacity-100"
-            aria-label={labels.edit}>
-            <Bolt size={13} />
-          </button>
+          {itemAction}
         </div>
       )
     },
-    [selectedSet, pinnedSet, labels.unpin, labels.edit, fallbackIcon, togglePin, onEditItem, isPinActionDisabled]
+    [
+      selectedSet,
+      pinnedSet,
+      labels.unpin,
+      labels.edit,
+      fallbackIcon,
+      togglePin,
+      onEditItem,
+      renderItemAction,
+      isPinActionDisabled
+    ]
   )
 
   const hasFilterControls = (tags && tags.length > 0) || (sortOptions && sortOptions.length > 0)
