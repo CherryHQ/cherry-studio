@@ -29,9 +29,7 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
@@ -40,7 +38,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
-import SidebarIconsManager from './DisplaySettings/SidebarIconsManager'
 import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
@@ -94,13 +91,10 @@ const CommonSettings: FC = () => {
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
-  const [visibleIcons, setVisibleIcons] = usePreference('ui.sidebar.icons.visible')
-  const [invisibleIcons, setInvisibleIcons] = usePreference('ui.sidebar.icons.invisible')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
   const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
   const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
-  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
@@ -190,15 +184,6 @@ const CommonSettings: FC = () => {
           </div>
         )
       }
-    ],
-    [t]
-  )
-
-  const assistantIconTypeOptions = useMemo(
-    () => [
-      { value: 'model', label: t('settings.assistant.icon.type.model') },
-      { value: 'emoji', label: t('settings.assistant.icon.type.emoji') },
-      { value: 'none', label: t('settings.assistant.icon.type.none') }
     ],
     [t]
   )
@@ -366,11 +351,6 @@ const CommonSettings: FC = () => {
     [setUserTheme, userTheme]
   )
 
-  const handleResetSidebarIcons = useCallback(() => {
-    void setVisibleIcons(DefaultPreferences.default['ui.sidebar.icons.visible'])
-    void setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
-  }, [setVisibleIcons, setInvisibleIcons])
-
   const fontOptions = useMemo<ComboboxOption[]>(
     () => [
       {
@@ -536,22 +516,6 @@ const CommonSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme}>
-        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
-          {t('settings.display.assistant.title')}{' '}
-          <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
-        </SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type.label')}</SettingRowTitle>
-          <SegmentedControl
-            value={assistantIconType}
-            onValueChange={(value) => setAssistantIconType(value as AssistantIconType)}
-            options={assistantIconTypeOptions}
-          />
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -587,23 +551,6 @@ const CommonSettings: FC = () => {
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
           <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle
-          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('settings.display.sidebar.title')}</span>
-          <ResetButtonWrapper>
-            <Button onClick={handleResetSidebarIcons}>{t('common.reset')}</Button>
-          </ResetButtonWrapper>
-        </SettingTitle>
-        <SettingDivider />
-        <SidebarIconsManager
-          visibleIcons={visibleIcons}
-          invisibleIcons={invisibleIcons}
-          setVisibleIcons={setVisibleIcons}
-          setInvisibleIcons={setInvisibleIcons}
-        />
       </SettingGroup>
     </>
   )
@@ -862,10 +809,6 @@ const CommonSettings: FC = () => {
 
 const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
-)
-
-const ResetButtonWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-center', className)} {...props} />
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
