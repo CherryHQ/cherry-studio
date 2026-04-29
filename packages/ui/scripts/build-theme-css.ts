@@ -8,15 +8,19 @@ const __dirname = path.dirname(__filename)
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-const RUNTIME_THEME_INPUT_LINES = ['--cs-theme-primary: var(--cs-primary);']
+const RUNTIME_THEME_INPUT_LINES = [
+  '--cs-theme-primary: var(--cs-primary);',
+  '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
+]
 
-const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);']
+const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
 
 const PRIMARY_SEMANTIC_LINES = [
   '--color-primary: var(--cs-theme-primary);',
   '--color-primary-hover: var(--cs-primary-hover);',
   '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
-  '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);'
+  '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
+  '--color-ring: var(--cs-theme-ring);'
 ]
 
 const SPACING_COMMENT_LINES = [
@@ -71,7 +75,7 @@ function buildSection(title: string, lines: string[]): string {
 
 export function buildThemeContractCss(inputs: ThemeContractInputs): string {
   const semanticContractTokens = inputs.semanticColors.filter(
-    (token) => token !== 'primary' && token !== 'primary-hover'
+    (token) => !['primary', 'primary-hover', 'ring'].includes(token)
   )
 
   const sections = [

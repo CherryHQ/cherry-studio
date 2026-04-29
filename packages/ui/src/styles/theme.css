@@ -272,11 +272,13 @@
   /* Runtime Theme Inputs */
   /* ==================== */
   --cs-theme-primary: var(--cs-primary);
+  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
 
   /* ==================== */
   /* Compatibility Aliases */
   /* ==================== */
   --primary: var(--color-primary);
+  --ring: var(--color-ring);
 
   /* ==================== */
   /* Semantic Colors */
@@ -285,6 +287,7 @@
   --color-primary-hover: var(--cs-primary-hover);
   --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
   --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --color-ring: var(--cs-theme-ring);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);
@@ -299,7 +302,6 @@
   --color-border: var(--cs-border);
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
-  --color-ring: var(--cs-ring);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);
