@@ -457,4 +457,113 @@ describe('TopicService', () => {
       })
     })
   })
+
+  describe('setActiveNode', () => {
+    async function seedTopicWithMessages() {
+      await dbh.db.insert(topicTable).values({ id: 't1', name: 'T', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm1',
+          topicId: 't1',
+          role: 'user',
+          data: { blocks: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'm2',
+          topicId: 't1',
+          role: 'assistant',
+          data: { blocks: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+    }
+
+    it('happy path: writes activeNodeId', async () => {
+      await seedTopicWithMessages()
+      const result = await topicService.setActiveNode('t1', 'm2')
+      expect(result.activeNodeId).toBe('m2')
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 't1'))
+      expect(row?.activeNodeId).toBe('m2')
+    })
+
+    it('rejects message belonging to a different topic (cross-topic planting guard)', async () => {
+      await seedTopicWithMessages()
+      await dbh.db.insert(topicTable).values({ id: 't2', name: 'T2', orderKey: 'a1', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'other',
+        topicId: 't2',
+        role: 'user',
+        data: { blocks: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await expect(topicService.setActiveNode('t1', 'other')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('throws NOT_FOUND when nodeId does not exist', async () => {
+      await seedTopicWithMessages()
+      await expect(topicService.setActiveNode('t1', 'no-such')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('throws NOT_FOUND when topicId does not exist', async () => {
+      await expect(topicService.setActiveNode('no-such', 'm1')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects soft-deleted message', async () => {
+      await dbh.db.insert(topicTable).values({ id: 't1', name: 'T', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-gone',
+        topicId: 't1',
+        role: 'user',
+        data: { blocks: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await expect(topicService.setActiveNode('t1', 'm-gone')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects soft-deleted topic', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-gone',
+        name: 'T',
+        orderKey: 'a0',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(messageTable).values({
+        id: 'm1',
+        topicId: 't-gone',
+        role: 'user',
+        data: { blocks: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await expect(topicService.setActiveNode('t-gone', 'm1')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
 })
