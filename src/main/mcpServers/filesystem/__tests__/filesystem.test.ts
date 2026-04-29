@@ -55,7 +55,7 @@ describe('filesystem MCP security', () => {
 
     vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
       if (targetPath === symlinkPath) return outsideFile
-      return targetPath
+      return typeof targetPath === 'string' ? targetPath : targetPath.toString()
     })
 
     await expect(validatePath(symlinkPath, workspaceRoot)).rejects.toThrow('outside the configured workspace root')
@@ -108,7 +108,7 @@ describe('filesystem MCP security', () => {
 
     vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
       if (targetPath === escapeDir) return outsideRoot
-      return targetPath
+      return typeof targetPath === 'string' ? targetPath : targetPath.toString()
     })
 
     // Mock ripgrep to return both files (simulating --follow traversing the symlink)
@@ -139,7 +139,7 @@ describe('filesystem MCP security', () => {
 
     vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
       if (targetPath === escapeDir) return outsideRoot
-      return targetPath
+      return typeof targetPath === 'string' ? targetPath : targetPath.toString()
     })
 
     const result = await handleLsTool({ recursive: true }, workspaceRoot)
