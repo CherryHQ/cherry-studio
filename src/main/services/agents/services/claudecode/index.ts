@@ -61,6 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+import { applyWorkspaceRoot } from './workspace'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -257,6 +258,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
     }
+
+    applyWorkspaceRoot(env, cwd)
 
     const errorChunks: string[] = []
 

@@ -27,6 +27,7 @@ describe('filesystem MCP security', () => {
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
     expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toBe('C:/args-root')
     expect(resolveFilesystemBaseDir(['C:/args-root'], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
+    expect(resolveFilesystemBaseDir([], { WORKSPACE_ROOT: 'C:/env-root' })).toBe('C:/env-root')
     expect(resolveFilesystemBaseDir([], {})).toBeUndefined()
   })
 
@@ -50,7 +51,12 @@ describe('filesystem MCP security', () => {
     const symlinkPath = path.join(workspaceRoot, 'escape-link')
 
     await fs.writeFile(outsideFile, 'top-secret')
-    await fs.symlink(outsideFile, symlinkPath)
+    await fs.writeFile(symlinkPath, 'placeholder')
+
+    vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
+      if (targetPath === symlinkPath) return outsideFile
+      return targetPath
+    })
 
     await expect(validatePath(symlinkPath, workspaceRoot)).rejects.toThrow('outside the configured workspace root')
   })
@@ -96,8 +102,14 @@ describe('filesystem MCP security', () => {
     await fs.writeFile(legitFile, 'legit')
     await fs.writeFile(secretFile, 'secret')
 
-    // Create a symlink inside workspace pointing to the outside directory
-    await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
+    // Simulate a workspace entry that resolves outside the root.
+    const escapeDir = path.join(workspaceRoot, 'escape-dir')
+    await fs.mkdir(escapeDir)
+
+    vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
+      if (targetPath === escapeDir) return outsideRoot
+      return targetPath
+    })
 
     // Mock ripgrep to return both files (simulating --follow traversing the symlink)
     vi.spyOn(types, 'runRipgrep').mockResolvedValue({
@@ -121,8 +133,14 @@ describe('filesystem MCP security', () => {
     await fs.mkdir(path.join(outsideRoot, 'private'))
     await fs.writeFile(path.join(outsideRoot, 'private', 'secret.txt'), 'secret')
 
-    // Create a symlink inside workspace pointing to the outside directory
-    await fs.symlink(outsideRoot, path.join(workspaceRoot, 'escape-dir'))
+    // Simulate a workspace entry that resolves outside the root.
+    const escapeDir = path.join(workspaceRoot, 'escape-dir')
+    await fs.mkdir(escapeDir)
+
+    vi.spyOn(fs, 'realpath').mockImplementation(async (targetPath) => {
+      if (targetPath === escapeDir) return outsideRoot
+      return targetPath
+    })
 
     const result = await handleLsTool({ recursive: true }, workspaceRoot)
     const text = result.content[0].text
