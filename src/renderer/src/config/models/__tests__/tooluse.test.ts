@@ -139,6 +139,7 @@ describe('isFunctionCallingModel', () => {
   it('supports kimi models through kimi-k2 regex match', () => {
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2-0711-preview', provider: 'moonshot' }))).toBe(true)
     expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2.6', provider: 'moonshot' }))).toBe(true)
   })
 
   it('supports deepseek models through deepseek regex match', () => {
@@ -174,6 +175,18 @@ describe('isFunctionCallingModel', () => {
     it('supports MiniMax-M2.7 with capital letters', () => {
       expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7', provider: 'minimax' }))).toBe(true)
       expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7-highspeed', provider: 'minimax' }))).toBe(true)
+    })
+  })
+
+  describe('MiMo V2.5 Models', () => {
+    it('supports function calling for V2.5 chat models', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5', provider: 'mimo' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-pro', provider: 'mimo' }))).toBe(true)
+    })
+
+    it('does not treat V2.5 speech models as function calling chat models', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-tts', provider: 'mimo' }))).toBe(false)
+      expect(isFunctionCallingModel(createModel({ id: 'mimo-v2.5-tts-voiceclone', provider: 'mimo' }))).toBe(false)
     })
   })
 
