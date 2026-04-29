@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
-  "prevId": "50459d64-3954-481e-8a6e-8d71994960b7",
+  "id": "f20b8040-af0d-4ac6-880c-cce4981b6f1a",
+  "prevId": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1077,7 +1077,7 @@
           "name": "prompt",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1085,14 +1085,14 @@
           "name": "emoji",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1107,7 +1107,7 @@
           "name": "settings",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {
@@ -1360,6 +1360,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "emoji": {
+          "name": "emoji",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "dimensions": {
           "name": "dimensions",
           "type": "integer",
@@ -1371,7 +1385,7 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -1392,14 +1406,14 @@
           "name": "chunk_size",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "chunk_overlap": {
           "name": "chunk_overlap",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "threshold": {
@@ -1420,7 +1434,7 @@
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "hybrid_alpha": {
@@ -1447,13 +1461,22 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "knowledge_base_group_id_group_id_fk": {
+          "name": "knowledge_base_group_id_group_id_fk",
+          "tableFrom": "knowledge_base",
+          "tableTo": "group",
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "knowledge_base_embedding_model_id_user_model_id_fk": {
           "name": "knowledge_base_embedding_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
           "columnsFrom": ["embedding_model_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "knowledge_base_rerank_model_id_user_model_id_fk": {
@@ -1471,7 +1494,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
         }
       }
     },
@@ -1518,8 +1541,14 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'idle'"
+          "autoincrement": false
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "error": {
           "name": "error",
@@ -1589,7 +1618,11 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'processing', 'completed', 'failed')"
+        },
+        "knowledge_item_phase_check": {
+          "name": "knowledge_item_phase_check",
+          "value": "\"knowledge_item\".\"phase\" IN ('preparing', 'file_processing', 'reading', 'embedding') OR \"knowledge_item\".\"phase\" IS NULL"
         }
       }
     },

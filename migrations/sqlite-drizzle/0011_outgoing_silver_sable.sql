@@ -60,8 +60,6 @@ CREATE INDEX `user_model_provider_enabled_idx` ON `user_model` (`provider_id`,`i
 CREATE INDEX `user_model_provider_sort_idx` ON `user_model` (`provider_id`,`sort_order`);--> statement-breakpoint
 CREATE UNIQUE INDEX `user_model_provider_model_unique` ON `user_model` (`provider_id`,`model_id`);--> statement-breakpoint
 UPDATE `assistant` SET `model_id` = NULL WHERE `model_id` IS NOT NULL AND `model_id` NOT IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
-DELETE FROM `knowledge_item` WHERE `base_id` IN (SELECT `id` FROM `knowledge_base` WHERE `embedding_model_id` IS NULL OR `embedding_model_id` NOT IN (SELECT `id` FROM `user_model`));--> statement-breakpoint
-DELETE FROM `knowledge_base` WHERE `embedding_model_id` IS NULL OR `embedding_model_id` NOT IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
 UPDATE `knowledge_base` SET `rerank_model_id` = NULL WHERE `rerank_model_id` IS NOT NULL AND `rerank_model_id` NOT IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
 UPDATE `message` SET `model_id` = NULL WHERE `model_id` IS NOT NULL AND `model_id` NOT IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
 CREATE TABLE `__new_assistant` (
@@ -87,7 +85,7 @@ CREATE TABLE `__new_knowledge_base` (
 	`name` text NOT NULL,
 	`description` text,
 	`dimensions` integer NOT NULL,
-	`embedding_model_id` text NOT NULL,
+	`embedding_model_id` text,
 	`rerank_model_id` text,
 	`file_processor_id` text,
 	`chunk_size` integer,
@@ -98,12 +96,12 @@ CREATE TABLE `__new_knowledge_base` (
 	`hybrid_alpha` real,
 	`created_at` integer,
 	`updated_at` integer,
-	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`rerank_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
 	CONSTRAINT "knowledge_base_search_mode_check" CHECK("__new_knowledge_base"."search_mode" IN ('default', 'bm25', 'hybrid') OR "__new_knowledge_base"."search_mode" IS NULL)
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_base`("id", "name", "description", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", "description", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_base`("id", "name", "description", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", "description", "dimensions", CASE WHEN "embedding_model_id" IN (SELECT `id` FROM `user_model`) THEN "embedding_model_id" ELSE NULL END, "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
 DROP TABLE `knowledge_base`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_base` RENAME TO `knowledge_base`;--> statement-breakpoint
 CREATE TABLE `__new_message` (

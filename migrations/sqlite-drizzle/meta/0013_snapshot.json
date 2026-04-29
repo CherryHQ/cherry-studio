@@ -1361,20 +1361,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "dimensions": {
           "name": "dimensions",
           "type": "integer",
@@ -1386,7 +1372,7 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -1407,14 +1393,14 @@
           "name": "chunk_size",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "chunk_overlap": {
           "name": "chunk_overlap",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "threshold": {
@@ -1435,7 +1421,7 @@
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "hybrid_alpha": {
@@ -1462,22 +1448,13 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "knowledge_base_group_id_group_id_fk": {
-          "name": "knowledge_base_group_id_group_id_fk",
-          "tableFrom": "knowledge_base",
-          "tableTo": "group",
-          "columnsFrom": ["group_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "knowledge_base_embedding_model_id_user_model_id_fk": {
           "name": "knowledge_base_embedding_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
           "columnsFrom": ["embedding_model_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "knowledge_base_rerank_model_id_user_model_id_fk": {
@@ -1495,7 +1472,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
         }
       }
     },
@@ -1542,14 +1519,8 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'idle'"
         },
         "error": {
           "name": "error",
@@ -1619,11 +1590,7 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'processing', 'completed', 'failed')"
-        },
-        "knowledge_item_phase_check": {
-          "name": "knowledge_item_phase_check",
-          "value": "\"knowledge_item\".\"phase\" IN ('preparing', 'file_processing', 'reading', 'embedding') OR \"knowledge_item\".\"phase\" IS NULL"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
         }
       }
     },
