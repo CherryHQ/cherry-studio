@@ -1,4 +1,3 @@
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listMock, createMock, getByIdMock, updateMock, deleteMock } = vi.hoisted(() => ({
@@ -29,7 +28,7 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants', () => {
-    it('should apply create defaults at the API boundary', async () => {
+    it('should forward create bodies without injecting defaults', async () => {
       createMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'New Assistant' })
 
       await expect(
@@ -39,11 +38,7 @@ describe('assistantHandlers', () => {
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
       expect(createMock).toHaveBeenCalledWith({
-        name: 'New Assistant',
-        prompt: '',
-        emoji: '🌟',
-        description: '',
-        settings: DEFAULT_ASSISTANT_SETTINGS
+        name: 'New Assistant'
       })
     })
 

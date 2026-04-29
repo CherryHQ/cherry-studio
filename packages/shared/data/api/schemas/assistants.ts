@@ -7,12 +7,7 @@
 
 import * as z from 'zod'
 
-import {
-  type Assistant,
-  AssistantSchema,
-  AssistantSettingsSchema,
-  DEFAULT_ASSISTANT_SETTINGS
-} from '../../types/assistant'
+import { type Assistant, AssistantSchema } from '../../types/assistant'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
@@ -40,17 +35,8 @@ const ASSISTANT_MUTABLE_FIELDS = {
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
-  .partial()
-  .required({ name: true })
-  .extend({
-    prompt: z.string().default(''),
-    emoji: z.emoji().default('🌟'),
-    description: z.string().default(''),
-    settings: AssistantSettingsSchema.default(DEFAULT_ASSISTANT_SETTINGS)
-  })
-export type CreateAssistantBody = z.input<typeof CreateAssistantSchema>
-export type CreateAssistantDto = z.output<typeof CreateAssistantSchema>
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
+export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
  * DTO for updating an existing assistant. All fields optional.
@@ -94,7 +80,7 @@ export type AssistantSchemas = {
     }
     /** Create a new assistant */
     POST: {
-      body: CreateAssistantBody
+      body: CreateAssistantDto
       response: Assistant
     }
   }

@@ -37,6 +37,9 @@ function normalizeSettings(settings: AssistantRow['settings']): Assistant['setti
   return { ...DEFAULT_ASSISTANT_SETTINGS, ...settings }
 }
 
+// TODO(R3 transitional): remove these `??` fallbacks once the follow-up migration
+// tightens prompt/emoji/description to NOT NULL with DB DEFAULTs and settings to NOT NULL.
+// See docs/references/data/best-practice-default-values-and-nullability.md § R3 + Case Study A.
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
   return {
     id: row.id,
@@ -172,17 +175,25 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const row = await this.db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(assistantTable)
-        .values({
-          name: dto.name,
-          prompt: dto.prompt,
-          emoji: dto.emoji,
-          description: dto.description,
-          modelId: dto.modelId ?? null,
-          settings: dto.settings
-        })
-        .returning()
+      const insertValues: typeof assistantTable.$inferInsert = {
+        name: dto.name,
+        settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
+      }
+
+      if (dto.prompt !== undefined) {
+        insertValues.prompt = dto.prompt
+      }
+      if (dto.emoji !== undefined) {
+        insertValues.emoji = dto.emoji
+      }
+      if (dto.description !== undefined) {
+        insertValues.description = dto.description
+      }
+      if (dto.modelId !== undefined) {
+        insertValues.modelId = dto.modelId
+      }
+
+      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
       // Insert junction table rows
       await this.syncRelations(tx, inserted.id, dto)
