@@ -903,20 +903,21 @@ export class ChatMigrator extends BaseMigrator {
         }))
       )
       try {
-        await db.transaction(async (tx) => {
+        // Run inside one transaction so a mid-batch failure rolls back atomically.
+        // Counter is assigned only after commit; on rollback the assignment is
+        // skipped and the catch block correctly reports 0 rows landed.
+        const inserted = await db.transaction(async (tx) => {
+          let count = 0
           for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
             const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-            const inserted = await tx
-              .insert(pinTable)
-              .values(batch)
-              .onConflictDoNothing()
-              .returning({ id: pinTable.id })
-            pinsInserted += inserted.length
+            const result = await tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id })
+            count += result.length
           }
+          return count
         })
+        pinsInserted = inserted
       } catch (error) {
-        logger.error('Pin row emission failed', error as Error, {
-          pinsInserted,
+        logger.error('Pin row emission failed (transaction rolled back)', error as Error, {
           pinsExpected: pinRows.length
         })
         throw error
