@@ -325,6 +325,71 @@ describe('KnowledgeRuntimeService', () => {
     ).toBeLessThan(vectorStoreAddMock.mock.invocationCallOrder[0])
   })
 
+  it('serializes same-base vector writes and completion status updates', async () => {
+    const service = new KnowledgeRuntimeService()
+    const releaseFirstVectorWrite = createDeferred()
+    const firstVectorWriteStarted = createDeferred()
+    const events: string[] = []
+
+    knowledgeItemCreateMock
+      .mockResolvedValueOnce(createNoteItem('note-1', 'idle'))
+      .mockResolvedValueOnce(createNoteItem('note-2', 'idle'))
+    chunkDocumentsMock.mockImplementation((_base: KnowledgeBase, item: KnowledgeItem) => [{ text: item.id }])
+    embedDocumentsMock.mockImplementation(async (_model: unknown, chunks: Array<{ text: string }>) => [
+      { id_: `node-${chunks[0].text}` }
+    ])
+    vectorStoreAddMock.mockImplementation(async (nodes: Array<{ id_: string }>) => {
+      const itemId = nodes[0].id_.replace('node-', '')
+      events.push(`vector:start:${itemId}`)
+
+      if (itemId === 'note-1') {
+        firstVectorWriteStarted.resolve()
+        await releaseFirstVectorWrite.promise
+      }
+
+      events.push(`vector:end:${itemId}`)
+    })
+    knowledgeItemUpdateStatusMock.mockImplementation(
+      async (
+        id: string,
+        status: KnowledgeItem['status'],
+        update: { phase?: KnowledgeItem['phase']; error?: string | null } = {}
+      ) => {
+        if (status === 'completed') {
+          events.push(`status:completed:${id}`)
+        }
+
+        return {
+          ...createNoteItem(id, status),
+          phase: update.phase ?? null,
+          error: update.error ?? null
+        }
+      }
+    )
+
+    await service.addItems('kb-1', [
+      { type: 'note', content: 'hello note-1', source: 'note-1' },
+      { type: 'note', content: 'hello note-2', source: 'note-2' }
+    ])
+    await firstVectorWriteStarted.promise
+    await flushPromises()
+
+    expect(events).toEqual(['vector:start:note-1'])
+
+    releaseFirstVectorWrite.resolve()
+
+    await vi.waitFor(() => {
+      expect(events).toEqual([
+        'vector:start:note-1',
+        'vector:end:note-1',
+        'status:completed:note-1',
+        'vector:start:note-2',
+        'vector:end:note-2',
+        'status:completed:note-2'
+      ])
+    })
+  })
+
   it('cleans up accepted roots when batch acceptance fails', async () => {
     const service = new KnowledgeRuntimeService()
     const acceptError = new Error('create failed')
@@ -629,6 +694,9 @@ describe('KnowledgeRuntimeService', () => {
     await childReadStarted.promise
 
     const deletePromise = service.deleteItems(base.id, [root])
+    await vi.waitFor(() => {
+      expect(knowledgeItemGetDescendantItemsMock).toHaveBeenCalledWith(base.id, [root.id])
+    })
     await flushPromises()
 
     finishChildRead.resolve([{ text: 'document' }])

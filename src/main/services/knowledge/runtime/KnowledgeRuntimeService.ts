@@ -305,9 +305,11 @@ export class KnowledgeRuntimeService extends BaseService {
         }
       }
 
-      await knowledgeItemService.updateStatus(item.id, 'processing')
-      context.signal.throwIfAborted()
-      await knowledgeItemService.reconcileContainers(base.id, [item.id])
+      await context.runWithBaseWriteLock(async () => {
+        await knowledgeItemService.updateStatus(item.id, 'processing')
+        context.signal.throwIfAborted()
+        await knowledgeItemService.reconcileContainers(base.id, [item.id])
+      })
     } catch (error) {
       if (context.signal.aborted) {
         context.signal.throwIfAborted()
@@ -345,10 +347,14 @@ export class KnowledgeRuntimeService extends BaseService {
     context: KnowledgeQueueTaskContext
   ): Promise<void> {
     context.signal.throwIfAborted()
-    await knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'reading' })
+    await context.runWithBaseWriteLock(() =>
+      knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'reading' })
+    )
     const documents = await this.runTaskStep(context, () => loadKnowledgeItemDocuments(item, context.signal))
     const chunks = await this.runTaskStep(context, () => chunkDocuments(base, item, documents))
-    await knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'embedding' })
+    await context.runWithBaseWriteLock(() =>
+      knowledgeItemService.updateStatus(item.id, 'processing', { phase: 'embedding' })
+    )
     const nodes = await this.runTaskStep(context, () => embedDocuments(getEmbedModel(base), chunks, context.signal))
 
     await context.runWithBaseWriteLock(async () => {
@@ -356,10 +362,8 @@ export class KnowledgeRuntimeService extends BaseService {
       const activeVectorStore = await this.runTaskStep(context, () => vectorStoreService.createStore(base))
 
       await this.runTaskStep(context, () => activeVectorStore.add(nodes))
+      await knowledgeItemService.updateStatus(item.id, 'completed')
     })
-
-    context.signal.throwIfAborted()
-    await knowledgeItemService.updateStatus(item.id, 'completed')
   }
 
   private async cleanupFailedItems(
