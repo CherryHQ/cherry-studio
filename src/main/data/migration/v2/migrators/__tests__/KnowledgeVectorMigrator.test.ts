@@ -10,23 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
-const { loggerWarnMock, setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
-  let currentKnowledgeBaseRoot = ''
-
+const { loggerWarnMock } = vi.hoisted(() => {
   return {
-    loggerWarnMock: vi.fn(),
-    setKnowledgeBaseRoot: (nextPath: string) => {
-      currentKnowledgeBaseRoot = nextPath
-    },
-    getPathMock: vi.fn((key: string, filename?: string) => {
-      if (key !== 'feature.knowledgebase.data') {
-        throw new Error(`Unexpected path key: ${key}`)
-      }
-
-      return filename ? path.join(currentKnowledgeBaseRoot, filename) : currentKnowledgeBaseRoot
-    })
+    loggerWarnMock: vi.fn()
   }
 })
+
+let currentKnowledgeBaseRoot = ''
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -46,12 +36,6 @@ vi.mock('node:fs', async (importOriginal) => {
 vi.mock('node:os', async (importOriginal) => {
   return (await importOriginal()) as any
 })
-
-vi.mock('@application', () => ({
-  application: {
-    getPath: getPathMock
-  }
-}))
 
 vi.mock('@main/utils/file', () => ({
   sanitizeFilename: (value: string) => value
@@ -134,7 +118,7 @@ function createMigrationCtx({
   reduxData,
   migratedBases = [],
   migratedItems = [],
-  knowledgeVectorSource = new KnowledgeVectorSourceReader()
+  knowledgeVectorSource = new KnowledgeVectorSourceReader(currentKnowledgeBaseRoot)
 }: {
   reduxData: Record<string, unknown>
   migratedBases?: MigratedKnowledgeBaseRow[]
@@ -178,14 +162,14 @@ describe('KnowledgeVectorMigrator', () => {
     tempRoot = createTempRoot()
     knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     fs.mkdirSync(knowledgeBaseDir, { recursive: true })
-    setKnowledgeBaseRoot(knowledgeBaseDir)
+    currentKnowledgeBaseRoot = knowledgeBaseDir
   })
 
   afterEach(() => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
-  it('prepare uses uniqueIds first, falls back to uniqueId, and records warnings for unmapped vectors', async () => {
+  it('prepare uses uniqueIds first, skips container vectors, and records warnings for skipped vectors', async () => {
     await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-1'), [
       {
         id: 'legacy-file-0',
@@ -250,13 +234,69 @@ describe('KnowledgeVectorMigrator', () => {
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(3)
     expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toHaveLength(2)
-    expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual([
-      'item-file',
-      'item-directory'
-    ])
-    expect(migrator.skippedCount).toBe(1)
+    expect(migrator.preparedBasePlans[0].rows).toHaveLength(1)
+    expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual(['item-file'])
+    expect(migrator.skippedCount).toBe(2)
     expect(result.warnings?.some((warning) => warning.includes('loader-missing'))).toBe(true)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes("container item 'item-directory'") && warning.includes("type 'directory' is not indexable")
+      )
+    ).toBe(true)
+  })
+
+  it('prepare skips sitemap container vectors with a warning', async () => {
+    await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-1'), [
+      {
+        id: 'legacy-sitemap-0',
+        pageContent: 'sitemap page chunk',
+        uniqueLoaderId: 'loader-sitemap',
+        source: 'https://example.com/page',
+        vector: [1, 2]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [
+        createMigratedItem('item-sitemap', {
+          type: 'sitemap',
+          data: { source: 'https://example.com/sitemap.xml' }
+        })
+      ],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-sitemap',
+                  type: 'sitemap',
+                  uniqueId: 'loader-sitemap'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBasePlans).toHaveLength(1)
+    expect(migrator.preparedBasePlans[0].rows).toEqual([])
+    expect(migrator.skippedCount).toBe(1)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes("container item 'item-sitemap'") && warning.includes("type 'sitemap' is not indexable")
+      )
+    ).toBe(true)
   })
 
   it('does not create a vector index during schema bootstrap', async () => {

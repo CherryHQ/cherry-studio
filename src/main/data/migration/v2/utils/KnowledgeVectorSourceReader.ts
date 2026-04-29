@@ -1,7 +1,7 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { type Client, createClient, type Value as LibsqlValue } from '@libsql/client'
 import { sanitizeFilename } from '@main/utils/file'
 
@@ -19,8 +19,10 @@ export type LegacyKnowledgeVectorLoadResult =
   | { status: 'invalid_path' | 'missing' | 'directory' | 'not_embedjs'; dbPath?: string }
 
 export class KnowledgeVectorSourceReader {
+  constructor(private readonly knowledgeBaseDir: string) {}
+
   getLegacyDbPath(baseId: string): string | null {
-    return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
+    return path.join(this.knowledgeBaseDir, sanitizeFilename(baseId, '_'))
   }
 
   async loadBase(baseId: string): Promise<LegacyKnowledgeVectorLoadResult> {

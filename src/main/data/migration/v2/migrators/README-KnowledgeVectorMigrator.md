@@ -11,7 +11,7 @@
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
 | Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.loadBase(base.id)` |
 
-The current source reader resolves the per-base DB path through `application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
+The source reader is initialized by `MigrationContext` with `ctx.paths.knowledgeBaseDir`. It must read from the migration-resolved v1 userData path, not from the v2 path registry or `app.getPath()`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
 
 ## Target Storage
 
@@ -27,7 +27,13 @@ The current source reader resolves the per-base DB path through `application.get
    - A legacy vector row is considered valid only if it can be mapped to an existing V2 `knowledge_item.id`.
    - Unmapped legacy rows are treated as invalid index residue, not as business data that must be preserved.
 
-2. Chunk payload migration
+2. Indexable item filtering
+   - Only vectors mapped to indexable V2 item types are migrated.
+   - Indexable types are `file`, `url`, and `note`.
+   - Vectors mapped to container items, currently `directory` and `sitemap`, are skipped with warnings.
+   - This does not remove the `directory` or `sitemap` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 vector store.
+
+3. Chunk payload migration
    - `pageContent` -> `document`
    - `knowledge_item.id` -> `metadata.itemId`
    - `knowledge_item.type` -> `metadata.itemType`
@@ -36,15 +42,15 @@ The current source reader resolves the per-base DB path through `application.get
    - Estimated document token count -> `metadata.tokenCount`
    - Other legacy metadata fields are dropped.
 
-3. Embedding reuse
+4. Embedding reuse
    - Legacy `vector` payloads are decoded from `F32_BLOB` and written directly to `embeddings`.
    - Existing chunk embeddings are reused; this migrator does not re-embed content.
 
-4. Chunk identity regeneration
+5. Chunk identity regeneration
    - Legacy chunk IDs are not reused.
    - Every migrated vector row gets a new UUID v4 `id`.
 
-5. Schema bootstrap
+6. Schema bootstrap
    - Creates `external_id`, `collection`, and FTS schema needed by `@vectorstores/libsql`.
    - Migrated rows use `collection = base.id` so runtime reads and deletes match the same per-base store contract.
 
@@ -70,15 +76,12 @@ The current source reader resolves the per-base DB path through `application.get
 - `metadata.itemId` must be present and match `external_id` for every migrated row.
 - `metadata` must satisfy the runtime `KnowledgeChunkMetadataSchema`.
 
-## Runtime Compatibility Caveat
-
-The current migrator intentionally allows rows without `metadata.source` when the legacy row source is empty. Current runtime search/chunk mapping validates vector metadata with `KnowledgeChunkMetadataSchema`, which requires `source`. If migrated legacy data can contain empty `source`, the runtime compatibility decision needs to be resolved in code: either make migrated metadata always include a non-empty fallback `source`, or relax the runtime schema for migrated rows. Until that is decided, this README documents the migrator's implemented behavior, not a guarantee that every migrated row is runtime-readable.
-
 ## Skipped Data
 
 - Bases missing from migrated `knowledge_base`
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
+- Vector rows mapped to non-indexable container item types such as `directory` or `sitemap`
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose source cannot be resolved from either the legacy row or migrated `knowledge_item.data.source`
 

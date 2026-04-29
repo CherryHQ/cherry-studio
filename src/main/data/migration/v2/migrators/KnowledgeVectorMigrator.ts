@@ -20,6 +20,7 @@ const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
+const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
@@ -359,6 +360,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           if (!target) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
+            logger.warn(warningMessage)
+            this.warnings.push(warningMessage)
+            continue
+          }
+
+          if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.itemType)) {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: container item '${target.id}' of type '${target.itemType}' is not indexable`
             logger.warn(warningMessage)
             this.warnings.push(warningMessage)
             continue

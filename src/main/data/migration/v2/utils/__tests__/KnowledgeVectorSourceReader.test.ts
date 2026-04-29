@@ -6,29 +6,6 @@ import { pathToFileURL } from 'node:url'
 import { createClient } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
-  let currentKnowledgeBaseRoot = ''
-
-  return {
-    setKnowledgeBaseRoot: (nextPath: string) => {
-      currentKnowledgeBaseRoot = nextPath
-    },
-    getPathMock: vi.fn((key: string, filename?: string) => {
-      if (key !== 'feature.knowledgebase.data') {
-        throw new Error(`Unexpected path key: ${key}`)
-      }
-
-      return filename ? path.join(currentKnowledgeBaseRoot, filename) : currentKnowledgeBaseRoot
-    })
-  }
-})
-
-vi.mock('@application', () => ({
-  application: {
-    getPath: getPathMock
-  }
-}))
-
 vi.mock('@main/utils/file', () => ({
   sanitizeFilename: (value: string) => value
 }))
@@ -85,7 +62,6 @@ describe('KnowledgeVectorSourceReader', () => {
   beforeEach(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-vector-source-reader-'))
     fs.mkdirSync(path.join(tempRoot, 'KnowledgeBase'), { recursive: true })
-    setKnowledgeBaseRoot(path.join(tempRoot, 'KnowledgeBase'))
   })
 
   afterEach(() => {
@@ -93,7 +69,7 @@ describe('KnowledgeVectorSourceReader', () => {
   })
 
   it('loads legacy embedjs rows from the knowledge base path', async () => {
-    const reader = new KnowledgeVectorSourceReader()
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
 
     await createLegacyVectorDb(dbPath, [
@@ -121,7 +97,7 @@ describe('KnowledgeVectorSourceReader', () => {
   })
 
   it('returns not_embedjs for non-embedjs sqlite files', async () => {
-    const reader = new KnowledgeVectorSourceReader()
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
     const client = createClient({ url: pathToFileURL(dbPath).toString() })
 
