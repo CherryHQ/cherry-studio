@@ -37,6 +37,7 @@ This document records the current V2 knowledge target schema, migration constrai
   - `type`
   - `data`
   - `status`
+  - `phase`
   - `error`
   - `createdAt`
   - `updatedAt`
@@ -147,50 +148,53 @@ This document records the current V2 knowledge target schema, migration constrai
 
 ## Runtime Status Boundary
 
-- `knowledge_item.status` and `knowledge_item.error` remain part of the official V2 business schema.
+- `knowledge_item.status`, `knowledge_item.phase`, and `knowledge_item.error` remain part of the official V2 business schema.
 - The runtime queue implementation is not part of the schema contract:
   - no separate task table
   - no persisted queue record
-  - no scheduler-specific stage column
+  - no persisted task run id
 - Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
-- The schema-level status set is still:
+- The schema-level `status` set is:
   - `idle`
-  - `pending`
-  - `file_processing`
-  - `read`
-  - `embed`
+  - `processing`
   - `completed`
   - `failed`
-- But the current runtime implementation only persists:
-  - `pending` before enqueue
-  - `completed` after successful vector write
-  - `failed` on any exception or shutdown interruption
-- `file_processing`, `read`, and `embed` remain reserved intermediate statuses in the schema and shared types, but are not written by the current runtime yet.
+- The schema-level `phase` set is:
+  - `null`
+  - `preparing`
+  - `file_processing`
+  - `reading`
+  - `embedding`
+- Current runtime writes:
+  - `processing, phase = preparing` while a `directory` / `sitemap` root or nested directory is being expanded
+  - `processing, phase = reading` while a leaf item is reading source documents
+  - `processing, phase = embedding` while a leaf item is embedding / writing vectors
+  - `completed, phase = null` after successful leaf indexing, or when a container has no active children
+  - `failed, phase = null` on runtime failure, interrupt cleanup failure, or shutdown interruption
+- `file_processing` remains reserved until `fileProcessorId` participates in runtime execution.
 - In other words:
   - queue structure is implementation detail
-  - item status is business state
-  - some business states are currently reserved for future runtime expansion
+  - `status` is aggregate business state
+  - `phase` is runtime progress
+  - container status is reconciled from its own phase and child item statuses
   - these concerns must not be conflated
 
 ## Current Runtime Consumption Notes
 
 - Runtime entrypoint:
-  - `src/main/services/knowledge/KnowledgeRuntimeService.ts`
+  - `src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
 - Reader dispatch code still exists for stored `knowledge_item.type` values:
   - `file` -> file reader by extension
   - `url` -> fetch markdown through Jina Reader
   - `note` -> inline note content
   - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
   - `directory` -> currently treated as a container placeholder and returns no documents
-- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but the current runtime does not index them directly.
-- For container expansion flows, upstream callers may still create mixed persisted child batches under one owner/group, for example `directory` + `file`.
-- That mixed batch is a persistence concern, not an indexing contract:
-  - container items may be stored in `knowledge_item`
-  - but only concrete indexable leaf items should be submitted to runtime `addItems`
-- In other words, callers must distinguish:
-  - create set: all items that should be persisted into `knowledge_item`
-  - index set: only items that runtime is allowed to index
-- Upstream callers must therefore flatten containers into concrete child items and filter out non-indexable container types before indexing.
+- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but they are prepared before leaf indexing rather than indexed directly.
+- Runtime add flow accepts new item payloads:
+  - leaf payloads create `knowledge_item` rows and enqueue `index-leaf`
+  - `directory` / `sitemap` payloads create root rows and enqueue `prepare-root`
+- `prepare-root` expands the owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
+- Callers must not create user-supplied nested `directory` / `sitemap` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
 - Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status
@@ -203,3 +207,4 @@ This document records the current V2 knowledge target schema, migration constrai
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.
 - The current runtime service is `KnowledgeRuntimeService`, not the old `KnowledgeService` name used in earlier notes.
 - Current runtime queue behavior is a single in-memory `PQueue({ concurrency: 5 })` shared across knowledge bases; there is no per-base serial queue yet.
+- Current runtime queue entries are `prepare-root` and `index-leaf`; preparation and leaf indexing share interrupt / wait / shutdown cleanup semantics.

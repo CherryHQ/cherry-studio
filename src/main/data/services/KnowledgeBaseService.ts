@@ -9,99 +9,50 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import type { ListKnowledgeBasesQuery, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
-  type KnowledgeBaseListQuery,
-  type UpdateKnowledgeBaseDto
-} from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeBase, KnowledgeSearchMode } from '@shared/data/types/knowledge'
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
+  type KnowledgeBase
+} from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
-export interface KnowledgeBaseConfigInput {
-  chunkSize?: number | null
-  chunkOverlap?: number | null
-  threshold?: number | null
-  documentCount?: number | null
-  searchMode?: KnowledgeSearchMode | null
+type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
+
+function validateKnowledgeBaseConfig(config: {
+  chunkSize: number
+  chunkOverlap: number
+  searchMode?: string | null
   hybridAlpha?: number | null
-}
-
-function addFieldError(
-  fieldErrors: Record<string, string[]>,
-  field: keyof KnowledgeBaseConfigInput,
-  message: string
-): void {
-  if (!fieldErrors[field]) {
-    fieldErrors[field] = []
-  }
-
-  fieldErrors[field].push(message)
-}
-
-export function normalizeKnowledgeBaseConfigDependencies<T extends KnowledgeBaseConfigInput>(config: T): T {
-  const normalized = { ...config }
-
-  if (normalized.chunkOverlap != null) {
-    if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
-      normalized.chunkOverlap = undefined as T['chunkOverlap']
-    }
-  }
-
-  if (normalized.hybridAlpha != null && normalized.searchMode !== 'hybrid') {
-    normalized.hybridAlpha = undefined as T['hybridAlpha']
-  }
-
-  return normalized
-}
-
-export function validateKnowledgeBaseConfig(config: KnowledgeBaseConfigInput): Record<string, string[]> {
+}): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {}
 
-  if (config.chunkSize != null && config.chunkSize <= 0) {
-    addFieldError(fieldErrors, 'chunkSize', 'Chunk size must be greater than 0')
+  if (config.chunkOverlap >= config.chunkSize) {
+    fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
   }
 
-  if (config.chunkOverlap != null && config.chunkOverlap < 0) {
-    addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap must be greater than or equal to 0')
-  }
-
-  if (config.threshold != null && (config.threshold < 0 || config.threshold > 1)) {
-    addFieldError(fieldErrors, 'threshold', 'Threshold must be between 0 and 1')
-  }
-
-  if (config.documentCount != null && config.documentCount <= 0) {
-    addFieldError(fieldErrors, 'documentCount', 'Document count must be greater than 0')
-  }
-
-  const hybridAlphaIsInRange = config.hybridAlpha == null || (config.hybridAlpha >= 0 && config.hybridAlpha <= 1)
-  if (!hybridAlphaIsInRange) {
-    addFieldError(fieldErrors, 'hybridAlpha', 'Hybrid alpha must be between 0 and 1')
-  }
-
-  const chunkOverlap = config.chunkOverlap
-  if (chunkOverlap != null && chunkOverlap >= 0) {
-    if (config.chunkSize == null) {
-      addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap requires chunk size')
-    } else if (chunkOverlap >= config.chunkSize) {
-      addFieldError(fieldErrors, 'chunkOverlap', 'Chunk overlap must be smaller than chunk size')
-    }
-  }
-
-  if (config.hybridAlpha != null && hybridAlphaIsInRange && config.searchMode !== 'hybrid') {
-    addFieldError(fieldErrors, 'hybridAlpha', 'Hybrid alpha requires hybrid search mode')
+  if (config.hybridAlpha != null && config.searchMode !== 'hybrid') {
+    fieldErrors.hybridAlpha = ['Hybrid alpha requires hybrid search mode']
   }
 
   return fieldErrors
 }
 
-function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
+function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    groupId: row.groupId ?? null,
+    emoji: row.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
+    chunkSize: row.chunkSize,
+    chunkOverlap: row.chunkOverlap,
     // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
     embeddingModelId: row.embeddingModelId,
     createdAt: timestampToISO(row.createdAt),
@@ -110,19 +61,22 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
 }
 
 export class KnowledgeBaseService {
-  async list(query: KnowledgeBaseListQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
-    const db = application.get('DbService').getDb()
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
+  async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
     const [rows, [{ count }]] = await Promise.all([
-      db
+      this.db
         .select()
         .from(knowledgeBaseTable)
         .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
         .limit(limit)
         .offset(offset),
-      db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
+      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
     ])
 
     return {
@@ -133,8 +87,7 @@ export class KnowledgeBaseService {
   }
 
   async getById(id: string): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
+    const [row] = await this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
@@ -144,131 +97,126 @@ export class KnowledgeBaseService {
   }
 
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
-    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
-      name: dto.name.trim(),
-      description: dto.description,
-      dimensions: dto.dimensions,
-      embeddingModelId: dto.embeddingModelId.trim(),
-      rerankModelId: dto.rerankModelId ?? null,
-      fileProcessorId: dto.fileProcessorId,
-      chunkSize: dto.chunkSize,
-      chunkOverlap: dto.chunkOverlap,
-      threshold: dto.threshold,
-      documentCount: dto.documentCount,
-      searchMode: dto.searchMode,
+    const createConfig = {
+      chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
       hybridAlpha: dto.hybridAlpha
     }
-
-    const createFieldErrors = validateKnowledgeBaseConfig(createValues)
+    const createFieldErrors = validateKnowledgeBaseConfig(createConfig)
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
 
-    const [row] = await db.insert(knowledgeBaseTable).values(createValues).returning()
+    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
+      name: dto.name.trim(),
+      description: dto.description,
+      groupId: dto.groupId,
+      emoji: dto.emoji,
+      dimensions: dto.dimensions,
+      embeddingModelId: dto.embeddingModelId.trim(),
+      rerankModelId: dto.rerankModelId ?? null,
+      fileProcessorId: dto.fileProcessorId,
+      chunkSize: createConfig.chunkSize,
+      chunkOverlap: createConfig.chunkOverlap,
+      threshold: dto.threshold,
+      documentCount: dto.documentCount,
+      searchMode: createConfig.searchMode,
+      hybridAlpha: createConfig.hybridAlpha
+    }
+
+    const row = await this.db.transaction(async (tx) => {
+      const [inserted] = await tx.insert(knowledgeBaseTable).values(createValues).returning()
+      return inserted
+    })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
-    const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
-    if (dto.name !== undefined) updates.name = dto.name.trim()
-    if (dto.description !== undefined) updates.description = dto.description
+    const nextConfig = {
+      chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
+      chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
+      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
+      hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
+    }
 
-    if (dto.embeddingModelId !== undefined) {
-      const nextEmbeddingModelId = dto.embeddingModelId.trim()
-      if (nextEmbeddingModelId !== (existing.embeddingModelId ?? null)) {
-        updates.embeddingModelId = nextEmbeddingModelId
-      }
+    if (dto.searchMode !== undefined && dto.searchMode !== 'hybrid' && dto.hybridAlpha === undefined) {
+      nextConfig.hybridAlpha = null
     }
-    if (dto.rerankModelId !== undefined) {
-      updates.rerankModelId = dto.rerankModelId ?? null
+
+    const updateFieldErrors = validateKnowledgeBaseConfig(nextConfig)
+    if (Object.keys(updateFieldErrors).length > 0) {
+      throw DataApiErrorFactory.validation(updateFieldErrors)
     }
-    if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
-    if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
-    if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap
-    if (dto.threshold !== undefined) updates.threshold = dto.threshold
-    if (dto.documentCount !== undefined) updates.documentCount = dto.documentCount
-    if (dto.searchMode !== undefined) updates.searchMode = dto.searchMode
-    if (dto.hybridAlpha !== undefined) updates.hybridAlpha = dto.hybridAlpha
+
+    const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
+    if (dto.name !== undefined) {
+      const nextName = dto.name.trim()
+      if (nextName !== existing.name) updates.name = nextName
+    }
+    if (dto.description !== undefined && (dto.description ?? undefined) !== existing.description) {
+      updates.description = dto.description
+    }
+    if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
+      updates.groupId = dto.groupId
+    }
+    if (dto.emoji !== undefined && dto.emoji !== existing.emoji) {
+      updates.emoji = dto.emoji
+    }
+    if (dto.rerankModelId !== undefined && (dto.rerankModelId ?? undefined) !== existing.rerankModelId) {
+      updates.rerankModelId = dto.rerankModelId
+    }
+    if (dto.fileProcessorId !== undefined && (dto.fileProcessorId ?? undefined) !== existing.fileProcessorId) {
+      updates.fileProcessorId = dto.fileProcessorId
+    }
+    if (nextConfig.chunkSize !== existing.chunkSize) {
+      updates.chunkSize = nextConfig.chunkSize
+    }
+    if (nextConfig.chunkOverlap !== existing.chunkOverlap) {
+      updates.chunkOverlap = nextConfig.chunkOverlap
+    }
+    if (dto.threshold !== undefined && (dto.threshold ?? undefined) !== existing.threshold) {
+      updates.threshold = dto.threshold
+    }
+    if (dto.documentCount !== undefined && (dto.documentCount ?? undefined) !== existing.documentCount) {
+      updates.documentCount = dto.documentCount
+    }
+    if (nextConfig.searchMode !== existing.searchMode) {
+      updates.searchMode = nextConfig.searchMode
+    }
+    if ((nextConfig.hybridAlpha ?? undefined) !== existing.hybridAlpha) {
+      updates.hybridAlpha = nextConfig.hybridAlpha
+    }
 
     if (Object.keys(updates).length === 0) {
       return existing
     }
 
-    const mergedConfig = {
-      chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
-      chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
-      threshold: dto.threshold !== undefined ? dto.threshold : existing.threshold,
-      documentCount: dto.documentCount !== undefined ? dto.documentCount : existing.documentCount,
-      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
-      hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
-    }
-    const normalizedConfig = { ...mergedConfig }
-
-    if (dto.chunkSize !== undefined && dto.chunkOverlap === undefined) {
-      normalizedConfig.chunkOverlap = normalizeKnowledgeBaseConfigDependencies({
-        chunkSize: mergedConfig.chunkSize,
-        chunkOverlap: mergedConfig.chunkOverlap
-      }).chunkOverlap
-    }
-
-    if (dto.searchMode !== undefined && dto.hybridAlpha === undefined) {
-      normalizedConfig.hybridAlpha = normalizeKnowledgeBaseConfigDependencies({
-        searchMode: mergedConfig.searchMode,
-        hybridAlpha: mergedConfig.hybridAlpha
-      }).hybridAlpha
-    }
-
-    const updateFieldErrors = validateKnowledgeBaseConfig(normalizedConfig)
-    if (Object.keys(updateFieldErrors).length > 0) {
-      throw DataApiErrorFactory.validation(updateFieldErrors)
-    }
-
-    const nextChunkSize = normalizedConfig.chunkSize ?? null
-    if (nextChunkSize !== (existing.chunkSize ?? null)) {
-      updates.chunkSize = nextChunkSize
-    }
-
-    const nextChunkOverlap = normalizedConfig.chunkOverlap ?? null
-    if (nextChunkOverlap !== (existing.chunkOverlap ?? null)) {
-      updates.chunkOverlap = nextChunkOverlap
-    }
-
-    const nextThreshold = normalizedConfig.threshold ?? null
-    if (nextThreshold !== (existing.threshold ?? null)) {
-      updates.threshold = nextThreshold
-    }
-
-    const nextDocumentCount = normalizedConfig.documentCount ?? null
-    if (nextDocumentCount !== (existing.documentCount ?? null)) {
-      updates.documentCount = nextDocumentCount
-    }
-
-    const nextSearchMode = normalizedConfig.searchMode ?? null
-    if (nextSearchMode !== (existing.searchMode ?? null)) {
-      updates.searchMode = nextSearchMode
-    }
-
-    const nextHybridAlpha = normalizedConfig.hybridAlpha ?? null
-    if (nextHybridAlpha !== (existing.hybridAlpha ?? null)) {
-      updates.hybridAlpha = nextHybridAlpha
-    }
-
-    const [row] = await db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning()
+    const row = await this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(knowledgeBaseTable)
+        .set(updates)
+        .where(eq(knowledgeBaseTable.id, id))
+        .returning()
+      return updated
+    })
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
   }
 
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
+    // Verify knowledge base exists
     await this.getById(id)
-    await db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
+
+    await this.db.transaction(async (tx) => {
+      await tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
+    })
+
     logger.info('Deleted knowledge base', { id })
   }
 }

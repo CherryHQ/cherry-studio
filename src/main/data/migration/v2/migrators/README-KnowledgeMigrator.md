@@ -9,9 +9,9 @@
 | Knowledge bases + lightweight items | Redux `knowledge.bases` | `ReduxStateReader.getCategory('knowledge')` |
 | Full note content | Dexie `knowledge_notes` | `knowledge_notes.json` |
 | File metadata fallback | Dexie `files` | `files.json` |
-| Legacy vector databases | Filesystem | `ctx.paths.knowledgeBaseDir/{baseId}` (via `MigrationPaths`) |
+| Legacy vector databases | Filesystem | `ctx.paths.knowledgeBaseDir/<sanitizedBaseId>` (via `MigrationPaths`) |
 
-> **Note**: The legacy vector DB path comes from `ctx.paths.knowledgeBaseDir`, which is pre-computed by `MigrationPaths` from the resolved v1 userData directory. Do NOT call `app.getPath('userData')` directly — see `migration/v2/README.md` Path Safety section.
+> **Note**: The legacy vector DB path comes from `ctx.paths.knowledgeBaseDir`, which is pre-computed by `MigrationPaths` from the resolved v1 userData directory. The base id is sanitized with `sanitizeFilename(baseId, '_')`. Do NOT call `app.getPath('userData')` directly — see `migration/v2/README.md` Path Safety section.
 
 ## Target Tables
 
@@ -22,9 +22,10 @@
 
 1. Base metadata migration
    - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
-   - Migrated base `searchMode` is set to `default`.
+   - Model references are resolved against migrated `user_model` rows; missing or dangling embedding/rerank references are cleared with warnings.
+   - Migrated base `searchMode` is set to `hybrid`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
-   - Invalid runtime tuning fields are normalized away instead of causing the whole base to be skipped.
+   - Invalid runtime tuning fields are normalized to schema-safe defaults/nulls instead of causing the whole base to be skipped.
 
 2. Unified item payload migration
    - Legacy item `content` is transformed into the new `knowledge_item.data` union payload by item type.
@@ -56,15 +57,17 @@
 | `id` | `id` | Direct copy |
 | `name` | `name` | Direct copy |
 | `description` | `description` | Direct copy |
+| _no legacy grouping field_ | `groupId` | V1 knowledge bases do not carry group metadata; migrate as `null` |
+| _constant_ | `emoji` | Always `📁` during v1 migration |
 | `dimensions` | `dimensions` | Read from legacy vector DB `vectors.vector` blob length (`length(vector)/4`) |
-| `model` | `embeddingModelId` | Converted to `provider::modelId` |
-| `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId` |
+| `model` | `embeddingModelId` | Converted to `provider::modelId`, then resolved against `user_model`; missing/dangling references are cleared |
+| `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId`, then resolved against `user_model`; dangling references are cleared |
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
-| `chunkSize` | `chunkSize` | Copied when positive; otherwise cleared |
-| `chunkOverlap` | `chunkOverlap` | Copied when non-negative and smaller than `chunkSize`; otherwise cleared |
+| `chunkSize` | `chunkSize` | Copied when positive integer; otherwise normalized to the default chunk size |
+| `chunkOverlap` | `chunkOverlap` | Copied when non-negative integer and smaller than `chunkSize`; otherwise normalized to the default overlap for the resolved chunk size |
 | `threshold` | `threshold` | Copied when within `[0, 1]`; otherwise cleared |
 | `documentCount` | `documentCount` | Copied when positive; otherwise cleared |
-| _constant_ | `searchMode` | Always `default` during v1 migration |
+| _constant_ | `searchMode` | Always `hybrid` during v1 migration |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
 
@@ -88,7 +91,7 @@
 - `memory` items are skipped.
 - Legacy per-base knowledge store paths that resolve to directories are skipped as unsupported pre-v2 layouts.
 - Invalid/malformed items are skipped and recorded as warnings in `prepare`.
-- Invalid knowledge-base tuning fields are cleared during migration; they do not cause the base or its items to be skipped.
+- Invalid knowledge-base tuning fields are normalized during migration; they do not cause the base or its items to be skipped.
 
 ## Current Constraint Decisions
 
@@ -103,10 +106,11 @@
   - the base is skipped
   - all items under that base are skipped
   - a warning is recorded during `prepare`
-- Missing embedding model identity is treated as a structural migration failure for that base.
+- Missing or dangling embedding model identity is cleared to `null` with a warning. It does not cause the base or its items to be skipped.
 - Non-structural tuning config (`chunkSize`, `chunkOverlap`, `threshold`, `documentCount`) is migrated on a best-effort basis:
   - valid values are preserved
-  - invalid values are cleared
+  - invalid `chunkSize` / `chunkOverlap` values are replaced with defaults
+  - invalid nullable tuning values such as `threshold` / `documentCount` are cleared
   - the base still migrates
 - V2 keeps `knowledge_item` flat and uses optional `groupId` for grouping queries.
 - Legacy v1 knowledge data does not include that field, so migrated items keep it as `null`.

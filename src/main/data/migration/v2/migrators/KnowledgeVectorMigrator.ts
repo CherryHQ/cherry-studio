@@ -5,6 +5,12 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import {
+  KnowledgeChunkMetadataSchema,
+  type KnowledgeItemData,
+  type KnowledgeItemType
+} from '@shared/data/types/knowledge'
+import { estimateTokenCount } from 'tokenx'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -39,8 +45,24 @@ interface LegacyKnowledgeStateWithLoaders {
 interface PreparedVectorRow {
   document: string
   externalId: string
+  itemType: KnowledgeItemType
   source: string
+  chunkIndex: number
+  tokenCount: number
   embedding: number[]
+}
+
+interface MigratedKnowledgeItemForVector {
+  id: string
+  baseId: string
+  type: KnowledgeItemType
+  data: KnowledgeItemData
+}
+
+interface LoaderTarget {
+  id: string
+  itemType: KnowledgeItemType
+  source: string
 }
 
 interface PreparedBasePlan {
@@ -180,7 +202,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       row.document,
       JSON.stringify({
         itemId: row.externalId,
-        ...(row.source.trim() !== '' ? { source: row.source } : {})
+        itemType: row.itemType,
+        source: row.source,
+        chunkIndex: row.chunkIndex,
+        tokenCount: row.tokenCount
       }),
       `[${row.embedding.join(',')}]`
     ])
@@ -195,31 +220,50 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     })
   }
 
-  private buildLoaderKeyMap(
+  private getMigratedItemSource(data: KnowledgeItemData): string {
+    if (!data || typeof data !== 'object' || !('source' in data) || typeof data.source !== 'string') {
+      return ''
+    }
+
+    return data.source.trim()
+  }
+
+  private buildLoaderTargetMap(
     legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
-    migratedItemIds: Set<string>
-  ): Map<string, string> {
-    const map = new Map<string, string>()
+    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>
+  ): Map<string, LoaderTarget> {
+    const map = new Map<string, LoaderTarget>()
     if (!legacyBase || !Array.isArray(legacyBase.items)) {
       return map
     }
 
     for (const item of legacyBase.items) {
-      if (!item.id || !migratedItemIds.has(item.id)) {
+      if (!item.id) {
         continue
+      }
+
+      const migratedItem = migratedItemsById.get(item.id)
+      if (!migratedItem) {
+        continue
+      }
+
+      const target: LoaderTarget = {
+        id: migratedItem.id,
+        itemType: migratedItem.type,
+        source: this.getMigratedItemSource(migratedItem.data)
       }
 
       if (Array.isArray(item.uniqueIds) && item.uniqueIds.length > 0) {
         for (const uniqueId of item.uniqueIds) {
           if (typeof uniqueId === 'string' && uniqueId.trim() !== '') {
-            map.set(uniqueId, item.id)
+            map.set(uniqueId, target)
           }
         }
         continue
       }
 
       if (typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '') {
-        map.set(item.uniqueId, item.id)
+        map.set(item.uniqueId, target)
       }
     }
 
@@ -239,14 +283,19 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       }
 
       const migratedItems = await ctx.db
-        .select({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId })
+        .select({
+          id: knowledgeItemTable.id,
+          baseId: knowledgeItemTable.baseId,
+          type: knowledgeItemTable.type,
+          data: knowledgeItemTable.data
+        })
         .from(knowledgeItemTable)
 
-      const migratedItemIdsByBaseId = new Map<string, Set<string>>()
+      const migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
       for (const item of migratedItems) {
-        const bucket = migratedItemIdsByBaseId.get(item.baseId) ?? new Set<string>()
-        bucket.add(item.id)
-        migratedItemIdsByBaseId.set(item.baseId, bucket)
+        const bucket = migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        bucket.set(item.id, item)
+        migratedItemsByBaseId.set(item.baseId, bucket)
       }
 
       const legacyBasesById = new Map(
@@ -295,18 +344,19 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const vectorRows = source.rows
         this.sourceCount += vectorRows.length
 
-        const loaderKeyMap = this.buildLoaderKeyMap(
+        const loaderTargetMap = this.buildLoaderTargetMap(
           legacyBase,
-          migratedItemIdsByBaseId.get(base.id) ?? new Set<string>()
+          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
         )
         const rows: PreparedVectorRow[] = []
+        const chunkIndexByItemId = new Map<string, number>()
 
         for (const row of vectorRows) {
           // V2 only keeps vectors that can be proven to belong to an existing
           // migrated knowledge_item row. Unmapped legacy vectors are treated
           // as invalid index residue and are intentionally dropped.
-          const externalId = loaderKeyMap.get(row.uniqueLoaderId)
-          if (!externalId) {
+          const target = loaderTargetMap.get(row.uniqueLoaderId)
+          if (!target) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
             logger.warn(warningMessage)
@@ -322,10 +372,25 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             continue
           }
 
+          const sourceText = row.source.trim() || target.source
+          if (sourceText === '') {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: source missing for item '${target.id}'`
+            logger.warn(warningMessage)
+            this.warnings.push(warningMessage)
+            continue
+          }
+
+          const chunkIndex = chunkIndexByItemId.get(target.id) ?? 0
+          chunkIndexByItemId.set(target.id, chunkIndex + 1)
+
           rows.push({
             document: row.pageContent,
-            externalId,
-            source: row.source,
+            externalId: target.id,
+            itemType: target.itemType,
+            source: sourceText,
+            chunkIndex,
+            tokenCount: estimateTokenCount(row.pageContent),
             embedding: row.vector
           })
         }
@@ -492,17 +557,51 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
 
-          const missingOrMismatchedItemIdResult = await client.execute({
-            sql: `SELECT count(*) AS count FROM ${VECTORSTORE_TABLE_NAME} WHERE json_extract(metadata, '$.itemId') IS NULL OR json_extract(metadata, '$.itemId') = '' OR json_extract(metadata, '$.itemId') != external_id`,
+          const metadataResult = await client.execute({
+            sql: `SELECT id, external_id, metadata FROM ${VECTORSTORE_TABLE_NAME}`,
             args: []
           })
-          const missingOrMismatchedItemIdCount = Number(missingOrMismatchedItemIdResult.rows[0]?.count ?? 0)
-          if (missingOrMismatchedItemIdCount > 0) {
+
+          let invalidMetadataCount = 0
+          let mismatchedItemIdCount = 0
+
+          for (const row of metadataResult.rows) {
+            let metadata: unknown
+
+            try {
+              metadata = JSON.parse(String(row.metadata ?? '{}'))
+            } catch {
+              invalidMetadataCount += 1
+              continue
+            }
+
+            const parsedMetadata = KnowledgeChunkMetadataSchema.safeParse(metadata)
+            if (!parsedMetadata.success) {
+              invalidMetadataCount += 1
+              continue
+            }
+
+            const externalId = typeof row.external_id === 'string' ? row.external_id : String(row.external_id ?? '')
+            if (parsedMetadata.data.itemId !== externalId) {
+              mismatchedItemIdCount += 1
+            }
+          }
+
+          if (invalidMetadataCount > 0) {
             errors.push({
-              key: `knowledge_vector_missing_item_id_${plan.baseId}`,
+              key: `knowledge_vector_invalid_metadata_${plan.baseId}`,
               expected: 0,
-              actual: missingOrMismatchedItemIdCount,
-              message: `Found ${missingOrMismatchedItemIdCount} knowledge vector rows without matching metadata.itemId in base ${plan.baseId}`
+              actual: invalidMetadataCount,
+              message: `Found ${invalidMetadataCount} knowledge vector rows with invalid runtime metadata in base ${plan.baseId}`
+            })
+          }
+
+          if (mismatchedItemIdCount > 0) {
+            errors.push({
+              key: `knowledge_vector_mismatched_item_id_${plan.baseId}`,
+              expected: 0,
+              actual: mismatchedItemIdCount,
+              message: `Found ${mismatchedItemIdCount} knowledge vector rows whose metadata.itemId does not match external_id in base ${plan.baseId}`
             })
           }
         } finally {

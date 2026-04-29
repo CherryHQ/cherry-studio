@@ -1,32 +1,43 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
-  createBaseMock,
-  deleteBaseMock,
   runtimeAddItemsMock,
+  runtimeCreateBaseMock,
+  runtimeDeleteBaseMock,
+  runtimeDeleteItemChunkMock,
   runtimeDeleteItemsMock,
+  runtimeListItemChunksMock,
+  runtimeReindexItemsMock,
   runtimeSearchMock,
-  expandDirectoryOwnerToCreateItemsMock,
-  expandSitemapOwnerToCreateItemsMock,
+  knowledgeBaseCreateMock,
+  knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
-  knowledgeItemCreateManyMock,
-  knowledgeItemGetByIdsInBaseMock
+  knowledgeItemDeleteMock,
+  knowledgeItemGetDescendantItemsMock,
+  knowledgeItemGetByIdMock,
+  knowledgeItemGetLeafDescendantItemsMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  createBaseMock: vi.fn(),
-  deleteBaseMock: vi.fn(),
   runtimeAddItemsMock: vi.fn(),
+  runtimeCreateBaseMock: vi.fn(),
+  runtimeDeleteBaseMock: vi.fn(),
+  runtimeDeleteItemChunkMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
+  runtimeListItemChunksMock: vi.fn(),
+  runtimeReindexItemsMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
-  expandDirectoryOwnerToCreateItemsMock: vi.fn(),
-  expandSitemapOwnerToCreateItemsMock: vi.fn(),
+  knowledgeBaseCreateMock: vi.fn(),
+  knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
-  knowledgeItemCreateManyMock: vi.fn(),
-  knowledgeItemGetByIdsInBaseMock: vi.fn()
+  knowledgeItemDeleteMock: vi.fn(),
+  knowledgeItemGetDescendantItemsMock: vi.fn(),
+  knowledgeItemGetByIdMock: vi.fn(),
+  knowledgeItemGetLeafDescendantItemsMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -50,23 +61,19 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
+    create: knowledgeBaseCreateMock,
+    delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock
   }
 }))
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    createMany: knowledgeItemCreateManyMock,
-    getByIdsInBase: knowledgeItemGetByIdsInBaseMock
+    delete: knowledgeItemDeleteMock,
+    getDescendantItems: knowledgeItemGetDescendantItemsMock,
+    getById: knowledgeItemGetByIdMock,
+    getLeafDescendantItems: knowledgeItemGetLeafDescendantItemsMock
   }
-}))
-
-vi.mock('../utils/directory', () => ({
-  expandDirectoryOwnerToCreateItems: expandDirectoryOwnerToCreateItemsMock
-}))
-
-vi.mock('../utils/sitemap', () => ({
-  expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
 const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
@@ -75,75 +82,48 @@ function createBase() {
   return {
     id: 'kb-1',
     name: 'KB',
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    chunkSize: 1024,
+    chunkOverlap: 200,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
-function createDirectoryItem() {
-  return {
-    id: 'dir-1',
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'directory' as const,
-    data: { name: 'docs', path: '/docs' },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-function createSitemapItem() {
-  return {
-    id: 'sitemap-1',
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'sitemap' as const,
-    data: { url: 'https://example.com/sitemap.xml', name: 'Example Sitemap' },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-function createNoteItem(id = 'note-1') {
-  return {
-    id,
-    baseId: 'kb-1',
-    groupId: null,
-    type: 'note' as const,
-    data: { content: `hello ${id}` },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-function createFileItem(id = 'file-1', groupId: string | null = null) {
+function createNoteItem(
+  id = 'note-1',
+  status: KnowledgeItem['status'] = 'idle',
+  groupId: string | null = null
+): KnowledgeItem {
   return {
     id,
     baseId: 'kb-1',
     groupId,
-    type: 'file' as const,
-    data: {
-      file: {
-        id: `${id}-meta`,
-        name: `${id}.md`,
-        origin_name: `${id}.md`,
-        path: `/docs/${id}.md`,
-        created_at: '2026-04-08T00:00:00.000Z',
-        size: 10,
-        ext: '.md',
-        type: 'text',
-        count: 1
-      }
-    },
-    status: 'idle' as const,
+    type: 'note',
+    data: { source: id, content: `hello ${id}` },
+    status,
+    phase: null,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+function createDirectoryItem(
+  id = 'dir-1',
+  status: KnowledgeItem['status'] = 'idle',
+  groupId: string | null = null
+): KnowledgeItem {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId,
+    type: 'directory',
+    data: { source: `/docs/${id}`, path: `/docs/${id}` },
+    status,
+    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -157,10 +137,13 @@ describe('KnowledgeOrchestrationService', () => {
     appGetMock.mockImplementation((serviceName: string) => {
       if (serviceName === 'KnowledgeRuntimeService') {
         return {
-          createBase: createBaseMock,
-          deleteBase: deleteBaseMock,
           addItems: runtimeAddItemsMock,
+          createBase: runtimeCreateBaseMock,
+          deleteBase: runtimeDeleteBaseMock,
+          deleteItemChunk: runtimeDeleteItemChunkMock,
           deleteItems: runtimeDeleteItemsMock,
+          listItemChunks: runtimeListItemChunksMock,
+          reindexItems: runtimeReindexItemsMock,
           search: runtimeSearchMock
         }
       }
@@ -168,15 +151,20 @@ describe('KnowledgeOrchestrationService', () => {
       throw new Error(`Unexpected application.get(${serviceName}) in test`)
     })
 
+    knowledgeBaseCreateMock.mockResolvedValue(createBase())
+    knowledgeBaseDeleteMock.mockResolvedValue(undefined)
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([createNoteItem()])
-    knowledgeItemCreateManyMock.mockResolvedValue({ items: [] })
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([])
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValue([])
-    createBaseMock.mockResolvedValue(undefined)
-    deleteBaseMock.mockResolvedValue(undefined)
-    runtimeAddItemsMock.mockResolvedValue([undefined])
+    knowledgeItemDeleteMock.mockResolvedValue(undefined)
+    knowledgeItemGetDescendantItemsMock.mockResolvedValue([])
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([createNoteItem()])
+    runtimeAddItemsMock.mockResolvedValue(undefined)
+    runtimeCreateBaseMock.mockResolvedValue(undefined)
+    runtimeDeleteBaseMock.mockResolvedValue(undefined)
+    runtimeDeleteItemChunkMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
+    runtimeListItemChunksMock.mockResolvedValue([])
+    runtimeReindexItemsMock.mockResolvedValue(undefined)
     runtimeSearchMock.mockResolvedValue([])
   })
 
@@ -185,208 +173,248 @@ describe('KnowledgeOrchestrationService', () => {
     expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeRuntimeService'])
   })
 
-  it('registers only the five caller-facing knowledge runtime IPC handlers', async () => {
+  it('registers caller-facing knowledge IPC handlers', () => {
     const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
+    ;(service as unknown as { onInit: () => void }).onInit()
 
-    const handlerCalls = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0])
+    const handlerCalls = (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle.mock.calls.map(
+      (call) => call[0]
+    )
     expect(handlerCalls).toEqual([
       'knowledge-runtime:create-base',
       'knowledge-runtime:delete-base',
       'knowledge-runtime:add-items',
       'knowledge-runtime:delete-items',
-      'knowledge-runtime:search'
+      'knowledge-runtime:reindex-items',
+      'knowledge-runtime:search',
+      'knowledge-runtime:list-item-chunks',
+      'knowledge-runtime:delete-item-chunk'
     ])
   })
 
-  it('rejects invalid create-base IPC payloads before touching services', async () => {
+  it('creates a base and initializes its runtime store', async () => {
     const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
-
-    const createBaseHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:create-base'
-    )
-    expect(createBaseHandlerCall).toBeDefined()
-    const createBaseHandler = createBaseHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(createBaseHandler({}, { baseId: '' })).rejects.toThrow()
-    await expect(createBaseHandler({}, { baseId: 'kb-1', extra: true })).rejects.toThrow()
-
-    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(createBaseMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid add-items IPC payloads before touching services', async () => {
-    const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
-
-    const addItemsHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:add-items'
-    )
-    expect(addItemsHandlerCall).toBeDefined()
-    const addItemsHandler = addItemsHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: [] })).rejects.toThrow()
-    await expect(addItemsHandler({}, { baseId: 'kb-1', itemIds: ['note-1', ''] })).rejects.toThrow()
-
-    expect(knowledgeItemGetByIdsInBaseMock).not.toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid search IPC payloads before touching services', async () => {
-    const service = new KnowledgeOrchestrationService()
-    ;(service as any).onInit()
-
-    const searchHandlerCall = ((service as any).ipcHandle as ReturnType<typeof vi.fn>).mock.calls.find(
-      (call) => call[0] === 'knowledge-runtime:search'
-    )
-    expect(searchHandlerCall).toBeDefined()
-    const searchHandler = searchHandlerCall?.[1] as (_event: unknown, payload: unknown) => Promise<unknown>
-
-    await expect(searchHandler({}, { baseId: 'kb-1', query: '' })).rejects.toThrow()
-    await expect(searchHandler({}, { baseId: 'kb-1', query: 'hello', extra: true })).rejects.toThrow()
-
-    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(runtimeSearchMock).not.toHaveBeenCalled()
-  })
-
-  it('forwards base lifecycle operations to runtime', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-
-    await expect(service.createBase(base.id)).resolves.toBeUndefined()
-    await expect(service.deleteBase(base.id)).resolves.toBeUndefined()
-
-    expect(createBaseMock).toHaveBeenCalledWith(base)
-    expect(deleteBaseMock).toHaveBeenCalledWith(base.id)
-  })
-
-  it('expands container items, persists children, and only enqueues leaf items', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const directoryItem = createDirectoryItem()
-    const noteItem = createNoteItem('note-leaf')
-    const createdDirectoryItem = {
-      ...createDirectoryItem(),
-      id: 'dir-child',
-      groupId: directoryItem.id,
-      data: { name: 'nested', path: '/docs/nested' }
+    const input = {
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'ollama::nomic-embed-text'
     }
-    const createdFileItem = createFileItem('file-child', directoryItem.id)
 
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([directoryItem, noteItem])
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
-      {
-        groupId: directoryItem.id,
-        type: 'directory',
-        data: { name: 'nested', path: '/docs/nested' }
-      },
-      {
-        groupId: directoryItem.id,
-        type: 'file',
-        data: createdFileItem.data
-      }
-    ])
-    knowledgeItemCreateManyMock.mockResolvedValue({
-      items: [createdDirectoryItem, createdFileItem]
-    })
+    await expect(service.createBase(input)).resolves.toEqual(createBase())
 
-    await expect(service.addItems(base.id, [directoryItem.id, noteItem.id])).resolves.toEqual([undefined])
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(input)
+    expect(runtimeCreateBaseMock).toHaveBeenCalledWith('kb-1')
+  })
 
-    expect(expandDirectoryOwnerToCreateItemsMock).toHaveBeenCalledWith(directoryItem)
-    expect(knowledgeItemCreateManyMock).toHaveBeenCalledWith(base.id, {
-      items: [
-        {
-          groupId: directoryItem.id,
-          type: 'directory',
-          data: { name: 'nested', path: '/docs/nested' }
-        },
-        {
-          groupId: directoryItem.id,
-          type: 'file',
-          data: createdFileItem.data
-        }
-      ]
-    })
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [noteItem, createdFileItem])
+  it('rolls back the SQLite base when runtime base initialization fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const createError = new Error('vector store initialization failed')
+    runtimeCreateBaseMock.mockRejectedValueOnce(createError)
+
+    await expect(
+      service.createBase({
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'ollama::nomic-embed-text'
+      })
+    ).rejects.toBe(createError)
+
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+  })
+
+  it('does not delete the SQLite base when runtime base deletion fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const deleteError = new Error('vector store deletion failed')
+    runtimeDeleteBaseMock.mockRejectedValueOnce(deleteError)
+
+    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+
+    expect(runtimeDeleteBaseMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates caller-friendly add item inputs to runtime', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const input = [{ type: 'note' as const, content: 'hello', source: 'note-1' }]
+
+    const result = await service.addItems('kb-1', input)
+
+    expect(result).toBeUndefined()
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', input)
+  })
+
+  it('rejects addItems when runtime acceptance fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const runtimeError = new Error('runtime acceptance failed')
+    runtimeAddItemsMock.mockRejectedValueOnce(runtimeError)
+
+    await expect(service.addItems('kb-1', [{ type: 'note', content: 'hello', source: 'note-1' }])).rejects.toBe(
+      runtimeError
+    )
+  })
+
+  it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const file = {
+      id: 'file-meta-1',
+      name: 'guide.md',
+      origin_name: 'guide.md',
+      path: '/docs/guide.md',
+      created_at: '2026-04-08T00:00:00.000Z',
+      size: 12,
+      ext: '.md',
+      type: 'text' as const,
+      count: 1
+    }
+    const inputs = [
+      { type: 'url' as const, url: ' https://example.com/page ' },
+      { type: 'sitemap' as const, url: 'https://example.com/sitemap.xml' },
+      { type: 'directory' as const, path: '/docs/reference/' },
+      { type: 'file' as const, file }
+    ]
+
+    await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()
+
+    expect(runtimeAddItemsMock).toHaveBeenCalledWith('kb-1', inputs)
+  })
+
+  it('asks runtime to delete roots before deleting SQLite roots', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createNoteItem('note-root')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
+
+    await expect(service.deleteItems('kb-1', [root.id])).resolves.toBeUndefined()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
+  })
+
+  it('collapses nested delete inputs to top-level roots', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createDirectoryItem('dir-root')
+    const child = createNoteItem('note-child', 'idle', root.id)
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(child)
+    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([child]).mockResolvedValueOnce([])
+
+    await expect(service.deleteItems('kb-1', [root.id, child.id])).resolves.toBeUndefined()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
+  })
+
+  it('collapses deep descendant delete inputs even when the intermediate parent is not selected', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createDirectoryItem('dir-root')
+    const intermediate = createDirectoryItem('dir-child', 'idle', root.id)
+    const leaf = createNoteItem('note-leaf', 'idle', intermediate.id)
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(leaf)
+    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([intermediate, leaf]).mockResolvedValueOnce([])
+
+    await expect(service.deleteItems('kb-1', [root.id, leaf.id])).resolves.toBeUndefined()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(root.id)
+  })
+
+  it('keeps sibling delete inputs after top-level root normalization', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const first = createNoteItem('note-1')
+    const second = createNoteItem('note-2')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    knowledgeItemGetDescendantItemsMock.mockResolvedValue([])
+
+    await expect(service.deleteItems('kb-1', [first.id, second.id])).resolves.toBeUndefined()
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [first, second])
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(first.id)
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith(second.id)
+  })
+
+  it('does not delete SQLite roots when runtime delete fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createNoteItem('note-root')
+    const runtimeError = new Error('vector cleanup failed')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
+    runtimeDeleteItemsMock.mockRejectedValueOnce(runtimeError)
+
+    await expect(service.deleteItems('kb-1', [root.id])).rejects.toBe(runtimeError)
+
+    expect(runtimeDeleteItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('asks runtime to reindex roots without deleting SQLite rows', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createNoteItem('note-root')
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root)
+
+    await expect(service.reindexItems('kb-1', [root.id])).resolves.toBeUndefined()
+
+    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('collapses nested reindex inputs to top-level roots', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createDirectoryItem('dir-root')
+    const child = createNoteItem('note-child', 'idle', root.id)
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(root).mockResolvedValueOnce(child)
+    knowledgeItemGetDescendantItemsMock.mockResolvedValueOnce([child]).mockResolvedValueOnce([])
+
+    await expect(service.reindexItems('kb-1', [root.id, child.id])).resolves.toBeUndefined()
+
+    expect(runtimeReindexItemsMock).toHaveBeenCalledWith('kb-1', [root])
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
   })
 
   it('searches through runtime after resolving the base', async () => {
     const service = new KnowledgeOrchestrationService()
-    const base = createBase()
     const results = [
       {
         pageContent: 'hello',
         score: 0.9,
-        metadata: { itemId: 'note-1' },
+        metadata: {
+          itemId: 'note-1',
+          itemType: 'note',
+          source: 'note-1',
+          chunkIndex: 0,
+          tokenCount: 1
+        },
         itemId: 'note-1',
         chunkId: 'chunk-1'
       }
     ]
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
     runtimeSearchMock.mockResolvedValue(results)
 
-    await expect(service.search(base.id, 'hello')).resolves.toEqual(results)
-    expect(runtimeSearchMock).toHaveBeenCalledWith(base, 'hello')
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual(results)
+    expect(runtimeSearchMock).toHaveBeenCalledWith('kb-1', 'hello')
   })
 
-  it('expands sitemap items into urls before enqueueing leaf items', async () => {
+  it('lists and deletes item chunks after checking item ownership', async () => {
     const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const sitemapItem = createSitemapItem()
-    const createdUrlItem = {
-      id: 'url-child',
-      baseId: base.id,
-      groupId: sitemapItem.id,
-      type: 'url' as const,
-      data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' },
-      status: 'idle' as const,
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    }
-
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([sitemapItem])
-    expandSitemapOwnerToCreateItemsMock.mockResolvedValue([
+    const chunks = [
       {
-        groupId: sitemapItem.id,
-        type: 'url',
-        data: { url: 'https://example.com/page-1', name: 'https://example.com/page-1' }
+        id: 'chunk-1',
+        itemId: 'note-1',
+        content: 'hello',
+        metadata: {
+          itemId: 'note-1',
+          itemType: 'note',
+          source: 'note-1',
+          chunkIndex: 0,
+          tokenCount: 1
+        }
       }
-    ])
-    knowledgeItemCreateManyMock.mockResolvedValue({ items: [createdUrlItem] })
+    ]
+    runtimeListItemChunksMock.mockResolvedValueOnce(chunks)
 
-    await expect(service.addItems(base.id, [sitemapItem.id])).resolves.toEqual([undefined])
+    await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual(chunks)
+    await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).resolves.toBeUndefined()
 
-    expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemapItem)
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(base, [createdUrlItem])
-  })
-
-  it('does not create expanded child items until all expansions succeed', async () => {
-    const service = new KnowledgeOrchestrationService()
-    const base = createBase()
-    const directoryItem = createDirectoryItem()
-    const sitemapItem = createSitemapItem()
-
-    knowledgeBaseGetByIdMock.mockResolvedValue(base)
-    knowledgeItemGetByIdsInBaseMock.mockResolvedValue([directoryItem, sitemapItem])
-    expandDirectoryOwnerToCreateItemsMock.mockResolvedValue([
-      {
-        groupId: directoryItem.id,
-        type: 'file',
-        data: createFileItem('file-child', directoryItem.id).data
-      }
-    ])
-    expandSitemapOwnerToCreateItemsMock.mockRejectedValue(new Error('sitemap expansion failed'))
-
-    await expect(service.addItems(base.id, [directoryItem.id, sitemapItem.id])).rejects.toThrow(
-      'sitemap expansion failed'
-    )
-
-    expect(knowledgeItemCreateManyMock).not.toHaveBeenCalled()
-    expect(runtimeAddItemsMock).not.toHaveBeenCalled()
+    expect(knowledgeItemGetByIdMock).toHaveBeenCalledWith('note-1')
+    expect(runtimeListItemChunksMock).toHaveBeenCalledWith('kb-1', 'note-1')
+    expect(runtimeDeleteItemChunkMock).toHaveBeenCalledWith('kb-1', 'note-1', 'chunk-1')
   })
 })

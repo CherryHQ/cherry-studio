@@ -1,4 +1,9 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeBase
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerDebugMock, loggerErrorMock, loggerInfoMock, providerCreateMock, providerDeleteMock, providerExistsMock } =
@@ -59,12 +64,15 @@ vi.mock('../providers/LibSqlVectorStoreProvider', () => ({
 const { KnowledgeVectorStoreService } = await import('../KnowledgeVectorStoreService')
 const { LibSQLVectorStore } = await import('@vectorstores/libsql')
 
-function createBase(id = 'kb-1') {
+function createBase(id = 'kb-1'): KnowledgeBase {
   return {
     id,
     name: 'KB',
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }

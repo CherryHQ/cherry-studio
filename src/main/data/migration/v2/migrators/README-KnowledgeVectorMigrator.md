@@ -9,7 +9,9 @@
 | Migrated knowledge base identities and dimensions | SQLite `knowledge_base` | `knowledge_base` table |
 | Migrated knowledge item identities | SQLite `knowledge_item` | `knowledge_item` table |
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
-| Legacy chunk vectors | Per-base legacy vector DB | `application.getPath('feature.knowledgebase.data', <sanitizedBaseId>)` |
+| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.loadBase(base.id)` |
+
+The current source reader resolves the per-base DB path through `application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
 
 ## Target Storage
 
@@ -28,7 +30,10 @@
 2. Chunk payload migration
    - `pageContent` -> `document`
    - `knowledge_item.id` -> `metadata.itemId`
-   - `source` -> optional `metadata.source`
+   - `knowledge_item.type` -> `metadata.itemType`
+   - Legacy row `source`, falling back to `knowledge_item.data.source` -> `metadata.source`
+   - Per-item migrated row order -> `metadata.chunkIndex`
+   - Estimated document token count -> `metadata.tokenCount`
    - Other legacy metadata fields are dropped.
 
 3. Embedding reuse
@@ -63,7 +68,11 @@
 - Per-base row count must equal the prepared row count.
 - `external_id` must be non-empty for every migrated row.
 - `metadata.itemId` must be present and match `external_id` for every migrated row.
-- `metadata.source` is optional and is only preserved when the legacy row has a non-empty `source`.
+- `metadata` must satisfy the runtime `KnowledgeChunkMetadataSchema`.
+
+## Runtime Compatibility Caveat
+
+The current migrator intentionally allows rows without `metadata.source` when the legacy row source is empty. Current runtime search/chunk mapping validates vector metadata with `KnowledgeChunkMetadataSchema`, which requires `source`. If migrated legacy data can contain empty `source`, the runtime compatibility decision needs to be resolved in code: either make migrated metadata always include a non-empty fallback `source`, or relax the runtime schema for migrated rows. Until that is decided, this README documents the migrator's implemented behavior, not a guarantee that every migrated row is runtime-readable.
 
 ## Skipped Data
 
@@ -71,5 +80,6 @@
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows with missing or empty `vector` payloads
+- Vector rows whose source cannot be resolved from either the legacy row or migrated `knowledge_item.data.source`
 
 If every legacy vector row under one base is skipped, the rebuilt V2 vector store for that base is expected to be empty. This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.

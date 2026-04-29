@@ -1,8 +1,13 @@
-import path from 'node:path'
-
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { FileMetadata } from '@shared/data/types/file'
-import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_SEARCH_MODE,
+  type KnowledgeItemData,
+  type KnowledgeItemStatus
+} from '@shared/data/types/knowledge'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -113,19 +118,32 @@ export const toTimestamp = (value: number | undefined): number => {
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
+const getDefaultChunkOverlap = (chunkSize: number): number => {
+  if (chunkSize <= 1) {
+    return 0
+  }
+
+  return Math.min(DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, chunkSize - 1)
+}
+
 function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase>>(config: T): T {
   const normalized = { ...config }
 
-  if (normalized.chunkSize != null && normalized.chunkSize <= 0) {
-    normalized.chunkSize = undefined as T['chunkSize']
-  }
+  const chunkSizeCandidate = normalized.chunkSize
+  const chunkSize =
+    typeof chunkSizeCandidate === 'number' && Number.isInteger(chunkSizeCandidate) && chunkSizeCandidate > 0
+      ? chunkSizeCandidate
+      : DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE
+  normalized.chunkSize = chunkSize as T['chunkSize']
 
-  if (normalized.chunkOverlap != null) {
-    if (normalized.chunkOverlap < 0) {
-      normalized.chunkOverlap = undefined as T['chunkOverlap']
-    } else if (normalized.chunkSize == null || normalized.chunkOverlap >= normalized.chunkSize) {
-      normalized.chunkOverlap = undefined as T['chunkOverlap']
-    }
+  const chunkOverlapCandidate = normalized.chunkOverlap
+  if (
+    typeof chunkOverlapCandidate !== 'number' ||
+    !Number.isInteger(chunkOverlapCandidate) ||
+    chunkOverlapCandidate < 0 ||
+    chunkOverlapCandidate >= chunkSize
+  ) {
+    normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize) as T['chunkOverlap']
   }
 
   if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
@@ -181,6 +199,8 @@ export const transformKnowledgeBase = (
     id: base.id,
     name: base.name,
     description: base.description,
+    groupId: null,
+    emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
     dimensions,
     embeddingModelId: embeddingModelId ?? null,
     rerankModelId: rerankModelId ?? null,
@@ -189,7 +209,7 @@ export const transformKnowledgeBase = (
     chunkOverlap: base.chunkOverlap,
     threshold: base.threshold,
     documentCount: base.documentCount,
-    searchMode: 'default',
+    searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
     createdAt: toTimestamp(base.created_at),
     updatedAt: toTimestamp(base.updated_at)
   }
@@ -228,7 +248,7 @@ export const transformKnowledgeItem = (
     }
 
     type = 'file'
-    data = { file }
+    data = { source: file.path, file }
   } else if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {
@@ -239,8 +259,8 @@ export const transformKnowledgeItem = (
 
     type = 'url'
     data = {
-      url: item.content,
-      name: item.content
+      source: item.content,
+      url: item.content
     }
   } else if (item.type === 'sitemap') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
@@ -252,8 +272,8 @@ export const transformKnowledgeItem = (
 
     type = 'sitemap'
     data = {
-      url: item.content,
-      name: item.content
+      source: item.content,
+      url: item.content
     }
   } else if (item.type === 'directory') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
@@ -265,7 +285,7 @@ export const transformKnowledgeItem = (
 
     type = 'directory'
     data = {
-      name: path.basename(item.content),
+      source: item.content,
       path: item.content
     }
   } else if (item.type === 'note') {
@@ -274,6 +294,7 @@ export const transformKnowledgeItem = (
 
     type = 'note'
     data = {
+      source: note?.sourceUrl ?? item.sourceUrl ?? content,
       content,
       sourceUrl: note?.sourceUrl ?? item.sourceUrl
     }
@@ -297,6 +318,7 @@ export const transformKnowledgeItem = (
       type,
       data,
       status: inferKnowledgeItemStatus(item),
+      phase: null,
       error: item.processingError ?? null,
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)

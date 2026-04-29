@@ -22,7 +22,7 @@ import { UniqueModelIdSchema } from './model'
  *   so we trust the renderer-side contract instead of paying for a second layer
  *   of schema-level cross-field validation.
  */
-export const EntityTypeSchema = z.enum(['assistant', 'topic', 'model'])
+export const EntityTypeSchema = z.enum(['assistant', 'topic', 'model', 'knowledge'])
 export type EntityType = z.infer<typeof EntityTypeSchema>
 
 /**

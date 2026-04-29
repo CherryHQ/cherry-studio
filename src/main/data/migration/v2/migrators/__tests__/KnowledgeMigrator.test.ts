@@ -343,6 +343,67 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
   })
 
+  it('prepare materializes valid chunk defaults for migrated knowledge bases', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-missing-chunk',
+                name: 'Missing chunk config',
+                model: { id: 'm1', name: 'model-1', provider: 'openai' },
+                items: []
+              },
+              {
+                id: 'kb-small-chunk',
+                name: 'Small chunk config',
+                model: { id: 'm2', name: 'model-2', provider: 'openai' },
+                chunkSize: 128,
+                items: []
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      },
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockResolvedValue([{ id: 'openai::m1' }, { id: 'openai::m2' }])
+        })
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBases).toHaveLength(2)
+    expect(migrator.preparedBases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'kb-missing-chunk',
+          chunkSize: 1024,
+          chunkOverlap: 200
+        }),
+        expect.objectContaining({
+          id: 'kb-small-chunk',
+          chunkSize: 128,
+          chunkOverlap: 127
+        })
+      ])
+    )
+  })
+
   it('prepare skips base and items when legacy knowledge store path is a directory', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
@@ -521,10 +582,12 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const fileItem = migrator.preparedItems.find((item: any) => item.id === 'file-item-1')
 
     expect(noteItem?.data).toEqual({
+      source: 'https://streamed.example.com',
       content: 'streamed note content',
       sourceUrl: 'https://streamed.example.com'
     })
     expect(fileItem?.data).toEqual({
+      source: '/tmp/report.pdf',
       file: expect.objectContaining({
         id: 'file-1',
         name: 'report.pdf'
@@ -570,7 +633,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0].embeddingModelId).toBe('silicon::BAAI/bge-m3')
     expect(migrator.preparedBases[0].rerankModelId).toBe('silicon::Qwen/Qwen3-Reranker-8B')
-    expect(migrator.preparedBases[0].searchMode).toBe('default')
+    expect(migrator.preparedBases[0].searchMode).toBe('hybrid')
     expect(migrator.skippedCount).toBe(0)
   })
 

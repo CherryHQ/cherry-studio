@@ -196,7 +196,10 @@ export enum IpcChannel {
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
   KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
   KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
+  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
   KnowledgeRuntime_Search = 'knowledge-runtime:search',
+  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
+  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   //file
   File_Open = 'file:open',

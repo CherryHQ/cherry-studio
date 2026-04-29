@@ -2,28 +2,51 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { getFileType } from '@main/utils/file'
-import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-type CreateKnowledgeItemInput = CreateKnowledgeItemsDto['items'][number]
+export type ExpandedDirectoryNode =
+  | {
+      type: 'directory'
+      data: {
+        source: string
+        path: string
+      }
+      children: ExpandedDirectoryNode[]
+    }
+  | {
+      type: 'file'
+      data: {
+        source: string
+        file: FileMetadata
+      }
+    }
 
 /**
  * Recursively reads a directory tree and converts it into note-tree nodes.
  */
-async function readDirectoryTree(dirPath: string, rootPath: string = dirPath): Promise<NotesTreeNode[]> {
+async function readDirectoryTree(
+  dirPath: string,
+  signal: AbortSignal,
+  rootPath: string = dirPath
+): Promise<NotesTreeNode[]> {
+  signal.throwIfAborted()
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  signal.throwIfAborted()
   const nodes: NotesTreeNode[] = []
 
   for (const entry of entries) {
+    signal.throwIfAborted()
+
     if (entry.name.startsWith('.')) {
       continue
     }
 
     const entryPath = path.join(dirPath, entry.name)
     const stats = await fs.stat(entryPath)
+    signal.throwIfAborted()
     const relativePath = path.relative(rootPath, entryPath)
     const treePath = `/${relativePath.replace(/\\/g, '/')}`
 
@@ -36,7 +59,7 @@ async function readDirectoryTree(dirPath: string, rootPath: string = dirPath): P
         externalPath: entryPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
-        children: await readDirectoryTree(entryPath, rootPath)
+        children: await readDirectoryTree(entryPath, signal, rootPath)
       })
       continue
     }
@@ -61,8 +84,9 @@ async function readDirectoryTree(dirPath: string, rootPath: string = dirPath): P
  * Builds file metadata for an external file path so it can be stored as a
  * knowledge file item.
  */
-async function createExternalFileMetadata(filePath: string): Promise<FileMetadata> {
+async function createExternalFileMetadata(filePath: string, signal: AbortSignal): Promise<FileMetadata> {
   const stats = await fs.stat(filePath)
+  signal.throwIfAborted()
   const originName = path.basename(filePath)
   const ext = path.extname(originName)
 
@@ -79,67 +103,65 @@ async function createExternalFileMetadata(filePath: string): Promise<FileMetadat
   }
 }
 
-type GroupingTarget = { groupId: string } | { groupRef: string }
-
-/**
- * Flattens a directory node into create-item inputs while preserving the
- * parent-child grouping relationship.
- */
-async function flattenDirectoryNode(node: NotesTreeNode, parent: GroupingTarget): Promise<CreateKnowledgeItemInput[]> {
+async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    return [
-      {
-        ...parent,
-        type: 'file',
-        data: {
-          file: await createExternalFileMetadata(node.externalPath)
-        }
+    return {
+      type: 'file',
+      data: {
+        source: node.externalPath,
+        file: await createExternalFileMetadata(node.externalPath, signal)
       }
-    ]
+    }
   }
 
   if (node.type !== 'folder') {
-    return []
+    return null
   }
 
-  const ref = node.treePath === '/' ? 'root' : `dir:${node.treePath}`
-  const items: CreateKnowledgeItemInput[] = [
-    {
-      ref,
-      ...parent,
-      type: 'directory',
-      data: {
-        name: node.name,
-        path: node.externalPath
-      }
-    }
-  ]
+  const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    items.push(...(await flattenDirectoryNode(child, { groupRef: ref })))
+    const expandedChild = await expandDirectoryNode(child, signal)
+    if (expandedChild) {
+      children.push(expandedChild)
+    }
   }
 
-  return items
+  if (children.length === 0) {
+    return null
+  }
+
+  return {
+    type: 'directory',
+    data: {
+      source: node.externalPath,
+      path: node.externalPath
+    },
+    children
+  }
 }
 
 /**
- * Expands a directory owner item into a batch of child knowledge items that
- * mirror the directory structure on disk.
+ * Expands a directory owner item into a tree of child knowledge item inputs.
  */
-export async function expandDirectoryOwnerToCreateItems(
-  owner: KnowledgeItem
-): Promise<CreateKnowledgeItemsDto['items']> {
+export async function expandDirectoryOwnerToTree(
+  owner: KnowledgeItem,
+  signal: AbortSignal
+): Promise<ExpandedDirectoryNode[]> {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
   }
 
   const resolvedPath = path.resolve(owner.data.path)
-  const children = await readDirectoryTree(resolvedPath)
-  const items: CreateKnowledgeItemsDto['items'] = []
+  const children = await readDirectoryTree(resolvedPath, signal)
+  const expandedChildren: ExpandedDirectoryNode[] = []
 
   for (const child of children) {
-    items.push(...(await flattenDirectoryNode(child, { groupId: owner.id })))
+    const expandedChild = await expandDirectoryNode(child, signal)
+    if (expandedChild) {
+      expandedChildren.push(expandedChild)
+    }
   }
 
-  return items
+  return expandedChildren
 }

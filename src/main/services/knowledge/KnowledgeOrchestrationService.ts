@@ -2,33 +2,25 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { CreateKnowledgeItemsDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import type {
+  CreateKnowledgeBaseDto,
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeItemChunk,
+  KnowledgeRuntimeAddItemInput,
+  KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
-import * as z from 'zod'
 
-import { expandDirectoryOwnerToCreateItems } from './utils/directory'
-import { expandSitemapOwnerToCreateItems } from './utils/sitemap'
-
-const KnowledgeRuntimeBasePayloadSchema = z
-  .object({
-    baseId: z.string().trim().min(1)
-  })
-  .strict()
-
-const KnowledgeRuntimeItemsPayloadSchema = z
-  .object({
-    baseId: z.string().trim().min(1),
-    itemIds: z.array(z.string().trim().min(1)).min(1)
-  })
-  .strict()
-
-const KnowledgeRuntimeSearchPayloadSchema = z
-  .object({
-    baseId: z.string().trim().min(1),
-    query: z.string().trim().min(1).max(1000)
-  })
-  .strict()
+import {
+  KnowledgeRuntimeAddItemsPayloadSchema,
+  KnowledgeRuntimeBasePayloadSchema,
+  KnowledgeRuntimeCreateBasePayloadSchema,
+  KnowledgeRuntimeDeleteItemChunkPayloadSchema,
+  KnowledgeRuntimeItemChunksPayloadSchema,
+  KnowledgeRuntimeItemsPayloadSchema,
+  KnowledgeRuntimeSearchPayloadSchema
+} from './types/ipc'
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -38,120 +30,123 @@ export class KnowledgeOrchestrationService extends BaseService {
     this.registerIpcHandlers()
   }
 
-  async createBase(baseId: string): Promise<void> {
-    const base = await knowledgeBaseService.getById(baseId)
+  async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const base = await knowledgeBaseService.create(dto)
     const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.createBase(base)
+
+    try {
+      await runtime.createBase(base.id)
+    } catch (error) {
+      await knowledgeBaseService.delete(base.id)
+      throw error
+    }
+
+    return base
   }
 
   async deleteBase(baseId: string): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
     await runtime.deleteBase(baseId)
+    await knowledgeBaseService.delete(baseId)
   }
 
-  async addItems(baseId: string, itemIds: string[]): Promise<void[]> {
-    const [base, items] = await Promise.all([
-      knowledgeBaseService.getById(baseId),
-      knowledgeItemService.getByIdsInBase(baseId, itemIds)
-    ])
-
-    const expandedItems = await this.expandItemsToCreateInputs(items)
-    const expandedLeafItems =
-      expandedItems.length === 0
-        ? []
-        : this.collectIndexableItems(
-            (
-              await knowledgeItemService.createMany(baseId, {
-                items: expandedItems
-              })
-            ).items
-          )
-
-    const allLeafItems = this.collectIndexableItems([...items, ...expandedLeafItems])
-
-    if (allLeafItems.length === 0) {
-      return []
-    }
-
+  async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.addItems(base, allLeafItems)
+    await runtime.addItems(baseId, items)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    const [base, items] = await Promise.all([
-      knowledgeBaseService.getById(baseId),
-      knowledgeItemService.getByIdsInBase(baseId, itemIds)
-    ])
-
+    const items = await this.getTopLevelItemsInBase(baseId, itemIds)
     const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.deleteItems(base, items)
+    await runtime.deleteItems(baseId, items)
+    await Promise.all(items.map((item) => knowledgeItemService.delete(item.id)))
+  }
+
+  async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
+    const items = await this.getTopLevelItemsInBase(baseId, itemIds)
+    const runtime = application.get('KnowledgeRuntimeService')
+
+    await runtime.reindexItems(baseId, items)
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
-    const base = await knowledgeBaseService.getById(baseId)
     const runtime = application.get('KnowledgeRuntimeService')
-    return await runtime.search(base, query)
+    return await runtime.search(baseId, query)
+  }
+
+  async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
+    await this.getRootItemsInBase(baseId, [itemId])
+    const runtime = application.get('KnowledgeRuntimeService')
+    return await runtime.listItemChunks(baseId, itemId)
+  }
+
+  async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
+    await this.getRootItemsInBase(baseId, [itemId])
+    const runtime = application.get('KnowledgeRuntimeService')
+    return await runtime.deleteItemChunk(baseId, itemId, chunkId)
+  }
+
+  private async getRootItemsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
+    const rootIds = [...new Set(itemIds)]
+    const items = await Promise.all(rootIds.map((itemId) => knowledgeItemService.getById(itemId)))
+    const invalidItem = items.find((item) => item.baseId !== baseId)
+
+    if (invalidItem) {
+      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
+    }
+
+    return items
+  }
+
+  private async getTopLevelItemsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
+    const items = await this.getRootItemsInBase(baseId, itemIds)
+    const selectedIds = new Set(items.map((item) => item.id))
+    const descendantSelectedIds = new Set<string>()
+
+    for (const item of items) {
+      const descendants = await knowledgeItemService.getDescendantItems(baseId, [item.id])
+      for (const descendant of descendants) {
+        if (selectedIds.has(descendant.id)) {
+          descendantSelectedIds.add(descendant.id)
+        }
+      }
+    }
+
+    return items.filter((item) => !descendantSelectedIds.has(item.id))
   }
 
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
-      const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
-      return await this.createBase(baseId)
+      const { base } = KnowledgeRuntimeCreateBasePayloadSchema.parse(payload)
+      return await this.createBase(base)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: unknown) => {
       const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
       return await this.deleteBase(baseId)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
-      return await this.addItems(baseId, itemIds)
+      const { baseId, items } = KnowledgeRuntimeAddItemsPayloadSchema.parse(payload)
+      return await this.addItems(baseId, items)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: unknown) => {
       const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
       return await this.deleteItems(baseId, itemIds)
     })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ReindexItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+      return await this.reindexItems(baseId, itemIds)
+    })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: unknown) => {
       const { baseId, query } = KnowledgeRuntimeSearchPayloadSchema.parse(payload)
       return await this.search(baseId, query)
     })
-  }
-
-  private async expandItemsToCreateInputs(items: KnowledgeItem[]): Promise<CreateKnowledgeItemsDto['items']> {
-    const expandedItems: CreateKnowledgeItemsDto['items'] = []
-
-    for (const item of items) {
-      const itemCreateInputs = await this.expandItemToCreateInputs(item)
-      if (itemCreateInputs.length === 0) {
-        continue
-      }
-
-      expandedItems.push(...itemCreateInputs)
-    }
-
-    return expandedItems
-  }
-
-  private async expandItemToCreateInputs(item: KnowledgeItem): Promise<CreateKnowledgeItemsDto['items']> {
-    if (item.type === 'directory') {
-      return await expandDirectoryOwnerToCreateItems(item)
-    }
-
-    if (item.type === 'sitemap') {
-      return await expandSitemapOwnerToCreateItems(item)
-    }
-
-    return []
-  }
-
-  private collectIndexableItems(items: KnowledgeItem[]): KnowledgeItem[] {
-    const leafItems = new Map<string, KnowledgeItem>()
-
-    for (const item of items) {
-      if (item.type === 'file' || item.type === 'url' || item.type === 'note') {
-        leafItems.set(item.id, item)
-      }
-    }
-
-    return [...leafItems.values()]
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_ListItemChunks, async (_, payload: unknown) => {
+      const { baseId, itemId } = KnowledgeRuntimeItemChunksPayloadSchema.parse(payload)
+      return await this.listItemChunks(baseId, itemId)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItemChunk, async (_, payload: unknown) => {
+      const { baseId, itemId, chunkId } = KnowledgeRuntimeDeleteItemChunkPayloadSchema.parse(payload)
+      return await this.deleteItemChunk(baseId, itemId, chunkId)
+    })
   }
 }

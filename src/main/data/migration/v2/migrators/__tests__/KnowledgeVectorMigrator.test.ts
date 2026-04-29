@@ -3,10 +3,8 @@ import * as os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
-import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
+import { KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -65,87 +63,16 @@ function createTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-vector-migrator-'))
 }
 
-async function createMainDb(): Promise<{ db: DbType; close: () => void }> {
-  const client = createClient({ url: 'file::memory:' })
-  const db = drizzle(client)
-
-  await db.run(
-    sql.raw(`
-    CREATE TABLE knowledge_base (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      dimensions INTEGER NOT NULL,
-      embeddingModelId TEXT NOT NULL,
-      rerankModelId TEXT,
-      fileProcessorId TEXT,
-      chunkSize INTEGER,
-      chunkOverlap INTEGER,
-      threshold REAL,
-      documentCount INTEGER,
-      searchMode TEXT,
-      hybridAlpha REAL,
-      createdAt INTEGER,
-      updatedAt INTEGER
-    )
-  `)
-  )
-
-  await db.run(
-    sql.raw(`
-    CREATE TABLE knowledge_item (
-      id TEXT PRIMARY KEY,
-      baseId TEXT NOT NULL,
-      groupId TEXT,
-      type TEXT NOT NULL,
-      data TEXT NOT NULL,
-      status TEXT NOT NULL,
-      error TEXT,
-      createdAt INTEGER,
-      updatedAt INTEGER
-    )
-  `)
-  )
-
-  return {
-    db,
-    close: () => client.close()
-  }
+interface MigratedKnowledgeBaseRow {
+  id: string
+  dimensions: number
 }
 
-async function insertKnowledgeBaseRow(
-  db: DbType,
-  row: {
-    id: string
-    name: string
-    dimensions: number
-    embeddingModelId: string
-  }
-) {
-  await db.run(
-    sql.raw(`
-      INSERT INTO knowledge_base (id, name, dimensions, embeddingModelId)
-      VALUES ('${row.id}', '${row.name}', ${row.dimensions}, '${row.embeddingModelId}')
-    `)
-  )
-}
-
-async function insertKnowledgeItemRow(
-  db: DbType,
-  row: {
-    id: string
-    baseId: string
-    type: string
-    data: unknown
-    status: string
-  }
-) {
-  await db.run(
-    sql.raw(`
-      INSERT INTO knowledge_item (id, baseId, groupId, type, data, status)
-      VALUES ('${row.id}', '${row.baseId}', NULL, '${row.type}', '${JSON.stringify(row.data).replace(/'/g, "''")}', '${row.status}')
-    `)
-  )
+interface MigratedKnowledgeItemRow {
+  id: string
+  baseId: string
+  type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+  data: { source?: string }
 }
 
 async function createLegacyVectorDb(
@@ -184,7 +111,36 @@ async function createLegacyVectorDb(
   client.close()
 }
 
-function createMigrationCtx(db: DbType, reduxData: Record<string, unknown>) {
+function createDbMock({
+  migratedBases = [],
+  migratedItems = []
+}: {
+  migratedBases?: MigratedKnowledgeBaseRow[]
+  migratedItems?: MigratedKnowledgeItemRow[]
+}) {
+  const select = vi
+    .fn()
+    .mockReturnValueOnce({
+      from: vi.fn().mockResolvedValue(migratedBases)
+    })
+    .mockReturnValueOnce({
+      from: vi.fn().mockResolvedValue(migratedItems)
+    })
+
+  return { select }
+}
+
+function createMigrationCtx({
+  reduxData,
+  migratedBases = [],
+  migratedItems = [],
+  knowledgeVectorSource = new KnowledgeVectorSourceReader()
+}: {
+  reduxData: Record<string, unknown>
+  migratedBases?: MigratedKnowledgeBaseRow[]
+  migratedItems?: MigratedKnowledgeItemRow[]
+  knowledgeVectorSource?: KnowledgeVectorSourceReader
+}) {
   return {
     sources: {
       electronStore: { get: vi.fn() },
@@ -192,72 +148,44 @@ function createMigrationCtx(db: DbType, reduxData: Record<string, unknown>) {
       dexieExport: {} as any,
       dexieSettings: {} as any,
       localStorage: {} as any,
-      knowledgeVectorSource: new KnowledgeVectorSourceReader()
+      knowledgeVectorSource
     },
-    db,
+    db: createDbMock({ migratedBases, migratedItems }),
     sharedData: new Map<string, unknown>(),
     logger: {} as any
+  }
+}
+
+function createMigratedItem(
+  id: string,
+  overrides: Partial<Omit<MigratedKnowledgeItemRow, 'id'>> = {}
+): MigratedKnowledgeItemRow {
+  return {
+    id,
+    baseId: 'kb-1',
+    type: 'file',
+    data: { source: `/tmp/${id}.md` },
+    ...overrides
   }
 }
 
 describe('KnowledgeVectorMigrator', () => {
   let tempRoot: string
   let knowledgeBaseDir: string
-  let db: DbType
-  let closeDb: (() => void) | undefined
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
     tempRoot = createTempRoot()
     knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     fs.mkdirSync(knowledgeBaseDir, { recursive: true })
     setKnowledgeBaseRoot(knowledgeBaseDir)
-
-    const mainDb = await createMainDb()
-    db = mainDb.db
-    closeDb = mainDb.close
   })
 
   afterEach(() => {
-    closeDb?.()
-    closeDb = undefined
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
   it('prepare uses uniqueIds first, falls back to uniqueId, and records warnings for unmapped vectors', async () => {
-    await insertKnowledgeBaseRow(db, {
-      id: 'kb-1',
-      name: 'Base 1',
-      dimensions: 2,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-file',
-      baseId: 'kb-1',
-      type: 'file',
-      data: {
-        file: {
-          id: 'file-1',
-          name: 'file-1.md',
-          origin_name: 'file-1.md',
-          path: '/tmp/file-1.md',
-          size: 1,
-          ext: '.md',
-          type: 'text',
-          created_at: '2024-01-01T00:00:00.000Z',
-          count: 1
-        }
-      },
-      status: 'completed'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-directory',
-      baseId: 'kb-1',
-      type: 'directory',
-      data: { name: 'dir', path: '/tmp/dir' },
-      status: 'completed'
-    })
-
     await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-1'), [
       {
         id: 'legacy-file-0',
@@ -282,27 +210,37 @@ describe('KnowledgeVectorMigrator', () => {
       }
     ])
 
-    const migrationCtx = createMigrationCtx(db, {
-      knowledge: {
-        bases: [
-          {
-            id: 'kb-1',
-            name: 'Base 1',
-            items: [
-              {
-                id: 'item-file',
-                type: 'file',
-                uniqueId: 'loader-file'
-              },
-              {
-                id: 'item-directory',
-                type: 'directory',
-                uniqueId: 'DirectoryLoader_ignore',
-                uniqueIds: ['loader-dir-a']
-              }
-            ]
-          }
-        ]
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [
+        createMigratedItem('item-file'),
+        createMigratedItem('item-directory', {
+          type: 'directory',
+          data: { source: '/tmp/dir' }
+        })
+      ],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                },
+                {
+                  id: 'item-directory',
+                  type: 'directory',
+                  uniqueId: 'DirectoryLoader_ignore',
+                  uniqueIds: ['loader-dir-a']
+                }
+              ]
+            }
+          ]
+        }
       }
     })
 
@@ -349,33 +287,7 @@ describe('KnowledgeVectorMigrator', () => {
     await expect((migrator as any).ensureVectorStoreSchema(client, 2)).rejects.toThrow('fts creation failed')
   })
 
-  it('execute rebuilds vector rows with uuid v4 ids, externalId item ids, and metadata.itemId/source', async () => {
-    await insertKnowledgeBaseRow(db, {
-      id: 'kb-1',
-      name: 'Base 1',
-      dimensions: 2,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-file',
-      baseId: 'kb-1',
-      type: 'file',
-      data: {
-        file: {
-          id: 'file-1',
-          name: 'file-1.md',
-          origin_name: 'file-1.md',
-          path: '/tmp/file-1.md',
-          size: 1,
-          ext: '.md',
-          type: 'text',
-          created_at: '2024-01-01T00:00:00.000Z',
-          count: 1
-        }
-      },
-      status: 'completed'
-    })
-
+  it('execute rebuilds vector rows with runtime-compatible metadata', async () => {
     const dbPath = path.join(knowledgeBaseDir, 'kb-1')
     await createLegacyVectorDb(dbPath, [
       {
@@ -387,21 +299,25 @@ describe('KnowledgeVectorMigrator', () => {
       }
     ])
 
-    const migrationCtx = createMigrationCtx(db, {
-      knowledge: {
-        bases: [
-          {
-            id: 'kb-1',
-            name: 'Base 1',
-            items: [
-              {
-                id: 'item-file',
-                type: 'file',
-                uniqueId: 'loader-file'
-              }
-            ]
-          }
-        ]
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file')],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
       }
     })
 
@@ -426,10 +342,15 @@ describe('KnowledgeVectorMigrator', () => {
     expect(row.external_id).toBe('item-file')
     expect(row.collection).toBe('kb-1')
     expect(row.document).toBe('file chunk')
-    expect(JSON.parse(String(row.metadata))).toEqual({
+    const metadata = KnowledgeChunkMetadataSchema.parse(JSON.parse(String(row.metadata)))
+    expect(metadata).toEqual({
       itemId: 'item-file',
-      source: '/tmp/file-1.md'
+      itemType: 'file',
+      source: '/tmp/file-1.md',
+      chunkIndex: 0,
+      tokenCount: expect.any(Number)
     })
+    expect(metadata.tokenCount).toBeGreaterThan(0)
     expect(Number(row.bytes)).toBeGreaterThan(0)
 
     const validateResult = await migrator.validate(migrationCtx as any)
@@ -457,7 +378,10 @@ describe('KnowledgeVectorMigrator', () => {
         rows: Array.from({ length: 250 }, (_, index) => ({
           document: `doc-${index}`,
           externalId: `item-${index}`,
+          itemType: 'file',
           source: `/tmp/doc-${index}.md`,
+          chunkIndex: index,
+          tokenCount: 2,
           embedding: [index, index + 1]
         })),
         sourceRowCount: 250
@@ -478,33 +402,7 @@ describe('KnowledgeVectorMigrator', () => {
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
   })
 
-  it('execute allows missing legacy source and omits metadata.source', async () => {
-    await insertKnowledgeBaseRow(db, {
-      id: 'kb-1',
-      name: 'Base 1',
-      dimensions: 2,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-file',
-      baseId: 'kb-1',
-      type: 'file',
-      data: {
-        file: {
-          id: 'file-1',
-          name: 'file-1.md',
-          origin_name: 'file-1.md',
-          path: '/tmp/file-1.md',
-          size: 1,
-          ext: '.md',
-          type: 'text',
-          created_at: '2024-01-01T00:00:00.000Z',
-          count: 1
-        }
-      },
-      status: 'completed'
-    })
-
+  it('falls back to migrated item source when legacy source is missing', async () => {
     const dbPath = path.join(knowledgeBaseDir, 'kb-1')
     await createLegacyVectorDb(dbPath, [
       {
@@ -516,21 +414,25 @@ describe('KnowledgeVectorMigrator', () => {
       }
     ])
 
-    const migrationCtx = createMigrationCtx(db, {
-      knowledge: {
-        bases: [
-          {
-            id: 'kb-1',
-            name: 'Base 1',
-            items: [
-              {
-                id: 'item-file',
-                type: 'file',
-                uniqueId: 'loader-file'
-              }
-            ]
-          }
-        ]
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file', { data: { source: '/tmp/file-from-item.md' } })],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
       }
     })
 
@@ -543,8 +445,14 @@ describe('KnowledgeVectorMigrator', () => {
     targetClient.close()
 
     expect(rows.rows).toHaveLength(1)
-    expect(JSON.parse(String((rows.rows[0] as Record<string, unknown>).metadata))).toEqual({
-      itemId: 'item-file'
+    expect(
+      KnowledgeChunkMetadataSchema.parse(JSON.parse(String((rows.rows[0] as Record<string, unknown>).metadata)))
+    ).toEqual({
+      itemId: 'item-file',
+      itemType: 'file',
+      source: '/tmp/file-from-item.md',
+      chunkIndex: 0,
+      tokenCount: expect.any(Number)
     })
 
     const validateResult = await migrator.validate(migrationCtx as any)
@@ -552,33 +460,106 @@ describe('KnowledgeVectorMigrator', () => {
     expect(validateResult.errors).toStrictEqual([])
   })
 
-  it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
-    await insertKnowledgeBaseRow(db, {
-      id: 'kb-1',
-      name: 'Base 1',
-      dimensions: 2,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-file',
-      baseId: 'kb-1',
-      type: 'file',
-      data: {
-        file: {
-          id: 'file-1',
-          name: 'file-1.md',
-          origin_name: 'file-1.md',
-          path: '/tmp/file-1.md',
-          size: 1,
-          ext: '.md',
-          type: 'text',
-          created_at: '2024-01-01T00:00:00.000Z',
-          count: 1
+  it('skips vector rows when source cannot be resolved', async () => {
+    const dbPath = path.join(knowledgeBaseDir, 'kb-1')
+    await createLegacyVectorDb(dbPath, [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'file chunk',
+        uniqueLoaderId: 'loader-file',
+        source: '',
+        vector: [1, 2]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file', { data: {} })],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
         }
-      },
-      status: 'completed'
+      }
     })
 
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBasePlans[0].rows).toEqual([])
+    expect(migrator.skippedCount).toBe(1)
+    expect(result.warnings?.some((warning) => warning.includes("source missing for item 'item-file'"))).toBe(true)
+  })
+
+  it('assigns chunkIndex per migrated item in read order', async () => {
+    const dbPath = path.join(knowledgeBaseDir, 'kb-1')
+    await createLegacyVectorDb(dbPath, [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'first chunk',
+        uniqueLoaderId: 'loader-file-a',
+        source: '/tmp/file-1.md',
+        vector: [1, 2]
+      },
+      {
+        id: 'legacy-file-1',
+        pageContent: 'second chunk',
+        uniqueLoaderId: 'loader-file-b',
+        source: '/tmp/file-1.md',
+        vector: [3, 4]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file')],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueIds: ['loader-file-a', 'loader-file-b']
+                }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+    expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const rows = await targetClient.execute(
+      "SELECT metadata FROM libsql_vectorstores_embedding ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER)"
+    )
+    targetClient.close()
+
+    expect(
+      rows.rows.map((row) => KnowledgeChunkMetadataSchema.parse(JSON.parse(String(row.metadata))).chunkIndex)
+    ).toEqual([0, 1])
+  })
+
+  it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
     await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-1'), [
       {
         id: 'legacy-file-0',
@@ -589,21 +570,25 @@ describe('KnowledgeVectorMigrator', () => {
       }
     ])
 
-    const migrationCtx = createMigrationCtx(db, {
-      knowledge: {
-        bases: [
-          {
-            id: 'kb-1',
-            name: 'Base 1',
-            items: [
-              {
-                id: 'item-file',
-                type: 'file',
-                uniqueId: 'loader-file'
-              }
-            ]
-          }
-        ]
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file')],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
       }
     })
 
@@ -621,33 +606,7 @@ describe('KnowledgeVectorMigrator', () => {
     expect(migrator.skippedCount).toBe(0)
   })
 
-  it('validate fails when migrated metadata.itemId is missing or mismatched', async () => {
-    await insertKnowledgeBaseRow(db, {
-      id: 'kb-1',
-      name: 'Base 1',
-      dimensions: 2,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    await insertKnowledgeItemRow(db, {
-      id: 'item-file',
-      baseId: 'kb-1',
-      type: 'file',
-      data: {
-        file: {
-          id: 'file-1',
-          name: 'file-1.md',
-          origin_name: 'file-1.md',
-          path: '/tmp/file-1.md',
-          size: 1,
-          ext: '.md',
-          type: 'text',
-          created_at: '2024-01-01T00:00:00.000Z',
-          count: 1
-        }
-      },
-      status: 'completed'
-    })
-
+  it('validate fails when migrated metadata does not satisfy the runtime contract', async () => {
     const dbPath = path.join(knowledgeBaseDir, 'kb-1')
     await createLegacyVectorDb(dbPath, [
       {
@@ -659,21 +618,25 @@ describe('KnowledgeVectorMigrator', () => {
       }
     ])
 
-    const migrationCtx = createMigrationCtx(db, {
-      knowledge: {
-        bases: [
-          {
-            id: 'kb-1',
-            name: 'Base 1',
-            items: [
-              {
-                id: 'item-file',
-                type: 'file',
-                uniqueId: 'loader-file'
-              }
-            ]
-          }
-        ]
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedItems: [createMigratedItem('item-file')],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
       }
     })
 
@@ -692,7 +655,7 @@ describe('KnowledgeVectorMigrator', () => {
     expect(validateResult.success).toBe(false)
     expect(validateResult.errors).toContainEqual(
       expect.objectContaining({
-        key: 'knowledge_vector_missing_item_id_kb-1'
+        key: 'knowledge_vector_invalid_metadata_kb-1'
       })
     )
   })

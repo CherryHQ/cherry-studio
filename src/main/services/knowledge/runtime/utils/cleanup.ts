@@ -1,31 +1,20 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('KnowledgeRuntimeCleanup')
-
-interface DeleteItemVectorFailure {
-  itemId: string
-  error: Error
-}
 
 class DeleteItemVectorsError extends Error {
   constructor(
     readonly baseId: string,
-    readonly succeededItemIds: string[],
-    readonly failed: DeleteItemVectorFailure[]
+    readonly failedItemIds: string[]
   ) {
-    super(
-      `Failed to delete vectors for knowledge items in base ${baseId}: ${failed.map((entry) => entry.itemId).join(', ')}`
-    )
+    super(`Failed to delete vectors for knowledge items in base ${baseId}: ${failedItemIds.join(', ')}`)
     this.name = 'DeleteItemVectorsError'
   }
 }
 
-/**
- * Deletes vectors for the given item ids within one knowledge base.
- */
 export async function deleteItemVectors(base: KnowledgeBase, itemIds: string[]): Promise<void> {
   const uniqueItemIds = [...new Set(itemIds)]
   if (uniqueItemIds.length === 0) {
@@ -39,85 +28,37 @@ export async function deleteItemVectors(base: KnowledgeBase, itemIds: string[]):
   }
 
   const results = await Promise.allSettled(uniqueItemIds.map((itemId) => vectorStore.delete(itemId)))
-  const succeededItemIds: string[] = []
-  const failed: DeleteItemVectorFailure[] = []
+  const failedItemIds = results.flatMap((result, index) => (result.status === 'rejected' ? [uniqueItemIds[index]] : []))
 
-  for (const [index, result] of results.entries()) {
-    const itemId = uniqueItemIds[index]
-    if (result.status === 'fulfilled') {
-      succeededItemIds.push(itemId)
-      continue
-    }
-
-    failed.push({
-      itemId,
-      error: result.reason instanceof Error ? result.reason : new Error(String(result.reason))
-    })
-  }
-
-  if (failed.length > 0) {
-    throw new DeleteItemVectorsError(base.id, succeededItemIds, failed)
+  if (failedItemIds.length > 0) {
+    throw new DeleteItemVectorsError(base.id, failedItemIds)
   }
 }
 
-/**
- * Groups interrupted entries by base and deletes their vectors in batches.
- */
 export async function deleteVectorsForEntries(
-  entries: Array<{ base: KnowledgeBase; item: KnowledgeItem }>,
-  options: { continueOnError: boolean }
+  entries: Array<{ base: KnowledgeBase; itemIds: string[] }>
 ): Promise<void> {
-  const entriesByBase = new Map<string, { base: KnowledgeBase; itemIds: Set<string> }>()
-
-  for (const entry of entries) {
-    const existing = entriesByBase.get(entry.base.id)
-    if (existing) {
-      existing.itemIds.add(entry.item.id)
-      continue
-    }
-
-    entriesByBase.set(entry.base.id, {
-      base: entry.base,
-      itemIds: new Set([entry.item.id])
-    })
-  }
-
-  for (const { base, itemIds } of entriesByBase.values()) {
+  for (const { base, itemIds } of entries) {
     try {
-      await deleteItemVectors(base, [...itemIds])
+      await deleteItemVectors(base, itemIds)
     } catch (error) {
-      if (!options.continueOnError) {
-        throw error
-      }
-
-      const deleteError = error instanceof DeleteItemVectorsError ? error : null
-      logger.warn('Failed to delete knowledge item vectors during interruption cleanup', {
+      logger.warn('Failed to delete knowledge item vectors during runtime cleanup', {
         baseId: base.id,
-        itemIds: [...itemIds],
-        succeededItemIds: deleteError?.succeededItemIds ?? [],
-        failedItemIds: deleteError?.failed.map((entry) => entry.itemId) ?? [],
+        itemIds,
         cleanupError: error instanceof Error ? error.message : String(error)
       })
     }
   }
 }
 
-/**
- * Marks interrupted items as failed and logs any persistence errors.
- */
 export async function failItems(itemIds: string[], reason: string): Promise<void> {
-  if (itemIds.length === 0) {
+  const uniqueItemIds = [...new Set(itemIds)]
+  if (uniqueItemIds.length === 0) {
     return
   }
 
-  const uniqueItemIds = [...new Set(itemIds)]
   const results = await Promise.allSettled(
-    uniqueItemIds.map((itemId) =>
-      knowledgeItemService.update(itemId, {
-        status: 'failed',
-        error: reason
-      })
-    )
+    uniqueItemIds.map((itemId) => knowledgeItemService.updateStatus(itemId, 'failed', { error: reason }))
   )
 
   for (const [index, result] of results.entries()) {
@@ -126,7 +67,7 @@ export async function failItems(itemIds: string[], reason: string): Promise<void
     }
 
     logger.error(
-      'Failed to persist interrupted knowledge item state',
+      'Failed to persist knowledge item failure state',
       result.reason instanceof Error ? result.reason : new Error(String(result.reason)),
       {
         itemId: uniqueItemIds[index],

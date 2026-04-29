@@ -2,25 +2,36 @@
 
 This document records the current v2 knowledge backend shape in the main process.
 
+It covers the `src/main/services/knowledge` runtime path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
+
 ## Overview
 
-The current implementation is split into three layers:
+The current implementation is split into four responsibility areas:
 
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Validate `type` / `data` consistency.
-   - Persist `knowledge_item.status` and `error`.
-2. `KnowledgeOrchestrationService`
-   - Exposes the caller-facing IPC workflow.
-   - Coordinates expand, create, filter, add, delete, and search flows.
-3. `KnowledgeRuntimeService`
+   - Persist `knowledge_item.status`, `phase`, and `error`.
+   - Reconcile container item status from child item state.
+2. Data API knowledge handlers
+   - Expose database-backed list/get operations and base metadata/config patch.
+   - Do not perform vector-store mutations.
+3. `KnowledgeOrchestrationService`
+   - Owns caller-facing runtime IPC workflow.
+   - Creates/deletes bases through data services.
+   - Collapses delete/reindex item inputs to top-level roots and coordinates runtime cleanup with SQLite deletion.
+4. `KnowledgeRuntimeService`
    - Executes indexing and retrieval work.
-   - Owns the in-memory add queue, interruption handling, and vector-store coordination.
+   - Creates runtime-added items.
+   - Owns the in-memory runtime queue, interruption handling, preparation, indexing, and vector-store coordination.
 
 ```text
 caller
-  -> Data API
-  -> preload IPC
+  -> Data API reads / base patch
+     -> KnowledgeBaseService / KnowledgeItemService
+
+caller
+  -> preload knowledgeRuntime IPC
      -> KnowledgeOrchestrationService
         -> KnowledgeBaseService / KnowledgeItemService
         -> KnowledgeRuntimeService
@@ -29,70 +40,128 @@ caller
 
 ## Caller Contract
 
-The caller-facing model is now unified:
+Current Data API knowledge endpoints are read/update-only for database state that has no vector-store side effect:
 
-1. Create item records through Data API.
-2. Call runtime IPC once with item ids.
+- `GET /knowledge-bases`
+- `GET /knowledge-bases/:id`
+- `PATCH /knowledge-bases/:id`
+- `GET /knowledge-bases/:id/items`
+- `GET /knowledge-items/:id`
+
+Caller-facing create/delete/index/search operations go through `KnowledgeOrchestrationService` IPC.
+
+The caller-facing add model is payload-based:
+
+1. Call runtime IPC once with item payloads.
+2. Runtime creates the `knowledge_item` rows.
+3. Runtime queues either preparation or indexing work.
 
 For leaf items (`file`, `url`, `note`):
 
 ```text
 caller
- -> Data API create item(s)
- -> preload IPC add-items(item ids)
+ -> preload IPC add-items(leaf item payloads)
+    -> runtime creates leaf items
+    -> runtime enqueues index-leaf tasks
 ```
 
 For container items (`directory`, `sitemap`):
 
 ```text
 caller
- -> Data API create owner item
- -> preload IPC add-items(owner item ids)
-    -> orchestration expands owner
-    -> orchestration persists child items
-    -> orchestration filters indexable leaf items
-    -> runtime enqueues leaf items
+ -> preload IPC add-items(owner item payloads)
+    -> runtime creates root items
+    -> runtime enqueues prepare-root tasks
+    -> prepare-root expands owner inside the queue
+    -> prepare-root creates child items
+    -> prepare-root enqueues index-leaf tasks for concrete leaf children
 ```
 
-The caller no longer needs to invoke separate `expand*` IPC APIs.
+Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeRuntimeAddItemInput[]` and returns after root items are accepted, not after indexing completes.
+
+Delete and reindex remain id-based because they operate on existing persisted items:
+
+```text
+delete-items(baseId, itemIds)
+reindex-items(baseId, itemIds)
+```
+
+`KnowledgeOrchestrationService` collapses nested selected ids to top-level roots before calling runtime.
+Current product scope does not allow users to add nested `directory` / `sitemap` items under another item. Nested directory rows may be created internally by directory expansion to preserve hierarchy.
 
 ## IPC Surface
 
-`KnowledgeOrchestrationService` currently owns the public IPC entrypoints:
+`KnowledgeOrchestrationService` currently owns these public IPC entrypoints:
 
 - `knowledge-runtime:create-base`
 - `knowledge-runtime:delete-base`
 - `knowledge-runtime:add-items`
 - `knowledge-runtime:delete-items`
+- `knowledge-runtime:reindex-items`
 - `knowledge-runtime:search`
+- `knowledge-runtime:list-item-chunks`
+- `knowledge-runtime:delete-item-chunk`
 
-These IPC handlers are workflow-oriented. They may call data services and runtime services internally before returning.
+These IPC handlers are workflow-oriented. They validate payloads, call data services, and call runtime services internally.
 
 ## Runtime Behavior
 
-`KnowledgeRuntimeService` keeps a single in-memory add queue with:
+`KnowledgeRuntimeService` keeps a single in-memory runtime queue with:
 
 - one shared queue across all knowledge bases
 - fixed concurrency of `5`
-- item-level deduplication for pending/running add work
-- interruption support for delete and shutdown
+- task kinds: `prepare-root` and `index-leaf`
+- item-level deduplication for pending/running runtime work
+- interruption support for delete, reindex, and shutdown
+- a per-base vector write lock so concurrent tasks do not write the same base store at the same time
 
 Current status writes are:
 
-- `pending` before enqueue
-- `completed` after successful vector write
-- `failed` on error or shutdown interruption
+- `processing, phase = preparing` for active `directory` / `sitemap` preparation
+- `processing, phase = reading` while a leaf item reads source documents
+- `processing, phase = embedding` while a leaf item embeds and writes vectors
+- `completed, phase = null` after successful leaf indexing or when a container has no active children
+- `failed, phase = null` on error, cleanup failure, or shutdown interruption
 
-Intermediate states such as `file_processing`, `read`, and `embed` remain reserved in schema/types, but are not written by the current runtime.
+`status` is the aggregate business state. `phase` is runtime progress. Container status is reconciled from its own phase and child statuses.
+
+## Delete And Reindex
+
+`delete-items` currently runs:
+
+1. Orchestration loads requested items and collapses descendants to top-level roots.
+2. Runtime interrupts root tasks and waits for running root work to settle.
+3. Runtime fresh-queries descendants.
+4. Runtime interrupts root + descendant tasks and waits again.
+5. Runtime deletes leaf vectors.
+6. Orchestration deletes top-level root SQLite rows; database cascade removes descendants.
+
+`reindex-items` currently runs:
+
+1. Orchestration loads requested items and collapses descendants to top-level roots.
+2. Runtime interrupts root + descendants using the same two-stage interrupt flow.
+3. Runtime deletes existing leaf vectors.
+4. Container roots delete old leaf descendants and enqueue fresh `prepare-root`.
+5. Leaf roots write `processing` and enqueue fresh `index-leaf`.
+
+If destructive cleanup fails after interrupt, runtime writes the cleanup error to the affected item state before rethrowing so callers can surface the failure.
+
+Base deletion follows the same ordering:
+
+```text
+delete-base(baseId)
+ -> runtime interrupts base work and deletes the vector store
+ -> data service deletes the SQLite base and cascaded items
+```
 
 ## Search
 
 Search is executed by `KnowledgeRuntimeService.search(base, query)`:
 
-1. embed query
+1. resolve and run the embedding model for the query
 2. query the libsql vector store
 3. map nodes into `KnowledgeSearchResult`
-4. rerank only when `base.rerankModelId` is configured
+4. call rerank only when `base.rerankModelId` is configured
 
 Current `KnowledgeSearchResult` includes:
 
@@ -122,15 +191,3 @@ Current guidance:
 1. Treat the no-index design as the default for now, not as an unlimited scaling guarantee.
 2. Re-evaluate indexed search if real single-base corpora grow toward `100k+` rows or retrieval latency budgets can no longer tolerate a few hundred milliseconds per query.
 3. If future product requirements change, adding a vector index remains a valid follow-up optimization rather than a blocked prerequisite for the current design.
-
-## Deletion
-
-Deletion still requires two concerns to be handled:
-
-1. Runtime deletion
-   - interrupt queue work
-   - delete vectors
-2. Data deletion
-   - remove SQLite rows through Data API
-
-The runtime layer does not delete SQLite business data by itself.

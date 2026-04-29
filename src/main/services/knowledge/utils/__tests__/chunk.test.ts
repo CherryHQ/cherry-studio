@@ -7,6 +7,7 @@ function createBase() {
   return {
     id: 'kb-1',
     name: 'KB',
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
     chunkSize: 1000,
@@ -22,8 +23,9 @@ function createItem() {
     baseId: 'kb-1',
     groupId: null,
     type: 'note' as const,
-    data: { content: 'hello' },
+    data: { source: 'item-1', content: 'hello' },
     status: 'idle' as const,
+    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -39,11 +41,11 @@ describe('chunkDocuments', () => {
     const documents = [
       new Document({
         text: 'hello world',
-        metadata: { sourceUrl: 'https://example.com/1' }
+        metadata: { source: 'https://example.com/1' }
       }),
       new Document({
         text: 'goodbye world',
-        metadata: { sourceUrl: 'https://example.com/2' }
+        metadata: { source: 'https://example.com/2' }
       })
     ]
 
@@ -51,20 +53,19 @@ describe('chunkDocuments', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks[0]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/1',
+      source: 'https://example.com/1',
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 0,
       chunkIndex: 0,
-      chunkCount: 1
+      tokenCount: expect.any(Number)
     })
     expect(chunks[1]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/2',
+      source: 'https://example.com/2',
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 1,
-      chunkIndex: 0,
-      chunkCount: 1
+      chunkIndex: 1,
+      tokenCount: expect.any(Number)
     })
+    expect(chunks[0]?.metadata.tokenCount).toBeGreaterThan(0)
   })
 })

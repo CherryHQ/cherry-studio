@@ -31,6 +31,20 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
+function toFts5PhraseQuery(query: string): string | null {
+  const trimmedQuery = query.trim()
+
+  if (!trimmedQuery) {
+    return null
+  }
+
+  if (!/[\p{L}\p{N}_]/u.test(trimmedQuery)) {
+    return null
+  }
+
+  return `"${trimmedQuery.replaceAll('"', '""')}"`
+}
+
 function validateMetadataKey(key: string): string {
   if (!SAFE_METADATA_KEY_PATTERN.test(key)) {
     throw new Error(`Invalid metadata filter key: ${key}`)
@@ -267,9 +281,6 @@ export class LibSQLVectorStore extends BaseVectorStore {
       const id = node.id_.length ? node.id_ : null
       const externalId = node.sourceNode?.nodeId || node.id_
       const meta = node.metadata || {}
-      if (!meta.create_date) {
-        meta.create_date = new Date()
-      }
 
       const nodeId = id ?? '<auto-id>'
       const embedding = this.normalizeEmbeddingOrThrow(this.getNodeEmbedding(node, nodeId), nodeId)
@@ -334,6 +345,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const args = this.collection.length ? [refDocId, this.collection] : [refDocId]
     const validParams = toInArgs(args)
     const statement: InStatement = { sql, args: validParams }
+    await this.clientInstance.execute(statement)
+  }
+
+  async deleteByIdAndExternalId(chunkId: string, refDocId: string): Promise<void> {
+    await this.ensureInitialized()
+
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `DELETE FROM ${this.tableName} WHERE id = ? AND external_id = ? ${collectionCriteria}`
+    const args = this.collection.length ? [chunkId, refDocId, this.collection] : [chunkId, refDocId]
+    const statement: InStatement = { sql, args: toInArgs(args) }
     await this.clientInstance.execute(statement)
   }
 
@@ -583,6 +604,16 @@ export class LibSQLVectorStore extends BaseVectorStore {
       throw new Error('queryStr is required for BM25 mode')
     }
 
+    const matchQuery = toFts5PhraseQuery(query.queryStr)
+
+    if (!matchQuery) {
+      return {
+        nodes: [],
+        similarities: [],
+        ids: []
+      }
+    }
+
     const { where, params } = this.buildWhereClause(query, 'v')
 
     // Use FTS5 for BM25 search
@@ -596,7 +627,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
         ORDER BY score
         LIMIT ${max}
       `,
-      args: toInArgs([...params, query.queryStr])
+      args: toInArgs([...params, matchQuery])
     }
 
     try {
@@ -733,5 +764,40 @@ export class LibSQLVectorStore extends BaseVectorStore {
       args: toInArgs(params)
     })
     return results.rows.length > 0
+  }
+
+  async listByExternalId(refDocId: string): Promise<Document<Metadata>[]> {
+    await this.ensureInitialized()
+    const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
+    const sql = `SELECT id, external_id, document, metadata FROM ${this.tableName}
+                 WHERE external_id = ? ${collectionCriteria}
+                 ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER), id`
+    const params = this.collection.length ? [refDocId, this.collection] : [refDocId]
+    const results = await this.clientInstance.execute({
+      sql,
+      args: toInArgs(params)
+    })
+
+    return results.rows.map((row) => {
+      const metadata = this.parseJson<Metadata>(
+        row.metadata as Metadata | string | null | undefined,
+        {},
+        {
+          field: 'metadata',
+          rowId: String(row.id ?? '')
+        }
+      )
+      const externalId = typeof row.external_id === 'string' && row.external_id.length > 0 ? row.external_id : undefined
+
+      if (externalId && metadata.itemId === undefined) {
+        metadata.itemId = externalId
+      }
+
+      return new Document({
+        id_: String(row.id),
+        text: String(row.document || ''),
+        metadata
+      })
+    })
   }
 }
