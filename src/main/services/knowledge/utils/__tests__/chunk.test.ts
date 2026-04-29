@@ -1,9 +1,10 @@
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
 
 import { chunkDocuments } from '../chunk'
 
-function createBase() {
+function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
@@ -12,6 +13,7 @@ function createBase() {
     embeddingModelId: 'ollama::nomic-embed-text',
     chunkSize: 1000,
     chunkOverlap: 0,
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }

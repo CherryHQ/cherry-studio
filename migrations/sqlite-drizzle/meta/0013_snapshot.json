@@ -1372,7 +1372,7 @@
           "name": "emoji",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "dimensions": {
@@ -1408,16 +1408,14 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 1024
+          "autoincrement": false
         },
         "chunk_overlap": {
           "name": "chunk_overlap",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 200
+          "autoincrement": false
         },
         "threshold": {
           "name": "threshold",
@@ -1437,9 +1435,8 @@
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": "'hybrid'"
+          "notNull": true,
+          "autoincrement": false
         },
         "hybrid_alpha": {
           "name": "hybrid_alpha",
@@ -1498,7 +1495,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
         }
       }
     },
@@ -1545,8 +1542,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'idle'"
+          "autoincrement": false
         },
         "phase": {
           "name": "phase",

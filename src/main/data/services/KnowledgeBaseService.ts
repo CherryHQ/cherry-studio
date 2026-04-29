@@ -50,7 +50,7 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   return {
     ...clean,
     groupId: row.groupId ?? null,
-    emoji: row.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
+    emoji: row.emoji,
     chunkSize: row.chunkSize,
     chunkOverlap: row.chunkOverlap,
     // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
@@ -112,7 +112,7 @@ export class KnowledgeBaseService {
       name: dto.name.trim(),
       description: dto.description,
       groupId: dto.groupId,
-      emoji: dto.emoji,
+      emoji: dto.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
       rerankModelId: dto.rerankModelId ?? null,

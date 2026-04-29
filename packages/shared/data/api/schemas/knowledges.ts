@@ -35,7 +35,7 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseSchema.pick({
     chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
     threshold: KnowledgeThresholdSchema.nullable().optional(),
     documentCount: KnowledgeDocumentCountSchema.nullable().optional(),
-    searchMode: KnowledgeSearchModeSchema.nullable().optional(),
+    searchMode: KnowledgeSearchModeSchema.optional(),
     hybridAlpha: KnowledgeHybridAlphaSchema.nullable().optional()
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>

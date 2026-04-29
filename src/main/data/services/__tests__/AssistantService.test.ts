@@ -66,8 +66,12 @@ describe('AssistantDataService', () => {
     await dbh.db.insert(knowledgeBaseTable).values({
       id,
       name: 'KB',
+      emoji: '📁',
       dimensions: 1024,
-      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large')
+      embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      chunkSize: 1024,
+      chunkOverlap: 200,
+      searchMode: 'hybrid'
     })
   }
 

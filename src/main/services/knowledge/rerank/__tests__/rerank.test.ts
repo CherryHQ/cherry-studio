@@ -40,6 +40,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     embeddingModelId: overrides.embeddingModelId ?? 'ollama::nomic-embed-text',
     chunkSize: overrides.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: overrides.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: overrides.searchMode ?? 'hybrid',
     createdAt: overrides.createdAt ?? now,
     updatedAt: overrides.updatedAt ?? now
   }

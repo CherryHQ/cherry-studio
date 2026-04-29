@@ -20,6 +20,7 @@ const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
+const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 
 function yieldToEventLoop(): Promise<void> {
@@ -100,6 +101,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private getTempVectorStorePath(dbPath: string): string {
     return `${dbPath}.vectorstore.tmp`
+  }
+
+  private getLegacyBackupPath(dbPath: string): string {
+    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
   }
 
   private async ensureVectorStoreSchema(client: Client, dimensions: number): Promise<void> {
@@ -445,6 +450,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
     for (const plan of this.preparedBasePlans) {
       const tempPath = this.getTempVectorStorePath(plan.dbPath)
+      const backupPath = this.getLegacyBackupPath(plan.dbPath)
 
       try {
         const rebuiltRows: Array<PreparedVectorRow & { id: string }> = plan.rows.map((row) => ({
@@ -489,7 +495,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await yieldToEventLoop()
         }
 
-        await fs.promises.rm(plan.dbPath, { force: true })
+        if (!fs.existsSync(backupPath) && fs.existsSync(plan.dbPath)) {
+          await fs.promises.rename(plan.dbPath, backupPath)
+        } else {
+          await fs.promises.rm(plan.dbPath, { force: true })
+        }
         await fs.promises.rename(tempPath, plan.dbPath)
 
         this.successfulBaseIds.add(plan.baseId)

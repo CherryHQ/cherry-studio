@@ -6,6 +6,7 @@ import { type Client, createClient, type Value as LibsqlValue } from '@libsql/cl
 import { sanitizeFilename } from '@main/utils/file'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
+const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 
 export interface LegacyKnowledgeVectorRow {
   pageContent: string
@@ -25,13 +26,21 @@ export class KnowledgeVectorSourceReader {
     return path.join(this.knowledgeBaseDir, sanitizeFilename(baseId, '_'))
   }
 
+  private getLegacyBackupPath(dbPath: string): string {
+    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
+  }
+
   async loadBase(baseId: string): Promise<LegacyKnowledgeVectorLoadResult> {
     const dbPath = this.getLegacyDbPath(baseId)
     if (!dbPath) {
       return { status: 'invalid_path' }
     }
 
+    const backupPath = this.getLegacyBackupPath(dbPath)
     if (!fs.existsSync(dbPath)) {
+      if (fs.existsSync(backupPath)) {
+        return this.loadLegacyDb(dbPath, backupPath)
+      }
       return { status: 'missing', dbPath }
     }
 
@@ -40,7 +49,16 @@ export class KnowledgeVectorSourceReader {
       return { status: 'directory', dbPath }
     }
 
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
+    const result = await this.loadLegacyDb(dbPath, dbPath)
+    if (result.status === 'not_embedjs' && fs.existsSync(backupPath)) {
+      return this.loadLegacyDb(dbPath, backupPath)
+    }
+
+    return result
+  }
+
+  private async loadLegacyDb(dbPath: string, sourcePath: string): Promise<LegacyKnowledgeVectorLoadResult> {
+    const client = createClient({ url: pathToFileURL(sourcePath).toString() })
     try {
       const isEmbedjs = await this.isEmbedjsDatabase(client)
       if (!isEmbedjs) {

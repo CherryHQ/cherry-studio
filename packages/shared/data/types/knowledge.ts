@@ -55,7 +55,7 @@ export const KnowledgeBaseSchema = z.strictObject({
   name: z.string().min(1),
   description: z.string().optional(),
   groupId: KnowledgeBaseGroupIdSchema.nullable().optional(),
-  emoji: KnowledgeBaseEmojiSchema.default(DEFAULT_KNOWLEDGE_BASE_EMOJI),
+  emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive(),
   embeddingModelId: z.string().min(1).nullable(),
   rerankModelId: z.string().optional(),
@@ -64,7 +64,7 @@ export const KnowledgeBaseSchema = z.strictObject({
   chunkOverlap: KnowledgeChunkOverlapSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
+  searchMode: KnowledgeSearchModeSchema,
   hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -235,7 +235,7 @@ export const CreateKnowledgeBaseSchema = z
     name: z.string().trim().min(1),
     description: z.string().optional(),
     groupId: KnowledgeBaseGroupIdSchema.optional(),
-    emoji: KnowledgeBaseEmojiSchema.default(DEFAULT_KNOWLEDGE_BASE_EMOJI),
+    emoji: KnowledgeBaseEmojiSchema.optional(),
     dimensions: z.number().int().positive(),
     embeddingModelId: z.string().trim().min(1),
     rerankModelId: z.string().optional(),
@@ -244,7 +244,7 @@ export const CreateKnowledgeBaseSchema = z
     chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
     threshold: KnowledgeThresholdSchema.optional(),
     documentCount: KnowledgeDocumentCountSchema.optional(),
-    searchMode: KnowledgeSearchModeSchema.default(DEFAULT_KNOWLEDGE_SEARCH_MODE),
+    searchMode: KnowledgeSearchModeSchema.optional(),
     hybridAlpha: KnowledgeHybridAlphaSchema.optional()
   })
   .superRefine((value, ctx) => {

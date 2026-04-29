@@ -403,6 +403,14 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(true)
+
+    const retrySource = await migrationCtx.sources.knowledgeVectorSource.loadBase('kb-1')
+    expect(retrySource.status).toBe('ok')
+    if (retrySource.status === 'ok') {
+      expect(retrySource.rows).toHaveLength(1)
+      expect(retrySource.dbPath).toBe(dbPath)
+    }
   })
 
   it('reports knowledge vector migration progress for each inserted batch', async () => {
@@ -600,7 +608,8 @@ describe('KnowledgeVectorMigrator', () => {
   })
 
   it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
-    await createLegacyVectorDb(path.join(knowledgeBaseDir, 'kb-1'), [
+    const dbPath = path.join(knowledgeBaseDir, 'kb-1')
+    await createLegacyVectorDb(dbPath, [
       {
         id: 'legacy-file-0',
         pageContent: 'file chunk',
@@ -644,6 +653,8 @@ describe('KnowledgeVectorMigrator', () => {
     expect(executeResult.error).toContain('kb-1')
     expect(executeResult.error).toContain('insert failed')
     expect(migrator.skippedCount).toBe(0)
+    expect(fs.existsSync(dbPath)).toBe(true)
+    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
   })
 
   it('validate fails when migrated metadata does not satisfy the runtime contract', async () => {

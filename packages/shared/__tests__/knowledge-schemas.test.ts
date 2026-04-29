@@ -38,7 +38,7 @@ describe('Knowledge base schemas', () => {
     }
   })
 
-  it('applies hybrid as the default search mode in create schema', () => {
+  it('does not apply product defaults in create schema', () => {
     const result = CreateKnowledgeBaseSchema.safeParse({
       name: 'KB',
       dimensions: 1024,
@@ -47,7 +47,8 @@ describe('Knowledge base schemas', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.searchMode).toBe('hybrid')
+      expect(result.data).not.toHaveProperty('emoji')
+      expect(result.data).not.toHaveProperty('searchMode')
     }
   })
 
@@ -214,15 +215,17 @@ describe('Knowledge base schemas', () => {
     expect(result.success).toBe(false)
   })
 
-  it('accepts nullable groupId and applies default emoji in entity schema', () => {
+  it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
       id: 'kb-1',
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
       groupId: null,
+      emoji: '📁',
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      searchMode: 'hybrid',
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -230,16 +233,31 @@ describe('Knowledge base schemas', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.emoji).toBe('📁')
+      expect(result.data.searchMode).toBe('hybrid')
     }
   })
 
-  it('requires chunk config to be present in entity schema', () => {
+  it('requires persisted config to be present in entity schema', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
         id: 'kb-1',
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z'
+      }).success
+    ).toBe(false)
+
+    expect(
+      KnowledgeBaseSchema.safeParse({
+        id: 'kb-1',
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        emoji: '📁',
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -378,8 +396,10 @@ it('allows migrated knowledge bases to have a null embedding model id', () => {
     name: 'KB nullable model',
     dimensions: 1024,
     embeddingModelId: null,
+    emoji: '📁',
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
@@ -398,6 +418,7 @@ it('rejects embedding model changes in patch schema', () => {
 it('rejects chunk config null clears in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkOverlap: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ searchMode: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: 1024, chunkOverlap: 200 }).success).toBe(true)
 })
 

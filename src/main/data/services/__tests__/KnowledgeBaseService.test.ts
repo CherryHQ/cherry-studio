@@ -40,6 +40,7 @@ describe('KnowledgeBaseService', () => {
       id: 'kb-1',
       name: 'Knowledge Base',
       description: 'Knowledge base description',
+      emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
       rerankModelId: null,
@@ -104,6 +105,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
+      expect(result.emoji).toBe('📁')
       expect(result.searchMode).toBe('hybrid')
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
@@ -111,6 +113,7 @@ describe('KnowledgeBaseService', () => {
       expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
+      expect(row.emoji).toBe('📁')
       expect(row.searchMode).toBe('hybrid')
     })
 

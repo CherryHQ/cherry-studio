@@ -73,6 +73,7 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     embeddingModelId: 'ollama::nomic-embed-text',
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }

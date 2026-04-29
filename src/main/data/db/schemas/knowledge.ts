@@ -1,7 +1,4 @@
 import {
-  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeItemData,
   type KnowledgeItemPhase,
   type KnowledgeItemStatus,
@@ -29,7 +26,7 @@ export const knowledgeBaseTable = sqliteTable(
     name: text().notNull(),
     description: text(),
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-    emoji: text(),
+    emoji: text().notNull(),
     dimensions: integer().notNull(),
 
     // Embedding model FK. SET NULL preserves the base if the model is removed.
@@ -42,21 +39,16 @@ export const knowledgeBaseTable = sqliteTable(
     fileProcessorId: text(),
 
     // Runtime configuration read by indexing and search orchestration.
-    chunkSize: integer().notNull().default(DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE),
-    chunkOverlap: integer().notNull().default(DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP),
+    chunkSize: integer().notNull(),
+    chunkOverlap: integer().notNull(),
     threshold: real(),
     documentCount: integer(),
-    searchMode: text().$type<KnowledgeSearchMode>().default(DEFAULT_KNOWLEDGE_SEARCH_MODE),
+    searchMode: text().$type<KnowledgeSearchMode>().notNull(),
     hybridAlpha: real(),
 
     ...createUpdateTimestamps
   },
-  (t) => [
-    check(
-      'knowledge_base_search_mode_check',
-      sql`${t.searchMode} IN ('default', 'bm25', 'hybrid') OR ${t.searchMode} IS NULL`
-    )
-  ]
+  (t) => [check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('default', 'bm25', 'hybrid')`)]
 )
 
 /**
@@ -88,7 +80,7 @@ export const knowledgeItemTable = sqliteTable(
     data: text({ mode: 'json' }).$type<KnowledgeItemData>().notNull(),
 
     // Runtime processing status and last failure details.
-    status: text().$type<KnowledgeItemStatus>().notNull().default('idle'),
+    status: text().$type<KnowledgeItemStatus>().notNull(),
     phase: text().$type<KnowledgeItemPhase>(),
     error: text(),
 
