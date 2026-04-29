@@ -89,8 +89,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.545.0",
     "radix-ui": "^1.4.3",
+    "react-day-picker": "^9.14.0",
     "react-dropzone": "^14.3.8",
     "tailwind-merge": "^2.5.5",
     "vaul": "^1.1.2"

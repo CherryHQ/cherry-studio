@@ -30,6 +30,12 @@ export {
   type DataTableProps,
   type DataTableSelection
 } from './composites/DataTable'
+export {
+  type DateTimeGranularity,
+  DateTimePicker,
+  type DateTimePickerLabels,
+  type DateTimePickerProps
+} from './composites/DateTimePicker'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as EmojiAvatar } from './composites/EmojiAvatar'
 export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
@@ -91,6 +97,7 @@ export * from './primitives/badge'
 export * from './primitives/breadcrumb'
 export * from './primitives/button'
 export * from './primitives/button-group'
+export * from './primitives/calendar'
 export * from './primitives/checkbox'
 export * from './primitives/combobox'
 export * from './primitives/command'

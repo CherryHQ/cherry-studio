@@ -5,6 +5,7 @@ import {
   Combobox,
   ConfirmDialog,
   DataTable,
+  DateTimePicker,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -29,8 +30,6 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { DatePicker } from 'antd'
-import dayjs from 'dayjs'
 import {
   AlertTriangle,
   CalendarClock,
@@ -55,6 +54,12 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 
 type AgentInfo = { id: string; name: string }
 type ChannelInfo = { id: string; name: string; isActive?: boolean; hasActiveChatIds?: boolean }
+
+const parseScheduleDate = (value: string) => {
+  if (!value) return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
 
 // --------------- Shared channel selector with warnings ---------------
 
@@ -378,17 +383,17 @@ const TaskDetail: FC<{
                 </div>
               )}
               {scheduleType === 'once' && (
-                <DatePicker
-                  size="small"
-                  showTime
-                  className="w-full"
-                  value={scheduleValue ? dayjs(scheduleValue) : null}
-                  onChange={(val) => {
-                    if (val) {
-                      const iso = val.toISOString()
-                      setScheduleValue(iso)
-                      saveField({ scheduleValue: iso })
-                    }
+                <DateTimePicker
+                  value={parseScheduleDate(scheduleValue)}
+                  granularity="second"
+                  format="yyyy-MM-dd HH:mm:ss"
+                  placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
+                  triggerClassName="w-full"
+                  onChange={(date) => {
+                    if (!date) return
+                    const iso = date.toISOString()
+                    setScheduleValue(iso)
+                    saveField({ scheduleValue: iso })
                   }}
                   disabled={isCompleted}
                 />
@@ -812,15 +817,14 @@ const CreateForm: FC<{
                 </div>
               )}
               {scheduleType === 'once' && (
-                <DatePicker
-                  size="small"
-                  showTime
-                  className="w-full"
-                  value={scheduleValue ? dayjs(scheduleValue) : null}
-                  onChange={(val) => {
-                    if (val) {
-                      setScheduleValue(val.toISOString())
-                    }
+                <DateTimePicker
+                  value={parseScheduleDate(scheduleValue)}
+                  granularity="second"
+                  format="yyyy-MM-dd HH:mm:ss"
+                  placeholder={t('agent.cherryClaw.tasks.oncePlaceholder')}
+                  triggerClassName="w-full"
+                  onChange={(date) => {
+                    if (date) setScheduleValue(date.toISOString())
                   }}
                 />
               )}
