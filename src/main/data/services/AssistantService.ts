@@ -34,10 +34,9 @@ function createEmptyRelations(): AssistantRelationIds {
 }
 
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
-  // deletedAt is internal-only and not part of the Assistant entity contract.
-  const { deletedAt: _deletedAt, ...rest } = nullsToUndefined(row)
+  const clean = nullsToUndefined(row)
   return {
-    ...rest,
+    ...clean,
     // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
     modelId: row.modelId as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
@@ -166,11 +165,11 @@ export class AssistantDataService {
     this.validateName(dto.name)
 
     const row = await this.db.transaction(async (tx) => {
-      // Strip relation arrays (synced via junction tables, not assistant columns).
-      // `prompt` / `description` are omitted when undefined so the DB DEFAULT '' takes over.
+      // Split column fields from relation arrays — relations are synced via junction tables.
+      // `prompt` / `description` stay omitted when undefined so the DB DEFAULT '' takes over.
       // `emoji` and `settings` are filled here — Service is the single source of truth for
       // their product-chosen / tunable defaults (spec § Decision Matrix 2).
-      const { mcpServerIds: _mcps, knowledgeBaseIds: _kbs, ...columnDto } = dto
+      const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
       const insertValues: typeof assistantTable.$inferInsert = {
         ...columnDto,
         emoji: dto.emoji ?? '🌟',
@@ -180,7 +179,7 @@ export class AssistantDataService {
       const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
 
       // Insert junction table rows
-      await this.syncRelations(tx, inserted.id, dto)
+      await this.syncRelations(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
       return inserted
     })
