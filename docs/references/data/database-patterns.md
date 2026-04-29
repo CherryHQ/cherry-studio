@@ -137,7 +137,7 @@ All other columns should be `NOT NULL` with an appropriate default. If a column 
 
 | Location | Use for | Note |
 |---|---|---|
-| **DB `.default('X')`** | Static, near-immutable values (`''`, `0`, `false`, sentinel emoji) | Changing a DB DEFAULT requires a hand-written table-rebuild migration in SQLite — `drizzle-kit` only emits a placeholder comment because SQLite doesn't support `ALTER COLUMN SET DEFAULT`. Reserve for stable values. |
+| **DB `.default('X')`** | Type-level "empty" values (`''`, `0`, `false`, `[]`) — won't change because they aren't product choices | **Effectively a near-permanent choice in SQLite** — `drizzle-kit` cannot auto-generate the rebuild migration; it emits only an explanatory comment without naming the affected table/column ([drizzle-orm#2489](https://github.com/drizzle-team/drizzle-orm/issues/2489)). For product-chosen values that could evolve (`'🌟'`, default model parameters), prefer service `??`. See [Default Values & Nullability § DB defaults are near-permanent](./best-practice-default-values-and-nullability.md#db-defaults-are-near-permanent). |
 | **Drizzle `$defaultFn(() => …)`** | Dynamic per-row values: UUIDs, `Date.now()` | Lives in the schema file but runs in JS at INSERT time |
 | **Service `dto.x ?? DEFAULT`** | Tunable product values that may evolve (e.g., inference parameters) | No migration needed when defaults change; covers all callers (handler, seeder, internal-service) |
 | **Zod `.default()`** | Avoid on entity / Create / Update schemas | Bypassed by non-handler callers; forces type asymmetry; see [API Design Guidelines § E](./api-design-guidelines.md#e-default-values-do-not-live-in-zod-schemas) |
