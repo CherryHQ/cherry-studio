@@ -112,6 +112,13 @@
       "when": 1777461460041,
       "tag": "0015_groovy_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1777474576049,
+      "tag": "0016_late_stryfe",
+      "breakpoints": true
     }
   ],
   "version": "7"

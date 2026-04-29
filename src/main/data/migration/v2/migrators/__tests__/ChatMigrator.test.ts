@@ -242,7 +242,7 @@ describe('ChatMigrator model reference sanitization', () => {
         topicId: 't1',
         role: 'assistant',
         data: { blocks: [] },
-        searchableText: null,
+        searchableText: '',
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
