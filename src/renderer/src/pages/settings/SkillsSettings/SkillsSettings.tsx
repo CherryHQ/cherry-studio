@@ -1,4 +1,4 @@
-import { Badge, Checkbox, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
+import { Badge, Checkbox, ConfirmDialog, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -7,7 +7,7 @@ import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/h
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import { Button, Dropdown, Input, message, Modal, Popconfirm, Typography, Upload } from 'antd'
+import { Button, Dropdown, Input, message, Modal, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,
@@ -223,6 +223,7 @@ const SkillsSettings: FC = () => {
   // Multi-select state
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [pendingUninstallSkill, setPendingUninstallSkill] = useState<InstalledSkill | null>(null)
 
   // Search tab state
   const [searchTab, setSearchTab] = useState<SkillSearchSource>('claude-plugins.dev')
@@ -376,17 +377,10 @@ const SkillsSettings: FC = () => {
     setSelectedIds(new Set())
   }, [])
 
-  const handleContextMenuUninstall = useCallback(
-    (skill: InstalledSkill) => {
-      if (skill.source === 'builtin') return
-      window.modal.confirm({
-        title: t('settings.skills.confirmUninstall'),
-        centered: true,
-        onOk: () => handleUninstall(skill)
-      })
-    },
-    [handleUninstall, t]
-  )
+  const handleContextMenuUninstall = useCallback((skill: InstalledSkill) => {
+    if (skill.source === 'builtin') return
+    setPendingUninstallSkill(skill)
+  }, [])
 
   const handleDrop = useCallback(
     async (file: File) => {
@@ -639,13 +633,13 @@ const SkillsSettings: FC = () => {
                     {selectedSkill.source === 'builtin' ? t('settings.skills.builtin') : selectedSkill.source}
                   </Badge>
                   {selectedSkill.source !== 'builtin' ? (
-                    <Popconfirm
-                      title={t('settings.skills.confirmUninstall')}
-                      onConfirm={() => handleUninstall(selectedSkill)}
-                      okText={t('common.confirm')}
-                      cancelText={t('common.cancel')}>
-                      <Button type="text" size="small" danger icon={<Trash2 size={14} />} />
-                    </Popconfirm>
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<Trash2 size={14} />}
+                      onClick={() => setPendingUninstallSkill(selectedSkill)}
+                    />
                   ) : null}
                 </DetailMeta>
               ) : null}
@@ -814,6 +808,24 @@ const SkillsSettings: FC = () => {
           </PreviewContent>
         ) : null}
       </Modal>
+      <ConfirmDialog
+        open={pendingUninstallSkill !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingUninstallSkill(null)
+          }
+        }}
+        title={t('settings.skills.confirmUninstall')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          if (pendingUninstallSkill) {
+            await handleUninstall(pendingUninstallSkill)
+            setPendingUninstallSkill(null)
+          }
+        }}
+      />
     </Container>
   )
 }

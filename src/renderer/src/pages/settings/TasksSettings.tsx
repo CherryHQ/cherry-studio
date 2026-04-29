@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Combobox,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -27,7 +28,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { DatePicker, Input, Popconfirm, Table } from 'antd'
+import { DatePicker, Input, Table } from 'antd'
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
@@ -140,6 +141,7 @@ const TaskDetail: FC<{
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [agentId, setAgentId] = useState(task.agentId)
   const [scheduleType, setScheduleType] = useState(task.scheduleType)
   const [scheduleValue, setScheduleValue] = useState(task.scheduleValue)
@@ -223,15 +225,9 @@ const TaskDetail: FC<{
                 <Pause size={14} />
               </Button>
             )}
-            <Popconfirm
-              title={t('agent.cherryClaw.tasks.delete.confirm')}
-              onConfirm={() => onDelete(task.id)}
-              okText={t('agent.cherryClaw.tasks.delete.label')}
-              cancelText={t('agent.cherryClaw.tasks.cancel')}>
-              <Button size="icon-sm" variant="destructive">
-                <Trash2 size={14} />
-              </Button>
-            </Popconfirm>
+            <Button size="icon-sm" variant="destructive" onClick={() => setDeleteConfirmOpen(true)}>
+              <Trash2 size={14} />
+            </Button>
           </div>
         </SettingTitle>
         <SettingDivider />
@@ -451,6 +447,16 @@ const TaskDetail: FC<{
           />
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title={t('agent.cherryClaw.tasks.delete.confirm')}
+        confirmText={t('agent.cherryClaw.tasks.delete.label')}
+        cancelText={t('agent.cherryClaw.tasks.cancel')}
+        destructive
+        onConfirm={() => onDelete(task.id)}
+      />
     </SettingContainer>
   )
 }

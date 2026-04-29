@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Separator as SeparatorPrimitive } from 'radix-ui'
+import * as SeparatorPrimitive from '@radix-ui/react-separator'
 import * as React from 'react'
 
 function Separator({
