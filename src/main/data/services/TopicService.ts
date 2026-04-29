@@ -15,7 +15,6 @@ import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
-import { messageService } from './MessageService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -255,31 +254,36 @@ export class TopicService {
    */
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
-
-    let activeNodeId: string | null = null
-    if (dto.sourceNodeId) {
-      // Verify source exists (surface NOT_FOUND cleanly instead of FK violation)
-      await messageService.getById(dto.sourceNodeId)
-      activeNodeId = dto.sourceNodeId
-    }
-
     const groupId = dto.groupId ?? null
-    const row = (await db.transaction(async (tx) =>
-      insertWithOrderKey(
+
+    const row = (await db.transaction(async (tx) => {
+      // Verify source message exists in-tx so a concurrent delete between the
+      // check and insert can't leave the new topic pointing at a deleted node.
+      // Inlined SELECT — messageService.getById has no tx-aware overload.
+      if (dto.sourceNodeId) {
+        const [src] = await tx
+          .select({ id: messageTable.id })
+          .from(messageTable)
+          .where(and(eq(messageTable.id, dto.sourceNodeId), isNull(messageTable.deletedAt)))
+          .limit(1)
+        if (!src) throw DataApiErrorFactory.notFound('Message', dto.sourceNodeId)
+      }
+
+      return insertWithOrderKey(
         tx,
         topicTable,
         {
           name: dto.name,
           assistantId: dto.assistantId,
           groupId,
-          activeNodeId
+          activeNodeId: dto.sourceNodeId ?? null
         },
         {
           pkColumn: topicTable.id,
           scope: topicScopePredicate(groupId)
         }
       )
-    )) as TopicRow
+    })) as TopicRow
 
     if (dto.sourceNodeId) {
       logger.info('Created forked topic', { id: row.id, sourceNodeId: dto.sourceNodeId })
