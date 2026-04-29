@@ -367,6 +367,44 @@ export class TopicService {
   }
 
   /**
+   * Set the active node for a topic
+   */
+  async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
+    const db = application.get('DbService').getDb()
+
+    await db.transaction(async (tx) => {
+      // Verify topic exists (in-tx, soft-delete excluded)
+      const [topic] = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+        .limit(1)
+      if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+
+      // Verify node exists, belongs to this topic, and is not soft-deleted
+      const [message] = await tx
+        .select({ topicId: messageTable.topicId })
+        .from(messageTable)
+        .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
+        .limit(1)
+      if (!message || message.topicId !== topicId) {
+        throw DataApiErrorFactory.notFound('Message', nodeId)
+      }
+
+      const updated = await tx
+        .update(topicTable)
+        .set({ activeNodeId: nodeId })
+        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+        .returning({ id: topicTable.id })
+      if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+    })
+
+    logger.info('Set active node', { topicId, nodeId })
+
+    return { activeNodeId: nodeId }
+  }
+
+  /**
    * Move a single topic relative to an anchor. Scope (groupId) is inferred
    * from the target row.
    */
@@ -423,44 +461,6 @@ export class TopicService {
         scope: topicScopePredicate(scopeValue ?? null)
       })
     })
-  }
-
-  /**
-   * Set the active node for a topic
-   */
-  async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
-    const db = application.get('DbService').getDb()
-
-    await db.transaction(async (tx) => {
-      // Verify topic exists (in-tx, soft-delete excluded)
-      const [topic] = await tx
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-        .limit(1)
-      if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
-
-      // Verify node exists, belongs to this topic, and is not soft-deleted
-      const [message] = await tx
-        .select({ topicId: messageTable.topicId })
-        .from(messageTable)
-        .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
-        .limit(1)
-      if (!message || message.topicId !== topicId) {
-        throw DataApiErrorFactory.notFound('Message', nodeId)
-      }
-
-      const updated = await tx
-        .update(topicTable)
-        .set({ activeNodeId: nodeId })
-        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-        .returning({ id: topicTable.id })
-      if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
-    })
-
-    logger.info('Set active node', { topicId, nodeId })
-
-    return { activeNodeId: nodeId }
   }
 }
 
