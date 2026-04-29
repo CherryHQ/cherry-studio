@@ -23,6 +23,13 @@ export {
 
 // Composite Components
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
+export {
+  type ColumnDef,
+  DataTable,
+  type DataTableColumnMeta,
+  type DataTableProps,
+  type DataTableSelection
+} from './composites/DataTable'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as EmojiAvatar } from './composites/EmojiAvatar'
 export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
@@ -103,5 +110,6 @@ export * from './primitives/separator'
 export * from './primitives/shadcn-io/dropzone'
 export * from './primitives/skeleton'
 export * from './primitives/slider'
+export * from './primitives/table'
 export * from './primitives/tabs'
 export * as Textarea from './primitives/textarea'

@@ -1,5 +1,6 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Alert, Button, Textarea } from '@cherrystudio/ui'
+import type { ColumnDef } from '@cherrystudio/ui'
+import { Alert, Button, DataTable, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -7,8 +8,6 @@ import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
-import type { TableProps } from 'antd'
-import { Table } from 'antd'
 import { t } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -16,7 +15,6 @@ import { useEffect, useState } from 'react'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import AddSubscribePopup from './AddSubscribePopup'
 
-type TableRowSelection<T extends object = object> = TableProps<T>['rowSelection']
 interface DataType {
   key: React.Key
   url: string
@@ -25,12 +23,16 @@ interface DataType {
 
 const logger = loggerService.withContext('BlacklistSettings')
 
-const columns: TableProps<DataType>['columns'] = [
-  { title: t('common.name'), dataIndex: 'name', key: 'name' },
+const columns: ColumnDef<DataType>[] = [
   {
-    title: 'URL',
-    dataIndex: 'url',
-    key: 'url'
+    accessorKey: 'name',
+    header: t('common.name'),
+    meta: { width: 200 }
+  },
+  {
+    accessorKey: 'url',
+    header: 'URL',
+    meta: { width: 'calc(100% - 244px)' }
   }
 ]
 
@@ -111,10 +113,6 @@ const BlacklistSettings: FC = () => {
     setSelectedRowKeys(newSelectedRowKeys)
   }
 
-  const rowSelection: TableRowSelection<DataType> = {
-    selectedRowKeys,
-    onChange: onSelectChange
-  }
   async function updateSubscribe() {
     setSubscribeChecking(true)
 
@@ -180,41 +178,44 @@ const BlacklistSettings: FC = () => {
 
   // 修改 handleAddSubscribe 函数
   async function handleAddSubscribe() {
-    setSubscribeChecking(true)
     const result = await AddSubscribePopup.show({
       title: t('settings.tool.websearch.subscribe_add')
     })
 
-    if (result && result.url) {
-      try {
-        // 获取并解析订阅源内容
-        const blacklist = await parseSubscribeContent(result.url)
-
-        if (blacklist.length === 0) {
-          throw new Error('No valid patterns found in subscribe content')
-        }
-        // 添加到 Redux store
-        addSubscribeSource({
-          url: result.url,
-          name: result.name || result.url,
-          blacklist
-        })
-        setSubscribeValid(true)
-        // 显示成功消息
-        window.toast.success({
-          title: t('settings.tool.websearch.subscribe_add_success'),
-          timeout: 2000
-        })
-        setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
-      } catch (error) {
-        setSubscribeValid(false)
-        window.toast.error({
-          title: t('settings.tool.websearch.subscribe_add_failed'),
-          timeout: 2000
-        })
-      }
+    if (!result?.url) {
+      return
     }
-    setSubscribeChecking(false)
+
+    setSubscribeChecking(true)
+    try {
+      // 获取并解析订阅源内容
+      const blacklist = await parseSubscribeContent(result.url)
+
+      if (blacklist.length === 0) {
+        throw new Error('No valid patterns found in subscribe content')
+      }
+      // 添加到 Redux store
+      addSubscribeSource({
+        url: result.url,
+        name: result.name || result.url,
+        blacklist
+      })
+      setSubscribeValid(true)
+      // 显示成功消息
+      window.toast.success({
+        title: t('settings.tool.websearch.subscribe_add_success'),
+        timeout: 2000
+      })
+      setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
+    } catch (error) {
+      setSubscribeValid(false)
+      window.toast.error({
+        title: t('settings.tool.websearch.subscribe_add_failed'),
+        timeout: 2000
+      })
+    } finally {
+      setSubscribeChecking(false)
+    }
   }
   function handleDeleteSubscribe() {
     try {
@@ -247,7 +248,7 @@ const BlacklistSettings: FC = () => {
           className="max-h-48 min-h-24"
           rows={4}
         />
-        <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
+        <Button type="button" onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
         {errFormat && (
@@ -258,6 +259,7 @@ const BlacklistSettings: FC = () => {
         <SettingTitle>
           {t('settings.tool.websearch.subscribe')}
           <Button
+            type="button"
             variant={subscribeValid ? 'ghost' : 'default'}
             disabled={subscribeChecking}
             onClick={handleAddSubscribe}>
@@ -266,15 +268,20 @@ const BlacklistSettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <div className="mt-3 flex flex-col gap-2">
-          <Table<DataType>
-            rowSelection={{ type: 'checkbox', ...rowSelection }}
+          <DataTable
+            data={dataSource}
             columns={columns}
-            dataSource={dataSource}
-            pagination={{ position: ['none'] }}
-            tableLayout="fixed"
+            rowKey="key"
+            emptyText={t('common.noData')}
+            selection={{
+              type: 'multiple',
+              selectedRowKeys,
+              onChange: onSelectChange
+            }}
           />
           <SettingRow className="py-2">
             <Button
+              type="button"
               variant={subscribeValid ? 'ghost' : 'default'}
               disabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
@@ -287,7 +294,11 @@ const BlacklistSettings: FC = () => {
                 t('settings.tool.websearch.subscribe_update')
               )}
             </Button>
-            <Button style={{ width: 100 }} disabled={selectedRowKeys.length === 0} onClick={handleDeleteSubscribe}>
+            <Button
+              type="button"
+              style={{ width: 100 }}
+              disabled={selectedRowKeys.length === 0}
+              onClick={handleDeleteSubscribe}>
               {t('settings.tool.websearch.subscribe_delete')}
             </Button>
           </SettingRow>

@@ -1,9 +1,11 @@
 import { PlusOutlined } from '@ant-design/icons'
+import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Badge,
   Button,
   Combobox,
   ConfirmDialog,
+  DataTable,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -28,7 +30,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { DatePicker, Input, Table } from 'antd'
+import { DatePicker, Input } from 'antd'
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
@@ -492,84 +494,88 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     [agentId, navigate]
   )
 
-  const columns = [
-    {
-      title: t('agent.cherryClaw.tasks.logs.runAt'),
-      dataIndex: 'runAt',
-      key: 'runAt',
-      width: 160,
-      render: (val: string) =>
-        new Date(val).toLocaleString(undefined, {
-          month: 'numeric',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        })
-    },
-    {
-      title: t('agent.cherryClaw.tasks.logs.duration'),
-      dataIndex: 'durationMs',
-      key: 'durationMs',
-      width: 80,
-      render: (val: number, record: TaskRunLogEntity) => {
-        if (record.status === 'running') return '-'
-        if (val < 1000) return `${val}ms`
-        if (val < 60_000) return `${(val / 1000).toFixed(1)}s`
-        return `${(val / 60_000).toFixed(1)}m`
-      }
-    },
-    {
-      title: t('agent.cherryClaw.tasks.logs.status'),
-      dataIndex: 'status',
-      key: 'status',
-      width: 70,
-      render: (val: string) => {
-        const logStatusLabels: Record<string, string> = {
-          success: t('agent.cherryClaw.tasks.logs.success'),
-          running: t('agent.cherryClaw.tasks.logs.running'),
-          error: t('agent.cherryClaw.tasks.logs.error')
-        }
-        return <Badge className={badgeColorClass(val)}>{logStatusLabels[val] ?? val}</Badge>
-      }
-    },
-    {
-      title: t('agent.cherryClaw.tasks.logs.result'),
-      dataIndex: 'result',
-      key: 'result',
-      ellipsis: true,
-      render: (val: string | null, record: TaskRunLogEntity) => {
-        const text =
-          record.status === 'running'
-            ? t('agent.cherryClaw.tasks.logs.running', 'Running...')
-            : record.status === 'error'
-              ? record.error
-              : (val ?? '-')
-        const hasSession = !!record.sessionId
+  const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
+    () => [
+      {
+        accessorKey: 'runAt',
+        header: t('agent.cherryClaw.tasks.logs.runAt'),
+        meta: { width: 160 },
+        cell: ({ getValue }) =>
+          new Date(getValue() as string).toLocaleString(undefined, {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })
+      },
+      {
+        accessorKey: 'durationMs',
+        header: t('agent.cherryClaw.tasks.logs.duration'),
+        meta: { width: 80 },
+        cell: ({ getValue, row }) => {
+          const val = getValue() as number
 
-        return (
-          <div className="flex items-center gap-1">
-            <span
-              className={record.status === 'error' ? 'text-red-500' : ''}
-              style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {text}
-            </span>
-            {hasSession && (
-              <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0"
-                  onClick={() => navigateToSession(record.sessionId!)}>
-                  <ExternalLink size={12} />
-                </Button>
-              </Tooltip>
-            )}
-          </div>
-        )
+          if (row.original.status === 'running') return '-'
+          if (val < 1000) return `${val}ms`
+          if (val < 60_000) return `${(val / 1000).toFixed(1)}s`
+          return `${(val / 60_000).toFixed(1)}m`
+        }
+      },
+      {
+        accessorKey: 'status',
+        header: t('agent.cherryClaw.tasks.logs.status'),
+        meta: { width: 80 },
+        cell: ({ getValue }) => {
+          const val = getValue() as string
+          const logStatusLabels: Record<string, string> = {
+            success: t('agent.cherryClaw.tasks.logs.success'),
+            running: t('agent.cherryClaw.tasks.logs.running'),
+            error: t('agent.cherryClaw.tasks.logs.error')
+          }
+          return <Badge className={badgeColorClass(val)}>{logStatusLabels[val] ?? val}</Badge>
+        }
+      },
+      {
+        id: 'result',
+        header: t('agent.cherryClaw.tasks.logs.result'),
+        meta: { width: 'calc(100% - 320px)', className: 'min-w-0' },
+        cell: ({ row }) => {
+          const record = row.original
+          const val = record.result
+          const text =
+            record.status === 'running'
+              ? t('agent.cherryClaw.tasks.logs.running', 'Running...')
+              : record.status === 'error'
+                ? record.error
+                : (val ?? '-')
+          const sessionId = record.sessionId
+
+          return (
+            <div className="flex items-center gap-1">
+              <span
+                className={record.status === 'error' ? 'text-red-500' : ''}
+                style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {text}
+              </span>
+              {sessionId && (
+                <Tooltip title={t('agent.cherryClaw.tasks.logs.viewSession', 'View session')}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    onClick={() => navigateToSession(sessionId)}>
+                    <ExternalLink size={12} />
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+          )
+        }
       }
-    }
-  ]
+    ],
+    [navigateToSession, t]
+  )
 
   if (isLoading) {
     return (
@@ -593,13 +599,12 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         onChange={(e) => setSearchText(e.target.value)}
         allowClear
       />
-      <Table
-        dataSource={filteredLogs}
+      <DataTable
+        data={filteredLogs}
         columns={columns}
         rowKey="id"
-        size="small"
-        pagination={false}
-        scroll={{ y: 300 }}
+        maxHeight={300}
+        emptyText={t('agent.cherryClaw.tasks.logs.empty')}
       />
     </div>
   )

@@ -1,10 +1,13 @@
-import { Badge, ColFlex, EmptyState, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import type { ColumnDef } from '@cherrystudio/ui'
+import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Descriptions, Table, Typography } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
+import { Descriptions, Typography } from 'antd'
 import { Zap } from 'lucide-react'
+import type { Key } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -16,6 +19,8 @@ interface MCPToolsSectionProps {
 
 const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
+  const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
+  const [searchText, setSearchText] = useState('')
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
@@ -126,91 +131,115 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)
   }
 
-  const columns: ColumnsType<MCPTool> = [
+  const filteredTools = useMemo(() => {
+    const query = searchText.trim().toLowerCase()
+
+    if (!query) {
+      return tools
+    }
+
+    return tools.filter((tool) =>
+      [tool.name, tool.id, tool.description].some((value) => value?.toLowerCase().includes(query))
+    )
+  }, [searchText, tools])
+
+  const columns: ColumnDef<MCPTool>[] = [
     {
-      title: <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
-      dataIndex: 'name',
-      key: 'name',
-      filters: tools.map((tool) => ({
-        text: tool.name,
-        value: tool.name
-      })),
-      onFilter: (value, record) => record.name === value,
-      filterSearch: true,
-      render: (_, tool) => (
-        <ColFlex className="gap-1">
-          <Flex className="items-center gap-1">
-            <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
-              {tool.name}
-            </Typography.Text>
-            <InfoTooltip content={`ID: ${tool.id}`} />
-          </Flex>
-          {tool.description && (
-            <Typography.Paragraph
-              type="secondary"
-              style={{ fontSize: '13px' }}
-              ellipsis={{ rows: 1, expandable: true }}>
-              {tool.description}
-            </Typography.Paragraph>
-          )}
-        </ColFlex>
-      )
+      id: 'name',
+      header: () => <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
+      meta: { width: 400, maxWidth: 400 },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return (
+          <ColFlex className="gap-1">
+            <Flex className="items-center gap-1">
+              <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
+                {tool.name}
+              </Typography.Text>
+              <InfoTooltip content={`ID: ${tool.id}`} />
+            </Flex>
+            {tool.description && (
+              <Typography.Paragraph
+                type="secondary"
+                style={{ fontSize: '13px' }}
+                ellipsis={{ rows: 1, expandable: true }}>
+                {tool.description}
+              </Typography.Paragraph>
+            )}
+          </ColFlex>
+        )
+      }
     },
     {
-      title: (
+      id: 'enable',
+      header: () => (
         <Flex className="items-center justify-center gap-1">
           <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
       ),
-      key: 'enable',
-      width: 150, // Fixed width might be good for alignment
-      align: 'center',
-      render: (_, tool) => (
-        <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
-      )
+      meta: { width: 150, maxWidth: 150, align: 'center' },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
+      }
     },
     {
-      title: (
+      id: 'autoApprove',
+      header: () => (
         <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
           <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
         </Flex>
       ),
-      key: 'autoApprove',
-      width: 150, // Fixed width
-      align: 'center',
-      render: (_, tool) => (
-        <Tooltip
-          content={
-            !isToolEnabled(tool)
-              ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
-              : isToolAutoApproved(tool, server)
-                ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
-                : t('settings.mcp.tools.autoApprove.tooltip.disabled')
-          }>
-          <Switch
-            checked={isToolAutoApproved(tool, server)}
-            disabled={!isToolEnabled(tool)}
-            onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
-          />
-        </Tooltip>
-      )
+      meta: { width: 150, maxWidth: 150, align: 'center' },
+      cell: ({ row }) => {
+        const tool = row.original
+
+        return (
+          <Tooltip
+            content={
+              !isToolEnabled(tool)
+                ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+                : isToolAutoApproved(tool, server)
+                  ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
+                  : t('settings.mcp.tools.autoApprove.tooltip.disabled')
+            }>
+            <Switch
+              checked={isToolAutoApproved(tool, server)}
+              disabled={!isToolEnabled(tool)}
+              onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
+            />
+          </Tooltip>
+        )
+      }
     }
   ]
 
-  return tools.length > 0 ? (
-    <Table
-      rowKey="id"
+  return (
+    <DataTable
+      data={filteredTools}
       columns={columns}
-      dataSource={tools}
-      pagination={false}
-      expandable={{
-        expandedRowRender: (tool) => renderToolProperties(tool)
-      }}
+      rowKey="id"
+      emptyText={searchText ? t('common.no_results') : t('settings.mcp.tools.noToolsAvailable')}
+      headerRight={
+        tools.length > 0 ? (
+          <CollapsibleSearchBar
+            onSearch={setSearchText}
+            placeholder={t('common.search')}
+            tooltip={t('common.search')}
+            maxWidth={200}
+            style={{ borderRadius: 20 }}
+          />
+        ) : undefined
+      }
+      expandedRowKeys={expandedRowKeys}
+      onExpandedRowChange={setExpandedRowKeys}
+      renderExpandedRow={(tool) => renderToolProperties(tool)}
+      getCanExpand={(tool) => Boolean(tool.inputSchema?.properties)}
     />
-  ) : (
-    <EmptyState compact preset="no-result" description={t('settings.mcp.tools.noToolsAvailable')} />
   )
 }
 
