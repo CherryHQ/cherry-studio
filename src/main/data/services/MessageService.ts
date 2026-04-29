@@ -1104,6 +1104,50 @@ export class MessageService {
 
     return ordered.reverse().map(rowToMessage)
   }
+
+  /**
+   * Read-only path query for branch-aware UI.
+   *
+   * Returns the conversation path that passes through `nodeId` and
+   * descends into its subtree to the leaf with the greatest `created_at`
+   * (skipping deleted nodes). If `nodeId` has no live children, the leaf
+   * is `nodeId` itself.
+   *
+   * Pure read — does not touch `topic.activeNodeId`. Callers that want to
+   * persist a navigation result should follow up with `setActiveNode`.
+   */
+  async getPathThrough(topicId: string, nodeId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+
+    const [node] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, nodeId), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .limit(1)
+    if (!node) {
+      throw DataApiErrorFactory.notFound('Message', nodeId)
+    }
+
+    const [leaf] = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id, created_at FROM message
+          WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
+        UNION ALL
+        SELECT m.id, m.created_at FROM message m
+          INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+      )
+      SELECT s.id FROM subtree s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM message c
+        WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+      )
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `)
+
+    return await this.getPathToNode(leaf?.id ?? nodeId)
+  }
 }
 
 export const messageService = new MessageService()

@@ -148,6 +148,15 @@ export const DeleteMessageQuerySchema = z.strictObject({
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
+/**
+ * Query parameters for GET /topics/:topicId/path
+ */
+export const PathThroughQuerySchema = z.strictObject({
+  /** Node the returned path must pass through. */
+  nodeId: z.string().min(1)
+})
+export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -191,6 +200,24 @@ export type MessageSchemas = {
       params: { topicId: string }
       body: CreateMessageDto
       response: Message
+    }
+  }
+
+  /**
+   * Read-only path query passing through a given node.
+   *
+   * Returns root → leaf where leaf is the most recently created live
+   * descendant of `nodeId` (or `nodeId` itself if it has no live children).
+   * Does not modify topic state — use PUT /topics/:id/active-node to
+   * persist a chosen path.
+   *
+   * @example GET /topics/abc123/path?nodeId=msg42
+   */
+  '/topics/:topicId/path': {
+    GET: {
+      params: { topicId: string }
+      query: PathThroughQueryParams
+      response: Message[]
     }
   }
 

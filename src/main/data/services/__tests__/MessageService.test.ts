@@ -3,6 +3,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { DataApiError } from '@shared/data/api'
 import { BlockType, type MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -206,6 +207,166 @@ describe('MessageService', () => {
       // activeNodeId points at the last placeholder regardless of id source.
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-res')).limit(1)
       expect(topic.activeNodeId).toBe(placeholders[1].id)
+    })
+  })
+
+  describe('getPathThrough', () => {
+    /**
+     * Tree shared by these tests:
+     *
+     *   m-root (t=100)
+     *   ├── m-a1 (t=200)
+     *   │     └── m-q1 (t=300)
+     *   │           ├── m-b1 (t=400)               ← leaf, older
+     *   │           └── m-b2 (t=500)
+     *   │                 └── m-deep (t=600)        ← leaf, newest in tree
+     *   └── m-a2 (t=210)
+     *         ├── m-q2 (t=310)                      ← live leaf
+     *         └── m-del (t=350, deletedAt set)      ← skipped
+     */
+    async function seedPathTree() {
+      await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'm-deep', orderKey: 'a0' })
+      await dbh.db.insert(topicTable).values({ id: 'topic-2', activeNodeId: null, orderKey: 'a1' })
+
+      const rows: (typeof messageTable.$inferInsert)[] = [
+        {
+          id: 'm-root',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('root'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-a1',
+          parentId: 'm-root',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('a1'),
+          status: 'success',
+          siblingsGroupId: 1,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-a2',
+          parentId: 'm-root',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('a2'),
+          status: 'success',
+          siblingsGroupId: 1,
+          createdAt: 210,
+          updatedAt: 210
+        },
+        {
+          id: 'm-q1',
+          parentId: 'm-a1',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('q1'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'm-b1',
+          parentId: 'm-q1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('b1'),
+          status: 'success',
+          siblingsGroupId: 2,
+          createdAt: 400,
+          updatedAt: 400
+        },
+        {
+          id: 'm-b2',
+          parentId: 'm-q1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('b2'),
+          status: 'success',
+          siblingsGroupId: 2,
+          createdAt: 500,
+          updatedAt: 500
+        },
+        {
+          id: 'm-deep',
+          parentId: 'm-b2',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('deep'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 600,
+          updatedAt: 600
+        },
+        {
+          id: 'm-q2',
+          parentId: 'm-a2',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('q2'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 310,
+          updatedAt: 310
+        },
+        {
+          id: 'm-del',
+          parentId: 'm-a2',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('deleted'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 350,
+          updatedAt: 350,
+          deletedAt: 360
+        }
+      ]
+      await dbh.db.insert(messageTable).values(rows)
+    }
+
+    it('descends to the most recent leaf in the subtree', async () => {
+      await seedPathTree()
+      // a1's subtree leaves: m-b1 (t=400), m-deep (t=600). Should pick m-deep.
+      const path = await messageService.getPathThrough('topic-1', 'm-a1')
+      expect(path.map((m) => m.id)).toEqual(['m-root', 'm-a1', 'm-q1', 'm-b2', 'm-deep'])
+    })
+
+    it('skips deleted children when descending', async () => {
+      await seedPathTree()
+      // a2's subtree: m-q2 (live, t=310), m-del (deleted). Should land on m-q2.
+      const path = await messageService.getPathThrough('topic-1', 'm-a2')
+      expect(path.map((m) => m.id)).toEqual(['m-root', 'm-a2', 'm-q2'])
+    })
+
+    it('returns root → nodeId when nodeId is itself a leaf', async () => {
+      await seedPathTree()
+      const path = await messageService.getPathThrough('topic-1', 'm-deep')
+      expect(path.map((m) => m.id)).toEqual(['m-root', 'm-a1', 'm-q1', 'm-b2', 'm-deep'])
+    })
+
+    it('descends from root to the globally newest leaf', async () => {
+      await seedPathTree()
+      const path = await messageService.getPathThrough('topic-1', 'm-root')
+      expect(path[path.length - 1].id).toBe('m-deep')
+    })
+
+    it('throws NOT_FOUND for unknown nodeId', async () => {
+      await seedPathTree()
+      await expect(messageService.getPathThrough('topic-1', 'm-nope')).rejects.toThrow(DataApiError)
+    })
+
+    it('throws NOT_FOUND when nodeId belongs to a different topic', async () => {
+      await seedPathTree()
+      await expect(messageService.getPathThrough('topic-2', 'm-a1')).rejects.toThrow(DataApiError)
     })
   })
 })
