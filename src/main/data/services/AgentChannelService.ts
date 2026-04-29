@@ -16,7 +16,8 @@ const logger = loggerService.withContext('ChannelService')
 
 function normalizeChannelConfig(config: unknown): Record<string, unknown> {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return {}
-  const { type: _type, ...rest } = config as Record<string, unknown>
+  const rest = { ...(config as Record<string, unknown>) }
+  delete rest.type
   return rest
 }
 

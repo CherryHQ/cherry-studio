@@ -22,6 +22,7 @@ describe('useAgent', () => {
   })
 
   it('fetches agent when id is provided', () => {
+    const mockUseQuery = vi.mocked(useQuery)
     const mockAgent = {
       id: 'agent-1',
       name: 'Test Agent',
@@ -40,6 +41,13 @@ describe('useAgent', () => {
     expect(result.current.agent).toBeDefined()
     expect(result.current.agent?.id).toBe('agent-1')
     expect(result.current.isLoading).toBe(false)
+    expect(mockUseQuery).toHaveBeenCalledWith(
+      '/agents/:agentId',
+      expect.objectContaining({
+        enabled: true,
+        swrOptions: expect.objectContaining({ keepPreviousData: false })
+      })
+    )
   })
 
   it('applies configuration defaults when configuration has raw values', () => {
@@ -92,7 +100,7 @@ describe('useAgent', () => {
   })
 
   it('exposes refetch as revalidate', () => {
-    const mockRefetch = vi.fn()
+    const mockRefetch = vi.fn().mockResolvedValue(undefined)
     MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined, refetch: mockRefetch })
 
     const { result } = renderHook(() => useAgent('agent-1'))

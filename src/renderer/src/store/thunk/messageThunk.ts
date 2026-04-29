@@ -222,7 +222,7 @@ export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionConte
       await mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`], updatedSession, {
         revalidate: false
       })
-      void mutate([`/agents/${agentSession.agentId}/sessions`])
+      void mutate((key) => Array.isArray(key) && key[0] === `/agents/${agentSession.agentId}/sessions`)
     } catch (error) {
       logger.warn('Failed to update agent session cache after rename', error as Error)
     }

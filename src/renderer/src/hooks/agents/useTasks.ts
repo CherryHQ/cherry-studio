@@ -8,7 +8,8 @@ export const useTasks = (agentId: string | null) => {
   const { data, error, isLoading } = useQuery('/agents/:agentId/tasks', {
     params: { agentId: agentId! },
     query: { limit: 200 },
-    enabled: !!agentId
+    enabled: !!agentId,
+    swrOptions: { keepPreviousData: false }
   })
   return {
     tasks: data?.items ?? [],
@@ -111,7 +112,8 @@ export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
   const { data, error, isLoading } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
     query: { limit: 50 },
-    enabled: !!(agentId && taskId)
+    enabled: !!(agentId && taskId),
+    swrOptions: { keepPreviousData: false }
   })
   return {
     logs: data?.items ?? [],

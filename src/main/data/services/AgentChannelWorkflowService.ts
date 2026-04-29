@@ -34,7 +34,8 @@ export class AgentChannelWorkflowService {
     const existing = await agentChannelService.getChannel(channelId)
     if (!existing) return null
 
-    const { type: _type, ...serviceUpdates } = updates
+    const serviceUpdates = { ...updates }
+    delete serviceUpdates.type
     const channel = await agentChannelService.updateChannel(channelId, serviceUpdates)
     if (!channel) return null
 

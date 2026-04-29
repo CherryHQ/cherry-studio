@@ -8,7 +8,8 @@ import { parseAgentConfiguration } from './utils'
 export const useSession = (agentId: string | null, sessionId: string | null) => {
   const { data, error, isLoading, mutate } = useQuery('/agents/:agentId/sessions/:sessionId', {
     params: { agentId: agentId!, sessionId: sessionId! },
-    enabled: !!(agentId && sessionId)
+    enabled: !!(agentId && sessionId),
+    swrOptions: { keepPreviousData: false }
   })
   const { updateSession } = useUpdateSession(agentId)
 

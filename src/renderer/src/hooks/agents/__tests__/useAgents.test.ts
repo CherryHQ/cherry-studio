@@ -150,7 +150,7 @@ describe('useAgents', () => {
 
   describe('reorderAgents', () => {
     it('calls legacy HTTP reorder client and refetches', async () => {
-      const mockRefetch = vi.fn()
+      const mockRefetch = vi.fn().mockResolvedValue(undefined)
       const reorderAgents = vi.fn().mockResolvedValue(undefined)
       vi.mocked(useLegacyAgentReorderClient).mockReturnValue({
         reorderAgents,

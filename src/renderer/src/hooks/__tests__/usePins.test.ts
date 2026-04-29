@@ -51,7 +51,7 @@ function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: bo
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }
   })

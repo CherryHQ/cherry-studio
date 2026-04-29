@@ -29,7 +29,8 @@ export const useSessions = (agentId: string | null, pageSize = DEFAULT_SESSION_P
     {
       params: { agentId: agentId ?? '' },
       limit: pageSize,
-      enabled: !!agentId
+      enabled: !!agentId,
+      swrOptions: { keepPreviousData: false }
     }
   )
   const resetRef = useRef(reset)

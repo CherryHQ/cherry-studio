@@ -10,11 +10,11 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
-  AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
   AgentConfigurationSchema,
   type AgentSessionEntity,
   type CreateSessionDto,
+  SESSION_MUTABLE_FIELDS,
   type UpdateSessionDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
@@ -56,6 +56,20 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+export function buildSessionUpdateData(updates: UpdateSessionDto, updatedAt = Date.now()): Partial<SessionRow> {
+  const updateData: Partial<SessionRow> = { updatedAt }
+  const replaceableEntityFields = Object.keys(SESSION_MUTABLE_FIELDS)
+
+  for (const field of replaceableEntityFields) {
+    if (Object.prototype.hasOwnProperty.call(updates, field)) {
+      const value = updates[field as keyof typeof updates]
+      ;(updateData as Record<string, unknown>)[field] = value ?? null
+    }
+  }
+
+  return updateData
 }
 
 export class AgentSessionService {
@@ -184,17 +198,7 @@ export class AgentSessionService {
       throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
     }
 
-    const updateData: Partial<SessionRow> = {
-      updatedAt: Date.now()
-    }
-
-    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
-    for (const field of replaceableEntityFields) {
-      if (Object.prototype.hasOwnProperty.call(updates, field)) {
-        const value = updates[field as keyof typeof updates]
-        ;(updateData as Record<string, unknown>)[field] = value ?? null
-      }
-    }
+    const updateData = buildSessionUpdateData(updates)
 
     const database = application.get('DbService').getDb()
     await withSqliteErrors(

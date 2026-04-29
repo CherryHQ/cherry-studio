@@ -4,7 +4,8 @@ import { useCallback } from 'react'
 
 export const useChannels = (type?: ChannelType) => {
   const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
-    query: type ? { type } : undefined
+    query: type ? { type } : undefined,
+    swrOptions: { keepPreviousData: false }
   })
   const channels = data ?? []
 
