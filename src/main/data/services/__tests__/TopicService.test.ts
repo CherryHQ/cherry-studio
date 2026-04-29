@@ -147,6 +147,22 @@ describe('TopicService', () => {
       expect(result.nextCursor).toBeUndefined()
     })
 
+    it.each([
+      ['100%', ['p100', 'p100x']], // % must match literal %, not anything
+      ['a_b', ['a_b']] // _ must match literal _, not any single char
+    ])('escapes LIKE wildcards in search filter q=%s', async (q, expected) => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'p100', name: '100%', orderKey: 'a0', createdAt: 1, updatedAt: 4 },
+        { id: 'p100x', name: '100% off', orderKey: 'a1', createdAt: 1, updatedAt: 3 },
+        { id: 'foo', name: 'unrelated', orderKey: 'a2', createdAt: 1, updatedAt: 2 },
+        { id: 'a_b', name: 'a_b', orderKey: 'a3', createdAt: 1, updatedAt: 6 },
+        { id: 'a-b', name: 'a-b', orderKey: 'a4', createdAt: 1, updatedAt: 5 } // would match 'a_b' if _ were a wildcard
+      ])
+      const result = await service.listByCursor({ q })
+      expect(result.items.map((t) => t.id).sort()).toEqual([...expected].sort())
+    })
+
     it('applies search filter q to both pin and unpinned sections', async () => {
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
@@ -181,6 +197,25 @@ describe('TopicService', () => {
 
       const result = await service.listByCursor()
       expect(result.items.map((t) => t.id)).toEqual(['t1'])
+    })
+
+    it.each([
+      'gibberish',
+      'topic:not-a-number:id',
+      'topic:NaN:id',
+      'unknown-section:foo',
+      'pin' // missing colon
+    ])('falls back to first page when cursor is malformed (%s)', async (badCursor) => {
+      // A renderer holding a stale cursor from a previous app version should
+      // not be locked out — the warn+fallback in decodeCursor returns the
+      // first page instead of throwing VALIDATION_ERROR.
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'T2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
+      ])
+      const result = await service.listByCursor({ cursor: badCursor })
+      expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
   })
 

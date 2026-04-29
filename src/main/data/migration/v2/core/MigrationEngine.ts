@@ -428,7 +428,10 @@ export class MigrationEngine {
       await fs.rm(exportPath, { recursive: true, force: true })
       logger.info('Temporary files cleaned up', { path: exportPath })
     } catch (error) {
-      logger.warn('Failed to cleanup temp files', { error, path: exportPath })
+      // Migration is already marked completed at this point; cleanup failure
+      // accumulates Dexie export blobs across retries with no error signal
+      // unless we surface it as `error`. Keep migration result successful.
+      logger.error('Failed to cleanup temp files', error as Error, { path: exportPath })
     }
   }
 

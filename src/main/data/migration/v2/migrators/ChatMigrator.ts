@@ -442,6 +442,25 @@ export class ChatMigrator extends BaseMigrator {
         logger.warn(`Topic count higher than expected: expected ${expectedTopics}, got ${targetTopicCount}`)
       }
 
+      // Validate pin row count — phase 3 of insertStagedTopics emits one pin
+      // row per `stagedTopics.pinned`. A silent failure (ON CONFLICT swallowed
+      // an emit, transaction rollback) is otherwise undetectable.
+      const expectedPins = this.stagedTopics.filter((d) => d.pinned).length
+      if (expectedPins > 0) {
+        const pinResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(pinTable)
+          .where(eq(pinTable.entityType, 'topic'))
+          .get()
+        const targetPinCount = pinResult?.count ?? 0
+        if (targetPinCount < expectedPins) {
+          errors.push({
+            key: 'pin_count_low',
+            message: `Pin row count too low: expected ${expectedPins}, got ${targetPinCount}`
+          })
+        }
+      }
+
       // Sample validation: check a few topics have messages
       const sampleTopics = await db.select().from(topicTable).limit(5).all()
       for (const topic of sampleTopics) {
@@ -557,7 +576,10 @@ export class ChatMigrator extends BaseMigrator {
   private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
     // Validate required fields
     if (!oldTopic.id) {
-      logger.warn('Topic missing id, skipping')
+      logger.error('Topic missing id, skipping', new Error('missing topic id'), {
+        messageCount: oldTopic.messages?.length ?? 0,
+        assistantId: oldTopic.assistantId
+      })
       return null
     }
 

@@ -128,7 +128,13 @@ export class TemporaryChatService {
       createdAt: now,
       updatedAt: now
     }
-    const list = this.messages.get(topicId)!
+    // Race: deleteTopic between the topics.has check above and this line
+    // would leave .get() returning undefined. Surface as NotFound rather than
+    // crashing with TypeError on `.push` of undefined.
+    const list = this.messages.get(topicId)
+    if (!list) {
+      throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
+    }
     list.push(row)
     return rowToMessage(row)
   }

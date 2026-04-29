@@ -196,6 +196,18 @@ describe('TemporaryChatService', () => {
       await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
     })
 
+    it('persisted topic has a non-empty fractional-indexing orderKey', async () => {
+      // Regression guard: a refactor swapping insertWithOrderKey for plain
+      // tx.insert() would ship the row with orderKey = '' — silently breaks
+      // all subsequent reorders and the unpinned section's sort.
+      const topic = await service.createTopic({ name: 'with-key' })
+      await service.persist(topic.id)
+      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+      expect(dbTopic?.orderKey).toBeDefined()
+      expect(dbTopic?.orderKey).not.toBe('')
+      expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
+    })
+
     // NOTE: The original "rollback on tx failure" test dropped the message
     // table mid-run. That would corrupt the shared schema for all subsequent
     // tests in the harness. We drop this specific scenario — the rollback
