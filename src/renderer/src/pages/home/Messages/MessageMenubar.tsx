@@ -98,7 +98,6 @@ type MessageMenubarButtonContext = {
   deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
   dropdownItems: MenuProps['items']
   enableDeveloperMode: boolean
-  handleResendUserMessage: (messageUpdate?: Message) => Promise<void>
   handleTraceUserMessage: () => void | Promise<void>
   handleTranslate: (language: TranslateLanguage) => Promise<void>
   hasTranslationBlocks: boolean
@@ -138,7 +137,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const { translateLanguages } = useTranslate()
   const {
     remove: deleteMessage,
-    resend: resendMessage,
     regenerate: regenerateAssistantMessage,
     regenerateWithModel,
     startBranch,
@@ -221,19 +219,6 @@ const MessageMenubar: FC<Props> = (props) => {
       })
     },
     [model, mentionModelFilter, regenerateWithModel]
-  )
-
-  const handleResendUserMessage = useCallback(
-    async (messageUpdate?: Message) => {
-      // The server's resend only keys off the user message id and
-      // regenerates its descendants; `messageUpdate` is an artifact of an
-      // earlier API where the caller could hand in an edited snapshot
-      // (the hook now owns the id binding). Persisted edits are already
-      // applied via `editParts` before this path runs.
-      logger.debug('Resend user message triggered', { messageId: message.id, messageUpdate })
-      await resendMessage()
-    },
-    [message.id, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -512,7 +497,6 @@ const MessageMenubar: FC<Props> = (props) => {
     deleteMessage,
     dropdownItems,
     enableDeveloperMode,
-    handleResendUserMessage,
     handleTraceUserMessage,
     handleTranslate,
     hasTranslationBlocks,
@@ -579,49 +563,6 @@ const ActionButton = ({ $softHoverBg, className, ...props }: ComponentProps<'div
 }
 
 const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRenderer> = {
-  'user-regenerate': ({
-    message,
-    confirmRegenerateMessage,
-    handleResendUserMessage,
-    setShowDeleteTooltip,
-    supportsWrites,
-    t,
-    isBubbleStyle
-  }) => {
-    if (message.role !== 'user' || !supportsWrites) {
-      return null
-    }
-
-    if (confirmRegenerateMessage) {
-      return (
-        <Tooltip content={t('common.regenerate')} delay={800}>
-          <Popconfirm
-            title={t('message.regenerate.confirm')}
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleResendUserMessage()}
-            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-            <ActionButton
-              className="message-action-button"
-              onClick={(e) => e.stopPropagation()}
-              $softHoverBg={isBubbleStyle}>
-              <RefreshIcon size={15} />
-            </ActionButton>
-          </Popconfirm>
-        </Tooltip>
-      )
-    }
-
-    return (
-      <Tooltip content={t('common.regenerate')} delay={800}>
-        <ActionButton
-          className="message-action-button"
-          onClick={() => handleResendUserMessage()}
-          $softHoverBg={isBubbleStyle}>
-          <RefreshIcon size={15} />
-        </ActionButton>
-      </Tooltip>
-    )
-  },
   'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }) => {
     if (message.role !== 'user' || !supportsWrites) {
       return null

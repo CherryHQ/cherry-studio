@@ -3,7 +3,6 @@ import { TopicType } from '@renderer/types'
 export type MessageMenubarScope = TopicType
 
 export type MessageMenubarButtonId =
-  | 'user-regenerate'
   | 'user-edit'
   | 'copy'
   | 'assistant-regenerate'
@@ -25,7 +24,6 @@ export type MessageMenubarScopeConfig = {
 export const DEFAULT_MESSAGE_MENUBAR_SCOPE: MessageMenubarScope = TopicType.Chat
 
 export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
-  'user-regenerate',
   'user-edit',
   'copy',
   'assistant-regenerate',
