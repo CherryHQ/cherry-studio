@@ -19,13 +19,11 @@ import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  ResourceSelectorShell,
-  type ResourceSelectorShellItem,
-  type ResourceSelectorShellSortOption
-} from './ResourceSelectorShell'
+import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
+import { useCreatedAtSort } from './useCreatedAtSort'
 
 const logger = loggerService.withContext('AgentSelector')
+const AGENT_FALLBACK_ICON = <Bot className="size-4 text-muted-foreground/70" />
 
 export type AgentSelectorItem = ResourceSelectorShellItem
 
@@ -75,16 +73,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     [data]
   )
 
-  const sortOptions: ResourceSelectorShellSortOption<AgentSelectorItem>[] = useMemo(() => {
-    const createdAtById = new Map<string, number>(
-      (data?.items ?? []).map((agent) => [agent.id, Date.parse(agent.createdAt) || 0])
-    )
-    const at = (id: string) => createdAtById.get(id) ?? 0
-    return [
-      { id: 'desc', label: t('selector.common.sort.desc'), comparator: (a, b) => at(b.id) - at(a.id) },
-      { id: 'asc', label: t('selector.common.sort.asc'), comparator: (a, b) => at(a.id) - at(b.id) }
-    ]
-  }, [data, t])
+  const sortOptions = useCreatedAtSort<AgentSelectorItem>(data?.items, t)
 
   const handleTogglePin = useCallback(
     async (id: string) => {
@@ -107,10 +96,10 @@ export function AgentSelector(props: AgentSelectorProps) {
     // — ResourceSelectorShell de-duplicates by routing both paths through one effect.
     onOpen: refetchPins,
     items,
-    renderFallbackIcon: () => <Bot className="size-4 text-muted-foreground/70" />,
+    fallbackIcon: AGENT_FALLBACK_ICON,
     sortOptions,
     defaultSortId: 'desc',
-    pinnedIds: [...pinnedIds],
+    pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
     onEditItem: () => {

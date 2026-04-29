@@ -72,30 +72,19 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
 
   const [filterOpen, setFilterOpen] = useState(false)
   const ctxMenu = useItemContextMenu()
+  const closeContextMenu = ctxMenu.close
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const hasSearch = Boolean(search)
 
-  // Focus search once per popover open. Keeping this effect in EntitySelector avoids re-focusing
-  // when Header props (like the controlled search object) get recreated during normal rerenders.
-  useEffect(() => {
-    if (!open || autoFocusSearch === false || !hasSearch) return
-    const t = setTimeout(() => searchInputRef.current?.focus(), 50)
-    return () => clearTimeout(t)
-  }, [open, autoFocusSearch, hasSearch])
-
-  // Reset transient panel/menu state when popover closes. Intentionally depend only on `open`:
-  // `ctxMenu.close` is a stable useCallback from `useItemContextMenu`, but eslint-plugin-react-hooks
-  // can't prove that across file boundaries, so we silence the lint here rather than resubscribing
-  // every render.
+  // Reset transient panel/menu state when popover closes.
   useEffect(() => {
     if (!open) {
       setFilterOpen(false)
-      ctxMenu.close()
+      closeContextMenu()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, closeContextMenu])
 
   const isMultiMode = mode === 'multi' && !!multiSelect?.enabled
   const showFilterButton = !!filterPanel
@@ -111,16 +100,17 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
 
   // When the popover opens or items list changes (e.g. search filtering), reset the active row.
   // Prefer a currently-selected item; otherwise the first enabled row.
+  const initActiveIndex = useCallback(() => {
+    const selectedIdx = flatItems.findIndex((it) => selectedSet.has(it.id) && !it.disabled)
+    setActiveIndex(selectedIdx >= 0 ? selectedIdx : firstEnabledIndex)
+  }, [flatItems, firstEnabledIndex, selectedSet])
   useEffect(() => {
     if (!open) {
       setActiveIndex(-1)
       return
     }
-    const selectedIdx = flatItems.findIndex((it) => selectedSet.has(it.id) && !it.disabled)
-    setActiveIndex(selectedIdx >= 0 ? selectedIdx : firstEnabledIndex)
-    // selectedSet is derived from value+mode; including it directly churns on every parent render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, flatItems, firstEnabledIndex])
+    initActiveIndex()
+  }, [open, flatItems, firstEnabledIndex, initActiveIndex])
 
   const step = useCallback(
     (from: number, direction: 1 | -1): number => {
@@ -299,9 +289,14 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             userOnEscapeKeyDown?.(event)
           }}
           // Radix auto-focuses the first focusable on Content mount. When search exists, block the
-          // default path and let our open-scoped effect above perform the one intentional focus.
+          // default path and focus the search input exactly once while Content is mounted.
           onOpenAutoFocus={(event) => {
-            if (autoFocusSearch === false || hasSearch) event.preventDefault()
+            if (autoFocusSearch === false) {
+              event.preventDefault()
+            } else if (hasSearch) {
+              event.preventDefault()
+              searchInputRef.current?.focus()
+            }
             userOnOpenAutoFocus?.(event)
           }}
           className={cn(

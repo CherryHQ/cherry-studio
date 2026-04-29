@@ -526,7 +526,7 @@ describe('EntitySelector', () => {
   })
 
   describe('search autofocus', () => {
-    it('focuses the search input when the popover opens', async () => {
+    it('focuses the search input during popover autofocus', () => {
       render(
         <EntitySelector
           trigger={<button type="button">Open</button>}
@@ -540,7 +540,7 @@ describe('EntitySelector', () => {
       )
       openPopover()
       const input = screen.getByPlaceholderText('Search') as HTMLInputElement
-      await waitFor(() => expect(document.activeElement).toBe(input), { timeout: 200 })
+      expect(document.activeElement).toBe(input)
     })
 
     it('respects autoFocusSearch={false}', async () => {
@@ -558,8 +558,6 @@ describe('EntitySelector', () => {
       )
       openPopover()
       const input = screen.getByPlaceholderText('Search') as HTMLInputElement
-      // Give the autofocus timer room to fire — it should not move focus here.
-      await new Promise((resolve) => setTimeout(resolve, 80))
       expect(document.activeElement).not.toBe(input)
     })
 
@@ -602,7 +600,6 @@ describe('EntitySelector', () => {
       expect(document.activeElement).toBe(panelButton)
 
       fireEvent.click(panelButton)
-      await new Promise((resolve) => setTimeout(resolve, 80))
 
       expect(document.activeElement).toBe(panelButton)
     })

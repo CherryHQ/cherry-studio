@@ -1,8 +1,8 @@
 import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
 import { AssistantSelector, type AssistantSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingRowTitle } from '.'
@@ -24,12 +24,17 @@ function DebugPanel({ title, value }: { title: string; value?: string }) {
   )
 }
 
-const ComponentLabAssistantSelectorSettings: FC = () => {
-  const { t } = useTranslation()
-  const [multi, setMulti] = useState(false)
-  const [selectionType, setSelectionType] = useState<SelectionType>('id')
+type AssistantSelectorLabSessionProps = {
+  multi: boolean
+  selectionType: SelectionType
+  configPanel: ReactNode
+}
 
-  // One state slot per API combination so TS matches AssistantSelector props strictly.
+const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ multi, selectionType, configPanel }) => {
+  const { t } = useTranslation()
+
+  // One state slot per API combination so TS matches AssistantSelector props strictly. The parent
+  // keys this session by API shape, so flipping multi/selectionType remounts and resets these slots.
   const [singleId, setSingleId] = useState<string | null>(null)
   const [singleItem, setSingleItem] = useState<AssistantSelectorItem | null>(null)
   const [multiIds, setMultiIds] = useState<string[]>([])
@@ -37,16 +42,6 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
 
   const [hasLastChange, setHasLastChange] = useState(false)
   const [lastChange, setLastChange] = useState<unknown>(undefined)
-
-  // Reset every slot when the API shape flips so the debug snapshots stay aligned with the mode.
-  useEffect(() => {
-    setSingleId(null)
-    setSingleItem(null)
-    setMultiIds([])
-    setMultiItems([])
-    setHasLastChange(false)
-    setLastChange(undefined)
-  }, [multi, selectionType])
 
   const record = useCallback((next: unknown) => {
     setHasLastChange(true)
@@ -156,42 +151,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-        <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
-          <div>
-            <div className="font-medium text-foreground text-sm">
-              {t('settings.componentLab.assistantSelector.configTitle')}
-            </div>
-            <div className="mt-1 text-muted-foreground text-xs">
-              {t('settings.componentLab.assistantSelector.configDescription')}
-            </div>
-          </div>
-
-          <SettingRow>
-            <SettingRowTitle>multi</SettingRowTitle>
-            <Switch checked={multi} onCheckedChange={setMulti} />
-          </SettingRow>
-
-          <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs">selectionType</div>
-            <RadioGroup
-              className="grid grid-cols-2 gap-2"
-              value={selectionType}
-              onValueChange={(v) => setSelectionType(v as SelectionType)}>
-              <label
-                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
-                htmlFor="assistant-selection-type-id">
-                <RadioGroupItem id="assistant-selection-type-id" value="id" />
-                <span>id</span>
-              </label>
-              <label
-                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
-                htmlFor="assistant-selection-type-item">
-                <RadioGroupItem id="assistant-selection-type-item" value="item" />
-                <span>item</span>
-              </label>
-            </RadioGroup>
-          </div>
-        </div>
+        {configPanel}
 
         <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
           <div className="flex items-start justify-between gap-3">
@@ -227,6 +187,60 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
         />
       </div>
     </div>
+  )
+}
+
+const ComponentLabAssistantSelectorSettings: FC = () => {
+  const { t } = useTranslation()
+  const [multi, setMulti] = useState(false)
+  const [selectionType, setSelectionType] = useState<SelectionType>('id')
+
+  const configPanel = (
+    <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
+      <div>
+        <div className="font-medium text-foreground text-sm">
+          {t('settings.componentLab.assistantSelector.configTitle')}
+        </div>
+        <div className="mt-1 text-muted-foreground text-xs">
+          {t('settings.componentLab.assistantSelector.configDescription')}
+        </div>
+      </div>
+
+      <SettingRow>
+        <SettingRowTitle>multi</SettingRowTitle>
+        <Switch checked={multi} onCheckedChange={setMulti} />
+      </SettingRow>
+
+      <div className="space-y-1.5">
+        <div className="text-muted-foreground text-xs">selectionType</div>
+        <RadioGroup
+          className="grid grid-cols-2 gap-2"
+          value={selectionType}
+          onValueChange={(v) => setSelectionType(v as SelectionType)}>
+          <label
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
+            htmlFor="assistant-selection-type-id">
+            <RadioGroupItem id="assistant-selection-type-id" value="id" />
+            <span>id</span>
+          </label>
+          <label
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-foreground text-xs transition-colors hover:bg-accent/40"
+            htmlFor="assistant-selection-type-item">
+            <RadioGroupItem id="assistant-selection-type-item" value="item" />
+            <span>item</span>
+          </label>
+        </RadioGroup>
+      </div>
+    </div>
+  )
+
+  return (
+    <AssistantSelectorLabSession
+      key={`${multi}-${selectionType}`}
+      multi={multi}
+      selectionType={selectionType}
+      configPanel={configPanel}
+    />
   )
 }
 

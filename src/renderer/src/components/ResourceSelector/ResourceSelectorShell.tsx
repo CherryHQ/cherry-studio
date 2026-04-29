@@ -11,10 +11,9 @@ import {
   type EntitySelectorSection,
   Separator
 } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactElement, type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -57,13 +56,13 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   onOpen?: () => void
 
   items: T[]
-  renderFallbackIcon?: (item: T) => ReactNode
+  fallbackIcon?: ReactNode
 
   tags?: string[]
   sortOptions?: ResourceSelectorShellSortOption<T>[]
   defaultSortId?: string
 
-  pinnedIds: string[]
+  pinnedIds: readonly string[]
   onTogglePin: (id: string) => void | Promise<void>
   /** Disable pin toggles while a pin read/write is in flight (prevents over-fire from rapid clicks). */
   isPinActionDisabled?: boolean
@@ -157,15 +156,13 @@ const SORT_ICON_DEFAULTS = {
   asc: <ArrowUp className="size-2.5" />
 } as const
 
-const logger = loggerService.withContext('ResourceSelectorShell')
-
 export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props: ResourceSelectorShellProps<T>) {
   const {
     trigger,
     open: openProp,
     onOpenChange: onOpenChangeProp,
     items,
-    renderFallbackIcon,
+    fallbackIcon,
     tags,
     sortOptions,
     defaultSortId,
@@ -207,26 +204,18 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   // Fire onOpen for both Radix-internal and external (controlled) opens. Routing this through
   // an effect on the effective `open` value covers the controlled `open=true` path that
   // `handleOpenChange` misses entirely.
-  const onOpenRef = useRef(onOpen)
-  onOpenRef.current = onOpen
+  const handleOpen = useEffectEvent(() => onOpen?.())
   useEffect(() => {
-    if (open) onOpenRef.current?.()
+    if (open) handleOpen()
   }, [open])
 
   // Normalize caller's value to an id list for both the EntitySelector contract (string/string[])
   // and the toolbar's initial seed.
   const valueIds = useMemo(() => extractValueIds<T>(props.value), [props.value])
-  const [multiEnabled, setMultiEnabled] = useState(() => props.multi === true && valueIds.length >= 2)
-
-  // Async-loaded or externally-updated values can land with 2+ selected ids after mount. If we
-  // stayed OFF, the next click would replay the OFF branch (replace-and-close) and silently drop
-  // the extra selection. Force ON whenever the incoming value implies multi; never auto-collapse
-  // in the other direction — users turn multi OFF themselves via the toolbar.
-  useEffect(() => {
-    if (isMulti && valueIds.length >= 2 && !multiEnabled) {
-      setMultiEnabled(true)
-    }
-  }, [isMulti, valueIds.length, multiEnabled])
+  const [multiEnabledLocal, setMultiEnabledLocal] = useState(false)
+  const [userOptedOut, setUserOptedOut] = useState(false)
+  const shouldForceMulti = isMulti && valueIds.length >= 2
+  const multiEnabled = isMulti && !userOptedOut && (multiEnabledLocal || shouldForceMulti)
 
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const selectedSet = useMemo(() => new Set(valueIds), [valueIds])
@@ -301,9 +290,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const togglePin = useCallback(
     (id: string) => {
       if (isPinActionDisabled) return
-      Promise.resolve(onTogglePin(id)).catch((error) => {
-        logger.error('Failed to toggle pin', error as Error, { id })
-      })
+      void onTogglePin(id)
     },
     [onTogglePin, isPinActionDisabled]
   )
@@ -359,8 +346,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           )}
           {item.emoji ? (
             <span className="shrink-0 text-base leading-none">{item.emoji}</span>
-          ) : renderFallbackIcon ? (
-            <span className="flex size-5 shrink-0 items-center justify-center">{renderFallbackIcon(item)}</span>
+          ) : fallbackIcon ? (
+            <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
           ) : null}
           <span className={cn('min-w-0 flex-1 truncate text-sm', isSelected && 'font-medium')}>{item.name}</span>
           {/* Trailing hover-revealed config button. Right-click menu offers the same entry. */}
@@ -377,7 +364,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         </div>
       )
     },
-    [selectedSet, pinnedSet, labels.unpin, labels.edit, renderFallbackIcon, togglePin, onEditItem, isPinActionDisabled]
+    [selectedSet, pinnedSet, labels.unpin, labels.edit, fallbackIcon, togglePin, onEditItem, isPinActionDisabled]
   )
 
   const hasFilterControls = (tags && tags.length > 0) || (sortOptions && sortOptions.length > 0)
@@ -442,7 +429,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   // truncate business data.
   const handleMultiEnabledChange = useCallback(
     (next: boolean) => {
-      setMultiEnabled(next)
+      setMultiEnabledLocal(next)
+      setUserOptedOut(!next)
       if (next || !isMulti || valueIds.length < 2) return
       const firstId = valueIds[0]
       if (isItemType) {

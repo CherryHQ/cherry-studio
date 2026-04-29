@@ -206,6 +206,45 @@ describe('ResourceSelectorShell', () => {
       })
       expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true')
     })
+
+    it('keeps multi OFF after the user opts out even if the controlled value later grows to >= 2', () => {
+      function Wrapper() {
+        const [value, setValue] = useState<string[]>(['1', '2'])
+        return (
+          <div>
+            <button type="button" data-testid="promote" onClick={() => setValue(['1', '2'])}>
+              promote
+            </button>
+            <ResourceSelectorShell
+              trigger={<button type="button">Open</button>}
+              items={ITEMS}
+              pinnedIds={[]}
+              onTogglePin={vi.fn()}
+              onEditItem={vi.fn()}
+              onCreateNew={vi.fn()}
+              labels={LABELS}
+              multi
+              value={value}
+              onChange={setValue}
+              multiToggleLabel="Multi"
+            />
+          </div>
+        )
+      }
+
+      render(<Wrapper />)
+      openPopover()
+      const switchEl = screen.getByRole('switch')
+      expect(switchEl).toHaveAttribute('aria-checked', 'true')
+
+      fireEvent.click(switchEl)
+      expect(switchEl).toHaveAttribute('aria-checked', 'false')
+
+      act(() => {
+        fireEvent.click(screen.getByTestId('promote'))
+      })
+      expect(switchEl).toHaveAttribute('aria-checked', 'false')
+    })
   })
 
   describe('pinned section', () => {

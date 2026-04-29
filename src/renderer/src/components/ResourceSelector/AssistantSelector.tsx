@@ -19,11 +19,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  ResourceSelectorShell,
-  type ResourceSelectorShellItem,
-  type ResourceSelectorShellSortOption
-} from './ResourceSelectorShell'
+import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
+import { useCreatedAtSort } from './useCreatedAtSort'
 
 const logger = loggerService.withContext('AssistantSelector')
 
@@ -105,17 +102,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [data]
   )
 
-  // Sort comparators live here (not on the row) so they don't widen the public AssistantSelectorItem
-  // shape that callers receive via `selectionType: 'item'`. Lookup is O(1) via a Map keyed by id and
-  // is stable across renders as long as the `data` reference is.
-  const sortOptions: ResourceSelectorShellSortOption<AssistantSelectorItem>[] = useMemo(() => {
-    const createdAtById = new Map<string, number>((data?.items ?? []).map((a) => [a.id, Date.parse(a.createdAt) || 0]))
-    const at = (id: string) => createdAtById.get(id) ?? 0
-    return [
-      { id: 'desc', label: t('selector.common.sort.desc'), comparator: (a, b) => at(b.id) - at(a.id) },
-      { id: 'asc', label: t('selector.common.sort.asc'), comparator: (a, b) => at(a.id) - at(b.id) }
-    ]
-  }, [data, t])
+  const sortOptions = useCreatedAtSort<AssistantSelectorItem>(data?.items, t)
 
   const handleTogglePin = useCallback(
     async (id: string) => {
@@ -141,7 +128,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     loading: isLoading || isPinnedLoading,
     sortOptions,
     defaultSortId: 'desc',
-    pinnedIds: [...pinnedIds],
+    pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
     onEditItem: () => {
