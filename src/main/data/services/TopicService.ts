@@ -439,8 +439,11 @@ export class TopicService {
     // Verify topic exists
     await this.getById(topicId)
 
-    // Verify node exists within this topic.
-    const [message] = await db.select().from(messageTable).where(eq(messageTable.id, nodeId)).limit(1)
+    const [message] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
+      .limit(1)
 
     if (!message || message.topicId !== topicId) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
