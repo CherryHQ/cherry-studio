@@ -8,21 +8,21 @@ This guide walks you through converting existing **infrastructure services** to 
 
 ```typescript
 // OLD — manual singleton + exported instance
-class WindowService {
-  private static instance: WindowService | null = null
+class MainWindowService {
+  private static instance: MainWindowService | null = null
 
-  public static getInstance(): WindowService {
-    if (!WindowService.instance) {
-      WindowService.instance = new WindowService()
+  public static getInstance(): MainWindowService {
+    if (!MainWindowService.instance) {
+      MainWindowService.instance = new MainWindowService()
     }
-    return WindowService.instance
+    return MainWindowService.instance
   }
 
   init() { /* ... */ }
   destroy() { /* ... */ }
 }
 
-export const windowService = WindowService.getInstance()
+export const windowService = MainWindowService.getInstance()
 ```
 
 ### Pattern B: Raw `new` Export
@@ -55,10 +55,10 @@ Replace the class definition. Remove `static instance`, `getInstance()`, and `in
 // NEW
 import { BaseService, Injectable, ServicePhase, DependsOn, Phase } from '@main/core/lifecycle'
 
-@Injectable('WindowService')
+@Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)          // needs Electron API → WhenReady
 @DependsOn(['PreferenceService'])       // reads preferences on startup
-export class WindowService extends BaseService {
+export class MainWindowService extends BaseService {
   protected async onInit() {
     // ← what was in init() / constructor logic
   }
@@ -84,14 +84,14 @@ Delete all of these:
 
 ```typescript
 // DELETE all of the following
-private static instance: WindowService | null = null
+private static instance: MainWindowService | null = null
 
-public static getInstance(): WindowService { ... }
+public static getInstance(): MainWindowService { ... }
 
 // DELETE the exported instance
-export const windowService = WindowService.getInstance()
+export const windowService = MainWindowService.getInstance()
 // or
-export const windowService = new WindowService()
+export const windowService = new MainWindowService()
 ```
 
 The lifecycle container creates and manages the singleton automatically.
@@ -100,11 +100,11 @@ The lifecycle container creates and manages the singleton automatically.
 
 ```typescript
 // src/main/core/application/serviceRegistry.ts
-import { WindowService } from '@main/services/WindowService'
+import { MainWindowService } from '@main/services/MainWindowService'
 
 export const services = {
   // ...existing
-  WindowService,      // ← one line
+  MainWindowService,      // ← one line
 } as const
 ```
 
@@ -114,12 +114,12 @@ Find every file that imports the old singleton and update:
 
 ```typescript
 // OLD
-import { windowService } from '@main/services/WindowService'
+import { windowService } from '@main/services/MainWindowService'
 windowService.createMainWindow()
 
 // NEW
 import { application } from '@application'
-const windowService = application.get('WindowService')
+const windowService = application.get('MainWindowService')
 windowService.createMainWindow()
 ```
 
@@ -135,7 +135,7 @@ If the old service imported other service singletons at the top level, convert t
 
 ```typescript
 // OLD — tight coupling via top-level import
-import { windowService } from './WindowService'
+import { windowService } from './MainWindowService'
 
 class TrayService {
   init() {
@@ -145,10 +145,10 @@ class TrayService {
 
 // NEW — loose coupling via lifecycle
 @Injectable('TrayService')
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class TrayService extends BaseService {
   protected async onInit() {
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
     windowService.show()
   }
 }
@@ -181,7 +181,7 @@ export function registerShortcuts(mainWindow: BrowserWindow) { ... }
 // NEW
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'PreferenceService'])
+@DependsOn(['MainWindowService', 'PreferenceService'])
 export class ShortcutService extends BaseService {
   private accelerator: string | null = null
 

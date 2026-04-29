@@ -4,6 +4,7 @@ import { createConnection, type Socket } from 'node:net'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -56,7 +57,7 @@ type StartDiscoveryOptions = {
  */
 @Injectable('LanTransferService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class LanTransferService extends BaseService {
   // =============================================================================
   // Discovery State
@@ -293,11 +294,9 @@ export class LanTransferService extends BaseService {
   }
 
   private broadcastState() {
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return
-    }
-    mainWindow.webContents.send(IpcChannel.LanTransfer_ServicesUpdated, this.getState())
+    application
+      .get('WindowManager')
+      .broadcastToType(WindowType.Main, IpcChannel.LanTransfer_ServicesUpdated, this.getState())
   }
 
   // =============================================================================
@@ -735,11 +734,7 @@ export class LanTransferService extends BaseService {
   }
 
   private broadcastClientEvent(event: LanClientEvent): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return
-    }
-    mainWindow.webContents.send(IpcChannel.LanTransfer_ClientEvent, {
+    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.LanTransfer_ClientEvent, {
       ...event,
       peerId: event.peerId ?? this.currentPeer?.id,
       peerName: event.peerName ?? this.currentPeer?.name

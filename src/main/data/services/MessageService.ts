@@ -27,7 +27,10 @@ import type {
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
 
@@ -71,12 +74,12 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
     searchableText: row.searchableText,
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId ?? 0,
-    modelId: row.modelId,
+    modelId: (row.modelId ?? null) as UniqueModelId | null,
     modelSnapshot: parseJson(row.modelSnapshot),
     traceId: row.traceId,
     stats: parseJson(row.stats),
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -616,7 +619,7 @@ export class MessageService {
           data: dto.data,
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId ?? 0,
-          modelId: dto.modelId,
+          modelId: dto.modelId ?? null,
           modelSnapshot: dto.modelSnapshot,
           traceId: dto.traceId,
           stats: dto.stats

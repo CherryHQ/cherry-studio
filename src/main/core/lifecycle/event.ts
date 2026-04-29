@@ -6,7 +6,7 @@
  * for consumers to subscribe to.
  *
  * @example
- * // Producer (WindowService):
+ * // Producer (MainWindowService):
  * private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
  * readonly onMainWindowCreated: Event<BrowserWindow> = this._onMainWindowCreated.event
  *

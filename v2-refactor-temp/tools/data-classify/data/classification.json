@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-03-23T08:30:00.000Z",
-    "totalItems": 406,
-    "classified": 278,
-    "pending": 122,
+    "lastUpdated": "2026-04-16T11:08:56.000Z",
+    "totalItems": 408,
+    "classified": 299,
+    "pending": 100,
     "deleted": 0
   },
   "classifications": {
@@ -152,8 +152,8 @@
           "originalKey": "defaultModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[0]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -162,13 +162,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-3.5 Turbo",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -178,8 +179,8 @@
           "originalKey": "topicNamingModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -188,13 +189,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-4",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -204,8 +206,8 @@
           "originalKey": "quickModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -214,13 +216,14 @@
               "originalKey": "id",
               "status": "pending",
               "targetKey": null,
-              "type": "string"
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
             },
             {
               "category": null,
               "defaultValue": "GPT-4",
               "originalKey": "name",
-              "status": "pending",
+              "status": "deleted",
               "targetKey": null,
               "type": "string"
             }
@@ -230,17 +233,28 @@
           "originalKey": "translateModel",
           "type": "unknown",
           "defaultValue": "SYSTEM_MODELS.defaultModel[2]",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": null,
+              "originalKey": "id",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string",
+              "note": "Migrated via complex mapping: llm_model_ids_to_unique"
+            }
+          ]
         },
         {
           "originalKey": "quickAssistantId",
           "type": "string",
           "defaultValue": "",
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.assistant_id"
         },
         {
           "originalKey": "settings",
@@ -2783,7 +2797,7 @@
         {
           "originalKey": "defaultProvider",
           "type": "string",
-          "defaultValue": "local-bing",
+          "defaultValue": "",
           "status": "classified",
           "category": "preferences",
           "targetKey": null
@@ -3415,8 +3429,8 @@
         },
         {
           "originalKey": "pinned:models",
-          "type": "unknown",
-          "defaultValue": null,
+          "type": "string[]",
+          "defaultValue": [],
           "status": "pending",
           "category": null,
           "targetKey": null

@@ -19,11 +19,11 @@
 
 import { loggerService } from '@logger'
 import type {
+  InferSharedCacheValue,
   InferUseCacheValue,
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   SharedCacheKey,
-  SharedCacheSchema,
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
@@ -35,6 +35,7 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
+import { isEqual } from 'lodash'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -237,8 +238,9 @@ export class CacheService {
   private setInternal(key: string, value: any, ttl?: number): void {
     const existingEntry = this.memoryCache.get(key)
 
-    // Value comparison optimization
-    if (existingEntry && Object.is(existingEntry.value, value)) {
+    // Value comparison optimization: deep-equal value is treated as unchanged
+    // so object/array/Record values are short-circuited by content, not reference.
+    if (existingEntry && isEqual(existingEntry.value, value)) {
       // Value is same, only update TTL if needed
       const newExpireAt = ttl ? Date.now() + ttl : undefined
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
@@ -399,16 +401,6 @@ export class CacheService {
     return entry?.expireAt !== undefined
   }
 
-  /**
-   * Check if a shared cache key has TTL set (casual, dynamic key)
-   * @param key - Dynamic shared cache key
-   * @returns True if key has TTL configured
-   */
-  hasSharedTTLCasual(key: Exclude<string, SharedCacheKey>): boolean {
-    const entry = this.sharedCache.get(key)
-    return entry?.expireAt !== undefined
-  }
-
   // ============ Shared Cache (Cross-window) ============
 
   /**
@@ -416,16 +408,7 @@ export class CacheService {
    * @param key - Schema-defined shared cache key
    * @returns Cached value or undefined if not found or expired
    */
-  getShared<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined {
-    return this.getSharedInternal(key)
-  }
-
-  /**
-   * Get value from shared cache with TTL validation (casual, dynamic key)
-   * @param key - Dynamic shared cache key (e.g., `window:${id}`)
-   * @returns Cached value or undefined if not found or expired
-   */
-  getSharedCasual<T>(key: Exclude<string, SharedCacheKey>): T | undefined {
+  getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
     return this.getSharedInternal(key)
   }
 
@@ -452,17 +435,7 @@ export class CacheService {
    * @param value - Value to cache (type inferred from schema)
    * @param ttl - Time to live in milliseconds (optional)
    */
-  setShared<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void {
-    this.setSharedInternal(key, value, ttl)
-  }
-
-  /**
-   * Set value in shared cache with cross-window synchronization (casual, dynamic key)
-   * @param key - Dynamic shared cache key (e.g., `window:${id}`)
-   * @param value - Value to cache
-   * @param ttl - Time to live in milliseconds (optional)
-   */
-  setSharedCasual<T>(key: Exclude<string, SharedCacheKey>, value: T, ttl?: number): void {
+  setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
     this.setSharedInternal(key, value, ttl)
   }
 
@@ -473,8 +446,10 @@ export class CacheService {
     const existingEntry = this.sharedCache.get(key)
     const newExpireAt = ttl ? Date.now() + ttl : undefined
 
-    // Value comparison optimization
-    if (existingEntry && Object.is(existingEntry.value, value)) {
+    // Value comparison optimization: deep-equal value is treated as unchanged
+    // to skip redundant cross-window broadcast (Record/Array values always
+    // rebuild new references even when content is unchanged).
+    if (existingEntry && isEqual(existingEntry.value, value)) {
       // Value is same, only update TTL if needed
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
@@ -521,15 +496,6 @@ export class CacheService {
   }
 
   /**
-   * Check if key exists in shared cache and is not expired (casual, dynamic key)
-   * @param key - Dynamic shared cache key
-   * @returns True if key exists and is valid, false otherwise
-   */
-  hasSharedCasual(key: Exclude<string, SharedCacheKey>): boolean {
-    return this.hasSharedInternal(key)
-  }
-
-  /**
    * Internal implementation for shared cache has
    */
   private hasSharedInternal(key: string): boolean {
@@ -552,15 +518,6 @@ export class CacheService {
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
   deleteShared<K extends SharedCacheKey>(key: K): boolean {
-    return this.deleteSharedInternal(key)
-  }
-
-  /**
-   * Delete from shared cache with cross-window synchronization and hook protection (casual, dynamic key)
-   * @param key - Dynamic shared cache key
-   * @returns True if deletion succeeded, false if key is protected by active hooks
-   */
-  deleteSharedCasual(key: Exclude<string, SharedCacheKey>): boolean {
     return this.deleteSharedInternal(key)
   }
 
@@ -623,7 +580,7 @@ export class CacheService {
     const existingValue = this.persistCache.get(key)
 
     // Use deep comparison for persist cache (usually objects)
-    if (this.deepEqual(existingValue, value)) {
+    if (isEqual(existingValue, value)) {
       logger.verbose(`Skipped persist cache update for key "${key}" - value unchanged`)
       return // Skip all updates
     }
@@ -988,44 +945,6 @@ export class CacheService {
   }
 
   // ============ Private Methods ============
-
-  /**
-   * Perform deep equality comparison for cache values
-   * @param a - First value to compare
-   * @param b - Second value to compare
-   * @returns True if values are deeply equal
-   */
-  private deepEqual(a: any, b: any): boolean {
-    // Use Object.is for primitive values and same reference
-    if (Object.is(a, b)) return true
-
-    // Different types or null/undefined cases
-    if (typeof a !== 'object' || typeof b !== 'object') return false
-    if (a === null || b === null) return false
-
-    // Array comparison
-    if (Array.isArray(a) !== Array.isArray(b)) return false
-    if (Array.isArray(a)) {
-      if (a.length !== b.length) return false
-      for (let i = 0; i < a.length; i++) {
-        if (!this.deepEqual(a[i], b[i])) return false
-      }
-      return true
-    }
-
-    // Object comparison
-    const keysA = Object.keys(a)
-    const keysB = Object.keys(b)
-
-    if (keysA.length !== keysB.length) return false
-
-    for (const key of keysA) {
-      if (!keysB.includes(key)) return false
-      if (!this.deepEqual(a[key], b[key])) return false
-    }
-
-    return true
-  }
 
   /**
    * Load persist cache from localStorage with default value initialization

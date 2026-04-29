@@ -15,6 +15,7 @@
 import { application } from '@application'
 import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppStatus, miniappTable, type MiniAppType } from '@data/db/schemas/miniapp'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
@@ -22,6 +23,8 @@ import type { CreateMiniappDto, UpdateMiniappDto } from '@shared/data/api/schema
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import type { MiniApp } from '@shared/data/types/miniapp'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+
+import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -33,30 +36,18 @@ const builtinMiniAppDefaultSortOrder = new Map<string, number>(
 )
 
 /**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
-
-/**
  * Convert database row to MiniApp entity
  */
 function rowToMiniApp(row: MiniAppSelect): MiniApp {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: clean.type,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
-    createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
-    updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
+    createdAt: timestampToISO(clean.createdAt),
+    updatedAt: timestampToISO(clean.updatedAt)
   }
 }
 
@@ -78,8 +69,8 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect):
     supportedRegions: def.supportedRegions,
     configuration: undefined,
     nameKey: def.nameKey,
-    createdAt: dbRow?.createdAt ? new Date(dbRow.createdAt).toISOString() : undefined,
-    updatedAt: dbRow?.updatedAt ? new Date(dbRow.updatedAt).toISOString() : undefined
+    createdAt: timestampToISOOrUndefined(dbRow?.createdAt),
+    updatedAt: timestampToISOOrUndefined(dbRow?.updatedAt)
   }
 }
 
@@ -191,36 +182,40 @@ export class MiniAppService {
   }
 
   /**
-   * Create a new custom miniapp
+   * Create a new custom miniapp.
+   *
+   * The builtin-conflict check is application-level (SQLite has no knowledge
+   * of builtin app IDs), so it must stay in code. DB-level uniqueness of
+   * custom appIds is enforced by the UNIQUE PRIMARY KEY on miniappTable.appId
+   * and translated to a 409 CONFLICT via withSqliteErrors — no select-then-
+   * insert pre-check is used, so two concurrent creates with the same appId
+   * yield one 201 and one 409 instead of one 201 and one 500.
    */
   async create(dto: CreateMiniappDto): Promise<MiniApp> {
-    // Check if appId already exists (both in DB and builtin)
     if (builtinMiniAppMap.has(dto.appId)) {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a builtin app and cannot be recreated`)
     }
 
-    const existing = await this.db.select().from(miniappTable).where(eq(miniappTable.appId, dto.appId)).limit(1)
-
-    if (existing.length > 0) {
-      throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" already exists`)
-    }
-
-    const [row] = await this.db
-      .insert(miniappTable)
-      .values({
-        appId: dto.appId,
-        name: dto.name,
-        url: dto.url,
-        logo: dto.logo,
-        type: 'custom',
-        status: 'enabled',
-        sortOrder: 0,
-        bordered: dto.bordered,
-        background: dto.background,
-        supportedRegions: dto.supportedRegions,
-        configuration: dto.configuration
-      })
-      .returning()
+    const [row] = await withSqliteErrors(
+      () =>
+        this.db
+          .insert(miniappTable)
+          .values({
+            appId: dto.appId,
+            name: dto.name,
+            url: dto.url,
+            logo: dto.logo,
+            type: 'custom',
+            status: 'enabled',
+            sortOrder: 0,
+            bordered: dto.bordered,
+            background: dto.background,
+            supportedRegions: dto.supportedRegions,
+            configuration: dto.configuration
+          })
+          .returning(),
+      defaultHandlersFor('MiniApp', dto.appId)
+    )
 
     if (!row) {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')

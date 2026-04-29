@@ -31,7 +31,7 @@ const inputbarRegistry = new Map<InputbarScope, InputbarScopeConfig>([
     }
   ],
   [
-    'mini-window',
+    'quick-assistant',
     {
       minRows: 1,
       maxRows: 3,

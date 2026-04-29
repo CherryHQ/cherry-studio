@@ -11,6 +11,8 @@ import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
+import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import { pinService } from '@data/services/PinService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
@@ -28,6 +30,36 @@ import { mergeModelWithUser } from '@shared/data/utils/modelMerger'
 import { and, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
+
+/**
+ * Registry data for model creation.
+ * Must stay in sync with the return type of {@link ProviderRegistryService.lookupModel}.
+ * Defined explicitly (not via ReturnType) to avoid a circular import.
+ */
+type CreateModelRegistryData = ModelLookupResult & {
+  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+  defaultChatEndpoint?: EndpointType
+}
+
+export interface CreateModelInput {
+  dto: CreateModelDto
+  registryData?: CreateModelRegistryData
+}
+
+function createModelsSqliteHandlers(values: NewUserModel[]): SqliteErrorHandlers {
+  const providerIds = [...new Set(values.map((value) => value.providerId))]
+  const identifier =
+    values.length === 1 ? `${values[0].providerId}/${values[0].modelId}` : `batch(${values.length} items)`
+  const uniqueMessage =
+    values.length === 1 ? `Model '${identifier}' already exists` : 'One or more models already exist'
+
+  return {
+    ...defaultHandlersFor('Model', identifier),
+    unique: () => DataApiErrorFactory.conflict(uniqueMessage, 'Model'),
+    foreignKey: () =>
+      DataApiErrorFactory.notFound('Provider', providerIds.length === 1 ? providerIds[0] : providerIds.join(', '))
+  }
+}
 
 /**
  * Mapping from UpdateModelDto field → DB column for the update path.
@@ -57,6 +89,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
 /** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModel {
   return {
+    id: createUniqueModelId(dto.providerId, dto.modelId),
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
@@ -84,6 +117,7 @@ function mergedModelToNewUserModel(
   merged: Model
 ): NewUserModel {
   return {
+    id: createUniqueModelId(providerId, modelId),
     providerId,
     modelId,
     presetModelId,
@@ -137,6 +171,30 @@ function rowToRuntimeModel(row: UserModel): Model {
 }
 
 class ModelService {
+  private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModel {
+    const presetModel = registryData?.presetModel ?? null
+    const registryOverride = registryData?.registryOverride ?? null
+    const reasoningFormatTypes = registryData?.reasoningFormatTypes
+    const defaultChatEndpoint = registryData?.defaultChatEndpoint
+
+    const dtoValues = dtoToNewUserModel(dto)
+
+    if (presetModel) {
+      const merged = mergeModelWithUser(
+        { ...dtoValues, presetModelId: presetModel.id },
+        registryOverride,
+        presetModel,
+        dto.providerId,
+        reasoningFormatTypes,
+        defaultChatEndpoint
+      )
+
+      return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
+    }
+
+    return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
+  }
+
   /**
    * List models with optional filters
    */
@@ -190,62 +248,62 @@ class ModelService {
   }
 
   /**
-   * Create a new model
+   * Create one or more models under a single collection-oriented contract.
    *
    * Automatically enriches from registry preset data when a match is found.
    * DTO values take priority over registry (user > registryOverride > preset).
    *
-   * @param registryData - Pre-looked-up registry data (caller provides to avoid circular dependency)
+   * Design intent:
+   * - Service exposes one `create` entrypoint instead of separate single/batch variants.
+   * - Input is always an array so create semantics stay aligned with `POST /models`.
+   * - Transaction atomicity remains identical for single-item and multi-item calls.
+   * - Renderer and other callers can still offer single-item convenience by
+   *   wrapping one DTO into a one-element array before crossing the boundary.
+   *
+   * This is a deliberate service-boundary choice, not an implementation shortcut.
+   *
+   * @param items - Create inputs with optional pre-looked-up registry data so
+   * the handler can resolve registry metadata without introducing a circular
+   * dependency between ModelService and ProviderRegistryService.
    */
-  async create(
-    dto: CreateModelDto,
-    registryData?: ModelLookupResult & {
-      reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-      defaultChatEndpoint?: EndpointType
-    }
-  ): Promise<Model> {
+  async create(items: CreateModelInput[]): Promise<Model[]> {
+    if (items.length === 0) return []
+
     const db = application.get('DbService').getDb()
+    const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
 
-    const presetModel = registryData?.presetModel ?? null
-    const registryOverride = registryData?.registryOverride ?? null
-    const reasoningFormatTypes = registryData?.reasoningFormatTypes
-    const defaultChatEndpoint = registryData?.defaultChatEndpoint
+    const rows = await withSqliteErrors(
+      () =>
+        db.transaction(async (tx) => {
+          return await tx.insert(userModelTable).values(values).returning()
+        }),
+      createModelsSqliteHandlers(values)
+    )
 
-    // Build base DB row from DTO using the shared field map
-    const dtoValues = dtoToNewUserModel(dto)
-    let values: NewUserModel
+    if (items.length === 1) {
+      const [{ dto, registryData }] = items
+      const firstValue = values[0]
 
-    if (presetModel) {
-      // Registry match found — merge DTO with preset data
-      const merged = mergeModelWithUser(
-        { ...dtoValues, presetModelId: presetModel.id },
-        registryOverride,
-        presetModel,
-        dto.providerId,
-        reasoningFormatTypes,
-        defaultChatEndpoint
-      )
-
-      values = mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
-
-      logger.info('Created model with registry enrichment', {
-        providerId: dto.providerId,
-        modelId: dto.modelId,
-        presetModelId: presetModel.id
-      })
+      if (registryData?.presetModel) {
+        logger.info('Created model with registry enrichment', {
+          providerId: dto.providerId,
+          modelId: dto.modelId,
+          presetModelId: firstValue?.presetModelId
+        })
+      } else {
+        logger.info('Created custom model (no registry match)', {
+          providerId: dto.providerId,
+          modelId: dto.modelId
+        })
+      }
     } else {
-      // No registry match — store as custom model directly from DTO
-      values = { ...dtoValues, presetModelId: dto.presetModelId ?? null }
-
-      logger.info('Created custom model (no registry match)', {
-        providerId: dto.providerId,
-        modelId: dto.modelId
+      logger.info('Created models', {
+        count: rows.length,
+        providers: [...new Set(values.map((value) => value.providerId))]
       })
     }
 
-    const [row] = await db.insert(userModelTable).values(values).returning()
-
-    return rowToRuntimeModel(row)
+    return rows.map(rowToRuntimeModel)
   }
 
   /**
@@ -285,6 +343,10 @@ class ModelService {
       updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
     }
 
+    if (Object.keys(updates).length === 0) {
+      return rowToRuntimeModel(existing)
+    }
+
     const [row] = await db
       .update(userModelTable)
       .set(updates)
@@ -302,12 +364,18 @@ class ModelService {
   async delete(providerId: string, modelId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    // Verify model exists
-    await this.getByKey(providerId, modelId)
+    await db.transaction(async (tx) => {
+      const rows = await tx
+        .delete(userModelTable)
+        .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+        .returning({ id: userModelTable.id })
 
-    await db
-      .delete(userModelTable)
-      .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
+      if (rows.length === 0) {
+        throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+      }
+
+      await pinService.purgeForEntity(tx, 'model', rows[0].id)
+    })
 
     logger.info('Deleted model', { providerId, modelId })
   }

@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
@@ -21,17 +22,15 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { AgentPersistedMessage, FileMetadata, Notification, Provider } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { agentMessageRepository } from './services/agents/database'
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
-import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
@@ -41,10 +40,10 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
-import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
+import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
@@ -54,15 +53,14 @@ const logger = loggerService.withContext('IPC')
 const backupManager = new BackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
-const dxtService = new DxtService()
 
-export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export async function registerIpc() {
   const notificationService = new NotificationService()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')
   // powerMonitorService.registerShutdownHandler(() => {
-  //   const mw = application.get('WindowService').getMainWindow()
+  //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
   //   }
@@ -83,7 +81,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     installPath: application.getPath('app.install')
   }))
 
-  ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
+  // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
     if (!isSafeExternalUrl(url)) {
@@ -92,11 +90,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
     return shell.openExternal(url)
   })
-
-  // language
-  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-  //   configManager.setLanguage(language)
-  // })
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
@@ -124,30 +117,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  // // launch to tray
-  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-  //   configManager.setLaunchToTray(isActive)
-  // })
-
-  // // tray
-  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-  //   configManager.setTray(isActive)
-  // })
-
-  // // to tray on close
-  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-  //   configManager.setTrayOnClose(isActive)
-  // })
-
-  // // auto update
-  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-  //   appUpdater.setAutoUpdate(isActive)
-  //   configManager.setAutoUpdate(isActive)
-  // })
-
   ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
     try {
-      return await agentMessageRepository.persistExchange(payload)
+      return await sessionMessageService.persistExchange(payload)
     } catch (error) {
       logger.error('Failed to persist agent session messages', error as Error)
       throw error
@@ -158,7 +130,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     IpcChannel.AgentMessage_GetHistory,
     async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
       try {
-        return await agentMessageRepository.getSessionHistory(sessionId)
+        return await sessionMessageService.getSessionHistory(sessionId)
       } catch (error) {
         logger.error('Failed to get agent session history', error as Error)
         throw error
@@ -177,14 +149,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       return systemPreferences.isTrustedAccessibilityClient(true)
     })
   }
-
-  ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
-    mainWindow.setFullScreen(value)
-  })
-
-  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
-    return mainWindow.isFullScreen()
-  })
 
   // Get System Fonts
   ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
@@ -244,7 +208,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = application.getPath('app.userdata.cache')
+    const cachePath = application.getPath('app.session.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
@@ -353,9 +317,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
     await notificationService.sendNotification(notification)
   })
-  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
-    mainWindow.webContents.send('notification-click', notification)
-  })
+  // Notification_OnClick handler moved into MainWindowService (uses wm.broadcastToType).
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
@@ -574,24 +536,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     return channelManager.getAllStatuses()
   })
 
-  // DXT upload handler
-  ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-    try {
-      // Create a temporary file with the uploaded content
-      const tempPath = await fileManager.createTempFile(event, fileName)
-      await fileManager.writeFile(event, tempPath, Buffer.from(fileBuffer))
-
-      // Process DXT file using the temporary path
-      return await dxtService.uploadDxt(event, tempPath)
-    } catch (error) {
-      logger.error('DXT upload error:', error as Error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-      }
-    }
-  })
-
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
@@ -774,9 +718,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
-    mainWindow.webContents.forcefullyCrashRenderer()
-  })
+  // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {

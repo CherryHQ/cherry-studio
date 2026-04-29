@@ -1,9 +1,8 @@
 import { CloudServerOutlined, CloudSyncOutlined, YuqueOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
-import ListItem from '@renderer/components/ListItem'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { FileText, FolderCog, FolderInput, FolderOpen } from 'lucide-react'
@@ -83,22 +82,22 @@ const DataSettings: FC = () => {
 
   return (
     <Container>
-      <MenuList>
+      <DataMenuList>
         {menuItems.map((item) =>
           item.isDivider ? (
-            <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} /> // 动态传递分隔符文字
+            <DividerWithText key={item.key} text={item.text || ''} style={{ margin: '8px 0' }} />
           ) : (
-            <ListItem
+            <MenuItem
               key={item.key}
-              title={item.title}
+              label={item.title || ''}
               active={menu === item.key}
               onClick={() => setMenu(item.key)}
-              titleStyle={{ fontWeight: 500 }}
               icon={item.icon}
+              className="font-medium"
             />
           )
         )}
-      </MenuList>
+      </DataMenuList>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
@@ -122,10 +121,9 @@ const Container = styled(RowFlex)`
   flex: 1;
 `
 
-const MenuList = styled.div`
+const DataMenuList = styled(MenuList)`
   display: flex;
   flex-direction: column;
-  gap: 5px;
   width: var(--settings-width);
   padding: 12px;
   padding-bottom: 48px;
@@ -134,8 +132,9 @@ const MenuList = styled.div`
   overflow: auto;
   box-sizing: border-box;
   min-height: 0;
+
   .iconfont {
-    color: var(--color-text-2);
+    color: currentColor;
     line-height: 16px;
   }
 `

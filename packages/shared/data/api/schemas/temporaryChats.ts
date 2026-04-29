@@ -52,7 +52,7 @@ export interface PersistTemporaryChatResponse {
  * - GET /temporary/topics/:topicId/tree      — no tree structure
  * - GET /messages/:id, PATCH, DELETE         — messages are immutable once appended
  */
-export interface TemporaryChatSchemas {
+export type TemporaryChatSchemas = {
   /**
    * Temporary topics collection endpoint
    * @example POST /temporary/topics { "name": "Quick question", "assistantId": "asst_123" }

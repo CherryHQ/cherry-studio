@@ -1,6 +1,6 @@
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { schedulerService } from '@main/services/agents/services/SchedulerService'
-import { taskService } from '@main/services/agents/services/TaskService'
 import type { ListTaskLogsResponse, ListTasksResponse } from '@types'
 import express, { type Request, type Response, type Router } from 'express'
 
@@ -38,21 +38,21 @@ tasksRouter.get('/', async (req: Request, res: Response) => {
 // POST /v1/tasks — create a task (agent_id in body)
 tasksRouter.post('/', async (req: Request, res: Response) => {
   try {
-    const { agent_id, ...taskData } = req.body
-    if (!agent_id) {
+    const { agentId, ...taskData } = req.body
+    if (!agentId) {
       return res.status(400).json({
         error: {
-          message: 'agent_id is required',
+          message: 'agentId is required',
           type: 'invalid_request',
           code: 'missing_agent_id'
         }
       })
     }
 
-    logger.debug('Creating task', { agentId: agent_id })
-    const task = await taskService.createTask(agent_id, taskData)
+    logger.debug('Creating task', { agentId })
+    const task = await taskService.createTask(agentId, taskData)
     schedulerService.startLoop()
-    logger.info('Task created', { agentId: agent_id, taskId: task.id })
+    logger.info('Task created', { agentId, taskId: task.id })
     return res.status(201).json(task)
   } catch (error: any) {
     logger.error('Error creating task', { error })
@@ -151,8 +151,8 @@ tasksRouter.post('/:taskId/run', async (req: Request, res: Response) => {
       })
     }
 
-    logger.debug('Manually running task', { taskId, agentId: task.agent_id })
-    await schedulerService.runTaskNow(task.agent_id, taskId)
+    logger.debug('Manually running task', { taskId, agentId: task.agentId })
+    await schedulerService.runTaskNow(task.agentId, taskId)
     logger.info('Task triggered manually', { taskId })
     return res.json({ status: 'triggered' })
   } catch (error: any) {

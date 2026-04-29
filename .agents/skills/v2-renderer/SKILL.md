@@ -15,14 +15,14 @@ Replace Redux `useAppSelector` / `dispatch` in React components with v2 hooks (`
 
 ## Multi-Window Architecture
 
-Cherry Studio has multiple renderer windows (main app, mini window, selection toolbar). Each system handles cross-window sync differently:
+Cherry Studio has multiple renderer windows (main app, quick assistant, selection toolbar). Each system handles cross-window sync differently:
 
 | System | Sync Strategy | Notes |
 |--------|--------------|-------|
 | **DataApiService** | No auto-sync; fetch on demand | Each window fetches fresh data independently |
 | **PreferenceService** | Auto-broadcasts to all windows | Main process is source of truth; optimistic updates with rollback |
-| **CacheService (shared)** | Auto-broadcasts to all windows | Main maintains authoritative copy; new windows get init-sync |
-| **CacheService (persist)** | Auto-broadcasts + localStorage | Survives restarts; Main-priority override on sync |
+| **CacheService (shared)** | Auto-broadcasts via Main | Main maintains authoritative copy; new windows get init-sync |
+| **CacheService (persist)** | Auto-broadcasts via Main + localStorage | Each renderer owns its localStorage copy; Main only relays sync |
 | **CacheService (memory)** | No sync (process-local) | Isolated per renderer process |
 
 ## Migration Pattern: Redux -> v2
@@ -126,7 +126,23 @@ await remove()
 const { trigger: toggleStar } = useMutation('PATCH', `/topics/${id}`, {
   optimisticData: { ...topic, starred: !topic.starred }
 })
+
+// Template path (operate on any id chosen at trigger time)
+const { trigger: deleteAnyProvider } = useMutation('DELETE', '/providers/:providerId', {
+  refresh: ({ args }) => [
+    '/providers',
+    `/providers/${args.params.providerId}/*` // fan-out via `/*` prefix
+  ]
+})
+await deleteAnyProvider({ params: { providerId: clickedId } })
+
+// Function-form refresh (keys depend on args or server response)
+const { trigger: deleteMessage } = useMutation('DELETE', '/messages/:messageId', {
+  refresh: ({ args }) => [`/topics/${args.body.topicId}/tree`]
+})
 ```
+
+**When to use template path vs `providerPath(id)`:** use template when a single hook instance handles multiple ids (sidebar delete, command palette). Use concrete path when the id is stable (component props). See `docs/references/data/api-design-guidelines.md#template-path-vs-hook-binding`.
 
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
@@ -249,7 +265,6 @@ Import from `@data/hooks/useCache`.
 ```typescript
 // Memory cache - lost on restart, single-window only
 const [results, setResults] = useCache('search.results', [])
-const [results, setResults] = useCache('search.results', [], { ttl: 30000 }) // with TTL
 
 // Shared cache - cross-window sync via Main, lost on restart
 const [collapsed, setCollapsed] = useSharedCache('ui.sidebar.collapsed', false)
@@ -257,6 +272,8 @@ const [collapsed, setCollapsed] = useSharedCache('ui.sidebar.collapsed', false)
 // Persist cache - cross-window sync + survives restart via localStorage
 const [recent, setRecent] = usePersistCache('app.recent_files', [])
 ```
+
+Hooks do **not** accept a TTL option. Use TTL on the non-hook read path via `cacheService.set(key, value, ttlMs)` — under a hook, a key with TTL logs a warn and may expire between renders.
 
 ### Type-Safe vs Casual vs Template Keys
 
@@ -513,19 +530,8 @@ See `packages/shared/data/presets/code-tools.ts` for a reference implementation.
 ## Adding New Schema Keys
 
 ### New Cache Key
-1. Add to `packages/shared/data/cache/cacheSchemas.ts`:
-   ```typescript
-   export type UseCacheSchema = {
-     'myFeature.data': MyDataType
-   }
-   export const DefaultUseCache = {
-     'myFeature.data': { items: [], lastUpdated: 0 }
-   }
-   ```
-2. Template key for dynamic patterns:
-   ```typescript
-   'scroll.position.${topicId}': number  // matches scroll.position.topic123
-   ```
+
+See [cache-schema-guide.md](../../../docs/references/data/cache-schema-guide.md) for the authoritative steps — covers fixed keys, template keys, naming rules, and the Fixed/Template/Casual choice matrix.
 
 ### New Preference Key
 See `v2-data-api` skill, "Adding a Preference Key" section. Note that `preferenceSchemas.ts` is **auto-generated** by the `v2-refactor-temp/tools/data-classify` toolchain — for simple keys, use the toolchain (update `classification.json` or `target-key-definitions.json`, then run `npm run generate`) instead of editing the generated file directly.
@@ -564,5 +570,6 @@ See `v2-data-api` skill, "Adding a Preference Key" section. Note that `preferenc
 - `docs/references/data/README.md` - System selection guide
 - `docs/references/data/data-api-in-renderer.md` - DataApi hooks and patterns
 - `docs/references/data/preference-usage.md` - Preference hooks and service
-- `docs/references/data/cache-overview.md` - Cache architecture
-- `docs/references/data/cache-usage.md` - Cache hooks and patterns
+- `docs/references/data/cache-overview.md` - Cache architecture and design invariants
+- `docs/references/data/cache-usage.md` - Cache hooks, direct API, Main-process subscriptions
+- `docs/references/data/cache-schema-guide.md` - Adding fixed and template cache keys

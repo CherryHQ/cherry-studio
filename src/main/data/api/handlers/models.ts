@@ -8,44 +8,93 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { ModelSchemas } from '@shared/data/api/schemas/models'
+import { loggerService } from '@logger'
+import { DataApiErrorFactory } from '@shared/data/api'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
+import {
+  CreateModelsSchema,
+  ListModelsQuerySchema,
+  type ModelSchemas,
+  UpdateModelSchema
+} from '@shared/data/api/schemas/models'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+
+const logger = loggerService.withContext('DataApi:ModelHandlers')
 
 /**
- * Handler type for a specific model endpoint
+ * Parse a UniqueModelId from the transport layer, raising a 422 validation
+ * error (instead of a bare Error → 500) when the shape is malformed.
  */
-type ModelHandler<Path extends keyof ModelSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Model API handlers implementation
- */
-export const modelHandlers: {
-  [Path in keyof ModelSchemas]: {
-    [Method in keyof ModelSchemas[Path]]: ModelHandler<Path, Method & ApiMethods<Path>>
+const parseOrValidationError = (uniqueModelId: string) => {
+  if (!isUniqueModelId(uniqueModelId)) {
+    throw DataApiErrorFactory.validation({
+      uniqueModelId: [`Expected "providerId::modelId", got "${uniqueModelId}"`]
+    })
   }
-} = {
+  return parseUniqueModelId(uniqueModelId)
+}
+
+async function enrichCreateItems(dtos: CreateModelDto[]) {
+  return await Promise.all(
+    dtos.map(async (dto) => {
+      try {
+        return {
+          dto,
+          registryData: await providerRegistryService.lookupModel(dto.providerId, dto.modelId)
+        }
+      } catch (error) {
+        logger.warn(
+          dtos.length === 1
+            ? 'Registry lookup failed during create, falling back to custom'
+            : 'Registry lookup failed during batch create, falling back to custom',
+          {
+            providerId: dto.providerId,
+            modelId: dto.modelId,
+            error
+          }
+        )
+        return {
+          dto,
+          registryData: undefined
+        }
+      }
+    })
+  )
+}
+
+export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
-      return await modelService.list(query ?? {})
+      const parsed = ListModelsQuerySchema.parse(query ?? {})
+      return await modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const registryData = await providerRegistryService.lookupModel(body.providerId, body.modelId)
-      return await modelService.create(body, registryData)
+      // Transport is array-only by design. Even single-item create requests are
+      // normalized before they reach the service so the service can expose one
+      // collection-oriented create path with consistent transaction semantics.
+      const parsed = CreateModelsSchema.parse(body)
+      const items = await enrichCreateItems(parsed)
+      return await modelService.create(items)
     }
   },
 
-  '/models/:providerId/:modelId': {
+  '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
-      return await modelService.getByKey(params.providerId, params.modelId)
+      const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
+      return await modelService.getByKey(providerId, modelId)
     },
 
     PATCH: async ({ params, body }) => {
-      return await modelService.update(params.providerId, params.modelId, body)
+      const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
+      const parsed = UpdateModelSchema.parse(body)
+      return await modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await modelService.delete(params.providerId, params.modelId)
+      const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
+      await modelService.delete(providerId, modelId)
       return undefined
     }
   }

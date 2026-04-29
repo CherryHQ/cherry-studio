@@ -17,12 +17,11 @@ import type { Topic } from '@shared/data/types/topic'
 import { and, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
+import { tagService } from './TagService'
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
-/**
- * Convert database row to Topic entity
- */
 function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
   return {
     id: row.id,
@@ -34,8 +33,8 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
     sortOrder: row.sortOrder ?? 0,
     isPinned: row.isPinned ?? false,
     pinnedOrder: row.pinnedOrder ?? 0,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -176,11 +175,14 @@ export class TopicService {
     // Verify topic exists
     await this.getById(id)
 
-    // Hard delete all messages first (due to foreign key)
-    await db.delete(messageTable).where(eq(messageTable.topicId, id))
+    await db.transaction(async (tx) => {
+      // Hard delete all messages first (due to foreign key)
+      await tx.delete(messageTable).where(eq(messageTable.topicId, id))
+      await tagService.purgeForEntity(tx, 'topic', id)
 
-    // Hard delete topic
-    await db.delete(topicTable).where(eq(topicTable.id, id))
+      // Hard delete topic
+      await tx.delete(topicTable).where(eq(topicTable.id, id))
+    })
 
     logger.info('Deleted topic', { id })
   }

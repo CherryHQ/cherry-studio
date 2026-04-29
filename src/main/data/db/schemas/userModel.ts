@@ -6,7 +6,8 @@
  * so no runtime merge is needed.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
- * - Composite primary key: (providerId, modelId)
+ * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
+ * - providerId FK → user_provider (ON DELETE CASCADE)
  *
  * Type definitions are sourced from @shared/data/types/model
  */
@@ -18,22 +19,10 @@ import type {
   ReasoningConfig,
   RuntimeModelPricing
 } from '@shared/data/types/model'
-import {
-  ENDPOINT_TYPE,
-  MODALITY,
-  MODEL_CAPABILITY,
-  objectValues,
-  ParameterSupportDbSchema,
-  ReasoningConfigSchema,
-  RuntimeModelPricingSchema
-} from '@shared/data/types/model'
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { createSchemaFactory } from 'drizzle-zod'
-import * as z from 'zod'
-
-const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
+import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
+import { userProviderTable } from './userProvider'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Registry Enrichable Fields
@@ -77,10 +66,15 @@ export function isRegistryEnrichableField(field: string): field is RegistryEnric
 export const userModelTable = sqliteTable(
   'user_model',
   {
-    /** User Provider ID */
-    providerId: text().notNull(),
+    /** Deterministic PK: "providerId::modelId" (UniqueModelId) */
+    id: text().primaryKey(),
 
-    /** Model ID (composite key part) */
+    /** User Provider ID — FK to user_provider */
+    providerId: text()
+      .notNull()
+      .references(() => userProviderTable.providerId, { onDelete: 'cascade' }),
+
+    /** Model ID (raw, without provider prefix) */
     modelId: text().notNull(),
 
     /** Associated preset model ID (for traceability) */
@@ -152,7 +146,7 @@ export const userModelTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    primaryKey({ columns: [t.providerId, t.modelId] }),
+    unique('user_model_provider_model_unique').on(t.providerId, t.modelId),
     index('user_model_preset_idx').on(t.presetModelId),
     index('user_model_provider_enabled_idx').on(t.providerId, t.isEnabled),
     index('user_model_provider_sort_idx').on(t.providerId, t.sortOrder)
@@ -162,20 +156,6 @@ export const userModelTable = sqliteTable(
 // Export table type
 export type UserModel = typeof userModelTable.$inferSelect
 export type NewUserModel = typeof userModelTable.$inferInsert
-
-const jsonColumnOverrides = {
-  capabilities: () => z.array(z.enum(objectValues(MODEL_CAPABILITY))).nullable(),
-  inputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
-  outputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
-  endpointTypes: () => z.array(z.enum(objectValues(ENDPOINT_TYPE))).nullable(),
-  reasoning: () => ReasoningConfigSchema.nullable(),
-  parameters: () => ParameterSupportDbSchema.nullable(),
-  pricing: () => RuntimeModelPricingSchema.nullable(),
-  userOverrides: () => z.array(z.string()).nullable()
-}
-
-export const userModelInsertSchema = createInsertSchema(userModelTable, jsonColumnOverrides)
-export const userModelSelectSchema = createSelectSchema(userModelTable, jsonColumnOverrides)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Utility Functions

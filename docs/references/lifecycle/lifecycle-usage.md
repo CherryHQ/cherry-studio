@@ -152,9 +152,9 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 Extract all IPC registrations into a **`private registerIpcHandlers()`** method and call it from `onInit()` (or `onReady()`). This keeps the lifecycle hook focused on orchestration and makes the IPC surface easy to locate and review.
 
 ```typescript
-@Injectable('WindowService')
+@Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
-export class WindowService extends BaseService {
+export class MainWindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
   }
@@ -190,7 +190,7 @@ export class WindowService extends BaseService {
 
 ### Problem
 
-`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** — after `onInit()`. For example, `ShortcutService` needs to bind shortcuts when `WindowService` creates the main window, which happens after all services have initialized. The window can also be recreated (macOS activate), so the notification must be repeatable.
+`@DependsOn` guarantees initialization order, but some services need to react to work completed by other services at **runtime** — after `onInit()`. For example, `ShortcutService` needs to bind shortcuts when `MainWindowService` creates the main window, which happens after all services have initialized. The window can also be recreated (macOS activate), so the notification must be repeatable.
 
 ### When to Use
 
@@ -207,9 +207,9 @@ The producer owns a private `Emitter<T>` and exposes its public `Event<T>`. Foll
 ```typescript
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-@Injectable('WindowService')
+@Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
-export class WindowService extends BaseService {
+export class MainWindowService extends BaseService {
   // Private: only this service can fire
   private readonly _onMainWindowCreated = new Emitter<BrowserWindow>()
   // Public: consumers subscribe to this
@@ -236,10 +236,10 @@ Consumers subscribe via the public `Event<T>` and register the subscription for 
 
 ```typescript
 @Injectable('ShortcutService')
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class ShortcutService extends BaseService {
   protected async onInit() {
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
     this.registerDisposable(
       windowService.onMainWindowCreated((window) => this.bindShortcuts(window))
     )

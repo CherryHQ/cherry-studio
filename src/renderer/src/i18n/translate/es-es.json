@@ -1503,11 +1503,23 @@
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Ruta personalizada",
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
@@ -1517,21 +1529,28 @@
       "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
       "error": "Error al iniciar, intente nuevamente",
       "label": "Iniciar",
+      "launched": "[to be translated]:Launched",
       "success": "Inicio exitoso",
       "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
     "model": "modelo",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Seleccionar carpeta",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
-    "working_directory": "directorio de trabajo"
+    "working_directory": "directorio de trabajo",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Replegar",
@@ -2534,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
-    },
-    "clipboard": {
-      "empty": "El portapapeles está vacío"
-    },
-    "feature": {
-      "chat": "Responder a esta pregunta",
-      "explanation": "Explicación",
-      "summary": "Resumen del contenido",
-      "translate": "Traducción de texto"
-    },
-    "footer": {
-      "backspace_clear": "Presione Retroceso para borrar",
-      "copy_last_message": "Presione C para copiar",
-      "esc": "Presione ESC {{action}}",
-      "esc_back": "Volver",
-      "esc_close": "Cerrar ventana",
-      "esc_pause": "Pausa"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Pregunta a {{model}} para obtener ayuda...",
-        "title": "¿Qué deseas hacer con el texto de abajo?"
-      }
-    },
-    "tooltip": {
-      "pin": "Fijar en la parte superior"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Agregar parámetro",
     "all": "Todo",
     "custom_parameters": "Parámetros personalizados",
@@ -2583,6 +2575,9 @@
     "function_calling": "Llamada a función",
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
     "parameter_type": {
@@ -3351,6 +3346,37 @@
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
+    },
+    "clipboard": {
+      "empty": "El portapapeles está vacío"
+    },
+    "feature": {
+      "chat": "Responder a esta pregunta",
+      "explanation": "Explicación",
+      "summary": "Resumen del contenido",
+      "translate": "Traducción de texto"
+    },
+    "footer": {
+      "backspace_clear": "Presione Retroceso para borrar",
+      "copy_last_message": "Presione C para copiar",
+      "esc": "Presione ESC {{action}}",
+      "esc_back": "Volver",
+      "esc_close": "Cerrar ventana",
+      "esc_pause": "Pausa"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Pregunta a {{model}} para obtener ayuda...",
+        "title": "¿Qué deseas hacer con el texto de abajo?"
+      }
+    },
+    "tooltip": {
+      "pin": "Fijar en la parte superior"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Seleccionar archivo de respaldo",
@@ -3856,6 +3882,47 @@
     "channels": {
       "description": "Conecta agentes a plataformas de mensajería como Telegram, Feishu, Discord y más.",
       "title": "Canales"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5458,10 +5525,10 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "press_shortcut": "Presionar atajo",
+      "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
@@ -5920,7 +5987,7 @@
   },
   "tray": {
     "quit": "Salir",
-    "show_mini_window": "Asistente rápido",
+    "show_quick_assistant": "Asistente rápido",
     "show_window": "Mostrar ventana"
   },
   "update": {

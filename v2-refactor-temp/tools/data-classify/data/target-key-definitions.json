@@ -123,6 +123,34 @@
       "defaultValue": {},
       "status": "classified",
       "description": "Web search provider overrides (from complex migration)"
+    },
+    {
+      "targetKey": "chat.default_model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "topic.naming.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Topic naming model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.quick_assistant.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Quick assistant model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "feature.translate.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     }
   ]
 }

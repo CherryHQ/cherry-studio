@@ -1503,11 +1503,23 @@
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "count_one": "{{count}} 個",
+    "count_other": "{{count}} 個",
     "custom_path": "自訂路徑",
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "empty": {
+      "no_match": {
+        "description": "嘗試調整搜尋關鍵字",
+        "title": "未找到符合的工具"
+      },
+      "no_tool": {
+        "description": "新增 CLI 工具或程式碼助理以開始使用",
+        "title": "尚無程式碼工具"
+      }
+    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
@@ -1517,21 +1529,28 @@
       "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
       "error": "啟動失敗，請重試",
       "label": "啟動",
+      "launched": "已啟動",
       "success": "啟動成功",
       "validation_error": "請完成所有必填欄位：CLI 工具、模型和工作目錄"
     },
     "launching": "啟動中...",
     "model": "模型",
+    "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
+    "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
     "update_options": "更新選項",
-    "working_directory": "工作目錄"
+    "working_directory": "工作目錄",
+    "working_directory_hint": "CLI 工具啟動時的工作目錄"
   },
   "code_block": {
     "collapse": "收合",
@@ -2534,38 +2553,11 @@
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
-    },
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容總結",
-      "translate": "文字翻譯"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 鍵複製",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "回傳",
-      "esc_close": "關閉視窗",
-      "esc_pause": "暫停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
-      }
-    },
-    "tooltip": {
-      "pin": "視窗置頂"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "置頂此模型",
+      "unpin": "取消置頂"
+    },
     "add_parameter": "新增參數",
     "all": "全部",
     "custom_parameters": "自訂參數",
@@ -2583,6 +2575,9 @@
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
+    "multi_select": {
+      "label": "多模型並行（與多助理互斥）"
+    },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -3351,6 +3346,37 @@
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
+    },
+    "clipboard": {
+      "empty": "剪貼簿為空"
+    },
+    "feature": {
+      "chat": "回答此問題",
+      "explanation": "解釋說明",
+      "summary": "內容總結",
+      "translate": "文字翻譯"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 鍵複製",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "回傳",
+      "esc_close": "關閉視窗",
+      "esc_pause": "暫停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "詢問 {{model}} 取得幫助...",
+        "title": "你想對下方文字做什麼"
+      }
+    },
+    "tooltip": {
+      "pin": "視窗置頂"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "選擇備份檔案",
@@ -3856,6 +3882,47 @@
     "channels": {
       "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
+    },
+    "componentLab": {
+      "description": "僅在開發環境顯示，用於直接在應用內聯調新的模型選擇元件。",
+      "label": "元件測試",
+      "modelSelector": {
+        "behaviorConfig": "互動與顯示設定",
+        "callbackEmpty": "尚未收到元件回呼",
+        "clearSelection": "清空選擇",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "目前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
+        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在載入模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "正規化選中 ID",
+        "outputEmpty": "目前沒有可顯示的資料",
+        "provider": "服務商",
+        "resetOutputs": "重設輸出",
+        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
+        "resultsTitle": "返回資料與狀態",
+        "selected": "目前選擇",
+        "selectedEmpty": "尚未選擇模型",
+        "selectionConfig": "選擇值設定",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型物件",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型選擇元件",
+        "triggerPlaceholder": "選擇一個模型",
+        "triggerSelectedCount": "已選 {{count}} 個模型",
+        "valueProp": "目前傳入 value"
+      },
+      "title": "開發環境元件測試"
     },
     "data": {
       "app_data": {
@@ -5458,10 +5525,10 @@
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "mini_window": "快捷助手",
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "press_shortcut": "按下快捷鍵",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
@@ -5920,7 +5987,7 @@
   },
   "tray": {
     "quit": "結束",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "顯示視窗"
   },
   "update": {

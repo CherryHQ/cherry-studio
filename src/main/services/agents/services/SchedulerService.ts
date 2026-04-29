@@ -1,15 +1,15 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
+import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
+import type { CherryClawConfiguration, GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
 
-import { agentService } from './AgentService'
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
 import { broadcastSessionChanged } from './channels/sessionStreamIpc'
-import { channelService } from './ChannelService'
 import { readHeartbeat } from './cherryclaw/heartbeat'
-import { sessionMessageService } from './SessionMessageService'
-import { sessionService } from './SessionService'
-import { taskService } from './TaskService'
 
 const logger = loggerService.withContext('SchedulerService')
 
@@ -93,18 +93,18 @@ class SchedulerService {
     const existing = tasks.find((t) => t.name === 'heartbeat')
 
     if (existing) {
-      const currentInterval = existing.schedule_value
+      const currentInterval = existing.scheduleValue
       const newInterval = String(intervalMinutes)
       if (currentInterval !== newInterval) {
-        await taskService.updateTask(agentId, existing.id, { schedule_value: newInterval })
+        await taskService.updateTask(agentId, existing.id, { scheduleValue: newInterval })
         logger.info('Updated heartbeat task interval', { agentId, interval: intervalMinutes })
       }
     } else {
       await taskService.createTask(agentId, {
         name: 'heartbeat',
         prompt: '__heartbeat__',
-        schedule_type: 'interval',
-        schedule_value: String(intervalMinutes)
+        scheduleType: 'interval',
+        scheduleValue: String(intervalMinutes)
       })
       logger.info('Created heartbeat task', { agentId, interval: intervalMinutes })
       this.startLoop()
@@ -170,18 +170,18 @@ class SchedulerService {
     const abortController = new AbortController()
     const runningTask: RunningTask = {
       taskId: task.id,
-      agentId: task.agent_id,
+      agentId: task.agentId,
       abortController
     }
     this.activeTasks.set(task.id, runningTask)
 
     // Set up timeout if configured
     let timeoutTimer: ReturnType<typeof setTimeout> | null = null
-    if (task.timeout_minutes && task.timeout_minutes > 0) {
-      const timeoutMs = task.timeout_minutes * 60_000
+    if (task.timeoutMinutes && task.timeoutMinutes > 0) {
+      const timeoutMs = task.timeoutMinutes * 60_000
       timeoutTimer = setTimeout(() => {
-        logger.warn('Task timed out, aborting', { taskId: task.id, timeoutMinutes: task.timeout_minutes })
-        abortController.abort(new Error(`Task timed out after ${task.timeout_minutes} minutes`))
+        logger.warn('Task timed out, aborting', { taskId: task.id, timeoutMinutes: task.timeoutMinutes })
+        abortController.abort(new Error(`Task timed out after ${task.timeoutMinutes} minutes`))
       }, timeoutMs)
     }
 
@@ -192,24 +192,24 @@ class SchedulerService {
 
     // Create log entry immediately so UI shows the running task
     const logId = await taskService.logTaskRun({
-      task_id: task.id,
-      session_id: null,
-      run_at: new Date().toISOString(),
-      duration_ms: 0,
+      taskId: task.id,
+      sessionId: null,
+      runAt: Date.now(),
+      durationMs: 0,
       status: 'running',
       result: null,
       error: null
     })
 
     try {
-      logger.info('Running scheduled task', { taskId: task.id, agentId: task.agent_id })
-      const agent = await agentService.getAgent(task.agent_id)
+      logger.info('Running scheduled task', { taskId: task.id, agentId: task.agentId })
+      const agent = await agentService.getAgent(task.agentId)
       if (!agent) {
-        throw new Error(`Agent not found: ${task.agent_id}`)
+        throw new Error(`Agent not found: ${task.agentId}`)
       }
 
       const config = (agent.configuration ?? {}) as CherryClawConfiguration
-      const workspacePath = agent.accessible_paths?.[0]
+      const workspacePath = agent.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt
@@ -245,24 +245,23 @@ class SchedulerService {
 
       // Try to reuse the session from the last successful run for context continuity
       const lastSessionId = await taskService.getLastRunSessionId(task.id)
-      let session = lastSessionId ? await sessionService.getSession(task.agent_id, lastSessionId) : null
+      let session = lastSessionId ? await sessionService.getSession(task.agentId, lastSessionId) : null
 
       if (session) {
         sessionId = session.id
         logger.debug('Reusing session from last run', { taskId: task.id, sessionId })
       } else {
-        const newSession = await sessionService.createSession(task.agent_id, {})
-        sessionId = newSession!.id
-        session = await sessionService.getSession(task.agent_id, sessionId)
+        session = await sessionService.createSession(task.agentId, {})
         if (!session) {
-          throw new Error(`Session not found: ${sessionId}`)
+          throw new Error(`Failed to create session for task ${task.id}`)
         }
+        sessionId = session.id
         logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 
       // Send as user message (triggers agent response)
-      const { stream, completion } = await sessionMessageService.createSessionMessage(
-        session,
+      const { stream, completion } = await sessionMessageOrchestrator.createSessionMessage(
+        session as GetAgentSessionResponse,
         { content: fullPrompt },
         abortController,
         { persist: true }
@@ -284,7 +283,7 @@ class SchedulerService {
       await completion
 
       // Notify renderer so the session list refreshes and messages can be loaded
-      broadcastSessionChanged(task.agent_id, sessionId, true)
+      broadcastSessionChanged(task.agentId, sessionId, true)
 
       // Check if the task was aborted (e.g. by timeout)
       if (abortController.signal.aborted) {
@@ -307,7 +306,7 @@ class SchedulerService {
           taskId: task.id,
           errors: errCount
         })
-        await taskService.updateTask(task.agent_id, task.id, { status: 'paused' })
+        await taskService.updateTask(task.agentId, task.id, { status: 'paused' })
         this.consecutiveErrors.delete(task.id)
       }
     } finally {
@@ -319,8 +318,8 @@ class SchedulerService {
 
     // Update the log entry with final results
     await taskService.updateTaskRunLog(logId, {
-      session_id: sessionId ?? null,
-      duration_ms: durationMs,
+      sessionId: sessionId ?? null,
+      durationMs,
       status: error ? 'error' : 'success',
       result,
       error

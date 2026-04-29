@@ -1503,11 +1503,23 @@
     "bun_required_message": "Bun environment is required to run CLI tools",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "count_one": "{{count}} item",
+    "count_other": "{{count}} items",
     "custom_path": "Custom path",
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "empty": {
+      "no_match": {
+        "description": "Try adjusting your search terms",
+        "title": "No matching tools found"
+      },
+      "no_tool": {
+        "description": "Add a CLI tool or code assistant to get started",
+        "title": "No code tools yet"
+      }
+    },
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
@@ -1517,21 +1529,28 @@
       "bun_required": "Please install Bun environment first before launching CLI tools",
       "error": "Launch failed, please try again",
       "label": "Launch",
+      "launched": "Launched",
       "success": "Launch successful",
       "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Launching...",
     "model": "Model",
+    "model_hint": "Choose which AI model the CLI tool should use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
+    "official_tag": "Official",
+    "official_tools": "Official",
+    "search_placeholder": "Search CLI tools…",
     "select_folder": "Select Folder",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
+    "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
     "title": "Code Tools",
     "update_options": "Update Options",
-    "working_directory": "Working Directory"
+    "working_directory": "Working Directory",
+    "working_directory_hint": "The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Collapse",
@@ -2534,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
-    },
-    "clipboard": {
-      "empty": "Clipboard is empty"
-    },
-    "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
-    },
-    "footer": {
-      "backspace_clear": "Backspace to clear",
-      "copy_last_message": "Press C to copy",
-      "esc": "ESC to {{action}}",
-      "esc_back": "return",
-      "esc_close": "close",
-      "esc_pause": "pause"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
-      }
-    },
-    "tooltip": {
-      "pin": "Keep Window on Top"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
@@ -2583,6 +2575,9 @@
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
+    "multi_select": {
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -3351,6 +3346,37 @@
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+    },
+    "clipboard": {
+      "empty": "Clipboard is empty"
+    },
+    "feature": {
+      "chat": "Answer this question",
+      "explanation": "Explanation",
+      "summary": "Content summary",
+      "translate": "Text translation"
+    },
+    "footer": {
+      "backspace_clear": "Backspace to clear",
+      "copy_last_message": "Press C to copy",
+      "esc": "ESC to {{action}}",
+      "esc_back": "return",
+      "esc_close": "close",
+      "esc_pause": "pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Ask {{model}} for help...",
+        "title": "What do you want to do with this text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Keep Window on Top"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Select Backup File",
@@ -3856,6 +3882,47 @@
     "channels": {
       "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
       "title": "Channels"
+    },
+    "componentLab": {
+      "description": "Visible only in development for testing the new model selector directly inside the app.",
+      "label": "Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "Behavior & Display Config",
+        "callbackEmpty": "No component callback received yet",
+        "clearSelection": "Clear Selection",
+        "configDescription": "Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "Controlled multiSelectMode",
+        "currentProps": "Current Props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "Latest onSelect Return",
+        "loading": "Loading models...",
+        "modelId": "Model ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "Normalized Selected IDs",
+        "outputEmpty": "No data to display yet",
+        "provider": "Provider",
+        "resetOutputs": "Reset Outputs",
+        "resultsDescription": "This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "Outputs & State",
+        "selected": "Current Selection",
+        "selectedEmpty": "No model selected yet",
+        "selectionConfig": "Selection Value Config",
+        "selectionType": "selectionType",
+        "selectionTypeId": "Return Model IDs",
+        "selectionTypeModel": "Return Model Objects",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "Model Selector",
+        "triggerPlaceholder": "Select a model",
+        "triggerSelectedCount": "{{count}} models selected",
+        "valueProp": "Current Value Prop"
+      },
+      "title": "Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5458,10 +5525,10 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "press_shortcut": "Press Shortcut",
+      "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
@@ -5920,7 +5987,7 @@
   },
   "tray": {
     "quit": "Quit",
-    "show_mini_window": "Quick Assistant",
+    "show_quick_assistant": "Quick Assistant",
     "show_window": "Show Window"
   },
   "update": {

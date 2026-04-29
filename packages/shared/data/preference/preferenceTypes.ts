@@ -69,6 +69,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
 
@@ -127,22 +128,11 @@ export type TranslateBidirectionalPair = [TranslateLanguageCode, TranslateLangua
 // WebSearch Types
 // ============================================================================
 
-export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'local', 'mcp'] as const
+export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
 
 export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
 
-export const WEB_SEARCH_PROVIDER_IDS = [
-  'zhipu',
-  'tavily',
-  'searxng',
-  'exa',
-  'exa-mcp',
-  'bocha',
-  'querit',
-  'local-google',
-  'local-bing',
-  'local-baidu'
-] as const
+export const WEB_SEARCH_PROVIDER_IDS = ['zhipu', 'tavily', 'searxng', 'exa', 'exa-mcp', 'bocha', 'querit'] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
@@ -173,8 +163,6 @@ export interface WebSearchProvider {
   apiHost: string
   /** Search engines (from user overrides) */
   engines: string[]
-  /** Whether to use browser for search (from preset) */
-  usingBrowser: boolean
   /** Basic auth username (from user overrides) */
   basicAuthUsername: string
   /** Basic auth password (from user overrides) */

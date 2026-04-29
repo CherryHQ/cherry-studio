@@ -17,6 +17,9 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
+import { tagService } from './TagService'
+import { timestampToISO } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:AssistantService')
 
 type AssistantRow = typeof assistantTable.$inferSelect
@@ -30,9 +33,6 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
-/**
- * Convert database row to Assistant entity
- */
 function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = createEmptyRelations()): Assistant {
   return {
     id: row.id,
@@ -41,11 +41,11 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     emoji: row.emoji ?? '🌟',
     description: row.description ?? '',
     settings: row.settings ?? DEFAULT_ASSISTANT_SETTINGS,
-    modelId: (row.modelId as UniqueModelId) ?? null,
+    modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -175,7 +175,7 @@ export class AssistantDataService {
           prompt: dto.prompt,
           emoji: dto.emoji,
           description: dto.description,
-          modelId: dto.modelId,
+          modelId: dto.modelId ?? null,
           settings: dto.settings
         })
         .returning()
@@ -242,11 +242,16 @@ export class AssistantDataService {
    * Soft-delete an assistant (sets deletedAt timestamp).
    * The row is preserved so topic.assistantId FK remains valid
    * and junction table data (mcpServers, knowledgeBases) is retained.
+   * Tag bindings are intentionally removed during delete, so restoring a
+   * soft-deleted assistant does not restore its previous tags.
    */
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
 
-    await this.db.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+    await this.db.transaction(async (tx) => {
+      await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
+      await tagService.purgeForEntity(tx, 'assistant', id)
+    })
 
     logger.info('Soft-deleted assistant', { id })
   }

@@ -1,6 +1,6 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
-import { channelService } from '@main/services/agents/services/ChannelService'
 import type { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerChannelsHandlers')

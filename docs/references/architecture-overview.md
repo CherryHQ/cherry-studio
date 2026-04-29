@@ -16,7 +16,7 @@ Cherry Studio is an Electron application with three process types:
 │  ┌──────────────┐ ┌──────────────┐ ┌─────────────────────────┐ │
 │  │ Lifecycle    │ │ Data Layer   │ │ Services                │ │
 │  │ Container    │ │              │ │                         │ │
-│  │ (IoC, phased│ │ DbService    │ │ WindowService           │ │
+│  │ (IoC, phased│ │ DbService    │ │ MainWindowService           │ │
 │  │  bootstrap) │ │ CacheService │ │ MCPService              │ │
 │  │              │ │ Preference   │ │ KnowledgeService        │ │
 │  │              │ │ DataApi      │ │ AgentBootstrapService   │ │
@@ -86,7 +86,7 @@ Cherry Studio uses four data systems, each optimized for different data characte
 | System | Storage | Timing | Use Case |
 |--------|---------|--------|----------|
 | **BootConfig** | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
-| **Cache** | Memory / localStorage | Runtime | Temp data, UI state |
+| **Cache** | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
 | **Preference** | SQLite | Post-lifecycle | User settings (theme, language) |
 | **DataApi** | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
 
@@ -103,7 +103,7 @@ Application Bootstrap
   │     DbService → CacheService → PreferenceService → DataApiService
   │
   ├── Phase 2: Core Services
-  │     WindowService, ProxyManager, ThemeService, ShortcutService, ...
+  │     MainWindowService, ProxyManager, ThemeService, ShortcutService, ...
   │
   ├── Phase 3: Feature Services
   │     MCPService, KnowledgeService, SearchService, ...
@@ -193,7 +193,7 @@ Cherry Studio runs multiple windows, each with its own renderer entry point:
 | Window | Purpose |
 |--------|---------|
 | Main Window | Primary chat and settings interface |
-| Mini Window | Quick-access floating panel |
+| Quick Assistant | Quick-access floating panel |
 | Selection Toolbar | Text selection actions overlay |
 
-Windows are managed by `WindowService` and communicate through IPC and shared state (CacheService, PreferenceService).
+Windows are managed by `MainWindowService` and communicate through IPC and shared state (CacheService, PreferenceService).

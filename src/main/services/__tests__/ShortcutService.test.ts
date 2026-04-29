@@ -16,29 +16,36 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-const { windowServiceMock, selectionServiceMock, globalShortcutMock } = vi.hoisted(() => ({
-  windowServiceMock: {
-    getMainWindow: vi.fn(),
-    onMainWindowCreated: vi.fn(),
-    showMainWindow: vi.fn(),
-    toggleMainWindow: vi.fn(),
-    toggleMiniWindow: vi.fn()
-  },
-  selectionServiceMock: {
-    toggleEnabled: vi.fn(),
-    processSelectTextByShortcut: vi.fn()
-  },
-  globalShortcutMock: {
-    register: vi.fn(),
-    unregister: vi.fn()
-  }
-}))
+const { windowServiceMock, windowManagerMock, selectionServiceMock, quickAssistantServiceMock, globalShortcutMock } =
+  vi.hoisted(() => ({
+    windowServiceMock: {
+      onMainWindowCreated: vi.fn(),
+      showMainWindow: vi.fn(),
+      toggleMainWindow: vi.fn()
+    },
+    windowManagerMock: {
+      broadcastToType: vi.fn()
+    },
+    selectionServiceMock: {
+      toggleEnabled: vi.fn(),
+      processSelectTextByShortcut: vi.fn()
+    },
+    quickAssistantServiceMock: {
+      toggleQuickAssistant: vi.fn()
+    },
+    globalShortcutMock: {
+      register: vi.fn(),
+      unregister: vi.fn()
+    }
+  }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    WindowService: windowServiceMock,
-    SelectionService: selectionServiceMock
+    MainWindowService: windowServiceMock,
+    WindowManager: windowManagerMock,
+    SelectionService: selectionServiceMock,
+    QuickAssistantService: quickAssistantServiceMock
   } as any)
 })
 
@@ -69,6 +76,7 @@ vi.mock('electron', () => ({
   globalShortcut: globalShortcutMock
 }))
 
+import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -131,15 +139,20 @@ class MockBrowserWindow {
 describe('ShortcutService', () => {
   let service: ShortcutService
   let mainWindow: MockBrowserWindow
+  let currentMainWindow: MockBrowserWindow
 
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
 
     mainWindow = new MockBrowserWindow()
-    windowServiceMock.getMainWindow.mockReturnValue(mainWindow)
+    currentMainWindow = mainWindow
+    // Production flow: MainWindowService fires onMainWindowCreated after the window is ready.
+    // Tests exercise the same path by firing the callback synchronously on subscribe.
+    // Tests that simulate a service restart can reassign `currentMainWindow` before the second onInit.
     windowServiceMock.onMainWindowCreated.mockImplementation((callback: (window: MockBrowserWindow) => void) => {
-      return { dispose: vi.fn(), callback }
+      callback(currentMainWindow)
+      return { dispose: vi.fn() }
     })
 
     globalShortcutMock.register.mockReturnValue(true)
@@ -170,7 +183,7 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
   })
 
-  it('reacts to quick assistant enablement changes for mini window shortcut', async () => {
+  it('reacts to quick assistant enablement changes for quick assistant shortcut', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.quick_assistant.toggle_window', {
       binding: ['CommandOrControl', 'E'],
       enabled: true
@@ -235,7 +248,7 @@ describe('ShortcutService', () => {
     await (service as any).onStop()
 
     const nextWindow = new MockBrowserWindow()
-    windowServiceMock.getMainWindow.mockReturnValue(nextWindow)
+    currentMainWindow = nextWindow
 
     await (service as any).onInit()
 
@@ -247,22 +260,27 @@ describe('ShortcutService', () => {
 
     await (service as any).onInit()
 
-    expect(mainWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.Shortcut_RegistrationConflict, {
-      key: 'shortcut.general.show_settings',
-      accelerator: 'CommandOrControl+,',
-      hasConflict: true
-    })
+    expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+      WindowType.Main,
+      IpcChannel.Shortcut_RegistrationConflict,
+      {
+        key: 'shortcut.general.show_settings',
+        accelerator: 'CommandOrControl+,',
+        hasConflict: true
+      }
+    )
   })
 
   it('does not notify repeatedly for the same shortcut conflict', async () => {
     globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+,')
 
     await (service as any).onInit()
-    mainWindow.webContents.send.mockClear()
+    windowManagerMock.broadcastToType.mockClear()
 
     ;(service as any).reregisterShortcuts()
 
-    expect(mainWindow.webContents.send).not.toHaveBeenCalledWith(
+    expect(windowManagerMock.broadcastToType).not.toHaveBeenCalledWith(
+      WindowType.Main,
       IpcChannel.Shortcut_RegistrationConflict,
       expect.objectContaining({
         key: 'shortcut.general.show_settings',

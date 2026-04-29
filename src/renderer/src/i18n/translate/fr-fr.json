@@ -1503,11 +1503,23 @@
     "bun_required_message": "L'exécution de l'outil en ligne de commande nécessite l'installation de l'environnement Bun",
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Chemin personnalisé",
     "custom_path_error": "Échec de la définition du chemin de terminal personnalisé",
     "custom_path_required": "Ce terminal nécessite la configuration d’un chemin personnalisé",
     "custom_path_set": "Paramétrage personnalisé du chemin du terminal réussi",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
     "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
@@ -1517,21 +1529,28 @@
       "bun_required": "Veuillez d'abord installer l'environnement Bun avant de lancer l'outil en ligne de commande",
       "error": "Échec du démarrage, veuillez réessayer",
       "label": "Démarrer",
+      "launched": "[to be translated]:Launched",
       "success": "Démarrage réussi",
       "validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail"
     },
     "launching": "En cours de démarrage...",
     "model": "modèle",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Sélectionner le dossier",
     "set_custom_path": "Définir un chemin de terminal personnalisé",
     "supported_providers": "fournisseurs pris en charge",
     "terminal": "Terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Choisir une application de terminal",
     "title": "Outils de code",
     "update_options": "Options de mise à jour",
-    "working_directory": "répertoire de travail"
+    "working_directory": "répertoire de travail",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Réduire",
@@ -2534,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
-    },
-    "clipboard": {
-      "empty": "Presse-papiers vide"
-    },
-    "feature": {
-      "chat": "Répondre à cette question",
-      "explanation": "Explication",
-      "summary": "Résumé du contenu",
-      "translate": "Traduction de texte"
-    },
-    "footer": {
-      "backspace_clear": "Appuyez sur Retour arrière pour effacer",
-      "copy_last_message": "Appuyez sur C pour copier",
-      "esc": "Appuyez sur ESC {{action}}",
-      "esc_back": "Revenir en arrière",
-      "esc_close": "Fermer la fenêtre",
-      "esc_pause": "Pause"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Demander à {{model}} pour obtenir de l'aide...",
-        "title": "Que souhaitez-vous faire avec le texte ci-dessous"
-      }
-    },
-    "tooltip": {
-      "pin": "Закрепить окно"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Ajouter un paramètre",
     "all": "Tout",
     "custom_parameters": "Paramètres personnalisés",
@@ -2583,6 +2575,9 @@
     "function_calling": "Appel de fonction",
     "invalid_model": "Modèle invalide",
     "json_parse_error": "Format JSON invalide",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
     "parameter_type": {
@@ -3351,6 +3346,37 @@
     "zhinao": "360 ZhiNao",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
+    },
+    "clipboard": {
+      "empty": "Presse-papiers vide"
+    },
+    "feature": {
+      "chat": "Répondre à cette question",
+      "explanation": "Explication",
+      "summary": "Résumé du contenu",
+      "translate": "Traduction de texte"
+    },
+    "footer": {
+      "backspace_clear": "Appuyez sur Retour arrière pour effacer",
+      "copy_last_message": "Appuyez sur C pour copier",
+      "esc": "Appuyez sur ESC {{action}}",
+      "esc_back": "Revenir en arrière",
+      "esc_close": "Fermer la fenêtre",
+      "esc_pause": "Pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Demander à {{model}} pour obtenir de l'aide...",
+        "title": "Que souhaitez-vous faire avec le texte ci-dessous"
+      }
+    },
+    "tooltip": {
+      "pin": "Закрепить окно"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Sélectionnez le fichier de sauvegarde",
@@ -3856,6 +3882,47 @@
     "channels": {
       "description": "Connectez des agents à des plateformes de messagerie comme Telegram, Feishu, Discord, et bien plus encore.",
       "title": "Chaînes"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5458,10 +5525,10 @@
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
       "label": "Touche",
-      "mini_window": "Assistant rapide",
       "new_topic": "Nouveau sujet",
       "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
       "press_shortcut": "Appuyer sur raccourci clavier",
+      "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
@@ -5920,7 +5987,7 @@
   },
   "tray": {
     "quit": "Quitter",
-    "show_mini_window": "Assistant Rapide",
+    "show_quick_assistant": "Assistant Rapide",
     "show_window": "Afficher la fenêtre"
   },
   "update": {

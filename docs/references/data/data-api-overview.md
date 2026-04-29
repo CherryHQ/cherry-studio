@@ -140,6 +140,12 @@ DataApi must not be used as a general-purpose RPC layer. The following categorie
 - Configurable per-request timeouts
 - Automatic cancellation of stale requests
 
+### Dynamic Paths & Cache Invalidation
+- `useQuery` / `useMutation` / `useInfiniteQuery` / `usePaginatedQuery` accept either concrete paths (`/providers/abc`) or template paths with `params` (`/providers/:providerId`)
+- Each pagination hook constrains its path generic to the matching pagination shape — mixing cursor and offset paths is a compile-time error
+- `refresh` option supports static paths, `/*` prefix for fan-out, and function form for keys computed from args/result
+- Details, patterns, and misuse warnings: see [DataApi in Renderer → Dynamic Paths & Refresh Patterns](./data-api-in-renderer.md#dynamic-paths)
+
 ## Usage Summary
 
 For detailed code examples, see:

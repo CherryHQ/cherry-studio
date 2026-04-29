@@ -146,12 +146,12 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
+          quickAssistant: resolve(__dirname, 'src/renderer/quickAssistant.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
           migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html'),
-          detachedWindow: resolve(__dirname, 'src/renderer/detachedWindow.html')
+          subWindow: resolve(__dirname, 'src/renderer/subWindow.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

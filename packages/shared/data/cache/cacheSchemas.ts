@@ -247,10 +247,15 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  // API key rotation state (cross-window, tracks last used key per provider)
+  'web_search.provider.last_used_key.${providerId}': string
+  'ocr.provider.last_used_key.${providerId}': string
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
-  'chat.web_search.active_searches': {}
+  'chat.web_search.active_searches': {},
+  'web_search.provider.last_used_key.${providerId}': '',
+  'ocr.provider.last_used_key.${providerId}': ''
 }
 
 /**
@@ -287,9 +292,25 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
 
 /**
- * Key type for shared cache (fixed keys only)
+ * Key type for shared cache (supports both fixed and template keys).
+ *
+ * Mirrors UseCacheKey: expands each schema key through ProcessKey so that
+ * template keys like 'web_search.provider.last_used_key.${providerId}' match
+ * any concrete instance (e.g. 'web_search.provider.last_used_key.google').
  */
-export type SharedCacheKey = keyof SharedCacheSchema
+export type SharedCacheKey = {
+  [K in keyof SharedCacheSchema]: ProcessKey<K & string>
+}[keyof SharedCacheSchema]
+
+/**
+ * Infers the value type for a given shared cache key from SharedCacheSchema.
+ *
+ * Mirrors InferUseCacheValue: resolves template instances back to the schema
+ * entry that defines them, so concrete keys still get precise value types.
+ */
+export type InferSharedCacheValue<K extends string> = {
+  [S in keyof SharedCacheSchema]: K extends ProcessKey<S & string> ? SharedCacheSchema[S] : never
+}[keyof SharedCacheSchema]
 
 /**
  * Key type for memory cache (supports both fixed and template keys).
