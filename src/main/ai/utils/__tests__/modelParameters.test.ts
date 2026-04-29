@@ -1,5 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -37,6 +37,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     providerId: 'openai',
     name: 'GPT-4',
     group: 'openai',
+    capabilities: [],
     parameterSupport: undefined,
     ...overrides
   } as Model
@@ -63,11 +64,13 @@ describe('getTemperature', () => {
 
   it('disables temperature on Claude reasoning models with non-default reasoning effort', () => {
     const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'high' })
-    // A Claude reasoning model — id containing 'claude-sonnet-4-5' triggers
-    // `isClaudeReasoningModel` via the shared regex.
+    // `isClaudeReasoningModel` = Anthropic vendor + REASONING capability
+    // (the registry sets the capability via `inferClaudeReasoningFromId`;
+    // tests have to populate it explicitly because they bypass the registry).
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
-      providerId: 'anthropic'
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
     })
     expect(getTemperature(a, model)).toBeUndefined()
   })
@@ -76,15 +79,27 @@ describe('getTemperature', () => {
     const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
-      providerId: 'anthropic'
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
     })
     expect(getTemperature(a, model)).toBe(0.8)
   })
 
   it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
-    // gpt-5 is in the max-temperature-one list per shared/utils/model.
+    // `isMaxTemperatureOneModel` first reads `parameterSupport.temperature.max`;
+    // its id-based fallback covers `claude/glm/kimi/moonshot` only — gpt-5
+    // is classified by the registry, not the fallback, so the test has to
+    // declare the parameter support explicitly.
     const a = makeAssistant({ temperature: 1.5 })
-    const model = makeModel({ id: 'openai::gpt-5' })
+    const model = makeModel({
+      id: 'openai::gpt-5',
+      parameterSupport: {
+        temperature: { supported: true, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
     expect(getTemperature(a, model)).toBe(1)
   })
 })
@@ -101,10 +116,15 @@ describe('getTopP', () => {
   })
 
   it('clamps topP to [0.95, 1] on Claude reasoning models with reasoning effort', () => {
-    const a = makeAssistant({ enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
+    // `enableTemperature: false` — Claude 4.5 has mutually-exclusive
+    // temperature/topP (`isTemperatureTopPMutuallyExclusiveModel`); leaving
+    // both enabled would short-circuit topP via the exclusivity branch and
+    // never reach the reasoning-clamp path under test.
+    const a = makeAssistant({ enableTemperature: false, enableTopP: true, topP: 0.5, reasoning_effort: 'high' })
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
-      providerId: 'anthropic'
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING]
     })
     expect(getTopP(a, model)).toBe(0.95)
   })
