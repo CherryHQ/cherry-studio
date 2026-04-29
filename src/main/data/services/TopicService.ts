@@ -107,16 +107,6 @@ function encodeTopicSectionStart(): string {
   return 'topic:'
 }
 
-/**
- * Build a SQL predicate for substring search over `topic.name`. Escapes the
- * SQL `LIKE` wildcards `%` and `_` (and the escape character `\` itself) so
- * that user input like `100%` or `a_b` is matched literally rather than
- * matching everything / matching `a-b` etc. Uses an explicit `ESCAPE '\'`
- * clause because drizzle-orm's `like()` builder does not expose ESCAPE.
- *
- * The `q` value is bound parameterically (no SQL injection); only the
- * wildcards are escaped to preserve LIKE semantics.
- */
 function buildSearchPredicate(q: string | undefined): SQL | undefined {
   const trimmed = q?.trim()
   if (!trimmed) return undefined
@@ -146,111 +136,7 @@ export class TopicService {
   }
 
   /**
-   * Cursor-paginated topic list with optional name search.
-   *
-   * The view is composed:
-   *  1. Pinned topics, joined through `pin` on `entityType='topic'`, ordered
-   *     by `pin.orderKey` ASC. Pin order is user-controlled (drag-to-reorder).
-   *  2. Unpinned topics, ordered by `topic.updatedAt DESC, topic.id ASC`.
-   *     Recency-by-default matches the v1 list-time sort and what users
-   *     intuitively expect ("new conversation goes to the top"). `topic.orderKey`
-   *     is still maintained on the row for a future drag-mode toggle (see
-   *     data-ordering-guide §"Why no dual-mode sort"), but the default list
-   *     reads ignore it for unpinned rows.
-   *
-   * The cursor encodes which section the caller is in so subsequent pages
-   * continue from the right boundary, and a partial pin page that fits into
-   * the limit transparently spills into the unpinned section to fill the
-   * remainder.
-   */
-  async listByCursor(query: ListTopicsQuery = {}): Promise<CursorPaginationResponse<Topic>> {
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
-    const search = buildSearchPredicate(query.q)
-
-    const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
-
-    // ── Section 1: pinned topics ─────────────────────────────────────────
-    if (cursor.section === 'pin') {
-      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
-      const pinRows = await db
-        .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
-        .from(topicTable)
-        .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
-        .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
-        .limit(limit + 1)
-
-      const hasMoreInPin = pinRows.length > limit
-      for (const row of pinRows.slice(0, limit)) {
-        items.push({ topic: rowToTopic(row.topic), pinOrderKey: row.pinOrderKey })
-      }
-
-      if (hasMoreInPin) {
-        const last = items[items.length - 1]
-        return {
-          items: items.map((i) => i.topic),
-          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
-        }
-      }
-
-      if (items.length >= limit) {
-        // Pin section exactly filled the page; next page starts the unpinned section.
-        return {
-          items: items.map((i) => i.topic),
-          nextCursor: encodeTopicSectionStart()
-        }
-      }
-      // Pin section exhausted with room to spare — fall through.
-    }
-
-    // ── Section 2: unpinned topics ───────────────────────────────────────
-    // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
-    // the next page contains rows with smaller `updatedAt`, OR rows tied on
-    // `updatedAt` with a strictly larger `id`. Without the id tiebreaker
-    // pages would dedup or skip rows whenever two topics share a timestamp.
-    const remaining = limit - items.length
-    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
-
-    let topicAfter: SQL | undefined
-    if (cursor.section === 'topic' && cursor.updatedAt !== null) {
-      topicAfter = or(
-        lt(topicTable.updatedAt, cursor.updatedAt),
-        and(eq(topicTable.updatedAt, cursor.updatedAt), gt(topicTable.id, cursor.id))
-      )
-    }
-
-    const topicRows = await db
-      .select()
-      .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
-      .limit(remaining + 1)
-
-    const hasMoreInTopic = topicRows.length > remaining
-    for (const row of topicRows.slice(0, remaining)) {
-      items.push({ topic: rowToTopic(row) })
-    }
-
-    let nextCursor: string | undefined
-    if (hasMoreInTopic) {
-      const last = topicRows[remaining - 1]
-      nextCursor = encodeTopicCursor(last.updatedAt, last.id)
-    }
-
-    return { items: items.map((i) => i.topic), nextCursor }
-  }
-
-  /**
    * Create a new topic.
-   *
-   * When `sourceNodeId` is set, the new topic **shares** the ancestor chain
-   * leading to that message — no message copies are made. The new topic
-   * simply records `activeNodeId = sourceNodeId`, and `getBranchMessages`
-   * walks `parent_id` across topics to reconstruct the shared history. The
-   * caller's first new message in the forked topic will attach to the shared
-   * node, diverging the tree from that point on.
    */
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
@@ -406,6 +292,103 @@ export class TopicService {
     logger.info('Set active node', { topicId, nodeId })
 
     return { activeNodeId: nodeId }
+  }
+
+  /**
+   * Cursor-paginated topic list with optional name search.
+   *
+   * The view is composed:
+   *  1. Pinned topics, joined through `pin` on `entityType='topic'`, ordered
+   *     by `pin.orderKey` ASC. Pin order is user-controlled (drag-to-reorder).
+   *  2. Unpinned topics, ordered by `topic.updatedAt DESC, topic.id ASC`.
+   *     Recency-by-default matches the v1 list-time sort and what users
+   *     intuitively expect ("new conversation goes to the top"). `topic.orderKey`
+   *     is still maintained on the row for a future drag-mode toggle (see
+   *     data-ordering-guide §"Why no dual-mode sort"), but the default list
+   *     reads ignore it for unpinned rows.
+   *
+   * The cursor encodes which section the caller is in so subsequent pages
+   * continue from the right boundary, and a partial pin page that fits into
+   * the limit transparently spills into the unpinned section to fill the
+   * remainder.
+   */
+  async listByCursor(query: ListTopicsQuery = {}): Promise<CursorPaginationResponse<Topic>> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
+    const search = buildSearchPredicate(query.q)
+
+    const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
+
+    // ── Section 1: pinned topics ─────────────────────────────────────────
+    if (cursor.section === 'pin') {
+      const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
+      const pinRows = await db
+        .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
+        .from(topicTable)
+        .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
+        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
+        .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
+        .limit(limit + 1)
+
+      const hasMoreInPin = pinRows.length > limit
+      for (const row of pinRows.slice(0, limit)) {
+        items.push({ topic: rowToTopic(row.topic), pinOrderKey: row.pinOrderKey })
+      }
+
+      if (hasMoreInPin) {
+        const last = items[items.length - 1]
+        return {
+          items: items.map((i) => i.topic),
+          nextCursor: encodePinCursor(last.pinOrderKey ?? '')
+        }
+      }
+
+      if (items.length >= limit) {
+        // Pin section exactly filled the page; next page starts the unpinned section.
+        return {
+          items: items.map((i) => i.topic),
+          nextCursor: encodeTopicSectionStart()
+        }
+      }
+      // Pin section exhausted with room to spare — fall through.
+    }
+
+    // ── Section 2: unpinned topics ───────────────────────────────────────
+    // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
+    // the next page contains rows with smaller `updatedAt`, OR rows tied on
+    // `updatedAt` with a strictly larger `id`. Without the id tiebreaker
+    // pages would dedup or skip rows whenever two topics share a timestamp.
+    const remaining = limit - items.length
+    const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
+
+    let topicAfter: SQL | undefined
+    if (cursor.section === 'topic' && cursor.updatedAt !== null) {
+      topicAfter = or(
+        lt(topicTable.updatedAt, cursor.updatedAt),
+        and(eq(topicTable.updatedAt, cursor.updatedAt), gt(topicTable.id, cursor.id))
+      )
+    }
+
+    const topicRows = await db
+      .select()
+      .from(topicTable)
+      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(remaining + 1)
+
+    const hasMoreInTopic = topicRows.length > remaining
+    for (const row of topicRows.slice(0, remaining)) {
+      items.push({ topic: rowToTopic(row) })
+    }
+
+    let nextCursor: string | undefined
+    if (hasMoreInTopic) {
+      const last = topicRows[remaining - 1]
+      nextCursor = encodeTopicCursor(last.updatedAt, last.id)
+    }
+
+    return { items: items.map((i) => i.topic), nextCursor }
   }
 
   /**
