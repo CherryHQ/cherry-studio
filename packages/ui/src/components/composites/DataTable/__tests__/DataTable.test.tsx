@@ -139,6 +139,31 @@ describe('DataTable', () => {
     expect(root).toHaveStyle({ maxWidth: '480px' })
   })
 
+  it('applies the polished default presentation classes', () => {
+    render(<DataTable data={people} columns={columns} rowKey="id" />)
+
+    const table = screen.getByRole('table')
+    const shell = table.closest('[data-slot="data-table-shell"]')
+    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-background', 'shadow-xs')
+
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass(
+      'h-12',
+      'bg-background-subtle',
+      'px-3',
+      'text-sm',
+      'font-semibold',
+      'text-foreground-muted'
+    )
+    expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass(
+      'px-3',
+      'py-2.5',
+      'text-sm',
+      'font-medium',
+      'leading-5',
+      'text-foreground'
+    )
+  })
+
   it('applies explicit column widths and leaves unspecified columns fluid', () => {
     render(<DataTable data={people} columns={columns} rowKey="id" />)
 

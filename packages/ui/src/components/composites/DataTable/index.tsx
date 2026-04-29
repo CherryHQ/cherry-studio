@@ -61,6 +61,19 @@ const normalizeKey = (key: DataTableKey) => String(key)
 const toCssSize = (value: number | string | undefined) => (typeof value === 'number' ? `${value}px` : value)
 
 const contentContainmentClassName = 'min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]'
+const tableShellClassName =
+  'w-full max-w-full overflow-hidden rounded-lg border border-border/70 bg-background shadow-xs'
+const tableScrollAreaClassName = 'w-full max-w-full overflow-x-auto'
+const tableHeaderClassName = 'sticky top-0 z-1 bg-background-subtle'
+const tableHeaderRowClassName = 'border-border/70 bg-background-subtle hover:bg-transparent'
+const tableHeaderCellClassName =
+  'h-12 bg-background-subtle px-3 py-2.5 text-sm font-semibold leading-5 text-foreground-muted'
+const tableBodyRowClassName = 'border-border/60 bg-background hover:bg-muted/40 data-[state=selected]:bg-muted/60'
+const tableBodyCellClassName = 'px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
+const tableExpandedCellClassName = 'bg-muted/20 px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
+const tableEmptyCellClassName = 'h-24 px-3 py-6 text-center text-sm font-medium text-foreground-muted'
+const tableExpandButtonClassName =
+  'flex size-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-accent/70 hover:text-foreground'
 
 function getColumnMeta<TData>(cell: Cell<TData, unknown>): DataTableColumnMeta | undefined {
   return cell.column.columnDef.meta as DataTableColumnMeta | undefined
@@ -275,7 +288,7 @@ function DataTable<TData>({
         return (
           <button
             type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className={tableExpandButtonClassName}
             aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
             aria-expanded={isExpanded}
             onClick={(event) => {
@@ -313,14 +326,14 @@ function DataTable<TData>({
   const visibleColumnCount = table.getVisibleFlatColumns().length
   const hasToolbar = Boolean(headerLeft || headerRight)
   const tableElement = (
-    <div className={cn('w-full max-w-full overflow-hidden rounded-md border border-border bg-background', className)}>
+    <div data-slot="data-table-shell" className={cn(tableShellClassName, className)}>
       <div
         style={{ maxHeight: toCssSize(maxHeight) }}
-        className={cn('w-full max-w-full overflow-x-auto', maxHeight && 'overflow-y-auto')}>
+        className={cn(tableScrollAreaClassName, maxHeight && 'overflow-y-auto')}>
         <Table className="max-w-full" style={{ tableLayout }}>
-          <TableHeader className="sticky top-0 z-1 bg-background">
+          <TableHeader className={tableHeaderClassName}>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+              <TableRow key={headerGroup.id} className={tableHeaderRowClassName}>
                 {headerGroup.headers.map((header) => {
                   const meta = getHeaderMeta(header.column.columnDef)
 
@@ -328,7 +341,12 @@ function DataTable<TData>({
                     <TableHead
                       key={header.id}
                       colSpan={header.colSpan}
-                      className={cn(contentContainmentClassName, getAlignClass(meta?.align), meta?.headerClassName)}
+                      className={cn(
+                        contentContainmentClassName,
+                        tableHeaderCellClassName,
+                        getAlignClass(meta?.align),
+                        meta?.headerClassName
+                      )}
                       style={getColumnStyle(meta)}>
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
@@ -349,7 +367,7 @@ function DataTable<TData>({
                   <React.Fragment key={row.id}>
                     <TableRow
                       data-state={row.getIsSelected() ? 'selected' : undefined}
-                      className={cn(onRowClick && 'cursor-pointer', customRowClassName)}
+                      className={cn(tableBodyRowClassName, onRowClick && 'cursor-pointer', customRowClassName)}
                       onClick={() => onRowClick?.(row.original, index)}>
                       {row.getVisibleCells().map((cell) => {
                         const meta = getColumnMeta(cell)
@@ -357,7 +375,12 @@ function DataTable<TData>({
                         return (
                           <TableCell
                             key={cell.id}
-                            className={cn(contentContainmentClassName, getAlignClass(meta?.align), meta?.className)}
+                            className={cn(
+                              contentContainmentClassName,
+                              tableBodyCellClassName,
+                              getAlignClass(meta?.align),
+                              meta?.className
+                            )}
                             style={getColumnStyle(meta)}>
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </TableCell>
@@ -368,7 +391,7 @@ function DataTable<TData>({
                       <TableRow className="hover:bg-transparent">
                         <TableCell
                           colSpan={visibleColumnCount}
-                          className={cn('bg-muted/20 px-4 py-3', contentContainmentClassName)}>
+                          className={cn(tableExpandedCellClassName, contentContainmentClassName)}>
                           <div
                             className={cn(
                               'w-full overflow-hidden',
@@ -385,7 +408,7 @@ function DataTable<TData>({
               })
             ) : (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={visibleColumnCount || 1} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={visibleColumnCount || 1} className={tableEmptyCellClassName}>
                   {emptyText}
                 </TableCell>
               </TableRow>

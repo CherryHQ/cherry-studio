@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, Button, DataTable, Input } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
+import { Pencil, Trash2 } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 
@@ -36,6 +37,35 @@ const columns: ColumnDef<Task>[] = [
   }
 ]
 
+const columnsWithActions: ColumnDef<Task>[] = [
+  ...columns,
+  {
+    id: 'actions',
+    header: 'Actions',
+    meta: { width: 96, maxWidth: 96, align: 'center' },
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-foreground-muted hover:bg-accent/70 hover:text-foreground"
+          aria-label={`Edit ${row.original.name}`}>
+          <Pencil className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`Delete ${row.original.name}`}>
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
+    )
+  }
+]
+
 const meta: Meta<typeof DataTable<Task>> = {
   title: 'Components/Composites/DataTable',
   component: DataTable<Task>,
@@ -56,6 +86,10 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
   render: () => <DataTable className="w-[640px]" data={tasks} columns={columns} rowKey="id" />
+}
+
+export const WithActions: Story = {
+  render: () => <DataTable className="w-[720px]" data={tasks} columns={columnsWithActions} rowKey="id" />
 }
 
 export const WithMaxWidth: Story = {
