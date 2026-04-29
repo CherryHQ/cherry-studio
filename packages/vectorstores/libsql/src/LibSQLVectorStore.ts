@@ -31,18 +31,15 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
-function toFts5PhraseQuery(query: string): string | null {
-  const trimmedQuery = query.trim()
+function toFts5TokenQuery(query: string): string | null {
+  const tokens = query.match(/[\p{L}\p{N}_]+/gu) ?? []
+  const nonEmptyTokens = tokens.map((token) => token.trim()).filter((token) => token.length > 0)
 
-  if (!trimmedQuery) {
+  if (nonEmptyTokens.length === 0) {
     return null
   }
 
-  if (!/[\p{L}\p{N}_]/u.test(trimmedQuery)) {
-    return null
-  }
-
-  return `"${trimmedQuery.replaceAll('"', '""')}"`
+  return nonEmptyTokens.map((token) => `"${token.replaceAll('"', '""')}"`).join(' AND ')
 }
 
 function validateMetadataKey(key: string): string {
@@ -604,7 +601,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
       throw new Error('queryStr is required for BM25 mode')
     }
 
-    const matchQuery = toFts5PhraseQuery(query.queryStr)
+    const matchQuery = toFts5TokenQuery(query.queryStr)
 
     if (!matchQuery) {
       return {

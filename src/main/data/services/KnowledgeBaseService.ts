@@ -53,8 +53,6 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
     emoji: row.emoji,
     chunkSize: row.chunkSize,
     chunkOverlap: row.chunkOverlap,
-    // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
-    embeddingModelId: row.embeddingModelId,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

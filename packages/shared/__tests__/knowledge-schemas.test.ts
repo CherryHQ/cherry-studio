@@ -390,7 +390,7 @@ describe('Knowledge base schemas', () => {
   })
 })
 
-it('allows migrated knowledge bases to have a null embedding model id', () => {
+it('rejects knowledge bases with a null embedding model id', () => {
   const result = KnowledgeBaseSchema.safeParse({
     id: 'kb-null-model',
     name: 'KB nullable model',
@@ -404,7 +404,7 @@ it('allows migrated knowledge bases to have a null embedding model id', () => {
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
 
-  expect(result.success).toBe(true)
+  expect(result.success).toBe(false)
 })
 
 it('rejects embedding model changes in patch schema', () => {

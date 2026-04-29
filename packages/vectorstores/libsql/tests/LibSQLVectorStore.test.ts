@@ -944,6 +944,18 @@ describe('LibSQLVectorStore', () => {
       })
     })
 
+    it('should query bm25 mode with non-consecutive multi-word user text', async () => {
+      const result = await store.query({
+        queryStr: 'artificial technology',
+        similarityTopK: 2,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      const nodes = result.nodes ?? []
+
+      expect(nodes.length).toBeGreaterThan(0)
+      expect(nodes.some((node) => node.getContent(MetadataMode.NONE).includes('artificial intelligence'))).toBe(true)
+    })
+
     it('should query bm25 mode with punctuation as ordinary user text', async () => {
       await store.add([
         new TextNode({
@@ -1009,6 +1021,19 @@ describe('LibSQLVectorStore', () => {
         const text = node.getContent(MetadataMode.NONE).toLowerCase()
         expect(text.includes('artificial') || text.includes('intelligence') || text.includes('learning')).toBe(true)
       })
+    })
+
+    it('should query hybrid mode with non-consecutive multi-word user text', async () => {
+      const result = await store.query({
+        queryEmbedding: [0.9, 0.1],
+        queryStr: 'artificial technology',
+        similarityTopK: 2,
+        mode: 'hybrid' as VectorStoreQueryMode
+      })
+      const nodes = result.nodes ?? []
+
+      expect(nodes.length).toBeGreaterThan(0)
+      expect(nodes.some((node) => node.getContent(MetadataMode.NONE).includes('artificial intelligence'))).toBe(true)
     })
 
     it('should query hybrid mode with punctuation as ordinary user text', async () => {

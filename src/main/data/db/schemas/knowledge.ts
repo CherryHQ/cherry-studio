@@ -29,8 +29,10 @@ export const knowledgeBaseTable = sqliteTable(
     emoji: text().notNull(),
     dimensions: integer().notNull(),
 
-    // Embedding model FK. SET NULL preserves the base if the model is removed.
-    embeddingModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    // Embedding model FK. Knowledge bases require a usable embedding model.
+    embeddingModelId: text()
+      .notNull()
+      .references(() => userModelTable.id),
 
     // Rerank model FK. SET NULL preserves the base if the model is removed.
     rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),

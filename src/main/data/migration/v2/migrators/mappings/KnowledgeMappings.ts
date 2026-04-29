@@ -78,7 +78,9 @@ export interface LegacyKnowledgeNote {
   sourceUrl?: string
 }
 
-export type KnowledgeBaseTransformResult = { ok: true; value: NewKnowledgeBase }
+export type KnowledgeBaseTransformResult =
+  | { ok: true; value: NewKnowledgeBase }
+  | { ok: false; reason: 'missing_embedding_model' }
 
 export type KnowledgeItemTransformResult =
   | { ok: true; value: NewKnowledgeItem }
@@ -195,6 +197,13 @@ export const transformKnowledgeBase = (
   const embeddingModelId = legacyModelToUniqueId(base.model ?? null)
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
+  if (!embeddingModelId) {
+    return {
+      ok: false,
+      reason: 'missing_embedding_model'
+    }
+  }
+
   const transformedBase: NewKnowledgeBase = {
     id: base.id,
     name: base.name,
@@ -202,7 +211,7 @@ export const transformKnowledgeBase = (
     groupId: null,
     emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
     dimensions,
-    embeddingModelId: embeddingModelId ?? null,
+    embeddingModelId,
     rerankModelId: rerankModelId ?? null,
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,

@@ -57,7 +57,7 @@ export const KnowledgeBaseSchema = z.strictObject({
   groupId: KnowledgeBaseGroupIdSchema.nullable().optional(),
   emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().min(1).nullable(),
+  embeddingModelId: z.string().min(1),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
   chunkSize: KnowledgeChunkSizeSchema,

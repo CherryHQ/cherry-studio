@@ -155,7 +155,7 @@ describe('migration 0011', () => {
     expect(await getRowCount(client, 'user_model')).toBe(3)
     expect(await getRowCount(client, 'assistant')).toBe(2)
     expect(await getRowCount(client, 'message')).toBe(2)
-    expect(await getRowCount(client, 'knowledge_base')).toBe(3)
+    expect(await getRowCount(client, 'knowledge_base')).toBe(2)
 
     const userModels = await client.execute(
       'SELECT id, provider_id, model_id FROM user_model ORDER BY provider_id, model_id'
@@ -183,11 +183,6 @@ describe('migration 0011', () => {
     )
     expect(knowledgeBases.rows).toEqual([
       {
-        id: 'kb-embedding-orphan',
-        embedding_model_id: null,
-        rerank_model_id: null
-      },
-      {
         id: 'kb-rerank-orphan',
         embedding_model_id: 'openai::embed-model',
         rerank_model_id: null
@@ -201,7 +196,7 @@ describe('migration 0011', () => {
 
     expect(await getForeignKeyCheckRows(client)).toEqual([])
 
-    await client.execute("DELETE FROM user_model WHERE id = 'openai::embed-model'")
+    await expect(client.execute("DELETE FROM user_model WHERE id = 'openai::embed-model'")).rejects.toThrow()
     await client.execute("DELETE FROM user_model WHERE id = 'openai::chat-model'")
 
     const afterDeleteAssistants = await client.execute('SELECT id, model_id FROM assistant ORDER BY id')
@@ -221,18 +216,13 @@ describe('migration 0011', () => {
     )
     expect(afterDeleteKnowledgeBases.rows).toEqual([
       {
-        id: 'kb-embedding-orphan',
-        embedding_model_id: null,
-        rerank_model_id: null
-      },
-      {
         id: 'kb-rerank-orphan',
-        embedding_model_id: null,
+        embedding_model_id: 'openai::embed-model',
         rerank_model_id: null
       },
       {
         id: 'kb-valid',
-        embedding_model_id: null,
+        embedding_model_id: 'openai::embed-model',
         rerank_model_id: null
       }
     ])

@@ -1385,7 +1385,7 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -1476,7 +1476,7 @@
           "tableTo": "user_model",
           "columnsFrom": ["embedding_model_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "knowledge_base_rerank_model_id_user_model_id_fk": {

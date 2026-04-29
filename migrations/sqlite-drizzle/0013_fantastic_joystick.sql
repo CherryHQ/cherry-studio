@@ -249,7 +249,7 @@ CREATE TABLE `__new_knowledge_base` (
 	`group_id` text,
 	`emoji` text NOT NULL,
 	`dimensions` integer NOT NULL,
-	`embedding_model_id` text,
+	`embedding_model_id` text NOT NULL,
 	`rerank_model_id` text,
 	`file_processor_id` text,
 	`chunk_size` integer NOT NULL,
@@ -261,12 +261,12 @@ CREATE TABLE `__new_knowledge_base` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`rerank_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
 	CONSTRAINT "knowledge_base_search_mode_check" CHECK("__new_knowledge_base"."search_mode" IN ('default', 'bm25', 'hybrid'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_base`("id", "name", "description", "group_id", "emoji", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", "description", NULL, '📁', "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END, CASE WHEN "chunk_overlap" IS NOT NULL AND "chunk_overlap" >= 0 AND "chunk_overlap" < CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END THEN "chunk_overlap" WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 1 THEN 0 WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 200 THEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END - 1 ELSE 200 END, "threshold", "document_count", CASE WHEN "search_mode" IN ('default', 'bm25', 'hybrid') THEN "search_mode" ELSE 'hybrid' END, "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_base`("id", "name", "description", "group_id", "emoji", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", "description", NULL, '📁', "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END, CASE WHEN "chunk_overlap" IS NOT NULL AND "chunk_overlap" >= 0 AND "chunk_overlap" < CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END THEN "chunk_overlap" WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 1 THEN 0 WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 200 THEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END - 1 ELSE 200 END, "threshold", "document_count", CASE WHEN "search_mode" IN ('default', 'bm25', 'hybrid') THEN "search_mode" ELSE 'hybrid' END, "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base` WHERE "embedding_model_id" IS NOT NULL AND "embedding_model_id" IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
 DROP TABLE `knowledge_base`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_base` RENAME TO `knowledge_base`;--> statement-breakpoint
 CREATE TABLE `__new_knowledge_item` (
@@ -287,7 +287,7 @@ CREATE TABLE `__new_knowledge_item` (
 	CONSTRAINT "knowledge_item_phase_check" CHECK("__new_knowledge_item"."phase" IN ('preparing', 'file_processing', 'reading', 'embedding') OR "__new_knowledge_item"."phase" IS NULL)
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_item`("id", "base_id", "group_id", "type", "data", "status", "phase", "error", "created_at", "updated_at") SELECT "id", "base_id", "group_id", "type", "data", CASE WHEN "status" IN ('pending', 'processing', 'file_processing', 'read', 'embed') THEN 'processing' WHEN "status" IN ('idle', 'completed', 'failed') THEN "status" ELSE 'idle' END, CASE WHEN "status" = 'file_processing' THEN 'file_processing' WHEN "status" = 'read' THEN 'reading' WHEN "status" = 'embed' THEN 'embedding' ELSE NULL END, "error", "created_at", "updated_at" FROM `knowledge_item`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_item`("id", "base_id", "group_id", "type", "data", "status", "phase", "error", "created_at", "updated_at") SELECT "id", "base_id", "group_id", "type", "data", CASE WHEN "status" IN ('pending', 'processing', 'file_processing', 'read', 'embed') THEN 'failed' WHEN "status" IN ('idle', 'completed', 'failed') THEN "status" ELSE 'idle' END, NULL, CASE WHEN "status" IN ('pending', 'processing', 'file_processing', 'read', 'embed') THEN COALESCE(NULLIF("error", ''), 'Knowledge item processing was interrupted by migration. Please reindex this item.') ELSE "error" END, "created_at", "updated_at" FROM `knowledge_item` WHERE "base_id" IN (SELECT `id` FROM `knowledge_base`);--> statement-breakpoint
 DROP TABLE `knowledge_item`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_item` RENAME TO `knowledge_item`;--> statement-breakpoint
 CREATE INDEX `knowledge_item_base_type_created_idx` ON `knowledge_item` (`base_id`,`type`,`created_at`);--> statement-breakpoint

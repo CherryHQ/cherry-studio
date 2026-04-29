@@ -442,19 +442,30 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        if (!baseResult.ok) {
+          this.skippedCount += 1 + items.length
+          this.sourceCount += items.length
+          const warningMessage = `Skipped knowledge base ${validBase.id}: missing embedding model reference`
+          logger.warn(warningMessage)
+          this.warnings.push(warningMessage)
+          continue
+        }
+
         const preparedBase = { ...baseResult.value }
 
         const embeddingResolution = resolveModelReference(preparedBase.embeddingModelId ?? null, validModelIds)
         if (embeddingResolution.kind === 'resolved') {
           preparedBase.embeddingModelId = embeddingResolution.modelId
         } else {
-          preparedBase.embeddingModelId = null
+          this.skippedCount += 1 + items.length
+          this.sourceCount += items.length
           const warningMessage =
             embeddingResolution.kind === 'dangling'
-              ? `Knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId} was cleared`
-              : `Knowledge base ${validBase.id}: missing embedding model reference was cleared`
+              ? `Skipped knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId}`
+              : `Skipped knowledge base ${validBase.id}: missing embedding model reference`
           logger.warn(warningMessage)
           this.warnings.push(warningMessage)
+          continue
         }
 
         const rerankResolution = resolveModelReference(preparedBase.rerankModelId ?? null, validModelIds)
