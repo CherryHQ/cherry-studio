@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import type { AppModalFuncProps } from '@renderer/components/AppModal'
 import type { Model, ModelType } from '@renderer/types'
-import type { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -151,10 +151,10 @@ export function hasPath(url: string): boolean {
 
 /**
  * 显示确认模态框。
- * @param {ModalFuncProps} params 模态框参数
+ * @param {AppModalFuncProps} params 模态框参数
  * @returns {Promise<boolean>} 用户确认返回 true，取消返回 false
  */
-export function modalConfirm(params: ModalFuncProps): Promise<boolean> {
+export function modalConfirm(params: AppModalFuncProps): Promise<boolean> {
   return new Promise((resolve) => {
     window.modal.confirm({
       centered: true,
