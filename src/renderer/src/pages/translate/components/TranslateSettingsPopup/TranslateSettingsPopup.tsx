@@ -12,9 +12,21 @@ interface Props {
   resolve: (data: any) => void
 }
 
+export const TranslateSettingsPanelContent = () => {
+  const { theme } = useTheme()
+
+  return (
+    <SettingContainer theme={theme} style={{ padding: 0, background: 'transparent' }}>
+      <TranslatePromptSettings />
+      <SettingGroup theme={theme} style={{ flex: 1 }}>
+        <CustomLanguageSettings />
+      </SettingGroup>
+    </SettingContainer>
+  )
+}
+
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
-  const { theme } = useTheme()
   const { t } = useTranslation()
 
   const closePopup = () => {
@@ -30,12 +42,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <DialogHeader>
           <DialogTitle>{t('settings.translate.title')}</DialogTitle>
         </DialogHeader>
-        <SettingContainer theme={theme} style={{ padding: '10px 0', background: 'transparent' }}>
-          <TranslatePromptSettings />
-          <SettingGroup theme={theme} style={{ flex: 1 }}>
-            <CustomLanguageSettings />
-          </SettingGroup>
-        </SettingContainer>
+        <TranslateSettingsPanelContent />
       </DialogContent>
     </Dialog>
   )

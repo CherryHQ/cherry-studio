@@ -1,12 +1,9 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, type ColumnDef, ConfirmDialog, DataTable, EmptyState, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { SettingRowTitle } from '@renderer/pages/settings'
+import { SettingSubtitle } from '@renderer/pages/settings'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
-import type { TableProps } from 'antd'
-import { Popconfirm, Table } from 'antd'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +16,7 @@ const CustomLanguageSettings = () => {
   const [displayedItems, setDisplayedItems] = useState<CustomTranslateLanguage[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCustomLanguage, setEditingCustomLanguage] = useState<CustomTranslateLanguage>()
+  const [deletingCustomLanguage, setDeletingCustomLanguage] = useState<CustomTranslateLanguage | null>(null)
 
   const onDelete = useCallback(
     async (id: string) => {
@@ -40,12 +38,12 @@ const CustomLanguageSettings = () => {
     })
   }
 
-  const onClickEdit = (target: CustomTranslateLanguage) => {
+  const onClickEdit = useCallback((target: CustomTranslateLanguage) => {
     startTransition(async () => {
       setEditingCustomLanguage(target)
       setIsModalOpen(true)
     })
-  }
+  }, [])
 
   const onCancel = () => {
     startTransition(async () => {
@@ -65,45 +63,66 @@ const CustomLanguageSettings = () => {
     })
   }
 
-  const columns: TableProps<CustomTranslateLanguage>['columns'] = useMemo(
+  const onConfirmDelete = useCallback(async () => {
+    if (!deletingCustomLanguage) {
+      return
+    }
+
+    await onDelete(deletingCustomLanguage.id)
+    setDeletingCustomLanguage(null)
+  }, [deletingCustomLanguage, onDelete])
+
+  const columns = useMemo<ColumnDef<CustomTranslateLanguage>[]>(
     () => [
       {
-        title: 'Emoji',
-        dataIndex: 'emoji'
+        accessorKey: 'emoji',
+        header: 'Emoji',
+        meta: { width: 72, align: 'center' },
+        cell: ({ getValue }) => <span className="text-base">{getValue<string>()}</span>
       },
       {
-        title: t('settings.translate.custom.value.label'),
-        dataIndex: 'value'
+        accessorKey: 'value',
+        header: t('settings.translate.custom.value.label'),
+        meta: { width: '34%' }
       },
       {
-        title: t('settings.translate.custom.langCode.label'),
-        dataIndex: 'langCode'
+        accessorKey: 'langCode',
+        header: t('settings.translate.custom.langCode.label'),
+        meta: { width: '28%' }
       },
       {
-        title: t('settings.translate.custom.table.action.title'),
-        key: 'action',
-        render: (_, record) => {
+        id: 'action',
+        header: t('settings.translate.custom.table.action.title'),
+        meta: { width: 84, align: 'center' },
+        cell: ({ row }) => {
+          const record = row.original
+
           return (
-            <div className="flex items-center gap-2">
-              <Button onClick={() => onClickEdit(record)}>
-                <EditOutlined />
-                {t('common.edit')}
+            <div className="flex items-center gap-1.5">
+              <Button
+                aria-label={t('common.edit')}
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => onClickEdit(record)}
+                size="icon-sm"
+                title={t('common.edit')}
+                variant="ghost">
+                <Pencil size={14} />
               </Button>
-              <Popconfirm
-                title={t('settings.translate.custom.delete.title')}
-                description={t('settings.translate.custom.delete.description')}
-                onConfirm={() => onDelete(record.id)}>
-                <Button variant="destructive">
-                  <DeleteOutlined />
-                  {t('common.delete')}
-                </Button>
-              </Popconfirm>
+              <Button
+                aria-label={t('common.delete')}
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeletingCustomLanguage(record)}
+                size="icon-sm"
+                title={t('common.delete')}
+                variant="ghost">
+                <Trash2 size={14} />
+              </Button>
             </div>
           )
         }
       }
     ],
-    [onDelete, t]
+    [onClickEdit, t]
   )
 
   useEffect(() => {
@@ -121,21 +140,41 @@ const CustomLanguageSettings = () => {
   return (
     <>
       <div className="flex h-full w-full flex-col justify-between">
-        <RowFlex className="justify-between py-1">
-          <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
-          <Button onClick={onClickAdd} style={{ marginBottom: 5, marginTop: -5 }}>
-            <PlusOutlined size={16} />
-            {t('common.add')}
+        <RowFlex className="justify-between">
+          <SettingSubtitle className="mt-0">{t('translate.custom.label')}</SettingSubtitle>
+          <Button
+            aria-label={t('common.add')}
+            onClick={onClickAdd}
+            size="icon-sm"
+            title={t('common.add')}
+            variant="ghost">
+            <Plus size={16} />
           </Button>
         </RowFlex>
         <div className="flex flex-1 flex-col">
-          <Table<CustomTranslateLanguage>
+          <DataTable
+            data={displayedItems}
             columns={columns}
-            pagination={{ position: ['bottomCenter'], defaultPageSize: 10 }}
-            dataSource={displayedItems}
+            rowKey="id"
+            emptyText={<EmptyState compact preset="no-translate" description={t('common.no_results')} />}
+            tableLayout="fixed"
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={deletingCustomLanguage !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeletingCustomLanguage(null)
+          }
+        }}
+        title={t('settings.translate.custom.delete.title')}
+        description={t('settings.translate.custom.delete.description')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={onConfirmDelete}
+      />
       <CustomLanguageModal
         isOpen={isModalOpen}
         editingCustomLanguage={editingCustomLanguage}

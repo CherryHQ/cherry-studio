@@ -7,12 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelector } from '../ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../types'
 
-const { mockUseModelSelectorData, mockNavigate, mockScrollToIndex, mockLoggerError } = vi.hoisted(() => ({
-  mockUseModelSelectorData: vi.fn(),
-  mockNavigate: vi.fn(),
-  mockScrollToIndex: vi.fn(),
-  mockLoggerError: vi.fn()
-}))
+const { mockUseModelSelectorData, mockNavigate, mockScrollToIndex, mockLoggerError, mockVirtualListSizes } = vi.hoisted(
+  () => ({
+    mockUseModelSelectorData: vi.fn(),
+    mockNavigate: vi.fn(),
+    mockScrollToIndex: vi.fn(),
+    mockLoggerError: vi.fn(),
+    mockVirtualListSizes: [] as number[]
+  })
+)
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -48,11 +51,15 @@ vi.mock('@cherrystudio/ui', () => {
     Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
-      const { variant, size, ...buttonProps } = props
+      const { variant, size, type = 'button', ...buttonProps } = props
       void variant
       void size
 
-      return <button {...buttonProps}>{children}</button>
+      return (
+        <button type={type} {...buttonProps}>
+          {children}
+        </button>
+      )
     },
     Checkbox: ({ checked, ...props }: InputHTMLAttributes<HTMLInputElement>) => (
       <input type="checkbox" checked={Boolean(checked)} readOnly {...props} />
@@ -100,7 +107,8 @@ vi.mock('@renderer/components/VirtualList', async () => {
   const React = await import('react')
 
   return {
-    DynamicVirtualList: ({ ref, list, children }) => {
+    DynamicVirtualList: ({ ref, list, children, size }) => {
+      mockVirtualListSizes.push(size)
       React.useImperativeHandle(ref, () => ({
         measure: vi.fn(),
         scrollElement: vi.fn(() => null),
@@ -214,6 +222,7 @@ describe('ModelSelector', () => {
     mockNavigate.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
+    mockVirtualListSizes.length = 0
     mockNavigate.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -305,5 +314,27 @@ describe('ModelSelector', () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
     )
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('uses listVisibleCount to size the visible model list', () => {
+    const items = Array.from({ length: 10 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: items,
+        modelItems: items
+      })
+    )
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        listVisibleCount={8}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mockVirtualListSizes.at(-1)).toBe(8 * 36)
   })
 })
