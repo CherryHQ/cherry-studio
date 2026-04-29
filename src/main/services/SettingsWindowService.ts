@@ -2,11 +2,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 
 const DEFAULT_SETTINGS_PATH = '/settings/provider'
 const PREWARM_DELAY_MS = 1000
+const ATTACH_TO_MAIN_DELAY_MS = 100
 
 const logger = loggerService.withContext('SettingsWindowService')
 
@@ -29,6 +31,10 @@ export class SettingsWindowService extends BaseService {
 
     this.ipcHandle(IpcChannel.SettingsWindow_Open, (_event, path?: unknown) => {
       return this.open(path)
+    })
+
+    this.ipcHandle(IpcChannel.SettingsWindow_OpenInApp, (event, path?: unknown) => {
+      return this.openInApp(path, event.sender)
     })
   }
 
@@ -56,6 +62,25 @@ export class SettingsWindowService extends BaseService {
     }
 
     return windowId
+  }
+
+  public openInApp(path?: unknown, sender?: Electron.WebContents): boolean {
+    const normalizedPath = this.normalizePath(path)
+    const wm = application.get('WindowManager')
+
+    application.get('MainWindowService').showMainWindow()
+    this.attachSettingsTabToMain(normalizedPath)
+
+    const senderId = sender ? wm.getWindowIdByWebContents(sender) : null
+    const isSettingsWindow = senderId
+      ? wm.getWindowsByType(WindowType.Settings).some((windowInfo) => windowInfo.id === senderId)
+      : false
+
+    if (senderId && isSettingsWindow) {
+      wm.close(senderId)
+    }
+
+    return true
   }
 
   public prewarm(): string | null {
@@ -121,5 +146,59 @@ export class SettingsWindowService extends BaseService {
       return path
     }
     return DEFAULT_SETTINGS_PATH
+  }
+
+  private attachSettingsTabToMain(path: string): void {
+    const wm = application.get('WindowManager')
+    const tab = this.createSettingsTab(path)
+
+    const sendToWindow = (window: BrowserWindow) => {
+      if (window.isDestroyed()) return
+
+      if (window.webContents.isLoadingMainFrame()) {
+        window.webContents.once('did-finish-load', () => {
+          setTimeout(() => {
+            if (!window.isDestroyed()) {
+              window.webContents.send(IpcChannel.Tab_Attach, tab)
+            }
+          }, ATTACH_TO_MAIN_DELAY_MS)
+        })
+      } else {
+        setTimeout(() => {
+          if (!window.isDestroyed()) {
+            window.webContents.send(IpcChannel.Tab_Attach, tab)
+          }
+        }, ATTACH_TO_MAIN_DELAY_MS)
+      }
+    }
+
+    const sendToMainWindows = () => {
+      const mainWindows = wm.getWindowsByType(WindowType.Main)
+
+      for (const windowInfo of mainWindows) {
+        const window = wm.getWindow(windowInfo.id)
+        if (window) {
+          sendToWindow(window)
+        }
+      }
+    }
+
+    if (wm.getWindowsByType(WindowType.Main).length === 0) {
+      setTimeout(sendToMainWindows, ATTACH_TO_MAIN_DELAY_MS)
+      return
+    }
+
+    sendToMainWindows()
+  }
+
+  private createSettingsTab(path: string): Tab {
+    return {
+      id: `settings:${path}`,
+      type: 'route',
+      url: path,
+      title: 'Settings',
+      lastAccessTime: Date.now(),
+      isDormant: false
+    }
   }
 }

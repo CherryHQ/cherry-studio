@@ -461,6 +461,7 @@ export enum IpcChannel {
 
   // WindowManager
   SettingsWindow_Open = 'settings-window:open',
+  SettingsWindow_OpenInApp = 'settings-window:open-in-app',
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
   WindowManager_Minimize = 'window-manager:minimize',

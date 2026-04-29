@@ -20,6 +20,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -29,8 +30,9 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious, SettingsOpenTarget } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { useLocation } from '@tanstack/react-router'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -72,8 +74,11 @@ const CommonSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
+  const tabsContext = useOptionalTabsContext()
+  const location = useLocation()
 
   const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
+  const [isSettingsWindow, setIsSettingsWindow] = useState(false)
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
@@ -90,6 +95,7 @@ const CommonSettings: FC = () => {
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
+  const [settingsOpenTarget, setSettingsOpenTarget] = usePreference('app.settings.open_target')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
@@ -188,7 +194,19 @@ const CommonSettings: FC = () => {
     [t]
   )
 
+  const settingsOpenTargetOptions = useMemo(
+    () => [
+      { value: 'window' as const, label: t('settings.general.settings_open_target.window') },
+      { value: 'app' as const, label: t('settings.general.settings_open_target.app') }
+    ],
+    [t]
+  )
+
   useEffect(() => {
+    void window.api.windowManager.getInitData<string>().then((initData) => {
+      setIsSettingsWindow(typeof initData === 'string' && initData.startsWith('/settings'))
+    })
+
     void window.api.getSystemFonts().then((fonts: string[]) => {
       setFontList(fonts)
     })
@@ -209,6 +227,29 @@ const CommonSettings: FC = () => {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
+
+  const getCurrentSettingsPath = useCallback(() => {
+    return location.href.startsWith('/settings') ? location.href : '/settings/provider'
+  }, [location.href])
+
+  const handleSettingsOpenTargetChange = useCallback(
+    (value: SettingsOpenTarget) => {
+      void setSettingsOpenTarget(value)
+
+      if (value === 'app') {
+        void window.api.windowManager.openSettingsInApp(getCurrentSettingsPath())
+        return
+      }
+
+      if (!isSettingsWindow) {
+        void window.api.windowManager.openSettings(getCurrentSettingsPath())
+        if (tabsContext?.activeTab?.url.startsWith('/settings')) {
+          tabsContext.closeTab(tabsContext.activeTab.id)
+        }
+      }
+    },
+    [getCurrentSettingsPath, isSettingsWindow, setSettingsOpenTarget, tabsContext]
+  )
 
   const onSelectLanguage = (value: LanguageVarious) => {
     void i18n.changeLanguage(value)
@@ -451,6 +492,16 @@ const CommonSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle>{t('settings.general.settings_open_target.title')}</SettingRowTitle>
+          <SegmentedControl<SettingsOpenTarget>
+            value={settingsOpenTarget}
+            onValueChange={handleSettingsOpenTargetChange}
+            options={settingsOpenTargetOptions}
+            size="sm"
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
             <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
@@ -527,6 +578,7 @@ const CommonSettings: FC = () => {
               { value: 'left', label: t('settings.topic.position.left') },
               { value: 'right', label: t('settings.topic.position.right') }
             ]}
+            size="sm"
           />
         </SettingRow>
         {topicPosition === 'left' && (

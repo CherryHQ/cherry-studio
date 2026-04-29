@@ -4625,12 +4625,12 @@
       },
       "common": {
         "sections": {
-          "custom_css": "[to be translated]:Custom CSS",
-          "display_language": "[to be translated]:Display & Language",
-          "privacy_advanced": "[to be translated]:Privacy & Advanced",
-          "system_startup": "[to be translated]:System & Startup"
+          "custom_css": "自訂 CSS",
+          "display_language": "顯示與語言",
+          "privacy_advanced": "隱私與進階",
+          "system_startup": "系統與啟動"
         },
-        "title": "[to be translated]:Common Settings"
+        "title": "通用設定"
       },
       "display": {
         "title": "顯示設定"
@@ -4644,6 +4644,11 @@
       },
       "restore": {
         "button": "復原"
+      },
+      "settings_open_target": {
+        "app": "應用程式內",
+        "title": "設定頁面開啟方式",
+        "window": "獨立視窗"
       },
       "spell_check": {
         "label": "拼寫檢查",
@@ -5643,12 +5648,12 @@
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
         },
         "features": {
-          "paddleocr": "[to be translated]:Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "paddleocr": "更適合中文文字，並更適用於收據、掃描檔案以及版面較複雜的圖片。",
           "system": {
-            "macos": "[to be translated]:Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
-            "windows": "[to be translated]:Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+            "macos": "使用內建 macOS OCR 引擎，無需設定，適合截圖與輕量文字擷取。",
+            "windows": "使用原生 Windows OCR 引擎，具備強大的作業系統整合能力，適用於基本的本機辨識工作。"
           },
-          "tesseract": "[to be translated]:A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+          "tesseract": "一款經典的本地 OCR 選項，具備可自訂的語言套件，非常適合離線與多語言工作流程。"
         },
         "image": {
           "error": {
@@ -5677,11 +5682,11 @@
       },
       "preprocess": {
         "features": {
-          "doc2x": "[to be translated]:Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
-          "mineru": "[to be translated]:Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
-          "mistral": "[to be translated]:Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
-          "open_mineru": "[to be translated]:An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
-          "paddleocr": "[to be translated]:A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+          "doc2x": "非常適合將 PDF 轉換為更乾淨的 Markdown 或可編輯文字，以便後續檢索與編輯。",
+          "mineru": "針對更高保真度的版面復原進行最佳化，特別適用於學術 PDF、表格與公式。",
+          "mistral": "強大的雲端文件理解能力，適用於結構化擷取、多頁檔案及複雜版面。",
+          "open_mineru": "一個開放的部署選項，適合希望自行託管或對處理流程有更高控制權的團隊。",
+          "paddleocr": "更輕量的整合選擇，非常適合中文文件、掃描檔及常見收據格式的內容。"
         },
         "paddleocr": {
           "aistudio_access_token": "星河社區訪問令牌",

@@ -134,6 +134,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { minapps } = useMinapps()
   // const { useSystemTitleBar } = useSettings()
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
+  const [settingsOpenTarget] = usePreference('app.settings.open_target')
   const { t } = useTranslation()
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -216,6 +217,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
 
   const handleSettingsClick = () => {
     hideMinappPopup()
+    if (settingsOpenTarget === 'app') {
+      void navigate({ to: lastSettingsPath })
+      return
+    }
+
     void openSettingsWindow(lastSettingsPath)
   }
 

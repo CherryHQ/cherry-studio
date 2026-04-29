@@ -26,6 +26,10 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 
+function isSettingsRouteTab(tab: Tab): boolean {
+  return tab.type === 'route' && tab.url.startsWith('/settings')
+}
+
 /**
  * Options for opening a tab
  */
@@ -392,6 +396,22 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const attachTab = useCallback(
     (tabData: Tab) => {
+      if (isSettingsRouteTab(tabData)) {
+        const existingSettingsTab = tabs.find(isSettingsRouteTab)
+
+        if (existingSettingsTab) {
+          updateTab(existingSettingsTab.id, {
+            url: tabData.url,
+            title: getDefaultRouteTitle(tabData.url),
+            isDormant: false,
+            savedState: undefined
+          })
+          setActiveTab(existingSettingsTab.id)
+          logger.info('Settings tab already exists, activating', { tabId: existingSettingsTab.id, url: tabData.url })
+          return
+        }
+      }
+
       // Check if tab already exists
       const exists = tabs.find((t) => t.id === tabData.id)
       if (exists) {
@@ -417,7 +437,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveTabIdState(restoredTab.id)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [tabs, setActiveTab, setPinnedTabs]
+    [tabs, setActiveTab, setPinnedTabs, updateTab]
   )
 
   // Listen for tab attach requests (from Main Process)
@@ -478,4 +498,8 @@ export function useTabsContext() {
     throw new Error('useTabsContext must be used within a TabsProvider')
   }
   return context
+}
+
+export function useOptionalTabsContext() {
+  return use(TabsContext)
 }

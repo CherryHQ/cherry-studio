@@ -4645,6 +4645,11 @@
       "restore": {
         "button": "Khôi phục"
       },
+      "settings_open_target": {
+        "app": "[to be translated]:In App",
+        "title": "[to be translated]:Settings Open Target",
+        "window": "[to be translated]:Separate Window"
+      },
       "spell_check": {
         "label": "Kiểm tra chính tả",
         "languages": "Sử dụng kiểm tra chính tả cho"
@@ -5537,12 +5542,22 @@
     "shortcuts": {
       "action": "Hành động",
       "actions": "hoạt động",
+      "all_disable": "[to be translated]:Disable All",
+      "all_enable": "[to be translated]:Enable All",
       "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
+      "categories": {
+        "assistant": "[to be translated]:AI Assistant Tools",
+        "chat": "[to be translated]:Message Interaction",
+        "general": "[to be translated]:Global and Window",
+        "title": "[to be translated]:Shortcut Groups",
+        "topic": "[to be translated]:Conversation and Topics"
+      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
       "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
+      "empty": "[to be translated]:No shortcuts are available in this group",
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
@@ -5551,6 +5566,7 @@
       "press_shortcut": "Nhấn Phím tắt",
       "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
+      "reset": "[to be translated]:Reset",
       "reset_defaults": "Đặt lại mặc định",
       "reset_defaults_confirm": "Bạn có chắc chắn muốn đặt lại tất cả phím tắt không?",
       "reset_defaults_failed": "Không thể đặt lại phím tắt về mặc định",

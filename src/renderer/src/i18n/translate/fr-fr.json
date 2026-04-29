@@ -2555,8 +2555,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Épingler ce modèle",
+      "unpin": "Détacher le modèle"
     },
     "add_parameter": "Ajouter un paramètre",
     "all": "Tout",
@@ -2576,7 +2576,7 @@
     "invalid_model": "Modèle invalide",
     "json_parse_error": "Format JSON invalide",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Parallélisme multi-modèle (exclusif mutuel avec multi-assistant)"
     },
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
@@ -3884,45 +3884,45 @@
       "title": "Chaînes"
     },
     "componentLab": {
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Visible uniquement en développement pour tester le nouveau sélecteur de modèle directement dans l'application.",
+      "label": "Composant Lab",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Configuration du comportement et de l'affichage",
+        "callbackEmpty": "Aucun rappel de composant reçu pour l'instant",
+        "clearSelection": "Effacer la sélection",
+        "configDescription": "Basculez les props clés de ModelSelector ci-dessus et inspectez la valeur d'entrée ainsi que les charges utiles de rappel ci-dessous.",
+        "configTitle": "Terrain de jeu des accessoires",
+        "controlMultiSelectMode": "Mode de sélection multiple contrôlée",
+        "currentProps": "Accessoires actuels",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "Cette page monte directement le composant métier ModelSelector actuel afin que nous puissions vérifier le comportement de sélection, de filtrage, de recherche et d’épinglage.",
+        "empty": "Aucun modèle n’est actuellement disponible, donc le sélecteur ne peut pas encore être affiché.",
+        "lastModeChangeReturn": "Dernier surMultiSelectModeChange Retour",
+        "lastSelectReturn": "Dernier retour onSelect",
+        "loading": "Chargement des modèles...",
+        "modelId": "ID du modèle",
+        "multiSelectMode": "modeSélectionMultiple",
+        "multiple": "multiple",
+        "normalizedIds": "IDs sélectionnés normalisés",
+        "outputEmpty": "Aucune donnée à afficher pour l'instant",
+        "provider": "Fournisseur",
+        "resetOutputs": "Réinitialiser les sorties",
+        "resultsDescription": "Ceci montre la proposition de valeur actuelle, les identifiants sélectionnés normalisés et la dernière sortie de rappel du composant.",
+        "resultsTitle": "Sorties et État",
+        "selected": "Sélection actuelle",
+        "selectedEmpty": "Aucun modèle sélectionné pour l'instant",
+        "selectionConfig": "Valeur de sélection Config",
+        "selectionType": "typeDeSélection",
+        "selectionTypeId": "Retourner les ID de modèle",
+        "selectionTypeModel": "Retourner les objets du modèle",
+        "showPinnedModels": "afficherModèlesÉpinglés",
+        "showTagFilter": "afficherFiltreTag",
+        "title": "Sélecteur de modèle",
+        "triggerPlaceholder": "Sélectionner un modèle",
+        "triggerSelectedCount": "{{count}} modèles sélectionnés",
+        "valueProp": "Valeur actuelle proposée"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Composant de développement Lab"
     },
     "data": {
       "app_data": {
@@ -4625,12 +4625,12 @@
       },
       "common": {
         "sections": {
-          "custom_css": "[to be translated]:Custom CSS",
-          "display_language": "[to be translated]:Display & Language",
-          "privacy_advanced": "[to be translated]:Privacy & Advanced",
-          "system_startup": "[to be translated]:System & Startup"
+          "custom_css": "CSS personnalisé",
+          "display_language": "Affichage et langue",
+          "privacy_advanced": "Confidentialité et avancé",
+          "system_startup": "Système et démarrage"
         },
-        "title": "[to be translated]:Common Settings"
+        "title": "Paramètres communs"
       },
       "display": {
         "title": "Paramètres d'affichage"
@@ -4644,6 +4644,11 @@
       },
       "restore": {
         "button": "Restaurer"
+      },
+      "settings_open_target": {
+        "app": "Dans l'application",
+        "title": "Paramètres Ouvrir la cible",
+        "window": "Fenêtre séparée"
       },
       "spell_check": {
         "label": "Vérification orthographique",
@@ -5217,9 +5222,9 @@
       }
     },
     "plugins": {
-      "bunDescription": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
+      "bunDescription": "Runtime JavaScript utilisé par les services MCP et les chaînes d'outils associées.",
       "title": "Plug-ins",
-      "uvDescription": "[to be translated]:Python package manager for MCP services and dependency installation."
+      "uvDescription": "Gestionnaire de packages Python pour les services MCP et l'installation des dépendances."
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",
@@ -5537,12 +5542,22 @@
     "shortcuts": {
       "action": "Action",
       "actions": "操作",
+      "all_disable": "Désactiver tout",
+      "all_enable": "Tout activer",
       "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
+      "categories": {
+        "assistant": "Outils d'assistant IA",
+        "chat": "Interaction de message",
+        "general": "Global et Window",
+        "title": "Groupes de raccourcis",
+        "topic": "Conversation et Sujets"
+      },
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
+      "empty": "Aucun raccourci n’est disponible dans ce groupe",
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
       "label": "Touche",
@@ -5551,6 +5566,7 @@
       "press_shortcut": "Appuyer sur raccourci clavier",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
+      "reset": "Réinitialiser",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
       "reset_defaults_failed": "Échec de la réinitialisation des raccourcis aux valeurs par défaut",
@@ -5632,12 +5648,12 @@
           "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
         },
         "features": {
-          "paddleocr": "[to be translated]:Stronger for Chinese text and better suited for receipts, scans, and images with more complex layouts.",
+          "paddleocr": "Plus robuste pour le texte chinois et mieux adapté aux reçus, aux numérisations et aux images aux mises en page plus complexes.",
           "system": {
-            "macos": "[to be translated]:Uses the built-in macOS OCR engine with zero setup, ideal for screenshots and lightweight text extraction.",
-            "windows": "[to be translated]:Uses the native Windows OCR engine with strong OS integration for basic local recognition tasks."
+            "macos": "Utilise le moteur OCR intégré à macOS sans aucune configuration, idéal pour les captures d’écran et l’extraction légère de texte.",
+            "windows": "Utilise le moteur OCR natif de Windows avec une forte intégration au système d'exploitation pour des tâches de reconnaissance locale de base."
           },
-          "tesseract": "[to be translated]:A classic local OCR option with customizable language packs, well suited for offline and multilingual workflows."
+          "tesseract": "Une option OCR locale classique avec des packs linguistiques personnalisables, bien adaptée aux flux de travail hors ligne et multilingues."
         },
         "image": {
           "error": {
@@ -5666,11 +5682,11 @@
       },
       "preprocess": {
         "features": {
-          "doc2x": "[to be translated]:Well suited for converting PDFs into cleaner Markdown or editable text for downstream retrieval and editing.",
-          "mineru": "[to be translated]:Optimized for higher-fidelity layout recovery, especially useful for academic PDFs, tables, and formulas.",
-          "mistral": "[to be translated]:Strong cloud-based document understanding, suitable for structured extraction, multi-page files, and complex layouts.",
-          "open_mineru": "[to be translated]:An open deployment option that fits teams wanting self-hosting or tighter control over the processing pipeline.",
-          "paddleocr": "[to be translated]:A lighter integration choice that works well for Chinese documents, scans, and common receipt-style content."
+          "doc2x": "Bien adapté pour convertir des PDF en Markdown plus propre ou en texte modifiable pour une récupération et un édition ultérieures.",
+          "mineru": "Optimisé pour une récupération de mise en page de haute fidélité, particulièrement utile pour les PDFs académiques, les tableaux et les formules.",
+          "mistral": "Puissante compréhension de documents basée sur le cloud, adaptée à l'extraction structurée, aux fichiers multi-pages et aux mises en page complexes.",
+          "open_mineru": "Une option de déploiement ouvert qui convient aux équipes souhaitant l’auto-hébergement ou un contrôle plus étroit sur la chaîne de traitement.",
+          "paddleocr": "Un choix d’intégration plus léger qui fonctionne bien pour les documents chinois, les scans et le contenu courant de type reçu."
         },
         "paddleocr": {
           "aistudio_access_token": "Jeton d’accès à la communauté AI Studio",

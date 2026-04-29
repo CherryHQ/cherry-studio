@@ -2,8 +2,10 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTabs } from '@renderer/hooks/useTabs'
 import { getThemeModeLabel } from '@renderer/i18n/label'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,10 +33,17 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
   const { t } = useTranslation()
   const { settedTheme, toggleTheme } = useTheme()
   const { hasWindowControls } = useShellTabBarLayout(isDetached)
+  const { openTab } = useTabs()
+  const [settingsOpenTarget] = usePreference('app.settings.open_target')
 
   const ThemeIcon = settedTheme === 'dark' ? Moon : settedTheme === 'light' ? Sun : Monitor
 
   const handleSettingsClick = () => {
+    if (settingsOpenTarget === 'app') {
+      openTab('/settings/provider', { title: getDefaultRouteTitle('/settings/provider') })
+      return
+    }
+
     void openSettingsWindow('/settings/provider')
   }
 

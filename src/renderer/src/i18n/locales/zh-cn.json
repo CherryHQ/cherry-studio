@@ -4645,6 +4645,11 @@
       "restore": {
         "button": "恢复"
       },
+      "settings_open_target": {
+        "app": "应用内",
+        "title": "设置页面打开方式",
+        "window": "独立窗口"
+      },
       "spell_check": {
         "label": "拼写检查",
         "languages": "拼写检查语言"
