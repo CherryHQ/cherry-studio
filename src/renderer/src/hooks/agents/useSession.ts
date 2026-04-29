@@ -16,7 +16,7 @@ export const useSession = (agentId: string | null, sessionId: string | null) => 
     if (!data) return undefined
     return {
       ...(data as unknown as GetAgentSessionResponse),
-      configuration: parseAgentConfiguration(data.configuration)
+      configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'session' })
     }
   }, [data])
 

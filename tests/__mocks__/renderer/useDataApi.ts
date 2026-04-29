@@ -426,6 +426,45 @@ export const MockUseDataApiUtils = {
   },
 
   /**
+   * Set up useQuery to return an explicit result object for one path
+   */
+  mockQueryResult: <TPath extends ApiPath>(
+    path: TPath,
+    result: {
+      data?: ResponseForPath<TPath, 'GET'>
+      isLoading?: boolean
+      isRefreshing?: boolean
+      error?: Error
+      refetch?: () => void
+      mutate?: KeyedMutator<ResponseForPath<TPath, 'GET'>>
+    }
+  ) => {
+    mockUseQuery.mockImplementation((queryPath, _options) => {
+      if (queryPath === path) {
+        return {
+          data: result.data,
+          isLoading: result.isLoading ?? false,
+          isRefreshing: result.isRefreshing ?? false,
+          error: result.error,
+          refetch: result.refetch ?? vi.fn(),
+          mutate:
+            result.mutate ??
+            (vi.fn().mockResolvedValue(result.data) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>)
+        }
+      }
+      const defaultData = createMockDataForPath(queryPath as string)
+      return {
+        data: defaultData,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(defaultData)
+      }
+    })
+  },
+
+  /**
    * Set up useQuery to return error state
    */
   mockQueryError: (path: ApiPath, error: Error) => {

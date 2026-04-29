@@ -7,10 +7,6 @@ const {
   getChannelMock,
   updateChannelMock,
   deleteChannelMock,
-  syncChannelMock,
-  disconnectChannelMock,
-  startLoopMock,
-  syncSchedulerMock,
   getTaskMock,
   getTaskLogsMock
 } = vi.hoisted(() => ({
@@ -19,10 +15,6 @@ const {
   getChannelMock: vi.fn(),
   updateChannelMock: vi.fn(),
   deleteChannelMock: vi.fn(),
-  syncChannelMock: vi.fn(),
-  disconnectChannelMock: vi.fn(),
-  startLoopMock: vi.fn(),
-  syncSchedulerMock: vi.fn(),
   getTaskMock: vi.fn(),
   getTaskLogsMock: vi.fn()
 }))
@@ -30,24 +22,15 @@ const {
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: listChannelsMock,
+    getChannel: getChannelMock
+  }
+}))
+
+vi.mock('@data/services/AgentChannelWorkflowService', () => ({
+  agentChannelWorkflowService: {
     createChannel: createChannelMock,
-    getChannel: getChannelMock,
     updateChannel: updateChannelMock,
     deleteChannel: deleteChannelMock
-  }
-}))
-
-vi.mock('@main/services/agents/services/channels', () => ({
-  channelManager: {
-    syncChannel: syncChannelMock,
-    disconnectChannel: disconnectChannelMock
-  }
-}))
-
-vi.mock('@main/services/agents/services/SchedulerService', () => ({
-  schedulerService: {
-    startLoop: startLoopMock,
-    syncScheduler: syncSchedulerMock
   }
 }))
 
@@ -58,13 +41,14 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-// Mock all other services used in agentHandlers (required for the module to load)
 vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: {} }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService: {} }))
+vi.mock('@data/services/AgentTaskWorkflowService', () => ({ agentTaskWorkflowService: {} }))
 vi.mock('@main/services/agents/skills/SkillService', () => ({ skillService: {} }))
 
 import { agentHandlers } from '../agents'
+import { channelHandlers } from '../channels'
 
 const AGENT_ID = 'agent_1234567890_abcdefghi'
 const CHANNEL_ID = 'channel_1234567890_abcdef'
@@ -76,7 +60,7 @@ const mockChannel = {
   name: 'Test Channel',
   agentId: AGENT_ID,
   sessionId: null,
-  config: { token: 'abc123' },
+  config: { bot_token: 'abc123', allowed_chat_ids: [] },
   isActive: true,
   activeChatIds: null,
   permissionMode: null,
@@ -95,18 +79,16 @@ const mockLog = {
   error: null
 }
 
-describe('agentHandlers — channels', () => {
+describe('channelHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
-
-  // ── /channels ──────────────────────────────────────────────────────────────
 
   describe('/channels', () => {
     it('GET returns all channels when no filter is provided', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await agentHandlers['/channels'].GET({ query: undefined } as never)
+      const result = await channelHandlers['/channels'].GET({ query: undefined } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith(undefined)
       expect(result).toEqual([mockChannel])
@@ -115,7 +97,7 @@ describe('agentHandlers — channels', () => {
     it('GET passes agentId filter to listChannels', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await agentHandlers['/channels'].GET({ query: { agentId: AGENT_ID } } as never)
+      const result = await channelHandlers['/channels'].GET({ query: { agentId: AGENT_ID } } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockChannel])
@@ -124,50 +106,53 @@ describe('agentHandlers — channels', () => {
     it('GET passes type filter to listChannels', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await agentHandlers['/channels'].GET({ query: { type: 'telegram' } } as never)
+      const result = await channelHandlers['/channels'].GET({ query: { type: 'telegram' } } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith({ type: 'telegram' })
       expect(result).toEqual([mockChannel])
     })
 
-    it('POST creates a channel and calls syncChannel', async () => {
-      createChannelMock.mockResolvedValueOnce(mockChannel)
-      syncChannelMock.mockResolvedValueOnce(undefined)
+    it('GET rejects invalid query', async () => {
+      await expect(channelHandlers['/channels'].GET({ query: { type: 'invalid' } } as never)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
 
-      const result = await agentHandlers['/channels'].POST({
+      expect(listChannelsMock).not.toHaveBeenCalled()
+    })
+
+    it('POST creates a channel through the workflow service', async () => {
+      createChannelMock.mockResolvedValueOnce(mockChannel)
+
+      const result = await channelHandlers['/channels'].POST({
         body: {
           type: 'telegram',
           name: 'Test Channel',
           agentId: AGENT_ID,
-          config: { token: 'abc123' },
+          config: { bot_token: 'abc123', allowed_chat_ids: [] },
           isActive: true
         }
       } as never)
 
       expect(createChannelMock).toHaveBeenCalledOnce()
-      expect(syncChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
       expect(result).toMatchObject({ id: CHANNEL_ID })
     })
 
     it('POST rejects with VALIDATION_ERROR when required fields are missing', async () => {
-      await expect(agentHandlers['/channels'].POST({ body: { name: 'Test Channel' } } as never)).rejects.toMatchObject({
+      await expect(
+        channelHandlers['/channels'].POST({ body: { name: 'Test Channel' } } as never)
+      ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
 
       expect(createChannelMock).not.toHaveBeenCalled()
-      expect(syncChannelMock).not.toHaveBeenCalled()
     })
   })
-
-  // ── /channels/:channelId ──────────────────────────────────────────────────
 
   describe('/channels/:channelId', () => {
     it('GET returns channel when found', async () => {
       getChannelMock.mockResolvedValueOnce(mockChannel)
 
-      const result = await agentHandlers['/channels/:channelId'].GET({
-        params: { channelId: CHANNEL_ID }
-      } as never)
+      const result = await channelHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
 
       expect(getChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
       expect(result).toMatchObject({ id: CHANNEL_ID })
@@ -177,61 +162,75 @@ describe('agentHandlers — channels', () => {
       getChannelMock.mockResolvedValueOnce(null)
 
       await expect(
-        agentHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+        channelHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
 
-    it('PATCH updates channel and calls syncChannel', async () => {
+    it('PATCH updates channel through the workflow service without requiring callers to resend type', async () => {
+      getChannelMock.mockResolvedValueOnce(mockChannel)
       updateChannelMock.mockResolvedValueOnce({ ...mockChannel, name: 'Updated' })
-      syncChannelMock.mockResolvedValueOnce(undefined)
 
-      const result = await agentHandlers['/channels/:channelId'].PATCH({
+      const result = await channelHandlers['/channels/:channelId'].PATCH({
         params: { channelId: CHANNEL_ID },
         body: { name: 'Updated' }
       } as never)
 
-      expect(updateChannelMock).toHaveBeenCalledWith(CHANNEL_ID, { name: 'Updated' })
-      expect(syncChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
+      expect(updateChannelMock).toHaveBeenCalledWith(CHANNEL_ID, { type: 'telegram', name: 'Updated' })
       expect(result).toMatchObject({ name: 'Updated' })
     })
 
     it('PATCH throws NOT_FOUND when channel does not exist', async () => {
-      updateChannelMock.mockResolvedValueOnce(null)
+      getChannelMock.mockResolvedValueOnce(null)
 
       await expect(
-        agentHandlers['/channels/:channelId'].PATCH({
+        channelHandlers['/channels/:channelId'].PATCH({
           params: { channelId: CHANNEL_ID },
           body: { name: 'Updated' }
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-
-      expect(syncChannelMock).not.toHaveBeenCalled()
     })
 
-    it('DELETE removes channel and calls disconnectChannel', async () => {
-      deleteChannelMock.mockResolvedValueOnce(true)
-      disconnectChannelMock.mockResolvedValueOnce(undefined)
+    it('PATCH rejects invalid config for the persisted channel type', async () => {
+      getChannelMock.mockResolvedValueOnce(mockChannel)
 
       await expect(
-        agentHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+        channelHandlers['/channels/:channelId'].PATCH({
+          params: { channelId: CHANNEL_ID },
+          body: { config: { app_id: 'wrong-shape' } }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      expect(updateChannelMock).not.toHaveBeenCalled()
+    })
+
+    it('DELETE removes channel through the workflow service', async () => {
+      deleteChannelMock.mockResolvedValueOnce(true)
+
+      await expect(
+        channelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
       ).resolves.toBeUndefined()
 
       expect(deleteChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
-      expect(disconnectChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
     })
 
     it('DELETE throws NOT_FOUND when channel does not exist', async () => {
       deleteChannelMock.mockResolvedValueOnce(false)
 
       await expect(
-        agentHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-
-      expect(disconnectChannelMock).not.toHaveBeenCalled()
+        channelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
+})
 
-  // ── /agents/:agentId/tasks/:taskId/logs ───────────────────────────────────
+describe('agentHandlers — task logs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   describe('/agents/:agentId/tasks/:taskId/logs', () => {
     it('GET returns paginated logs for a task', async () => {
@@ -269,6 +268,19 @@ describe('agentHandlers — channels', () => {
           query: { page: 1, limit: 20 }
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(getTaskLogsMock).not.toHaveBeenCalled()
+    })
+
+    it('GET rejects invalid pagination query', async () => {
+      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+
+      await expect(
+        agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+          params: { agentId: AGENT_ID, taskId: TASK_ID },
+          query: { page: 0 }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
       expect(getTaskLogsMock).not.toHaveBeenCalled()
     })

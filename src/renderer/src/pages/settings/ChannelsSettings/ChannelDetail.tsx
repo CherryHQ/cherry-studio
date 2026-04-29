@@ -399,7 +399,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         type: channelDef.type,
         name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
         config: channelDef.defaultConfig,
-        isActive: true
+        isActive: false
       })
       setEditingChannelId(newChannel.id)
     } catch {
@@ -410,7 +410,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
       try {
-        const apiUpdates: Record<string, unknown> = {}
+        const existingChannel = channelList.find((channel) => channel.id === channelId)
+        if (!existingChannel) return
+
+        const apiUpdates: Record<string, unknown> = { type: existingChannel.type }
         if (updates.name !== undefined) apiUpdates.name = updates.name
         if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
         if (updates.config !== undefined) apiUpdates.config = updates.config
@@ -422,7 +425,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         // ignore
       }
     },
-    [updateChannel]
+    [channelList, updateChannel]
   )
 
   const handleDelete = useCallback(

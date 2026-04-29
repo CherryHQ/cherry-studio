@@ -25,7 +25,7 @@ export const useAgent = (id: string | null) => {
     if (!data) return undefined
     return {
       ...(data as unknown as GetAgentResponse),
-      configuration: parseAgentConfiguration(data.configuration)
+      configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
     }
   }, [data])
 

@@ -9,10 +9,16 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ChannelEntity } from '@shared/data/api/schemas/agents'
+import type { ChannelEntity, CreateChannelDto } from '@shared/data/api/schemas/channels'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
+
+function normalizeChannelConfig(config: unknown): Record<string, unknown> {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return {}
+  const { type: _type, ...rest } = config as Record<string, unknown>
+  return rest
+}
 
 export class AgentChannelService {
   private rowToEntity(row: ChannelRow): ChannelEntity {
@@ -20,27 +26,32 @@ export class AgentChannelService {
     return {
       ...clean,
       type: row.type as ChannelEntity['type'],
+      config: normalizeChannelConfig(row.config) as ChannelEntity['config'],
       permissionMode: (row.permissionMode ?? undefined) as ChannelEntity['permissionMode'],
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
-    }
+    } as ChannelEntity
   }
 
-  async createChannel(data: {
-    type: ChannelConfig['type']
-    name: string
-    agentId?: string | null
-    config: ChannelConfig | Record<string, unknown>
-    isActive?: boolean
-    permissionMode?: string | null
-  }): Promise<ChannelEntity> {
+  async createChannel(
+    data:
+      | CreateChannelDto
+      | {
+          type: ChannelConfig['type']
+          name: string
+          agentId?: string | null
+          config: ChannelConfig | Record<string, unknown>
+          isActive?: boolean
+          permissionMode?: string | null
+        }
+  ): Promise<ChannelEntity> {
     const database = application.get('DbService').getDb()
 
     const insertData: InsertChannelRow = {
       type: data.type,
       name: data.name,
       agentId: data.agentId,
-      config: data.config,
+      config: normalizeChannelConfig(data.config),
       isActive: data.isActive ?? true,
       permissionMode: data.permissionMode
     }
@@ -102,7 +113,15 @@ export class AgentChannelService {
     >
   ): Promise<ChannelEntity | null> {
     const database = application.get('DbService').getDb()
-    const result = await database.update(channelsTable).set(updates).where(eq(channelsTable.id, id)).returning()
+    const normalizedUpdates = {
+      ...updates,
+      ...(updates.config !== undefined ? { config: normalizeChannelConfig(updates.config) } : {})
+    }
+    const result = await database
+      .update(channelsTable)
+      .set(normalizedUpdates)
+      .where(eq(channelsTable.id, id))
+      .returning()
 
     if (!result[0]) {
       return null

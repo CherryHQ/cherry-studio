@@ -31,7 +31,7 @@ export const useUpdateSession = (agentId: string | null) => {
         // Apply Zod defaults to configuration (DataAPI returns Record<string, unknown>)
         return {
           ...(result as unknown as AgentSessionEntity),
-          configuration: parseAgentConfiguration(result.configuration)
+          configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'session' })
         }
       } catch (error) {
         window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })

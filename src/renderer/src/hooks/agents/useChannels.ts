@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { ChannelType } from '@shared/data/api/schemas/channels'
 import { useCallback } from 'react'
 
-export const useChannels = (type?: string) => {
+export const useChannels = (type?: ChannelType) => {
   const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
     query: type ? { type } : undefined
   })

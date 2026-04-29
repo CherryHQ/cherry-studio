@@ -26,6 +26,13 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
+vi.mock('@data/services/AgentTaskWorkflowService', () => ({
+  agentTaskWorkflowService: {
+    createTask: mockCreateTask,
+    deleteTask: mockDeleteTask
+  }
+}))
+
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
@@ -53,6 +60,14 @@ vi.mock('@data/services/AgentChannelService', () => ({
     listChannels: mockListChannels,
     createChannel: mockCreateChannel,
     getChannel: mockGetChannel,
+    updateChannel: mockUpdateChannel,
+    deleteChannel: mockDeleteChannel
+  }
+}))
+
+vi.mock('@data/services/AgentChannelWorkflowService', () => ({
+  agentChannelWorkflowService: {
+    createChannel: mockCreateChannel,
     updateChannel: mockUpdateChannel,
     deleteChannel: mockDeleteChannel
   }
@@ -432,7 +447,6 @@ describe('ClawServer', () => {
             isActive: true
           })
         )
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_new')
       })
 
       it('should error when type is missing', async () => {
@@ -498,9 +512,9 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('not saved')
         // Should have deleted the orphan channel
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // syncChannel for the initial add (fire-and-forget), disconnectChannel for orphan cleanup
+        // syncChannel for the initial add (fire-and-forget), deleteChannel for orphan cleanup
         expect(mockSyncChannel).toHaveBeenCalledTimes(1)
-        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_wc2')
+        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
       })
 
       it('should error when required config field is missing', async () => {
@@ -529,7 +543,6 @@ describe('ClawServer', () => {
 
         expect(result.content[0].text).toContain('updated and reloaded')
         expect(mockUpdateChannel).toHaveBeenCalledWith('ch_1', expect.objectContaining({ isActive: false }))
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {
@@ -561,7 +574,6 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('removed')
         expect(result.content[0].text).toContain('My Telegram')
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
-        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {

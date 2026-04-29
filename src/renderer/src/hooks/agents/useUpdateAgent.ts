@@ -38,7 +38,7 @@ export const useUpdateAgent = () => {
         // Apply Zod defaults to configuration (DataAPI returns Record<string, unknown>)
         return {
           ...(result as unknown as AgentEntity),
-          configuration: parseAgentConfiguration(result.configuration)
+          configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
