@@ -790,9 +790,10 @@ export class ChatMigrator extends BaseMigrator {
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {
       const orderKey = orderKeyById.get(data.topic.id)
-      if (orderKey) {
-        data.topic.orderKey = orderKey
+      if (!orderKey) {
+        throw new Error(`orderKey lookup miss for topic id=${data.topic.id}`)
       }
+      data.topic.orderKey = orderKey
     }
 
     // Phase 2: insert topics + messages in batches.
@@ -880,13 +881,19 @@ export class ChatMigrator extends BaseMigrator {
         }))
       )
       try {
-        for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-          const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-          await db.insert(pinTable).values(batch).onConflictDoNothing()
-          pinsInserted += batch.length
-        }
+        await db.transaction(async (tx) => {
+          for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+            const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+            const inserted = await tx
+              .insert(pinTable)
+              .values(batch)
+              .onConflictDoNothing()
+              .returning({ id: pinTable.id })
+            pinsInserted += inserted.length
+          }
+        })
       } catch (error) {
-        logger.error('Pin row emission failed mid-batch', error as Error, {
+        logger.error('Pin row emission failed', error as Error, {
           pinsInserted,
           pinsExpected: pinRows.length
         })

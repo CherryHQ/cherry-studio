@@ -302,7 +302,6 @@ export class MigrationEngine {
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
-      { table: pinTable, name: 'pin' }, // Polymorphic; safety-check before topic so a stale row count is logged before topic clear cascades it visually away.
       { table: topicTable, name: 'topic' }, // Must clear before assistant (FK reference)
       { table: assistantMcpServerTable, name: 'assistant_mcp_server' }, // Junction: clear before assistant
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
@@ -341,7 +340,6 @@ export class MigrationEngine {
     await db.delete(userModelTable)
     await db.delete(userProviderTable)
     await db.delete(messageTable) // FK → topic
-    await db.delete(pinTable) // Polymorphic — clear before topic so phase-3 pin emission starts clean
     await db.delete(topicTable) // FK → assistant
     await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
     await db.delete(assistantKnowledgeBaseTable) // FK → assistant
