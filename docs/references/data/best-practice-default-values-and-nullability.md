@@ -120,7 +120,7 @@ reverse evidence that `x` should be `NOT NULL` — see R3.
 
 | Location | Best for | Trade-off | SQLite-specific note |
 |---|---|---|---|
-| **#1 DB DEFAULT** (`text().notNull().default('')`) | Stable values that **rarely change** (`''`, `0`, `false`, sentinel emoji) | Single source at the schema; DB enforces it for any caller, including raw SQL | Changing a `DEFAULT` requires a hand-written table-rebuild migration — SQLite doesn't support `ALTER COLUMN SET DEFAULT`, and `drizzle-kit` only emits a placeholder comment. Acceptable for stable values; painful for tunable ones. |
+| **#1 DB DEFAULT** (`text().notNull().default('')`) | Type-level "empty" values that **by definition won't change** (`''`, `0`, `false`, `[]`) | Single source at the schema; DB enforces it for any caller including raw SQL | **Effectively a near-permanent choice in SQLite** — `drizzle-kit` can't auto-generate the rebuild. See [§ DB defaults are near-permanent](#db-defaults-are-near-permanent) below. |
 | **#2 Drizzle `$defaultFn`** (`integer().$defaultFn(() => Date.now())`) | Dynamic per-row values: UUIDs, `Date.now()` | Lives in schema file but runs in the JS layer; consistent for all Drizzle-driven inserts | Doesn't apply to raw SQL writers — but those should be rare here |
 | **#3 Zod `.default()`** | **Avoid** on entity / Create / Update — see warnings below | Couples shared schema package to runtime constants; forces `z.input` / `z.output` type split; bypasses non-handler callers (seeders, internal-service calls) | n/a |
 | **#4 Service `dto.x ?? DEFAULT`** | Tunable product values that may evolve (e.g. `DEFAULT_ASSISTANT_SETTINGS`) | Lives next to business logic; covers **all** callers (handler, seeder, internal); changes are pure code edits with no migration | Best fit when the ideal value tracks product iteration |
@@ -142,14 +142,36 @@ If a default truly must live in Zod (e.g., a query-string parameter with a basel
 value), keep it on the **specific** schema it applies to (typically `ListXxxQuerySchema`),
 never on the entity, Create, or Update.
 
+### DB defaults are near-permanent
+
+Putting a value into a DB column `DEFAULT` for the first time costs nothing — it lands in the next migration's `CREATE TABLE`. **Changing it later is expensive and asymmetric**, so the first write is effectively the final one. Three forces compound:
+
+- **SQLite has no `ALTER COLUMN SET DEFAULT`** ([sqlite.org/lang_altertable](https://www.sqlite.org/lang_altertable.html)). Changing a `DEFAULT` requires the 12-step table-rebuild dance: create a new table with the new schema, copy data, drop, rename, recreate indexes / triggers / FKs.
+- **`drizzle-kit` does not auto-generate that rebuild**. When it detects a `DEFAULT` change it emits an explanatory comment in the migration file — text along the lines of *"SQLite does not support … out of the box, we do not generate automatic migration for that, so it has to be done manually"* — plus a SQLite docs link, **without naming the affected table or column** ([drizzle-team/drizzle-orm#2489](https://github.com/drizzle-team/drizzle-orm/issues/2489)). Maintainer guidance: run `drizzle-kit generate --custom` to create an empty migration and hand-write the rebuild SQL.
+- **`DEFAULT` changes never touch existing rows**. Rows created before the change keep their old default value. Retroactive update needs a separate `UPDATE` step in the same migration.
+
+Before placing a value into a DB `DEFAULT`, ask:
+
+| Question | If you can't confidently answer "yes" |
+|---|---|
+| Has this value been validated against real product usage? | Move to service `??` until validated |
+| Is this value's meaning **stable** against provider updates / UX redesigns / A/B tests / regulatory changes? | Move to service `??` |
+| Is "rows created before any future change keep the old default" acceptable? | Move to service `??`, or budget a backfill migration upfront |
+
+**The safe bias**: only DB-DEFAULT the values that are **type-level "empty"** (`''`, `0`, `false`, `[]`) — those almost never change because they're absence markers, not product decisions. Anything that's a product choice (`'🌟'`, default model parameters, sentinel category values) goes in service `??` first; promote to DB only after the value has stabilized through at least one release cycle in production.
+
+A service-side default change is a code edit, one PR, no migration risk. A DB `DEFAULT` change is a hand-written SQLite migration that risks data corruption on large tables and is reviewed differently. **Don't trade tomorrow's agility for today's tidiness.**
+
 ### Quick chooser
 
 | Default value's character | Pick |
 |---|---|
-| Static, literal, near-immutable (`''`, `0`, `false`, `'🌟'`) | DB DEFAULT |
+| Type-level "empty" by definition (`''`, `0`, `false`, `[]`) — won't change because not a product choice | DB DEFAULT |
 | Dynamic per row (timestamps, UUIDs) | Drizzle `$defaultFn` |
-| Tunable product policy that may evolve | Service `??` |
-| Anything else | Try DB first, then Service. Skip Zod. |
+| Product-chosen value (`'🌟'`, model parameters, sentinel category) — could conceivably evolve | Service `??` |
+| Unsure whether it'll ever change | **Service `??`** — cheap to change later; promote to DB only after the value has stabilized |
+
+Skip Zod regardless.
 
 ## Standard Layered Design
 
@@ -162,9 +184,9 @@ Reference end-state for an `assistant`-like entity, demonstrating R1–R5:
 export const assistantTable = sqliteTable('assistant', {
   id: uuidPrimaryKey(),                                  // $defaultFn UUID
   name: text().notNull(),                                // required, no default
-  prompt: text().notNull().default(''),                  // R4: DB handles
-  emoji: text().notNull().default('🌟'),                 // R4: DB handles
-  description: text().notNull().default(''),             // R4: DB handles
+  prompt: text().notNull().default(''),                  // type-level empty: DB handles
+  emoji: text().notNull(),                               // product-chosen ('🌟' may evolve): Service fills
+  description: text().notNull().default(''),             // type-level empty: DB handles
   modelId: text().references(() => userModelTable.id),   // legitimately nullable (R1)
   settings: text({ mode: 'json' })
     .$type<AssistantSettings>()
@@ -210,8 +232,9 @@ export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 async create(dto: CreateAssistantDto): Promise<Assistant> {
   const [row] = await this.db.insert(assistantTable).values({
     ...dto,
-    settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS  // R4: only field needing a service-side default
-    // prompt / emoji / description omitted → DB DEFAULT applies
+    emoji: dto.emoji ?? '🌟',                             // product-chosen default: Service is the source of truth
+    settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS  // tunable product default: Service is the source of truth
+    // prompt / description omitted → DB DEFAULT '' applies
     // modelId omitted (or null) → SQLite stores NULL
   }).returning()
   return rowToAssistant(row)
@@ -247,8 +270,9 @@ function rowToAssistant(row: typeof assistantTable.$inferSelect): Assistant {
 | Same default value defined in DB DEFAULT, Zod `.default()`, and `rowToEntity` `??` | Three places must stay in sync; any change forgets one | Pick one source of truth (R2) |
 | `UpdateSchema = CreateSchema.partial()` with `.default()` on Create fields | Zod v4 preserves defaults through `.partial()`; PATCH bodies materialize them and overwrite row state | Derive Update from entity directly (R5) |
 | `.default(DEFAULT_X_SETTINGS)` on Zod entity / Create schema | Defaults bleed into every derived schema; non-handler callers bypass it; renderer typings split into z.input / z.output | Move default to service `??` (Decision Matrix 2) |
-| `rowToEntity` running `?? '🌟'` to mask NULL | The product wants every row to have an icon — express that in the column constraint, not the mapper | `text().notNull().default('🌟')` |
+| `rowToEntity` running `?? '🌟'` to mask NULL | The product wants every row to have an icon — express it in the column constraint plus the **default-fill stage**, not the mapper | `text().notNull()` + service `dto.emoji ?? '🌟'` (product-chosen value belongs in service — see [§ DB defaults are near-permanent](#db-defaults-are-near-permanent)) |
 | Service `create()` passes every field, including ones the DB has DEFAULTs for | Restates DB knowledge in app code; drift risk if defaults change in only one place | Omit fields the DB / `$defaultFn` already handles (R4) |
+| Putting a product-chosen value (`'🌟'`, default `temperature`, sentinel category) in DB `DEFAULT` thinking "I can tune it later" | SQLite has no `ALTER COLUMN SET DEFAULT`; changing it requires a hand-written table-rebuild and doesn't update existing rows. The "tune later" assumption is false | Service `??`; promote to DB only after the value has stabilized through a release cycle (see [§ DB defaults are near-permanent](#db-defaults-are-near-permanent)) |
 
 ## Case Studies
 
@@ -266,8 +290,9 @@ Three layers each define defaults:
 **Diagnosis**: violates R1 (columns "should" always have values but are nullable),
 R2 (default in three places per field), R3 (`??` in rowMapper).
 
-**Fix**: per the Standard Layered Design above. After the fix only `settings` retains a
-service-side `??`; the other three columns become `NOT NULL` with DB DEFAULTs and
+**Fix**: per the Standard Layered Design above. After the fix `prompt` / `description`
+move to DB DEFAULT (type-level empty); `emoji` and `settings` move to service `??`
+(product-chosen / tunable values that may evolve, per [§ DB defaults are near-permanent](#db-defaults-are-near-permanent));
 `rowToAssistant` no longer fabricates anything.
 
 ### B. `assistant.modelId` — correct (current state)
@@ -296,3 +321,4 @@ so the column should be `NOT NULL` and the rowMapper's `?? []` should disappear.
 - [DataApi in Main § Row → Entity Mapping](./data-api-in-main.md#row--entity-mapping) — `nullsToUndefined`, `T | null` preservation
 - [Zod issue #4799](https://github.com/colinhacks/zod/issues/4799) — `.partial()` and `.default()` interaction
 - [SQLite ALTER TABLE limitations](https://www.sqlite.org/lang_altertable.html) — why DB DEFAULT changes are painful
+- [drizzle-team/drizzle-orm#2489](https://github.com/drizzle-team/drizzle-orm/issues/2489) — drizzle-kit's unsupported-SQLite-ALTER comment doesn't name the affected table/column
