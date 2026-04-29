@@ -73,7 +73,8 @@ const CRON_TOOL: Tool = {
       },
       timeout_minutes: {
         type: 'number',
-        description: 'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
+        description:
+          'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
       },
       id: {
         type: 'string',
