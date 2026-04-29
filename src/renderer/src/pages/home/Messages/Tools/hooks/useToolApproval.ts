@@ -2,11 +2,10 @@ import { loggerService } from '@logger'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId, getToolResponseFromBlock } from '../toolResponse'
+import { APPROVAL_REQUESTED, APPROVAL_RESPONDED, findToolPartByCallId } from '../toolResponse'
 
 const logger = loggerService.withContext('useToolApproval')
 
@@ -28,18 +27,7 @@ export interface ToolApprovalActions {
   autoApprove?: () => void | Promise<void>
 }
 
-type ToolApprovalTarget = ToolMessageBlock | MCPToolResponse | NormalToolResponse
-
-function isToolMessageBlock(target: ToolApprovalTarget): target is ToolMessageBlock {
-  return 'messageId' in target && 'toolId' in target
-}
-
-function resolveToolResponse(target: ToolApprovalTarget): MCPToolResponse | NormalToolResponse | undefined {
-  if (isToolMessageBlock(target)) {
-    return getToolResponseFromBlock(target) ?? undefined
-  }
-  return target
-}
+type ToolApprovalTarget = MCPToolResponse | NormalToolResponse
 
 const IDLE: ToolApprovalState & ToolApprovalActions = {
   isWaiting: false,
@@ -62,8 +50,7 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
   const partsMap = usePartsMap()
   const respondToolApproval = useToolApprovalRespond()
 
-  const toolResponse = resolveToolResponse(target)
-  const toolCallId = toolResponse?.toolCallId ?? toolResponse?.id ?? ''
+  const toolCallId = target.toolCallId ?? target.id ?? ''
   const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
 
   const respond = useCallback(
@@ -94,9 +81,4 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
     confirm: () => void respond(true),
     cancel: () => void respond(false)
   }
-}
-
-/** Whether a tool block is awaiting user approval (for grouped-header display). */
-export function isBlockWaitingApproval(block: ToolMessageBlock): boolean {
-  return getToolResponseFromBlock(block)?.status === 'pending'
 }

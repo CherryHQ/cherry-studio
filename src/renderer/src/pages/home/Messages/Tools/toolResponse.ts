@@ -1,5 +1,4 @@
 import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UIMessagePart } from 'ai'
 import { isToolUIPart } from 'ai'
@@ -140,11 +139,6 @@ function normalizeErrorOutput(part: ToolPart): unknown {
   }
 }
 
-export function getToolResponseFromBlock(block: ToolMessageBlock): ToolResponseLike | null {
-  const toolResponse = block.metadata?.rawMcpToolResponse
-  return toolResponse ?? null
-}
-
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId: string): ToolResponseLike | null {
   const partType = part.type as string
   if (!partType.startsWith('tool-') && partType !== 'dynamic-tool') return null
@@ -194,12 +188,6 @@ export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string)
   const toolResponse = buildToolResponseFromPart(part, id)
   if (!toolResponse) return null
   return { id, toolResponse }
-}
-
-export function buildToolRenderItemFromBlock(block: ToolMessageBlock): ToolRenderItem | null {
-  const toolResponse = getToolResponseFromBlock(block)
-  if (!toolResponse) return null
-  return { id: block.id, toolResponse }
 }
 
 /** Matched `ToolUIPart` plus decoded approval fields. */

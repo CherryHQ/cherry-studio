@@ -1,6 +1,1 @@
-export {
-  isBlockWaitingApproval,
-  type ToolApprovalActions,
-  type ToolApprovalState,
-  useToolApproval
-} from './useToolApproval'
+export { type ToolApprovalActions, type ToolApprovalState, useToolApproval } from './useToolApproval'
