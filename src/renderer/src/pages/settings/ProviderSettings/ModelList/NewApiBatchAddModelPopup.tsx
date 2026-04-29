@@ -1,7 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { getEndpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -32,6 +32,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const [form] = Form.useForm()
   const { addModel } = useProvider(provider.id)
   const { t } = useTranslation()
+  const endpointTypeOptions = getEndpointTypeOptions(provider)
 
   const onOk = () => {
     setOpen(false)

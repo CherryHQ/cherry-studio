@@ -8,7 +8,8 @@ import {
   isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
-  isVertexProvider
+  isVertexProvider,
+  isVolcengineResponsesEndpointModel
 } from '@renderer/utils/provider'
 
 export { GEMINI_FLASH_MODEL_REGEX } from './utils'
@@ -36,6 +37,10 @@ export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-deep-research'
 ]
 
+export function isVolcengineResponsesWebSearchModel(modelId: string): boolean {
+  return modelId === 'doubao' || modelId.startsWith('doubao-')
+}
+
 export function isWebSearchModel(model: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -59,6 +64,10 @@ export function isWebSearchModel(model: Model): boolean {
       return isClaude4SeriesModel(model)
     }
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
+  }
+
+  if (isVolcengineResponsesEndpointModel(provider, model)) {
+    return isVolcengineResponsesWebSearchModel(modelId)
   }
 
   // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进

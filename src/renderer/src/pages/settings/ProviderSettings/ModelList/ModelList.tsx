@@ -14,7 +14,7 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/Model
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isEndpointTypeProvider } from '@renderer/utils/provider'
 import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { Plus, RefreshCw } from 'lucide-react'
@@ -98,7 +98,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [provider.id])
 
   const onAddModel = useCallback(() => {
-    if (isNewApiProvider(provider)) {
+    if (isEndpointTypeProvider(provider)) {
       void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
       void AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })

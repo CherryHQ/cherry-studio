@@ -1,9 +1,11 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { AppProviderId } from '@renderer/aiCore/types'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
+import { getProviderById } from '@renderer/services/ProviderService'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { isVolcengineResponsesEndpointModel } from '@renderer/utils/provider'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
   if (model.provider === 'hunyuan') {
@@ -56,6 +58,11 @@ export function buildProviderBuiltinWebSearchConfig(
   switch (providerId) {
     case 'azure-responses':
     case 'openai': {
+      const provider = model ? getProviderById(model.provider) : undefined
+      if (model && provider && isVolcengineResponsesEndpointModel(provider, model)) {
+        return { openai: {} }
+      }
+
       const searchContextSize = isOpenAIDeepResearchModel(model)
         ? 'medium'
         : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)

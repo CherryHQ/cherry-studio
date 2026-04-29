@@ -27,7 +27,8 @@ import {
   isOllamaProvider,
   isPerplexityProvider,
   isSupportStreamOptionsProvider,
-  isVertexProvider
+  isVertexProvider,
+  isVolcengineResponsesEndpointModel
 } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { cloneDeep, isEmpty } from 'lodash'
@@ -123,6 +124,10 @@ export function providerToAiSdkConfig(
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
     { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
+    {
+      match: (p) => isVolcengineResponsesEndpointModel(p, model),
+      build: buildVolcengineResponsesConfig
+    },
     { match: (p) => p.id === 'anthropic' && p.authType === 'oauth', build: buildAnthropicConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
@@ -172,6 +177,245 @@ function buildCommonOptions(ctx: BuilderContext) {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
   }
   return options
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const VOLCENGINE_RESPONSES_UNSUPPORTED_FIELDS = [
+  'conversation',
+  'include',
+  'metadata',
+  'parallel_tool_calls',
+  'prompt_cache_key',
+  'prompt_cache_retention',
+  'safety_identifier',
+  'service_tier',
+  'top_logprobs',
+  'truncation'
+] as const
+
+type VolcengineResponsesSanitizeResult = {
+  body: unknown
+  changed: boolean
+}
+
+function sanitizeVolcengineResponsesTool(tool: unknown): VolcengineResponsesSanitizeResult {
+  if (!isRecord(tool) || tool.type !== 'web_search') {
+    return { body: tool, changed: false }
+  }
+
+  if (Object.keys(tool).length === 1) {
+    return { body: tool, changed: false }
+  }
+
+  return { body: { type: 'web_search' }, changed: true }
+}
+
+function sanitizeVolcengineResponsesInputItem(inputItem: unknown): VolcengineResponsesSanitizeResult {
+  if (!isRecord(inputItem) || !inputItem.role) {
+    return { body: inputItem, changed: false }
+  }
+
+  const needsType = inputItem.type == null
+  const needsStatus = inputItem.role === 'assistant' && !inputItem.status
+
+  if (!needsType && !needsStatus) {
+    return { body: inputItem, changed: false }
+  }
+
+  const sanitized: Record<string, any> = {
+    ...inputItem
+  }
+
+  if (needsType) {
+    sanitized.type = 'message'
+  }
+
+  if (needsStatus) {
+    sanitized.status = 'completed'
+  }
+
+  return { body: sanitized, changed: true }
+}
+
+function sanitizeVolcengineResponsesBody(body: unknown): VolcengineResponsesSanitizeResult {
+  if (!isRecord(body)) {
+    return { body, changed: false }
+  }
+
+  let sanitized: Record<string, any> | undefined
+
+  const getSanitized = () => {
+    sanitized ??= { ...body }
+    return sanitized
+  }
+
+  for (const field of VOLCENGINE_RESPONSES_UNSUPPORTED_FIELDS) {
+    if (Object.hasOwn(body, field)) {
+      delete getSanitized()[field]
+    }
+  }
+
+  if (Array.isArray(body.tools)) {
+    let toolsChanged = false
+    const tools = body.tools.map((tool) => {
+      const result = sanitizeVolcengineResponsesTool(tool)
+      toolsChanged ||= result.changed
+      return result.body
+    })
+
+    if (toolsChanged) {
+      getSanitized().tools = tools
+    }
+  }
+
+  if (Array.isArray(body.input)) {
+    let inputChanged = false
+    const input = body.input.map((inputItem) => {
+      const result = sanitizeVolcengineResponsesInputItem(inputItem)
+      inputChanged ||= result.changed
+      return result.body
+    })
+
+    if (inputChanged) {
+      getSanitized().input = input
+    }
+  }
+
+  return {
+    body: sanitized ?? body,
+    changed: sanitized !== undefined
+  }
+}
+
+function sanitizeVolcengineResponsesRequestInit(init?: RequestInit): RequestInit | undefined {
+  if (typeof init?.body !== 'string') {
+    return init
+  }
+
+  try {
+    const result = sanitizeVolcengineResponsesBody(JSON.parse(init.body))
+    if (!result.changed) {
+      return init
+    }
+
+    return {
+      ...init,
+      body: JSON.stringify(result.body)
+    }
+  } catch {
+    return init
+  }
+}
+
+function normalizeVolcengineResponsesCitationAnnotations(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeVolcengineResponsesCitationAnnotations)
+  }
+
+  if (!isRecord(value)) {
+    return value
+  }
+
+  const normalized = { ...value }
+
+  if (
+    normalized.type === 'url_citation' &&
+    typeof normalized.url === 'string' &&
+    typeof normalized.title === 'string'
+  ) {
+    if (typeof normalized.start_index !== 'number') {
+      normalized.start_index = 0
+    }
+    if (typeof normalized.end_index !== 'number') {
+      normalized.end_index = 0
+    }
+  }
+
+  for (const key of Object.keys(normalized)) {
+    normalized[key] = normalizeVolcengineResponsesCitationAnnotations(normalized[key])
+  }
+
+  return normalized
+}
+
+function normalizeVolcengineResponsesSseDataLine(line: string): string {
+  if (!line.startsWith('data:')) {
+    return line
+  }
+
+  const data = line.slice('data:'.length)
+  const leadingSpace = data.startsWith(' ') ? ' ' : ''
+  const payload = leadingSpace ? data.slice(1) : data
+
+  if (payload.trim() === '[DONE]' || payload.trim() === '') {
+    return line
+  }
+
+  try {
+    const normalized = normalizeVolcengineResponsesCitationAnnotations(JSON.parse(payload))
+    return `data:${leadingSpace}${JSON.stringify(normalized)}`
+  } catch {
+    return line
+  }
+}
+
+function normalizeVolcengineResponsesSseFrame(frame: string): string {
+  return frame.split(/\r?\n/).map(normalizeVolcengineResponsesSseDataLine).join('\n')
+}
+
+function normalizeVolcengineResponsesSseStream(stream: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  let buffer = ''
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const reader = stream.getReader()
+
+      const read = (): void => {
+        reader
+          .read()
+          .then(({ done, value }) => {
+            if (done) {
+              buffer += decoder.decode()
+              if (buffer) {
+                controller.enqueue(encoder.encode(normalizeVolcengineResponsesSseFrame(buffer)))
+              }
+              controller.close()
+              return
+            }
+
+            buffer += decoder.decode(value, { stream: true })
+            const frames = buffer.split(/\r?\n\r?\n/)
+            buffer = frames.pop() ?? ''
+
+            for (const frame of frames) {
+              controller.enqueue(encoder.encode(`${normalizeVolcengineResponsesSseFrame(frame)}\n\n`))
+            }
+
+            read()
+          })
+          .catch((error) => controller.error(error))
+      }
+
+      read()
+    }
+  })
+}
+
+function normalizeVolcengineResponsesResponse(response: Response): Response {
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
+    return response
+  }
+
+  return new Response(normalizeVolcengineResponsesSseStream(response.body), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  })
 }
 
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
@@ -283,6 +527,21 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
         })
         return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
+    }
+  }
+}
+
+function buildVolcengineResponsesConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  const commonOptions = buildCommonOptions(ctx)
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      ...commonOptions,
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) =>
+        normalizeVolcengineResponsesResponse(await fetch(input, sanitizeVolcengineResponsesRequestInit(init)))
     }
   }
 }

@@ -1,13 +1,13 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { endpointTypeOptions } from '@renderer/config/endpointTypes'
+import { getEndpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isEndpointTypeProvider } from '@renderer/utils/provider'
 import type { FormProps } from 'antd'
 import { Form, Input, Modal, Select } from 'antd'
 import { find } from 'lodash'
@@ -38,6 +38,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
   const [form] = Form.useForm()
   const { addModel, models } = useProvider(provider.id)
   const { t } = useTranslation()
+  const endpointTypeOptions = getEndpointTypeOptions(provider)
 
   const onOk = () => {
     setOpen(false)
@@ -64,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id),
-      endpoint_type: isNewApiProvider(provider) ? values.endpointType : undefined
+      endpoint_type: isEndpointTypeProvider(provider) ? values.endpointType : undefined
     }
 
     addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
