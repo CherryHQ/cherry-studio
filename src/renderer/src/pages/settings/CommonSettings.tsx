@@ -2,6 +2,8 @@ import {
   Badge,
   Button,
   CodeEditor,
+  Combobox,
+  type ComboboxOption,
   InfoTooltip,
   Input,
   MenuItem,
@@ -31,7 +33,6 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Select } from 'antd'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -51,6 +52,8 @@ import ThemeColorPicker from './shared/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+
+const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
@@ -368,15 +371,45 @@ const CommonSettings: FC = () => {
     void setInvisibleIcons(DefaultPreferences.default['ui.sidebar.icons.invisible'])
   }, [setVisibleIcons, setInvisibleIcons])
 
-  const renderFontOption = useCallback(
-    (font: string) => (
-      <Tooltip title={font} placement="left" delay={500}>
-        <div className="truncate" style={{ fontFamily: font }}>
-          {font}
+  const fontOptions = useMemo<ComboboxOption[]>(
+    () => [
+      {
+        label: t('settings.display.font.default'),
+        value: ''
+      },
+      ...fontList.map((font) => ({ label: font, value: font }))
+    ],
+    [fontList, t]
+  )
+
+  const renderFontOption = useCallback((option: ComboboxOption) => {
+    const fontFamily = option.value || defaultFontPreviewFamily
+
+    return (
+      <Tooltip title={option.label} placement="left" delay={500}>
+        <div className="truncate" style={{ fontFamily }}>
+          {option.label}
         </div>
       </Tooltip>
-    ),
-    []
+    )
+  }, [])
+
+  const handleFontComboboxChange = useCallback((value: string | string[], onChange: (font: string) => void) => {
+    onChange(Array.isArray(value) ? '' : value)
+  }, [])
+
+  const handleUserFontComboboxChange = useCallback(
+    (value: string | string[]) => {
+      handleFontComboboxChange(value, handleUserFontChange)
+    },
+    [handleFontComboboxChange, handleUserFontChange]
+  )
+
+  const handleUserCodeFontComboboxChange = useCallback(
+    (value: string | string[]) => {
+      handleFontComboboxChange(value, handleUserCodeFontChange)
+    },
+    [handleFontComboboxChange, handleUserCodeFontChange]
   )
 
   const renderDisplayLanguageSection = () => (
@@ -462,24 +495,17 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectRow>
-            <Select
-              style={{ width: 280 }}
+            <Combobox
+              width={280}
               placeholder={t('settings.display.font.select')}
-              options={[
-                {
-                  label: (
-                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
-                      {t('settings.display.font.default')}
-                    </span>
-                  ),
-                  value: ''
-                },
-                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
-              ]}
+              emptyText={t('common.no_results')}
+              options={fontOptions}
               value={userTheme.userFontFamily || ''}
-              onChange={(font) => handleUserFontChange(font)}
-              showSearch
-              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+              onChange={handleUserFontComboboxChange}
+              renderOption={renderFontOption}
+              searchPlacement="trigger"
+              triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
+              popoverClassName="max-h-[320px] overflow-y-auto"
             />
             <Button onClick={() => handleUserFontChange('')} className="ml-2" variant="ghost" size="icon">
               <ResetIcon size="14" />
@@ -490,24 +516,17 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectRow>
-            <Select
-              style={{ width: 280 }}
+            <Combobox
+              width={280}
               placeholder={t('settings.display.font.select')}
-              options={[
-                {
-                  label: (
-                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
-                      {t('settings.display.font.default')}
-                    </span>
-                  ),
-                  value: ''
-                },
-                ...fontList.map((font) => ({ label: renderFontOption(font), value: font }))
-              ]}
+              emptyText={t('common.no_results')}
+              options={fontOptions}
               value={userTheme.userCodeFontFamily || ''}
-              onChange={(font) => handleUserCodeFontChange(font)}
-              showSearch
-              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+              onChange={handleUserCodeFontComboboxChange}
+              renderOption={renderFontOption}
+              searchPlacement="trigger"
+              triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
+              popoverClassName="max-h-[320px] overflow-y-auto"
             />
             <Button onClick={() => handleUserCodeFontChange('')} className="ml-2" variant="ghost" size="icon">
               <ResetIcon size="14" />
