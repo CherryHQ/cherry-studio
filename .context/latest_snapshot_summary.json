@@ -1,119 +1,81 @@
 {
-  "generated_at": "2026-04-27T17:51:11.269088+00:00",
-  "date": "2026-04-27",
-  "open_issues": {
-    "total": 816,
-    "sample_size": 400,
-    "unlabeled": 135,
-    "unlabeled_pct": 16.5,
-    "health": {
-      "Active": 223,
-      "Aging": 435,
-      "Stale": 158,
-      "Zombie": 0
-    },
-    "top_labels": {
-      "UI/UX": 104,
-      "Models": 83,
-      "inactive": 80,
-      "Assistant": 56,
-      "MCP": 33,
-      "help wanted": 27,
-      "discussion": 27,
-      "needs-repro": 24,
-      "Data": 21,
-      "BUG": 19,
-      "Connectivity": 15,
-      "Performance": 15,
-      "feature": 13,
-      "RAG": 11,
-      "v2": 7,
-      "P2": 6,
-      "Planned": 5,
-      "OpenClaw": 5,
-      "needs-more-info": 5,
-      "P3": 3
-    },
+  "generated_at": "2026-04-29T17:46:56.135915+00:00",
+  "date": "2026-04-29",
+  "repository": "CherryHQ/cherry-studio",
+  "issues": {
+    "open_total": 820,
+    "closed_last_30d": 288,
+    "no_label": 94,
+    "no_label_pct": 11.5,
+    "p1_count": 3,
     "p1_issues": [
       {
         "number": 12966,
-        "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending Triage for 8 Days",
+        "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
         "labels": [
           "BUG",
           "P1",
           "inactive"
         ],
-        "updated_at": "2026-04-25T00:51:12Z",
-        "url": ""
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
+        "created_at": "2026-02-19",
+        "age_days": 69
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI Resource not found (defaults to responses API)",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "assignee": "DeJeune",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "created_at": "2026-03-04",
+        "age_days": 56
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "created_at": "2026-03-18",
+        "age_days": 42
       }
-    ]
+    ],
+    "inactive_labeled": 80,
+    "label_distribution": {
+      "inactive": 80,
+      "Models": 48,
+      "UI/UX": 48,
+      "Assistant": 31,
+      "MCP": 17,
+      "help wanted": 15,
+      "discussion": 14,
+      "needs-repro": 13,
+      "Data": 10,
+      "BUG": 7,
+      "Performance": 7,
+      "Connectivity": 7,
+      "feature": 5,
+      "RAG": 4,
+      "P3": 2,
+      "P2": 2,
+      "Blocked: v2": 1
+    }
   },
-  "open_prs": {
-    "total_page1": 100,
-    "by_base": {
-      "main": 38,
-      "v2": 62
-    },
-    "draft": 23,
-    "ready": 77
+  "pull_requests": {
+    "open_total_sampled": 100,
+    "open_targeting_main": 48,
+    "open_targeting_v2": 52,
+    "age_median_days": 7,
+    "age_max_days": 231
   },
   "v2_branch": {
-    "open_prs": 68,
-    "open_draft": 20,
-    "open_ready": 48,
-    "merged_30d": 46,
-    "merged_total_fetched": 66,
-    "recent_merges": [
-      {
-        "number": 14490,
-        "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
-        "merged_at": "2026-04-27T08:33:30Z"
-      },
-      {
-        "number": 14428,
-        "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseServ",
-        "merged_at": "2026-04-24T10:23:18Z"
-      },
-      {
-        "number": 14269,
-        "title": "feat(data): add domain hooks for models/providers and batch model API",
-        "merged_at": "2026-04-21T11:45:16Z"
-      },
-      {
-        "number": 14315,
-        "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
-        "merged_at": "2026-04-21T03:39:15Z"
-      },
-      {
-        "number": 14159,
-        "title": "feat: migrate agents storage to v2 main database",
-        "merged_at": "2026-04-20T13:43:49Z"
-      },
-      {
-        "number": 14328,
-        "title": "refactor: stabilize ui package boundaries and theme contracts",
-        "merged_at": "2026-04-20T08:12:02Z"
-      },
-      {
-        "number": 14309,
-        "title": "refactor(settings): unify settings list item and action button patterns",
-        "merged_at": "2026-04-20T06:58:28Z"
-      },
-      {
-        "number": 14174,
-        "title": "refactor(v2): remove local web search backend",
-        "merged_at": "2026-04-20T06:52:10Z"
-      },
-      {
-        "number": 14359,
-        "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
-        "merged_at": "2026-04-18T11:15:03Z"
-      },
-      {
-        "number": 14234,
-        "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
-        "merged_at": "2026-04-17T10:11:35Z"
-      }
-    ]
-  }
+    "open_prs": 70,
+    "merged_last_30d": 45
+  },
+  "notes": "Issue age distribution based on 200-sample (newest by update) + 100-sample (oldest by created). Total open issues from API: 820."
 }

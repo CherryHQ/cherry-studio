@@ -1,12 +1,7 @@
 {
-  "generated_at": "2026-04-27T17:51:41.979654+00:00",
-  "note": "Discussion data not available — gh api graphql endpoint required. Run scripts/analyze_discussions.py with /tmp/gh_discussions.json",
-  "total_fetched": 0,
-  "answered": 0,
-  "unanswered_no_comments": 0,
-  "answer_rate_pct": 0,
-  "category_breakdown": {},
-  "active_30d": 0,
-  "high_engagement": [],
-  "unanswered_items": []
+  "generated_at": "2026-04-29T17:47:14.948063+00:00",
+  "date": "2026-04-29",
+  "note": "GitHub Discussions data requires GraphQL API not available via current MCP tools. Placeholder for future integration.",
+  "data_source": "discussions GraphQL endpoint not available",
+  "manual_check_url": "https://github.com/CherryHQ/cherry-studio/discussions"
 }

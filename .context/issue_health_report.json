@@ -1,127 +1,100 @@
 {
-  "generated_at": "2026-04-27T17:51:41.979654+00:00",
-  "total_open": 816,
-  "sample_analyzed": 400,
-  "note": "Health counts extrapolated: Active/Aging from 400-issue sample; Stale=158 from GitHub search; Zombie=0",
-  "health_summary": {
-    "Active": 223,
-    "Aging": 435,
-    "Stale": 158,
-    "Zombie": 0
+  "generated_at": "2026-04-29T17:46:56.135915+00:00",
+  "date": "2026-04-29",
+  "total_open": 820,
+  "health_distribution": {
+    "Active": {
+      "count": 340,
+      "pct": 41.5,
+      "definition": "created or updated in last 30 days"
+    },
+    "Aging": {
+      "count": 180,
+      "pct": 22.0,
+      "definition": "30-90 days since creation"
+    },
+    "Stale": {
+      "count": 120,
+      "pct": 14.6,
+      "definition": "90-180 days without activity"
+    },
+    "Zombie": {
+      "count": 180,
+      "pct": 22.0,
+      "definition": ">180 days open with no resolution"
+    }
   },
-  "category_summary": {
-    "Uncategorized": 122,
-    "UI/UX": 86,
-    "Models": 57,
-    "Assistant": 52,
-    "MCP": 33,
-    "Data": 15,
-    "Connectivity": 12,
-    "RAG": 11,
-    "Performance": 10,
-    "Linux": 1,
-    "Agent": 1
+  "methodology": "Estimated from two samples: (a) 200 most-recently-updated issues sorted by update_at DESC, (b) 100 oldest issues sorted by created_at ASC. Totals extrapolated proportionally.",
+  "inactive_label_count": 80,
+  "note_stale_zombie": "The 100 oldest issues show 82 zombie (>180d) and 18 stale (90-180d), suggesting ~180-200 issues >180d in the full 820.",
+  "top_label_categories": [
+    {
+      "label": "inactive",
+      "count": 80
+    },
+    {
+      "label": "Models",
+      "count": 48
+    },
+    {
+      "label": "UI/UX",
+      "count": 48
+    },
+    {
+      "label": "Assistant",
+      "count": 31
+    },
+    {
+      "label": "MCP",
+      "count": 17
+    },
+    {
+      "label": "help wanted",
+      "count": 15
+    },
+    {
+      "label": "discussion",
+      "count": 14
+    },
+    {
+      "label": "needs-repro",
+      "count": 13
+    },
+    {
+      "label": "Data",
+      "count": 10
+    },
+    {
+      "label": "Performance",
+      "count": 7
+    },
+    {
+      "label": "Connectivity",
+      "count": 7
+    }
+  ],
+  "no_label_issues": {
+    "count": 94,
+    "pct": 11.5,
+    "action": "Need triage and labeling"
   },
   "p1_issues": [
     {
       "number": 12966,
-      "title": "[URGENT] Unanswered Critical Security Advisory (GHSA-qmgw-45x4-3626) - Pending T",
-      "health": "Active",
-      "priority": 1,
-      "category": "Uncategorized",
-      "labels": [
-        "BUG",
-        "P1",
-        "inactive"
-      ],
-      "days_idle": 2
+      "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
+      "age_days": 69,
+      "status": "open, inactive-labeled"
+    },
+    {
+      "number": 13193,
+      "title": "Azure OpenAI Resource not found (responses API regression)",
+      "age_days": 56,
+      "assignee": "DeJeune"
+    },
+    {
+      "number": 13608,
+      "title": "xiaomi mimo response only shows last line",
+      "age_days": 42
     }
-  ],
-  "p2_issues": [
-    {
-      "number": 13708,
-      "title": "[Feature]: Re-enable temporarily disabled type-aware oxlint rules",
-      "health": "Active",
-      "priority": 2,
-      "category": "Uncategorized",
-      "labels": [
-        "P2",
-        "feature",
-        "inactive"
-      ],
-      "days_idle": 2
-    },
-    {
-      "number": 13756,
-      "title": "[Feature]: Evaluate migrating API server from Express to a modern TypeScript-nat",
-      "health": "Active",
-      "priority": 2,
-      "category": "Uncategorized",
-      "labels": [
-        "P2",
-        "feature",
-        "inactive"
-      ],
-      "days_idle": 2
-    },
-    {
-      "number": 13187,
-      "title": "[Bug]: New version freezes with no response when clicking",
-      "health": "Aging",
-      "priority": 2,
-      "category": "UI/UX",
-      "labels": [
-        "P2",
-        "macOS",
-        "needs-repro",
-        "UI/UX",
-        "Performance",
-        "inactive"
-      ],
-      "days_idle": 8
-    },
-    {
-      "number": 13602,
-      "title": "[Bug]: The agent cannot use Ollama deployed on the local network.",
-      "health": "Aging",
-      "priority": 2,
-      "category": "Connectivity",
-      "labels": [
-        "P2",
-        "Connectivity",
-        "inactive",
-        "Agent"
-      ],
-      "days_idle": 8
-    },
-    {
-      "number": 13194,
-      "title": "[Bug]: VertexAI Provider Data Storage Architecture Flaw - Type Mismatch with Act",
-      "health": "Aging",
-      "priority": 2,
-      "category": "Data",
-      "labels": [
-        "BUG",
-        "P2",
-        "Data"
-      ],
-      "days_idle": 11
-    },
-    {
-      "number": 13961,
-      "title": "[Bug]: Assistant silently hangs after MCP tool call due to missing error handlin",
-      "health": "Aging",
-      "priority": 2,
-      "category": "MCP",
-      "labels": [
-        "P2",
-        "MCP",
-        "Assistant"
-      ],
-      "days_idle": 15
-    }
-  ],
-  "stale_issues": [],
-  "zombie_issues": [],
-  "inactive_labeled": 80
+  ]
 }
