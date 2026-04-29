@@ -43,7 +43,12 @@ export const UpdateTopicSchema = TopicSchema.pick({
   sortOrder: true,
   isPinned: true,
   pinnedOrder: true
-}).partial()
+})
+  .partial()
+  .extend({
+    /** Cache expiration reminder toggle */
+    enableCacheReminder: z.boolean().optional()
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**

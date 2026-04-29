@@ -1381,6 +1381,9 @@
     "thinking": "思考中（用时 {{seconds}} 秒）",
     "topics": {
       "auto_rename": "生成话题名",
+      "cache_reminder": {
+        "label": "缓存到期提醒"
+      },
       "clear": {
         "title": "清空消息"
       },

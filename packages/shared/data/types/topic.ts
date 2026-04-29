@@ -32,6 +32,8 @@ export const TopicSchema = z.strictObject({
   isPinned: z.boolean(),
   /** Pinned order */
   pinnedOrder: z.number(),
+  /** Cache expiration reminder toggle */
+  enableCacheReminder: z.boolean().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

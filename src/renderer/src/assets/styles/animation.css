@@ -126,3 +126,36 @@
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
 }
+
+/* Cache reminder breathing indicator */
+@keyframes animation-cache-warning {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes animation-cache-critical {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animation-cache-warning {
+  animation: animation-cache-warning 1.5s ease-in-out infinite;
+}
+
+.animation-cache-critical {
+  animation: animation-cache-critical 0.8s ease-in-out infinite;
+}

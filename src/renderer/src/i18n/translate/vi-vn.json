@@ -1381,6 +1381,9 @@
     "thinking": "Đang suy nghĩ ({{seconds}} giây)",
     "topics": {
       "auto_rename": "Umbenennen automatisieren",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Tin nhắn rõ ràng"
       },

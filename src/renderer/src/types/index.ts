@@ -279,6 +279,7 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  enableCacheReminder?: boolean
 }
 
 export type User = {

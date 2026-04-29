@@ -1381,6 +1381,9 @@
     "thinking": "Σκέψη",
     "topics": {
       "auto_rename": "Δημιουργία θέματος",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Καθαρισμός μηνυμάτων"
       },

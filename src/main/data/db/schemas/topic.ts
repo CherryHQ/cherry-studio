@@ -31,6 +31,8 @@ export const topicTable = sqliteTable(
     // Pinning state and order
     isPinned: integer({ mode: 'boolean' }).default(false),
     pinnedOrder: integer().default(0),
+    // Cache expiration reminder toggle for prompt caching models (e.g., Claude Opus 4.7 with 5-min cache)
+    enableCacheReminder: integer({ mode: 'boolean' }).default(false),
 
     ...createUpdateDeleteTimestamps
   },

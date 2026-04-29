@@ -1381,6 +1381,9 @@
     "thinking": "Gândire ({{seconds}} secunde)",
     "topics": {
       "auto_rename": "Redenumire automată",
+      "cache_reminder": {
+        "label": "[to be translated]:Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Șterge mesajele"
       },

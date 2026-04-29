@@ -11,6 +11,7 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { isMac } from '@renderer/config/constant'
 import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { getTopicCacheState, useCacheReminderTimer } from '@renderer/hooks/useCacheReminderTimer'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -86,6 +87,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
+
+  const cacheReminderEnabled = activeTopic.enableCacheReminder ?? false
+  useCacheReminderTimer(activeTopic.id, cacheReminderEnabled)
+
+  const getCacheState = useCallback((topicId: string, enabled: boolean) => {
+    if (!enabled) return 'inactive'
+    return getTopicCacheState(topicId)
+  }, [])
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
@@ -341,6 +350,15 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         icon: topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
         onClick() {
           onPinTopic(topic)
+        }
+      },
+      {
+        label: t('chat.topics.cache_reminder.label'),
+        key: 'cache-reminder',
+        onClick() {
+          const updatedTopic = { ...topic, enableCacheReminder: !topic.enableCacheReminder }
+          updateTopic(updatedTopic)
+          topic.id === activeTopic.id && setActiveTopic(updatedTopic)
         }
       },
       {
@@ -648,6 +666,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
                 {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                {topic.enableCacheReminder && getCacheState(topic.id, !!topic.enableCacheReminder) !== 'inactive' && (
+                  <CacheReminderIndicator $state={getCacheState(topic.id, !!topic.enableCacheReminder)} />
+                )}
                 <TopicNameContainer>
                   {isManageMode && (
                     <SelectIcon className={!canSelect ? 'disabled' : ''}>
@@ -854,6 +875,30 @@ const FulfilledIndicator = styled.div.attrs({
   top: 15px;
   border-radius: 50%;
   background-color: var(--color-status-success);
+`
+
+const CacheReminderIndicator = styled.div<{ $state: string }>`
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  ${({ $state }) => {
+    switch ($state) {
+      case 'warning':
+        return 'background-color: #eab308;'
+      case 'critical':
+        return 'background-color: #ef4444;'
+      default:
+        return 'background-color: #22c55e;'
+    }
+  }}
+  ${({ $state }) => {
+    if ($state === 'critical') return 'animation: animation-cache-critical 0.8s ease-in-out infinite;'
+    if ($state === 'warning') return 'animation: animation-cache-warning 1.5s ease-in-out infinite;'
+    return ''
+  }}
 `
 
 const TopicPromptText = styled.div`

@@ -1381,6 +1381,9 @@
     "thinking": "Thinking ({{seconds}} seconds)",
     "topics": {
       "auto_rename": "Auto Rename",
+      "cache_reminder": {
+        "label": "Cache Expiration Reminder"
+      },
       "clear": {
         "title": "Clear Messages"
       },

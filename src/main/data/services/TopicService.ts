@@ -33,6 +33,7 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
     sortOrder: row.sortOrder ?? 0,
     isPinned: row.isPinned ?? false,
     pinnedOrder: row.pinnedOrder ?? 0,
+    enableCacheReminder: row.enableCacheReminder ?? false,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -158,6 +159,7 @@ export class TopicService {
     if (dto.sortOrder !== undefined) updates.sortOrder = dto.sortOrder
     if (dto.isPinned !== undefined) updates.isPinned = dto.isPinned
     if (dto.pinnedOrder !== undefined) updates.pinnedOrder = dto.pinnedOrder
+    if (dto.enableCacheReminder !== undefined) updates.enableCacheReminder = dto.enableCacheReminder
 
     const [row] = await db.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
 
