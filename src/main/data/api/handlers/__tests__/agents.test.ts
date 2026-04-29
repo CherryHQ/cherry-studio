@@ -20,6 +20,8 @@ const {
   getTaskMock,
   updateTaskMock,
   deleteTaskMock,
+  startLoopMock,
+  syncSchedulerMock,
   listSkillsMock,
   getSkillByIdMock
 } = vi.hoisted(() => ({
@@ -41,6 +43,8 @@ const {
   getTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   deleteTaskMock: vi.fn(),
+  startLoopMock: vi.fn(),
+  syncSchedulerMock: vi.fn(),
   listSkillsMock: vi.fn(),
   getSkillByIdMock: vi.fn()
 }))
@@ -87,6 +91,13 @@ vi.mock('@main/services/agents/skills/SkillService', () => ({
   skillService: {
     list: listSkillsMock,
     getById: getSkillByIdMock
+  }
+}))
+
+vi.mock('@main/services/agents/services/SchedulerService', () => ({
+  schedulerService: {
+    startLoop: startLoopMock,
+    syncScheduler: syncSchedulerMock
   }
 }))
 
@@ -357,7 +368,7 @@ describe('agentHandlers', () => {
       expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
     })
 
-    it('delegates POST to taskService.createTask', async () => {
+    it('delegates POST to taskService.createTask and starts the scheduler loop', async () => {
       createTaskMock.mockResolvedValueOnce(mockTask)
 
       const result = await agentHandlers['/agents/:agentId/tasks'].POST({
@@ -366,6 +377,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(createTaskMock).toHaveBeenCalledOnce()
+      expect(startLoopMock).toHaveBeenCalledOnce()
       expect(result).toMatchObject({ id: TASK_ID })
     })
 
@@ -394,8 +406,9 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates PATCH and returns updated task', async () => {
+    it('delegates PATCH, syncs the scheduler, and returns updated task', async () => {
       updateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
+      syncSchedulerMock.mockResolvedValueOnce(undefined)
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId'].PATCH({
         params: { agentId: AGENT_ID, taskId: TASK_ID },
@@ -403,6 +416,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(updateTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID, expect.objectContaining({ name: 'Updated' }))
+      expect(syncSchedulerMock).toHaveBeenCalledOnce()
       expect(result).toMatchObject({ name: 'Updated' })
     })
 
@@ -417,8 +431,9 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE', async () => {
+    it('delegates DELETE and syncs the scheduler', async () => {
       deleteTaskMock.mockResolvedValueOnce(true)
+      syncSchedulerMock.mockResolvedValueOnce(undefined)
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId'].DELETE({
@@ -427,6 +442,7 @@ describe('agentHandlers', () => {
       ).resolves.toBeUndefined()
 
       expect(deleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
+      expect(syncSchedulerMock).toHaveBeenCalledOnce()
     })
 
     it('throws notFound when task does not exist on DELETE', async () => {

@@ -49,6 +49,7 @@ describe('useUpdateAgent', () => {
       const { result } = renderHook(() => useUpdateAgent())
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }))
 
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' }, body: { name: 'Updated' } })
       expect(updated).toBeDefined()
       expect(updated?.id).toBe('agent-1')
       // Zod defaults should be applied
@@ -131,12 +132,10 @@ describe('useUpdateAgent', () => {
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateModel('agent-1', 'new-model'))
 
-      expect(mockTrigger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          params: { agentId: 'agent-1' },
-          body: expect.objectContaining({ model: 'new-model' })
-        })
-      )
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        body: { model: 'new-model' }
+      })
     })
   })
 })

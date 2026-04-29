@@ -20,9 +20,10 @@ export const useUpdateSession = (agentId: string | null) => {
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       if (!agentId) return
       try {
+        const { id, ...patch } = form
         const result = await updateTrigger({
-          params: { agentId, sessionId: form.id },
-          body: form
+          params: { agentId, sessionId: id },
+          body: patch
         })
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))

@@ -18,7 +18,8 @@ export const useUpdateAgent = () => {
   const updateAgent: UpdateAgentFunction = useCallback(
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
-        const result = await updateTrigger({ params: { agentId: form.id }, body: form })
+        const { id, ...patch } = form
+        const result = await updateTrigger({ params: { agentId: id }, body: patch })
         if (options?.showSuccessToast ?? true) {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
@@ -28,10 +29,10 @@ export const useUpdateAgent = () => {
         // Other sessions refresh via SWR stale-while-revalidate when navigated to.
         // Using cacheService.get() instead of useCache to avoid adding reactive deps to useCallback.
         const activeSessionIdMap = cacheService.get('agent.session.active_id_map') ?? {}
-        const activeSessionId = activeSessionIdMap?.[form.id]
+        const activeSessionId = activeSessionIdMap?.[id]
         if (activeSessionId) {
           // Key must be the array form [path] to match useQuery's buildSWRKey output
-          void mutate([`/agents/${form.id}/sessions/${activeSessionId}`])
+          void mutate([`/agents/${id}/sessions/${activeSessionId}`])
         }
 
         // Apply Zod defaults to configuration (DataAPI returns Record<string, unknown>)

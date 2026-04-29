@@ -9,6 +9,9 @@ const {
   deleteChannelMock,
   syncChannelMock,
   disconnectChannelMock,
+  startLoopMock,
+  syncSchedulerMock,
+  getTaskMock,
   getTaskLogsMock
 } = vi.hoisted(() => ({
   listChannelsMock: vi.fn(),
@@ -18,6 +21,9 @@ const {
   deleteChannelMock: vi.fn(),
   syncChannelMock: vi.fn(),
   disconnectChannelMock: vi.fn(),
+  startLoopMock: vi.fn(),
+  syncSchedulerMock: vi.fn(),
+  getTaskMock: vi.fn(),
   getTaskLogsMock: vi.fn()
 }))
 
@@ -38,8 +44,16 @@ vi.mock('@main/services/agents/services/channels', () => ({
   }
 }))
 
+vi.mock('@main/services/agents/services/SchedulerService', () => ({
+  schedulerService: {
+    startLoop: startLoopMock,
+    syncScheduler: syncSchedulerMock
+  }
+}))
+
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
+    getTask: getTaskMock,
     getTaskLogs: getTaskLogsMock
   }
 }))
@@ -221,6 +235,7 @@ describe('agentHandlers — channels', () => {
 
   describe('/agents/:agentId/tasks/:taskId/logs', () => {
     it('GET returns paginated logs for a task', async () => {
+      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
       getTaskLogsMock.mockResolvedValueOnce({ logs: [mockLog], total: 1 })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
@@ -228,11 +243,13 @@ describe('agentHandlers — channels', () => {
         query: { page: 1, limit: 20 }
       } as never)
 
+      expect(getTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
       expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 20, offset: 0 })
       expect(result).toMatchObject({ items: [mockLog], total: 1, page: 1 })
     })
 
     it('GET uses default pagination when no query is provided', async () => {
+      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
       getTaskLogsMock.mockResolvedValueOnce({ logs: [], total: 0 })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
@@ -241,6 +258,19 @@ describe('agentHandlers — channels', () => {
 
       expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 50, offset: 0 })
       expect(result).toMatchObject({ items: [], total: 0, page: 1 })
+    })
+
+    it('GET throws NOT_FOUND when the task does not belong to the agent', async () => {
+      getTaskMock.mockResolvedValueOnce(null)
+
+      await expect(
+        agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
+          params: { agentId: AGENT_ID, taskId: TASK_ID },
+          query: { page: 1, limit: 20 }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      expect(getTaskLogsMock).not.toHaveBeenCalled()
     })
   })
 })

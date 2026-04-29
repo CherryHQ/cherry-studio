@@ -51,9 +51,10 @@ describe('useUpdateSession', () => {
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1', model: 'claude-3' }))
 
-    expect(mockTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({ params: { agentId: 'agent-1', sessionId: 'session-1' } })
-    )
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { agentId: 'agent-1', sessionId: 'session-1' },
+      body: { model: 'claude-3' }
+    })
     expect(updated).toBeDefined()
     // Zod defaults should be applied
     expect(updated?.configuration?.permission_mode).toBe('default')
@@ -113,12 +114,10 @@ describe('useUpdateSession', () => {
       const { result } = renderHook(() => useUpdateSession('agent-1'))
       await act(async () => result.current.updateModel('session-1', 'new-model'))
 
-      expect(mockTrigger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          params: { agentId: 'agent-1', sessionId: 'session-1' },
-          body: expect.objectContaining({ model: 'new-model' })
-        })
-      )
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1', sessionId: 'session-1' },
+        body: { model: 'new-model' }
+      })
     })
   })
 })

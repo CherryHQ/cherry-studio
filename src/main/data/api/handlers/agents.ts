@@ -15,6 +15,7 @@ import { agentSessionMessageService as sessionMessageService } from '@data/servi
 import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { channelManager } from '@main/services/agents/services/channels'
+import { schedulerService } from '@main/services/agents/services/SchedulerService'
 import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
@@ -144,7 +145,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = CreateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await taskService.createTask(params.agentId, parsed.data)
+      const task = await taskService.createTask(params.agentId, parsed.data)
+      schedulerService.startLoop()
+      return task
     }
   },
 
@@ -160,12 +163,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       if (!parsed.success) throw toDataApiError(parsed.error)
       const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+      await schedulerService.syncScheduler()
       return task
     },
 
     DELETE: async ({ params }) => {
       const deleted = await taskService.deleteTask(params.agentId, params.taskId)
       if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
+      await schedulerService.syncScheduler()
       return undefined
     }
   },
@@ -228,6 +233,8 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agents/:agentId/tasks/:taskId/logs': {
     GET: async ({ params, query }) => {
+      const task = await taskService.getTask(params.agentId, params.taskId)
+      if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       const { page, limit, offset } = paginationFromQuery(query)
       const { logs, total } = await taskService.getTaskLogs(params.taskId, { limit, offset })
       return { items: logs, total, page }

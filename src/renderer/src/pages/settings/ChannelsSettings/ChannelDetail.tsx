@@ -399,7 +399,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         type: channelDef.type,
         name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
         config: channelDef.defaultConfig,
-        is_active: true
+        isActive: true
       })
       setEditingChannelId(newChannel.id)
     } catch {
@@ -412,10 +412,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       try {
         const apiUpdates: Record<string, unknown> = {}
         if (updates.name !== undefined) apiUpdates.name = updates.name
-        if (updates.agentId !== undefined) apiUpdates.agent_id = updates.agentId
+        if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
         if (updates.config !== undefined) apiUpdates.config = updates.config
-        if (updates.isActive !== undefined) apiUpdates.is_active = updates.isActive
-        if (updates.permissionMode !== undefined) apiUpdates.permission_mode = updates.permissionMode
+        if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
+        if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
         await updateChannel(channelId, apiUpdates)
       } catch {
