@@ -6,6 +6,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useLegacyAgentReorderClient } from './useLegacyAgentReorderClient'
 type Result<T> =
   | {
       success: true
@@ -21,6 +22,7 @@ export const useAgents = () => {
   const { data, isLoading, error, refetch } = useQuery('/agents')
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const [activeAgentId] = useCache('agent.active_id')
+  const legacyReorderClient = useLegacyAgentReorderClient()
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
@@ -61,13 +63,16 @@ export const useAgents = () => {
     async (reorderedList: AgentEntity[]) => {
       const orderedIds = reorderedList.map((a) => a.id)
       try {
-        await window.api.agent.reorderAgents(orderedIds)
+        if (!legacyReorderClient) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        await legacyReorderClient.reorderAgents(orderedIds)
         refetch()
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
-    [refetch, t]
+    [legacyReorderClient, refetch, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, reorderAgents }

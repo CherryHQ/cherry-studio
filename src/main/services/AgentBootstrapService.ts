@@ -1,8 +1,6 @@
-import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { ModelsService } from '@main/apiServer/services/models'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { modelsService } from '@main/apiServer/services/models'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { extractRtkBinaries } from '../utils/rtk'
@@ -22,6 +20,7 @@ const logger = loggerService.withContext('AgentBootstrapService')
  */
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ApiServerService'])
 export class AgentBootstrapService extends BaseService {
   protected async onReady(): Promise<void> {
     await this.extractRtkBinaries()
@@ -35,26 +34,11 @@ export class AgentBootstrapService extends BaseService {
     registerSessionStreamIpc()
     logger.info('Session stream IPC registered')
 
-    this.ipcHandle(IpcChannel.Agent_ReorderAgents, async (_, orderedIds: string[]) => {
-      // TODO: migrate to DataAPI PATCH /agents/:id/order (fractional indexing)
-      // when orderKey column is added to agentTable.
-      // See docs/references/data/data-ordering-guide.md
-      await agentService.reorderAgents(orderedIds)
-    })
-
-    this.ipcHandle(IpcChannel.Agent_ReorderSessions, async (_, agentId: string, orderedIds: string[]) => {
-      // TODO: migrate to DataAPI PATCH /agents/:agentId/sessions/:id/order
-      // when orderKey column is added to agentSessionTable.
-      // See docs/references/data/data-ordering-guide.md
-      await agentSessionService.reorderSessions(agentId, orderedIds)
-    })
-
     this.ipcHandle(IpcChannel.Agent_RunTask, async (_, agentId: string, taskId: string) => {
       await schedulerService.runTaskNow(agentId, taskId)
     })
 
-    this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<ModelsService['getModels']>[0]) => {
-      const modelsService = new ModelsService()
+    this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<typeof modelsService.getModels>[0]) => {
       return modelsService.getModels(filter)
     })
 

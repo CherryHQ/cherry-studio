@@ -1,22 +1,10 @@
-import type { ApiModel, ApiModelsFilter } from '@renderer/types'
-import { useEffect, useState } from 'react'
+import { type ApiModelsFilter, ApiModelsResponseSchema } from '@renderer/types'
+import useSWRImmutable from 'swr/immutable'
 
 export const useApiModels = (filter?: ApiModelsFilter) => {
-  const [models, setModels] = useState<ApiModel[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const { data, error, isLoading } = useSWRImmutable(['agent-models', filter ?? {}] as const, ([, currentFilter]) =>
+    window.api.agent.getModels(currentFilter).then((res) => ApiModelsResponseSchema.parse(res).data)
+  )
 
-  useEffect(() => {
-    setIsLoading(true)
-    window.api.agent
-      .getModels(filter ?? {})
-      .then((res: any) => {
-        setModels(res.data ?? [])
-        setError(null)
-      })
-      .catch((err: Error) => setError(err))
-      .finally(() => setIsLoading(false))
-  }, [JSON.stringify(filter)]) // stable dep
-
-  return { models, error, isLoading }
+  return { models: data ?? [], error, isLoading }
 }

@@ -1,12 +1,13 @@
 import { cacheService } from '@data/CacheService'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AgentEntity, UpdateAgentForm } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
+
+import { parseAgentConfiguration } from './utils'
 
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
@@ -36,7 +37,7 @@ export const useUpdateAgent = () => {
         // Apply Zod defaults to configuration (DataAPI returns Record<string, unknown>)
         return {
           ...(result as unknown as AgentEntity),
-          configuration: result.configuration != null ? AgentConfigurationSchema.parse(result.configuration) : undefined
+          configuration: parseAgentConfiguration(result.configuration)
         }
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))

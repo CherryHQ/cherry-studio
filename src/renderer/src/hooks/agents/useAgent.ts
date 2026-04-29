@@ -1,7 +1,8 @@
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { GetAgentResponse } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import { useMemo } from 'react'
+
+import { parseAgentConfiguration } from './utils'
 
 export const useAgent = (id: string | null) => {
   const { data, error, isLoading, refetch } = useQuery('/agents/:agentId', {
@@ -24,7 +25,7 @@ export const useAgent = (id: string | null) => {
     if (!data) return undefined
     return {
       ...(data as unknown as GetAgentResponse),
-      configuration: data.configuration != null ? AgentConfigurationSchema.parse(data.configuration) : undefined
+      configuration: parseAgentConfiguration(data.configuration)
     }
   }, [data])
 

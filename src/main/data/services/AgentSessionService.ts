@@ -12,6 +12,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
+  AgentConfigurationSchema,
   type AgentSessionEntity,
   type CreateSessionDto,
   type UpdateSessionDto
@@ -40,7 +41,8 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
     model: row.model as string,
-    accessiblePaths: row.accessiblePaths as string[]
+    accessiblePaths: row.accessiblePaths as string[],
+    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined
   }
 }
 
@@ -50,6 +52,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
     accessiblePaths: row.accessiblePaths,
+    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

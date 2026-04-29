@@ -33,7 +33,28 @@ export const AgentToolSchema = z.strictObject({
 })
 export type AgentTool = z.infer<typeof AgentToolSchema>
 
-export const AgentConfigurationSchema = z.record(z.string(), z.unknown())
+export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+
+export const AgentConfigurationSchema = z
+  .object({
+    avatar: z.string().optional(),
+    slash_commands: z.array(z.string()).optional(),
+    permission_mode: AgentPermissionModeSchema.optional().default('default'),
+    max_turns: z.number().optional().default(100),
+    env_vars: z.record(z.string(), z.string()).optional().default({}),
+    soul_enabled: z.boolean().optional(),
+    bootstrap_completed: z.boolean().optional(),
+    scheduler_enabled: z.boolean().optional(),
+    scheduler_type: AgentSchedulerTypeSchema.optional(),
+    scheduler_cron: z.string().optional(),
+    scheduler_interval: z.number().optional(),
+    scheduler_one_time_delay: z.number().optional(),
+    scheduler_last_run: z.string().optional(),
+    heartbeat_enabled: z.boolean().optional(),
+    heartbeat_interval: z.number().optional()
+  })
+  .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 // ============================================================================

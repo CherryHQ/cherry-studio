@@ -478,8 +478,6 @@ export enum IpcChannel {
   WindowManager_Reused = 'window-manager:reused',
 
   // Agent operations
-  Agent_ReorderAgents = 'agent:reorder-agents',
-  Agent_ReorderSessions = 'agent:reorder-sessions',
   Agent_RunTask = 'agent:run-task',
   Agent_GetModels = 'agent:get-models'
 

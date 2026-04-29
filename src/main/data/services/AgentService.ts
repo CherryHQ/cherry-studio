@@ -13,6 +13,7 @@ import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/se
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
+  AgentConfigurationSchema,
   type AgentEntity,
   type CreateAgentDto,
   type UpdateAgentDto
@@ -29,6 +30,7 @@ function rowToAgent(row: AgentRow): AgentEntity {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     accessiblePaths: row.accessiblePaths,
+    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

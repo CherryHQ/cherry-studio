@@ -1,10 +1,11 @@
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AgentSessionEntity, UpdateSessionForm } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { parseAgentConfiguration } from './utils'
 
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
@@ -29,7 +30,7 @@ export const useUpdateSession = (agentId: string | null) => {
         // Apply Zod defaults to configuration (DataAPI returns Record<string, unknown>)
         return {
           ...(result as unknown as AgentSessionEntity),
-          configuration: result.configuration != null ? AgentConfigurationSchema.parse(result.configuration) : undefined
+          configuration: parseAgentConfiguration(result.configuration)
         }
       } catch (error) {
         window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
