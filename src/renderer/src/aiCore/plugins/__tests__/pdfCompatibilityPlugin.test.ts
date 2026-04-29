@@ -7,7 +7,8 @@ vi.mock('i18next', () => ({
 }))
 
 vi.mock('@renderer/config/models', () => ({
-  isAnthropicModel: vi.fn(() => false)
+  isAnthropicModel: vi.fn(() => false),
+  isGeminiModel: vi.fn(() => false)
 }))
 
 vi.mock('@renderer/config/models/openai', () => ({
@@ -33,7 +34,7 @@ vi.stubGlobal('window', {
   }
 })
 
-import { isAnthropicModel } from '@renderer/config/models'
+import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 
 import { createPdfCompatibilityPlugin } from '../pdfCompatibilityPlugin'
@@ -83,6 +84,7 @@ describe('pdfCompatibilityPlugin', () => {
     vi.clearAllMocks()
     vi.mocked(isOpenAILLMModel).mockReturnValue(false)
     vi.mocked(isAnthropicModel).mockReturnValue(false)
+    vi.mocked(isGeminiModel).mockReturnValue(false)
   })
 
   it('should pass through for OpenAI model on any provider type', async () => {
@@ -115,14 +117,18 @@ describe('pdfCompatibilityPlugin', () => {
     // A Gemini-named model through GitHub Copilot (type: 'openai') uses OpenAI-compatible
     // format which does NOT support native PDF file parts (would cause 400 "type has to be
     // either 'image_url' or 'text'" errors). PDF must be converted to text.
+    // Mocking isGeminiModel(true) ensures this test would fail under the old
+    // `isGeminiModel(model)` branch — i.e. it now actually guards the regression.
+    vi.mocked(isGeminiModel).mockReturnValue(true)
     const provider = makeProvider('copilot', 'openai')
+    const geminiModel = { ...makeModel(), id: 'gemini-3.1-pro-preview' }
     mockExtractPdfText.mockResolvedValue('Extracted PDF content')
 
     const params = {
       prompt: [{ role: 'user' as const, content: [makeTextPart('Hello'), makePdfFilePart('report.pdf')] }]
     } as unknown as LanguageModelV3CallOptions
 
-    const result = await runMiddleware(provider, params)
+    const result = await runMiddleware(provider, params, geminiModel)
     expect(mockExtractPdfText).toHaveBeenCalledWith('base64pdfdata')
     expect(result.prompt[0]).toMatchObject({
       role: 'user',
