@@ -67,7 +67,7 @@ export const useAgents = () => {
           throw new Error(t('apiServer.messages.notEnabled'))
         }
         await legacyReorderClient.reorderAgents(orderedIds)
-        refetch()
+        await refetch()
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }

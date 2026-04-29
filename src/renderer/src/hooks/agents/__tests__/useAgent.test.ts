@@ -105,7 +105,7 @@ describe('useAgent', () => {
 
     const { result } = renderHook(() => useAgent('agent-1'))
 
-    result.current.revalidate()
+    void result.current.revalidate()
     expect(mockRefetch).toHaveBeenCalled()
   })
 })
