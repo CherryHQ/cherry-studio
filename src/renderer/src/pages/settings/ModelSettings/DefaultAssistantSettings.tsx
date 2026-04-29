@@ -1,11 +1,17 @@
-import { CloseCircleFilled } from '@ant-design/icons'
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Divider,
   EditableNumber,
   Flex,
   HelpTooltip,
   Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   RowFlex,
   Switch,
   Textarea,
@@ -21,7 +27,7 @@ import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Modal, Popover } from 'antd'
+import { CircleX } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -117,28 +123,24 @@ const AssistantSettings: FC = () => {
       style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 10 }}
       theme={theme}>
       <RowFlex className="items-center gap-2" style={{ marginTop: 10 }}>
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
+        <Popover>
           <div className="group/emoji relative inline-block">
-            <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
+            <PopoverTrigger asChild>
+              <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
+            </PopoverTrigger>
             {emoji && (
-              <CloseCircleFilled
-                className="group-hover/emoji:block! absolute top-[-8px] right-[-8px] hidden cursor-pointer text-[#ff4d4f] text-base"
+              <CircleX
+                className="group-hover/emoji:block! absolute top-[-8px] right-[-8px] hidden size-4 cursor-pointer text-destructive"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleEmojiDelete()
                 }}
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: '-8px',
-                  right: '-8px',
-                  fontSize: '16px',
-                  color: '#ff4d4f',
-                  cursor: 'pointer'
-                }}
               />
             )}
           </div>
+          <PopoverContent className="w-auto p-0">
+            <EmojiPicker onEmojiClick={handleEmojiSelect} />
+          </PopoverContent>
         </Popover>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
@@ -321,33 +323,30 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
 
-  const onOk = () => {
-    setOpen(false)
-  }
-
-  const onCancel = () => {
-    setOpen(false)
-  }
-
   const onClose = () => {
+    setOpen(false)
     resolve({})
   }
 
-  DefaultAssistantSettingsPopup.hide = onCancel
+  DefaultAssistantSettingsPopup.hide = onClose
 
   return (
-    <Modal
-      title={t('settings.assistant.title')}
+    <Dialog
       open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      transitionName="animation-move-down"
-      centered
-      width={500}
-      footer={null}>
-      <AssistantSettings />
-    </Modal>
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onClose()
+        } else {
+          setOpen(true)
+        }
+      }}>
+      <DialogContent className="w-[500px]">
+        <DialogHeader>
+          <DialogTitle>{t('settings.assistant.title')}</DialogTitle>
+        </DialogHeader>
+        <AssistantSettings />
+      </DialogContent>
+    </Dialog>
   )
 }
 

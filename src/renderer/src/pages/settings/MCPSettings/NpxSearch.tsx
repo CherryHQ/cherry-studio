@@ -1,12 +1,9 @@
-import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
-import { Badge, Center, Input, RowFlex, Spinner } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Card, Typography } from 'antd'
+import { Check, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +25,6 @@ let _searchResults: SearchResult[] = []
 
 const NpxSearch: FC = () => {
   const { t } = useTranslation()
-  const { Text, Link } = Typography
 
   // Add new state variables for npm scope search
   const [npmScope, setNpmScope] = useState('@modelcontextprotocol')
@@ -145,23 +141,12 @@ const NpxSearch: FC = () => {
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (
-              <Card
-                size="small"
+              <div
                 key={record.name}
-                className="border border-border/60 bg-transparent shadow-none transition-colors hover:bg-accent"
-                style={{
-                  borderRadius: 'var(--radius-lg)',
-                  backgroundColor: 'transparent',
-                  borderColor: 'transparent',
-                  boxShadow: 'none'
-                }}
-                title={
-                  <Typography.Title level={5} style={{ margin: 0 }} className="selectable">
-                    {record.name}
-                  </Typography.Title>
-                }
-                extra={
-                  <Flex>
+                className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
+                <div className="mb-1.5 flex items-start justify-between gap-3">
+                  <h3 className="selectable m-0 min-w-0 truncate font-semibold text-sm leading-6">{record.name}</h3>
+                  <Flex className="shrink-0 items-center gap-1">
                     <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
                       variant="ghost"
@@ -190,20 +175,24 @@ const NpxSearch: FC = () => {
                         }
                       }}
                       disabled={isInstalled}>
-                      {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
+                      {isInstalled ? <Check size={14} className="text-primary" /> : <Plus size={14} />}
                     </Button>
                   </Flex>
-                }>
-                <div className="flex flex-col gap-1">
-                  <Text className="selectable">{record.description}</Text>
-                  <Text type="secondary" className="selectable">
-                    {t('settings.mcp.npx_list.usage')}: {record.usage}
-                  </Text>
-                  <Link href={record.npmLink} target="_blank" rel="noopener noreferrer">
-                    {record.npmLink}
-                  </Link>
                 </div>
-              </Card>
+                <div className="flex flex-col gap-1">
+                  <p className="selectable m-0 text-sm">{record.description}</p>
+                  <p className="selectable m-0 text-muted-foreground text-sm">
+                    {t('settings.mcp.npx_list.usage')}: {record.usage}
+                  </p>
+                  <a
+                    href={record.npmLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="selectable text-link text-sm hover:text-link-hover">
+                    {record.npmLink}
+                  </a>
+                </div>
+              </div>
             )
           })}
         </div>

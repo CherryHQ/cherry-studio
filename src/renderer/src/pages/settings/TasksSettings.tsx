@@ -1,4 +1,3 @@
-import { PlusOutlined } from '@ant-design/icons'
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Badge,
@@ -30,7 +29,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import { DatePicker, Input } from 'antd'
+import { DatePicker } from 'antd'
 import dayjs from 'dayjs'
 import {
   AlertTriangle,
@@ -41,8 +40,10 @@ import {
   Maximize2,
   Pause,
   Play,
+  Plus,
   Search,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -591,14 +592,24 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
   return (
     <div className="flex flex-col gap-2">
-      <Input
-        size="small"
-        prefix={<Search size={12} className="text-(--color-foreground-muted)" />}
-        placeholder={t('agent.cherryClaw.tasks.logs.search', 'Search logs...')}
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        allowClear
-      />
+      <div className="relative">
+        <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-3 text-muted-foreground" />
+        <UIInput
+          placeholder={t('agent.cherryClaw.tasks.logs.search', 'Search logs...')}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          className="h-8 pr-8 pl-7 text-xs"
+        />
+        {searchText && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground shadow-none"
+            onClick={() => setSearchText('')}>
+            <X size={12} />
+          </Button>
+        )}
+      </div>
       <DataTable
         data={filteredLogs}
         columns={columns}
@@ -1010,7 +1021,7 @@ const TasksSettings: FC = () => {
           <div className="flex items-center justify-between">
             <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
             <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
-              <PlusOutlined />
+              <Plus size={14} />
             </Button>
           </div>
           <div className="flex flex-col gap-1">
