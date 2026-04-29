@@ -15,6 +15,7 @@ import {
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 // import { generateObject } from '@cherrystudio/ai-core'
+import { isDeepSeekModel } from '@renderer/config/models'
 import {
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
@@ -331,7 +332,8 @@ export const searchOrchestrationPlugin = (
             params.tools[BUILTIN_WEB_SEARCH_TOOL_NAME] = webSearchToolWithPreExtractedKeywords(
               assistant.webSearchProviderId,
               analysisResult.websearch,
-              context.requestId
+              context.requestId,
+              isDeepSeekModel(assistant.model)
             )
 
             const prepareStep = params.prepareStep

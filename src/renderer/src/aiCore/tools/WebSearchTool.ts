@@ -41,7 +41,8 @@ export const webSearchToolWithPreExtractedKeywords = (
     question: string[]
     links?: string[]
   },
-  requestId: string
+  requestId: string,
+  isDeepSeekModel = false
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
   let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
@@ -119,6 +120,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         '{question}',
         "Based on the search results, please answer the user's question with proper citations."
       ).replace('{references}', referenceContent)
+      const instructions = isDeepSeekModel ? `${fullInstructions}\n- Do not output DSML tags` : fullInstructions
       return {
         type: 'content',
         value: [
@@ -132,7 +134,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           },
           {
             type: 'text',
-            text: fullInstructions
+            text: instructions
           }
         ]
       }
