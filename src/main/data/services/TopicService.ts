@@ -425,6 +425,9 @@ export class TopicService {
     })
   }
 
+  /**
+   * Set the active node for a topic
+   */
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
 
