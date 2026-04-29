@@ -1,11 +1,11 @@
 /**
- * Per-topic stream state derived from the shared `topic.stream.statuses`
- * Record. Main owns the Record (`AiStreamManager.broadcastTopicStatus` →
- * `cacheService.setShared`), renderers read it via `useSharedCache` + a
- * memoised selector.
+ * Per-topic stream state read from the shared
+ * `topic.stream.statuses.${topicId}` template key. Main owns the entry
+ * (`AiStreamManager.broadcastTopicStatus` → `cacheService.setShared`),
+ * each renderer reads only the topic it cares about.
  *
- * Terminal states linger in the Main-side Record until each window
- * flips its local `topic.stream.seen.*` flag, at which point the
+ * Terminal states linger in the Main-side entry until each window flips
+ * its local `topic.stream.seen.${topicId}` flag, at which point the
  * fulfilled indicator stops surfacing in that window specifically. The
  * "seen" state is window-local so one window dismissing the badge
  * doesn't hide it in another.
@@ -28,10 +28,9 @@ interface TopicStreamStatusView {
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
-  const [statuses] = useSharedCache('topic.stream.statuses')
+  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
   const [seen, setSeen] = useCache(`topic.stream.seen.${topicId}` as const)
 
-  const entry = statuses?.[topicId]
   const status = entry?.status
   const activeExecutionIds = useMemo(() => entry?.activeExecutionIds ?? [], [entry])
 

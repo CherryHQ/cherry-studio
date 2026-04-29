@@ -1,3 +1,4 @@
+import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -250,7 +251,7 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
-  'topic.stream.statuses': CacheValueTypes.CacheTopicStreamStatuses
+  'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.cache_version': number
   'agent_session.cache_version': number
   // API key rotation state (cross-window, tracks last used key per provider)
@@ -260,7 +261,7 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
-  'topic.stream.statuses': {},
+  'topic.stream.statuses.${topicId}': null,
   'topic.cache_version': 0,
   'agent_session.cache_version': 0,
   'web_search.provider.last_used_key.${providerId}': '',

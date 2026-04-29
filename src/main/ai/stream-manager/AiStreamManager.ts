@@ -566,7 +566,7 @@ export class AiStreamManager extends BaseService {
   /**
    * Publish a topic-level status transition to the SharedCache. Every
    * renderer window receives the update via the existing `Cache_Sync`
-   * fan-out and reacts via `useSharedCache('topic.stream.status.*')`.
+   * fan-out and reacts via `useSharedCache('topic.stream.statuses.${topicId}')`.
    * Callers are responsible for updating `stream.status` first so the
    * published value reflects the committed state.
    *
@@ -577,17 +577,14 @@ export class AiStreamManager extends BaseService {
    *
    * The grace-period cleanup does NOT delete the shared entry — a
    * `'done'` / `'aborted'` / `'error'` value lingers until each window
-   * flips its local `topic.stream.seen.*` flag, mirroring the pre-refactor
-   * "fulfilled indicator sticks until the user sees it" behaviour.
+   * flips its local `topic.stream.seen.${topicId}` flag, mirroring the
+   * pre-refactor "fulfilled indicator sticks until the user sees it"
+   * behaviour.
    */
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
     const activeExecutionIds = this.collectActiveExecutionIds(topicId)
     const cacheService = application.get('CacheService')
-    const current = cacheService.getShared('topic.stream.statuses') ?? {}
-    cacheService.setShared('topic.stream.statuses', {
-      ...current,
-      [topicId]: { status, activeExecutionIds }
-    })
+    cacheService.setShared(`topic.stream.statuses.${topicId}` as const, { status, activeExecutionIds })
   }
 
   /**

@@ -32,7 +32,7 @@ export type TopicStreamStatus =
 
 /**
  * Per-topic stream state entry — stored under the shared
- * `topic.stream.statuses` cache key, keyed by topicId.
+ * `topic.stream.statuses.${topicId}` template cache key.
  *
  * `activeExecutionIds` names every execution still in its non-terminal
  * phase (`exec.status === 'streaming'` — set at launch, cleared only by

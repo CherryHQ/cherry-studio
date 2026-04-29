@@ -72,9 +72,6 @@ export function useChatWithHistory(
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
-  // Active execution IDs for this topic come from the shared
-  // `topic.stream.statuses` Record authored by Main's `AiStreamManager`.
-  // An empty / missing entry means "no executions currently running".
   const { status: topicStreamStatus, activeExecutionIds: liveExecutionIds } = useTopicStreamStatus(topicId)
   const activeExecutionIds = liveExecutionIds.length > 0 ? liveExecutionIds : EMPTY_EXECUTIONS
 

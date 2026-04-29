@@ -96,9 +96,9 @@ const mockStreamText = vi.fn<(request: AiStreamRequest) => Promise<ReadableStrea
 
 /**
  * In-memory stand-in for Main's `CacheService`. `AiStreamManager` writes
- * topic status transitions via `setShared('topic.stream.statuses', …)`;
- * tests observe the sequence of writes against this fake and assert the
- * Record's shape at each step.
+ * topic status transitions via `setShared('topic.stream.statuses.${topicId}', …)`
+ * (per-topic template key); tests observe the sequence of writes against
+ * this fake and assert each per-topic value.
  */
 const sharedCacheStore = new Map<string, unknown>()
 const fakeCacheService = {
@@ -775,24 +775,24 @@ describe('AiStreamManager', () => {
 
   // ── Topic status broadcast ──────────────────────────────────────
   //
-  // These tests cover the `topic.stream.statuses` SharedCache entry —
-  // Main's `AiStreamManager.broadcastTopicStatus` writes every state
-  // transition here, and the renderer's `useTopicStreamStatus` hook
-  // reacts via `useSharedCache`. The assertions inspect the sequence
-  // of `setShared` calls to verify both status transitions and
-  // `activeExecutionIds` updates.
+  // These tests cover the `topic.stream.statuses.${topicId}` SharedCache
+  // entries — Main's `AiStreamManager.broadcastTopicStatus` writes every
+  // state transition under the per-topic template key, and the renderer's
+  // `useTopicStreamStatus` hook reacts via `useSharedCache`. The
+  // assertions inspect the sequence of `setShared` calls per topic to
+  // verify both status transitions and `activeExecutionIds` updates.
 
   describe('topic status broadcast', () => {
-    /** Every value written to `topic.stream.statuses` in call order. */
-    const statusWrites = () =>
+    /** Every value written under `topic.stream.statuses.${topicId}` for the given topic. */
+    const statusWritesFor = (topicId: string) =>
       fakeCacheService.setShared.mock.calls
-        .filter(([key]) => key === 'topic.stream.statuses')
-        .map(([, value]) => value as Record<string, { status: string; activeExecutionIds: string[] }>)
+        .filter(([key]) => key === `topic.stream.statuses.${topicId}`)
+        .map(([, value]) => value as { status: string; activeExecutionIds: string[] } | null)
 
     /** Status values for a single topic across every write. */
     const statusSequence = (topicId: string): string[] =>
-      statusWrites()
-        .map((record) => record[topicId]?.status)
+      statusWritesFor(topicId)
+        .map((entry) => entry?.status)
         .filter((s): s is string => s !== undefined)
 
     beforeEach(() => {
@@ -887,9 +887,9 @@ describe('AiStreamManager', () => {
       })
 
       const deltas = () =>
-        statusWrites().map((record) => ({
-          status: record.t?.status,
-          activeExecutionIds: record.t?.activeExecutionIds
+        statusWritesFor('t').map((entry) => ({
+          status: entry?.status,
+          activeExecutionIds: entry?.activeExecutionIds
         }))
 
       // On send all executions are launched → both listed as active.

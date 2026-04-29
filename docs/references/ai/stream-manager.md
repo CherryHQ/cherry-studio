@@ -105,7 +105,7 @@ AiStreamManager 是事件 broker：一端接入若干 producer，一端向若干
 | `WebContentsListener`                       | chunk + terminal | `attach` 显式注册到 `ActiveStream.listeners`    |
 | `PersistenceListener`                       | terminal         | `send()` 时由 provider 构造并一次性注册              |
 | `ChannelAdapterListener` / `SSEListener`    | chunk + terminal | 调用方在构造 `send` 输入时注入                        |
-| UI 间接消费者（sidebar indicator、backup gate 等）   | topic 状态         | `useSharedCache('topic.stream.statuses')` |
+| UI 间接消费者（sidebar indicator 等）                  | topic 状态         | `useSharedCache('topic.stream.statuses.${topicId}')` |
 
 
 ### 两条路径：listener 定向分发 vs SharedCache 镜像
@@ -113,9 +113,9 @@ AiStreamManager 是事件 broker：一端接入若干 producer，一端向若干
 
 |           | Targeted listener（定向分发）                                  | SharedCache 镜像                                                                  |
 | --------- | --------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| 传输        | `Ai_StreamChunk` / `Ai_StreamDone` / `Ai_StreamError`     | Main `cacheService.setShared('topic.stream.statuses', …)` → 内置 `Cache_Sync` 广播 |
+| 传输        | `Ai_StreamChunk` / `Ai_StreamDone` / `Ai_StreamError`     | Main `cacheService.setShared('topic.stream.statuses.${topicId}', …)` → 内置 `Cache_Sync` 广播 |
 | Main 侧注册表 | `ActiveStream.listeners: Map<listenerId, StreamListener>` | 无——依托通用 `CacheService` 基础设施                                                      |
-| 消费侧接入     | `attach` 注册 listener，显式 `detach`                          | `useSharedCache('topic.stream.statuses')` 按 topicId 选择                        |
+| 消费侧接入     | `attach` 注册 listener，显式 `detach`                          | `useSharedCache('topic.stream.statuses.${topicId}')` 按 topicId 直接订阅            |
 | 单事件数据量    | 数十字节至 KB 级（每秒数十条 chunk）                                   | 数十字节（一个流完整生命周期最多 5 次状态迁移）                                                        |
 | 目标消费者规模   | 窄（通常 1 个窗口对应 1 个 listener）                                | 宽（所有窗口的 sidebar 等都关心）                                                              |
 | 无用推送代价    | 高（带宽 + 反序列化）                                              | 可忽略                                                                             |
@@ -133,7 +133,7 @@ AiStreamManager 是事件 broker：一端接入若干 producer，一端向若干
 后面章节的多个设计点都是此分层的自然推论：
 
 - `**Ai_Stream_Attach` 的必要性**：listener 路径要求 consumer 显式声明；`attach` 是注册入口，同时返回 `compact replay` 填补"注册前已产生"的 chunk
-- **Bootstrap 不需要额外 IPC**：新窗口挂载时通过 SharedCache 的 `Cache_GetAllShared` 自动拉取当前所有 shared 状态，`topic.stream.statuses` 无需单独 snapshot IPC
+- **Bootstrap 不需要额外 IPC**：新窗口挂载时通过 SharedCache 的 `Cache_GetAllShared` 自动拉取当前所有 shared 状态，每个 `topic.stream.statuses.${topicId}` 条目无需单独 snapshot IPC
 - **snapshot 与 delta 之间的竞态**：SharedCache 同步机制已经处理（初始拉取与 `Cache_Sync` delta 使用同一份 Main 侧真相源，后到者覆盖）
 - **grace-period cleanup 不清 SharedCache 条目**：终态值（`done` / `aborted` / `error`）保留在 SharedCache，每个窗口通过本地 `topic.stream.seen.${topicId}` 标记"已消费过 fulfilled 动画"；一个窗口的 dismiss 不影响另一个窗口
 - **PersistenceListener 的装配位置**：terminal-only 消费者，不需要 chunk 带宽 → 不用 `attach`；在 `send` 时随 provider 一次性注册即可
@@ -568,7 +568,7 @@ chunk 到达:
   WebContentsListener(B) → B 渲染   (同一 chunk, 双窗口同步)
 ```
 
-**Topic status 不需要 attach**：只关心 "这个 topic 是否有活跃流" 的观察者（侧边栏的 loading 指示、Topics 列表的状态点等）不必注册 `WebContentsListener`。Main 把状态迁移写入 SharedCache 的 `'topic.stream.statuses'` 条目，观察者通过 `useSharedCache('topic.stream.statuses')` 订阅并用 topicId 选择特定条目，即可与 Main 的权威状态保持同步。`Ai_Stream_Attach` 只有当窗口需要接收实时 chunk（例如 Renderer 渲染正在生成的消息）时才用。
+**Topic status 不需要 attach**：只关心 "这个 topic 是否有活跃流" 的观察者（侧边栏的 loading 指示、Topics 列表的状态点等）不必注册 `WebContentsListener`。Main 把每次状态迁移写入 SharedCache 的 `'topic.stream.statuses.${topicId}'` 模板条目，观察者直接 `useSharedCache('topic.stream.statuses.${topicId}')` 订阅自己关心的 topic，即可与 Main 的权威状态保持同步。`Ai_Stream_Attach` 只有当窗口需要接收实时 chunk（例如 Renderer 渲染正在生成的消息）时才用。
 
 ### Channel / Agent 集成
 
@@ -605,7 +605,7 @@ aiStreamManager.send({
 | `Ai_Stream_Detach`     | `{ topicId }`                                                       | void                                        | 取消订阅（流继续执行）                                                                                                                                      |
 | `Ai_Stream_Abort`      | `{ topicId }`                                                       | void                                        | 终止当前生成                                                                                                                                           |
 
-> Topic 状态快照不需要专用 IPC：SharedCache 在新窗口挂载时会通过 `Cache_GetAllShared` 自动拉取 `'topic.stream.statuses'` 条目，观察者就地用 `useSharedCache` 订阅。
+> Topic 状态快照不需要专用 IPC：SharedCache 在新窗口挂载时会通过 `Cache_GetAllShared` 自动拉取所有 `'topic.stream.statuses.${topicId}'` 条目，观察者就地用 `useSharedCache` 订阅自己关心的 topic。
 
 
 ### Push channels (Main → Renderer)
@@ -617,19 +617,19 @@ aiStreamManager.send({
 | `Ai_StreamDone`         | `{ topicId, executionId?, status, isTopicDone }` | `status ∈ { 'success', 'paused' }` 区分正常完成 / 用户 abort；**仅发给 attach 过的窗口**                                                                                                                                          |
 | `Ai_StreamError`        | `{ topicId, executionId?, isTopicDone, error }`  | SerializedError；**仅发给 attach 过的窗口**                                                                                                                                                                               |
 
-Topic-level 状态迁移不走自定义 IPC，改由 SharedCache 条目 `'topic.stream.statuses'` 同步（Main `setShared` → 内置 `Cache_Sync` 广播）。`status ∈ { 'pending', 'streaming', 'done', 'aborted', 'error' }`；`pending` 兼任 "新 stream 创建" 的信号（旧 `Ai_StreamStarted` 已下线）。**grace-period cleanup 不清 SharedCache 条目** — 终态值保留在条目里，每个窗口用本地 `topic.stream.seen.${topicId}` 标记自己"已消费过 fulfilled 动画"。
+Topic-level 状态迁移不走自定义 IPC，改由 SharedCache 模板条目 `'topic.stream.statuses.${topicId}'` 同步（Main `setShared` → 内置 `Cache_Sync` 广播）。`status ∈ { 'pending', 'streaming', 'done', 'aborted', 'error' }`；`pending` 兼任 "新 stream 创建" 的信号（旧 `Ai_StreamStarted` 已下线）。**grace-period cleanup 不清 SharedCache 条目** — 终态值保留在条目里，每个窗口用本地 `topic.stream.seen.${topicId}` 标记自己"已消费过 fulfilled 动画"。
 
 
 **所有通信均以 topicId 为唯一 key**；多模型场景下 `executionId` 区分 chunks 来源。
 
 **Topic status vs message status**：两种状态不要混淆。
 
-- **Topic stream status**（SharedCache 条目 `'topic.stream.statuses'` 暴露）：每个 topic 一条目，`AiStreamManager.ActiveStream.status` 为 source of truth，只在 `ActiveStream` 存活期（+ grace period）内有值。`pending` 表示"流已创建但尚未收到首个 chunk"，`streaming` 表示"至少一个 execution 已产出 chunk，内容正在流动"。
+- **Topic stream status**（SharedCache 模板条目 `'topic.stream.statuses.${topicId}'` 暴露）：每个 topic 一条独立条目，`AiStreamManager.ActiveStream.status` 为 source of truth，只在 `ActiveStream` 存活期（+ grace period）内有值。`pending` 表示"流已创建但尚未收到首个 chunk"，`streaming` 表示"至少一个 execution 已产出 chunk，内容正在流动"。
 - **Assistant message status**（`AssistantMessageStatus`：`PENDING` / `PROCESSING` / `SUCCESS` / `ERROR`）：每条 assistant 消息一个，SQLite 持久化，由 `PersistenceListener.onDone/onError` 写入。多模型下一次 topic 状态迁移对应 N 条消息各自的状态写入。
 
 Cache 表达：
 
-- SharedCache `'topic.stream.statuses'`: `Record<topicId, { status, activeExecutionIds }>` — ActiveStream 生命周期状态 + 当前处于非终态的 execution ID 列表，合并在一个 shared key 下以避免两个 key 的原子性问题
+- SharedCache `'topic.stream.statuses.${topicId}'`: `{ status, activeExecutionIds } | null` — 每个 topic 一条独立模板条目，存放 ActiveStream 生命周期状态 + 当前处于非终态的 execution ID 列表
 - UseCache `'topic.stream.seen.${topicId}'`: per-window 本地 `boolean`，用户在本窗口"已消费过 fulfilled 指示器"的标记
 - （不涉及）message 表的 `status` 列：由 DataApi 管理，不进 cache
 

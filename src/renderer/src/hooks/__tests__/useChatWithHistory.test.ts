@@ -10,9 +10,10 @@ vi.mock('@ai-sdk/react', () => ({
   useChat: (...args: unknown[]) => mockUseChat(...args)
 }))
 
-// `useTopicStreamStatus` is driven by the shared `topic.stream.statuses`
-// cache entry in production. Tests stub it here so each `it()` can
-// advance the per-topic view synchronously by calling `setMockStatus`.
+// `useTopicStreamStatus` is driven by the shared
+// `topic.stream.statuses.${topicId}` cache entry in production. Tests
+// stub it here so each `it()` can advance the per-topic view
+// synchronously by calling `setMockStatus`.
 const mockTopicStreamStatus = vi.fn()
 vi.mock('../useTopicStreamStatus', () => ({
   useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId)
