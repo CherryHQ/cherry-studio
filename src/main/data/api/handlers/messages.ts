@@ -14,6 +14,7 @@ import {
   CreateMessageSchema,
   DeleteMessageQuerySchema,
   type MessageSchemas,
+  PathThroughQuerySchema,
   TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
@@ -44,6 +45,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = CreateMessageSchema.parse(body)
       return await messageService.create(params.topicId, parsed)
+    }
+  },
+
+  '/topics/:topicId/path': {
+    GET: async ({ params, query }) => {
+      const q = PathThroughQuerySchema.parse(query ?? {})
+      return await messageService.getPathThrough(params.topicId, q.nodeId)
     }
   },
 
