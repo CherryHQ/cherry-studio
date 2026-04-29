@@ -1,4 +1,18 @@
-import { Badge, Checkbox, ConfirmDialog, EmptyState, MenuItem, MenuList, Spinner, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Checkbox,
+  ConfirmDialog,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  EmptyState,
+  MenuItem,
+  MenuList,
+  Spinner,
+  Tooltip
+} from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -7,7 +21,7 @@ import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/h
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { cn } from '@renderer/utils/style'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
-import { Button, Dropdown, Input, message, Modal, Typography, Upload } from 'antd'
+import { Button, Input, message, Modal, Typography, Upload } from 'antd'
 import {
   ArrowLeft,
   ChevronRight,
@@ -573,31 +587,8 @@ const SkillsSettings: FC = () => {
                       )
                     }
                     return (
-                      <Dropdown
-                        key={skill.id}
-                        trigger={['contextMenu']}
-                        menu={{
-                          items: [
-                            {
-                              key: 'multiSelect',
-                              label: t('settings.skills.multiSelect'),
-                              onClick: () => setMultiSelectMode(true)
-                            },
-                            ...(!isBuiltin
-                              ? [
-                                  { type: 'divider' as const, key: 'div' },
-                                  {
-                                    key: 'uninstall',
-                                    label: t('settings.skills.uninstall'),
-                                    danger: true,
-                                    icon: <Trash2 size={14} />,
-                                    onClick: () => handleContextMenuUninstall(skill)
-                                  }
-                                ]
-                              : [])
-                          ]
-                        }}>
-                        <div>
+                      <ContextMenu key={skill.id}>
+                        <ContextMenuTrigger asChild>
                           <MenuItem
                             label={skill.name}
                             description={skill.description ?? undefined}
@@ -607,8 +598,22 @@ const SkillsSettings: FC = () => {
                             icon={<Puzzle size={16} />}
                             className="rounded-lg font-medium"
                           />
-                        </div>
-                      </Dropdown>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onSelect={() => setMultiSelectMode(true)}>
+                            {t('settings.skills.multiSelect')}
+                          </ContextMenuItem>
+                          {!isBuiltin ? (
+                            <>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem variant="destructive" onSelect={() => handleContextMenuUninstall(skill)}>
+                                <Trash2 size={14} />
+                                {t('settings.skills.uninstall')}
+                              </ContextMenuItem>
+                            </>
+                          ) : null}
+                        </ContextMenuContent>
+                      </ContextMenu>
                     )
                   })
                 )}

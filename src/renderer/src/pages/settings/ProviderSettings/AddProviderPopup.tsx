@@ -1,4 +1,4 @@
-import { Center, ColFlex, Divider } from '@cherrystudio/ui'
+import { Center, ColFlex, Divider, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
@@ -7,9 +7,8 @@ import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
 import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
-import { Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
-import type { ItemType } from 'antd/es/menu/interface'
-import React, { useEffect, useRef, useState } from 'react'
+import { Form, Input, Modal, Select, Upload } from 'antd'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AddProviderPopup')
@@ -28,7 +27,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
-  const uploadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (provider?.id) {
@@ -86,6 +84,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       }
 
       setLogoPickerOpen(false)
+      setDropdownOpen(false)
     } catch (error: any) {
       window.toast.error(error.message)
     }
@@ -109,74 +108,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     return name.charAt(0) || 'P'
   }
 
-  const items = [
-    {
-      key: 'upload',
-      label: (
-        <Upload
-          customRequest={() => {}}
-          accept="image/png, image/jpeg, image/gif"
-          itemRender={() => null}
-          maxCount={1}
-          onChange={async ({ file }) => {
-            try {
-              const _file = file.originFileObj as File
-              let logoData: string | Blob
-
-              if (_file.type === 'image/gif') {
-                logoData = _file
-              } else {
-                logoData = await compressImage(_file)
-              }
-
-              if (provider?.id) {
-                if (logoData instanceof Blob && !(logoData instanceof File)) {
-                  const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
-                  await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
-                } else {
-                  await ImageStorage.set(`provider-${provider.id}`, logoData)
-                }
-                const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                setLogo(savedLogo)
-              } else {
-                // 临时保存在内存中，等创建 provider 后会在调用方保存
-                const tempUrl = await new Promise<string>((resolve) => {
-                  const reader = new FileReader()
-                  reader.onload = () => resolve(reader.result as string)
-                  reader.readAsDataURL(logoData)
-                })
-                setLogo(tempUrl)
-              }
-              setDropdownOpen(false)
-            } catch (error: any) {
-              window.toast.error(error.message)
-            }
-          }}>
-          <div ref={uploadRef} className="w-full text-center">
-            {t('settings.general.image_upload')}
-          </div>
-        </Upload>
-      ),
-      onClick: (e: any) => {
-        e.stopPropagation()
-        uploadRef.current?.click()
-      }
-    },
-    {
-      key: 'builtin',
-      label: <div className="w-full text-center">{t('settings.general.avatar.builtin')}</div>,
-      onClick: () => {
-        setDropdownOpen(false)
-        setLogoPickerOpen(true)
-      }
-    },
-    {
-      key: 'reset',
-      label: <div className="w-full text-center">{t('settings.general.avatar.reset')}</div>,
-      onClick: handleReset
-    }
-  ] satisfies ItemType[]
-
   // for logo
   const backgroundColor = generateColorFromChar(name)
   const color = name ? getForegroundColor(backgroundColor) : 'white'
@@ -197,29 +128,15 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       <Center className="mt-2.5">
         <ColFlex className="items-center gap-2.5">
-          <Dropdown
-            menu={{ items }}
-            trigger={['click']}
+          <Popover
             open={dropdownOpen}
-            align={{ offset: [0, 4] }}
-            placement="bottom"
             onOpenChange={(visible) => {
               setDropdownOpen(visible)
-              if (visible) {
+              if (!visible) {
                 setLogoPickerOpen(false)
               }
             }}>
-            <Popover
-              content={<ProviderLogoPicker onProviderClick={handleProviderLogoClick} />}
-              trigger="click"
-              open={logoPickerOpen}
-              onOpenChange={(visible) => {
-                setLogoPickerOpen(visible)
-                if (visible) {
-                  setDropdownOpen(false)
-                }
-              }}
-              placement="bottom">
+            <PopoverTrigger asChild>
               {logo ? (
                 <div className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-80">
                   <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
@@ -231,8 +148,72 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                   {getInitials()}
                 </div>
               )}
-            </Popover>
-          </Dropdown>
+            </PopoverTrigger>
+            <PopoverContent align="center" className={logoPickerOpen ? 'w-auto p-0' : 'w-36 p-1'}>
+              {logoPickerOpen ? (
+                <ProviderLogoPicker onProviderClick={handleProviderLogoClick} />
+              ) : (
+                <div className="flex flex-col">
+                  <Upload
+                    customRequest={() => {}}
+                    accept="image/png, image/jpeg, image/gif"
+                    itemRender={() => null}
+                    maxCount={1}
+                    showUploadList={false}
+                    onChange={async ({ file }) => {
+                      try {
+                        const _file = file.originFileObj as File
+                        let logoData: string | Blob
+
+                        if (_file.type === 'image/gif') {
+                          logoData = _file
+                        } else {
+                          logoData = await compressImage(_file)
+                        }
+
+                        if (provider?.id) {
+                          if (logoData instanceof Blob && !(logoData instanceof File)) {
+                            const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
+                            await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
+                          } else {
+                            await ImageStorage.set(`provider-${provider.id}`, logoData)
+                          }
+                          const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+                          setLogo(savedLogo)
+                        } else {
+                          // 临时保存在内存中，等创建 provider 后会在调用方保存
+                          const tempUrl = await new Promise<string>((resolve) => {
+                            const reader = new FileReader()
+                            reader.onload = () => resolve(reader.result as string)
+                            reader.readAsDataURL(logoData)
+                          })
+                          setLogo(tempUrl)
+                        }
+                        setDropdownOpen(false)
+                      } catch (error: any) {
+                        window.toast.error(error.message)
+                      }
+                    }}>
+                    <button type="button" className="w-full rounded-sm px-2 py-1.5 text-center text-sm hover:bg-accent">
+                      {t('settings.general.image_upload')}
+                    </button>
+                  </Upload>
+                  <button
+                    type="button"
+                    className="w-full rounded-sm px-2 py-1.5 text-center text-sm hover:bg-accent"
+                    onClick={() => setLogoPickerOpen(true)}>
+                    {t('settings.general.avatar.builtin')}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-sm px-2 py-1.5 text-center text-sm hover:bg-accent"
+                    onClick={handleReset}>
+                    {t('settings.general.avatar.reset')}
+                  </button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </ColFlex>
       </Center>
 
