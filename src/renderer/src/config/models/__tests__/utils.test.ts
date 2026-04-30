@@ -10,6 +10,7 @@ import {
   groupQwenModels,
   isAnthropicModel,
   isClaude46SeriesModel,
+  isClaudeOpus47Model,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31ProModel,
@@ -26,7 +27,8 @@ import {
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel,
   isVisionModels,
-  isZhipuModel
+  isZhipuModel,
+  supportsClaudeAdaptiveThinking
 } from '../utils'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
 import { isOpenAIWebSearchChatCompletionOnlyModel } from '../websearch'
@@ -707,6 +709,9 @@ describe('model utils', () => {
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-0' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-7' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-8' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
       })
@@ -745,6 +750,37 @@ describe('model utils', () => {
       it('returns false for undefined and null', () => {
         expect(isClaude46SeriesModel(undefined as unknown as Model)).toBe(false)
         expect(isClaude46SeriesModel(null as unknown as Model)).toBe(false)
+      })
+    })
+
+    describe('isClaudeOpus47Model', () => {
+      it('detects Claude Opus 4.7 formats', () => {
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-4-7-20260423' }))).toBe(true)
+        expect(isClaudeOpus47Model(createModel({ id: 'anthropic.claude-opus-4-7-v1:0' }))).toBe(true)
+        expect(isClaudeOpus47Model(createModel({ id: 'anthropic/claude-opus-4-7' }))).toBe(true)
+      })
+
+      it('returns false for nearby Claude models', () => {
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-4-6' }))).toBe(false)
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-4-8' }))).toBe(false)
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-opus-5' }))).toBe(false)
+        expect(isClaudeOpus47Model(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
+      })
+    })
+
+    describe('supportsClaudeAdaptiveThinking', () => {
+      it('returns true for Claude 4.6 and Claude Opus 4.7', () => {
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-opus-4-6' }))).toBe(true)
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-sonnet-4-6' }))).toBe(true)
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
+      })
+
+      it('does not include future or non-Opus 4.7 models yet', () => {
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-opus-4-8' }))).toBe(false)
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-opus-5' }))).toBe(false)
+        expect(supportsClaudeAdaptiveThinking(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
       })
     })
   })

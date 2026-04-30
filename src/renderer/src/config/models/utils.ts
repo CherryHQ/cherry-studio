@@ -415,3 +415,17 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
   const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
+
+export function isClaudeOpus47Model(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  const regex = /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i
+  return regex.test(modelId)
+}
+
+export function supportsClaudeAdaptiveThinking(model: Model | undefined | null): boolean {
+  return isClaude46SeriesModel(model) || isClaudeOpus47Model(model)
+}

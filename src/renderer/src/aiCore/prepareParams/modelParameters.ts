@@ -5,14 +5,14 @@
 
 import { loggerService } from '@logger'
 import {
-  isClaude46SeriesModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
   isSupportTemperatureModel,
   isSupportTopPModel,
-  isTemperatureTopPMutuallyExclusiveModel
+  isTemperatureTopPMutuallyExclusiveModel,
+  supportsClaudeAdaptiveThinking
 } from '@renderer/config/models'
 import {
   DEFAULT_ASSISTANT_SETTINGS,
@@ -143,7 +143,7 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   // to maxOutputTokens. Skip the subtraction to avoid incorrectly reducing max_tokens.
   if (
     isSupportedThinkingTokenClaudeModel(model) &&
-    !isClaude46SeriesModel(model) &&
+    !supportsClaudeAdaptiveThinking(model) &&
     ['anthropic', 'aws-bedrock'].includes(provider.type)
   ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings

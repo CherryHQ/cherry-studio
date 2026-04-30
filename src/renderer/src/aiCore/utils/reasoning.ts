@@ -10,7 +10,6 @@ import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
-  isClaude46SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
@@ -38,7 +37,8 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  isSupportNoneReasoningEffortModel
+  isSupportNoneReasoningEffortModel,
+  supportsClaudeAdaptiveThinking
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
@@ -726,7 +726,7 @@ export function getAnthropicReasoningParams(
   if (isSupportedThinkingTokenClaudeModel(model)) {
     // Claude 4.6 uses adaptive thinking + effort parameters
     // Map reasoningEffort to Claude 4.6 supported effort values
-    if (isClaude46SeriesModel(model)) {
+    if (supportsClaudeAdaptiveThinking(model)) {
       // Claude 4.6 supports: low, medium, high, max
       // Mapping rules: default/none -> no effort (uses default high)
       //                minimal/low -> low
@@ -950,7 +950,7 @@ export function getBedrockReasoningParams(
   }
 
   // Claude 4.6 uses adaptive thinking + maxReasoningEffort
-  if (isClaude46SeriesModel(model)) {
+  if (supportsClaudeAdaptiveThinking(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',
