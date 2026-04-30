@@ -38,6 +38,10 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
         return t('message.websearch.fetch_complete', {
           count: status.countAfter ?? 0
         })
+      case 'partial_failure':
+        return t('message.websearch.partial_failure', {
+          count: status.countAfter ?? 0
+        })
       case 'cutoff':
         return t('message.websearch.cutoff')
       default:

@@ -2489,7 +2489,8 @@
     },
     "websearch": {
       "cutoff": "Suchergebnisse werden gekürzt...",
-      "fetch_complete": "{{count}} Suchergebnisse"
+      "fetch_complete": "{{count}} Suchergebnisse",
+      "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
   "minapp": {

@@ -782,13 +782,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'

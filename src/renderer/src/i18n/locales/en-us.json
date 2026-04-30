@@ -2489,7 +2489,8 @@
     },
     "websearch": {
       "cutoff": "Truncating search content...",
-      "fetch_complete": "{{count}} search result(s)"
+      "fetch_complete": "{{count}} search result(s)",
+      "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
   "minapp": {

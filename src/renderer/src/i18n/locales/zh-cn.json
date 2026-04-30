@@ -2489,7 +2489,8 @@
     },
     "websearch": {
       "cutoff": "正在截断搜索内容...",
-      "fetch_complete": "{{count}} 个搜索结果"
+      "fetch_complete": "{{count}} 个搜索结果",
+      "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
   "minapp": {

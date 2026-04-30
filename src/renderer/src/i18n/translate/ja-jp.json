@@ -2489,7 +2489,8 @@
     },
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
-      "fetch_complete": "{{count}}件の検索結果"
+      "fetch_complete": "{{count}}件の検索結果",
+      "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
   "minapp": {

@@ -2489,7 +2489,8 @@
     },
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
-      "fetch_complete": "{{count}} rezultat(e) căutare"
+      "fetch_complete": "{{count}} rezultat(e) căutare",
+      "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
   "minapp": {
