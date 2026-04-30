@@ -208,6 +208,16 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
+export const isDeepSeekModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  const modelName = getLowerBaseModelName(model.name)
+  return modelId.includes('deepseek') || modelName.includes('deepseek')
+}
+
 const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
 
 export const isNotSupportTextDeltaModel = (model: Model): boolean => {
