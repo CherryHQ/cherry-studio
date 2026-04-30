@@ -119,6 +119,13 @@
       "when": 1777474576049,
       "tag": "0016_late_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1777474700000,
+      "tag": "0017_giant_vermin",
+      "breakpoints": true
     }
   ],
   "version": "7"
