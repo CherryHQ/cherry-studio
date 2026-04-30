@@ -164,8 +164,8 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
-    it('should pass through groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
-      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: '  group-1  ', emoji: '📚' })
+    it('should trim groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: 'group-1', emoji: '📚' })
 
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
@@ -178,7 +178,7 @@ describe('knowledgeHandlers', () => {
       ).resolves.toMatchObject({ id: 'kb-1' })
 
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
-        groupId: '  group-1  ',
+        groupId: 'group-1',
         emoji: '📚'
       })
     })

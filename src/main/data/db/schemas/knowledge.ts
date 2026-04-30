@@ -12,35 +12,25 @@ import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from '.
 import { groupTable } from './group'
 import { userModelTable } from './userModel'
 
-/**
- * Knowledge base table - stores user-created knowledge-base definitions
- *
- * The database owns durable metadata, grouping, model references, and runtime
- * configuration. Per-base vector indexes/chunks are artifacts managed by
- * KnowledgeRuntimeService, so they are intentionally not represented here.
- */
+// Durable base metadata; per-base vector stores remain runtime artifacts.
 export const knowledgeBaseTable = sqliteTable(
   'knowledge_base',
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
-    description: text(),
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     emoji: text().notNull(),
     dimensions: integer().notNull(),
 
-    // Embedding model FK. Knowledge bases require a usable embedding model.
     embeddingModelId: text()
       .notNull()
       .references(() => userModelTable.id),
 
-    // Rerank model FK. SET NULL preserves the base if the model is removed.
+    // Preserve the base when an optional rerank model is removed.
     rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
 
-    // Processor implementation used when extracting content from files.
     fileProcessorId: text(),
 
-    // Runtime configuration read by indexing and search orchestration.
     chunkSize: integer().notNull(),
     chunkOverlap: integer().notNull(),
     threshold: real(),
@@ -53,16 +43,7 @@ export const knowledgeBaseTable = sqliteTable(
   (t) => [check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('default', 'bm25', 'hybrid')`)]
 )
 
-/**
- * Knowledge item table - stores source records inside a knowledge base
- *
- * Items represent user-added files, URLs, notes, and expanded children from
- * directory/sitemap imports. SQLite tracks source identity and processing state;
- * extracted chunks and embeddings live in the per-base vector store.
- *
- * Uses uuidPrimaryKeyOrdered (UUID v7) because items are append-heavy and are
- * commonly listed by creation order.
- */
+// User-added sources and expanded import children; chunks/embeddings live in the vector store.
 export const knowledgeItemTable = sqliteTable(
   'knowledge_item',
   {
@@ -71,17 +52,13 @@ export const knowledgeItemTable = sqliteTable(
       .notNull()
       .references(() => knowledgeBaseTable.id, { onDelete: 'cascade' }),
 
-    // Optional group-owner item id for expanded imports.
-    // The composite self-FK below keeps owner and child in the same base.
+    // The composite self-FK below keeps expanded children in the owner's base.
     groupId: text(),
 
-    // Type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
     type: text().$type<KnowledgeItemType>().notNull(),
 
-    // Source payload. The shape is selected by type.
     data: text({ mode: 'json' }).$type<KnowledgeItemData>().notNull(),
 
-    // Runtime processing status and last failure details.
     status: text().$type<KnowledgeItemStatus>().notNull(),
     phase: text().$type<KnowledgeItemPhase>(),
     error: text(),
@@ -93,7 +70,31 @@ export const knowledgeItemTable = sqliteTable(
     check('knowledge_item_status_check', sql`${t.status} IN ('idle', 'processing', 'completed', 'failed')`),
     check(
       'knowledge_item_phase_check',
-      sql`${t.phase} IN ('preparing', 'file_processing', 'reading', 'embedding') OR ${t.phase} IS NULL`
+      sql`
+        ${t.phase} IS NULL
+        OR (${t.type} IN ('file', 'url', 'note') AND ${t.phase} IN ('reading', 'embedding'))
+        OR (${t.type} IN ('directory', 'sitemap') AND ${t.phase} = 'preparing')
+      `
+    ),
+    check(
+      'knowledge_item_status_phase_error_check',
+      sql`
+        (
+          ${t.status} IN ('idle', 'completed')
+          AND ${t.phase} IS NULL
+          AND ${t.error} IS NULL
+        )
+        OR (
+          ${t.status} = 'processing'
+          AND ${t.error} IS NULL
+        )
+        OR (
+          ${t.status} = 'failed'
+          AND ${t.phase} IS NULL
+          AND ${t.error} IS NOT NULL
+          AND length(trim(${t.error})) > 0
+        )
+      `
     ),
     // Deletes expanded children when their group-owner item is deleted.
     foreignKey({ columns: [t.baseId, t.groupId], foreignColumns: [t.baseId, t.id] }).onDelete('cascade'),

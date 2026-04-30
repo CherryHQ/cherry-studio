@@ -293,7 +293,8 @@ item 删除时，调用方应理解为两件独立的事：
 2. orchestration 在 runtime cleanup 后删除 SQLite root rows
    - 数据库 cascade 删除 grouped descendants
 
-base 删除时同样先 runtime cleanup，再删除 SQLite base 和关联 items。
+base 删除时会先中断并等待该 base 的 runtime work，然后删除 SQLite base 和关联 items。
+SQLite 删除成功后，再 best-effort 删除该 base 的 vector artifacts；artifact 清理失败只记录日志，不回滚已完成的 SQLite 删除。
 
 当前实现下，Data API 删除并不会替调用方清理向量库，也不会替调用方中断 runtime 任务。
 
@@ -323,9 +324,13 @@ IPC create-base(CreateKnowledgeBaseDto)
 IPC delete-base(baseId)
  -> KnowledgeRuntimeService.deleteBase(baseId)
  -> KnowledgeBaseService.delete(baseId)
+ -> KnowledgeRuntimeService.deleteBaseArtifacts(baseId)
 ```
 
-runtime 删除会先中断该 base 下 pending / running runtime task，等待 running task settle，再删除该 base 对应的 vector store。随后 data service 删除 SQLite base 和关联 items。
+runtime 删除阶段会先中断该 base 下 pending / running runtime task，等待 running task settle，并返回被中断 item ids。
+随后 data service 删除 SQLite base 和关联 items。
+SQLite 删除成功后，orchestration 再调用 artifact cleanup 删除该 base 对应的 vector store；该 cleanup 失败只记录日志。
+如果 SQLite 删除失败，orchestration 会把被中断 items 标记为 failed，然后把 SQLite 删除错误抛给调用方。
 
 ## 6. 当前 Queue 模型
 
@@ -420,7 +425,7 @@ preparation 被 interrupt 时：
 3. cleanup 由 runtime interrupt flow 统一处理
 4. 已创建的 root / descendants 会被标记为 `failed` 或在 delete flow 中由 SQLite cascade 删除
 
-当前还没有落地 `fileProcessorId` 的执行链路。代码中这一段仍然是 `// todo file processing`。
+`fileProcessorId` 已保留在 schema/config 中，但 runtime 处理链路尚未接入该配置。
 
 ## 8. `knowledge_item.status` / `phase` 的当前实现边界
 
@@ -431,11 +436,11 @@ preparation 被 interrupt 时：
 3. `completed`
 4. `failed`
 
-当前 `phase` 表达 runtime 内部进度：
+当前 `phase` 字段允许以下值：
 
 1. `null`
 2. `preparing`
-3. `file_processing`
+3. `file_processing`（保留值，当前 runtime 不写入）
 4. `reading`
 5. `embedding`
 

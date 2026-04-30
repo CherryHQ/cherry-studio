@@ -1353,13 +1353,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "group_id": {
           "name": "group_id",
           "type": "text",
@@ -1622,7 +1615,11 @@
         },
         "knowledge_item_phase_check": {
           "name": "knowledge_item_phase_check",
-          "value": "\"knowledge_item\".\"phase\" IN ('preparing', 'file_processing', 'reading', 'embedding') OR \"knowledge_item\".\"phase\" IS NULL"
+          "value": "\"knowledge_item\".\"phase\" IS NULL OR (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"phase\" IN ('reading', 'embedding')) OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"phase\" = 'preparing')"
+        },
+        "knowledge_item_status_phase_error_check": {
+          "name": "knowledge_item_status_phase_error_check",
+          "value": "(\"knowledge_item\".\"status\" IN ('idle', 'completed') AND \"knowledge_item\".\"phase\" IS NULL AND \"knowledge_item\".\"error\" IS NULL) OR (\"knowledge_item\".\"status\" = 'processing' AND \"knowledge_item\".\"error\" IS NULL) OR (\"knowledge_item\".\"status\" = 'failed' AND \"knowledge_item\".\"phase\" IS NULL AND \"knowledge_item\".\"error\" IS NOT NULL AND length(trim(\"knowledge_item\".\"error\")) > 0)"
         }
       }
     },

@@ -2,10 +2,6 @@ import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { Document, type Document as VectorStoreDocument, SentenceSplitter } from '@vectorstores/core'
 import { estimateTokenCount } from 'tokenx'
 
-/**
- * Splits source documents into chunked vector-store documents and attaches
- * knowledge-item metadata needed by downstream indexing steps.
- */
 export function chunkDocuments(base: KnowledgeBase, item: KnowledgeItem, documents: VectorStoreDocument[]) {
   const splitter = new SentenceSplitter({
     chunkSize: base.chunkSize,

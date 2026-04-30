@@ -22,6 +22,7 @@ const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
 const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
+const SKIP_WARNING_SAMPLE_LIMIT = 3
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
@@ -84,6 +85,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   private sourceCount = 0
   private skippedCount = 0
   private warnings: string[] = []
+  private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private preparedBasePlans: PreparedBasePlan[] = []
   private successfulBaseIds = new Set<string>()
   private targetCountByBaseId = new Map<string, number>()
@@ -93,6 +95,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.sourceCount = 0
     this.skippedCount = 0
     this.warnings = []
+    this.skippedWarnings = new Map<string, { count: number; samples: string[] }>()
     this.preparedBasePlans = []
     this.successfulBaseIds = new Set<string>()
     this.targetCountByBaseId = new Map<string, number>()
@@ -105,6 +108,29 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private getLegacyBackupPath(dbPath: string): string {
     return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
+  }
+
+  private recordWarning(message: string): void {
+    logger.warn(message)
+    this.warnings.push(message)
+  }
+
+  private recordSkippedWarning(reason: string, message: string): void {
+    const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
+    bucket.count += 1
+    if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
+      bucket.samples.push(message)
+    }
+    this.skippedWarnings.set(reason, bucket)
+  }
+
+  private flushSkippedWarnings(): void {
+    for (const [reason, bucket] of this.skippedWarnings) {
+      const summary = `Skipped knowledge vector records (${reason}): count=${bucket.count}; examples: ${bucket.samples.join(' | ')}`
+      this.recordWarning(summary)
+    }
+
+    this.skippedWarnings.clear()
   }
 
   private async ensureVectorStoreSchema(client: Client, dimensions: number): Promise<void> {
@@ -314,8 +340,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const legacyBase = legacyBasesById.get(base.id)
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base not found`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning('legacy_base_missing', warningMessage)
           continue
         }
 
@@ -323,26 +348,22 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('invalid_path', warningMessage)
             continue
           }
           case 'missing': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB missing`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('missing', warningMessage)
             continue
           }
           case 'directory': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB path is a directory`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('directory', warningMessage)
             continue
           }
           case 'not_embedjs': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy DB is not embedjs format`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('not_embedjs', warningMessage)
             continue
           }
         }
@@ -365,24 +386,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           if (!target) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('unmapped_loader', warningMessage)
             continue
           }
 
           if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.itemType)) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: container item '${target.id}' of type '${target.itemType}' is not indexable`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('non_indexable_container', warningMessage)
             continue
           }
 
           if (!row.vector || row.vector.length === 0) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('missing_vector_payload', warningMessage)
             continue
           }
 
@@ -390,8 +408,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           if (sourceText === '') {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: source missing for item '${target.id}'`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('missing_source', warningMessage)
             continue
           }
 
@@ -420,6 +437,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           sourceRowCount: vectorRows.length
         })
       }
+
+      this.flushSkippedWarnings()
 
       return {
         success: true,
@@ -495,6 +514,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await yieldToEventLoop()
         }
 
+        // First migration preserves the legacy embedjs DB; retries remove the stale failed target before swapping.
         if (!fs.existsSync(backupPath) && fs.existsSync(plan.dbPath)) {
           await fs.promises.rename(plan.dbPath, backupPath)
         } else {

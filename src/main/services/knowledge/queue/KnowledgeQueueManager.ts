@@ -30,6 +30,7 @@ export class KnowledgeQueueManager {
   private isResetting = false
   private resetReason: string | null = null
   private readonly entries = new Map<string, QueueEntry>()
+  // Per-base serialization protects vector-store writes and status completion ordering.
   private readonly baseWriteLocks = new Map<string, Promise<void>>()
 
   constructor() {

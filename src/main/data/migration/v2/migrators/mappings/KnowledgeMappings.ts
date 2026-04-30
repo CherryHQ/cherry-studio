@@ -49,7 +49,6 @@ export interface LegacyKnowledgeItem {
 export interface LegacyKnowledgeBase {
   id?: string
   name?: string
-  description?: string
   dimensions?: number
   model?: LegacyModel | null
   rerankModel?: LegacyModel | null
@@ -207,7 +206,6 @@ export const transformKnowledgeBase = (
   const transformedBase: NewKnowledgeBase = {
     id: base.id,
     name: base.name,
-    description: base.description,
     groupId: null,
     emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
     dimensions,

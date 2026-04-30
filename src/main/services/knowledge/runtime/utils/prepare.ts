@@ -1,4 +1,5 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { loggerService } from '@logger'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -11,10 +12,15 @@ import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../../ut
 import { isIndexableKnowledgeItem } from '../../utils/items'
 import { expandSitemapOwnerToCreateItems } from '../../utils/sitemap'
 
+const logger = loggerService.withContext('KnowledgeRuntimePrepare')
+const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
+const EMPTY_SITEMAP_ERROR = 'Sitemap contains no indexable URLs'
+
 export interface PrepareKnowledgeItemOptions {
   baseId: string
   item: KnowledgeItem
   onCreatedItem: (item: KnowledgeItem) => void
+  runMutation: <T>(task: () => Promise<T>) => Promise<T>
   signal: AbortSignal
 }
 
@@ -22,6 +28,7 @@ export async function prepareKnowledgeItem({
   baseId,
   item,
   onCreatedItem,
+  runMutation,
   signal
 }: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
   signal.throwIfAborted()
@@ -31,27 +38,33 @@ export async function prepareKnowledgeItem({
   }
 
   if (item.type === 'directory') {
-    return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, signal)
+    return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
   }
 
-  return await prepareSitemapForRuntime(baseId, item, onCreatedItem, signal)
+  return await prepareSitemapForRuntime(baseId, item, onCreatedItem, runMutation, signal)
 }
 
 async function prepareDirectoryForRuntime(
   baseId: string,
   item: KnowledgeItemOf<'directory'>,
   onCreatedItem: (item: KnowledgeItem) => void,
+  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   const expandedChildren = await expandDirectoryOwnerToTree(item, signal)
   signal.throwIfAborted()
 
   if (expandedChildren.length === 0) {
-    await knowledgeItemService.updateStatus(item.id, 'processing')
+    logger.warn('Directory expansion produced no indexable files', {
+      baseId,
+      itemId: item.id,
+      source: item.data.source
+    })
+    await runMutation(() => knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_DIRECTORY_ERROR }))
     return []
   }
 
-  return await createDirectoryChildren(baseId, item.id, expandedChildren, onCreatedItem, signal)
+  return await createDirectoryChildren(baseId, item.id, expandedChildren, onCreatedItem, runMutation, signal)
 }
 
 async function createDirectoryChildren(
@@ -59,6 +72,7 @@ async function createDirectoryChildren(
   parentId: string,
   children: ExpandedDirectoryNode[],
   onCreatedItem: (item: KnowledgeItem) => void,
+  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   const leafItems: IndexableKnowledgeItem[] = []
@@ -75,6 +89,7 @@ async function createDirectoryChildren(
           data: child.data
         },
         onCreatedItem,
+        runMutation,
         signal
       )
       leafItems.push(createdFile)
@@ -89,6 +104,7 @@ async function createDirectoryChildren(
         data: child.data
       },
       onCreatedItem,
+      runMutation,
       signal
     )
     const childLeafItems = await createDirectoryChildren(
@@ -96,9 +112,10 @@ async function createDirectoryChildren(
       createdDirectory.id,
       child.children,
       onCreatedItem,
+      runMutation,
       signal
     )
-    await knowledgeItemService.updateStatus(createdDirectory.id, 'processing')
+    await runMutation(() => knowledgeItemService.updateStatus(createdDirectory.id, 'processing'))
     leafItems.push(...childLeafItems)
   }
 
@@ -109,13 +126,19 @@ async function prepareSitemapForRuntime(
   baseId: string,
   item: KnowledgeItemOf<'sitemap'>,
   onCreatedItem: (item: KnowledgeItem) => void,
+  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   const expandedItems = await expandSitemapOwnerToCreateItems(item, signal)
   signal.throwIfAborted()
 
   if (expandedItems.length === 0) {
-    await knowledgeItemService.updateStatus(item.id, 'processing')
+    logger.warn('Sitemap expansion produced no indexable URLs', {
+      baseId,
+      itemId: item.id,
+      source: item.data.source
+    })
+    await runMutation(() => knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_SITEMAP_ERROR }))
     return []
   }
 
@@ -123,7 +146,7 @@ async function prepareSitemapForRuntime(
 
   for (const expandedItem of expandedItems) {
     signal.throwIfAborted()
-    const createdItem = await createRuntimeItem(baseId, expandedItem, onCreatedItem, signal)
+    const createdItem = await createRuntimeItem(baseId, expandedItem, onCreatedItem, runMutation, signal)
     leafItems.push(createdItem)
   }
 
@@ -134,16 +157,18 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
   baseId: string,
   item: Extract<CreateKnowledgeItemDto, { type: T }>,
   onCreatedItem: (item: KnowledgeItem) => void,
+  runMutation: <TResult>(task: () => Promise<TResult>) => Promise<TResult>,
   signal: AbortSignal
 ): Promise<KnowledgeItemOf<T>> {
   signal.throwIfAborted()
-  const createdItem = await knowledgeItemService.create(baseId, item)
+  const createdItem = await runMutation(() => knowledgeItemService.create(baseId, item))
   onCreatedItem(createdItem)
 
-  const processingItem =
+  const processingItem = await runMutation(() =>
     createdItem.type === 'directory' || createdItem.type === 'sitemap'
-      ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
-      : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+      ? knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+      : knowledgeItemService.updateStatus(createdItem.id, 'processing')
+  )
   signal.throwIfAborted()
 
   return processingItem as KnowledgeItemOf<T>

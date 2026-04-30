@@ -3,7 +3,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeItemDto, UpdateKnowledgeItemDto } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -148,6 +148,62 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('accepts sitemap group owners', async () => {
+      await seedItem({
+        id: 'sitemap-a',
+        type: 'sitemap',
+        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
+      })
+
+      const result = await service.create('kb-1', {
+        groupId: 'sitemap-a',
+        type: 'url',
+        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
+      })
+
+      expect(result).toMatchObject({
+        baseId: 'kb-1',
+        groupId: 'sitemap-a',
+        type: 'url'
+      })
+    })
+
+    it('rejects leaf items as group owners', async () => {
+      await seedItem({ id: 'note-owner', type: 'note', data: { source: 'owner', content: 'owner' } })
+
+      await expect(
+        service.create('kb-1', {
+          groupId: 'note-owner',
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: ['Knowledge item group owner must be a directory or sitemap: note-owner']
+          }
+        }
+      })
+    })
+
+    it('rejects blank group owner ids before hitting foreign key constraints', async () => {
+      await expect(
+        service.create('kb-1', {
+          groupId: '   ',
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: ['Knowledge item group owner id is required when groupId is provided']
+          }
+        }
+      })
+    })
+
     it('translates missing base and missing group owner constraints', async () => {
       await expect(
         service.create('missing-base', { type: 'note', data: { source: 'note', content: 'note' } })
@@ -170,6 +226,58 @@ describe('KnowledgeItemService', () => {
           }
         }
       })
+    })
+
+    it('rejects invalid persisted status phase error combinations', async () => {
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'invalid-note', content: 'invalid note' },
+          status: 'completed',
+          phase: 'reading',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'invalid-failed-note', content: 'invalid failed note' },
+          status: 'failed',
+          phase: null,
+          error: ''
+        })
+      ).rejects.toThrow()
+    })
+
+    it('rejects persisted processing phases that do not match the item type', async () => {
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'note',
+          data: { source: 'invalid-note-phase', content: 'invalid note phase' },
+          status: 'processing',
+          phase: 'preparing',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        dbh.db.insert(knowledgeItemTable).values({
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'directory',
+          data: { source: '/docs', path: '/docs' },
+          status: 'processing',
+          phase: 'reading',
+          error: null
+        })
+      ).rejects.toThrow()
     })
   })
 
@@ -293,37 +401,117 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('update', () => {
-    it('returns the existing item when update is empty', async () => {
+  describe('updateStatus', () => {
+    async function getItemRow(id: string) {
+      const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+      return row
+    }
+
+    it('updates processing status and clears stale error fields', async () => {
       const seeded = await seedItem()
 
-      const result = await service.update(seeded.id, {})
-
-      expect(result.id).toBe(seeded.id)
-    })
-
-    it('updates status, error, and data using UpdateKnowledgeItemDto', async () => {
-      const seeded = await seedItem()
-      const dto: UpdateKnowledgeItemDto = {
-        status: 'completed',
-        error: null,
-        data: { source: 'updated note', content: 'updated note' }
-      }
-
-      const result = await service.update(seeded.id, dto)
+      const result = await service.updateStatus(seeded.id, 'processing', {
+        phase: 'reading'
+      })
 
       expect(result).toMatchObject({
         id: seeded.id,
-        status: 'completed',
-        error: null,
-        data: { content: 'updated note' }
+        status: 'processing',
+        phase: 'reading',
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'processing',
+        phase: 'reading',
+        error: null
       })
     })
 
-    it('throws NotFound when updating a missing item', async () => {
-      await expect(service.update('missing', { status: 'failed' })).rejects.toMatchObject({
+    it('clears stale phase and error when only status is supplied', async () => {
+      const seeded = await seedItem({
+        status: 'failed',
+        phase: null,
+        error: 'previous failure'
+      })
+
+      const result = await service.updateStatus(seeded.id, 'processing')
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'processing',
+        phase: null,
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'processing',
+        phase: null,
+        error: null
+      })
+    })
+
+    it('reconciles parent containers after a child reaches a terminal state', async () => {
+      await seedItem({
+        id: 'dir-root',
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: 'note-child',
+        groupId: 'dir-root',
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing',
+        phase: 'reading'
+      })
+
+      await service.updateStatus('note-child', 'completed')
+
+      await expect(getItemRow('note-child')).resolves.toMatchObject({
+        status: 'completed',
+        phase: null,
+        error: null
+      })
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+        status: 'completed',
+        error: null
+      })
+    })
+
+    it('throws NotFound when updating status for a missing item', async () => {
+      await expect(service.updateStatus('missing', 'failed', { error: 'missing' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
+      })
+    })
+
+    it('normalizes failed status to a terminal phase with a non-empty error', async () => {
+      const seeded = await seedItem({
+        status: 'processing',
+        phase: 'reading',
+        error: null
+      })
+
+      const result = await service.updateStatus(seeded.id, 'failed', { error: '  read failed  ' })
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        phase: null,
+        error: 'read failed'
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'failed',
+        phase: null,
+        error: 'read failed'
+      })
+    })
+
+    it('rejects failed status without a non-empty error', async () => {
+      const seeded = await seedItem()
+
+      await expect(service.updateStatus(seeded.id, 'failed', { error: '   ' })).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        status: 422
       })
     })
   })
@@ -496,7 +684,10 @@ describe('KnowledgeItemService', () => {
 
       await service.reconcileContainers('kb-1', ['dir-root'])
 
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'failed', error: null })
+      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+        status: 'failed',
+        error: 'One or more child items failed'
+      })
     })
 
     it('does nothing when the root no longer exists', async () => {

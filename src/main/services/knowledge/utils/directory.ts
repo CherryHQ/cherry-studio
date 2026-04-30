@@ -24,9 +24,6 @@ export type ExpandedDirectoryNode =
       }
     }
 
-/**
- * Recursively reads a directory tree and converts it into note-tree nodes.
- */
 async function readDirectoryTree(
   dirPath: string,
   signal: AbortSignal,
@@ -80,10 +77,6 @@ async function readDirectoryTree(
   return nodes
 }
 
-/**
- * Builds file metadata for an external file path so it can be stored as a
- * knowledge file item.
- */
 async function createExternalFileMetadata(filePath: string, signal: AbortSignal): Promise<FileMetadata> {
   const stats = await fs.stat(filePath)
   signal.throwIfAborted()
@@ -141,9 +134,6 @@ async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Pr
   }
 }
 
-/**
- * Expands a directory owner item into a tree of child knowledge item inputs.
- */
 export async function expandDirectoryOwnerToTree(
   owner: KnowledgeItem,
   signal: AbortSignal

@@ -786,8 +786,20 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.skippedCount).toBe(3)
     expect(migrator.preparedBases.map((base: any) => base.id)).toEqual(['kb-1', 'kb-2'])
     expect(migrator.preparedItems.map((item: any) => item.id)).toEqual(['item-1', 'item-dup', 'item-2'])
-    expect(result.warnings).toContain('Skipped duplicate knowledge base kb-1')
-    expect(result.warnings).toContain('Skipped duplicate knowledge item item-dup in base kb-2')
+    expect(
+      result.warnings?.some(
+        (warning: string) =>
+          warning.includes('Skipped knowledge records (duplicate_knowledge_base): count=1') &&
+          warning.includes('Skipped duplicate knowledge base kb-1')
+      )
+    ).toBe(true)
+    expect(
+      result.warnings?.some(
+        (warning: string) =>
+          warning.includes('Skipped knowledge records (duplicate_knowledge_item): count=1') &&
+          warning.includes('Skipped duplicate knowledge item item-dup in base kb-2')
+      )
+    ).toBe(true)
   })
 
   it('prepare migrates legacy flat items without grouping metadata', async () => {

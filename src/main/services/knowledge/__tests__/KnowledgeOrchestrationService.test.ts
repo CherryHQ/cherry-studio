@@ -5,15 +5,16 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  appGetMock,
   runtimeAddItemsMock,
   runtimeCreateBaseMock,
+  runtimeDeleteBaseArtifactsMock,
   runtimeDeleteBaseMock,
   runtimeDeleteItemChunkMock,
   runtimeDeleteItemsMock,
   runtimeListItemChunksMock,
   runtimeReindexItemsMock,
   runtimeSearchMock,
+  failItemsMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
@@ -22,15 +23,16 @@ const {
   knowledgeItemGetByIdMock,
   knowledgeItemGetLeafDescendantItemsMock
 } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
   runtimeAddItemsMock: vi.fn(),
   runtimeCreateBaseMock: vi.fn(),
+  runtimeDeleteBaseArtifactsMock: vi.fn(),
   runtimeDeleteBaseMock: vi.fn(),
   runtimeDeleteItemChunkMock: vi.fn(),
   runtimeDeleteItemsMock: vi.fn(),
   runtimeListItemChunksMock: vi.fn(),
   runtimeReindexItemsMock: vi.fn(),
   runtimeSearchMock: vi.fn(),
+  failItemsMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -40,9 +42,30 @@ const {
   knowledgeItemGetLeafDescendantItemsMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: appGetMock
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    KnowledgeRuntimeService: {
+      addItems: runtimeAddItemsMock,
+      createBase: runtimeCreateBaseMock,
+      deleteBase: runtimeDeleteBaseMock,
+      deleteBaseArtifacts: runtimeDeleteBaseArtifactsMock,
+      deleteItemChunk: runtimeDeleteItemChunkMock,
+      deleteItems: runtimeDeleteItemsMock,
+      listItemChunks: runtimeListItemChunksMock,
+      reindexItems: runtimeReindexItemsMock,
+      search: runtimeSearchMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn()
+    })
   }
 }))
 
@@ -76,6 +99,10 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
+vi.mock('../runtime/utils/cleanup', () => ({
+  failItems: failItemsMock
+}))
+
 const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
 
 function createBase() {
@@ -97,15 +124,18 @@ function createNoteItem(
   status: KnowledgeItem['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
-    status,
-    phase: null,
-    error: null,
+    ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -116,15 +146,18 @@ function createDirectoryItem(
   status: KnowledgeItem['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'directory',
     data: { source: `/docs/${id}`, path: `/docs/${id}` },
-    status,
-    phase: null,
-    error: null,
+    ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -133,23 +166,6 @@ function createDirectoryItem(
 describe('KnowledgeOrchestrationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    appGetMock.mockImplementation((serviceName: string) => {
-      if (serviceName === 'KnowledgeRuntimeService') {
-        return {
-          addItems: runtimeAddItemsMock,
-          createBase: runtimeCreateBaseMock,
-          deleteBase: runtimeDeleteBaseMock,
-          deleteItemChunk: runtimeDeleteItemChunkMock,
-          deleteItems: runtimeDeleteItemsMock,
-          listItemChunks: runtimeListItemChunksMock,
-          reindexItems: runtimeReindexItemsMock,
-          search: runtimeSearchMock
-        }
-      }
-
-      throw new Error(`Unexpected application.get(${serviceName}) in test`)
-    })
 
     knowledgeBaseCreateMock.mockResolvedValue(createBase())
     knowledgeBaseDeleteMock.mockResolvedValue(undefined)
@@ -160,9 +176,11 @@ describe('KnowledgeOrchestrationService', () => {
     knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([createNoteItem()])
     runtimeAddItemsMock.mockResolvedValue(undefined)
     runtimeCreateBaseMock.mockResolvedValue(undefined)
-    runtimeDeleteBaseMock.mockResolvedValue(undefined)
+    runtimeDeleteBaseMock.mockResolvedValue([])
+    runtimeDeleteBaseArtifactsMock.mockResolvedValue(undefined)
     runtimeDeleteItemChunkMock.mockResolvedValue(undefined)
     runtimeDeleteItemsMock.mockResolvedValue(undefined)
+    failItemsMock.mockResolvedValue(undefined)
     runtimeListItemChunksMock.mockResolvedValue([])
     runtimeReindexItemsMock.mockResolvedValue(undefined)
     runtimeSearchMock.mockResolvedValue([])
@@ -180,16 +198,19 @@ describe('KnowledgeOrchestrationService', () => {
     const handlerCalls = (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle.mock.calls.map(
       (call) => call[0]
     )
-    expect(handlerCalls).toEqual([
-      'knowledge-runtime:create-base',
-      'knowledge-runtime:delete-base',
-      'knowledge-runtime:add-items',
-      'knowledge-runtime:delete-items',
-      'knowledge-runtime:reindex-items',
-      'knowledge-runtime:search',
-      'knowledge-runtime:list-item-chunks',
-      'knowledge-runtime:delete-item-chunk'
-    ])
+    expect(handlerCalls).toHaveLength(8)
+    expect(handlerCalls).toEqual(
+      expect.arrayContaining([
+        'knowledge-runtime:create-base',
+        'knowledge-runtime:delete-base',
+        'knowledge-runtime:add-items',
+        'knowledge-runtime:delete-items',
+        'knowledge-runtime:reindex-items',
+        'knowledge-runtime:search',
+        'knowledge-runtime:list-item-chunks',
+        'knowledge-runtime:delete-item-chunk'
+      ])
+    )
   })
 
   it('creates a base and initializes its runtime store', async () => {
@@ -222,20 +243,56 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('does not delete the SQLite base when runtime base deletion fails', async () => {
+  it('deletes the SQLite base before deleting vector artifacts', async () => {
     const service = new KnowledgeOrchestrationService()
-    const deleteError = new Error('vector store deletion failed')
+
+    await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
+
+    expect(runtimeDeleteBaseMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(runtimeDeleteBaseArtifactsMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+      runtimeDeleteBaseArtifactsMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not delete the SQLite base when runtime base interruption fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const deleteError = new Error('base interruption failed')
     runtimeDeleteBaseMock.mockRejectedValueOnce(deleteError)
 
     await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
 
     expect(runtimeDeleteBaseMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
   })
 
-  it('delegates caller-friendly add item inputs to runtime', async () => {
+  it('marks interrupted runtime items failed when SQLite base deletion fails', async () => {
     const service = new KnowledgeOrchestrationService()
-    const input = [{ type: 'note' as const, content: 'hello', source: 'note-1' }]
+    const deleteError = new Error('sqlite delete failed')
+    runtimeDeleteBaseMock.mockResolvedValueOnce(['item-1', 'item-2'])
+    knowledgeBaseDeleteMock.mockRejectedValueOnce(deleteError)
+
+    await expect(service.deleteBase('kb-1')).rejects.toBe(deleteError)
+
+    expect(failItemsMock).toHaveBeenCalledWith(['item-1', 'item-2'], 'sqlite delete failed')
+    expect(runtimeDeleteBaseArtifactsMock).not.toHaveBeenCalled()
+  })
+
+  it('does not fail base deletion when post-SQLite artifact cleanup fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    runtimeDeleteBaseArtifactsMock.mockRejectedValueOnce(new Error('artifact delete failed'))
+
+    await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
+
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(failItemsMock).not.toHaveBeenCalled()
+  })
+
+  it('delegates create-item DTO inputs to runtime', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const input = [{ type: 'note' as const, data: { source: 'note-1', content: 'hello' } }]
 
     const result = await service.addItems('kb-1', input)
 
@@ -248,9 +305,9 @@ describe('KnowledgeOrchestrationService', () => {
     const runtimeError = new Error('runtime acceptance failed')
     runtimeAddItemsMock.mockRejectedValueOnce(runtimeError)
 
-    await expect(service.addItems('kb-1', [{ type: 'note', content: 'hello', source: 'note-1' }])).rejects.toBe(
-      runtimeError
-    )
+    await expect(
+      service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello' } }])
+    ).rejects.toBe(runtimeError)
   })
 
   it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
@@ -267,10 +324,16 @@ describe('KnowledgeOrchestrationService', () => {
       count: 1
     }
     const inputs = [
-      { type: 'url' as const, url: ' https://example.com/page ' },
-      { type: 'sitemap' as const, url: 'https://example.com/sitemap.xml' },
-      { type: 'directory' as const, path: '/docs/reference/' },
-      { type: 'file' as const, file }
+      {
+        type: 'url' as const,
+        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
+      },
+      {
+        type: 'sitemap' as const,
+        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
+      },
+      { type: 'directory' as const, data: { source: '/docs/reference/', path: '/docs/reference/' } },
+      { type: 'file' as const, data: { source: file.path, file } }
     ]
 
     await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()

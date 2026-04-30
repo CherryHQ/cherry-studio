@@ -150,9 +150,13 @@ Base deletion follows the same ordering:
 
 ```text
 delete-base(baseId)
- -> runtime interrupts base work and deletes the vector store
+ -> runtime interrupts base work and returns interrupted item ids
  -> data service deletes the SQLite base and cascaded items
+ -> runtime best-effort deletes base vector artifacts
 ```
+
+If SQLite deletion fails after runtime work was interrupted, orchestration marks the interrupted items failed and rethrows the SQLite error.
+If post-SQLite artifact cleanup fails, orchestration logs the cleanup error and keeps the base deletion successful because the durable SQLite rows are already gone.
 
 ## Search
 
@@ -179,12 +183,7 @@ The current v2 implementation intentionally does **not** create a libSQL vector 
 Similarity search currently queries the base table directly and sorts by `vector_distance_cos(...)`.
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
-That tradeoff is currently accepted because it keeps the runtime path simpler and performs well enough for the expected near-term corpus sizes.
-
-A local benchmark run on April 15, 2026 with 1536-dimension embeddings and `topK=10` measured approximately:
-
-- `20k` rows: `~78ms` warm vector search
-- `50k` rows: `~195ms` warm vector search
+That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.
 
 Current guidance:
 

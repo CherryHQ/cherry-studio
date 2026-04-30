@@ -1,4 +1,4 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { type KnowledgeBase, KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
 
@@ -8,6 +8,7 @@ function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    groupId: null,
     emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
@@ -52,22 +53,34 @@ describe('chunkDocuments', () => {
     ]
 
     const chunks = chunkDocuments(createBase(), createItem(), documents)
+    const metadata = chunks.map((chunk) => KnowledgeChunkMetadataSchema.parse(chunk.metadata))
 
     expect(chunks).toHaveLength(2)
-    expect(chunks[0]?.metadata).toMatchObject({
+    expect(metadata[0]).toMatchObject({
       source: 'https://example.com/1',
       itemId: 'item-1',
       itemType: 'note',
       chunkIndex: 0,
       tokenCount: expect.any(Number)
     })
-    expect(chunks[1]?.metadata).toMatchObject({
+    expect(metadata[1]).toMatchObject({
       source: 'https://example.com/2',
       itemId: 'item-1',
       itemType: 'note',
       chunkIndex: 1,
       tokenCount: expect.any(Number)
     })
-    expect(chunks[0]?.metadata.tokenCount).toBeGreaterThan(0)
+    expect(metadata[0]?.tokenCount).toBeGreaterThan(0)
+  })
+
+  it('rejects chunk metadata without a source', () => {
+    expect(() =>
+      KnowledgeChunkMetadataSchema.parse({
+        itemId: 'item-1',
+        itemType: 'note',
+        chunkIndex: 0,
+        tokenCount: 2
+      })
+    ).toThrow()
   })
 })

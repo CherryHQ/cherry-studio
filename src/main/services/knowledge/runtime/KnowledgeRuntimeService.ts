@@ -23,7 +23,7 @@ import { rerankKnowledgeSearchResults } from '../rerank/rerank'
 import type { IndexableKnowledgeItem } from '../types/items'
 import { chunkDocuments } from '../utils/chunk'
 import { embedDocuments } from '../utils/embed'
-import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem, normalizeAddItemInput } from '../utils/items'
+import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { prepareKnowledgeItem } from './utils/prepare'
@@ -33,6 +33,11 @@ const logger = loggerService.withContext('KnowledgeRuntimeService')
 const SHUTDOWN_INTERRUPTED_REASON = 'Knowledge task interrupted by service shutdown'
 const DELETE_INTERRUPTED_REASON = 'Knowledge task interrupted by item deletion'
 const REINDEX_INTERRUPTED_REASON = 'Knowledge task interrupted by reindex'
+const EXPECTED_QUEUE_INTERRUPT_REASONS = new Set([
+  SHUTDOWN_INTERRUPTED_REASON,
+  DELETE_INTERRUPTED_REASON,
+  REINDEX_INTERRUPTED_REASON
+])
 
 const mapChunkDocument = (chunk: {
   id_: string
@@ -47,6 +52,10 @@ const mapChunkDocument = (chunk: {
     content: chunk.getContent(MetadataMode.NONE),
     metadata
   }
+}
+
+const assertNeverKnowledgeItem = (item: never): never => {
+  throw new Error(`Unsupported knowledge item type: ${String((item as { type?: unknown }).type)}`)
 }
 
 @Injectable('KnowledgeRuntimeService')
@@ -71,20 +80,32 @@ export class KnowledgeRuntimeService extends BaseService {
     await vectorStoreService.createStore(base)
   }
 
-  async deleteBase(baseId: string): Promise<void> {
+  async deleteBase(baseId: string): Promise<string[]> {
     const interruptedEntries = this.queue.interruptBase(baseId, DELETE_INTERRUPTED_REASON)
     await this.queue.waitForRunning(interruptedEntries.map((entry) => entry.itemId))
 
-    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    let cleanupEntries: Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }>
     try {
-      await vectorStoreService.deleteStore(baseId)
+      cleanupEntries = await this.expandInterruptedEntries(interruptedEntries)
     } catch (error) {
-      const cleanupEntries = await this.expandInterruptedEntries(interruptedEntries)
-      await this.failItemsAndRethrow(
-        cleanupEntries.flatMap((entry) => entry.itemIds),
-        error
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      await this.persistFailureStateBestEffort(
+        interruptedEntries.map((entry) => entry.itemId),
+        normalizedError.message,
+        {
+          baseId,
+          operation: 'deleteBase'
+        }
       )
+      throw error
     }
+
+    return cleanupEntries.flatMap((entry) => entry.itemIds)
+  }
+
+  async deleteBaseArtifacts(baseId: string): Promise<void> {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    await vectorStoreService.deleteStore(baseId)
   }
 
   async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
@@ -97,7 +118,7 @@ export class KnowledgeRuntimeService extends BaseService {
 
     try {
       for (const input of inputs) {
-        const createdItem = await knowledgeItemService.create(base.id, normalizeAddItemInput(input))
+        const createdItem = await knowledgeItemService.create(base.id, input)
         acceptedItems.push(createdItem)
         acceptedItems[acceptedItems.length - 1] =
           createdItem.type === 'directory' || createdItem.type === 'sitemap'
@@ -106,10 +127,12 @@ export class KnowledgeRuntimeService extends BaseService {
       }
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
-      await failItems(
-        acceptedItems.map((item) => item.id),
-        normalizedError.message
-      )
+      logger.error('Failed to add knowledge items', normalizedError, {
+        baseId: base.id,
+        accepted: acceptedItems.length,
+        total: inputs.length
+      })
+      await this.deleteAcceptedItemsBestEffort(acceptedItems, normalizedError, base.id)
       throw error
     }
 
@@ -133,7 +156,8 @@ export class KnowledgeRuntimeService extends BaseService {
       await this.deleteItemVectorsOrFailItems(
         base,
         leafItems.map((item) => item.id),
-        interruptIds
+        interruptIds,
+        { baseId: base.id, operation: 'reindexItems', rootIds }
       )
 
       const containerItems = rootItems.filter(
@@ -163,7 +187,7 @@ export class KnowledgeRuntimeService extends BaseService {
         }
       }
     } catch (error) {
-      await this.failItemsAndRethrow(interruptIds, error)
+      await this.failItemsAndRethrow(interruptIds, error, { baseId: base.id, operation: 'reindexItems', rootIds })
     }
   }
 
@@ -182,10 +206,11 @@ export class KnowledgeRuntimeService extends BaseService {
       await this.deleteItemVectorsOrFailItems(
         base,
         leafItems.map((item) => item.id),
-        interruptIds
+        interruptIds,
+        { baseId: base.id, operation: 'deleteItems', rootIds }
       )
     } catch (error) {
-      await this.failItemsAndRethrow(interruptIds, error)
+      await this.failItemsAndRethrow(interruptIds, error, { baseId: base.id, operation: 'deleteItems', rootIds })
     }
   }
 
@@ -246,41 +271,76 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   private async submitRuntimeItem(base: KnowledgeBase, item: KnowledgeItem): Promise<void> {
-    if (isIndexableKnowledgeItem(item)) {
-      this.enqueueIndexItem(base, item)
-      return
-    }
-
-    if (item.type === 'directory' || item.type === 'sitemap') {
-      this.enqueuePrepareRoot(base, item)
+    switch (item.type) {
+      case 'file':
+      case 'url':
+      case 'note':
+        this.enqueueIndexItem(base, item)
+        return
+      case 'directory':
+      case 'sitemap':
+        this.enqueuePrepareRoot(base, item)
+        return
+      default:
+        assertNeverKnowledgeItem(item)
     }
   }
 
   private enqueueIndexItem(base: KnowledgeBase, item: IndexableKnowledgeItem): void {
+    const wasAlreadyQueued = this.hasQueuedItem(item.id)
+    let didStart = false
     const promise = this.queue.enqueue({
       base,
       baseId: base.id,
       itemId: item.id,
       kind: 'index-leaf',
-      execute: (context) => this.executeIndexTask(base, item, context)
+      execute: (context) => {
+        didStart = true
+        return this.executeIndexTask(base, item, context)
+      }
     })
 
-    void promise.catch(() => undefined)
+    void promise.catch((error) => {
+      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+        return
+      }
+
+      void this.failItemsAfterEnqueueRejection([item.id], error, {
+        baseId: base.id,
+        itemId: item.id,
+        kind: 'index-leaf'
+      })
+    })
   }
 
   private enqueuePrepareRoot(
     base: KnowledgeBase,
     item: KnowledgeItemOf<'directory'> | KnowledgeItemOf<'sitemap'>
   ): void {
+    const wasAlreadyQueued = this.hasQueuedItem(item.id)
+    let didStart = false
     const promise = this.queue.enqueue({
       base,
       baseId: base.id,
       itemId: item.id,
       kind: 'prepare-root',
-      execute: (context) => this.executePrepareTask(base, item, context)
+      execute: (context) => {
+        didStart = true
+        return this.executePrepareTask(base, item, context)
+      }
     })
 
-    void promise.catch(() => undefined)
+    void promise.catch((error) => {
+      if (wasAlreadyQueued || didStart || this.isExpectedQueueInterrupt(error)) {
+        return
+      }
+
+      void this.failItemsAfterEnqueueRejection([item.id], error, {
+        baseId: base.id,
+        itemId: item.id,
+        kind: 'prepare-root'
+      })
+    })
   }
 
   private async executePrepareTask(
@@ -295,6 +355,7 @@ export class KnowledgeRuntimeService extends BaseService {
         baseId: base.id,
         item,
         onCreatedItem: (createdItem) => createdItemIds.add(createdItem.id),
+        runMutation: (task) => context.runWithBaseWriteLock(task),
         signal: context.signal
       })
 
@@ -308,7 +369,6 @@ export class KnowledgeRuntimeService extends BaseService {
       await context.runWithBaseWriteLock(async () => {
         await knowledgeItemService.updateStatus(item.id, 'processing')
         context.signal.throwIfAborted()
-        await knowledgeItemService.reconcileContainers(base.id, [item.id])
       })
     } catch (error) {
       if (context.signal.aborted) {
@@ -381,32 +441,130 @@ export class KnowledgeRuntimeService extends BaseService {
     try {
       await deleteItemVectors(base, itemIds)
     } catch (cleanupError) {
-      logger.warn('Failed to cleanup knowledge item vectors after runtime failure', {
-        baseId: base.id,
-        itemIds,
-        cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-      })
+      logger.error(
+        'Failed to cleanup knowledge item vectors after runtime failure',
+        cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+        {
+          baseId: base.id,
+          itemIds
+        }
+      )
     }
 
-    await failItems(itemIds, error.message)
+    await this.persistFailureStateBestEffort(itemIds, error.message, {
+      baseId: base.id,
+      itemId: logItem.id,
+      itemType: logItem.type,
+      operation: 'runtimeTaskFailure'
+    })
+  }
+
+  private async persistFailureStateBestEffort(
+    itemIds: string[],
+    reason: string,
+    context: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await failItems(itemIds, reason)
+    } catch (error) {
+      logger.error(
+        'Failed to persist knowledge item failure state during runtime cleanup',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          ...context,
+          itemIds,
+          reason
+        }
+      )
+    }
   }
 
   private async deleteItemVectorsOrFailItems(
     base: KnowledgeBase,
     vectorItemIds: string[],
-    failureItemIds: string[]
+    failureItemIds: string[],
+    context: Record<string, unknown>
   ): Promise<void> {
     try {
       await deleteItemVectors(base, vectorItemIds)
     } catch (error) {
-      await this.failItemsAndRethrow(failureItemIds, error)
+      await this.failItemsAndRethrow(failureItemIds, error, context)
     }
   }
 
-  private async failItemsAndRethrow(itemIds: string[], error: unknown): Promise<never> {
+  private async deleteAcceptedItemsBestEffort(
+    items: KnowledgeItem[],
+    originalError: Error,
+    baseId: string
+  ): Promise<void> {
+    const uniqueItems = [...new Map(items.map((item) => [item.id, item])).values()]
+
+    await Promise.all(
+      uniqueItems.map(async (item) => {
+        try {
+          await knowledgeItemService.delete(item.id)
+        } catch (cleanupError) {
+          logger.error(
+            'Failed to rollback accepted knowledge item after addItems failure',
+            cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+            {
+              baseId,
+              itemId: item.id,
+              addError: originalError.message
+            }
+          )
+        }
+      })
+    )
+  }
+
+  private async failItemsAndRethrow(
+    itemIds: string[],
+    error: unknown,
+    context: Record<string, unknown>
+  ): Promise<never> {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
-    await failItems(itemIds, normalizedError.message)
+    await this.persistFailureStateBestEffort(itemIds, normalizedError.message, {
+      ...context,
+      operation: context.operation ?? 'strictRuntimeCleanup'
+    })
     throw error
+  }
+
+  private isExpectedQueueInterrupt(error: unknown): boolean {
+    return (
+      error instanceof Error &&
+      error.name === 'KnowledgeQueueInterruptedError' &&
+      EXPECTED_QUEUE_INTERRUPT_REASONS.has(error.message)
+    )
+  }
+
+  private hasQueuedItem(itemId: string): boolean {
+    const snapshot = this.queue.getSnapshot()
+    return [...snapshot.pending, ...snapshot.running].some((entry) => entry.itemId === itemId)
+  }
+
+  private async failItemsAfterEnqueueRejection(
+    itemIds: string[],
+    error: unknown,
+    context: Pick<KnowledgeQueueTaskEntry, 'baseId' | 'itemId' | 'kind'>
+  ): Promise<void> {
+    const normalizedError = error instanceof Error ? error : new Error(String(error))
+    logger.error('Knowledge queue rejected runtime task before execution', normalizedError, context)
+
+    try {
+      await failItems(itemIds, normalizedError.message)
+    } catch (failureStateError) {
+      logger.error(
+        'Failed to persist knowledge item failure state after queue enqueue rejection',
+        failureStateError instanceof Error ? failureStateError : new Error(String(failureStateError)),
+        {
+          ...context,
+          itemIds,
+          enqueueError: normalizedError.message
+        }
+      )
+    }
   }
 
   private async interruptRootsAndDescendants(
@@ -414,6 +572,7 @@ export class KnowledgeRuntimeService extends BaseService {
     rootIds: string[],
     reason: string
   ): Promise<{ descendantItems: KnowledgeItem[]; interruptIds: string[] }> {
+    // Stop roots before descendant lookup so an active expansion cannot enqueue fresh children during cleanup.
     this.queue.interruptItems(rootIds, reason)
     await this.queue.waitForRunning(rootIds)
 
@@ -448,9 +607,12 @@ export class KnowledgeRuntimeService extends BaseService {
   private async cleanupInterruptedEntries(entries: KnowledgeQueueTaskEntry[], reason: string): Promise<void> {
     const cleanupEntries = await this.expandInterruptedEntries(entries)
     await this.deleteVectorsForQueueEntries(cleanupEntries)
-    await failItems(
+    await this.persistFailureStateBestEffort(
       cleanupEntries.flatMap((entry) => entry.itemIds),
-      reason
+      reason,
+      {
+        operation: 'interruptedRuntimeCleanup'
+      }
     )
   }
 

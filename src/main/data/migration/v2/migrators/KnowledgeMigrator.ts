@@ -1,15 +1,4 @@
-/**
- * Knowledge migrator - migrates knowledge bases and items from Redux/Dexie to SQLite
- *
- * Data sources:
- *   - Redux knowledge slice (`knowledge.bases`)
- *   - Dexie `knowledge_notes` table (full note content)
- *   - Dexie `files` table (file metadata fallback)
- *
- * Target tables:
- *   - `knowledge_base`
- *   - `knowledge_item`
- */
+/** Migrates legacy knowledge bases/items from Redux and Dexie exports into SQLite. */
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -44,6 +33,7 @@ const logger = loggerService.withContext('KnowledgeMigrator')
 const ITEM_INSERT_BATCH_SIZE = 200
 const LOOKUP_STREAM_BATCH_SIZE = 200
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
+const SKIP_WARNING_SAMPLE_LIMIT = 3
 
 type DimensionResolutionReason =
   | 'ok'
@@ -119,6 +109,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   private preparedBases: NewKnowledgeBase[] = []
   private preparedItems: NewKnowledgeItem[] = []
   private warnings: string[] = []
+  private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private seenBaseIds = new Set<string>()
   private seenItemIds = new Set<string>()
 
@@ -128,16 +119,36 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.preparedBases = []
     this.preparedItems = []
     this.warnings = []
+    this.skippedWarnings = new Map<string, { count: number; samples: string[] }>()
     this.seenBaseIds = new Set<string>()
     this.seenItemIds = new Set<string>()
   }
 
+  private recordWarning(message: string): void {
+    logger.warn(message)
+    this.warnings.push(message)
+  }
+
+  private recordSkippedWarning(reason: string, message: string): void {
+    const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
+    bucket.count += 1
+    if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
+      bucket.samples.push(message)
+    }
+    this.skippedWarnings.set(reason, bucket)
+  }
+
+  private flushSkippedWarnings(): void {
+    for (const [reason, bucket] of this.skippedWarnings) {
+      const summary = `Skipped knowledge records (${reason}): count=${bucket.count}; examples: ${bucket.samples.join(' | ')}`
+      this.recordWarning(summary)
+    }
+
+    this.skippedWarnings.clear()
+  }
+
   private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
-    // The knowledge base directory comes from MigrationPaths, which is resolved
-    // once at the migration gate entry by resolveMigrationPaths(). This avoids
-    // calling app.getPath('userData') directly (which would miss custom userData
-    // overrides from legacy config.json) and avoids the v2 path registry (which
-    // is not available during migration).
+    // MigrationPaths already accounts for legacy custom userData before the v2 path registry is available.
     const rootPath = knowledgeBaseDir
     const sanitizedBaseId = sanitizeFilename(baseId, '_')
     const resolvedDbPath = path.resolve(rootPath, sanitizedBaseId)
@@ -145,8 +156,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       const warningMessage = `Skipped knowledge base ${baseId}: invalid legacy vector DB path`
-      logger.warn(warningMessage)
-      this.warnings.push(warningMessage)
+      this.recordWarning(warningMessage)
       return null
     }
 
@@ -175,8 +185,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     if (blobLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
       const warningMessage = `Invalid vector blob length for knowledge base ${baseId}: ${blobLength} is not divisible by ${Float32Array.BYTES_PER_ELEMENT}`
-      logger.warn(warningMessage)
-      this.warnings.push(warningMessage)
+      this.recordWarning(warningMessage)
       return null
     }
 
@@ -230,8 +239,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       const warningMessage = `Failed to inspect legacy vector DB for knowledge base ${base.id}: ${
         error instanceof Error ? error.message : String(error)
       }`
-      logger.warn(warningMessage)
-      this.warnings.push(warningMessage)
+      this.recordWarning(warningMessage)
       return { dimensions: null, reason: 'vector_db_error' }
     } finally {
       if (client) {
@@ -241,8 +249,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           const warningMessage = `Failed to close legacy vector DB client for knowledge base ${base.id}: ${
             error instanceof Error ? error.message : String(error)
           }`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordWarning(warningMessage)
         }
       }
     }
@@ -312,8 +319,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     if (!(await ctx.sources.dexieExport.tableExists('knowledge_notes'))) {
       const warningMessage = 'knowledge_notes export file not found - note content fallback to Redux item content'
-      logger.warn(warningMessage)
-      this.warnings.push(warningMessage)
+      this.recordWarning(warningMessage)
       return noteById
     }
 
@@ -343,8 +349,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     if (!(await ctx.sources.dexieExport.tableExists('files'))) {
       const warningMessage = 'files export file not found - file item fallback by id disabled'
-      logger.warn(warningMessage)
-      this.warnings.push(warningMessage)
+      this.recordWarning(warningMessage)
       return filesById
     }
 
@@ -412,8 +417,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         if (!hasKnowledgeBaseIdentity(base)) {
           this.skippedCount += 1
           const warningMessage = 'Skipped invalid knowledge base: missing id or name'
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning('invalid_knowledge_base_identity', warningMessage)
           continue
         }
 
@@ -425,8 +429,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
           const warningMessage = `Skipped duplicate knowledge base ${validBase.id}`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning('duplicate_knowledge_base', warningMessage)
           continue
         }
 
@@ -436,8 +439,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
           const warningMessage = `Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning(`knowledge_base_${resolvedDimensions.reason}`, warningMessage)
           continue
         }
 
@@ -446,8 +448,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
           const warningMessage = `Skipped knowledge base ${validBase.id}: missing embedding model reference`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning('knowledge_base_missing_embedding_model', warningMessage)
           continue
         }
 
@@ -463,8 +464,7 @@ export class KnowledgeMigrator extends BaseMigrator {
             embeddingResolution.kind === 'dangling'
               ? `Skipped knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId}`
               : `Skipped knowledge base ${validBase.id}: missing embedding model reference`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning(`knowledge_base_${embeddingResolution.kind}_embedding_model`, warningMessage)
           continue
         }
 
@@ -472,8 +472,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         preparedBase.rerankModelId = rerankResolution.kind === 'resolved' ? rerankResolution.modelId : null
         if (rerankResolution.kind === 'dangling') {
           const warningMessage = `Knowledge base ${validBase.id}: dangling rerank model reference ${rerankResolution.modelId} was cleared`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordWarning(warningMessage)
         }
 
         this.seenBaseIds.add(preparedBase.id!)
@@ -481,8 +480,7 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         const invalidConfigWarning = getInvalidKnowledgeBaseConfigWarning(validBase, preparedBase)
         if (invalidConfigWarning) {
-          logger.warn(invalidConfigWarning)
-          this.warnings.push(invalidConfigWarning)
+          this.recordWarning(invalidConfigWarning)
         }
 
         for (const item of items) {
@@ -496,16 +494,14 @@ export class KnowledgeMigrator extends BaseMigrator {
           if (!itemResult.ok) {
             this.skippedCount += 1
             const warningMessage = this.formatItemWarning(validBase.id, item, itemResult.reason)
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning(`knowledge_item_${itemResult.reason}`, warningMessage)
             continue
           }
 
           if (this.seenItemIds.has(itemResult.value.id!)) {
             this.skippedCount += 1
             const warningMessage = `Skipped duplicate knowledge item ${itemResult.value.id!} in base ${validBase.id}`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('duplicate_knowledge_item', warningMessage)
             continue
           }
 
@@ -513,6 +509,8 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.preparedItems.push(itemResult.value)
         }
       }
+
+      this.flushSkippedWarnings()
 
       logger.info('KnowledgeMigrator.prepare completed', {
         sourceCount: this.sourceCount,

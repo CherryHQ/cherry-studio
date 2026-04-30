@@ -237,11 +237,19 @@ describe('KnowledgeVectorMigrator', () => {
     expect(migrator.preparedBasePlans[0].rows).toHaveLength(1)
     expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual(['item-file'])
     expect(migrator.skippedCount).toBe(2)
-    expect(result.warnings?.some((warning) => warning.includes('loader-missing'))).toBe(true)
     expect(
       result.warnings?.some(
         (warning) =>
-          warning.includes("container item 'item-directory'") && warning.includes("type 'directory' is not indexable")
+          warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
+          warning.includes('loader-missing')
+      )
+    ).toBe(true)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Skipped knowledge vector records (non_indexable_container): count=1') &&
+          warning.includes("container item 'item-directory'") &&
+          warning.includes("type 'directory' is not indexable")
       )
     ).toBe(true)
   })
@@ -294,7 +302,9 @@ describe('KnowledgeVectorMigrator', () => {
     expect(
       result.warnings?.some(
         (warning) =>
-          warning.includes("container item 'item-sitemap'") && warning.includes("type 'sitemap' is not indexable")
+          warning.includes('Skipped knowledge vector records (non_indexable_container): count=1') &&
+          warning.includes("container item 'item-sitemap'") &&
+          warning.includes("type 'sitemap' is not indexable")
       )
     ).toBe(true)
   })
@@ -548,7 +558,13 @@ describe('KnowledgeVectorMigrator', () => {
     expect(result.success).toBe(true)
     expect(migrator.preparedBasePlans[0].rows).toEqual([])
     expect(migrator.skippedCount).toBe(1)
-    expect(result.warnings?.some((warning) => warning.includes("source missing for item 'item-file'"))).toBe(true)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Skipped knowledge vector records (missing_source): count=1') &&
+          warning.includes("source missing for item 'item-file'")
+      )
+    ).toBe(true)
   })
 
   it('assigns chunkIndex per migrated item in read order', async () => {

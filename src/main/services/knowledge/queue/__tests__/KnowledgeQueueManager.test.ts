@@ -24,6 +24,7 @@ const BASE_ID = 'base-1'
 const BASE: KnowledgeBase = {
   id: BASE_ID,
   name: 'Base',
+  groupId: null,
   emoji: '📁',
   dimensions: 1024,
   embeddingModelId: 'ollama::nomic-embed-text',

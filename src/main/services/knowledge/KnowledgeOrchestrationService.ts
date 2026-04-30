@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type {
   CreateKnowledgeBaseDto,
@@ -12,6 +13,7 @@ import type {
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { failItems } from './runtime/utils/cleanup'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
   KnowledgeRuntimeBasePayloadSchema,
@@ -21,6 +23,8 @@ import {
   KnowledgeRuntimeItemsPayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
+
+const logger = loggerService.withContext('KnowledgeOrchestrationService')
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -46,8 +50,37 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async deleteBase(baseId: string): Promise<void> {
     const runtime = application.get('KnowledgeRuntimeService')
-    await runtime.deleteBase(baseId)
-    await knowledgeBaseService.delete(baseId)
+    const interruptedItemIds = await runtime.deleteBase(baseId)
+
+    try {
+      await knowledgeBaseService.delete(baseId)
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      try {
+        await failItems(interruptedItemIds, normalizedError.message)
+      } catch (failureStateError) {
+        logger.error(
+          'Failed to persist runtime item failure state after knowledge base deletion failed',
+          failureStateError instanceof Error ? failureStateError : new Error(String(failureStateError)),
+          {
+            baseId,
+            interruptedItemIds,
+            deleteError: normalizedError.message
+          }
+        )
+      }
+      throw error
+    }
+
+    try {
+      await runtime.deleteBaseArtifacts(baseId)
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to delete knowledge base vector artifacts after SQLite deletion', normalizedError, {
+        baseId,
+        interruptedItemIds
+      })
+    }
   }
 
   async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {

@@ -64,7 +64,6 @@
 |----------------------|---------------------------|-------|
 | `id` | `id` | Direct copy |
 | `name` | `name` | Direct copy |
-| `description` | `description` | Direct copy |
 | _no legacy grouping field_ | `groupId` | V1 knowledge bases do not carry group metadata; migrate as `null` |
 | _constant_ | `emoji` | Always `📁` during v1 migration |
 | `dimensions` | `dimensions` | Read from legacy vector DB `vectors.vector` blob length (`length(vector)/4`) |

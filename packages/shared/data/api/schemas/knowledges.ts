@@ -8,35 +8,36 @@
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
   type KnowledgeBase,
-  KnowledgeBaseEmojiSchema,
-  KnowledgeBaseSchema,
-  KnowledgeChunkOverlapSchema,
-  KnowledgeChunkSizeSchema,
-  KnowledgeDocumentCountSchema,
-  KnowledgeHybridAlphaSchema,
+  KnowledgeBaseEntitySchema,
   type KnowledgeItem,
-  KnowledgeItemTypeSchema,
-  KnowledgeSearchModeSchema,
-  KnowledgeThresholdSchema
+  KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
-export const UpdateKnowledgeBaseSchema = KnowledgeBaseSchema.pick({
-  groupId: true
-})
+const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
+  name: true,
+  groupId: true,
+  emoji: true,
+  rerankModelId: true,
+  fileProcessorId: true,
+  chunkSize: true,
+  chunkOverlap: true,
+  threshold: true,
+  documentCount: true,
+  searchMode: true,
+  hybridAlpha: true
+} as const
+
+// `embeddingModelId` and `dimensions` are intentionally excluded: changing
+// either invalidates existing vectors and must go through a runtime reindex flow.
+export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
-    name: z.string().trim().min(1).optional(),
-    description: z.string().nullable().optional(),
-    emoji: KnowledgeBaseEmojiSchema.optional(),
     rerankModelId: z.string().nullable().optional(),
     fileProcessorId: z.string().nullable().optional(),
-    chunkSize: KnowledgeChunkSizeSchema.optional(),
-    chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
-    threshold: KnowledgeThresholdSchema.nullable().optional(),
-    documentCount: KnowledgeDocumentCountSchema.nullable().optional(),
-    searchMode: KnowledgeSearchModeSchema.optional(),
-    hybridAlpha: KnowledgeHybridAlphaSchema.nullable().optional()
+    threshold: KnowledgeBaseEntitySchema.shape.threshold.nullable().optional(),
+    documentCount: KnowledgeBaseEntitySchema.shape.documentCount.nullable().optional(),
+    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha.nullable().optional()
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 

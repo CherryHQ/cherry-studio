@@ -15,8 +15,8 @@ import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
   type KnowledgeItemPhase,
-  type KnowledgeItemStatus,
-  type UpdateKnowledgeItemDto
+  KnowledgeItemSchema,
+  type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
@@ -24,16 +24,20 @@ import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
+const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 
 type KnowledgeItemStatusUpdate = {
   phase?: KnowledgeItemPhase | null
-  error?: string | null
+}
+
+type FailedKnowledgeItemStatusUpdate = {
+  error: string
 }
 
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
-  return {
+  return KnowledgeItemSchema.parse({
     id: row.id,
     baseId: row.baseId,
     groupId: row.groupId,
@@ -44,7 +48,7 @@ function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
     error: row.error,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
-  } as KnowledgeItem
+  })
 }
 
 export class KnowledgeItemService {
@@ -86,6 +90,8 @@ export class KnowledgeItemService {
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
+    await this.validateGroupOwner(baseId, item.groupId)
+
     const [row] = await this.db.transaction(async (tx) =>
       withSqliteErrors(
         () =>
@@ -126,6 +132,38 @@ export class KnowledgeItemService {
 
     logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
     return rowToKnowledgeItem(row)
+  }
+
+  private async validateGroupOwner(baseId: string, groupId: string | null | undefined): Promise<void> {
+    if (groupId == null) {
+      return
+    }
+
+    if (groupId.trim().length === 0) {
+      throw DataApiErrorFactory.validation({
+        groupId: ['Knowledge item group owner id is required when groupId is provided']
+      })
+    }
+
+    const [owner] = await this.db
+      .select({
+        type: knowledgeItemTable.type
+      })
+      .from(knowledgeItemTable)
+      .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, groupId)))
+      .limit(1)
+
+    if (!owner) {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Knowledge item group owner not found in base '${baseId}': ${groupId}`]
+      })
+    }
+
+    if (owner.type !== 'directory' && owner.type !== 'sitemap') {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Knowledge item group owner must be a directory or sitemap: ${groupId}`]
+      })
+    }
   }
 
   async getById(id: string): Promise<KnowledgeItem> {
@@ -287,72 +325,23 @@ export class KnowledgeItemService {
     return rows.map((row) => row.id)
   }
 
-  async update(id: string, dto: UpdateKnowledgeItemDto): Promise<KnowledgeItem> {
-    const result = await this.db.transaction(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
-      }
-
-      const existing = rowToKnowledgeItem(existingRow)
-      const updates: Partial<typeof knowledgeItemTable.$inferInsert> = {}
-
-      if (dto.data !== undefined) {
-        updates.data = dto.data
-      }
-      if (dto.status !== undefined) {
-        updates.status = dto.status
-      }
-      if (dto.error !== undefined) {
-        updates.error = dto.error
-      }
-
-      if (Object.keys(updates).length === 0) {
-        return existing
-      }
-
-      const [row] = await withSqliteErrors(
-        () => tx.update(knowledgeItemTable).set(updates).where(eq(knowledgeItemTable.id, id)).returning(),
-        {
-          foreignKey: () =>
-            existing.groupId
-              ? DataApiErrorFactory.validation({
-                  groupId: [`Knowledge item group owner not found in base '${existing.baseId}': ${existing.groupId}`]
-                })
-              : DataApiErrorFactory.notFound('KnowledgeBase', existing.baseId),
-          check: (constraintName) =>
-            DataApiErrorFactory.validation({
-              _root: [
-                constraintName
-                  ? `Knowledge item failed CHECK constraint '${constraintName}'`
-                  : 'Knowledge item failed a CHECK constraint'
-              ]
-            })
-        } satisfies SqliteErrorHandlers
-      )
-
-      if (!row) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item update result missing for id '${id}'`
-        )
-      }
-
-      return rowToKnowledgeItem(row)
-    })
-
-    logger.info('Updated knowledge item', { id, changes: Object.keys(dto) })
-    return result
-  }
-
+  async updateStatus(id: string, status: 'idle' | 'completed'): Promise<KnowledgeItem>
+  async updateStatus(id: string, status: 'processing', update?: KnowledgeItemStatusUpdate): Promise<KnowledgeItem>
+  async updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): Promise<KnowledgeItem>
   async updateStatus(
     id: string,
     status: KnowledgeItemStatus,
-    update: KnowledgeItemStatusUpdate = {}
+    update: KnowledgeItemStatusUpdate | FailedKnowledgeItemStatusUpdate = {}
   ): Promise<KnowledgeItem> {
-    const phase = update.phase ?? null
-    const error = update.error ?? null
+    const phase = status === 'processing' && 'phase' in update ? (update.phase ?? null) : null
+    const error = status === 'failed' && 'error' in update ? update.error.trim() : null
+
+    if (status === 'failed' && !error) {
+      throw DataApiErrorFactory.validation({
+        error: ['Failed knowledge items must include a non-empty error']
+      })
+    }
+
     const { item, startContainerIds } = await this.db.transaction(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
 
@@ -441,7 +430,7 @@ export class KnowledgeItemService {
         const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
         await tx
           .update(knowledgeItemTable)
-          .set({ status: nextStatus, error: null })
+          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
 
         if (containerRow.groupId) {

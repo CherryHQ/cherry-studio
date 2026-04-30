@@ -15,6 +15,16 @@ class DeleteItemVectorsError extends Error {
   }
 }
 
+class FailedToPersistFailureStateError extends Error {
+  constructor(
+    readonly itemIds: string[],
+    readonly reason: string
+  ) {
+    super(`Failed to persist failure state for knowledge items: ${itemIds.join(', ')}`)
+    this.name = 'FailedToPersistFailureStateError'
+  }
+}
+
 export async function deleteItemVectors(base: KnowledgeBase, itemIds: string[]): Promise<void> {
   const uniqueItemIds = [...new Set(itemIds)]
   if (uniqueItemIds.length === 0) {
@@ -42,10 +52,11 @@ export async function deleteVectorsForEntries(
     try {
       await deleteItemVectors(base, itemIds)
     } catch (error) {
-      logger.warn('Failed to delete knowledge item vectors during runtime cleanup', {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to delete knowledge item vectors during runtime cleanup', normalizedError, {
         baseId: base.id,
         itemIds,
-        cleanupError: error instanceof Error ? error.message : String(error)
+        failedItemIds: error instanceof DeleteItemVectorsError ? error.failedItemIds : itemIds
       })
     }
   }
@@ -75,4 +86,17 @@ export async function failItems(itemIds: string[], reason: string): Promise<void
       }
     )
   }
+
+  const failedItemIds = results.flatMap((result, index) => (result.status === 'rejected' ? [uniqueItemIds[index]] : []))
+  if (failedItemIds.length === 0) {
+    return
+  }
+
+  const aggregateError = new FailedToPersistFailureStateError(failedItemIds, reason)
+  logger.error('Failed to persist failure state for knowledge items', aggregateError, {
+    count: failedItemIds.length,
+    itemIds: failedItemIds,
+    reason
+  })
+  throw aggregateError
 }

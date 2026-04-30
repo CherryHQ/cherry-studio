@@ -16,7 +16,8 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
-  type KnowledgeBase
+  type KnowledgeBase,
+  KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
 
@@ -47,15 +48,12 @@ function validateKnowledgeBaseConfig(config: {
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
-  return {
+  return KnowledgeBaseSchema.parse({
     ...clean,
-    groupId: row.groupId ?? null,
-    emoji: row.emoji,
-    chunkSize: row.chunkSize,
-    chunkOverlap: row.chunkOverlap,
+    groupId: row.groupId,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
-  }
+  })
 }
 
 export class KnowledgeBaseService {
@@ -108,19 +106,18 @@ export class KnowledgeBaseService {
 
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
-      description: dto.description,
-      groupId: dto.groupId,
+      groupId: dto.groupId ?? null,
       emoji: dto.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
       rerankModelId: dto.rerankModelId ?? null,
-      fileProcessorId: dto.fileProcessorId,
+      fileProcessorId: dto.fileProcessorId ?? null,
       chunkSize: createConfig.chunkSize,
       chunkOverlap: createConfig.chunkOverlap,
-      threshold: dto.threshold,
-      documentCount: dto.documentCount,
+      threshold: dto.threshold ?? null,
+      documentCount: dto.documentCount ?? null,
       searchMode: createConfig.searchMode,
-      hybridAlpha: createConfig.hybridAlpha
+      hybridAlpha: createConfig.hybridAlpha ?? null
     }
 
     const row = await this.db.transaction(async (tx) => {
@@ -155,9 +152,6 @@ export class KnowledgeBaseService {
     if (dto.name !== undefined) {
       const nextName = dto.name.trim()
       if (nextName !== existing.name) updates.name = nextName
-    }
-    if (dto.description !== undefined && (dto.description ?? undefined) !== existing.description) {
-      updates.description = dto.description
     }
     if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       updates.groupId = dto.groupId

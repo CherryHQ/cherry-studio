@@ -14,7 +14,6 @@ This document records the current V2 knowledge target schema, migration constrai
 - Persisted columns:
   - `id`
   - `name`
-  - `description`
   - `dimensions`
   - `embeddingModelId`
   - `rerankModelId`
@@ -72,34 +71,12 @@ This document records the current V2 knowledge target schema, migration constrai
 - Current runtime read flows use:
   - `GET /knowledge-bases/:id/items` for flat item listing
   - optional query filters: `type`, `groupId`
-- Current runtime create flow uses:
-  - `POST /knowledge-bases/:id/items`
-  - request bodies may carry `groupId`, `ref`, and `groupRef`
-  - `groupId` may point to an already existing owner item in the same knowledge base
-  - `ref` is an optional request-local reference key for one newly created item in the current batch
-  - `groupRef` is an optional request-local owner reference that points to another item's `ref` in the same batch
-  - `ref` and `groupRef` are request-level helper fields only:
-    - they are not persisted to SQLite
-    - they are resolved by the DataApi/service layer before insert
-    - the persisted relationship is still `groupId = ownerItem.id`
-  - `groupId` and `groupRef` are mutually exclusive on one item
-  - `groupRef` must resolve to a `ref` present in the same request batch
-  - one request batch may therefore create:
-    - a new owner item and its grouped members together
-    - a multi-level same-base grouping tree
-  - the current create contract rejects invalid batch-local grouping:
-    - duplicate `ref` values in one request batch
-    - missing `groupRef` targets
-    - self-references
-    - cycles within one request batch
-- Current runtime update flow uses:
-  - `PATCH /knowledge-items/:id`
-  - mutable fields may include `data`, `status`, `error`
-  - `groupId` is create-only in the current DataApi contract and is not updated through `PATCH /knowledge-items/:id`
-- Current delete flow is item-level only:
-  - `DELETE /knowledge-items/:id`
-  - when the deleted item is a logical group owner, the database cascade also removes items with `groupId = :id`
-  - there is still no separate first-class group resource or `DELETE /knowledge-groups/:id` endpoint
+- Current runtime write workflows use `KnowledgeOrchestrationService` IPC, not DataApi endpoints:
+  - add items: normalize caller-friendly inputs, create SQLite rows, and enqueue prepare/index tasks
+  - delete items: interrupt runtime work, delete vectors, then delete SQLite roots
+  - reindex items: interrupt runtime work, delete old vectors, rebuild expanded children when needed, then enqueue indexing
+  - search and chunk mutation: execute against the per-base vector store through runtime IPC
+- DataApi remains limited to SQLite-backed reads and knowledge base metadata PATCH.
 - Migration from official v1 data does not preserve or infer grouping metadata:
   - official v1 exports are flat
   - migrated items are inserted with `groupId = null`
@@ -201,7 +178,7 @@ This document records the current V2 knowledge target schema, migration constrai
 
 - `video` and `memory` items are skipped during migration.
 - The target schema uses optional `groupId`, but migration from official v1 data still writes it as `null`.
-- The current DataApi contract is flat item CRUD plus filtered listing; it does not expose tree navigation.
+- The current DataApi contract exposes flat item read/listing only; write operations go through runtime orchestration.
 - Group ownership is represented implicitly by `groupId = ownerItem.id`; there is no standalone group table in the current phase.
 - `dimensions` resolution failure skips the entire base and all nested items, with warnings recorded in migration output.
 - Knowledge item status migration uses `uniqueId` instead of `processingStatus`.

@@ -22,9 +22,11 @@ export const KNOWLEDGE_ITEM_STATUSES = ['idle', 'processing', 'completed', 'fail
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_ITEM_PHASES = ['preparing', 'file_processing', 'reading', 'embedding'] as const
+export const KNOWLEDGE_ITEM_PHASES = ['preparing', 'reading', 'embedding'] as const
 export const KnowledgeItemPhaseSchema = z.enum(KNOWLEDGE_ITEM_PHASES)
 export type KnowledgeItemPhase = z.infer<typeof KnowledgeItemPhaseSchema>
+export const KnowledgeLeafItemPhaseSchema = z.enum(['reading', 'embedding'])
+export const KnowledgeContainerItemPhaseSchema = z.literal('preparing')
 
 export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
@@ -36,12 +38,12 @@ export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
-export const KnowledgeBaseGroupIdSchema = z.string()
 export const KnowledgeBaseEmojiSchema = z.emoji()
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
 export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
+export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
 // ============================================================================
 // Knowledge Base Entity
@@ -50,14 +52,13 @@ export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 /**
  * Knowledge base metadata stored in SQLite.
  */
-export const KnowledgeBaseSchema = z.strictObject({
+export const KnowledgeBaseEntitySchema = z.strictObject({
   id: z.string(),
-  name: z.string().min(1),
-  description: z.string().optional(),
-  groupId: KnowledgeBaseGroupIdSchema.nullable().optional(),
+  name: z.string().trim().min(1),
+  groupId: z.string().trim().min(1).nullable(),
   emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().min(1),
+  embeddingModelId: z.string().trim().min(1),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
@@ -68,6 +69,24 @@ export const KnowledgeBaseSchema = z.strictObject({
   hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
+})
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+  if (value.chunkOverlap >= value.chunkSize) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkOverlap'],
+      message: 'Chunk overlap must be smaller than chunk size'
+    })
+  }
+
+  if (value.hybridAlpha != null && value.searchMode !== 'hybrid') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['hybridAlpha'],
+      message: 'Hybrid alpha requires hybrid search mode'
+    })
+  }
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
@@ -115,7 +134,7 @@ export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
  * Note item data.
  */
 export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
-  content: z.string(),
+  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX),
   sourceUrl: z.string().optional()
 })
 
@@ -149,41 +168,128 @@ export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 // Knowledge Item Entity
 // ============================================================================
 
-const KnowledgeItemBaseSchema = z.strictObject({
+const KnowledgeItemEntityBaseSchema = z.strictObject({
   id: z.string(),
   baseId: z.string(),
-  groupId: z.string().nullable().optional(),
-  status: KnowledgeItemStatusSchema,
-  phase: KnowledgeItemPhaseSchema.nullable(),
-  error: z.string().nullable(),
+  groupId: z.string().trim().min(1).nullable().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 
+const IdleKnowledgeItemLifecycleSchema = {
+  status: z.literal('idle'),
+  phase: z.null(),
+  error: z.null()
+} as const
+
+const ProcessingKnowledgeItemLifecycleSchema = {
+  status: z.literal('processing'),
+  phase: KnowledgeItemPhaseSchema.nullable(),
+  error: z.null()
+} as const
+
+const LeafProcessingKnowledgeItemLifecycleSchema = {
+  status: z.literal('processing'),
+  phase: KnowledgeLeafItemPhaseSchema.nullable(),
+  error: z.null()
+} as const
+
+const ContainerProcessingKnowledgeItemLifecycleSchema = {
+  status: z.literal('processing'),
+  phase: KnowledgeContainerItemPhaseSchema.nullable(),
+  error: z.null()
+} as const
+
+const CompletedKnowledgeItemLifecycleSchema = {
+  status: z.literal('completed'),
+  phase: z.null(),
+  error: z.null()
+} as const
+
+const FailedKnowledgeItemLifecycleSchema = {
+  status: z.literal('failed'),
+  phase: z.null(),
+  error: z.string().trim().min(1)
+} as const
+
+const KnowledgeItemLifecycleSchemas = [
+  z.strictObject(IdleKnowledgeItemLifecycleSchema),
+  z.strictObject(ProcessingKnowledgeItemLifecycleSchema),
+  z.strictObject(CompletedKnowledgeItemLifecycleSchema),
+  z.strictObject(FailedKnowledgeItemLifecycleSchema)
+] as const
+
+export const KnowledgeItemLifecycleSchema = z.discriminatedUnion('status', KnowledgeItemLifecycleSchemas)
+export type KnowledgeItemLifecycle = z.infer<typeof KnowledgeItemLifecycleSchema>
+
+const createKnowledgeItemEntitySchemas = <
+  TType extends KnowledgeItemType,
+  TData extends z.ZodType,
+  TProcessingLifecycle extends
+    | typeof LeafProcessingKnowledgeItemLifecycleSchema
+    | typeof ContainerProcessingKnowledgeItemLifecycleSchema
+>(
+  type: TType,
+  data: TData,
+  processingLifecycle: TProcessingLifecycle
+) =>
+  [
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...IdleKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...processingLifecycle
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...CompletedKnowledgeItemLifecycleSchema
+    }),
+    KnowledgeItemEntityBaseSchema.extend({
+      type: z.literal(type),
+      data,
+      ...FailedKnowledgeItemLifecycleSchema
+    })
+  ] as const
+
+const FileKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createKnowledgeItemEntitySchemas('file', FileItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+)
+const UrlKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createKnowledgeItemEntitySchemas('url', UrlItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+)
+const NoteKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createKnowledgeItemEntitySchemas('note', NoteItemDataSchema, LeafProcessingKnowledgeItemLifecycleSchema)
+)
+const SitemapKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createKnowledgeItemEntitySchemas('sitemap', SitemapItemDataSchema, ContainerProcessingKnowledgeItemLifecycleSchema)
+)
+const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
+  'status',
+  createKnowledgeItemEntitySchemas(
+    'directory',
+    DirectoryItemDataSchema,
+    ContainerProcessingKnowledgeItemLifecycleSchema
+  )
+)
+
 /**
  * Knowledge item record stored in SQLite.
  */
-export const KnowledgeItemSchema = z.discriminatedUnion('type', [
-  KnowledgeItemBaseSchema.extend({
-    type: z.literal('file'),
-    data: FileItemDataSchema
-  }),
-  KnowledgeItemBaseSchema.extend({
-    type: z.literal('url'),
-    data: UrlItemDataSchema
-  }),
-  KnowledgeItemBaseSchema.extend({
-    type: z.literal('note'),
-    data: NoteItemDataSchema
-  }),
-  KnowledgeItemBaseSchema.extend({
-    type: z.literal('sitemap'),
-    data: SitemapItemDataSchema
-  }),
-  KnowledgeItemBaseSchema.extend({
-    type: z.literal('directory'),
-    data: DirectoryItemDataSchema
-  })
+export const KnowledgeItemSchema = z.union([
+  FileKnowledgeItemSchema,
+  UrlKnowledgeItemSchema,
+  NoteKnowledgeItemSchema,
+  SitemapKnowledgeItemSchema,
+  DirectoryKnowledgeItemSchema
 ])
 export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
 export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem, { type: T }>
@@ -233,8 +339,7 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 export const CreateKnowledgeBaseSchema = z
   .strictObject({
     name: z.string().trim().min(1),
-    description: z.string().optional(),
-    groupId: KnowledgeBaseGroupIdSchema.optional(),
+    groupId: z.string().trim().min(1).optional(),
     emoji: KnowledgeBaseEmojiSchema.optional(),
     dimensions: z.number().int().positive(),
     embeddingModelId: z.string().trim().min(1),
@@ -267,7 +372,7 @@ export const CreateKnowledgeBaseSchema = z
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
-  groupId: z.string().nullable().optional()
+  groupId: z.string().trim().min(1).nullable().optional()
 })
 
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
@@ -294,53 +399,5 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
-export const CreateKnowledgeItemsSchema = z.strictObject({
-  items: z.array(CreateKnowledgeItemSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
-})
-export type CreateKnowledgeItemsDto = z.infer<typeof CreateKnowledgeItemsSchema>
-
-const KnowledgeRuntimeAddItemBaseSchema = z.strictObject({
-  groupId: z.string().nullable().optional()
-})
-
-export const KnowledgeRuntimeAddItemInputSchema = z.discriminatedUnion('type', [
-  KnowledgeRuntimeAddItemBaseSchema.extend({
-    type: z.literal('file'),
-    // TODO: Replace FileMetadata input with a path once file system metadata lookup is centralized.
-    file: FileMetadataSchema
-  }),
-  KnowledgeRuntimeAddItemBaseSchema.extend({
-    type: z.literal('url'),
-    url: z.string().trim().min(1)
-  }),
-  KnowledgeRuntimeAddItemBaseSchema.extend({
-    type: z.literal('sitemap'),
-    url: z.string().trim().min(1)
-  }),
-  KnowledgeRuntimeAddItemBaseSchema.extend({
-    type: z.literal('note'),
-    content: z.string().trim().min(1),
-    source: z.string().trim().min(1).optional(),
-    sourceUrl: z.string().trim().min(1).optional()
-  }),
-  KnowledgeRuntimeAddItemBaseSchema.extend({
-    type: z.literal('directory'),
-    path: z.string().trim().min(1)
-  })
-])
-export type KnowledgeRuntimeAddItemInput = z.infer<typeof KnowledgeRuntimeAddItemInputSchema>
-
-export const UpdateKnowledgeItemDataSchema = z.union([
-  FileItemDataSchema,
-  UrlItemDataSchema,
-  NoteItemDataSchema,
-  SitemapItemDataSchema,
-  DirectoryItemDataSchema
-])
-
-export const UpdateKnowledgeItemSchema = z.strictObject({
-  data: UpdateKnowledgeItemDataSchema.optional(),
-  status: KnowledgeItemStatusSchema.optional(),
-  error: z.string().nullable().optional()
-})
-export type UpdateKnowledgeItemDto = z.infer<typeof UpdateKnowledgeItemSchema>
+export const KnowledgeRuntimeAddItemInputSchema = CreateKnowledgeItemSchema
+export type KnowledgeRuntimeAddItemInput = CreateKnowledgeItemDto

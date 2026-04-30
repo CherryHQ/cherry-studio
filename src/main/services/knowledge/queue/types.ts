@@ -8,10 +8,7 @@ export interface KnowledgeQueueTaskEntry {
 }
 
 export interface KnowledgeQueueTaskContext extends KnowledgeQueueTaskEntry {
-  /**
-   * Running tasks must observe this signal. Queue reset/interruption waits for
-   * running work to settle; it does not force-kill non-cooperative tasks.
-   */
+  /** Interruption waits for running work to observe this signal and settle. */
   signal: AbortSignal
   runWithBaseWriteLock<T>(task: () => Promise<T>): Promise<T>
 }

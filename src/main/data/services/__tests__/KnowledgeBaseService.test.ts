@@ -39,7 +39,6 @@ describe('KnowledgeBaseService', () => {
     const values: typeof knowledgeBaseTable.$inferInsert = {
       id: 'kb-1',
       name: 'Knowledge Base',
-      description: 'Knowledge base description',
       emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
@@ -60,7 +59,7 @@ describe('KnowledgeBaseService', () => {
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
-      await seedKnowledgeBase({ id: 'kb-2', name: 'Another Base', description: null })
+      await seedKnowledgeBase({ id: 'kb-2', name: 'Another Base' })
 
       const result = await service.list({ page: 2, limit: 1 })
 
@@ -89,6 +88,12 @@ describe('KnowledgeBaseService', () => {
         status: 404
       })
     })
+
+    it('should reject invalid persisted chunk configuration at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkSize: 100, chunkOverlap: 100 })
+
+      await expect(service.getById('kb-1')).rejects.toThrow('Chunk overlap must be smaller than chunk size')
+    })
   })
 
   describe('create', () => {
@@ -110,11 +115,17 @@ describe('KnowledgeBaseService', () => {
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.name).toBe('New Base')
+      expect(row.groupId).toBeNull()
       expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+      expect(row.rerankModelId).toBeNull()
+      expect(row.fileProcessorId).toBeNull()
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
+      expect(row.threshold).toBeNull()
+      expect(row.documentCount).toBeNull()
       expect(row.emoji).toBe('📁')
       expect(row.searchMode).toBe('hybrid')
+      expect(row.hybridAlpha).toBeNull()
     })
 
     it('should create a knowledge base with explicit valid chunk config', async () => {
@@ -170,7 +181,6 @@ describe('KnowledgeBaseService', () => {
 
       const result = await service.update('kb-1', {
         name: '  Updated Base  ',
-        description: null,
         emoji: '📚',
         chunkSize: 1024,
         chunkOverlap: 128,
@@ -185,7 +195,6 @@ describe('KnowledgeBaseService', () => {
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
       expect(row.name).toBe('Updated Base')
-      expect(row.description).toBeNull()
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(128)
       expect(row.emoji).toBe('📚')
@@ -230,6 +239,33 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
+    })
+
+    it('should reject explicitly provided chunkOverlap when it no longer fits the current chunkSize', async () => {
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
+
+      await expect(
+        service.update('kb-1', {
+          chunkOverlap: 256
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            chunkOverlap: ['Chunk overlap must be smaller than chunk size']
+          }
+        }
+      })
+    })
+
+    it('should not silently clean stale dependent fields during unrelated updates', async () => {
+      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
+
+      await expect(
+        service.update('kb-1', {
+          name: 'Renamed Base'
+        })
+      ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
     })
 
     it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {

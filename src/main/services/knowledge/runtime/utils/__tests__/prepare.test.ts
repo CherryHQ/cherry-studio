@@ -5,11 +5,13 @@ const {
   expandDirectoryOwnerToTreeMock,
   expandSitemapOwnerToCreateItemsMock,
   knowledgeItemCreateMock,
+  loggerWarnMock,
   knowledgeItemUpdateStatusMock
 } = vi.hoisted(() => ({
   expandDirectoryOwnerToTreeMock: vi.fn(),
   expandSitemapOwnerToCreateItemsMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn()
 }))
 
@@ -17,6 +19,14 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     create: knowledgeItemCreateMock,
     updateStatus: knowledgeItemUpdateStatusMock
+  }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: loggerWarnMock
+    })
   }
 }))
 
@@ -28,16 +38,20 @@ vi.mock('../../../utils/sitemap', () => ({
   expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
+import type { PrepareKnowledgeItemOptions } from '../prepare'
+
 const { prepareKnowledgeItem } = await import('../prepare')
 
 const baseId = 'kb-1'
 
-function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()) {
+function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): PrepareKnowledgeItemOptions {
   const signal = new AbortController().signal
+  const runMutation: PrepareKnowledgeItemOptions['runMutation'] = async (task) => await task()
   return {
     baseId,
     item,
     onCreatedItem,
+    runMutation,
     signal
   }
 }
@@ -200,16 +214,23 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
 
-  it('clears empty directory preparation phase and returns no leaves', async () => {
+  it('marks empty directory roots failed and returns no leaves', async () => {
     const root = createDirectoryItem('dir-root')
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([])
 
     await expect(prepareKnowledgeItem(createPrepareOptions(root))).resolves.toEqual([])
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'processing')
+    expect(loggerWarnMock).toHaveBeenCalledWith('Directory expansion produced no indexable files', {
+      baseId,
+      itemId: root.id,
+      source: root.data.source
+    })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
+      error: 'Directory contains no indexable files'
+    })
   })
 
-  it('clears empty sitemap preparation phase and returns no leaves', async () => {
+  it('marks empty sitemap roots failed and returns no leaves', async () => {
     const sitemap = createSitemapItem()
     expandSitemapOwnerToCreateItemsMock.mockResolvedValueOnce([])
 
@@ -217,7 +238,14 @@ describe('prepareKnowledgeItem', () => {
     await expect(prepareKnowledgeItem(options)).resolves.toEqual([])
 
     expect(expandSitemapOwnerToCreateItemsMock).toHaveBeenCalledWith(sitemap, options.signal)
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(sitemap.id, 'processing')
+    expect(loggerWarnMock).toHaveBeenCalledWith('Sitemap expansion produced no indexable URLs', {
+      baseId,
+      itemId: sitemap.id,
+      source: sitemap.data.source
+    })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(sitemap.id, 'failed', {
+      error: 'Sitemap contains no indexable URLs'
+    })
   })
 
   it('expands sitemap items into url children and returns url leaves', async () => {

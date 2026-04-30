@@ -14,9 +14,6 @@ type ParsedSitemapDocument = {
 }
 type SitemapUrlChildInput = Extract<CreateKnowledgeItemDto, { type: 'url' }>
 
-/**
- * Normalizes sitemap url entries into a flat string list.
- */
 function normalizeLocs(value: Array<{ loc?: string }> | { loc?: string } | undefined): string[] {
   if (!value) {
     return []
@@ -26,10 +23,6 @@ function normalizeLocs(value: Array<{ loc?: string }> | { loc?: string } | undef
   return entries.map((entry) => entry.loc?.trim()).filter((loc): loc is string => Boolean(loc))
 }
 
-/**
- * Expands a sitemap owner item into child url items fetched from the remote
- * sitemap document.
- */
 export async function expandSitemapOwnerToCreateItems(
   owner: KnowledgeItemOf<'sitemap'>,
   signal: AbortSignal

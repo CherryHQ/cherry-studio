@@ -12,7 +12,6 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  appGetMock,
   chunkDocumentsMock,
   createVectorStoreMock,
   deleteVectorStoreMock,
@@ -22,6 +21,7 @@ const {
   getStoreIfExistsMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemCreateMock,
+  knowledgeItemDeleteMock,
   knowledgeItemDeleteLeafDescendantItemsMock,
   knowledgeItemGetDescendantItemsMock,
   knowledgeItemGetByIdMock,
@@ -38,7 +38,6 @@ const {
   vectorStoreListByExternalIdMock,
   vectorStoreQueryMock
 } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
   chunkDocumentsMock: vi.fn(),
   createVectorStoreMock: vi.fn(),
   deleteVectorStoreMock: vi.fn(),
@@ -48,6 +47,7 @@ const {
   getStoreIfExistsMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
+  knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemDeleteLeafDescendantItemsMock: vi.fn(),
   knowledgeItemGetDescendantItemsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
@@ -65,11 +65,16 @@ const {
   vectorStoreQueryMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: appGetMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    KnowledgeVectorStoreService: {
+      createStore: createVectorStoreMock,
+      deleteStore: deleteVectorStoreMock,
+      getStoreIfExists: getStoreIfExistsMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -98,6 +103,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     create: knowledgeItemCreateMock,
+    delete: knowledgeItemDeleteMock,
     deleteLeafDescendantItems: knowledgeItemDeleteLeafDescendantItemsMock,
     getDescendantItems: knowledgeItemGetDescendantItemsMock,
     getById: knowledgeItemGetByIdMock,
@@ -147,6 +153,7 @@ function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    groupId: null,
     emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
@@ -159,30 +166,36 @@ function createBase(): KnowledgeBase {
 }
 
 function createNoteItem(id = 'note-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItemOf<'note'> {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
   return {
     id,
     baseId: 'kb-1',
     groupId: null,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
-    status,
-    phase: null,
-    error: null,
+    ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
 function createDirectoryItem(id = 'dir-1', status: KnowledgeItem['status'] = 'idle'): KnowledgeItemOf<'directory'> {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
   return {
     id,
     baseId: 'kb-1',
     groupId: null,
     type: 'directory',
     data: { source: `/docs/${id}`, path: `/docs/${id}` },
-    status,
-    phase: null,
-    error: null,
+    ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -208,17 +221,6 @@ describe('KnowledgeRuntimeService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    appGetMock.mockImplementation((serviceName: string) => {
-      if (serviceName === 'KnowledgeVectorStoreService') {
-        return {
-          createStore: createVectorStoreMock,
-          deleteStore: deleteVectorStoreMock,
-          getStoreIfExists: getStoreIfExistsMock
-        }
-      }
-
-      throw new Error(`Unexpected application.get(${serviceName}) in test`)
-    })
     createVectorStoreMock.mockResolvedValue({
       add: vectorStoreAddMock,
       delete: vectorStoreDeleteMock,
@@ -252,6 +254,7 @@ describe('KnowledgeRuntimeService', () => {
 
       return createNoteItem('note-1', 'idle')
     })
+    knowledgeItemDeleteMock.mockResolvedValue(undefined)
     knowledgeItemDeleteLeafDescendantItemsMock.mockResolvedValue(undefined)
     knowledgeItemReconcileContainersMock.mockResolvedValue(undefined)
     knowledgeItemGetLeafDescendantItemsMock.mockImplementation(async (_baseId: string, itemIds: string[]) =>
@@ -285,7 +288,7 @@ describe('KnowledgeRuntimeService', () => {
     const readDeferred = createDeferred<object[]>()
     loadKnowledgeItemDocumentsMock.mockReturnValueOnce(readDeferred.promise)
 
-    await service.addItems(base.id, [{ type: 'note', content: 'hello note-1', source: 'note-1' }])
+    await service.addItems(base.id, [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
 
     expect(knowledgeItemCreateMock).toHaveBeenCalledWith(base.id, {
       groupId: undefined,
@@ -369,8 +372,8 @@ describe('KnowledgeRuntimeService', () => {
     )
 
     await service.addItems('kb-1', [
-      { type: 'note', content: 'hello note-1', source: 'note-1' },
-      { type: 'note', content: 'hello note-2', source: 'note-2' }
+      { type: 'note', data: { source: 'note-1', content: 'hello note-1' } },
+      { type: 'note', data: { source: 'note-2', content: 'hello note-2' } }
     ])
     await firstVectorWriteStarted.promise
     await flushPromises()
@@ -398,13 +401,100 @@ describe('KnowledgeRuntimeService', () => {
 
     await expect(
       service.addItems('kb-1', [
-        { type: 'note', content: 'hello 1', source: 'note-1' },
-        { type: 'note', content: 'hello 2', source: 'note-2' }
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
       ])
     ).rejects.toBe(acceptError)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'failed', { error: 'create failed' })
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-1')
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', { error: 'create failed' })
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to add knowledge items', acceptError, {
+      baseId: 'kb-1',
+      accepted: 1,
+      total: 2
+    })
+    expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the original addItems error when accepted item rollback fails', async () => {
+    const service = new KnowledgeRuntimeService()
+    const acceptError = new Error('create failed')
+    const cleanupError = new Error('delete failed')
+    knowledgeItemCreateMock.mockResolvedValueOnce(createNoteItem('note-1', 'idle')).mockRejectedValueOnce(acceptError)
+    knowledgeItemDeleteMock.mockRejectedValueOnce(cleanupError)
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
+      ])
+    ).rejects.toBe(acceptError)
+
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to rollback accepted knowledge item after addItems failure',
+      cleanupError,
+      {
+        baseId: 'kb-1',
+        itemId: 'note-1',
+        addError: acceptError.message
+      }
+    )
+  })
+
+  it('marks an indexable item failed when queue enqueue rejects before execution', async () => {
+    const service = new KnowledgeRuntimeService()
+    const enqueueError = new Error('queue resetting')
+    const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
+    const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+
+    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+      enqueue: enqueueMock,
+      getSnapshot: getSnapshotMock
+    }
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'failed', { error: 'queue resetting' })
+    })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Knowledge queue rejected runtime task before execution',
+      enqueueError,
+      {
+        baseId: 'kb-1',
+        itemId: 'note-1',
+        kind: 'index-leaf'
+      }
+    )
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+  })
+
+  it('marks a preparation root failed when queue enqueue rejects before execution', async () => {
+    const service = new KnowledgeRuntimeService()
+    const enqueueError = new Error('queue resetting')
+    const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
+    const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+
+    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+      enqueue: enqueueMock,
+      getSnapshot: getSnapshotMock
+    }
+
+    await service.addItems('kb-1', [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'failed', { error: 'queue resetting' })
+    })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Knowledge queue rejected runtime task before execution',
+      enqueueError,
+      {
+        baseId: 'kb-1',
+        itemId: 'dir-1',
+        kind: 'prepare-root'
+      }
+    )
     expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
   })
 
@@ -413,7 +503,7 @@ describe('KnowledgeRuntimeService', () => {
     const item = createNoteItem('note-1', 'processing')
     loadKnowledgeItemDocumentsMock.mockRejectedValueOnce(new Error('read failed'))
 
-    await service.addItems('kb-1', [{ type: 'note', content: 'hello note-1', source: 'note-1' }])
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
 
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', { error: 'read failed' })
@@ -442,7 +532,7 @@ describe('KnowledgeRuntimeService', () => {
       }
     )
 
-    await service.addItems('kb-1', [{ type: 'note', content: 'hello note-1', source: 'note-1' }])
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
 
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
@@ -485,7 +575,7 @@ describe('KnowledgeRuntimeService', () => {
       }
     )
 
-    await service.addItems('kb-1', [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems('kb-1', [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
 
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
@@ -525,7 +615,9 @@ describe('KnowledgeRuntimeService', () => {
       return createNoteItem(id, 'processing')
     })
 
-    const addPromise = service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems(base.id, [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await childCreated.promise
 
     await service.deleteItems(base.id, [child])
@@ -535,7 +627,7 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreDeleteMock).toHaveBeenCalledWith(child.id)
     expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(child, expect.any(AbortSignal))
     await vi.waitFor(() => {
-      expect(knowledgeItemReconcileContainersMock).toHaveBeenCalledWith(base.id, [root.id])
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'processing')
     })
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(root.id, 'failed', {
       error: 'Knowledge task interrupted by item deletion'
@@ -553,7 +645,7 @@ describe('KnowledgeRuntimeService', () => {
     prepareKnowledgeItemMock.mockResolvedValueOnce([child])
     knowledgeItemGetByIdMock.mockRejectedValueOnce(lookupError)
 
-    await service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(base.id, [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
 
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
@@ -576,10 +668,10 @@ describe('KnowledgeRuntimeService', () => {
       Promise.reject(DataApiErrorFactory.notFound('KnowledgeItem', id))
     )
 
-    await service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(base.id, [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
 
     await vi.waitFor(() => {
-      expect(knowledgeItemReconcileContainersMock).toHaveBeenCalledWith(base.id, [root.id])
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'processing')
     })
     expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(firstChild, expect.any(AbortSignal))
     expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(secondChild, expect.any(AbortSignal))
@@ -602,13 +694,13 @@ describe('KnowledgeRuntimeService', () => {
       throw DataApiErrorFactory.notFound('KnowledgeItem', id)
     })
 
-    await service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(base.id, [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
 
     await vi.waitFor(() => {
       expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(firstChild, expect.any(AbortSignal))
     })
     await vi.waitFor(() => {
-      expect(knowledgeItemReconcileContainersMock).toHaveBeenCalledWith(base.id, [root.id])
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'processing')
     })
     expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalledWith(secondChild, expect.any(AbortSignal))
   })
@@ -627,7 +719,9 @@ describe('KnowledgeRuntimeService', () => {
       return [createNoteItem('child-1', 'processing')]
     })
 
-    const addPromise = service.addItems('kb-1', [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems('kb-1', [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await preparationStarted.promise
 
     const stopPromise = (service as unknown as { onStop: () => Promise<void> }).onStop()
@@ -658,7 +752,9 @@ describe('KnowledgeRuntimeService', () => {
       return [child]
     })
 
-    const addPromise = service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems(base.id, [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await preparationStarted.promise
 
     const deletePromise = service.deleteItems(base.id, [root])
@@ -691,7 +787,7 @@ describe('KnowledgeRuntimeService', () => {
       return await finishChildRead.promise
     })
 
-    await service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(base.id, [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
     await childReadStarted.promise
 
     const deletePromise = service.deleteItems(base.id, [root])
@@ -729,6 +825,35 @@ describe('KnowledgeRuntimeService', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(child.id, 'failed', {
       error: 'Failed to delete vectors for knowledge items in base kb-1: child-1'
     })
+  })
+
+  it('preserves the original delete cleanup error when failure-state persistence fails', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const root = createDirectoryItem('dir-1', 'processing')
+    const child = createNoteItem('child-1', 'processing')
+    const failureStateError = new Error('database locked')
+
+    knowledgeItemGetDescendantItemsMock.mockResolvedValue([child])
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([child])
+    vectorStoreDeleteMock.mockRejectedValueOnce(new Error('delete failed'))
+    knowledgeItemUpdateStatusMock.mockRejectedValue(failureStateError)
+
+    await expect(service.deleteItems(base.id, [root])).rejects.toThrow(
+      'Failed to delete vectors for knowledge items in base kb-1: child-1'
+    )
+
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to persist knowledge item failure state during runtime cleanup',
+      expect.objectContaining({ name: 'FailedToPersistFailureStateError' }),
+      {
+        baseId: base.id,
+        itemIds: [root.id, child.id],
+        operation: 'deleteItems',
+        reason: 'Failed to delete vectors for knowledge items in base kb-1: child-1',
+        rootIds: [root.id]
+      }
+    )
   })
 
   it('marks delete roots failed when descendant lookup fails after interruption', async () => {
@@ -769,7 +894,9 @@ describe('KnowledgeRuntimeService', () => {
       }
     )
 
-    const addPromise = service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems(base.id, [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await childCreated.promise
 
     await service.reindexItems(base.id, [child])
@@ -810,7 +937,9 @@ describe('KnowledgeRuntimeService', () => {
       })
       .mockResolvedValueOnce([newChild])
 
-    const addPromise = service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems(base.id, [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await oldPreparationStarted.promise
 
     const reindexPromise = service.reindexItems(base.id, [root])
@@ -849,7 +978,7 @@ describe('KnowledgeRuntimeService', () => {
       return await finishChildRead.promise
     })
 
-    await service.addItems(base.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(base.id, [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])
     await childReadStarted.promise
 
     const reindexPromise = service.reindexItems(base.id, [root])
@@ -896,20 +1025,27 @@ describe('KnowledgeRuntimeService', () => {
     const root = createDirectoryItem('dir-1', 'processing')
     const child = createNoteItem('child-1', 'processing')
     const deletionError = new Error('delete descendants failed')
+    const failureStateError = new Error('database locked')
 
     knowledgeItemGetDescendantItemsMock.mockResolvedValue([child])
     knowledgeItemGetLeafDescendantItemsMock.mockResolvedValue([child])
     knowledgeItemDeleteLeafDescendantItemsMock.mockRejectedValueOnce(deletionError)
+    knowledgeItemUpdateStatusMock.mockRejectedValue(failureStateError)
 
     await expect(service.reindexItems(base.id, [root])).rejects.toBe(deletionError)
 
     expect(vectorStoreDeleteMock).toHaveBeenCalledWith(child.id)
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
-      error: 'delete descendants failed'
-    })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(child.id, 'failed', {
-      error: 'delete descendants failed'
-    })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to persist knowledge item failure state during runtime cleanup',
+      expect.objectContaining({ name: 'FailedToPersistFailureStateError' }),
+      {
+        baseId: base.id,
+        itemIds: [root.id, child.id],
+        operation: 'reindexItems',
+        reason: 'delete descendants failed',
+        rootIds: [root.id]
+      }
+    )
     expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
   })
@@ -944,7 +1080,9 @@ describe('KnowledgeRuntimeService', () => {
     knowledgeItemCreateMock.mockResolvedValueOnce(root)
     prepareKnowledgeItemMock.mockResolvedValueOnce([child])
 
-    await service.addItems(originalBase.id, [{ type: 'directory', path: '/docs/dir-1' }])
+    await service.addItems(originalBase.id, [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
 
     await vi.waitFor(() => {
       expect(chunkDocumentsMock).toHaveBeenCalledWith(originalBase, child, [{ text: 'document' }])
@@ -971,7 +1109,9 @@ describe('KnowledgeRuntimeService', () => {
     )
     knowledgeItemGetDescendantItemsMock.mockResolvedValue([child])
 
-    const addPromise = service.addItems('kb-1', [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems('kb-1', [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await expansionStarted.promise
 
     const stopPromise = (service as unknown as { onStop: () => Promise<void> }).onStop()
@@ -990,17 +1130,15 @@ describe('KnowledgeRuntimeService', () => {
     })
   })
 
-  it('marks interrupted base tasks failed when deleting the vector store fails', async () => {
+  it('returns interrupted base item ids without deleting vector artifacts', async () => {
     const service = new KnowledgeRuntimeService()
     const root = createDirectoryItem('dir-1', 'processing')
     const child = createNoteItem('child-1', 'processing')
-    const deleteStoreError = new Error('delete store failed')
     const expansionStarted = createDeferred()
     const finishCreation = createDeferred()
 
     knowledgeItemCreateMock.mockResolvedValueOnce(root)
     knowledgeItemGetDescendantItemsMock.mockResolvedValue([child])
-    deleteVectorStoreMock.mockRejectedValueOnce(deleteStoreError)
     prepareKnowledgeItemMock.mockImplementationOnce(async ({ signal }: { signal: AbortSignal }) => {
       expansionStarted.resolve()
       await finishCreation.promise
@@ -1008,22 +1146,61 @@ describe('KnowledgeRuntimeService', () => {
       return [child]
     })
 
-    const addPromise = service.addItems('kb-1', [{ type: 'directory', path: '/docs/dir-1' }])
+    const addPromise = service.addItems('kb-1', [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
     await expansionStarted.promise
 
     const deleteBasePromise = service.deleteBase('kb-1')
     await flushPromises()
 
     finishCreation.resolve()
-    await expect(deleteBasePromise).rejects.toBe(deleteStoreError)
+    await expect(deleteBasePromise).resolves.toEqual([root.id, child.id])
+    await addPromise
+
+    expect(deleteVectorStoreMock).not.toHaveBeenCalled()
+  })
+
+  it('marks interrupted base roots failed when expanding interrupted base entries fails', async () => {
+    const service = new KnowledgeRuntimeService()
+    const root = createDirectoryItem('dir-1', 'processing')
+    const expansionStarted = createDeferred()
+    const finishCreation = createDeferred()
+    const expansionError = new Error('descendant lookup failed')
+
+    knowledgeItemCreateMock.mockResolvedValueOnce(root)
+    prepareKnowledgeItemMock.mockImplementationOnce(async ({ signal }: { signal: AbortSignal }) => {
+      expansionStarted.resolve()
+      await finishCreation.promise
+      signal.throwIfAborted()
+      return []
+    })
+    knowledgeItemGetDescendantItemsMock.mockRejectedValueOnce(expansionError)
+
+    const addPromise = service.addItems('kb-1', [
+      { type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }
+    ])
+    await expansionStarted.promise
+
+    const deleteBasePromise = service.deleteBase('kb-1')
+    await flushPromises()
+
+    finishCreation.resolve()
+    await expect(deleteBasePromise).rejects.toBe(expansionError)
     await addPromise
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
-      error: 'delete store failed'
+      error: 'descendant lookup failed'
     })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(child.id, 'failed', {
-      error: 'delete store failed'
-    })
+    expect(deleteVectorStoreMock).not.toHaveBeenCalled()
+  })
+
+  it('deletes base vector artifacts through the artifact cleanup method', async () => {
+    const service = new KnowledgeRuntimeService()
+
+    await expect(service.deleteBaseArtifacts('kb-1')).resolves.toBeUndefined()
+
+    expect(deleteVectorStoreMock).toHaveBeenCalledWith('kb-1')
   })
 
   it('marks nested preparation subtree failed on stop', async () => {
@@ -1047,7 +1224,9 @@ describe('KnowledgeRuntimeService', () => {
     )
     knowledgeItemGetDescendantItemsMock.mockResolvedValue([childDir, child])
 
-    const addPromise = service.addItems('kb-1', [{ type: 'directory', path: '/docs/dir-root' }])
+    const addPromise = service.addItems('kb-1', [
+      { type: 'directory', data: { source: '/docs/dir-root', path: '/docs/dir-root' } }
+    ])
     await expansionStarted.promise
 
     const stopPromise = (service as unknown as { onStop: () => Promise<void> }).onStop()
@@ -1063,6 +1242,39 @@ describe('KnowledgeRuntimeService', () => {
         error: 'Knowledge task interrupted by service shutdown'
       })
     }
+  })
+
+  it('merges interrupted same-base entries before deleting vectors on stop', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = createBase()
+    const waitForRunningMock = vi.fn().mockResolvedValue(undefined)
+    const interruptAllMock = vi.fn().mockReturnValue([
+      { base, baseId: base.id, itemId: 'note-1', kind: 'index-leaf' },
+      { base, baseId: base.id, itemId: 'note-2', kind: 'index-leaf' }
+    ])
+
+    ;(
+      service as unknown as {
+        queue: { interruptAll: typeof interruptAllMock; waitForRunning: typeof waitForRunningMock }
+      }
+    ).queue = {
+      interruptAll: interruptAllMock,
+      waitForRunning: waitForRunningMock
+    }
+
+    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+
+    expect(waitForRunningMock).toHaveBeenCalledWith(['note-1', 'note-2'])
+    expect(getStoreIfExistsMock).toHaveBeenCalledOnce()
+    expect(getStoreIfExistsMock).toHaveBeenCalledWith(base)
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('note-1')
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('note-2')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'failed', {
+      error: 'Knowledge task interrupted by service shutdown'
+    })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'failed', {
+      error: 'Knowledge task interrupted by service shutdown'
+    })
   })
 
   it('reindex deletes old vectors before returning and then schedules background indexing', async () => {
@@ -1102,13 +1314,63 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreDeleteMock).toHaveBeenCalledWith(item.id)
   })
 
+  it('throws when search query embedding is empty', async () => {
+    const service = new KnowledgeRuntimeService()
+    embedManyMock.mockResolvedValueOnce({ embeddings: [] })
+
+    await expect(service.search('kb-1', 'hello')).rejects.toThrow('Failed to embed search query')
+
+    expect(vectorStoreQueryMock).not.toHaveBeenCalled()
+  })
+
+  it('reranks search results when the base has a rerank model', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = { ...createBase(), rerankModelId: 'openai::rerank-model' }
+    const node = {
+      id_: 'chunk-1',
+      metadata: {
+        itemId: 'note-1',
+        itemType: 'note',
+        source: 'note-1',
+        chunkIndex: 0,
+        tokenCount: 2
+      },
+      getContent: vi.fn(() => 'hello world')
+    }
+    const reranked = [
+      {
+        pageContent: 'hello world',
+        score: 0.99,
+        metadata: node.metadata,
+        itemId: 'note-1',
+        chunkId: 'chunk-1'
+      }
+    ]
+
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(base)
+    vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [node], similarities: [0.8] })
+    rerankKnowledgeSearchResultsMock.mockResolvedValueOnce(reranked)
+
+    await expect(service.search('kb-1', 'hello')).resolves.toBe(reranked)
+
+    expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(base, 'hello', [
+      {
+        pageContent: 'hello world',
+        score: 0.8,
+        metadata: node.metadata,
+        itemId: 'note-1',
+        chunkId: 'chunk-1'
+      }
+    ])
+  })
+
   it('marks queued work failed on stop', async () => {
     const service = new KnowledgeRuntimeService()
     const item = createNoteItem('note-1', 'processing')
     const readDeferred = createDeferred<object[]>()
     loadKnowledgeItemDocumentsMock.mockReturnValueOnce(readDeferred.promise)
 
-    await service.addItems('kb-1', [{ type: 'note', content: 'hello note-1', source: 'note-1' }])
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
     await vi.waitFor(() => {
       expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalled()
     })
@@ -1134,7 +1396,7 @@ describe('KnowledgeRuntimeService', () => {
     loadKnowledgeItemDocumentsMock.mockReturnValueOnce(readDeferred.promise)
     vectorStoreDeleteMock.mockRejectedValueOnce(new Error('delete failed'))
 
-    await service.addItems('kb-1', [{ type: 'note', content: 'hello note-1', source: 'note-1' }])
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
     await vi.waitFor(() => {
       expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalled()
     })
@@ -1147,5 +1409,33 @@ describe('KnowledgeRuntimeService', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
       error: 'Knowledge task interrupted by service shutdown'
     })
+  })
+
+  it('does not fail stop when failure-state persistence fails during interrupt cleanup', async () => {
+    const service = new KnowledgeRuntimeService()
+    const item = createNoteItem('note-1', 'processing')
+    const readDeferred = createDeferred<object[]>()
+    const failureStateError = new Error('database locked')
+    loadKnowledgeItemDocumentsMock.mockReturnValueOnce(readDeferred.promise)
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalled()
+    })
+
+    const stopPromise = (service as unknown as { onStop: () => Promise<void> }).onStop()
+    knowledgeItemUpdateStatusMock.mockRejectedValue(failureStateError)
+    readDeferred.resolve([{ text: 'document' }])
+
+    await expect(stopPromise).resolves.toBeUndefined()
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to persist knowledge item failure state during runtime cleanup',
+      expect.objectContaining({ name: 'FailedToPersistFailureStateError' }),
+      {
+        itemIds: [item.id],
+        operation: 'interruptedRuntimeCleanup',
+        reason: 'Knowledge task interrupted by service shutdown'
+      }
+    )
   })
 })

@@ -31,10 +31,6 @@ export function sanitizeKnowledgeUrl(rawUrl: string): string {
   }
 }
 
-/**
- * Fetches a knowledge web page through the Jina reader endpoint and returns
- * the normalized markdown payload.
- */
 export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
   try {
     const safeUrl = sanitizeKnowledgeUrl(url)
