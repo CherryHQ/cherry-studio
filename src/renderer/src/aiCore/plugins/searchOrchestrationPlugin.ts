@@ -148,6 +148,14 @@ async function analyzeSearchIntent(
         requestId: context.requestId
       })
     })
+
+    // fetchGenerate swallows errors and returns '' — treat that as a failure so
+    // search still runs against the original user question via the fallback.
+    if (!result.trim()) {
+      logger.warn('Intent analysis returned empty result, using fallback')
+      return getFallbackResult()
+    }
+
     const parsedResult = extractInfoFromXML(result)
     logger.debug('Intent analysis result', { parsedResult })
 
