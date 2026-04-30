@@ -320,6 +320,30 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(textDeltas).toContain('<｜｜DSML｜｜tool_calls>')
   })
 
+  it('emits the original DSML markup as text when a closed block has no parseable invoke', async () => {
+    // Closed tool_calls block, but the inner content does not match an invoke pattern
+    // (e.g. malformed or unexpected payload). The parser should not silently swallow it.
+    const deltas = [
+      'before ',
+      '<｜｜DSML｜｜tool_calls>',
+      'oops not a valid invoke',
+      '</｜｜DSML｜｜tool_calls>',
+      ' after'
+    ]
+    const events = await runStream(deltas, 'stop')
+
+    expect(events.filter((e) => e.type === 'tool-call')).toHaveLength(0)
+
+    const text = events
+      .filter((e) => e.type === 'text-delta')
+      .map((e) => e.delta)
+      .join('')
+    expect(text).toBe('before <｜｜DSML｜｜tool_calls>oops not a valid invoke</｜｜DSML｜｜tool_calls> after')
+
+    const finish = events.find((e) => e.type === 'finish') as Extract<LanguageModelV3StreamPart, { type: 'finish' }>
+    expect(finish.finishReason.unified).toBe('stop')
+  })
+
   it('handles a partial DSML opening tag that arrives across chunk boundaries with surrounding text', async () => {
     // First emit some plain text, then split the open tag character-by-character
     const deltas = [
@@ -353,5 +377,86 @@ describe('deepseekDsmlParserPlugin', () => {
       .map((e) => e.delta)
       .join('')
     expect(text).toBe('prefix  suffix')
+  })
+
+  describe('wrapGenerate (non-streaming)', () => {
+    async function runGenerate(text: string, finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+      const middleware = await getMiddleware()
+      expect(middleware.wrapGenerate).toBeDefined()
+
+      const result = await middleware.wrapGenerate!({
+        doGenerate: async () =>
+          ({
+            content: [{ type: 'text', text }],
+            finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
+            usage: {} as any,
+            warnings: [],
+            request: { body: {} },
+            response: { headers: {} }
+          }) as any,
+
+        doStream: (async () => ({})) as any,
+
+        params: {} as any,
+
+        model: {} as any
+      } as any)
+
+      return result as any
+    }
+
+    it('extracts multiple DSML blocks within a single text part', async () => {
+      const text =
+        'lead-in ' +
+        '<｜｜DSML｜｜tool_calls>' +
+        '<｜｜DSML｜｜invoke name="search_a">' +
+        '<｜｜DSML｜｜parameter name="q" string="true">first</｜｜DSML｜｜parameter>' +
+        '</｜｜DSML｜｜invoke>' +
+        '</｜｜DSML｜｜tool_calls>' +
+        ' middle ' +
+        '<｜｜DSML｜｜tool_calls>' +
+        '<｜｜DSML｜｜invoke name="search_b">' +
+        '<｜｜DSML｜｜parameter name="q" string="true">second</｜｜DSML｜｜parameter>' +
+        '</｜｜DSML｜｜invoke>' +
+        '</｜｜DSML｜｜tool_calls>' +
+        ' tail'
+
+      const result = await runGenerate(text, 'stop')
+
+      const toolCalls = result.content.filter((p: any) => p.type === 'tool-call')
+      expect(toolCalls).toHaveLength(2)
+      expect(toolCalls[0].toolName).toBe('search_a')
+      expect(JSON.parse(toolCalls[0].input)).toEqual({ q: 'first' })
+      expect(toolCalls[1].toolName).toBe('search_b')
+      expect(JSON.parse(toolCalls[1].input)).toEqual({ q: 'second' })
+
+      const reconstructed = result.content
+        .filter((p: any) => p.type === 'text')
+        .map((p: any) => p.text)
+        .join('')
+      expect(reconstructed).toBe('lead-in  middle  tail')
+      expect(reconstructed).not.toContain('｜｜DSML｜｜')
+
+      expect(result.finishReason.unified).toBe('tool-calls')
+    })
+
+    it('preserves a closed DSML block that contains no parseable invoke as text', async () => {
+      const text = 'before <｜｜DSML｜｜tool_calls>garbage</｜｜DSML｜｜tool_calls> after'
+      const result = await runGenerate(text, 'stop')
+
+      expect(result.content.filter((p: any) => p.type === 'tool-call')).toHaveLength(0)
+      // Single text part returned unchanged
+      expect(result.content).toHaveLength(1)
+      expect(result.content[0]).toMatchObject({ type: 'text', text })
+      expect(result.finishReason.unified).toBe('stop')
+    })
+
+    it('returns input unchanged when no DSML markup is present', async () => {
+      const text = 'plain response'
+      const result = await runGenerate(text, 'stop')
+      expect(result.content).toHaveLength(1)
+      expect(result.content[0]).toMatchObject({ type: 'text', text })
+      expect(result.finishReason.unified).toBe('stop')
+    })
   })
 })

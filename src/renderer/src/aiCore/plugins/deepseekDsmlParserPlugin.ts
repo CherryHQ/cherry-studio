@@ -129,27 +129,31 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
         const remainder = dsmlBuffer.slice(closeIdx + TOOL_CALLS_CLOSE.length)
         const calls = parseInvokeBlocks(blockContent)
 
-        for (const call of calls) {
-          const id = generateToolCallId()
-          const inputJson = JSON.stringify(call.args)
-          controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
-          controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
-          controller.enqueue({ type: 'tool-input-end', id })
+        if (calls.length === 0) {
+          logger.warn('DSML block closed but no invoke blocks parsed, emitting as text')
           controller.enqueue({
-            type: 'tool-call',
-            toolCallId: id,
-            toolName: call.toolName,
-            input: inputJson
+            type: 'text-delta',
+            id: textId,
+            delta: TOOL_CALLS_OPEN + blockContent + TOOL_CALLS_CLOSE
           })
-        }
-
-        if (calls.length > 0) {
+        } else {
+          for (const call of calls) {
+            const id = generateToolCallId()
+            const inputJson = JSON.stringify(call.args)
+            controller.enqueue({ type: 'tool-input-start', id, toolName: call.toolName })
+            controller.enqueue({ type: 'tool-input-delta', id, delta: inputJson })
+            controller.enqueue({ type: 'tool-input-end', id })
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: id,
+              toolName: call.toolName,
+              input: inputJson
+            })
+          }
           extractedToolCalls = true
           logger.info(`Parsed ${calls.length} DSML tool call(s)`, {
             tools: calls.map((c) => c.toolName)
           })
-        } else {
-          logger.warn('DSML block closed but no invoke blocks parsed')
         }
 
         dsmlBuffer = ''
@@ -253,32 +257,59 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
           continue
         }
         const text = part.text
-        const startIdx = text.indexOf(TOOL_CALLS_OPEN)
-        if (startIdx === -1) {
-          newContent.push(part)
-          continue
-        }
-        const closeIdx = text.indexOf(TOOL_CALLS_CLOSE, startIdx)
-        if (closeIdx === -1) {
-          newContent.push(part)
-          continue
-        }
-        const before = text.slice(0, startIdx)
-        const blockContent = text.slice(startIdx + TOOL_CALLS_OPEN.length, closeIdx)
-        const after = text.slice(closeIdx + TOOL_CALLS_CLOSE.length)
-        const calls = parseInvokeBlocks(blockContent)
+        const partsForText: typeof newContent = []
+        let textAccum = ''
+        let cursor = 0
+        let foundCallInPart = false
 
-        if (before) newContent.push({ ...part, text: before })
-        for (const call of calls) {
-          newContent.push({
-            type: 'tool-call',
-            toolCallId: generateToolCallId(),
-            toolName: call.toolName,
-            input: JSON.stringify(call.args)
-          })
+        while (cursor < text.length) {
+          const startIdx = text.indexOf(TOOL_CALLS_OPEN, cursor)
+          if (startIdx === -1) {
+            textAccum += text.slice(cursor)
+            break
+          }
+          const closeIdx = text.indexOf(TOOL_CALLS_CLOSE, startIdx + TOOL_CALLS_OPEN.length)
+          if (closeIdx === -1) {
+            textAccum += text.slice(cursor)
+            break
+          }
+
+          const blockEnd = closeIdx + TOOL_CALLS_CLOSE.length
+          const blockContent = text.slice(startIdx + TOOL_CALLS_OPEN.length, closeIdx)
+          const calls = parseInvokeBlocks(blockContent)
+
+          if (calls.length === 0) {
+            // Unparseable block — preserve original markup as text instead of dropping it.
+            textAccum += text.slice(cursor, blockEnd)
+            cursor = blockEnd
+            continue
+          }
+
+          textAccum += text.slice(cursor, startIdx)
+          if (textAccum) {
+            partsForText.push({ ...part, text: textAccum })
+            textAccum = ''
+          }
+          for (const call of calls) {
+            partsForText.push({
+              type: 'tool-call',
+              toolCallId: generateToolCallId(),
+              toolName: call.toolName,
+              input: JSON.stringify(call.args)
+            })
+          }
+          foundCallInPart = true
+          cursor = blockEnd
         }
-        if (after) newContent.push({ ...part, text: after })
-        if (calls.length > 0) extracted = true
+
+        if (!foundCallInPart) {
+          newContent.push(part)
+          continue
+        }
+
+        newContent.push(...partsForText)
+        if (textAccum) newContent.push({ ...part, text: textAccum })
+        extracted = true
       }
 
       if (!extracted) return result
