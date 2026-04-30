@@ -1,19 +1,10 @@
-import {
-  Badge,
-  Button,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tabs,
-  TabsList,
-  TabsTrigger
-} from '@cherrystudio/ui'
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
+import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
-import { Check, Plus, Search } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,46 +49,43 @@ const BuiltinMCPServerList: FC = () => {
         </span>
       </div>
 
-      <div className="relative mb-3">
-        <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
-        <Input
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          placeholder={t('common.search')}
-          className="h-9 rounded-full border-transparent bg-background pl-9 shadow-none"
+      <div className="mb-3 flex w-full min-w-[360px] items-center justify-between gap-3 overflow-x-auto">
+        <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="shrink-0">
+          <TabsList className="h-8 rounded-lg bg-muted/70 p-0.5">
+            <TabsTrigger value="all" className="h-7 rounded-full px-2.5 text-xs">
+              {t('models.all')}
+            </TabsTrigger>
+            <TabsTrigger value="installed" className="h-7 rounded-full px-2.5 text-xs">
+              {t('settings.skills.installed')}
+            </TabsTrigger>
+            <TabsTrigger value="available" className="h-7 rounded-full px-2.5 text-xs">
+              {t('settings.skills.install')}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <CollapsibleSearchBar
+          onSearch={setSearchText}
+          placeholder={t('settings.mcp.search.placeholder')}
+          tooltip={t('settings.mcp.search.tooltip')}
+          maxWidth={200}
+          style={{ borderRadius: 16 }}
         />
       </div>
 
-      <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="mb-3">
-        <TabsList className="h-auto rounded-full bg-muted/80 p-0.5">
-          <TabsTrigger value="all" className="rounded-full px-2.5 py-1 text-xs">
-            {t('models.all')}
-          </TabsTrigger>
-          <TabsTrigger value="installed" className="rounded-full px-2.5 py-1 text-xs">
-            {t('settings.skills.installed')}
-          </TabsTrigger>
-          <TabsTrigger value="available" className="rounded-full px-2.5 py-1 text-xs">
-            {t('settings.skills.install')}
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         {filteredServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
           return (
             <div
               key={server.id}
-              className="flex min-h-18 items-start gap-3 rounded-xl border border-border/60 bg-transparent px-3 py-2.5 transition-colors duration-200 ease-in-out hover:bg-accent">
+              className={cn(
+                'group flex min-h-16 items-center gap-3 rounded-lg border border-border/60 bg-card px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
+                isInstalled && 'bg-muted/25'
+              )}>
               <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center gap-2 overflow-hidden">
-                  <span className="truncate font-semibold text-[15px]">{server.name}</span>
-                  <Badge
-                    variant="outline"
-                    className="rounded-md border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-700 dark:text-amber-400">
-                    {t('settings.mcp.builtinServers')}
-                  </Badge>
+                <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
+                  <span className="truncate font-semibold text-[14px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
@@ -105,7 +93,7 @@ const BuiltinMCPServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="rounded-md border-red-500/30 bg-red-500/10 px-2 py-0.5 font-semibold text-red-600 dark:text-red-400">
+                        className="h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-[11px] text-destructive leading-none">
                         {t('settings.mcp.requiresConfig')}
                       </Badge>
                     </a>
@@ -113,7 +101,7 @@ const BuiltinMCPServerList: FC = () => {
                 </div>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <div className="line-clamp-2 cursor-pointer text-muted-foreground text-sm leading-5 hover:text-foreground">
+                    <div className="line-clamp-2 cursor-pointer text-[13px] text-muted-foreground leading-5 transition-colors hover:text-foreground">
                       {getBuiltInMcpServerDescriptionLabel(server.name)}
                     </div>
                   </PopoverTrigger>
@@ -131,47 +119,30 @@ const BuiltinMCPServerList: FC = () => {
                     </div>
                   </PopoverContent>
                 </Popover>
-                <div className="mt-1.5 flex items-center gap-1">
-                  <Badge
-                    variant="outline"
-                    className="rounded-md border-blue-500/30 bg-blue-500/10 px-2 py-0.5 font-medium text-blue-600 dark:text-blue-400">
-                    {getMcpTypeLabel(server.type ?? 'stdio')}
-                  </Badge>
-                </div>
               </div>
-              <div className="ml-3 flex shrink-0 items-center self-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    'h-8 rounded-full px-3 text-sm shadow-none hover:shadow-none',
-                    isInstalled ? 'text-muted-foreground' : 'text-muted-foreground'
-                  )}
-                  onClick={async () => {
-                    if (isInstalled) {
-                      return
-                    }
-
-                    try {
-                      await addMCPServer(server)
-                      window.toast.success(t('settings.mcp.addSuccess'))
-                    } catch {
-                      window.toast.error(t('settings.mcp.addError'))
-                    }
-                  }}
-                  disabled={isInstalled}>
-                  {isInstalled ? (
-                    <>
-                      <Check size={14} className="text-primary" />
-                      {t('settings.skills.installed')}
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={14} />
-                      {t('settings.skills.install')}
-                    </>
-                  )}
-                </Button>
+              <div className="ml-3 flex min-w-[86px] shrink-0 items-center justify-end self-center">
+                {isInstalled ? (
+                  <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
+                    <Check size={13} className="text-success/75" />
+                    {t('settings.skills.installed')}
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-lg px-2 text-muted-foreground text-xs shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
+                    onClick={async () => {
+                      try {
+                        await addMCPServer(server)
+                        window.toast.success(t('settings.mcp.addSuccess'))
+                      } catch {
+                        window.toast.error(t('settings.mcp.addError'))
+                      }
+                    }}>
+                    <Plus size={13} />
+                    {t('settings.skills.install')}
+                  </Button>
+                )}
               </div>
             </div>
           )

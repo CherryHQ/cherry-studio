@@ -1,4 +1,4 @@
-import { Button, Divider, Input } from '@cherrystudio/ui'
+import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -11,8 +11,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpTextRow, SettingSubtitle } from '..'
-import { getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { getMCPProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -118,51 +117,67 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   }, [existingServers, provider, t, token])
 
   const isFetchDisabled = !token
+  const ProviderLogo = getMCPProviderLogo(provider.key)
 
   return (
     <DetailContainer>
       <ProviderHeader>
-        <div className="flex items-center">
-          <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
-          {provider.discoverUrl && (
-            <Button asChild variant="ghost" size="icon-sm">
-              <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
-                <SquareArrowOutUpRight size={14} />
-              </a>
-            </Button>
-          )}
+        <div className="flex min-w-0 items-center gap-3">
+          {ProviderLogo && <ProviderLogo.Avatar size={36} shape="circle" />}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
+              {provider.discoverUrl && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 rounded-md text-muted-foreground shadow-none hover:text-blue-600 dark:hover:text-blue-400">
+                  <a target="_blank" rel="noreferrer" href={provider.discoverUrl}>
+                    <SquareArrowOutUpRight size={13} />
+                  </a>
+                </Button>
+              )}
+            </div>
+            <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
+          </div>
         </div>
-        <Button onClick={handleFetch} disabled={isFetching || isFetchDisabled}>
+        <Button
+          onClick={handleFetch}
+          disabled={isFetching || isFetchDisabled}
+          className="h-8 shrink-0 rounded-lg px-3 text-xs shadow-none">
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
-      <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key.label')}</SettingSubtitle>
-      <div className="mt-1.25 w-full">
+
+      <SettingsPanel>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
+        </div>
         <Input
           type="password"
           value={token}
           placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
           onChange={(e) => handleTokenChange(e.target.value)}
           spellCheck={false}
+          className="h-9 rounded-lg bg-background shadow-none"
         />
-      </div>
-      <SettingHelpTextRow>
-        <div className="flex flex-row">
-          {provider.apiKeyUrl && (
-            <SettingHelpLink target="_blank" href={provider.apiKeyUrl}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-          )}
-        </div>
-      </SettingHelpTextRow>
+        {provider.apiKeyUrl && (
+          <a
+            target="_blank"
+            rel="noreferrer"
+            href={provider.apiKeyUrl}
+            className="mt-3.5 inline-flex items-center font-medium text-xs hover:underline"
+            style={{ color: 'var(--color-blue-600)' }}>
+            {t('settings.provider.get_api_key')}
+          </a>
+        )}
+      </SettingsPanel>
 
       {sortedServers.length > 0 && (
-        <>
+        <SettingsPanel className="mt-4">
           <div className="mt-5 flex items-center justify-between">
-            <SettingSubtitle style={{ margin: 0 }}>
-              {t('settings.mcp.servers', 'Available MCP Servers')}
-            </SettingSubtitle>
+            <PanelTitle>{t('settings.mcp.servers', 'Available MCP Servers')}</PanelTitle>
             <CollapsibleSearchBar
               onSearch={setSearchText}
               placeholder={t('settings.mcp.search.placeholder', 'Search servers...')}
@@ -209,22 +224,34 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               </ServerItem>
             ))}
           </ServerList>
-        </>
+        </SettingsPanel>
       )}
     </DetailContainer>
   )
 }
 
 const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col p-5', className)} {...props} />
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col p-5 pt-4', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between', className)} {...props} />
+  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-4', className)} {...props} />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('mr-[-2px] font-medium text-sm', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-semibold text-base leading-6', className)} {...props} />
+)
+
+const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-0.5 text-muted-foreground text-xs leading-5', className)} {...props} />
+)
+
+const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-4 rounded-xl border border-border/70 bg-card px-4 py-2 shadow-xs', className)} {...props} />
+)
+
+const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('font-semibold text-foreground text-sm', className)} {...props} />
 )
 
 const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -234,7 +261,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border/60 bg-transparent px-4 py-3 transition-colors hover:bg-accent',
+      'flex items-center justify-between rounded-lg border border-border/60 bg-background px-3.5 py-2.5 transition-colors hover:bg-muted/35',
       className
     )}
     {...props}
@@ -242,11 +269,11 @@ const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-1 font-medium text-sm', className)} {...props} />
+  <div className={cn('mb-0.5 font-medium text-sm leading-5', className)} {...props} />
 )
 
 const ServerDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-foreground-secondary text-xs', className)} {...props} />
+  <div className={cn('line-clamp-2 text-muted-foreground text-xs leading-5', className)} {...props} />
 )
 
 export default McpProviderSettings
