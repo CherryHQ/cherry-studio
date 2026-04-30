@@ -180,7 +180,7 @@ export function isDedicatedImageModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   // gpt-image-2 is a chat-capable image model (can return text + images),
   // so it should use the chat completion path, not the dedicated image generation API
-  if (/^gpt-image-2/.test(modelId)) return false
+  if (modelId.startsWith('gpt-image-2')) return false
   return DEDICATED_IMAGE_MODEL_REGEX.test(modelId)
 }
 
