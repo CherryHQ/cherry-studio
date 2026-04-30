@@ -2,8 +2,8 @@
  * BuiltinAgentBootstrap
  *
  * Creation helpers for the two built-in agent templates (CherryClaw and
- * Cherry Assistant). These are intentionally NOT called at startup — agents
- * are created on-demand when the user triggers them.
+ * Cherry Assistant). Not currently wired to any call site — reserved for
+ * future use when the app auto-creates default agents on first launch.
  */
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
