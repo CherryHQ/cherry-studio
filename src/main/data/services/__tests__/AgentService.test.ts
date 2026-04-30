@@ -50,6 +50,7 @@ describe('AgentService', () => {
     const base: typeof agentTable.$inferInsert = {
       type: 'claude-code',
       name: 'Test Agent',
+      instructions: 'You are a helpful assistant.',
       model: 'claude-3-5-sonnet',
       sortOrder: 0,
       ...overrides,

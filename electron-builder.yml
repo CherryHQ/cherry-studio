@@ -80,7 +80,7 @@ extraResources:
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: Cherry Studio
+  executableName: CherryStudio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis

@@ -27,7 +27,7 @@ function rowToAgent(row: AgentRow): AgentEntity {
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    accessiblePaths: row.accessiblePaths ?? [],
+    accessiblePaths: row.accessiblePaths,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -50,6 +50,8 @@ export class AgentService {
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
     const resolvedPaths = computeWorkspacePaths(req.accessiblePaths, id)
 
+    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
+    // instructions has no DB DEFAULT — service supplies the product-strategic default.
     const insertData: InsertAgentRow = {
       id,
       type: req.type,
@@ -59,9 +61,9 @@ export class AgentService {
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
-      mcps: req.mcps ?? null,
-      allowedTools: req.allowedTools ?? null,
-      configuration: req.configuration ?? null,
+      mcps: req.mcps,
+      allowedTools: req.allowedTools,
+      configuration: req.configuration,
       accessiblePaths: resolvedPaths,
       sortOrder: 0
     }

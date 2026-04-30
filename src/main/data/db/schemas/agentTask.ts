@@ -21,7 +21,7 @@ export const agentTaskTable = sqliteTable(
     nextRun: integer(),
     lastRun: integer(),
     lastResult: text(),
-    status: text().notNull().default('active'),
+    status: text().notNull(),
     ...createUpdateTimestamps
   },
   (t) => [

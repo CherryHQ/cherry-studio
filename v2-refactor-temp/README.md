@@ -1,40 +1,47 @@
-# V2 重构临时目录
+# V2 Refactor Temp Directory
 
-本目录是 Cherry Studio V2 数据和 UI 重构项目的临时工作目录，用于存放重构过程中使用的共享工具、文档和临时文件。
+Working directory for the Cherry Studio v2 data and UI refactor. Holds shared tools, working notes, and other transient artifacts used during the refactor.
 
-**重要**: 本目录将在 V2 重构完成后删除。
+**Important**: This directory will be removed after the v2 refactor lands.
 
-## 目录结构
+## Layout
 
 ```
 v2-refactor-temp/
-├── tools/                    # 重构工具
-│   └── data-classify/        # 数据分类与代码生成工具
-├── docs/                     # 临时文档（如有需要）
-└── README.md                 # 本文件
+├── tools/                    # Refactor tooling
+│   └── data-classify/        # Data classification and code generation
+├── docs/                     # Working notes
+│   └── breaking-changes/     # User-perceivable v2 changes (aggregated at release)
+└── README.md                 # This file
 ```
 
-## 包含内容
+## Contents
 
-### 工具 (tools/)
+### Tools (`tools/`)
 
-- **data-classify/** - 数据分类与代码生成工具
-  - 从源码提取数据清单
-  - 管理数据分类映射
-  - 生成 TypeScript 类型定义和迁移映射
-  - 详见 [tools/data-classify/README.md](./tools/data-classify/README.md)
+- **data-classify/** — Data classification and code generation pipeline
+  - Extracts the data inventory from source
+  - Manages classification mappings
+  - Generates TypeScript types and migration mappings
+  - See [tools/data-classify/README.md](./tools/data-classify/README.md)
 
-## 使用说明
+### Docs (`docs/`)
 
-1. 本目录不包含任何生产代码，仅用于重构辅助
-2. 生成的代码会输出到正式的项目目录中
-3. 不要在本目录中存放需要长期保留的内容
+- **breaking-changes/** — Log of v2 changes that affect how users use the app
+  - PR authors drop an entry alongside their PR; the release manager aggregates and translates these into the Chinese user-facing release note at v2.0.0
+  - See [docs/breaking-changes/README.md](./docs/breaking-changes/README.md)
 
-## 清理计划
+## Usage notes
 
-V2 重构完成后，本目录将被完全删除。届时需要：
+1. This directory contains no production code — it only supports the refactor
+2. Generated code is written to the canonical project locations, not here
+3. Do not store anything that needs to be preserved long-term
 
-1. 确认所有工具不再需要
-2. 将有价值的文档迁移到正式位置（如有）
-3. 删除整个 `v2-refactor-temp/` 目录
-4. 更新 `.gitignore` 和相关引用
+## Cleanup plan
+
+After the v2 refactor lands, remove this directory entirely:
+
+1. Confirm all tooling here is no longer needed
+2. Move any documents worth keeping to their canonical locations
+3. Delete the `v2-refactor-temp/` directory
+4. Update `.gitignore` and any remaining references

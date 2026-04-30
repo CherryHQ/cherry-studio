@@ -3696,7 +3696,7 @@
         "title": "應用篩選名單",
         "user_tips": {
           "mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
-          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等"
         }
       },
       "linux": {

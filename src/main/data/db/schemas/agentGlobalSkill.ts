@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
@@ -13,9 +14,9 @@ export const agentGlobalSkillTable = sqliteTable(
     sourceUrl: text(),
     namespace: text(),
     author: text(),
-    tags: text({ mode: 'json' }).$type<string[]>(),
+    tags: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     contentHash: text().notNull(),
-    isEnabled: integer({ mode: 'boolean' }).notNull().default(true),
+    isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
     ...createUpdateTimestamps
   },
   (t) => [
