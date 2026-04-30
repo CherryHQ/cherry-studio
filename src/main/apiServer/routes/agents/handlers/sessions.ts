@@ -1,3 +1,4 @@
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { AgentModelValidationError } from '@main/services/agents'
@@ -314,6 +315,39 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
         message: 'Failed to delete session',
         type: 'internal_error',
         code: 'session_delete_failed'
+      }
+    })
+  }
+}
+
+export const deleteAllSessions = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    logger.debug('Deleting all sessions', { agentId })
+
+    const existingAgent = await agentService.getAgent(agentId)
+    if (!existingAgent) {
+      logger.warn('Agent not found for session deletion', { agentId })
+      return res.status(404).json({
+        error: {
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
+        }
+      })
+    }
+
+    await sessionService.deleteAllSessions(agentId)
+
+    logger.info('All sessions deleted for agent', { agentId })
+    return res.status(204).send()
+  } catch (error: any) {
+    logger.error('Error deleting all sessions', { error, agentId: req.params.agentId })
+    return res.status(500).json({
+      error: {
+        message: 'Failed to delete all sessions',
+        type: 'internal_error',
+        code: 'session_delete_all_failed'
       }
     })
   }

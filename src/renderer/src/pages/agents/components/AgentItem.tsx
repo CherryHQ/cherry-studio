@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
@@ -8,7 +8,7 @@ import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { Bot, MoreVertical } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, Bot, BrushCleaning, Check as CheckIcon, MoreVertical } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,11 +17,30 @@ import { useTranslation } from 'react-i18next'
 interface AgentItemProps {
   agent: AgentEntity
   isActive: boolean
+  isSelected?: boolean
+  showManageCheckbox?: boolean
   onDelete: (agent: AgentEntity) => void
+  onDuplicate: (agent: AgentEntity) => void
+  onClear: (agent: AgentEntity) => void
+  onSelect?: (agent: AgentEntity) => void
+  onSortByPinyinAsc?: () => void
+  onSortByPinyinDesc?: () => void
   onPress: () => void
 }
 
-const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
+const AgentItem = ({
+  agent,
+  isActive,
+  isSelected,
+  showManageCheckbox,
+  onDelete,
+  onDuplicate,
+  onClear,
+  onSelect,
+  onSortByPinyinAsc,
+  onSortByPinyinDesc,
+  onPress
+}: AgentItemProps) => {
   const { t } = useTranslation()
   const [topicPosition] = usePreference('topic.position')
   const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
@@ -51,6 +70,40 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         onClick: () => AgentSettingsPopup.show({ agentId: agent.id })
       },
       {
+        label: t('agent.copy.title'),
+        key: 'duplicate',
+        icon: <CopyIcon size={14} />,
+        onClick: () => onDuplicate(agent)
+      },
+      {
+        label: t('agent.clear.title'),
+        key: 'clear',
+        icon: <BrushCleaning size={14} />,
+        onClick: () => {
+          window.modal.confirm({
+            title: t('agent.clear.title'),
+            content: t('agent.clear.content'),
+            centered: true,
+            okButtonProps: { danger: true },
+            onOk: () => onClear(agent)
+          })
+        }
+      },
+      { type: 'divider' as const },
+      {
+        label: t('common.sort.pinyin.asc'),
+        key: 'sort-asc',
+        icon: <ArrowDownAZ size={14} />,
+        onClick: () => onSortByPinyinAsc?.()
+      },
+      {
+        label: t('common.sort.pinyin.desc'),
+        key: 'sort-desc',
+        icon: <ArrowUpAZ size={14} />,
+        onClick: () => onSortByPinyinDesc?.()
+      },
+      { type: 'divider' as const },
+      {
         label: t('common.delete'),
         key: 'delete',
         icon: <DeleteIcon size={14} className="lucide-custom" />,
@@ -66,7 +119,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         }
       }
     ],
-    [t, agent, onDelete]
+    [t, agent, onDelete, onDuplicate, onClear, onSortByPinyinAsc, onSortByPinyinDesc]
   )
 
   return (
@@ -79,11 +132,21 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
         isActive={isActive}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}>
+        {showManageCheckbox && (
+          <div
+            className="flex h-full items-center"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect?.(agent)
+            }}>
+            <CheckIcon size={14} className={cn('text-(--color-primary)', !isSelected && 'opacity-30')} />
+          </div>
+        )}
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
           <MarqueeText className="flex min-w-0 flex-1">
             <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </MarqueeText>
-          {(isActive || isHovered) && (
+          {(isActive || isHovered || showManageCheckbox) && (
             <Dropdown
               menu={{ items: menuItems }}
               trigger={['click']}
@@ -93,7 +156,7 @@ const AgentItem = ({ agent, isActive, onDelete, onPress }: AgentItemProps) => {
               </MenuButton>
             </Dropdown>
           )}
-          {!isActive && !isHovered && assistantIconType !== 'none' && <BotIcon />}
+          {!isActive && !isHovered && !showManageCheckbox && assistantIconType !== 'none' && <BotIcon />}
         </AssistantNameRow>
       </Container>
     </Dropdown>

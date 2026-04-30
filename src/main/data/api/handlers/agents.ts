@@ -71,6 +71,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  '/agents/:agentId/duplicate': {
+    POST: async ({ params }) => {
+      const duplicated = await agentService.duplicateAgent(params.agentId)
+      return duplicated
+    }
+  },
+
   '/agents/:agentId/sessions': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(query)
@@ -86,6 +93,11 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
         throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
       }
       return session
+    },
+
+    DELETE: async ({ params }) => {
+      await sessionService.deleteAllSessions(params.agentId)
+      return undefined
     }
   },
 

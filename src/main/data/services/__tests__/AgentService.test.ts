@@ -125,6 +125,50 @@ describe('AgentService', () => {
     })
   })
 
+  describe('duplicateAgent', () => {
+    it('creates a new agent with a new ID and "(Copy)" suffix in name', async () => {
+      const { id: originalId } = await insertAgent({
+        id: 'agent_duplicate_test_001',
+        name: 'Original Agent',
+        description: 'Test description',
+        instructions: 'You are a helpful assistant.',
+        model: 'claude-3-5-sonnet',
+        planModel: null,
+        smallModel: null
+      })
+
+      const duplicated = await agentService.duplicateAgent(originalId)
+
+      expect(duplicated.id).not.toBe(originalId)
+      expect(duplicated.name).toBe('Original Agent (Copy)')
+      expect(duplicated.description).toBe('Test description')
+      expect(duplicated.instructions).toBe('You are a helpful assistant.')
+      expect(duplicated.model).toBe('claude-3-5-sonnet')
+    })
+
+    it('shifts existing agents sortOrder by +1', async () => {
+      await insertAgent({ sortOrder: 0 })
+      await insertAgent({ sortOrder: 1 })
+      await insertAgent({ sortOrder: 2 })
+
+      const [{ id: originalId }] = await dbh.db.select().from(agentTable).orderBy(agentTable.sortOrder).limit(1)
+      await agentService.duplicateAgent(originalId)
+
+      const allAgents = await dbh.db.select().from(agentTable)
+      const duplicatedAgent = allAgents.find((a) => a.name === 'Test Agent (Copy)')
+      expect(duplicatedAgent).toBeDefined()
+      expect(duplicatedAgent!.sortOrder).toBe(0)
+      const otherAgents = allAgents.filter((a) => a.id !== duplicatedAgent!.id)
+      for (const agent of otherAgents) {
+        expect(agent.sortOrder).toBeGreaterThan(0)
+      }
+    })
+
+    it('throws not found error for non-existent agent', async () => {
+      await expect(agentService.duplicateAgent('non_existent_id')).rejects.toThrow()
+    })
+  })
+
   describe('listAgents', () => {
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {

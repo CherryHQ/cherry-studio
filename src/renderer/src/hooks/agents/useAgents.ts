@@ -121,12 +121,84 @@ export const useAgents = () => {
     [client, mutate, t]
   )
 
+  const duplicateAgent = useCallback(
+    async (id: string) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        const original = data?.find((a) => a.id === id)
+        const result = await client.duplicateAgent(id)
+        if (original) {
+          const index = data?.findIndex((a) => a.id === id) ?? -1
+          if (index !== -1) {
+            void mutate((prev) => {
+              if (!prev) return [result]
+              const updated = [...prev]
+              updated.splice(index + 1, 0, result)
+              return updated
+            })
+          } else {
+            void mutate((prev) => [result, ...(prev ?? [])])
+          }
+        }
+        window.toast.success(t('common.add_success'))
+        return { success: true, data: result }
+      } catch (error) {
+        const errorMessage = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
+        window.toast.error(errorMessage)
+        if (error instanceof Error) {
+          return { success: false, error }
+        } else {
+          return { success: false, error: new Error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))) }
+        }
+      }
+    },
+    [client, data, mutate, t]
+  )
+
+  const clearAgentSessions = useCallback(
+    async (id: string) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        await client.deleteAllSessions(id)
+        window.toast.success(t('agent.clear.success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.clear.error.failed')))
+      }
+    },
+    [client, t]
+  )
+
+  const deleteAgents = useCallback(
+    async (ids: string[]) => {
+      try {
+        if (!client) {
+          throw new Error(t('apiServer.messages.notEnabled'))
+        }
+        for (const id of ids) {
+          await client.deleteAgent(id)
+        }
+        void mutate((prev) => prev?.filter((a) => !ids.includes(a.id)) ?? [])
+        window.toast.success(t('common.delete_success'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+      }
+    },
+    [client, mutate, t]
+  )
+
   return {
     agents: data,
     error,
     isLoading,
     addAgent,
     deleteAgent,
+    duplicateAgent,
+    clearAgentSessions,
+    deleteAgents,
     getAgent,
     reorderAgents
   }

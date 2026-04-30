@@ -271,6 +271,17 @@
         "bypassPermissions": "CherryClaw agents run with Full Auto Mode by default. All tools execute without asking for approval."
       }
     },
+    "clear": {
+      "content": "Clearing sessions will delete all sessions for this agent. This action cannot be undone. Continue?",
+      "error": {
+        "failed": "Failed to clear sessions"
+      },
+      "success": "Sessions cleared successfully",
+      "title": "Clear sessions"
+    },
+    "copy": {
+      "title": "Duplicate Agent"
+    },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
       "error": {
@@ -326,6 +337,13 @@
       "error": {
         "failed": "Failed to list agents."
       }
+    },
+    "manage": {
+      "batch_delete": {
+        "confirm": "Delete selected agents",
+        "content": "Are you sure you want to delete {{count}} agents? This action cannot be undone."
+      },
+      "title": "Manage"
     },
     "reorder": {
       "error": {

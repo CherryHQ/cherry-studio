@@ -211,6 +211,15 @@ export class AgentSessionService {
     return result.rowsAffected > 0
   }
 
+  async deleteAllSessions(agentId: string): Promise<void> {
+    const database = application.get('DbService').getDb()
+    await withSqliteErrors(
+      () => database.delete(sessionsTable).where(eq(sessionsTable.agentId, agentId)),
+      defaultHandlersFor('Session', agentId)
+    )
+    logger.info('All sessions deleted for agent', { agentId })
+  }
+
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
     const database = application.get('DbService').getDb()
     await database.transaction(async (tx) => {

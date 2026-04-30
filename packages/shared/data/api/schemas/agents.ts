@@ -260,6 +260,14 @@ export type AgentSchemas = {
     }
   }
 
+  /** Duplicate a specific agent */
+  '/agents/:agentId/duplicate': {
+    POST: {
+      params: { agentId: string }
+      response: AgentEntity
+    }
+  }
+
   /** List sessions for an agent, create a new session */
   '/agents/:agentId/sessions': {
     GET: {
@@ -271,6 +279,10 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: CreateSessionDto
       response: AgentSessionEntity
+    }
+    DELETE: {
+      params: { agentId: string }
+      response: void
     }
   }
 

@@ -1286,6 +1286,56 @@
         }
       }
     },
+    "/v1/agents/{agentId}/duplicate": {
+      "post": {
+        "summary": "Duplicate an agent",
+        "description": "Creates a copy of an existing agent with a new ID and \"(Copy)\" suffix in the name",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID to duplicate"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Agent duplicated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEntity"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/agents/reorder": {
       "put": {
         "summary": "Reorder agents",
@@ -1607,6 +1657,45 @@
         }
       }
     },
+    "/agents/{agentId}/duplicate": {
+      "post": {
+        "summary": "Duplicate an agent",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID to duplicate"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Agent duplicated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEntity"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents/{agentId}/sessions": {
       "post": {
         "summary": "Create a new session for an agent",
@@ -1719,6 +1808,36 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete all sessions for an agent",
+        "tags": ["Sessions"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent ID"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "All sessions deleted successfully"
           },
           "404": {
             "description": "Agent not found",

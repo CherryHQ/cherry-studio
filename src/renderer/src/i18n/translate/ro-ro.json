@@ -271,6 +271,17 @@
         "bypassPermissions": "Agenții CherryClaw rulează în mod automat complet în mod implicit. Toate instrumentele se execută fără a solicita aprobare."
       }
     },
+    "clear": {
+      "content": "[to be translated]:Clearing sessions will delete all sessions for this agent. This action cannot be undone. Continue?",
+      "error": {
+        "failed": "[to be translated]:Failed to clear sessions"
+      },
+      "success": "[to be translated]:Sessions cleared successfully",
+      "title": "[to be translated]:Clear sessions"
+    },
+    "copy": {
+      "title": "[to be translated]:Duplicate Agent"
+    },
     "delete": {
       "content": "Ștergerea agentului va opri forțat și va șterge toate sesiunile asociate cu agentul. Ești sigur?",
       "error": {
@@ -326,6 +337,13 @@
       "error": {
         "failed": "Nu s-a putut afișa lista de agenți."
       }
+    },
+    "manage": {
+      "batch_delete": {
+        "confirm": "[to be translated]:Delete selected agents",
+        "content": "[to be translated]:Are you sure you want to delete {{count}} agents? This action cannot be undone."
+      },
+      "title": "[to be translated]:Manage"
     },
     "reorder": {
       "error": {
