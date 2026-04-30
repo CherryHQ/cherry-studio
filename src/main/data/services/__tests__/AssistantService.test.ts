@@ -2,6 +2,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -437,6 +438,23 @@ describe('AssistantDataService', () => {
 
       const tagRows = await dbh.db.select().from(entityTagTable)
       expect(tagRows).toHaveLength(0)
+    })
+
+    it('should remove pin rows for the deleted assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(pinTable).values({
+        id: '11111111-1111-4111-8111-111111111111',
+        entityType: 'assistant',
+        entityId: 'ast-1',
+        orderKey: 'a0',
+        createdAt: 1_000,
+        updatedAt: 1_000
+      })
+
+      await assistantDataService.delete('ast-1')
+
+      const pinRows = await dbh.db.select().from(pinTable)
+      expect(pinRows).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

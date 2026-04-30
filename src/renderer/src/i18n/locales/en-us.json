@@ -3817,6 +3817,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "New Agent",
+      "empty_text": "No agents yet",
+      "search_placeholder": "Search agents…"
+    },
+    "assistant": {
+      "create_new": "New Assistant",
+      "empty_text": "No assistants yet",
+      "multi_hint": "(mutually exclusive with multi-model)",
+      "multi_label": "Multi-assistant parallel",
+      "search_placeholder": "Search assistants…"
+    },
+    "common": {
+      "edit": "Edit",
+      "pin": "Pin",
+      "pinned_title": "Pinned",
+      "sort": {
+        "asc": "Oldest",
+        "desc": "Recent"
+      },
+      "sort_label": "Sort",
+      "unpin": "Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3884,7 +3909,35 @@
       "title": "Channels"
     },
     "componentLab": {
-      "description": "Visible only in development for testing the new model selector directly inside the app.",
+      "agentSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Agent Selector",
+        "triggerPlaceholder": "Select an agent",
+        "valueProp": "Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Assistant Selector",
+        "triggerPlaceholder": "Select an assistant",
+        "triggerSelectedCount": "{{count}} assistants selected",
+        "valueProp": "Current value"
+      },
+      "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
       "label": "Component Lab",
       "modelSelector": {
         "behaviorConfig": "Behavior & Display Config",

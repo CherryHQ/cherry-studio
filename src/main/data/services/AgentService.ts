@@ -6,6 +6,7 @@ import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill
 import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
@@ -18,6 +19,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -33,11 +35,10 @@ function rowToAgent(row: AgentRow): AgentEntity {
 }
 
 /** Compute the default workspace paths for an agent without creating any directories. */
-function computeWorkspacePaths(paths: string[] | undefined, id: string): string[] {
+function computeWorkspacePaths(paths: string[] | undefined): string[] {
   if (paths && paths.length > 0) return paths
-  const shortId = id.substring(id.length - 9)
-  // getPath returns the workspace root; append the per-agent short-ID subdirectory.
-  return [`${application.getPath('feature.agents.workspaces')}/${shortId}`]
+  // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+  return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
 }
 
 export class AgentService {
@@ -47,7 +48,7 @@ export class AgentService {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
-    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths, id)
+    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -273,6 +274,8 @@ export class AgentService {
             await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
             await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
             await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+            // Pin table has no FK; consumer services must purge their own pins on delete.
+            await pinService.purgeForEntity(tx, 'agent', id)
             await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
           }),
         defaultHandlersFor('Agent', id)
@@ -281,8 +284,14 @@ export class AgentService {
       return true
     }
 
+    // Wrap pin purge + agent delete in one transaction so a partial delete cannot leave
+    // dangling pin rows behind (mirrors AssistantService.delete + ProviderService.delete).
     const result = await withSqliteErrors(
-      async () => database.delete(agentsTable).where(eq(agentsTable.id, id)),
+      async () =>
+        database.transaction(async (tx) => {
+          await pinService.purgeForEntity(tx, 'agent', id)
+          return tx.delete(agentsTable).where(eq(agentsTable.id, id))
+        }),
       defaultHandlersFor('Agent', id)
     )
 
@@ -294,11 +303,11 @@ export class AgentService {
     return !!result
   }
 
-  /** Returns the agent row regardless of soft-deletion, for bootstrap use. */
-  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null } | null> {
+  /** Returns the agent row fields needed by bootstrap regardless of soft-deletion. */
+  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null; accessiblePaths: string[] } | null> {
     const row = await this.findAgentRow(id, { includeDeleted: true })
     if (!row) return null
-    return { deletedAt: row.deletedAt ?? null }
+    return { deletedAt: row.deletedAt ?? null, accessiblePaths: row.accessiblePaths }
   }
 }
 

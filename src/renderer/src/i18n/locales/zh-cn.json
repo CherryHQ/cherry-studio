@@ -3817,6 +3817,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能体",
+      "empty_text": "暂无智能体",
+      "search_placeholder": "搜索智能体…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暂无助手",
+      "multi_hint": "（与多模型互斥）",
+      "multi_label": "多助手并行",
+      "search_placeholder": "搜索助手…"
+    },
+    "common": {
+      "edit": "编辑",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3884,7 +3909,35 @@
       "title": "频道"
     },
     "componentLab": {
-      "description": "仅在开发环境显示，用于在应用内直接联调新的模型选择组件。",
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "AgentSelector 现在会读取真实 /agents DataApi 数据，用于验证 id/item 选择、pin、排序与搜索行为。",
+        "emptyShellNotice": "当前预览使用 /agents DataApi 返回的真实智能体列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "智能体选择器",
+        "triggerPlaceholder": "选择智能体",
+        "valueProp": "当前 value"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "直接挂载 AssistantSelector 业务组件，验证 multi/single、id/item、pin、排序与搜索行为。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "助手选择器",
+        "triggerPlaceholder": "选择助手",
+        "triggerSelectedCount": "已选 {{count}} 个助手",
+        "valueProp": "当前 value"
+      },
+      "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
       "label": "组件测试",
       "modelSelector": {
         "behaviorConfig": "交互与展示配置",
