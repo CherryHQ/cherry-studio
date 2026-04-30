@@ -2960,13 +2960,13 @@
       "run": "运行 OVMS 失败:",
       "stop": "停止 OVMS 失败:"
     },
+    "guide": "Intel OVMS 指南：",
     "status": {
       "not_installed": "OVMS 未安装",
       "not_running": "OVMS 未运行",
       "running": "OVMS 正在运行",
       "unknown": "OVMS 状态未知"
     },
-    "guide": "Intel OVMS 指南：",
     "title": "Intel OVMS"
   },
   "paintings": {

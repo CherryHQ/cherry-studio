@@ -2960,13 +2960,13 @@
       "run": "Run OVMS failed:",
       "stop": "Stop OVMS failed:"
     },
+    "guide": "Intel OVMS Guide:",
     "status": {
       "not_installed": "OVMS is not installed",
       "not_running": "OVMS is not running",
       "running": "OVMS is running",
       "unknown": "OVMS status unknown"
     },
-    "guide": "Intel OVMS Guide:",
     "title": "Intel OVMS"
   },
   "paintings": {
