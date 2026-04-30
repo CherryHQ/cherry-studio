@@ -3696,7 +3696,7 @@
         "title": "应用筛选名单",
         "user_tips": {
           "mac": "请输入应用的Bundle ID，每行一个，不区分大小写，可以模糊匹配。例如：com.google.Chrome、com.apple.mail等",
-          "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
+          "windows": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、CherryStudio.exe等"
         }
       },
       "linux": {
