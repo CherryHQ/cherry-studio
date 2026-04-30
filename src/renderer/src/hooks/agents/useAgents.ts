@@ -19,7 +19,7 @@ type Result<T> =
 
 export const useAgents = () => {
   const { t } = useTranslation()
-  const { data, isLoading, error, refetch } = useQuery('/agents')
+  const { data, isLoading, error, refetch, mutate } = useQuery('/agents')
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const [activeAgentId] = useCache('agent.active_id')
   const legacyReorderClient = useLegacyAgentReorderClient()
@@ -66,13 +66,17 @@ export const useAgents = () => {
         if (!legacyReorderClient) {
           throw new Error(t('apiServer.messages.notEnabled'))
         }
+        if (data) {
+          await mutate({ ...data, items: reorderedList } as never, { revalidate: false })
+        }
         await legacyReorderClient.reorderAgents(orderedIds)
         await refetch()
       } catch (error) {
+        await refetch()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
-    [legacyReorderClient, refetch, t]
+    [legacyReorderClient, refetch, mutate, data, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, reorderAgents }

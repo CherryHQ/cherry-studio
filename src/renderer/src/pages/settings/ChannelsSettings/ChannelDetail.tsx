@@ -346,18 +346,22 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     }
   }, [agentList])
 
-  const channelList: ChannelData[] = (channels ?? []).map((ch) => ({
-    id: ch.id,
-    type: ch.type,
-    name: ch.name,
-    agentId: ch.agentId,
-    sessionId: ch.sessionId,
-    config: ch.config,
-    isActive: ch.isActive,
-    permissionMode: ch.permissionMode,
-    createdAt: ch.createdAt ? new Date(ch.createdAt).getTime() : null,
-    updatedAt: ch.updatedAt ? new Date(ch.updatedAt).getTime() : null
-  }))
+  const channelList: ChannelData[] = useMemo(
+    () =>
+      (channels ?? []).map((ch) => ({
+        id: ch.id,
+        type: ch.type,
+        name: ch.name,
+        agentId: ch.agentId,
+        sessionId: ch.sessionId,
+        config: ch.config,
+        isActive: ch.isActive,
+        permissionMode: ch.permissionMode,
+        createdAt: ch.createdAt ? new Date(ch.createdAt).getTime() : null,
+        updatedAt: ch.updatedAt ? new Date(ch.updatedAt).getTime() : null
+      })),
+    [channels]
+  )
 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const editingChannel = channelList.find((ch) => ch.id === editingChannelId) ?? null
@@ -394,48 +398,37 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
-    try {
-      const newChannel = await createChannel({
-        type: channelDef.type,
-        name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
-        config: channelDef.defaultConfig,
-        isActive: false
-      })
+    const newChannel = await createChannel({
+      type: channelDef.type,
+      name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
+      config: channelDef.defaultConfig,
+      isActive: true
+    } as never)
+    if (newChannel) {
       setEditingChannelId(newChannel.id)
-    } catch {
-      // ignore
     }
   }, [channels?.length, createChannel, channelDef])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
-      try {
-        const existingChannel = channelList.find((channel) => channel.id === channelId)
-        if (!existingChannel) return
+      if (!channelList.some((ch) => ch.id === channelId)) return
 
-        const apiUpdates: Record<string, unknown> = {}
-        if (updates.name !== undefined) apiUpdates.name = updates.name
-        if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
-        if (updates.config !== undefined) apiUpdates.config = updates.config
-        if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
-        if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
+      const apiUpdates: Record<string, unknown> = {}
+      if (updates.name !== undefined) apiUpdates.name = updates.name
+      if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
+      if (updates.config !== undefined) apiUpdates.config = updates.config
+      if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
+      if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
-        await updateChannel(channelId, apiUpdates)
-      } catch {
-        // ignore
-      }
+      await updateChannel(channelId, apiUpdates as never)
     },
     [channelList, updateChannel]
   )
 
   const handleDelete = useCallback(
     async (channelId: string) => {
-      try {
-        await deleteChannel(channelId)
-        setEditingChannelId((prev) => (prev === channelId ? null : prev))
-      } catch {
-        // ignore
-      }
+      await deleteChannel(channelId)
+      setEditingChannelId((prev) => (prev === channelId ? null : prev))
     },
     [deleteChannel]
   )

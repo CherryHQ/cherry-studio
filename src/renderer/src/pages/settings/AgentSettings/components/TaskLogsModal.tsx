@@ -14,7 +14,7 @@ type TaskLogsModalProps = {
 const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, agentId, taskId, taskName, onClose }) => {
   const { t, i18n } = useTranslation()
   const locale = i18n.language
-  const { logs, isLoading } = useTaskLogs(open ? agentId : null, open ? taskId : null)
+  const { logs, isLoading, error } = useTaskLogs(open ? agentId : null, open ? taskId : null)
 
   const columns = [
     {
@@ -65,6 +65,8 @@ const TaskLogsModal: FC<TaskLogsModalProps> = ({ open, agentId, taskId, taskName
         <div className="flex justify-center py-8">
           <Spin />
         </div>
+      ) : error ? (
+        <div className="py-8 text-center text-red-400">{t('agent.cherryClaw.tasks.logs.loadError')}</div>
       ) : logs.length === 0 ? (
         <div className="py-8 text-center text-gray-400">{t('agent.cherryClaw.tasks.logs.empty')}</div>
       ) : (

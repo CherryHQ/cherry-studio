@@ -62,7 +62,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
         setChannelTypeMap(map)
       })
       .catch(() => {})
-  }, [agentId, sessions])
+  }, [agentId])
 
   // Use refs to always read the latest values inside the throttled handler,
   // avoiding stale closures caused by recreating the throttle on each render.

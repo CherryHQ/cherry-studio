@@ -83,7 +83,10 @@ export class AgentService {
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
+          const [maxRow] = await tx
+            .select({ max: sql<number>`COALESCE(MAX(${agentsTable.sortOrder}), -1)` })
+            .from(agentsTable)
+          insertData.sortOrder = (maxRow?.max ?? -1) + 1
           await tx.insert(agentsTable).values(insertData)
         }),
       defaultHandlersFor('Agent', id)

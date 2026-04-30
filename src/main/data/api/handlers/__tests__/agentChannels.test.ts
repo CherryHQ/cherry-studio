@@ -47,8 +47,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessag
 vi.mock('@data/services/AgentTaskWorkflowService', () => ({ agentTaskWorkflowService: {} }))
 vi.mock('@main/services/agents/skills/SkillService', () => ({ skillService: {} }))
 
+import { agentChannelHandlers } from '../agentChannels'
 import { agentHandlers } from '../agents'
-import { channelHandlers } from '../channels'
 
 const AGENT_ID = 'agent_1234567890_abcdefghi'
 const CHANNEL_ID = 'channel_1234567890_abcdef'
@@ -79,7 +79,7 @@ const mockLog = {
   error: null
 }
 
-describe('channelHandlers', () => {
+describe('agentChannelHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -88,7 +88,7 @@ describe('channelHandlers', () => {
     it('GET returns all channels when no filter is provided', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await channelHandlers['/channels'].GET({ query: undefined } as never)
+      const result = await agentChannelHandlers['/channels'].GET({ query: undefined } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith(undefined)
       expect(result).toEqual([mockChannel])
@@ -97,7 +97,7 @@ describe('channelHandlers', () => {
     it('GET passes agentId filter to listChannels', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await channelHandlers['/channels'].GET({ query: { agentId: AGENT_ID } } as never)
+      const result = await agentChannelHandlers['/channels'].GET({ query: { agentId: AGENT_ID } } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockChannel])
@@ -106,14 +106,16 @@ describe('channelHandlers', () => {
     it('GET passes type filter to listChannels', async () => {
       listChannelsMock.mockResolvedValueOnce([mockChannel])
 
-      const result = await channelHandlers['/channels'].GET({ query: { type: 'telegram' } } as never)
+      const result = await agentChannelHandlers['/channels'].GET({ query: { type: 'telegram' } } as never)
 
       expect(listChannelsMock).toHaveBeenCalledWith({ type: 'telegram' })
       expect(result).toEqual([mockChannel])
     })
 
     it('GET rejects invalid query', async () => {
-      await expect(channelHandlers['/channels'].GET({ query: { type: 'invalid' } } as never)).rejects.toMatchObject({
+      await expect(
+        agentChannelHandlers['/channels'].GET({ query: { type: 'invalid' } } as never)
+      ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
 
@@ -123,7 +125,7 @@ describe('channelHandlers', () => {
     it('POST creates a channel through the workflow service', async () => {
       createChannelMock.mockResolvedValueOnce(mockChannel)
 
-      const result = await channelHandlers['/channels'].POST({
+      const result = await agentChannelHandlers['/channels'].POST({
         body: {
           type: 'telegram',
           name: 'Test Channel',
@@ -139,7 +141,7 @@ describe('channelHandlers', () => {
 
     it('POST rejects with VALIDATION_ERROR when required fields are missing', async () => {
       await expect(
-        channelHandlers['/channels'].POST({ body: { name: 'Test Channel' } } as never)
+        agentChannelHandlers['/channels'].POST({ body: { name: 'Test Channel' } } as never)
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
@@ -152,7 +154,9 @@ describe('channelHandlers', () => {
     it('GET returns channel when found', async () => {
       getChannelMock.mockResolvedValueOnce(mockChannel)
 
-      const result = await channelHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
+      const result = await agentChannelHandlers['/channels/:channelId'].GET({
+        params: { channelId: CHANNEL_ID }
+      } as never)
 
       expect(getChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
       expect(result).toMatchObject({ id: CHANNEL_ID })
@@ -162,7 +166,7 @@ describe('channelHandlers', () => {
       getChannelMock.mockResolvedValueOnce(null)
 
       await expect(
-        channelHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -171,7 +175,7 @@ describe('channelHandlers', () => {
     it('PATCH delegates to the workflow service and returns the updated channel', async () => {
       updateChannelMock.mockResolvedValueOnce({ ...mockChannel, name: 'Updated' })
 
-      const result = await channelHandlers['/channels/:channelId'].PATCH({
+      const result = await agentChannelHandlers['/channels/:channelId'].PATCH({
         params: { channelId: CHANNEL_ID },
         body: { name: 'Updated' }
       } as never)
@@ -184,7 +188,7 @@ describe('channelHandlers', () => {
       updateChannelMock.mockResolvedValueOnce(null)
 
       await expect(
-        channelHandlers['/channels/:channelId'].PATCH({
+        agentChannelHandlers['/channels/:channelId'].PATCH({
           params: { channelId: CHANNEL_ID },
           body: { name: 'Updated' }
         } as never)
@@ -193,7 +197,7 @@ describe('channelHandlers', () => {
 
     it('PATCH rejects body that fails UpdateChannelSchema validation', async () => {
       await expect(
-        channelHandlers['/channels/:channelId'].PATCH({
+        agentChannelHandlers['/channels/:channelId'].PATCH({
           params: { channelId: CHANNEL_ID },
           body: { type: 123 }
         } as never)
@@ -206,7 +210,7 @@ describe('channelHandlers', () => {
       deleteChannelMock.mockResolvedValueOnce(true)
 
       await expect(
-        channelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
       ).resolves.toBeUndefined()
 
       expect(deleteChannelMock).toHaveBeenCalledWith(CHANNEL_ID)
@@ -216,7 +220,7 @@ describe('channelHandlers', () => {
       deleteChannelMock.mockResolvedValueOnce(false)
 
       await expect(
-        channelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
+        agentChannelHandlers['/channels/:channelId'].DELETE({ params: { channelId: CHANNEL_ID } } as never)
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })

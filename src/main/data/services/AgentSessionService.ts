@@ -126,10 +126,11 @@ export class AgentSessionService {
     await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          await tx
-            .update(sessionsTable)
-            .set({ sortOrder: sql`${sessionsTable.sortOrder} + 1` })
+          const [maxRow] = await tx
+            .select({ max: sql<number>`COALESCE(MAX(${sessionsTable.sortOrder}), -1)` })
+            .from(sessionsTable)
             .where(eq(sessionsTable.agentId, agentId))
+          insertData.sortOrder = (maxRow?.max ?? -1) + 1
           await tx.insert(sessionsTable).values(insertData)
         }),
       {

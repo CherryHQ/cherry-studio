@@ -1,3 +1,4 @@
+import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
@@ -5,7 +6,19 @@ import { describe, expect, it } from 'vitest'
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
 
 describe('AgentChannelService', () => {
-  setupTestDatabase()
+  const dbh = setupTestDatabase()
+
+  /** Insert a minimal agent row directly so agentId FK constraints are satisfied. */
+  async function insertAgent(id: string): Promise<void> {
+    await dbh.db.insert(agentTable).values({
+      id,
+      type: 'claude-code',
+      name: `Agent ${id}`,
+      instructions: 'test',
+      model: 'claude-3-5-sonnet',
+      sortOrder: 0
+    })
+  }
 
   describe('createChannel', () => {
     it('creates a channel and returns the entity', async () => {
@@ -32,6 +45,17 @@ describe('AgentChannelService', () => {
       })
 
       expect(channel.isActive).toBe(false)
+    })
+
+    it('returns ISO 8601 timestamps (rowToEntity converts SQLite integer timestamps)', async () => {
+      const channel = await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Timestamp Test',
+        config: TELEGRAM_CONFIG
+      })
+
+      expect(channel.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      expect(channel.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
     })
   })
 
@@ -68,6 +92,54 @@ describe('AgentChannelService', () => {
 
       const channels = await agentChannelService.listChannels({ type: 'telegram' })
       expect(channels.every((c) => c.type === 'telegram')).toBe(true)
+    })
+
+    it('filters by agentId alone', async () => {
+      const agentId = `agent-filter-${Date.now()}`
+      await insertAgent(agentId)
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'AgentA Bot',
+        config: TELEGRAM_CONFIG,
+        agentId
+      })
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'No-Agent Bot',
+        config: TELEGRAM_CONFIG
+        // agentId intentionally omitted
+      })
+
+      const channels = await agentChannelService.listChannels({ agentId })
+      expect(channels.length).toBeGreaterThanOrEqual(1)
+      expect(channels.every((c) => c.agentId === agentId)).toBe(true)
+    })
+
+    it('filters by agentId AND type combined (both eq predicates compose)', async () => {
+      const agentId = `agent-combo-${Date.now()}`
+      await insertAgent(agentId)
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG Agent Bot',
+        config: TELEGRAM_CONFIG,
+        agentId
+      })
+      await agentChannelService.createChannel({
+        type: 'discord',
+        name: 'DC Agent Bot',
+        config: { bot_token: 'dc-tok' },
+        agentId
+      })
+      // telegram channel for a different agent — must NOT appear
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG Other Bot',
+        config: TELEGRAM_CONFIG
+      })
+
+      const channels = await agentChannelService.listChannels({ agentId, type: 'telegram' })
+      expect(channels.length).toBeGreaterThanOrEqual(1)
+      expect(channels.every((c) => c.agentId === agentId && c.type === 'telegram')).toBe(true)
     })
   })
 

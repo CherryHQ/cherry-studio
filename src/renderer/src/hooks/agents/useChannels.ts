@@ -1,8 +1,15 @@
+import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { CreateChannelDto, UpdateChannelDto } from '@shared/data/api/schemas/channels'
 import type { ChannelType } from '@shared/data/api/schemas/channels'
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useChannels')
 
 export const useChannels = (type?: ChannelType) => {
+  const { t } = useTranslation()
   const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
@@ -11,20 +18,32 @@ export const useChannels = (type?: ChannelType) => {
 
   const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
   const createChannel = useCallback(
-    async (channelData: Record<string, unknown>) => {
-      return createTrigger({ body: channelData as never })
+    async (channelData: CreateChannelDto) => {
+      try {
+        return await createTrigger({ body: channelData })
+      } catch (err) {
+        logger.error('Failed to create channel', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.createError')))
+        return null
+      }
     },
-    [createTrigger]
+    [createTrigger, t]
   )
 
   const { trigger: updateTrigger } = useMutation('PATCH', '/channels/:channelId', {
     refresh: ({ args }) => ['/channels', `/channels/${args?.params.channelId}` as never]
   })
   const updateChannel = useCallback(
-    async (id: string, updates: Record<string, unknown>) => {
-      return updateTrigger({ params: { channelId: id }, body: updates as never })
+    async (id: string, updates: UpdateChannelDto) => {
+      try {
+        return await updateTrigger({ params: { channelId: id }, body: updates as never })
+      } catch (err) {
+        logger.error('Failed to update channel', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.updateError')))
+        return null
+      }
     },
-    [updateTrigger]
+    [updateTrigger, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/channels/:channelId', {
@@ -32,9 +51,14 @@ export const useChannels = (type?: ChannelType) => {
   })
   const deleteChannel = useCallback(
     async (id: string) => {
-      await deleteTrigger({ params: { channelId: id } })
+      try {
+        await deleteTrigger({ params: { channelId: id } })
+      } catch (err) {
+        logger.error('Failed to delete channel', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.deleteError')))
+      }
     },
-    [deleteTrigger]
+    [deleteTrigger, t]
   )
 
   return { channels, error, isLoading, refetch, mutate, createChannel, updateChannel, deleteChannel }

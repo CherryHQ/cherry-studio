@@ -36,7 +36,9 @@
         "comingSoon": "即将推出",
         "connected": "已连接",
         "connecting": "连接中",
+        "createError": "",
         "deleteConfirm": "确定删除频道「{{name}}」？",
+        "deleteError": "",
         "description": "将您的 Agent 连接到消息平台。",
         "disconnected": "已断开",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "频道",
+        "updateError": "",
         "wechat": {
           "addAccount": "添加微信账号",
           "chatIds": "允许的用户 ID",
@@ -211,6 +214,9 @@
         },
         "edit": "编辑",
         "empty": "暂无定时任务。添加一个开始吧。",
+        "error": {
+          "loadFailed": ""
+        },
         "intervalPlaceholder": "间隔（分钟）",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
@@ -220,6 +226,7 @@
           "error": "错误",
           "justNow": "刚刚",
           "label": "运行历史",
+          "loadError": "",
           "result": "结果",
           "runAt": "运行时间",
           "running": "运行中...",

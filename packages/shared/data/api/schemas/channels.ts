@@ -1,6 +1,5 @@
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
 import { AgentPermissionModeSchema } from './agents'
 
 export const ChannelTypeSchema = z.enum(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'])
@@ -162,7 +161,16 @@ export const UpdateChannelSchema = z.strictObject({
   name: z.string().optional(),
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: z
+    .union([
+      TelegramChannelConfigSchema,
+      FeishuChannelConfigSchema,
+      QQChannelConfigSchema,
+      WeChatChannelConfigSchema,
+      DiscordChannelConfigSchema,
+      SlackChannelConfigSchema
+    ])
+    .optional(),
   isActive: z.boolean().optional(),
   activeChatIds: z.array(z.string()).nullable().optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional()
@@ -203,6 +211,3 @@ export type ChannelSchemas = {
     }
   }
 }
-
-export type ChannelListResponse = ChannelEntity[]
-export type ChannelPageResponse = OffsetPaginationResponse<ChannelEntity>

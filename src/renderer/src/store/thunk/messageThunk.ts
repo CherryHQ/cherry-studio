@@ -222,7 +222,9 @@ export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionConte
       await mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`], updatedSession, {
         revalidate: false
       })
-      void mutate((key) => Array.isArray(key) && key[0] === `/agents/${agentSession.agentId}/sessions`)
+      mutate((key) => Array.isArray(key) && key[0] === `/agents/${agentSession.agentId}/sessions`).catch((err) =>
+        logger.warn('Failed to revalidate agent session list cache', err as Error)
+      )
     } catch (error) {
       logger.warn('Failed to update agent session cache after rename', error as Error)
     }
@@ -928,8 +930,8 @@ const fetchAndProcessAssistantResponseImpl = async (
       try {
         const agentData = await dataApiService.get(`/agents/${activeAgentId}` as never)
         allowedTools = (agentData as any)?.allowedTools
-      } catch {
-        // Agent fetch failed — proceed without allowedTools
+      } catch (fetchError) {
+        logger.warn('Failed to fetch agent allowed_tools, proceeding without MCP auto-approval', fetchError as Error)
       }
     }
 

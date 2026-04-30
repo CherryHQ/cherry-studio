@@ -58,7 +58,10 @@ export class AgentChannelWorkflowService {
     }
 
     const channel = await agentChannelService.updateChannel(channelId, serviceUpdates)
-    if (!channel) return null
+    if (!channel) {
+      logger.warn('updateChannel: row disappeared mid-update', { channelId })
+      return null
+    }
 
     try {
       await channelManager.syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })

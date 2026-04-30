@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -16,6 +17,8 @@ import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+
+const logger = loggerService.withContext('TasksSettings')
 
 // --------------- Types ---------------
 
@@ -409,7 +412,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const navigate = useNavigate()
-  const { logs, isLoading } = useTaskLogs(agentId, taskId)
+  const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
 
   const filteredLogs = useMemo(() => {
@@ -520,6 +523,10 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         <Spin size="small" />
       </div>
     )
+  }
+
+  if (logsError) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('agent.cherryClaw.tasks.logs.loadError')} />
   }
 
   if (logs.length === 0) {
@@ -808,10 +815,13 @@ const TasksSettings: FC = () => {
           )
           .map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id }))
       )
+    } catch (error) {
+      logger.error('Failed to load tasks settings', error as Error)
+      window.toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadData()

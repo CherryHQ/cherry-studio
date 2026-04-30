@@ -36,7 +36,9 @@
         "comingSoon": "Coming soon",
         "connected": "Connected",
         "connecting": "Connecting",
+        "createError": "Failed to create channel",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
+        "deleteError": "Failed to delete channel",
         "description": "Connect your agent to messaging platforms.",
         "disconnected": "Disconnected",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Channels",
+        "updateError": "Failed to update channel",
         "wechat": {
           "addAccount": "Add WeChat Account",
           "chatIds": "Allowed User IDs",
@@ -211,6 +214,9 @@
         },
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
+        "error": {
+          "loadFailed": "Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
@@ -220,6 +226,7 @@
           "error": "Error",
           "justNow": "just now",
           "label": "Run History",
+          "loadError": "Failed to load run history",
           "result": "Result",
           "runAt": "Run At",
           "running": "Running...",

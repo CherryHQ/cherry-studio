@@ -10,7 +10,7 @@ import {
   UpdateChannelSchema
 } from '@shared/data/api/schemas/channels'
 
-export const channelHandlers: HandlersFor<ChannelSchemas> = {
+export const agentChannelHandlers: HandlersFor<ChannelSchemas> = {
   '/channels': {
     GET: async ({ query }) => {
       const parsed = ChannelListQuerySchema.safeParse(query ?? {})
