@@ -42,7 +42,7 @@ export class AgentService {
   static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
 
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
-    const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
     const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)

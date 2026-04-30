@@ -18,6 +18,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('SessionService')
 
@@ -68,7 +69,7 @@ export class AgentSessionService {
     }
     const agent = agentRowToSessionDefaults(agents[0] as Record<string, unknown>)
 
-    const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     const sessionData: CreateSessionDto = {
       ...agent,

@@ -1,15 +1,13 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 
 export const agentTaskTable = sqliteTable(
   'agent_task',
   {
-    // IDs use the app-generated "task_<timestamp>_<random>" format, not UUIDs,
-    // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     agentId: text()
       .notNull()
       .references(() => agentTable.id, { onDelete: 'cascade' }),

@@ -22,6 +22,7 @@ import {
 import type { ListOptions } from '@types'
 import { CronExpressionParser } from 'cron-parser'
 import { and, asc, count, desc, eq, inArray, lte, ne } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('TaskService')
 
@@ -29,7 +30,7 @@ export class AgentTaskService {
   async createTask(agentId: string, req: CreateTaskDto): Promise<ScheduledTaskEntity> {
     await this.assertAutonomous(agentId)
 
-    const id = `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     const nextRun = this.computeInitialNextRun(req.scheduleType, req.scheduleValue)
 

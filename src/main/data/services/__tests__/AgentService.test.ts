@@ -64,6 +64,16 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('generates a UUID v4 agent ID', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'UUID ID Test',
+        model: 'claude-3-5-sonnet'
+      })
+
+      expect(agent.id).toMatch(uuidV4Pattern)
+    })
+
     it('uses a UUID workspace directory instead of deriving it from the agent id', async () => {
       const agent = await agentService.createAgent({
         type: 'claude-code',
