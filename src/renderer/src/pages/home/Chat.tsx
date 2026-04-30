@@ -48,7 +48,6 @@ const Chat: FC<Props> = (props) => {
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
-  const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -152,22 +151,14 @@ const Chat: FC<Props> = (props) => {
     firstUpdateOrNoFirstUpdateHandler()
   }
 
-  const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
-
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      <RowFlex>
+      <RowFlex className="min-h-0 flex-1">
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <Main
-            ref={mainRef}
-            id="chat-main"
-            vertical
-            flex={1}
-            justify="space-between"
-            style={{ height: mainHeight, width: '100%' }}>
+          <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -176,9 +167,7 @@ const Chat: FC<Props> = (props) => {
                 setActiveAssistant={props.setActiveAssistant}
                 position="left"
               />
-              <div
-                className="flex flex-1 flex-col justify-between"
-                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+              <div className="flex min-h-0 flex-1 flex-col justify-between">
                 <Messages
                   key={props.activeTopic.id}
                   assistant={assistant}
@@ -230,11 +219,10 @@ const Chat: FC<Props> = (props) => {
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
@@ -242,9 +230,8 @@ const Container = styled.div`
 `
 
 const Main = styled(Flex)`
-  [navbar-position='left'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
+  height: 100%;
+  min-height: 0;
   transform: translateZ(0);
   position: relative;
 `
