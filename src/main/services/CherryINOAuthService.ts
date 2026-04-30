@@ -51,13 +51,11 @@ const UserSelfProfileSchema = z.object({
 
 const UserSelfResponseSchema = z
   .union([
-    z.object({
-      data: UserSelfProfileSchema.nullable().optional()
-    }),
-    UserSelfProfileSchema
+    z.object({ data: UserSelfProfileSchema.nullable().optional() }).transform((payload) => payload.data ?? null),
+    UserSelfProfileSchema.transform((profile) => profile)
   ])
   .transform((payload): CherryINProfile | null => {
-    const profile = 'data' in payload ? (payload.data ?? null) : payload
+    const profile = payload
 
     if (!profile) {
       return null

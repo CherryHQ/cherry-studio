@@ -12,7 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
 import { providerService } from '@data/services/ProviderService'
-import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Pin } from '@shared/data/types/pin'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -70,16 +70,20 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('should bulk purge pins for models owned by the deleted provider', async () => {
+    const [openaiWorkOrderKey, anthropicWorkOrderKey] = generateOrderKeySequence(2)
+
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'openai-work',
         presetProviderId: 'openai',
-        name: 'OpenAI Work'
+        name: 'OpenAI Work',
+        orderKey: openaiWorkOrderKey
       },
       {
         providerId: 'anthropic-work',
         presetProviderId: 'anthropic',
-        name: 'Anthropic Work'
+        name: 'Anthropic Work',
+        orderKey: anthropicWorkOrderKey
       }
     ])
     const targetModelIds = [createUniqueModelId('openai-work', 'gpt-4o'), createUniqueModelId('openai-work', 'o3')]

@@ -206,7 +206,7 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
           continue
         }
 
-        if (modelById.get(modelId)?.isEnabled === optimisticEnabled) {
+        if (modelById.get(modelId as Model['id'])?.isEnabled === optimisticEnabled) {
           delete next[modelId]
           changed = true
         }

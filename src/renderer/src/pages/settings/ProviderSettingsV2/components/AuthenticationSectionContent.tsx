@@ -29,7 +29,7 @@ export function AuthenticationSectionContent({ providerId }: AuthenticationSecti
         open={connectionCheck.connectionCheckOpen}
         models={connectionCheck.checkableModels}
         apiKeys={connectionCheck.checkableApiKeys}
-        isSubmitting={connectionCheck.apiKeyConnectivity.checking}
+        isSubmitting={connectionCheck.apiKeyConnectivity.checking ?? false}
         onClose={connectionCheck.closeConnectionCheck}
         onStart={connectionCheck.startConnectionCheck}
       />

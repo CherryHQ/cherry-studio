@@ -191,8 +191,8 @@ describe('Model drawers', () => {
             capabilities: [],
             supportsStreaming: true,
             pricing: {
-              input: { perMillionTokens: 0, currency: '$' },
-              output: { perMillionTokens: 0, currency: '$' }
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
             }
           } as any
         }
@@ -257,8 +257,8 @@ describe('Model drawers', () => {
             endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
             supportsStreaming: true,
             pricing: {
-              input: { perMillionTokens: 0, currency: '$' },
-              output: { perMillionTokens: 0, currency: '$' }
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
             }
           } as any
         }
@@ -300,8 +300,8 @@ describe('Model drawers', () => {
             isEnabled: false,
             supportsStreaming: true,
             pricing: {
-              input: { perMillionTokens: 0, currency: '$' },
-              output: { perMillionTokens: 0, currency: '$' }
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
             }
           } as any
         }
@@ -341,8 +341,8 @@ describe('Model drawers', () => {
             isEnabled: true,
             supportsStreaming: true,
             pricing: {
-              input: { perMillionTokens: 0, currency: '$' },
-              output: { perMillionTokens: 0, currency: '$' }
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
             }
           } as any
         }
