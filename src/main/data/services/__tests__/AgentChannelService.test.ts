@@ -173,6 +173,29 @@ describe('AgentChannelService', () => {
     })
   })
 
+  describe('normalizeChannelConfig (via createChannel)', () => {
+    it('strips the type key from the stored config', async () => {
+      const channel = await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Norm Test',
+        config: { bot_token: 'tok', type: 'telegram' } as any
+      })
+
+      expect(channel.config).not.toHaveProperty('type')
+      expect((channel.config as any).bot_token).toBe('tok')
+    })
+
+    it('stores an empty object when config is a non-object value', async () => {
+      const channel = await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Non-obj Config',
+        config: 'bad-value' as any
+      })
+
+      expect(channel.config).toEqual({})
+    })
+  })
+
   describe('deleteChannel', () => {
     it('deletes a channel and returns true', async () => {
       const channel = await agentChannelService.createChannel({

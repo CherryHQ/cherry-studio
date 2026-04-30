@@ -727,7 +727,9 @@ const fetchAndProcessAgentResponseImpl = async (
 
         // Refresh session data to get updated slash_commands from backend
         // This happens after the SDK init message updates the session in the database
-        void mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`])
+        mutate([`/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}`]).catch((err) =>
+          logger.warn('Failed to revalidate agent session cache', err as Error)
+        )
         logger.info('Refreshed session data after sessionId update', {
           agentId: agentSession.agentId,
           sessionId: agentSession.sessionId
