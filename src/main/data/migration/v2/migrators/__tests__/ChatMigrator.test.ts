@@ -348,6 +348,35 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(prepareTopic(oldTopic, [])).not.toBeNull()
   })
 
+  it('keeps empty topic when user wrote a topic-level prompt', () => {
+    // A user-written topic prompt before the first message is a clear
+    // intent signal — losing it would discard the system prompt the user typed.
+    const oldTopic: OldTopic = {
+      id: 't-prompt-empty',
+      assistantId: 'ast-1',
+      name: 'Prompt Empty',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      prompt: 'You are a haiku coach.'
+    }
+    expect(prepareTopic(oldTopic, [])).not.toBeNull()
+  })
+
+  it('still drops empty topic when prompt is whitespace only', () => {
+    // Whitespace prompt is not a real user signal — auto-init or stray edit.
+    const oldTopic: OldTopic = {
+      id: 't-blank-prompt-empty',
+      assistantId: 'ast-1',
+      name: 'Blank Prompt',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [],
+      prompt: '   '
+    }
+    expect(prepareTopic(oldTopic, [])).toBeNull()
+  })
+
   it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
     // Without this fallback, a topic with no assistantId becomes
     // `assistantId: null`, and the renderer's `useAssistant('')` then

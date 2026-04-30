@@ -235,9 +235,12 @@ export class ChatMigrator extends BaseMigrator {
           // Extract topic metadata from this assistant's topics array
           // Redux stores topic metadata (name, pinned, etc.) but with messages: []
           // Also track topic → assistantId mapping (Dexie doesn't store assistantId)
+          // First-write-wins so primary slot (assistants[0]) keeps its meta when
+          // the same topic.id appears under defaultAssistant — mirrors AssistantMigrator's
+          // primary-wins merge contract.
           if (assistant.topics && Array.isArray(assistant.topics)) {
             for (const topic of assistant.topics) {
-              if (topic.id) {
+              if (topic.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
                 this.topicAssistantLookup.set(topic.id, assistant.id)
               }
@@ -638,7 +641,9 @@ export class ChatMigrator extends BaseMigrator {
 
     // Drop empty topics (abandoned "new topic" clicks). `name` is not a signal — v1 auto-names on creation.
     const hasMessages = Array.isArray(oldTopic.messages) && oldTopic.messages.length > 0
-    const hasUserIntent = Boolean(oldTopic.pinned || oldTopic.isNameManuallyEdited)
+    const hasUserIntent = Boolean(
+      oldTopic.pinned || oldTopic.isNameManuallyEdited || (oldTopic.prompt && oldTopic.prompt.trim())
+    )
     if (!hasMessages && !hasUserIntent) {
       logger.info('Skipping empty topic (no messages, no user-intent metadata)', { topicId: oldTopic.id })
       return null
