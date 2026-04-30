@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import TraceTree from '../TraceTree'
@@ -69,5 +69,8 @@ describe('TraceTree', () => {
 
     const row = screen.getByText('clickable-node').closest('.traceItem')
     expect(row).toBeInTheDocument()
+    fireEvent.click(row!)
+    expect(handleClick).toHaveBeenCalledTimes(1)
+    expect(handleClick).toHaveBeenCalledWith('test-id')
   })
 })

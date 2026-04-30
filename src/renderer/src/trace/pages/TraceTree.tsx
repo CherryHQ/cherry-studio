@@ -58,8 +58,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
           e.preventDefault()
           handleClick(node.id)
         }}>
-        <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
-          <HStack gap={2}>
+        <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left', minWidth: 0 }}>
+          <HStack gap={2} style={{ minWidth: 0, overflow: 'hidden' }}>
             <IconButton
               aria-label="Toggle"
               aria-expanded={isOpen ? true : false}
