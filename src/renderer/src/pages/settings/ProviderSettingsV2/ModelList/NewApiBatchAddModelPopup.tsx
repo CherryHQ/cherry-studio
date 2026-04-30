@@ -68,7 +68,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         modelId,
         name: model.name,
         group: model.group,
-        endpointTypes: values.endpointType ? [values.endpointType as EndpointType] : undefined
+        endpointTypes: values.endpointType ? [values.endpointType] : undefined
       }
     })
     await createModels(dtos)
