@@ -166,16 +166,12 @@ describe('tagHandlers', () => {
       expect(setEntitiesMock).not.toHaveBeenCalled()
     })
 
-    it('should reject empty entity ids before calling the service', async () => {
-      // Non-UUID strings are accepted at the schema layer because EntityIdSchema unions in
-      // AgentIdSchema (`string().min(1)`); the structural floor is empty string.
-      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
-      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
+    it('should reject invalid entity ids before calling the service', async () => {
       await expect(
         tagHandlers['/tags/:id/entities'].PUT({
           params: { id: TAG_ID },
           body: {
-            entities: [{ entityType: 'assistant', entityId: '' }]
+            entities: [{ entityType: 'assistant', entityId: 'not-a-uuid' }]
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -227,13 +223,10 @@ describe('tagHandlers', () => {
       expect(syncEntityTagsMock).not.toHaveBeenCalled()
     })
 
-    it('should reject empty entity ids in params before calling the service', async () => {
-      // EntityIdSchema only fails on empty string; non-UUID agent ids pass via AgentIdSchema.
-      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
-      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
+    it('should reject invalid entity ids in params before calling the service', async () => {
       await expect(
         tagHandlers['/tags/entities/:entityType/:entityId'].GET({
-          params: { entityType: 'assistant', entityId: '' }
+          params: { entityType: 'assistant', entityId: 'not-a-uuid' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 

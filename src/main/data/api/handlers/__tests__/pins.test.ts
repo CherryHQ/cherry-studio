@@ -26,7 +26,7 @@ const PIN_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_PIN_ID = '22222222-2222-4222-8222-222222222222'
 const ENTITY_ID = '33333333-3333-4333-8333-333333333333'
 const MODEL_ID = 'openai::gpt-4o'
-const AGENT_ID = 'agent_1700000000000_abc123xyz'
+const AGENT_ID = '44444444-4444-4444-8444-444444444444'
 
 describe('pinHandlers', () => {
   beforeEach(() => {
@@ -97,7 +97,7 @@ describe('pinHandlers', () => {
       expect(pinMock).toHaveBeenNthCalledWith(2, { entityType: 'topic', entityId: ENTITY_ID })
     })
 
-    it('should accept non-UUID agent ids because agent storage owns its own id format', async () => {
+    it('should accept UUID agent ids for agent pins', async () => {
       const row = {
         id: PIN_ID,
         entityType: 'agent',
@@ -136,15 +136,10 @@ describe('pinHandlers', () => {
       expect(pinMock).not.toHaveBeenCalled()
     })
 
-    it('should reject POST with an empty entityId before calling the service', async () => {
-      // Non-UUID strings are accepted at the schema layer because EntityIdSchema unions in
-      // AgentIdSchema (`string().min(1)`); deeper validation that a topic id actually exists
-      // is the service's job. The schema only guards the structural floor — empty string.
-      // TODO(agent-uuid-migration): once upstream agent ids migrate to UUID, restore this
-      //   case to use 'not-a-uuid' so it actually exercises UUID-shape rejection.
+    it('should reject POST with an invalid entityId before calling the service', async () => {
       await expect(
         pinHandlers['/pins'].POST({
-          body: { entityType: 'topic', entityId: '' }
+          body: { entityType: 'topic', entityId: 'not-a-uuid' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(pinMock).not.toHaveBeenCalled()

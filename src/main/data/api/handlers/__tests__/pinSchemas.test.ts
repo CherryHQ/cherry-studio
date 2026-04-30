@@ -12,7 +12,7 @@ const PIN_BASE = {
 
 const UUID_ENTITY_ID = '22222222-2222-4222-8222-222222222222'
 const MODEL_ENTITY_ID = 'openai::gpt-4o'
-const AGENT_ENTITY_ID = 'agent_1700000000000_abc123xyz'
+const AGENT_ENTITY_ID = '44444444-4444-4444-8444-444444444444'
 
 describe('pin schemas', () => {
   it('includes model and agent in the shared entity type vocabulary', () => {
@@ -20,15 +20,11 @@ describe('pin schemas', () => {
     expect(EntityTypeSchema.safeParse('agent').success).toBe(true)
   })
 
-  it('accepts UUID, UniqueModelId, and any non-empty agent id through the shared entity id schema', () => {
+  it('accepts UUID and UniqueModelId values through the shared entity id schema', () => {
     expect(EntityIdSchema.safeParse(UUID_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(AGENT_ENTITY_ID).success).toBe(true)
-    expect(EntityIdSchema.safeParse('cherry-claw-default').success).toBe(true)
-    // TODO(agent-uuid-migration): drop the legacy-id case and tighten the negative case below
-    //   back to a non-UUID string (e.g. 'not-a-uuid') once upstream agent ids migrate to UUID.
-    expect(EntityIdSchema.safeParse('legacy-agent-id-without-prefix').success).toBe(true)
-    expect(EntityIdSchema.safeParse('').success).toBe(false)
+    expect(EntityIdSchema.safeParse('not-a-uuid').success).toBe(false)
   })
 
   it('uses a flat pin schema over the shared entity type and id schemas', () => {

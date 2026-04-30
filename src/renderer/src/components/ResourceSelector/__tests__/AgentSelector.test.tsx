@@ -52,10 +52,13 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
 
+const ALPHA_AGENT_ID = '44444444-4444-4444-8444-444444444444'
+const BETA_AGENT_ID = '55555555-5555-4555-8555-555555555555'
+
 const AGENTS_RESPONSE = {
   items: [
     {
-      id: 'agent-alpha',
+      id: ALPHA_AGENT_ID,
       type: 'claude-code',
       name: 'Alpha Agent',
       description: 'First test agent',
@@ -65,7 +68,7 @@ const AGENTS_RESPONSE = {
       updatedAt: '2024-01-01T00:00:00.000Z'
     },
     {
-      id: 'agent-beta',
+      id: BETA_AGENT_ID,
       type: 'claude-code',
       name: 'Beta Agent',
       description: 'Second test agent',
@@ -147,7 +150,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getByText('Beta Agent'))
 
-    expect(onChange).toHaveBeenCalledWith('agent-beta')
+    expect(onChange).toHaveBeenCalledWith(BETA_AGENT_ID)
   })
 
   it('fires onChange with the selected agent item when selectionType is item', () => {
@@ -165,7 +168,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getByText('Alpha Agent'))
 
     expect(onChange).toHaveBeenCalledWith({
-      id: 'agent-alpha',
+      id: ALPHA_AGENT_ID,
       name: 'Alpha Agent',
       description: 'First test agent'
     })
@@ -177,7 +180,7 @@ describe('AgentSelector', () => {
       isRefreshing: false,
       isMutating: false,
       error: undefined,
-      pinnedIds: ['agent-alpha'],
+      pinnedIds: [ALPHA_AGENT_ID],
       refetch: refetchPinsMock,
       togglePin: togglePinMock
     })
@@ -189,7 +192,7 @@ describe('AgentSelector', () => {
     expect(screen.getByText('Pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
-    expect(togglePinMock).toHaveBeenCalledWith('agent-alpha')
+    expect(togglePinMock).toHaveBeenCalledWith(ALPHA_AGENT_ID)
   })
 
   it('does not show the empty state while the agents query is loading', () => {
