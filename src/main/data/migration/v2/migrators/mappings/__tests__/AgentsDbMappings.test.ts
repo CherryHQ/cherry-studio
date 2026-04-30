@@ -368,7 +368,9 @@ describe('AgentsDbMappings', () => {
 
     const skillInsert = find('agent_global_skill')
     expect(skillInsert).toContain("COALESCE(tags, '[]') AS tags")
-    expect(skillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
+    // Legacy `skills.is_enabled DEFAULT true`: coalesce to 1, not 0, so a
+    // migrated skill that was implicitly enabled does not flip to disabled.
+    expect(skillInsert).toContain('COALESCE(is_enabled, 1) AS is_enabled')
 
     const agentSkillInsert = find('agent_skill')
     expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
@@ -378,5 +380,74 @@ describe('AgentsDbMappings', () => {
 
     const channelInsert = find('agent_channel')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
+    expect(channelInsert).toContain("COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS created_at")
+    expect(channelInsert).toContain("COALESCE(updated_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS updated_at")
+  })
+
+  it('matches each notNullCol defaultExpr against the canonical legacy/v2 schema defaults', () => {
+    type ColumnDefault = { defaultExpr: string }
+    const EXPECTED_DEFAULTS: Record<string, Record<string, ColumnDefault>> = {
+      agent: {
+        description: { defaultExpr: "''" },
+        accessible_paths: { defaultExpr: "'[]'" },
+        mcps: { defaultExpr: "'[]'" },
+        allowed_tools: { defaultExpr: "'[]'" },
+        configuration: { defaultExpr: "'{}'" },
+        sort_order: { defaultExpr: '0' }
+      },
+      agent_session: {
+        description: { defaultExpr: "''" },
+        accessible_paths: { defaultExpr: "'[]'" },
+        mcps: { defaultExpr: "'[]'" },
+        allowed_tools: { defaultExpr: "'[]'" },
+        slash_commands: { defaultExpr: "'[]'" },
+        configuration: { defaultExpr: "'{}'" },
+        sort_order: { defaultExpr: '0' }
+      },
+      agent_global_skill: {
+        tags: { defaultExpr: "'[]'" },
+        // Legacy `DEFAULT true` (0005_normal_doomsday.sql:12) overrides v2's
+        // `default(false)`; preserves user intent on coalesce.
+        is_enabled: { defaultExpr: '1' }
+      },
+      agent_skill: {
+        is_enabled: { defaultExpr: '0' }
+      },
+      agent_task: {
+        timeout_minutes: { defaultExpr: '2' }
+      },
+      agent_channel: {
+        is_active: { defaultExpr: '1' }
+      }
+    }
+
+    const seen = new Set<string>()
+    const NOT_NULL_COL_SHAPE = /^COALESCE\((\w+),\s+('[^']*'|\d+)\)$/
+
+    for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
+      for (const column of spec.columns) {
+        if (typeof column === 'string') continue
+        const match = column.expr.match(NOT_NULL_COL_SHAPE)
+        if (!match) continue
+        const [, sourceName, defaultExpr] = match
+        if (sourceName !== column.name) continue // safety: source col must equal target name
+
+        const key = `${spec.targetTable}.${column.name}`
+        seen.add(key)
+
+        const expected = EXPECTED_DEFAULTS[spec.targetTable]?.[column.name]
+        expect(expected, `unexpected notNullCol entry: ${key}`).toBeDefined()
+        expect(defaultExpr, `defaultExpr drift on ${key}`).toBe(expected.defaultExpr)
+        expect(column.fallbackExpr, `fallbackExpr drift on ${key}`).toBe(expected.defaultExpr)
+      }
+    }
+
+    // Every entry in EXPECTED_DEFAULTS must be present in the spec — catches the
+    // reverse direction (someone deletes a notNullCol without updating expectations).
+    for (const [table, cols] of Object.entries(EXPECTED_DEFAULTS)) {
+      for (const col of Object.keys(cols)) {
+        expect(seen, `missing notNullCol(${col}) on ${table}`).toContain(`${table}.${col}`)
+      }
+    }
   })
 })

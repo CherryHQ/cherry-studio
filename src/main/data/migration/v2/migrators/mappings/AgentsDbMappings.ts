@@ -31,10 +31,14 @@ export type AgentsColumnExpr =
  * Helper for legacy columns that map 1:1 to a target column declared `NOT NULL`
  * with a SQL default. Legacy `agents.db` allowed NULL on these columns, but a
  * plain `SELECT col` writes NULL into the target — column defaults only fill
- * in *omitted* columns, not explicit NULLs — and trips the NOT NULL check.
+ * in *omitted* columns, not explicit NULLs — and the insert fails with
+ * `SQLITE_CONSTRAINT_NOTNULL`.
  *
- * `defaultExpr` must be a SQL literal matching the target's `.default(...)`
- * (e.g. `"'[]'"` for json arrays, `'0'`/`'1'` for booleans, `'2'` for ints).
+ * `defaultExpr` is a SQL literal that should mirror the legacy schema's own
+ * `DEFAULT` to preserve user intent (not necessarily the v2 schema default —
+ * see `agent_global_skill.is_enabled`, where legacy `DEFAULT true` and v2
+ * `default(false)` disagree). Use `"'[]'"` / `"'{}'"` / `"''"` for json/text,
+ * `'0'`/`'1'` for booleans.
  */
 function notNullCol(name: string, defaultExpr: string): AgentsColumnExpr {
   return {
@@ -162,7 +166,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'author',
       notNullCol('tags', "'[]'"),
       'content_hash',
-      notNullCol('is_enabled', '0'),
+      notNullCol('is_enabled', '1'),
       'created_at',
       'updated_at'
     ]
@@ -251,8 +255,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'channels',
     targetTable: 'agent_channel',
-    // Legacy `channels.created_at` / `updated_at` are INTEGER epoch-ms
-    // (see resources/database/drizzle/0004_busy_giant_girl.sql) — no strftime wrap.
+    // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms
+    // (resources/database/drizzle/0004_busy_giant_girl.sql:21-22). v2
+    // `agent_channel` uses `createUpdateTimestamps` (`notNull().$defaultFn(...)`) —
+    // a JS-side default that raw INSERT...SELECT bypasses, so a legacy NULL
+    // would trip SQLITE_CONSTRAINT_NOTNULL. COALESCE to "now" mirrors the
+    // pattern used for task_run_logs above.
     columns: [
       'id',
       'type',
@@ -263,8 +271,18 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       notNullCol('is_active', '1'),
       'active_chat_ids',
       'permission_mode',
-      'created_at',
-      'updated_at'
+      {
+        name: 'created_at',
+        expr: "COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
+        sourceColumn: 'created_at',
+        fallbackExpr: "CAST(strftime('%s', 'now') AS INTEGER) * 1000"
+      },
+      {
+        name: 'updated_at',
+        expr: "COALESCE(updated_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
+        sourceColumn: 'updated_at',
+        fallbackExpr: "CAST(strftime('%s', 'now') AS INTEGER) * 1000"
+      }
     ],
     // Channels reference agent and agent_session via FK; skip any channel whose
     // agent was deleted or whose session was filtered out.
