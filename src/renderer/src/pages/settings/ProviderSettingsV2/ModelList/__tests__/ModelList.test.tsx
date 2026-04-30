@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useProviderModelListBrowse } from '../useProviderModelListBrowse'
+import { useProviderModelList } from '../useProviderModelList'
 
 const useModelsMock = vi.fn()
 const updateModelMock = vi.fn()
@@ -30,7 +30,7 @@ vi.mock('@renderer/hooks/useModels', () => ({
   })
 }))
 
-describe('useProviderModelListBrowse', () => {
+describe('useProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -39,7 +39,7 @@ describe('useProviderModelListBrowse', () => {
   })
 
   it('opens local edit drawer state when editing a model', () => {
-    const { result } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(result.current.editDrawer.open).toBe(false)
     expect(result.current.sections.enabledSections[0]?.items[0]?.model.name).toBe('Alpha')
@@ -53,7 +53,7 @@ describe('useProviderModelListBrowse', () => {
   })
 
   it('bulk-enables only the currently visible filtered models', async () => {
-    const { result } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     act(() => {
       result.current.header.setSearchText('Beta')
@@ -83,7 +83,7 @@ describe('useProviderModelListBrowse', () => {
 
     useModelsMock.mockReturnValue({ models: largeModelSet, isLoading: false })
 
-    const { result } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(result.current.sections.isLoading).toBe(false)
 
@@ -118,7 +118,7 @@ describe('useProviderModelListBrowse', () => {
 
     useModelsMock.mockImplementation(() => ({ models: serverModels, isLoading: false }))
 
-    const { result, rerender, unmount } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result, rerender, unmount } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     await act(async () => {
       await result.current.sections.onToggleModel(serverModels[0], false)
@@ -142,7 +142,7 @@ describe('useProviderModelListBrowse', () => {
 
     unmount()
 
-    const { result: remountedResult } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result: remountedResult } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(remountedResult.current.sections.enabledSections).toHaveLength(0)
     expect(
@@ -177,7 +177,7 @@ describe('useProviderModelListBrowse', () => {
 
     useModelsMock.mockImplementation(() => ({ models: serverModels, isLoading: false }))
 
-    const { result, rerender, unmount } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result, rerender, unmount } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     await act(async () => {
       result.current.header.onToggleVisibleModels(false)
@@ -208,7 +208,7 @@ describe('useProviderModelListBrowse', () => {
 
     unmount()
 
-    const { result: remountedResult } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
+    const { result: remountedResult } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     expect(remountedResult.current.sections.displayEnabledModelCount).toBe(0)
     expect(remountedResult.current.sections.displayDisabledModelCount).toBe(3)

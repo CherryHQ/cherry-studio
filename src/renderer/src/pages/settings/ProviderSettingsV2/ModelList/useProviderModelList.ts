@@ -24,7 +24,7 @@ export interface ModelListGroupSection {
   items: ModelListGroupItem[]
 }
 
-export interface ProviderModelListBrowseHeaderSurface {
+export interface ProviderModelListHeaderSurface {
   enabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean
@@ -39,7 +39,7 @@ export interface ProviderModelListBrowseHeaderSurface {
   onToggleVisibleModels: (enabled: boolean) => void
 }
 
-export interface ProviderModelListBrowseSectionsSurface {
+export interface ProviderModelListSectionsSurface {
   isLoading: boolean
   hasNoModels: boolean
   hasVisibleModels: boolean
@@ -47,20 +47,16 @@ export interface ProviderModelListBrowseSectionsSurface {
   enabledSections: ModelListGroupSection[]
   disabledSections: ModelListGroupSection[]
   displayDisabledModelCount: number
-  editingModel: Model | null
-  editModelDrawerOpen: boolean
-  openEditModelDrawer: (model: Model) => void
-  closeEditModelDrawer: () => void
-  isHealthChecking: boolean
+  disabled: boolean
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
 }
 
-interface UseProviderModelListBrowseArgs {
+interface UseProviderModelListArgs {
   providerId: string
-  /** Supplied by `ModelListHealthProvider` so this hook does not depend on health context. */
-  isHealthChecking?: boolean
+  /** Parent-owned coordination input for the single effect of disabling list interactions. */
+  disabled?: boolean
 }
 
 type SessionPlacement = keyof ModelSections
@@ -133,7 +129,7 @@ const buildDisplayedSectionState = (
   }
 }
 
-export function useProviderModelListBrowse({ providerId, isHealthChecking = false }: UseProviderModelListBrowseArgs) {
+export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
   const { models, isLoading: isModelsLoading } = useModels(
     { providerId },
     { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
@@ -399,7 +395,7 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
   )
   const pendingModelIds = useMemo(() => new Set(Object.keys(pendingModelIdMap)), [pendingModelIdMap])
 
-  const header: ProviderModelListBrowseHeaderSurface = {
+  const header: ProviderModelListHeaderSurface = {
     enabledModelCount: derivedState.enabledModelCount,
     modelCount: derivedState.modelCount,
     hasVisibleModels: derivedState.hasVisibleModels,
@@ -414,7 +410,7 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
     onToggleVisibleModels
   }
 
-  const sections: ProviderModelListBrowseSectionsSurface = {
+  const sections: ProviderModelListSectionsSurface = {
     isLoading: isModelsLoading && models.length === 0,
     hasNoModels: derivedState.hasNoModels,
     hasVisibleModels: derivedState.hasVisibleModels,
@@ -422,11 +418,7 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
     enabledSections,
     disabledSections,
     displayDisabledModelCount: displayState.displayDisabledModelCount,
-    editingModel,
-    editModelDrawerOpen: editingModel !== null,
-    openEditModelDrawer,
-    closeEditModelDrawer,
-    isHealthChecking,
+    disabled,
     pendingModelIds,
     onEditModel: openEditModelDrawer,
     onToggleModel
@@ -444,5 +436,4 @@ export function useProviderModelListBrowse({ providerId, isHealthChecking = fals
   }
 }
 
-export type ModelListSectionsSurface = ProviderModelListBrowseSectionsSurface
-export type ProviderModelListBrowseSurface = ReturnType<typeof useProviderModelListBrowse>
+export type ProviderModelListSurface = ReturnType<typeof useProviderModelList>

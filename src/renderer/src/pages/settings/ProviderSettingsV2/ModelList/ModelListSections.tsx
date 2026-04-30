@@ -1,20 +1,43 @@
 import { LoadingIcon } from '@renderer/components/Icons'
+import type { Model } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
-import type { ModelListSectionsSurface } from './useProviderModelListBrowse'
+import type { ModelListGroupSection } from './useProviderModelList'
 
 interface ModelListSectionsProps {
-  sections: ModelListSectionsSurface
+  isLoading: boolean
+  hasNoModels: boolean
+  hasVisibleModels: boolean
+  displayEnabledModelCount: number
+  enabledSections: ModelListGroupSection[]
+  disabledSections: ModelListGroupSection[]
+  displayDisabledModelCount: number
+  disabled: boolean
+  pendingModelIds: Set<string>
+  onEditModel: (model: Model) => void
+  onToggleModel: (model: Model, enabled: boolean) => Promise<void>
 }
 
-const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
+const ModelListSections: React.FC<ModelListSectionsProps> = ({
+  isLoading,
+  hasNoModels,
+  hasVisibleModels,
+  displayEnabledModelCount,
+  enabledSections,
+  disabledSections,
+  displayDisabledModelCount,
+  disabled,
+  pendingModelIds,
+  onEditModel,
+  onToggleModel
+}) => {
   const { t } = useTranslation()
 
-  if (sections.isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
         <LoadingIcon color="var(--muted-foreground)" />
@@ -22,58 +45,58 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
     )
   }
 
-  if (sections.hasNoModels) {
+  if (hasNoModels) {
     return null
   }
 
-  if (!sections.hasVisibleModels) {
+  if (!hasVisibleModels) {
     return <div className={modelListClasses.emptyState}>{t('common.no_results')}</div>
   }
 
   return (
     <div className={modelListClasses.listScroller}>
-      <div className="flex min-h-full min-w-0 w-full flex-col gap-3">
-        {!isEmpty(sections.enabledSections) && (
+      <div className="flex min-h-full w-full min-w-0 flex-col gap-3">
+        {!isEmpty(enabledSections) && (
           <div className="space-y-2.5">
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
               <span className={modelListClasses.subsectionRule} />
-              <span className={modelListClasses.subsectionCountEnabled}>{sections.displayEnabledModelCount}</span>
+              <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">
-              {sections.enabledSections.map(({ groupName, items }, index) => (
+              {enabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
                   key={`enabled-${groupName}`}
                   groupName={groupName}
                   items={items}
                   defaultOpen={index <= 5}
-                  disabled={sections.isHealthChecking}
-                  pendingModelIds={sections.pendingModelIds}
-                  onEditModel={sections.onEditModel}
-                  onToggleModel={sections.onToggleModel}
+                  disabled={disabled}
+                  pendingModelIds={pendingModelIds}
+                  onEditModel={onEditModel}
+                  onToggleModel={onToggleModel}
                 />
               ))}
             </div>
           </div>
         )}
-        {!isEmpty(sections.disabledSections) && (
+        {!isEmpty(disabledSections) && (
           <div className="space-y-2.5">
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
               <span className={modelListClasses.subsectionRule} />
-              <span className={modelListClasses.subsectionCountDisabled}>{sections.displayDisabledModelCount}</span>
+              <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">
-              {sections.disabledSections.map(({ groupName, items }, index) => (
+              {disabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
                   key={`disabled-${groupName}`}
                   groupName={groupName}
                   items={items}
                   defaultOpen={index <= 2}
-                  disabled={sections.isHealthChecking}
-                  pendingModelIds={sections.pendingModelIds}
-                  onEditModel={sections.onEditModel}
-                  onToggleModel={sections.onToggleModel}
+                  disabled={disabled}
+                  pendingModelIds={pendingModelIds}
+                  onEditModel={onEditModel}
+                  onToggleModel={onToggleModel}
                 />
               ))}
             </div>

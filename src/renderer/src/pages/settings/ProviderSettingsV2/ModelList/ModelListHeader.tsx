@@ -1,8 +1,8 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
-import { Download, Eye, EyeOff, Filter, HeartPulse, Plus, Search, X } from 'lucide-react'
+import { Eye, EyeOff, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
@@ -22,13 +22,8 @@ export interface ModelListHeaderProps {
   setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
-  showDownloadButton: boolean
   onToggleVisibleModels: (enabled: boolean) => void
-  onRunHealthCheck: () => void
-  onRefreshModels: () => void
-  onAddModel: () => void
-  onOpenManageModels: () => void
-  onDownloadModel: () => void
+  actions?: React.ReactNode
 }
 
 /**
@@ -48,18 +43,12 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   setSelectedCapabilityFilter,
   capabilityOptions,
   capabilityModelCounts,
-  showDownloadButton,
   onToggleVisibleModels,
-  onRunHealthCheck,
-  onRefreshModels,
-  onAddModel,
-  onOpenManageModels,
-  onDownloadModel
+  actions
 }) => {
   const { t } = useTranslation()
   const [showModelSearch, setShowModelSearch] = useState(true)
   const [showCapFilter, setShowCapFilter] = useState(false)
-  const addModelClickTimeoutRef = useRef<number | null>(null)
 
   const toggleVisibleModelsLabel = allEnabled ? t('settings.models.bulk_disable') : t('settings.models.bulk_enable')
   const filterTooltip = showCapFilter
@@ -83,34 +72,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       return !open
     })
   }, [setSelectedCapabilityFilter])
-
-  useEffect(() => {
-    return () => {
-      if (addModelClickTimeoutRef.current !== null) {
-        window.clearTimeout(addModelClickTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const onTriggerAddModel = useCallback(() => {
-    if (addModelClickTimeoutRef.current !== null) {
-      window.clearTimeout(addModelClickTimeoutRef.current)
-    }
-
-    addModelClickTimeoutRef.current = window.setTimeout(() => {
-      addModelClickTimeoutRef.current = null
-      onAddModel()
-    }, 220)
-  }, [onAddModel])
-
-  const onTriggerManageModels = useCallback(() => {
-    if (addModelClickTimeoutRef.current !== null) {
-      window.clearTimeout(addModelClickTimeoutRef.current)
-      addModelClickTimeoutRef.current = null
-    }
-
-    onOpenManageModels()
-  }, [onOpenManageModels])
 
   return (
     <div className={modelListClasses.headerToolStack}>
@@ -177,56 +138,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               )}
             </Button>
           </Tooltip>
-          <Tooltip content={t('settings.models.check.button_caption')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('settings.models.check.button_caption')}
-              className={modelListClasses.toolbarDesignIconTrigger}
-              disabled={!hasVisibleModels || isBusy}
-              onClick={onRunHealthCheck}>
-              <HeartPulse className={modelListClasses.toolbarDesignIcon} />
-            </Button>
-          </Tooltip>
-          <div className={modelListClasses.toolbarOutlineActions}>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
-              disabled={isBusy}
-              onClick={onRefreshModels}>
-              <Download className={modelListClasses.toolbarDesignIcon} />
-              <span>{t('settings.models.toolbar.pull_short')}</span>
-            </Button>
-            {!showDownloadButton ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
-                disabled={isBusy}
-                aria-label={t('settings.models.add.add_model')}
-                onClick={onTriggerAddModel}
-                onDoubleClick={onTriggerManageModels}>
-                <Plus className={modelListClasses.toolbarDesignIcon} />
-                <span>{t('common.add')}</span>
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
-                disabled={isBusy}
-                aria-label={t('button.download')}
-                onClick={onDownloadModel}>
-                <Plus className={modelListClasses.toolbarDesignIcon} />
-                <span>{t('button.download')}</span>
-              </Button>
-            )}
-          </div>
+          {actions}
         </div>
       </div>
 

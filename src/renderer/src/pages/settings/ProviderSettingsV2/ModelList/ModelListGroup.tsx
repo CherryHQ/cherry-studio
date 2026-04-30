@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
-import type { ModelListGroupItem } from './useProviderModelListBrowse'
+import type { ModelListGroupItem } from './useProviderModelList'
 
 interface ModelListGroupProps {
   groupName: string
