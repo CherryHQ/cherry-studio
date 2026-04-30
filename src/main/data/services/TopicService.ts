@@ -26,13 +26,13 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
   return {
     id: row.id,
     name: row.name,
-    isNameManuallyEdited: row.isNameManuallyEdited ?? false,
+    isNameManuallyEdited: row.isNameManuallyEdited,
     assistantId: row.assistantId,
     activeNodeId: row.activeNodeId,
     groupId: row.groupId,
-    sortOrder: row.sortOrder ?? 0,
-    isPinned: row.isPinned ?? false,
-    pinnedOrder: row.pinnedOrder ?? 0,
+    sortOrder: row.sortOrder,
+    isPinned: row.isPinned,
+    pinnedOrder: row.pinnedOrder,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

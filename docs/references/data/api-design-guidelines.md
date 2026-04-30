@@ -513,7 +513,10 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 
 - **Never `.omit(AutoFields)`** — adding an entity field would auto-expose it (overposting risk). Always whitelist via `.pick({...})`.
 - **Always `z.strictObject`** on entity schemas — second line of defense against overposting.
-- **Prefer `CreateSchema.partial()`** for Update — preserves `.default()`/`.catch()` in Zod v4.
+- **Update derivation depends on Create's defaults**:
+  - `UpdateSchema = CreateSchema.partial()` is safe **only when Create has no `.default()`**.
+  - When Create carries `.default()`, derive Update from the entity directly: `UpdateSchema = EntitySchema.pick(...).partial()` — Zod v4 retains defaults through `.partial()`, and they leak into PATCH bodies otherwise (Zod issues #4799, #5642).
+  - **Preferred**: keep Zod schemas free of `.default()` and own defaults at the DB or service layer. See [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
 - **Zod v4 gotcha:** `.pick()`/`.omit()` strip `.refine()`/`.check()` validators (working as designed, Zod discussion #4706). If entity has cross-field checks, re-attach them after pick via `.refine()` or `.safeExtend()`.
 
 **When to write a DTO by hand instead of picking:**
@@ -547,6 +550,20 @@ All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-
 **Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `PersistTemporaryChatResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
 
 **Exception:** when a type is **both** a response payload and an entity (e.g., `Topic` is returned from `GET /topics/:id` and also represents a row in the DB), Zod-ify it as an entity per Rule C — the entity role wins.
+
+### E. Default values do not live in Zod schemas
+
+Avoid `.default()` on entity, Create, and Update schemas. Defaults belong at the DB layer (stable values), via Drizzle `$defaultFn` (dynamic per-row values like UUIDs / timestamps), or in the owning service (tunable product values that may evolve). Putting defaults in Zod schemas creates three problems:
+
+| Problem | Why |
+|---|---|
+| Caller asymmetry | `.default()` runs at `.parse()`. Handler-driven inserts get them; seeders / internal callers don't, producing inconsistent rows. |
+| Type duality | `.default()` makes `z.input` and `z.output` diverge — bodies see optional fields, services see required ones. Pairs of `…Body` / `…Dto` types proliferate to hide the gap. |
+| PATCH leakage | Zod v4 retains defaults through `.partial()`, so any `UpdateSchema` derived from a `CreateSchema` with defaults materializes them on omitted PATCH fields, overwriting row state (Rule C). |
+
+If a default truly must live in Zod (e.g., a query-string baseline like `page = 1` on `ListXxxQuerySchema`), confine it to the **specific schema** it applies to — never on the entity, Create, or Update schemas.
+
+For the cross-layer placement decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
 
 ## Template Path vs Hook Binding
 

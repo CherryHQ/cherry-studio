@@ -184,6 +184,23 @@ export class TopicService {
 export const topicService = TopicService.getInstance()
 ```
 
+### Write-path defaults
+
+`service.create()` passes a value into `db.insert(...).values({...})` **only** for columns that are `NOT NULL`, have neither a DB `DEFAULT` nor a `$defaultFn`, and are not already supplied by the DTO:
+
+```ts
+async create(dto: CreateXxxDto) {
+  return await this.db.insert(xxxTable).values({
+    ...dto,
+    settings: dto.settings ?? DEFAULT_XXX_SETTINGS  // service-owned default for a tunable product value
+  }).returning()
+}
+```
+
+For everything else — fields with DB DEFAULTs, `$defaultFn` columns, or genuinely nullable columns — **omit the field from `values({...})`**. Drizzle leaves it out of the SQL; the DB applies its own default (or NULL for nullable columns). Restating the DB's knowledge in app code creates drift risk when defaults later change.
+
+For the cross-layer placement decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+
 ### Row → Entity Mapping
 
 Each Entity Service provides a `rowToEntity` function that bridges a Drizzle row to its domain entity. Use `nullsToUndefined` (from `services/utils/rowMappers.ts`) for the SQLite NULL → TypeScript `undefined` translation.
@@ -231,9 +248,12 @@ Rule of thumb: **domain field typed `T | null` → use `row.x`; domain field typ
 Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-written when any of the following apply:
 
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
-- **Non-`undefined` fallbacks**: `?? []`, `?? true`, `?? false`, `?? anotherField` — these need per-field logic anyway
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
+
+**Anti-pattern — `??` fallbacks for fabricated defaults:**
+
+`row.x ?? '🌟'` / `row.x ?? []` inside `rowToEntity` is **forbidden**. The presence of such a fallback is reverse evidence that the column should be `NOT NULL` with a DB DEFAULT or `$defaultFn` — see [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md). The legitimate exception is when the entity field is genuinely `T | null` (e.g. `assistant.modelId`); then bypass `clean` and reference `row.x` directly to preserve the NULL contract — that is the **Advanced skeleton** above, not a `??` fallback.
 
 **Conventions:**
 

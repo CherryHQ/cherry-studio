@@ -3696,7 +3696,7 @@
         "title": "Listă filtrare aplicații",
         "user_tips": {
           "mac": "Te rugăm să introduci Bundle ID-ul aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: com.google.Chrome, com.apple.mail etc.",
-          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, Cherry Studio.exe etc."
+          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, CherryStudio.exe etc."
         }
       },
       "linux": {

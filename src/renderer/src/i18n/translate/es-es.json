@@ -3696,7 +3696,7 @@
         "title": "Lista de selección de aplicaciones",
         "user_tips": {
           "mac": "Ingrese el ID de paquete de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, CherryStudio.exe, etc."
         }
       },
       "linux": {
