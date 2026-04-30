@@ -1447,6 +1447,16 @@
         "word": "匯出為 Word",
         "yuque": "匯出到語雀"
       },
+      "folder": {
+        "create": "建立新資料夾",
+        "create_placeholder": "輸入資料夾名稱",
+        "delete": "刪除資料夾",
+        "move_to": "移動到資料夾",
+        "remove": "從資料夾移除",
+        "rename": "重新命名資料夾",
+        "rename_placeholder": "輸入新資料夾名稱",
+        "uncategorized": "未分類"
+      },
       "list": "話題列表",
       "manage": {
         "clear_selection": "取消選擇",

@@ -90,6 +90,8 @@ export interface SettingsState {
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
   pinTopicsToTop: boolean
+  topicFoldersOrder: Record<string, string[]>
+  collapsedTopicFolders: Record<string, string[]>
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
@@ -288,6 +290,8 @@ export const initialState: SettingsState = {
   topicPosition: 'left',
   showTopicTime: false,
   pinTopicsToTop: false,
+  topicFoldersOrder: {},
+  collapsedTopicFolders: {},
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,

@@ -279,6 +279,7 @@ export type Topic = {
   updatedAt: string
   messages: Message[]
   pinned?: boolean
+  folder?: string
   prompt?: string
   isNameManuallyEdited?: boolean
 }

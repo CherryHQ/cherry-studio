@@ -1447,6 +1447,16 @@
         "word": "导出为 Word",
         "yuque": "导出到语雀"
       },
+      "folder": {
+        "create": "创建新文件夹",
+        "create_placeholder": "输入文件夹名称",
+        "delete": "删除文件夹",
+        "move_to": "移动到文件夹",
+        "remove": "从文件夹移除",
+        "rename": "重命名文件夹",
+        "rename_placeholder": "输入新文件夹名称",
+        "uncategorized": "未分类"
+      },
       "list": "话题列表",
       "manage": {
         "clear_selection": "取消选择",

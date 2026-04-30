@@ -1447,6 +1447,16 @@
         "word": "Exportar como Word",
         "yuque": "Exportar para Yuque"
       },
+      "folder": {
+        "create": "[to be translated]:Create new folder",
+        "create_placeholder": "[to be translated]:Enter folder name",
+        "delete": "[to be translated]:Delete folder",
+        "move_to": "[to be translated]:Move to folder",
+        "remove": "[to be translated]:Remove from folder",
+        "rename": "[to be translated]:Rename folder",
+        "rename_placeholder": "[to be translated]:Enter new folder name",
+        "uncategorized": "[to be translated]:Uncategorized"
+      },
       "list": "Lista de tópicos",
       "manage": {
         "clear_selection": "Limpar Seleção",
