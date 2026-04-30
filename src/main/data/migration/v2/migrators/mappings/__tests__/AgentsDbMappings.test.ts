@@ -36,7 +36,7 @@ describe('AgentsDbMappings', () => {
 
     expect(statements[0]).toBe("ATTACH DATABASE '/tmp/agent''s.db' AS agents_legacy")
     expect(statements).toContain(
-      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, deleted_at, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, COALESCE(sort_order, 0) AS sort_order, CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END AS deleted_at, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.at(-1)).toBe('DETACH DATABASE agents_legacy')
   })
@@ -66,7 +66,7 @@ describe('AgentsDbMappings', () => {
 
     // deleted_at absent from source → skipped in INSERT (resolveColumnSelection returns null)
     expect(statements).toContain(
-      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
+      "INSERT INTO agent (id, type, name, description, accessible_paths, instructions, model, plan_model, small_model, mcps, allowed_tools, configuration, sort_order, created_at, updated_at) SELECT id, type, name, COALESCE(description, '') AS description, COALESCE(accessible_paths, '[]') AS accessible_paths, instructions, model, plan_model, small_model, COALESCE(mcps, '[]') AS mcps, COALESCE(allowed_tools, '[]') AS allowed_tools, COALESCE(configuration, '{}') AS configuration, 0 AS sort_order, CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at, CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS updated_at FROM agents_legacy.agents"
     )
     expect(statements.some((statement) => statement.includes('agents_legacy.skills'))).toBe(false)
   })
@@ -263,5 +263,120 @@ describe('AgentsDbMappings', () => {
 
   it('quotes sqlite file paths safely', () => {
     expect(quoteSqlitePath("/tmp/a'b/c.db")).toBe("'/tmp/a''b/c.db'")
+  })
+
+  // Regression: legacy agents.db allowed NULL on columns that the new schema
+  // declares NOT NULL with a SQL default (e.g. agent.mcps DEFAULT '[]').
+  // INSERT...SELECT bypasses column defaults when the column is named in the
+  // INSERT list, so a SELECT of NULL trips SQLITE_CONSTRAINT_NOTNULL. The
+  // mapping must wrap such columns in COALESCE(<col>, <default>).
+  it('wraps NOT NULL target columns in COALESCE so legacy NULLs fall back to schema defaults', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.agents.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'mcps',
+      'allowed_tools',
+      'configuration',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.sessions.exists = true
+    schemaInfo.sessions.columns = new Set([
+      'id',
+      'agent_type',
+      'agent_id',
+      'name',
+      'description',
+      'accessible_paths',
+      'instructions',
+      'model',
+      'mcps',
+      'allowed_tools',
+      'slash_commands',
+      'configuration',
+      'sort_order',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.skills.exists = true
+    schemaInfo.skills.columns = new Set([
+      'id',
+      'name',
+      'folder_name',
+      'source',
+      'tags',
+      'content_hash',
+      'is_enabled',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.agent_skills.exists = true
+    schemaInfo.agent_skills.columns = new Set(['agent_id', 'skill_id', 'is_enabled', 'created_at', 'updated_at'])
+    schemaInfo.scheduled_tasks.exists = true
+    schemaInfo.scheduled_tasks.columns = new Set([
+      'id',
+      'agent_id',
+      'name',
+      'prompt',
+      'schedule_type',
+      'schedule_value',
+      'timeout_minutes',
+      'status',
+      'created_at',
+      'updated_at'
+    ])
+    schemaInfo.channels.exists = true
+    schemaInfo.channels.columns = new Set([
+      'id',
+      'type',
+      'name',
+      'agent_id',
+      'session_id',
+      'config',
+      'is_active',
+      'created_at',
+      'updated_at'
+    ])
+
+    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
+    const find = (target: string) => statements.find((s) => s.startsWith(`INSERT INTO ${target} `)) ?? ''
+
+    const agentInsert = find('agent')
+    expect(agentInsert).toContain("COALESCE(description, '') AS description")
+    expect(agentInsert).toContain("COALESCE(accessible_paths, '[]') AS accessible_paths")
+    expect(agentInsert).toContain("COALESCE(mcps, '[]') AS mcps")
+    expect(agentInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
+    expect(agentInsert).toContain("COALESCE(configuration, '{}') AS configuration")
+    expect(agentInsert).toContain('COALESCE(sort_order, 0) AS sort_order')
+
+    const sessionInsert = find('agent_session')
+    expect(sessionInsert).toContain("COALESCE(description, '') AS description")
+    expect(sessionInsert).toContain("COALESCE(accessible_paths, '[]') AS accessible_paths")
+    expect(sessionInsert).toContain("COALESCE(mcps, '[]') AS mcps")
+    expect(sessionInsert).toContain("COALESCE(allowed_tools, '[]') AS allowed_tools")
+    expect(sessionInsert).toContain("COALESCE(slash_commands, '[]') AS slash_commands")
+    expect(sessionInsert).toContain("COALESCE(configuration, '{}') AS configuration")
+    expect(sessionInsert).toContain('COALESCE(sort_order, 0) AS sort_order')
+
+    const skillInsert = find('agent_global_skill')
+    expect(skillInsert).toContain("COALESCE(tags, '[]') AS tags")
+    expect(skillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
+
+    const agentSkillInsert = find('agent_skill')
+    expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
+
+    const taskInsert = find('agent_task')
+    expect(taskInsert).toContain('COALESCE(timeout_minutes, 2) AS timeout_minutes')
+
+    const channelInsert = find('agent_channel')
+    expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
   })
 })
