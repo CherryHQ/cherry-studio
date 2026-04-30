@@ -37,7 +37,6 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import AssistantServer from '@main/mcpServers/assistant'
-import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/services/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
@@ -556,10 +555,6 @@ async function buildMcpServers(
       }
     }
   }
-
-  // 2. @cherry/browser — replaces SDK built-in WebSearch/WebFetch (all agents)
-  const browserServer = new BrowserServer()
-  mcpList.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
 
   // 3. Exa — structured web search via HTTP (free tier, no API key)
   mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }

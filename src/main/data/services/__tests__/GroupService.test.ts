@@ -37,11 +37,11 @@ describe('GroupService', () => {
 
     it('should keep orderKey sequences independent across entityTypes', async () => {
       const topicFirst = await groupService.create({ entityType: 'topic', name: 'first-topic' })
-      const sessionFirst = await groupService.create({ entityType: 'session', name: 'first-session' })
+      const assistantFirst = await groupService.create({ entityType: 'assistant', name: 'first-assistant' })
 
       // Each entityType starts with the same fractional-indexing starter key
       // because neither bucket has a predecessor.
-      expect(topicFirst.orderKey).toBe(sessionFirst.orderKey)
+      expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
     })
   })
 
@@ -49,7 +49,7 @@ describe('GroupService', () => {
     it('should return groups ordered by orderKey, scoped to the requested entityType', async () => {
       const topicA = await groupService.create({ entityType: 'topic', name: 'A' })
       const topicB = await groupService.create({ entityType: 'topic', name: 'B' })
-      await groupService.create({ entityType: 'session', name: 'session-only' })
+      await groupService.create({ entityType: 'assistant', name: 'assistant-only' })
 
       const topics = await groupService.listByEntityType('topic')
       expect(topics.map((g) => g.id)).toEqual([topicA.id, topicB.id])
@@ -163,12 +163,12 @@ describe('GroupService', () => {
 
     it('should reject a batch spanning multiple entityTypes with VALIDATION_ERROR', async () => {
       const topic = await groupService.create({ entityType: 'topic', name: 'topic-group' })
-      const session = await groupService.create({ entityType: 'session', name: 'session-group' })
+      const assistant = await groupService.create({ entityType: 'assistant', name: 'assistant-group' })
 
       await expect(
         groupService.reorderBatch([
           { id: topic.id, anchor: { position: 'first' } },
-          { id: session.id, anchor: { position: 'first' } }
+          { id: assistant.id, anchor: { position: 'first' } }
         ])
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
     })

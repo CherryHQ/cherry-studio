@@ -547,7 +547,7 @@ export class SkillService {
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
 
-    const tags = metadata.tags ?? null
+    const tags = metadata.tags ?? []
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
@@ -860,7 +860,7 @@ export class SkillService {
 
     const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
     const contentHash = await this.installer.computeContentHash(destPath)
-    const tags = metadata.tags ?? null
+    const tags = metadata.tags ?? []
 
     if (existing) {
       await this.db

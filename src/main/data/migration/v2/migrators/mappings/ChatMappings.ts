@@ -381,7 +381,7 @@ export type OldBlock =
  */
 export interface NewTopic {
   id: string
-  name: string | null
+  name: string
   isNameManuallyEdited: boolean
   assistantId: string | null
   activeNodeId: string | null
@@ -401,7 +401,7 @@ export interface NewMessage {
   topicId: string
   role: string
   data: MessageData
-  searchableText: string | null
+  searchableText: string
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
@@ -432,27 +432,25 @@ export interface NewMessage {
  * | assistantId | assistantId | FK to assistant table (validated) |
  * | (computed) | activeNodeId | Last message ID |
  * | (none) | groupId | null (new field) |
- * | (none) | sortOrder | 0 (new field) |
- * | pinned | isPinned | Renamed |
- * | (none) | pinnedOrder | 0 (new field) |
+ * | (none) | orderKey | placeholder; stamped post-stream by the migrator |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
  *
  * ## Dropped Fields:
  * - type ('chat' | 'session'): No longer needed in new schema
  * - prompt: Topic-level prompt removed from schema; assistant prompt is authoritative
+ * - pinned: Pin state lives on the polymorphic `pin` table now; the migrator
+ *   reads `oldTopic.pinned` separately and emits a `pin` row for it.
  */
 export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
   return {
     id: oldTopic.id,
-    name: oldTopic.name || null,
+    name: oldTopic.name || '',
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
     groupId: null, // New field, no migration source
-    // Placeholder — overwritten in ChatMigrator.execute via
-    // `assignOrderKeysByScope` once the full topic batch is transformed.
-    orderKey: '',
+    orderKey: '', // Stamped by ChatMigrator.insertStagedTopics post-stream.
     createdAt: parseTimestamp(oldTopic.createdAt),
     updatedAt: parseTimestamp(oldTopic.updatedAt)
   }
@@ -541,8 +539,8 @@ export function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { parts },
-    searchableText: searchableText || null,
+    data: { blocks: dataBlocks },
+    searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),

@@ -40,7 +40,7 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
     model: row.model as string,
-    accessiblePaths: (row.accessiblePaths as string[] | null) ?? []
+    accessiblePaths: row.accessiblePaths as string[]
   }
 }
 
@@ -49,7 +49,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
   return {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
-    accessiblePaths: row.accessiblePaths ?? [],
+    accessiblePaths: row.accessiblePaths,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -75,21 +75,25 @@ export class AgentSessionService {
       ...req
     }
 
+    // Omit undefined fields so DB DEFAULTs (e.g. '', '[]', '{}') apply.
+    // instructions has no DB DEFAULT — supply the same product-strategic default
+    // AgentService.createAgent uses, so a session created from an agent missing
+    // instructions still satisfies NOT NULL.
     const insertData: InsertSessionRow = {
       id,
       agentId,
       agentType: agent.type,
       name: sessionData.name || agent.name || 'New Session',
-      description: sessionData.description ?? null,
-      accessiblePaths: sessionData.accessiblePaths ?? null,
-      instructions: sessionData.instructions ?? null,
+      description: sessionData.description,
+      accessiblePaths: sessionData.accessiblePaths,
+      instructions: sessionData.instructions || 'You are a helpful assistant.',
       model: sessionData.model || agent.model,
-      planModel: sessionData.planModel ?? null,
-      smallModel: sessionData.smallModel ?? null,
-      mcps: sessionData.mcps ?? null,
-      allowedTools: sessionData.allowedTools ?? null,
-      slashCommands: sessionData.slashCommands ?? null,
-      configuration: sessionData.configuration ?? null,
+      planModel: sessionData.planModel,
+      smallModel: sessionData.smallModel,
+      mcps: sessionData.mcps,
+      allowedTools: sessionData.allowedTools,
+      slashCommands: sessionData.slashCommands,
+      configuration: sessionData.configuration,
       sortOrder: 0
     }
 

@@ -82,6 +82,17 @@ function scheduleRetry(agentId: string, label: string, initFn: () => Promise<voi
   retryTimers.set(agentId, timer)
 }
 
+function resolveExistingBuiltinPaths(status: { accessiblePaths?: string[] }): {
+  paths: string[]
+  shouldPersist: boolean
+} {
+  if (status.accessiblePaths && status.accessiblePaths.length > 0) {
+    return { paths: status.accessiblePaths, shouldPersist: false }
+  }
+
+  return { paths: resolveAccessiblePaths([]), shouldPersist: true }
+}
+
 async function ensureDefaultSession(agentId: string, label: string): Promise<void> {
   const { total } = await sessionService.listSessions(agentId, { limit: 1 })
   if (total === 0) {
@@ -152,7 +163,7 @@ async function initDefaultCherryClawAgent(): Promise<BuiltinAgentInitResult> {
 
     await validateAgentModels('claude-code', { model: firstModel.id })
 
-    const resolvedPaths = resolveAccessiblePaths([], id)
+    const resolvedPaths = resolveAccessiblePaths([])
 
     const req: CreateAgentDto = {
       type: 'claude-code',
@@ -227,13 +238,14 @@ async function initBuiltinAgent(opts: {
 
     if (status) {
       // Sync localized description/instructions on every startup.
-      const resolvedPaths = resolveAccessiblePaths([], id)
+      const { paths: resolvedPaths, shouldPersist } = resolveExistingBuiltinPaths(status)
       const workspace = resolvedPaths[0]
       const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
-      if (agentConfig && (agentConfig.description || agentConfig.instructions)) {
-        const updateData: UpdateAgentDto = {}
-        if (agentConfig.description) updateData.description = agentConfig.description
-        if (agentConfig.instructions) updateData.instructions = agentConfig.instructions
+      const updateData: UpdateAgentDto = {}
+      if (shouldPersist) updateData.accessiblePaths = resolvedPaths
+      if (agentConfig?.description) updateData.description = agentConfig.description
+      if (agentConfig?.instructions) updateData.instructions = agentConfig.instructions
+      if (Object.keys(updateData).length > 0) {
         await agentService.updateAgent(id, updateData)
       }
       return { agentId: id }
@@ -249,7 +261,7 @@ async function initBuiltinAgent(opts: {
 
     await validateAgentModels('claude-code', { model: firstModel.id })
 
-    const resolvedPaths = resolveAccessiblePaths([], id)
+    const resolvedPaths = resolveAccessiblePaths([])
     const workspace = resolvedPaths[0]
     const agentConfig = workspace ? await provisionWorkspace(workspace, builtinRole) : undefined
 

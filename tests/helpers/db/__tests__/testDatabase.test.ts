@@ -130,9 +130,9 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
     expect(Number(count.rows[0]?.[0])).toBe(0)
   })
 
-  it('truncateAll does not throw when message has no extractable text (NULL searchableText)', async () => {
+  it('truncateAll does not throw when message has no extractable text', async () => {
     await seedTopic('topic-null-fts')
-    // data.blocks contains no main_text — trigger will set searchableText to NULL
+    // data.blocks contains no main_text — trigger COALESCE the missing concat to ''.
     await dbh.db.insert(messageTable).values({
       id: 'msg-null-fts',
       parentId: null,

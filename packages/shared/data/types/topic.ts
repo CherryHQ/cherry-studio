@@ -9,6 +9,8 @@ import * as z from 'zod'
 
 export const TopicIdSchema = z.uuidv4()
 export const TopicNameSchema = z.string().min(1).max(255)
+/** Entity-side name validator: DB DEFAULT '' means a stored row may have an empty name. */
+export const TopicNameEntitySchema = z.string().max(255)
 
 /**
  * Complete topic entity as stored in database.
@@ -21,8 +23,8 @@ export const TopicNameSchema = z.string().min(1).max(255)
 export const TopicSchema = z.strictObject({
   /** Topic ID */
   id: TopicIdSchema,
-  /** Topic name */
-  name: TopicNameSchema.nullable().optional(),
+  /** Topic name (may be '' for untitled topics; DTO callers should validate non-empty via TopicNameSchema). */
+  name: TopicNameEntitySchema,
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */

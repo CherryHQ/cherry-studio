@@ -48,7 +48,7 @@ function fakeMessage(overrides: Partial<Message> = {}): Message {
     parentId: null,
     role: 'user',
     data: mainText('hi'),
-    searchableText: null,
+    searchableText: '',
     status: 'success',
     siblingsGroupId: 0,
     modelId: null,

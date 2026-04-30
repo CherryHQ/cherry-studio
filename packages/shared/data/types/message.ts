@@ -570,8 +570,8 @@ export const MessageSchema = z.strictObject({
   role: MessageRoleSchema,
   /** Message content (blocks with inline references) */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.blocks */
-  searchableText: z.string().nullable().optional(),
+  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */

@@ -23,6 +23,7 @@ import {
   isClaude45ReasoningModel as sharedIsClaude45ReasoningModel,
   isClaudeReasoningModel as sharedIsClaudeReasoningModel,
   isDeepSeekHybridInferenceModel as sharedIsDeepSeekHybridInferenceModel,
+  isDeepSeekV4PlusModel as sharedIsDeepSeekV4PlusModel,
   isDoubaoSeed18Model as sharedIsDoubaoSeed18Model,
   isDoubaoSeedAfter251015 as sharedIsDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel as sharedIsDoubaoThinkingAutoModel,
@@ -34,6 +35,7 @@ import {
   isLingReasoningModel as sharedIsLingReasoningModel,
   isMiMoReasoningModel as sharedIsMiMoReasoningModel,
   isMiniMaxReasoningModel as sharedIsMiniMaxReasoningModel,
+  isMistralReasoningModel as sharedIsMistralReasoningModel,
   isPerplexityReasoningModel as sharedIsPerplexityReasoningModel,
   isQwenAlwaysThinkModel as sharedIsQwenAlwaysThinkModel,
   isQwenReasoningModel as sharedIsQwenReasoningModel,
@@ -114,9 +116,11 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
   deepseek_hybrid: ['auto'] as const,
+  deepseek_v4: ['high', 'xhigh'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
   claude: ['low', 'medium', 'high'] as const,
-  claude46: ['low', 'medium', 'high', 'xhigh'] as const
+  claude46: ['low', 'medium', 'high', 'xhigh'] as const,
+  mistral: ['high'] as const
 } as const satisfies ReasoningEffortConfig
 
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
@@ -150,9 +154,11 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const,
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
+  deepseek_v4: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
-  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const
+  claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const,
+  mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const
 } as const
 
 // ── Pure family / variant checks (delegated to shared) ───────────────────
@@ -238,6 +244,8 @@ export const isKimiReasoningModel = (model?: Model): boolean => checkByIdOrName(
 export const isDeepSeekHybridInferenceModel = (model: Model): boolean =>
   checkByIdOrName(model, sharedIsDeepSeekHybridInferenceModel)
 
+export const isDeepSeekV4PlusModel = (model: Model): boolean => checkByIdOrName(model, sharedIsDeepSeekV4PlusModel)
+
 export const isSupportedThinkingTokenDeepSeekModel = (model: Model): boolean =>
   checkByIdOrName(model, sharedIsSupportedThinkingTokenDeepSeekModel)
 
@@ -252,6 +260,9 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean =>
 
 export const isBaichuanReasoningModel = (model?: Model): boolean =>
   model ? sharedIsBaichuanReasoningModel(toSharedCompatModel(model)) : false
+
+export const isMistralReasoningModel = (model?: Model): boolean =>
+  model ? sharedIsMistralReasoningModel(toSharedCompatModel(model)) : false
 
 /**
  * Composes renderer-local checks so the result reflects regex-based inference
@@ -366,12 +377,16 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'perplexity'
   } else if (isSupportedThinkingTokenZhipuModel(model)) {
     thinkingModelType = 'zhipu'
+  } else if (isDeepSeekV4PlusModel(model)) {
+    thinkingModelType = 'deepseek_v4'
   } else if (isDeepSeekHybridInferenceModel(model)) {
     thinkingModelType = 'deepseek_hybrid'
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
     thinkingModelType = 'kimi_k2_5'
+  } else if (isMistralReasoningModel(model)) {
+    thinkingModelType = 'mistral'
   }
   return thinkingModelType
 }

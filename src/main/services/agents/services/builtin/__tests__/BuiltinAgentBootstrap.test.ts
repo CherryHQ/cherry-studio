@@ -154,4 +154,49 @@ describe('bootstrapBuiltinAgents', () => {
     expect(mockCreateSession).not.toHaveBeenCalled()
     expect(mockEnsureHeartbeatTask).not.toHaveBeenCalled()
   })
+
+  it('syncs an existing built-in agent with its stored workspace path', async () => {
+    mockListSessions.mockResolvedValue({ total: 1 })
+    mockFindAgentIncludingDeleted.mockImplementation(async (id: string) => {
+      if (id === 'cherry-claw-default') {
+        return { id, deletedAt: Date.now() }
+      }
+      return { id, accessiblePaths: ['/existing/assistant-workspace'] }
+    })
+    mockProvisionBuiltinAgent.mockResolvedValue({
+      description: 'Updated description',
+      instructions: 'Updated instructions'
+    })
+
+    const { bootstrapBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await bootstrapBuiltinAgents()
+
+    expect(mockResolveAccessiblePaths).not.toHaveBeenCalled()
+    expect(mockProvisionBuiltinAgent).toHaveBeenCalledWith('/existing/assistant-workspace', 'assistant')
+    expect(mockUpdateAgent).toHaveBeenCalledWith('cherry-assistant-default', {
+      description: 'Updated description',
+      instructions: 'Updated instructions'
+    })
+  })
+
+  it('backfills a generated workspace path for an existing built-in agent that has none', async () => {
+    mockListSessions.mockResolvedValue({ total: 1 })
+    mockFindAgentIncludingDeleted.mockImplementation(async (id: string) => {
+      if (id === 'cherry-claw-default') {
+        return { id, deletedAt: Date.now() }
+      }
+      return { id, accessiblePaths: [] }
+    })
+
+    const { bootstrapBuiltinAgents } = await import('../BuiltinAgentBootstrap')
+
+    await bootstrapBuiltinAgents()
+
+    expect(mockResolveAccessiblePaths).toHaveBeenCalledWith([])
+    expect(mockProvisionBuiltinAgent).toHaveBeenCalledWith('/tmp/workspace', 'assistant')
+    expect(mockUpdateAgent).toHaveBeenCalledWith('cherry-assistant-default', {
+      accessiblePaths: ['/tmp/workspace']
+    })
+  })
 })

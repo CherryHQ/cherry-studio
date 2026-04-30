@@ -17,6 +17,8 @@
  *
  * IMPORTANT: `entity_tag` is polymorphic and has no FK to assistant/topic/session tables.
  * Callers deleting tagged entities must invoke `purgeForEntity()` as part of their delete workflow.
+ * For cascading deletes where a parent owns N entities of the same type, prefer
+ * `purgeForEntities` over a loop of `purgeForEntity`.
  * TODO(v2): Wire session cleanup through this helper once the session table is migrated into the v2 data layer.
  */
 
@@ -305,6 +307,19 @@ export class TagService {
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
 
     logger.info('Purged tags for entity', { entityType, entityId })
+  }
+
+  /**
+   * Bulk variant of `purgeForEntity` — same semantics, takes a list of entity
+   * ids. Empty input is a no-op. Single aggregated log line.
+   */
+  async purgeForEntities(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+    if (entityIds.length === 0) return
+    await tx
+      .delete(entityTagTable)
+      .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
+
+    logger.info('Purged tags for entities', { entityType, count: entityIds.length })
   }
 
   /**

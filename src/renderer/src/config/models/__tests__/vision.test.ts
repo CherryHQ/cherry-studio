@@ -311,9 +311,20 @@ describe('isVisionModel', () => {
     it('should return true for kimi models', () => {
       expect(isVisionModel(createModel({ id: 'kimi-k2.5' }))).toBe(true)
       expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(true)
     })
     it('should return false for kimi non-vision models', () => {
       expect(isVisionModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
+    })
+  })
+
+  describe('MiMo Models', () => {
+    it('should identify only the full-modal V2.5 chat model as vision-capable', () => {
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'xiaomi/mimo-v2.5' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5-pro' }))).toBe(false)
+      expect(isVisionModel(createModel({ id: 'mimo-v2.5-tts' }))).toBe(false)
     })
   })
 
@@ -399,5 +410,31 @@ describe('Gemma 4 Models', () => {
   it('does NOT detect Gemma 2 as vision (no regression)', () => {
     expect(isVisionModel(createModel({ id: 'gemma-2b' }))).toBe(false)
     expect(isVisionModel(createModel({ id: 'gemma-2-27b-it' }))).toBe(false)
+  })
+})
+
+describe('Mistral Models', () => {
+  // Regression test for mistral-small-2603 vision support (broken in previous implementation)
+  it('should return true for mistral-small-2603', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-2603' }))).toBe(true)
+  })
+
+  it('should return true for mistral-small-2603 with provider prefix', () => {
+    expect(isVisionModel(createModel({ id: 'mistralai/mistral-small-2603' }))).toBe(true)
+  })
+
+  // Regression check for existing mistral-small variants
+  it('should return true for mistral-small-latest', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-latest' }))).toBe(true)
+  })
+
+  it('should return true for mistral-small-2506', () => {
+    expect(isVisionModel(createModel({ id: 'mistral-small-2506' }))).toBe(true)
+  })
+
+  // Regression check for pixtral models (dedicated vision models)
+  it('should return true for pixtral models', () => {
+    expect(isVisionModel(createModel({ id: 'pixtral-12b' }))).toBe(true)
+    expect(isVisionModel(createModel({ id: 'pixtral-large' }))).toBe(true)
   })
 })

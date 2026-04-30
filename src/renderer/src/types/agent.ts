@@ -214,7 +214,7 @@ export const AgentSessionMessageEntitySchema = z.object({
   sessionId: z.string(),
   role: SessionMessageRoleSchema,
   content: z.unknown(),
-  agentSessionId: z.string(),
+  agentSessionId: z.string().nullable(),
   metadata: z.record(z.string(), z.any()).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()

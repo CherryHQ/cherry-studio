@@ -27,6 +27,7 @@ describe('SkillService', () => {
       id: AGENT_ID,
       type: 'claude-code',
       name: 'Test Agent',
+      instructions: 'You are a helpful assistant.',
       model: 'claude-3-5-sonnet',
       sortOrder: 0
     })

@@ -14,7 +14,7 @@ import {
   isGeminiModel as sharedIsGeminiModel,
   isGemmaModel as sharedIsGemmaModel,
   isGrokModel as sharedIsGrokModel,
-  isKimi25Model as sharedIsKimi25Model,
+  isKimi25OrNewerModel as sharedIsKimi25OrNewerModel,
   isMaxTemperatureOneModel as sharedIsMaxTemperatureOneModel,
   isMoonshotModel as sharedIsMoonshotModel,
   isNotSupportSystemMessageModel as sharedIsNotSupportSystemMessageModel,
@@ -60,8 +60,8 @@ export const isZhipuModel = (model: Model): boolean => sharedIsZhipuModel(toShar
 
 export const isMoonshotModel = (model: Model): boolean => sharedIsMoonshotModel(toSharedCompatModel(model))
 
-export const isKimi25Model = (model: Model | undefined | null): boolean =>
-  model ? sharedIsKimi25Model(toSharedCompatModel(model)) : false
+export const isKimi25OrNewerModel = (model: Model | undefined | null): boolean =>
+  model ? sharedIsKimi25OrNewerModel(toSharedCompatModel(model)) : false
 
 export const isAnthropicModel = (model?: Model): boolean =>
   model ? sharedIsAnthropicModel(toSharedCompatModel(model)) : false

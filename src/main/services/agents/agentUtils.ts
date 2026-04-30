@@ -5,6 +5,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import type { AgentType, SystemProviderId } from '@types'
 import fs from 'fs'
 import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
 
 import { type AgentModelField, AgentModelValidationError } from './errors'
 
@@ -72,15 +73,10 @@ function ensurePathsExist(paths?: string[]): string[] {
   return sanitizedPaths
 }
 
-/**
- * Pick the accessible-paths set for a new agent: either the caller-supplied
- * list (validated via `ensurePathsExist`) or a default per-agent workspace
- * under `feature.agents.workspaces/<last9-of-id>`.
- */
-export function resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
+export function resolveAccessiblePaths(paths?: string[]): string[] {
   if (!paths || paths.length === 0) {
-    const shortId = id.substring(id.length - 9)
-    paths = [path.join(application.getPath('feature.agents.workspaces'), shortId)]
+    // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+    paths = [path.join(application.getPath('feature.agents.workspaces'), uuidv4())]
   }
   return ensurePathsExist(paths)
 }

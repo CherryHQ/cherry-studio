@@ -3474,8 +3474,8 @@
         },
         {
           "originalKey": "pinned:models",
-          "type": "unknown",
-          "defaultValue": null,
+          "type": "string[]",
+          "defaultValue": [],
           "status": "pending",
           "category": null,
           "targetKey": null

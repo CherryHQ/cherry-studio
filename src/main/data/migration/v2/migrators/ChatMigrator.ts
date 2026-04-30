@@ -343,39 +343,31 @@ export class ChatMigrator extends BaseMigrator {
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
 
-      // Process topics in batches
+      // Buffer all topics first; orderKey is stamped post-stream because per-batch
+      // keys would collide across batches sharing a `groupId` partition.
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
         logger.debug(`Processing topic batch ${batchIndex + 1}`, { count: topics.length })
-
-        // Transform all topics and messages in this batch
-        const preparedData: PreparedTopicData[] = []
 
         for (const oldTopic of topics) {
           try {
             const prepared = this.prepareTopicData(oldTopic)
             if (prepared) {
-              preparedData.push(prepared)
+              this.stagedTopics.push(prepared)
             } else {
               this.skippedTopics++
             }
           } catch (error) {
-            logger.warn(`Failed to transform topic ${oldTopic.id}`, { error })
+            logger.error('Failed to transform topic', error as Error, {
+              topicId: oldTopic.id,
+              batchIndex,
+              messageCount: oldTopic.messages?.length ?? 0,
+              assistantId: oldTopic.assistantId
+            })
             this.skippedTopics++
           }
         }
 
-        // Stage transformed batch into the streaming buffer. Topic orderKey
-        // stamping and DB inserts run AFTER all batches finish, so we can
-        // assign keys globally per groupId scope (per-batch stamping would
-        // collide on shared scopes when the same groupId spans batches).
-        for (const data of preparedData) {
-          this.stagedTopics.push(data)
-        }
-
-        // Stream phase reports 0..50%. Insert phase (insertStagedTopics)
-        // reports 50..100% so the bar continues advancing once streaming
-        // finishes — without that split the migrator looks frozen during
-        // the (potentially long) post-stream insert pass.
+        // 0..50% during stream; insertStagedTopics covers 50..100%.
         const progress = Math.round((this.stagedTopics.length / this.topicCount) * 50)
         this.reportProgress(progress, `Prepared ${this.stagedTopics.length}/${this.topicCount} conversations`, {
           key: 'migration.progress.prepared_chats',
@@ -383,7 +375,6 @@ export class ChatMigrator extends BaseMigrator {
         })
       })
 
-      // ── Post-stream phase: stamp orderKeys, dedupe message ids, insert ──
       const insertResult = await this.insertStagedTopics(ctx)
       processedTopics = insertResult.topicsInserted
       processedMessages = insertResult.messagesInserted
@@ -459,6 +450,22 @@ export class ChatMigrator extends BaseMigrator {
       } else if (targetTopicCount > expectedTopics) {
         // More topics than expected could indicate duplicate insertions or data corruption
         logger.warn(`Topic count higher than expected: expected ${expectedTopics}, got ${targetTopicCount}`)
+      }
+
+      const expectedPins = this.stagedTopics.filter((d) => d.pinned).length
+      if (expectedPins > 0) {
+        const pinResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(pinTable)
+          .where(eq(pinTable.entityType, 'topic'))
+          .get()
+        const targetPinCount = pinResult?.count ?? 0
+        if (targetPinCount < expectedPins) {
+          errors.push({
+            key: 'pin_count_low',
+            message: `Pin row count too low: expected ${expectedPins}, got ${targetPinCount}`
+          })
+        }
       }
 
       // Sample validation: check a few topics have messages
@@ -576,17 +583,10 @@ export class ChatMigrator extends BaseMigrator {
   private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
     // Validate required fields
     if (!oldTopic.id) {
-      logger.warn('Topic missing id, skipping')
-      return null
-    }
-
-    // Skip topics with no messages. v1 surfaced an empty topic on first
-    // launch (and on every "new topic" click that the user then abandoned),
-    // so a freshly-migrated DB ends up dotted with empty conversations the
-    // user never typed into. They have no usable timestamp source anyway —
-    // their only outcome would be cluttering the topic list. Topics that
-    // matter to the user have at least one message.
-    if (!Array.isArray(oldTopic.messages) || oldTopic.messages.length === 0) {
+      logger.error('Topic missing id, skipping', new Error('missing topic id'), {
+        messageCount: oldTopic.messages?.length ?? 0,
+        assistantId: oldTopic.assistantId
+      })
       return null
     }
 
@@ -811,45 +811,32 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   /**
-   * Post-stream insert pass.
-   *
-   * Three concerns folded together so the buffered topic set is touched
-   * exactly once before commit:
-   *
-   * 1. **Stamp `orderKey`.** We must wait until the full set is in memory —
-   *    keys generated per-batch would collide on shared `groupId` partitions
-   *    (the same scope spans multiple streamed batches). `assignOrderKeysByScope`
-   *    runs once over all topics, partitioned by `groupId`.
-   *
-   * 2. **Insert topics + messages in batches** with FK pragma toggling
-   *    (kept from the previous design — libsql resets `foreign_keys = ON`
-   *    after every transaction, so each batch must disable it again before
-   *    inserting messages whose `parentId` self-references in the topic).
-   *
-   * 3. **Emit `pin` rows for legacy `pinned: true` topics.** Pin state moved
-   *    to the polymorphic `pin` table; the migration writes one row per
-   *    pinned topic with a fresh per-pin orderKey, sorted by topic
-   *    `updatedAt DESC` so the most recently active pin lands at the head.
+   * Post-stream insert pass: stamp orderKey, insert topics+messages with
+   * FK toggling, emit pin rows for legacy `pinned: true` topics.
    */
   private async insertStagedTopics(
     ctx: MigrationContext
   ): Promise<{ topicsInserted: number; messagesInserted: number; pinsInserted: number }> {
     const db = ctx.db
 
-    // Phase 1: assign orderKey to every topic, scoped by groupId.
-    const stampedTopics = assignOrderKeysByScope(
-      this.stagedTopics.map((d) => d.topic),
-      (t) => t.groupId
-    )
-    for (let i = 0; i < this.stagedTopics.length; i++) {
-      this.stagedTopics[i].topic.orderKey = stampedTopics[i].orderKey
+    // Sort by updatedAt DESC so the stamped orderKey matches the default
+    // unpinned list sort — otherwise drag-mode would see arbitrary order.
+    const sortedTopics = [...this.stagedTopics]
+      .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
+      .map((d) => d.topic)
+    const stampedTopics = assignOrderKeysByScope(sortedTopics, (t) => t.groupId)
+    const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
+    for (const data of this.stagedTopics) {
+      const orderKey = orderKeyById.get(data.topic.id)
+      if (!orderKey) {
+        throw new Error(`orderKey lookup miss for topic id=${data.topic.id}`)
+      }
+      data.topic.orderKey = orderKey
     }
 
-    // Phase 2: insert topics + messages in batches.
     let topicsInserted = 0
     let messagesInserted = 0
     const seenMessageIds = new Set<string>()
-
     const total = this.stagedTopics.length || 1
 
     for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
@@ -883,6 +870,9 @@ export class ChatMigrator extends BaseMigrator {
       if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
 
       await db.run(sql`PRAGMA foreign_keys = OFF`)
+      // Bare finally would let a PRAGMA-reset failure (closed conn, writer-lock)
+      // overwrite the original tx error. Capture, reset, then rethrow the tx one.
+      let txErr: unknown
       try {
         await db.transaction(async (tx) => {
           await tx.insert(topicTable).values(batch.map((d) => d.topic))
@@ -890,16 +880,20 @@ export class ChatMigrator extends BaseMigrator {
             await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
           }
         })
-      } finally {
-        await db.run(sql`PRAGMA foreign_keys = ON`)
+      } catch (e) {
+        txErr = e
       }
+      try {
+        await db.run(sql`PRAGMA foreign_keys = ON`)
+      } catch (resetErr) {
+        logger.error('FK pragma reset failed', resetErr as Error, { hadTxError: txErr !== undefined })
+      }
+      if (txErr) throw txErr
 
       for (const id of batchIds) seenMessageIds.add(id)
       topicsInserted += batch.length
       messagesInserted += batchMessages.length
 
-      // Stream phase ran 0..50%; the insert phase advances 50..100% so the
-      // user sees per-batch progress instead of a long stall after streaming.
       const progress = 50 + Math.round((topicsInserted / total) * 50)
       this.reportProgress(
         progress,
@@ -911,11 +905,10 @@ export class ChatMigrator extends BaseMigrator {
       )
     }
 
-    // Phase 3: emit pin rows for legacy pinned topics.
+    // ON CONFLICT DO NOTHING so a retry doesn't trip the (entity_type, entity_id) UNIQUE.
     const pinned = this.stagedTopics.filter((d) => d.pinned)
     let pinsInserted = 0
     if (pinned.length > 0) {
-      // Order pins newest-first so the most recently active pin is at the head.
       const sorted = [...pinned].sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       const now = Date.now()
       const pinRows = assignOrderKeysInSequence(
@@ -927,10 +920,24 @@ export class ChatMigrator extends BaseMigrator {
           updatedAt: now
         }))
       )
-      for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-        await db.insert(pinTable).values(pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+      try {
+        // Counter assigned only on commit so the catch reports 0 on rollback.
+        const inserted = await db.transaction(async (tx) => {
+          let count = 0
+          for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+            const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
+            const result = await tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id })
+            count += result.length
+          }
+          return count
+        })
+        pinsInserted = inserted
+      } catch (error) {
+        logger.error('Pin row emission failed (transaction rolled back)', error as Error, {
+          pinsExpected: pinRows.length
+        })
+        throw error
       }
-      pinsInserted = pinRows.length
     }
 
     return { topicsInserted, messagesInserted, pinsInserted }

@@ -209,6 +209,8 @@ export const isMiniMaxModel = vendorCheck(VENDOR_PATTERNS.minimax)
 /** Check if model is a Step (StepFun) model. */
 export const isStepModel = vendorCheck(VENDOR_PATTERNS.step)
 
+export const isMistralModel = vendorCheck(VENDOR_PATTERNS.mistral)
+
 /**
  * OpenAI reasoning model = OpenAI vendor + REASONING capability.
  * The registry populates REASONING via `inferOpenAIReasoningFromId`
@@ -300,6 +302,7 @@ export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
  */
 export const isClaudeReasoningModel = (model: Model): boolean => isAnthropicModel(model) && isReasoningModel(model)
 
+export const isMistralReasoningModel = (model: Model): boolean => isMistralModel(model) && isReasoningModel(model)
 /**
  * Thinking-token support for Claude = Anthropic vendor + `thinkingTokenLimits`
  * populated. `THINKING_TOKEN_MAP` covers the same 3.7 / 4-series SKUs that
@@ -458,13 +461,17 @@ export const isSupportedThinkingTokenMiMoModel = (model: Model): boolean =>
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean =>
   isKimiModel(model) && isSupportedThinkingTokenModel(model)
 
+export const isDeepSeekV4PlusModel = (model: Model): boolean =>
+  /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(model.id)
+
 /** DeepSeek model that does runtime hybrid inference (thinking / non-thinking at same endpoint). */
 export const isDeepSeekHybridInferenceModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model))
   return (
     /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(id) ||
     id.includes('deepseek-chat-v3.1') ||
-    id.includes('deepseek-chat')
+    id.includes('deepseek-chat') ||
+    isDeepSeekV4PlusModel(model)
   )
 }
 
@@ -1097,8 +1104,8 @@ export const isGPT52ProModel = (model: Model): boolean =>
   getLowerBaseModelName(getRawModelId(model)).includes('gpt-5.2-pro')
 
 /** Kimi K2.5 — the variant that has its own parameter constraints (fixed temperature / top_p). */
-export const isKimi25Model = (model: Model): boolean =>
-  getLowerBaseModelName(getRawModelId(model)).includes('kimi-k2.5')
+export const isKimi25OrNewerModel = (model: Model): boolean =>
+  /kimi-k(?:2\.[5-9]\d*|[3-9]\d*)/.test(getLowerBaseModelName(getRawModelId(model)))
 
 /** Gemma family (including Ollama `gemma4:*` tag). Falls back to `model.group`. */
 export const isGemmaModel = (model: Model): boolean => {

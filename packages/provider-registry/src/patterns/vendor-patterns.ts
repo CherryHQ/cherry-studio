@@ -34,7 +34,7 @@ export const VENDOR_PATTERNS = {
   anthropic: /^(?:anthropic\.)?claude/i,
 
   /** Google Gemini family. */
-  gemini: /gemini/i,
+  gemini: /gemini|palm|veo|imagen|learnlm/i,
 
   /** Google Gemma family (gemma-*, gemma4:* — matches the Ollama-style tag too). */
   gemma: /gemma-|gemma4/i,
@@ -52,7 +52,7 @@ export const VENDOR_PATTERNS = {
   doubao: /doubao|seedance|seedream|^ep-/i,
 
   /** Tencent Hunyuan family. */
-  hunyuan: /^hunyuan/i,
+  hunyuan: /^hunyuan|hy-/i,
 
   /** Moonshot / Kimi family. */
   kimi: /kimi|moonshot/i,
@@ -79,7 +79,10 @@ export const VENDOR_PATTERNS = {
   step: /^step-/i,
 
   /** Zhipu / GLM family. */
-  zhipu: /glm/i
+  zhipu: /glm|cogview|cogvideo/i,
+
+  /** Mistral family */
+  mistral: /mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i
 } as const satisfies Record<string, RegExp>
 
 export type VendorKey = keyof typeof VENDOR_PATTERNS

@@ -75,7 +75,7 @@ export class TemporaryChatService {
     const now = Date.now()
     const row: TemporaryTopicRow = {
       id: uuidv4(),
-      name: dto.name ?? null,
+      name: dto.name ?? '',
       isNameManuallyEdited: false,
       assistantId: dto.assistantId ?? null,
       activeNodeId: null,
@@ -114,7 +114,7 @@ export class TemporaryChatService {
       parentId: null,
       role: dto.role,
       data: dto.data,
-      searchableText: null,
+      searchableText: '',
       // Default 'success' diverges from persistent MessageService.create which
       // defaults to 'pending'. Intentional: pending placeholders are rejected
       // at the temp boundary (see assertAcceptableAppendDto), so callers must
@@ -128,7 +128,13 @@ export class TemporaryChatService {
       createdAt: now,
       updatedAt: now
     }
-    const list = this.messages.get(topicId)!
+    // Race: deleteTopic between the topics.has check above and this line
+    // would leave .get() returning undefined. Surface as NotFound rather than
+    // crashing with TypeError on `.push` of undefined.
+    const list = this.messages.get(topicId)
+    if (!list) {
+      throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
+    }
     list.push(row)
     return rowToMessage(row)
   }
@@ -136,9 +142,9 @@ export class TemporaryChatService {
   /**
    * Main-process internal API — test whether a topicId is currently managed
    * by this service. Routing helpers (e.g. TemporaryChatContextProvider)
-   * call this so post-`persist()` ids (which now live in SQLite under the
-   * same UUID v4) correctly fall through to the persistent path. There is
-   * no longer a textual marker on the id; ownership is purely state-based.
+   * use this to decide whether the topic lives in memory; after `persist()`
+   * the id survives in SQLite, so routing must fall through to the
+   * persistent path when this returns false.
    */
   hasTopic(topicId: string): boolean {
     return this.topics.has(topicId)

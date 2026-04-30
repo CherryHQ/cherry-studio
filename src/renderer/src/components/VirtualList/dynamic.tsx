@@ -97,6 +97,11 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    * Additional CSS class name for the container
    */
   className?: string
+
+  /**
+   * Scroll handler for the internal scroll container
+   */
+  onScroll?: React.UIEventHandler<HTMLDivElement>
 }
 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
@@ -114,6 +119,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     autoHideScrollbar = false,
     header,
     className,
+    onScroll,
     ...restOptions
   } = props
 
@@ -246,6 +252,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       aria-hidden={!showScrollbar}
       $autoHide={autoHideScrollbar}
       $show={showScrollbar}
+      onScroll={onScroll}
       style={{
         overflow: 'auto',
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),

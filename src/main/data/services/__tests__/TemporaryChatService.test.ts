@@ -106,7 +106,7 @@ describe('TemporaryChatService', () => {
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })
 
-    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=null', async () => {
+    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
       const topic = await service.createTopic({ name: 'T' })
       const snapshot = { id: 'mdl-1', name: 'GPT', provider: 'openai' }
       const msg = await service.appendMessage(topic.id, {
@@ -119,7 +119,7 @@ describe('TemporaryChatService', () => {
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
-      expect(msg.searchableText).toBeNull()
+      expect(msg.searchableText).toBe('')
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.modelSnapshot).toEqual(snapshot)
@@ -194,6 +194,18 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', async () => {
       await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
+    })
+
+    it('persisted topic has a non-empty fractional-indexing orderKey', async () => {
+      // Regression guard: a refactor swapping insertWithOrderKey for plain
+      // tx.insert() would ship the row with orderKey = '' — silently breaks
+      // all subsequent reorders and the unpinned section's sort.
+      const topic = await service.createTopic({ name: 'with-key' })
+      await service.persist(topic.id)
+      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+      expect(dbTopic?.orderKey).toBeDefined()
+      expect(dbTopic?.orderKey).not.toBe('')
+      expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
     })
 
     // NOTE: The original "rollback on tx failure" test dropped the message

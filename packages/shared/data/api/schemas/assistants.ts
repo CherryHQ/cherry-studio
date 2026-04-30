@@ -39,10 +39,11 @@ export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIEL
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
- * DTO for updating an existing assistant. All fields optional, chain-derived from Create.
+ * DTO for updating an existing assistant. All fields optional.
  * Relation arrays (mcpServerIds, knowledgeBaseIds), if provided, replace existing junction table rows.
+ * Update picks directly from the entity, not Create, so Create defaults do not bleed into partial updates.
  */
-export const UpdateAssistantSchema = CreateAssistantSchema.partial()
+export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial()
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 /**

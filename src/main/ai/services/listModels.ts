@@ -13,8 +13,9 @@ import {
 } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
+import { copilotService } from '@main/services/CopilotService'
 import type { Model } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost } from '@shared/utils/api'
@@ -23,6 +24,7 @@ import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@shared
 import { SystemProviderIds } from '@types'
 import * as z from 'zod'
 
+import { COPILOT_DEFAULT_HEADERS } from '../provider/constants'
 import { defaultHeaders, getBaseUrl } from '../utils/provider'
 import {
   AIHubMixModelsResponseSchema,
@@ -184,6 +186,39 @@ const githubFetcher: ModelFetcher = {
   }
 }
 
+const copilotFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.copilot,
+  fetch: async (provider, signal) => {
+    const headers = {
+      ...COPILOT_DEFAULT_HEADERS,
+      ...(await defaultHeaders(provider)),
+      ...provider.settings.extraHeaders
+    }
+    const { token } = await copilotService.getToken(null as any, headers)
+    const response = await getFromApi({
+      url: `${withoutTrailingSlash(provider.defaultChatEndpoint![ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])}/models`,
+      headers: {
+        ...headers,
+        Authorization: `Bearer ${token}`
+      },
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    const filtered = response.data.filter((m) => {
+      const modelId = m.id.toLowerCase()
+      const policyState = (m as { policy?: { state?: string } }).policy?.state
+      return (
+        policyState !== 'disabled' &&
+        !/^accounts\/[^/]+\/routers\//.test(modelId) &&
+        !/^(tts|whisper|speech)/.test(modelId.split('/').pop() || '')
+      )
+    })
+
+    return dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+  }
+}
+
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
@@ -328,6 +363,7 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   githubFetcher,
+  copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,
