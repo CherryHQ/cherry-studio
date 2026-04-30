@@ -86,8 +86,8 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="py-2">
-          <SettingRowTitle>{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
           <Selector
             size={14}
             value={defaultProvider?.id}
@@ -103,13 +103,13 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="py-2">
-          <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
+        <SettingRow className="gap-8 py-2">
+          <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow className="py-3">
-          <SettingRowTitle style={{ minWidth: 120 }}>
+        <SettingRow className="items-start gap-8 py-3">
+          <SettingRowTitle className="min-w-32 shrink-0 pt-0.5">
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
@@ -118,21 +118,23 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <Slider
-            defaultValue={[maxResults]}
-            className="w-full"
-            min={1}
-            max={100}
-            step={1}
-            marks={[
-              { value: 1, label: '1' },
-              { value: 5, label: '5' },
-              { value: 20, label: '20' },
-              { value: 50, label: '50' },
-              { value: 100, label: '100' }
-            ]}
-            onValueCommit={(value) => dispatch(setMaxResult(value[0]))}
-          />
+          <div className="w-full max-w-xl">
+            <Slider
+              defaultValue={[maxResults]}
+              className="w-full"
+              min={1}
+              max={100}
+              step={1}
+              marks={[
+                { value: 1, label: '1' },
+                { value: 5, label: '5' },
+                { value: 20, label: '20' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' }
+              ]}
+              onValueCommit={(value) => dispatch(setMaxResult(value[0]))}
+            />
+          </div>
         </SettingRow>
       </SettingGroup>
     </>

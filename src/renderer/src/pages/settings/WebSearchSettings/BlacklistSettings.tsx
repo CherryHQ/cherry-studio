@@ -1,4 +1,3 @@
-import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Alert, Button, DataTable, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -9,6 +8,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import { t } from 'i18next'
+import { Check, Info, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 
@@ -42,7 +42,7 @@ const BlacklistSettings: FC = () => {
   const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
   const { websearch, setSubscribeSources, addSubscribeSource } = useBlacklist()
   const { theme } = useTheme()
-  const [subscribeChecking, setSubscribeChecking] = useState(false)
+  const [subscribeAction, setSubscribeAction] = useState<'add' | 'update' | null>(null)
   const [subscribeValid, setSubscribeValid] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [dataSource, setDataSource] = useState<DataType[]>(
@@ -55,6 +55,7 @@ const BlacklistSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
 
   const dispatch = useAppDispatch()
+  const subscribeChecking = subscribeAction !== null
 
   useEffect(() => {
     setDataSource(
@@ -105,7 +106,7 @@ const BlacklistSettings: FC = () => {
     window.toast.info({
       title: t('message.save.success.title'),
       timeout: 4000,
-      icon: <InfoCircleOutlined />
+      icon: <Info className="size-4" />
     })
   }
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
@@ -114,7 +115,7 @@ const BlacklistSettings: FC = () => {
   }
 
   async function updateSubscribe() {
-    setSubscribeChecking(true)
+    setSubscribeAction('update')
 
     try {
       // 获取选中的订阅源
@@ -173,7 +174,7 @@ const BlacklistSettings: FC = () => {
         timeout: 2000
       })
     }
-    setSubscribeChecking(false)
+    setSubscribeAction(null)
   }
 
   // 修改 handleAddSubscribe 函数
@@ -186,7 +187,7 @@ const BlacklistSettings: FC = () => {
       return
     }
 
-    setSubscribeChecking(true)
+    setSubscribeAction('add')
     try {
       // 获取并解析订阅源内容
       const blacklist = await parseSubscribeContent(result.url)
@@ -214,7 +215,7 @@ const BlacklistSettings: FC = () => {
         timeout: 2000
       })
     } finally {
-      setSubscribeChecking(false)
+      setSubscribeAction(null)
     }
   }
   function handleDeleteSubscribe() {
@@ -239,35 +240,30 @@ const BlacklistSettings: FC = () => {
         <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
         <SettingDivider />
         <SettingRow className="pt-2 pb-3">
-          <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
+          <SettingRowTitle className="text-foreground-muted leading-5">
+            {t('settings.tool.websearch.blacklist_description')}
+          </SettingRowTitle>
         </SettingRow>
         <Textarea.Input
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
           placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-          className="max-h-48 min-h-24"
+          className="max-h-48 min-h-28 rounded-lg text-sm leading-5 shadow-none"
           rows={4}
         />
-        <Button type="button" onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
-          {t('common.save')}
-        </Button>
+        <div className="mt-2.5 flex justify-end">
+          <Button type="button" size="sm" onClick={() => updateManualBlacklist(blacklistInput)}>
+            {t('common.save')}
+          </Button>
+        </div>
         {errFormat && (
           <Alert className="mt-2.5" message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
         )}
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle>
-          {t('settings.tool.websearch.subscribe')}
-          <Button
-            type="button"
-            variant={subscribeValid ? 'ghost' : 'default'}
-            disabled={subscribeChecking}
-            onClick={handleAddSubscribe}>
-            {t('settings.tool.websearch.subscribe_add')}
-          </Button>
-        </SettingTitle>
+        <SettingTitle>{t('settings.tool.websearch.subscribe')}</SettingTitle>
         <SettingDivider />
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="mt-3">
           <DataTable
             data={dataSource}
             columns={columns}
@@ -278,30 +274,41 @@ const BlacklistSettings: FC = () => {
               selectedRowKeys,
               onChange: onSelectChange
             }}
+            tableLayout="fixed"
+            headerRight={
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={subscribeAction === 'update'}
+                  disabled={subscribeChecking || selectedRowKeys.length === 0}
+                  onClick={updateSubscribe}>
+                  {subscribeValid ? <Check className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+                  {t('settings.tool.websearch.subscribe_update')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={subscribeChecking || selectedRowKeys.length === 0}
+                  onClick={handleDeleteSubscribe}>
+                  <Trash2 className="size-3.5" />
+                  {t('settings.tool.websearch.subscribe_delete')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={subscribeAction === 'add'}
+                  disabled={subscribeChecking}
+                  onClick={handleAddSubscribe}>
+                  <Plus className="size-3.5" />
+                  {t('settings.tool.websearch.subscribe_add')}
+                </Button>
+              </div>
+            }
           />
-          <SettingRow className="py-2">
-            <Button
-              type="button"
-              variant={subscribeValid ? 'ghost' : 'default'}
-              disabled={subscribeChecking || selectedRowKeys.length === 0}
-              style={{ width: 100 }}
-              onClick={updateSubscribe}>
-              {subscribeChecking ? (
-                <LoadingOutlined spin />
-              ) : subscribeValid ? (
-                <CheckOutlined />
-              ) : (
-                t('settings.tool.websearch.subscribe_update')
-              )}
-            </Button>
-            <Button
-              type="button"
-              style={{ width: 100 }}
-              disabled={selectedRowKeys.length === 0}
-              onClick={handleDeleteSubscribe}>
-              {t('settings.tool.websearch.subscribe_delete')}
-            </Button>
-          </SettingRow>
         </div>
       </SettingGroup>
     </>

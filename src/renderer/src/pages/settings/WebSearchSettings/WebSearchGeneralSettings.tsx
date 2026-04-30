@@ -10,10 +10,12 @@ const WebSearchGeneralSettings: FC = () => {
   const { theme } = useTheme()
 
   return (
-    <SettingContainer theme={theme}>
-      <BasicSettings />
-      <CompressionSettings />
-      <BlacklistSettings />
+    <SettingContainer theme={theme} className="px-5 py-4">
+      <div className="flex w-full max-w-4xl flex-col">
+        <BasicSettings />
+        <CompressionSettings />
+        <BlacklistSettings />
+      </div>
     </SettingContainer>
   )
 }
