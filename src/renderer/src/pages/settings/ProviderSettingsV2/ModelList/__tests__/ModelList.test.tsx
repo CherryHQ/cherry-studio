@@ -63,7 +63,10 @@ describe('useProviderModelListBrowse', () => {
       expect(result.current.header.modelCount).toBe(1)
     })
 
-    await result.current.header.onToggleVisibleModels(true)
+    await act(async () => {
+      result.current.header.onToggleVisibleModels(true)
+      await Promise.resolve()
+    })
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
     expect(updateModelMock).toHaveBeenCalledWith('openai', 'model-beta', { isEnabled: true })
@@ -176,7 +179,10 @@ describe('useProviderModelListBrowse', () => {
 
     const { result, rerender, unmount } = renderHook(() => useProviderModelListBrowse({ providerId: 'openai' }))
 
-    await result.current.header.onToggleVisibleModels(false)
+    await act(async () => {
+      result.current.header.onToggleVisibleModels(false)
+      await Promise.resolve()
+    })
 
     expect(updateModelMock).toHaveBeenCalledTimes(2)
     expect(result.current.header.enabledModelCount).toBe(0)
