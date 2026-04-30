@@ -1,6 +1,7 @@
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as HealthCheckUtils from '../../utils/healthCheck'
 import { aggregateApiKeyResults } from '../../utils/healthCheck'
 import { checkModelsHealth } from '../HealthCheckService'
 
@@ -16,7 +17,7 @@ vi.mock('../../utils/v1ProviderShim', () => ({
 }))
 
 vi.mock('../../utils/healthCheck', async () => {
-  const actual = await vi.importActual<typeof import('../../utils/healthCheck')>('../../utils/healthCheck')
+  const actual = await vi.importActual<typeof HealthCheckUtils>('../../utils/healthCheck')
   return {
     ...actual,
     aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults)
