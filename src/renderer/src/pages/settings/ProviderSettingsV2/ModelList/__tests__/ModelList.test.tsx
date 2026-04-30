@@ -63,9 +63,7 @@ describe('useProviderModelListBrowse', () => {
       expect(result.current.header.modelCount).toBe(1)
     })
 
-    await act(async () => {
-      await result.current.header.onToggleVisibleModels(true)
-    })
+    await act(() => result.current.header.onToggleVisibleModels(true))
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
     expect(updateModelMock).toHaveBeenCalledWith('openai', 'model-beta', { isEnabled: true })

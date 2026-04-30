@@ -36,7 +36,7 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
           await deleteModel(providerId, modelId)
         }
 
-        await refetchModels()
+        refetchModels()
         window.toast.success(
           t('settings.models.manage.sync_apply_result', {
             added: toAdd.length,

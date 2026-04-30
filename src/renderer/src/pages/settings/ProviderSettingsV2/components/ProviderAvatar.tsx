@@ -1,4 +1,3 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
@@ -21,7 +20,7 @@ export function ProviderAvatar({ provider, size, className, style }: ProviderAva
       <ProviderAvatarPrimitive
         providerId={provider.id}
         providerName={provider.name}
-        logo={systemIcon as CompoundIcon}
+        logo={systemIcon}
         size={size}
         className={className}
         style={style}

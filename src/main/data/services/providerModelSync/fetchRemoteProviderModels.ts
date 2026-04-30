@@ -120,7 +120,7 @@ function providerHeaders(provider: Provider, apiKey: string): Record<string, str
   return {
     ...defaultAppHeaders(),
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),
-    ...(provider.settings.extraHeaders ?? {})
+    ...provider.settings.extraHeaders
   }
 }
 
@@ -197,7 +197,7 @@ export async function fetchRemoteProviderModels(provider: Provider, apiKey: stri
     const geminiBaseUrl = baseUrl.replace(/\/v1beta$/u, '').replace(/\/v1$/u, '')
     const response = await fetchJson(
       `${geminiBaseUrl}/v1beta/models?key=${encodeURIComponent(apiKey)}`,
-      { ...defaultAppHeaders(), ...(provider.settings.extraHeaders ?? {}) },
+      { ...defaultAppHeaders(), ...provider.settings.extraHeaders },
       GeminiModelsResponseSchema
     )
     seeds = response.models.map((model) => {

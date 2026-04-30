@@ -25,10 +25,14 @@ vi.mock('@renderer/hooks/useProviders', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModels', () => ({
-  useModels: (...args: any[]) => useModelsMock(...args)
+  useModels: (...args: any[]) => useModelsMock(...args),
+  useModelMutations: () => ({
+    createModels: vi.fn(),
+    isCreating: false
+  })
 }))
 
-vi.mock('../../useProviderModelSync', () => ({
+vi.mock('../useProviderModelSync', () => ({
   useProviderModelSync: (...args: any[]) => useProviderModelSyncMock(...args)
 }))
 

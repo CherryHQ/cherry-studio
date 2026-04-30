@@ -5,7 +5,7 @@ import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '.
 import ModelListHeader from '../ModelListHeader'
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-i18next')>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,
@@ -16,11 +16,15 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,
-    Button: ({ children, variant: _variant, size: _size, ...props }: any) => <button {...props}>{children}</button>,
+    Button: ({ children, ...props }: any) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })

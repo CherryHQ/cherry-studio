@@ -13,7 +13,7 @@ const providerCheckApiAdapterMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-i18next')>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,

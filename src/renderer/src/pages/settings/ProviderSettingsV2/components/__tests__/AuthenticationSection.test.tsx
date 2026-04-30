@@ -15,7 +15,7 @@ const providerSpecificSettingsPropsSpy = vi.fn()
 const openConnectionCheckMock = vi.fn()
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<any>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,
@@ -28,7 +28,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/hooks/useProviders', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args),
+  useProviderPresetMetadata: () => ({ data: {} })
 }))
 
 vi.mock('../../hooks/providerSetting/useProviderConnectionCheck', () => ({

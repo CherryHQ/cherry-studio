@@ -4,7 +4,6 @@ import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
-  ProviderPresetMetadata,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -239,7 +238,7 @@ export function useProviderRegistryModels(providerId: string) {
 export function useProviderPresetMetadata(providerId: string) {
   const result = useQuery('/providers/:providerId/preset-metadata', { params: { providerId } })
   // Schema: GET /providers/:id/preset-metadata -> ProviderPresetMetadata
-  return { ...result, data: result.data as ProviderPresetMetadata | undefined }
+  return { ...result, data: result.data }
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──

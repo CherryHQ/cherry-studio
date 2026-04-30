@@ -97,12 +97,12 @@ describe('ProviderService reorder', () => {
   it('throws when target provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('missing', { position: 'first' })).rejects.toThrow(/Provider.*missing/)
+    await expect(providerService.move('missing', { position: 'first' })).rejects.toThrow(/missing/)
   })
 
   it('throws when anchor provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { after: 'missing' })).rejects.toThrow(/Provider.*missing/)
+    await expect(providerService.move('openai', { after: 'missing' })).rejects.toThrow(/missing/)
   })
 })

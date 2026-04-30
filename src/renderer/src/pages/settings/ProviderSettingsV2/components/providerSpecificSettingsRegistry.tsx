@@ -11,7 +11,7 @@ import VertexAISettings from '@renderer/pages/settings/ProviderSettingsV2/Vertex
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 
-import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
+import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AnthropicAuthSection from './AnthropicAuthSection'
 import OpenAIAlert from './OpenAIAlert'
 

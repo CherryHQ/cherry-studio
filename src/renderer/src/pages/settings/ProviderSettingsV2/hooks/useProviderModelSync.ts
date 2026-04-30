@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
-import { type CreateModelDto, MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { useCallback } from 'react'
@@ -95,7 +95,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       })
 
       for (const chunk of chunks) {
-        const created = await createModels(chunk as CreateModelDto[])
+        const created = await createModels(chunk)
         createdModels.push(...created)
       }
 

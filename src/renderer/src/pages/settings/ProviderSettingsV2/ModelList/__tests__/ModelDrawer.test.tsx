@@ -12,7 +12,7 @@ const deleteModelMock = vi.fn()
 const updateModelMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-i18next')>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,
@@ -23,7 +23,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<object>()
 
   return {
     ...actual,

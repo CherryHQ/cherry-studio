@@ -105,7 +105,7 @@ export default function ProviderCustomHeaderDrawer({
   const { defaultHeaders, updateDefaultHeaders } = useCopilot()
 
   const sourceHeaders = useMemo<Record<string, string>>(
-    () => (providerId === 'copilot' ? { ...(defaultHeaders ?? {}) } : { ...(provider?.settings?.extraHeaders ?? {}) }),
+    () => (providerId === 'copilot' ? { ...defaultHeaders } : { ...provider?.settings?.extraHeaders }),
     [defaultHeaders, provider?.settings?.extraHeaders, providerId]
   )
 

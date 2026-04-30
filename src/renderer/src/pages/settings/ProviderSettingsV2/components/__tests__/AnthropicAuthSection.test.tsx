@@ -18,7 +18,7 @@ vi.mock('@renderer/hooks/useProviders', () => ({
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
 }))
 
-vi.mock('../AnthropicSettings', () => ({
+vi.mock('../../AnthropicSettings', () => ({
   default: () => <div>anthropic-settings</div>
 }))
 
@@ -90,7 +90,10 @@ describe('AnthropicAuthSection', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'anthropic',
-        authType: 'oauth'
+        authType: 'oauth',
+        authConfig: {
+          type: 'oauth'
+        }
       }
     })
 
