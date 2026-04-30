@@ -14,9 +14,9 @@ export const topicTable = sqliteTable(
   'topic',
   {
     id: uuidPrimaryKey(),
-    name: text(),
+    name: text().notNull().default(''),
     // Whether the name was manually edited by user
-    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
     // FK to assistant table - "last used assistant"
     // SET NULL: preserve topic when assistant is deleted
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),

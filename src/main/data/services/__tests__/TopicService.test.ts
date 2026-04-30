@@ -6,6 +6,7 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -18,8 +19,8 @@ describe('TopicService', () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
-        { id: 'asst-1', name: 'A', createdAt: 1, updatedAt: 1 },
-        { id: 'asst-2', name: 'B', createdAt: 1, updatedAt: 1 }
+        { id: 'asst-1', name: 'A', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 },
+        { id: 'asst-2', name: 'B', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 }
       ])
       await dbh.db.insert(topicTable).values({
         id: 't1',
@@ -324,7 +325,14 @@ describe('TopicService', () => {
     })
 
     it('treats groupId=null and groupId=g1 as independent partitions', async () => {
-      await dbh.db.insert(assistantTable).values({ id: 'asst', name: 'A', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst',
+        name: 'A',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        createdAt: 1,
+        updatedAt: 1
+      })
       await dbh.db
         .insert(groupTable)
         .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })

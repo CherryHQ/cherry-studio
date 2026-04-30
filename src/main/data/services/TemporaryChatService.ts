@@ -75,7 +75,7 @@ export class TemporaryChatService {
     const now = Date.now()
     const row: TemporaryTopicRow = {
       id: uuidv4(),
-      name: dto.name ?? null,
+      name: dto.name ?? '',
       isNameManuallyEdited: false,
       assistantId: dto.assistantId ?? null,
       activeNodeId: null,
@@ -114,7 +114,7 @@ export class TemporaryChatService {
       parentId: null,
       role: dto.role,
       data: dto.data,
-      searchableText: null,
+      searchableText: '',
       // Default 'success' diverges from persistent MessageService.create which
       // defaults to 'pending'. Intentional: pending placeholders are rejected
       // at the temp boundary (see assertAcceptableAppendDto), so callers must

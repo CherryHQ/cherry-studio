@@ -184,6 +184,10 @@ To change any of them, edit `classification.json` or `target-key-definitions.jso
 cd v2-refactor-temp/tools/data-classify && npm run generate
 ```
 
+### Breaking Changes Log
+
+When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
+
 ## Security
 
 - Never expose Node.js APIs directly to renderer; use `contextBridge` in preload

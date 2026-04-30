@@ -3696,7 +3696,7 @@
         "title": "App-Filterliste anwenden",
         "user_tips": {
           "mac": "Bitte geben Sie die Bundle-ID der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: com.google.Chrome, com.apple.mail",
-          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, Cherry Studio.exe"
+          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, CherryStudio.exe"
         }
       },
       "linux": {

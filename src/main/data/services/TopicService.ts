@@ -31,7 +31,7 @@ function rowToTopic(row: TopicRow): Topic {
   return {
     id: row.id,
     name: row.name,
-    isNameManuallyEdited: row.isNameManuallyEdited ?? false,
+    isNameManuallyEdited: row.isNameManuallyEdited,
     assistantId: row.assistantId,
     activeNodeId: row.activeNodeId,
     groupId: row.groupId,
