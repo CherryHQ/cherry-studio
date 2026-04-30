@@ -14,10 +14,7 @@ import { seedWorkspaceTemplates } from '@main/services/agents/services/cherrycla
 import { skillService } from '@main/services/agents/skills/SkillService'
 import type { CreateAgentDto } from '@shared/data/api/schemas/agents'
 
-import { CHERRY_ASSISTANT_AGENT_ID } from './BuiltinAgentIds'
 import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
-
-export { CHERRY_ASSISTANT_AGENT_ID }
 
 const logger = loggerService.withContext('BuiltinAgentBootstrap')
 
@@ -165,8 +162,5 @@ export async function initBuiltinAgent(opts: {
  * Convenience wrapper: create a Cherry Assistant agent using the default provisioner.
  */
 export async function initCherryAssistant(): Promise<BuiltinAgentCreateResult> {
-  return initBuiltinAgent({
-    builtinRole: 'assistant',
-    builtinName: CHERRY_ASSISTANT_AGENT_ID
-  })
+  return initBuiltinAgent({ builtinRole: 'assistant' })
 }
