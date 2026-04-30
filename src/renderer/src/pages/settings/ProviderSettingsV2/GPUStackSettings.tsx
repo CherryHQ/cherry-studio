@@ -4,7 +4,11 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
+import {
+  ProviderHelpText,
+  ProviderHelpTextRow,
+  ProviderSettingsSubtitle
+} from './components/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
@@ -28,7 +32,7 @@ const GPUStackSettings: FC<Props> = ({ providerId }) => {
 
   return (
     <div>
-      <SettingSubtitle className="mb-1">{t('gpustack.keep_alive_time.title')}</SettingSubtitle>
+      <ProviderSettingsSubtitle className="mb-1">{t('gpustack.keep_alive_time.title')}</ProviderSettingsSubtitle>
       <div className="w-full [&>div]:block [&>div]:w-full">
         <EditableNumber
           value={keepAliveMinutes}
@@ -43,9 +47,9 @@ const GPUStackSettings: FC<Props> = ({ providerId }) => {
           }}
         />
       </div>
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('gpustack.keep_alive_time.description')}</SettingHelpText>
-      </SettingHelpTextRow>
+      <ProviderHelpTextRow>
+        <ProviderHelpText>{t('gpustack.keep_alive_time.description')}</ProviderHelpText>
+      </ProviderHelpTextRow>
     </div>
   )
 }

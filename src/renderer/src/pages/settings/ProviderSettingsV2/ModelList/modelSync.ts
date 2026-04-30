@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettingsV2/utils/v1ProviderShim'
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model as LegacyModel, ModelCapability as LegacyModelCapability } from '@renderer/types'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   createUniqueModelId,
@@ -17,6 +18,9 @@ import type { Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
 
 const logger = loggerService.withContext('ProviderModelSync')
+
+type ProviderRegistryModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/registry-models`>
+type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
 
 const LEGACY_CAPABILITY_TO_V2: Record<LegacyModelCapability['type'], RuntimeModelCapability | undefined> = {
   text: undefined,
@@ -90,7 +94,8 @@ async function enrichFetchedModels(providerId: string, fetchedModels: LegacyMode
   }
 
   try {
-    const resolved = await dataApiService.post(`/providers/${providerId}/registry-models` as const, {
+    const registryModelsPath: ProviderRegistryModelsPath = `/providers/${providerId}/registry-models`
+    const resolved = await dataApiService.post(registryModelsPath, {
       body: {
         models: filteredModels.map((model) => ({
           modelId: model.id
@@ -99,7 +104,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: LegacyMode
     })
 
     const resolvedMap = new Map<string, Model>()
-    for (const model of resolved as Model[]) {
+    for (const model of resolved) {
       const key = model.apiModelId ?? parseUniqueModelId(model.id).modelId
       if (!resolvedMap.has(key)) {
         resolvedMap.set(key, model)
@@ -164,17 +169,19 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
   try {
     let apiKey = ''
     try {
-      const keyData = await dataApiService.get(`/providers/${providerId}/rotated-key` as const)
-      apiKey = (keyData as { apiKey?: string })?.apiKey ?? ''
+      const rotatedKeyPath: ProviderRotatedKeyPath = `/providers/${providerId}/rotated-key`
+      const keyData = await dataApiService.get(rotatedKeyPath)
+      apiKey = keyData.apiKey
       logger.info('Fetched rotated provider API key for model sync', {
         providerId,
         hasApiKey: apiKey.length > 0
       })
-    } catch {
-      apiKey = ''
-      logger.warn('Failed to fetch rotated provider API key for model sync, continuing without key', {
-        providerId
+    } catch (error) {
+      logger.error('Failed to fetch rotated provider API key for model sync', {
+        providerId,
+        error
       })
+      throw error
     }
 
     logger.info('Fetching raw provider models from upstream provider SDK', {

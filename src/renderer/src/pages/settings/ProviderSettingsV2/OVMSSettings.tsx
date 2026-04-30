@@ -3,9 +3,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
-import { SettingRow, SettingSubtitle } from '..'
+import { ProviderSettingsSubtitle } from './components/ProviderSettingsPrimitives'
 import { useOvmsSupport } from './hooks/useOvmsSupport'
 
 const statusIcon = {
@@ -112,7 +112,7 @@ const OVMSSettings: FC = () => {
     <>
       <div className={bannerClasses} role="status">
         <ColFlex>
-          <SettingRow className="w-full">
+          <div className="flex min-h-6 w-full flex-row items-center justify-between">
             <div className="flex min-w-0 flex-1 items-start gap-2">
               <StatusIcon
                 className={cn(
@@ -123,7 +123,7 @@ const OVMSSettings: FC = () => {
                 )}
                 aria-hidden
               />
-              <SettingSubtitle className="mt-0 font-normal">{getStatusMessage()}</SettingSubtitle>
+              <ProviderSettingsSubtitle className="mt-0 font-normal">{getStatusMessage()}</ProviderSettingsSubtitle>
             </div>
             {ovmsStatus === 'not-installed' && (
               <Button onClick={installOvms} disabled={isInstallingOvms} size="sm">
@@ -145,7 +145,7 @@ const OVMSSettings: FC = () => {
                 {isStoppingOvms ? t('ovms.action.stopping') : t('ovms.action.stop')}
               </Button>
             )}
-          </SettingRow>
+          </div>
         </ColFlex>
       </div>
 
@@ -155,7 +155,24 @@ const OVMSSettings: FC = () => {
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1 space-y-1">
           <p className="font-medium">{t('ovms.guide')}</p>
-          <div dangerouslySetInnerHTML={{ __html: t('ovms.description') }} />
+          <div>
+            <Trans
+              i18nKey="ovms.description"
+              components={{
+                div: <div />,
+                dev: <div />,
+                p: <p />,
+                a: (
+                  <a
+                    className="text-primary underline-offset-4 hover:underline"
+                    href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
+                    rel="noreferrer"
+                    target="_blank"
+                  />
+                )
+              }}
+            />
+          </div>
         </div>
       </div>
     </>

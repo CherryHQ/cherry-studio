@@ -16,12 +16,12 @@ import type {
 } from './types'
 
 const TOGGLE_TO_V2: Record<ModelCapabilityToggle, string> = {
-  vision: MODEL_CAPABILITY.IMAGE_RECOGNITION,
-  reasoning: MODEL_CAPABILITY.REASONING,
-  function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
-  embedding: MODEL_CAPABILITY.EMBEDDING,
-  rerank: MODEL_CAPABILITY.RERANK
+  [MODEL_CAPABILITY.IMAGE_RECOGNITION]: MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  [MODEL_CAPABILITY.REASONING]: MODEL_CAPABILITY.REASONING,
+  [MODEL_CAPABILITY.FUNCTION_CALL]: MODEL_CAPABILITY.FUNCTION_CALL,
+  [MODEL_CAPABILITY.WEB_SEARCH]: MODEL_CAPABILITY.WEB_SEARCH,
+  [MODEL_CAPABILITY.EMBEDDING]: MODEL_CAPABILITY.EMBEDDING,
+  [MODEL_CAPABILITY.RERANK]: MODEL_CAPABILITY.RERANK
 }
 
 const V2_TO_TOGGLE: Record<string, ModelCapabilityToggle> = Object.fromEntries(
@@ -108,12 +108,12 @@ export function toggleSetToCaps(original: string[], selected: Set<ModelCapabilit
 
 export function getInitialSelectedCapabilities(model: Model): Set<ModelCapabilityToggle> {
   const inferred = new Set<ModelCapabilityToggle>([
-    ...(isVisionModel(model) ? (['vision'] as const) : []),
-    ...(isReasoningModel(model) ? (['reasoning'] as const) : []),
-    ...(isFunctionCallingModel(model) ? (['function_calling'] as const) : []),
-    ...(isWebSearchModel(model) ? (['web_search'] as const) : []),
-    ...(isEmbeddingModel(model) ? (['embedding'] as const) : []),
-    ...(isRerankModel(model) ? (['rerank'] as const) : [])
+    ...(isVisionModel(model) ? ([MODEL_CAPABILITY.IMAGE_RECOGNITION] as const) : []),
+    ...(isReasoningModel(model) ? ([MODEL_CAPABILITY.REASONING] as const) : []),
+    ...(isFunctionCallingModel(model) ? ([MODEL_CAPABILITY.FUNCTION_CALL] as const) : []),
+    ...(isWebSearchModel(model) ? ([MODEL_CAPABILITY.WEB_SEARCH] as const) : []),
+    ...(isEmbeddingModel(model) ? ([MODEL_CAPABILITY.EMBEDDING] as const) : []),
+    ...(isRerankModel(model) ? ([MODEL_CAPABILITY.RERANK] as const) : [])
   ])
 
   return new Set([...capsToToggleSet(model.capabilities ?? []), ...inferred])

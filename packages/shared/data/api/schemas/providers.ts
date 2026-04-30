@@ -6,7 +6,7 @@
 
 import * as z from 'zod'
 
-import type { EndpointType, Model } from '../../types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -32,7 +32,9 @@ import type { EnrichModelsDto } from './models'
  * strings; we keep the TS cast so `endpointConfigs` stays typed without
  * reaching for the full `provider-registry` enum in this file.
  */
-const ProviderEndpointConfigsSchema = z.record(z.string(), EndpointConfigSchema) as z.ZodType<
+const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
+
+const ProviderEndpointConfigsSchema = z.record(EndpointTypeSchema, EndpointConfigSchema) as z.ZodType<
   Partial<Record<EndpointType, EndpointConfig>>
 >
 
@@ -58,7 +60,7 @@ export const CreateProviderSchema = z.strictObject({
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
-  defaultChatEndpoint: z.string().optional() as z.ZodOptional<z.ZodType<EndpointType>>,
+  defaultChatEndpoint: EndpointTypeSchema.optional(),
   /** API keys */
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */

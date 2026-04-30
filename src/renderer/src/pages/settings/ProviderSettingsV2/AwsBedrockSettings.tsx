@@ -5,7 +5,12 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
+import {
+  ProviderHelpLink,
+  ProviderHelpText,
+  ProviderHelpTextRow,
+  ProviderSettingsSubtitle
+} from './components/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
@@ -62,7 +67,7 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle className="mt-1.5">{t('settings.provider.aws-bedrock.title')}</SettingSubtitle>
+      <ProviderSettingsSubtitle className="mt-1.5">{t('settings.provider.aws-bedrock.title')}</ProviderSettingsSubtitle>
       <div
         className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
@@ -70,7 +75,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         <span>{t('settings.provider.aws-bedrock.description')}</span>
       </div>
 
-      <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
+      <ProviderSettingsSubtitle className="mt-4">
+        {t('settings.provider.aws-bedrock.auth_type')}
+      </ProviderSettingsSubtitle>
       <RadioGroup
         className="mt-1.5 flex flex-col gap-2"
         value={authMode}
@@ -90,13 +97,15 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
           </Label>
         </div>
       </RadioGroup>
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</SettingHelpText>
-      </SettingHelpTextRow>
+      <ProviderHelpTextRow>
+        <ProviderHelpText>{t('settings.provider.aws-bedrock.auth_type_help')}</ProviderHelpText>
+      </ProviderHelpTextRow>
 
       {isIamMode && (
         <>
-          <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.access_key_id')}</SettingSubtitle>
+          <ProviderSettingsSubtitle className="mt-4">
+            {t('settings.provider.aws-bedrock.access_key_id')}
+          </ProviderSettingsSubtitle>
           <Input
             className="mt-1.5 w-full"
             value={localAccessKeyId}
@@ -104,11 +113,13 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             onChange={(e) => setLocalAccessKeyId(e.target.value)}
             onBlur={saveIamConfig}
           />
-          <SettingHelpTextRow>
-            <SettingHelpText>{t('settings.provider.aws-bedrock.access_key_id_help')}</SettingHelpText>
-          </SettingHelpTextRow>
+          <ProviderHelpTextRow>
+            <ProviderHelpText>{t('settings.provider.aws-bedrock.access_key_id_help')}</ProviderHelpText>
+          </ProviderHelpTextRow>
 
-          <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.secret_access_key')}</SettingSubtitle>
+          <ProviderSettingsSubtitle className="mt-4">
+            {t('settings.provider.aws-bedrock.secret_access_key')}
+          </ProviderSettingsSubtitle>
           <Input
             className="mt-1.5 w-full"
             type="password"
@@ -119,19 +130,19 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
             spellCheck={false}
           />
           {apiKeyWebsite && (
-            <SettingHelpTextRow className="justify-between">
+            <ProviderHelpTextRow className="justify-between">
               <RowFlex>
-                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                <ProviderHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
-                </SettingHelpLink>
+                </ProviderHelpLink>
               </RowFlex>
-              <SettingHelpText>{t('settings.provider.aws-bedrock.secret_access_key_help')}</SettingHelpText>
-            </SettingHelpTextRow>
+              <ProviderHelpText>{t('settings.provider.aws-bedrock.secret_access_key_help')}</ProviderHelpText>
+            </ProviderHelpTextRow>
           )}
         </>
       )}
 
-      <SettingSubtitle className="mt-4">{t('settings.provider.aws-bedrock.region')}</SettingSubtitle>
+      <ProviderSettingsSubtitle className="mt-4">{t('settings.provider.aws-bedrock.region')}</ProviderSettingsSubtitle>
       <Input
         className="mt-1.5 w-full"
         value={localRegion}
@@ -139,9 +150,9 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
         onChange={(e) => setLocalRegion(e.target.value)}
         onBlur={saveRegion}
       />
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('settings.provider.aws-bedrock.region_help')}</SettingHelpText>
-      </SettingHelpTextRow>
+      <ProviderHelpTextRow>
+        <ProviderHelpText>{t('settings.provider.aws-bedrock.region_help')}</ProviderHelpText>
+      </ProviderHelpTextRow>
     </>
   )
 }

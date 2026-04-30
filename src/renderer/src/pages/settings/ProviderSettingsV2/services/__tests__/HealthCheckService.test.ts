@@ -1,6 +1,7 @@
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { aggregateApiKeyResults } from '../../utils/healthCheck'
 import { checkModelsHealth } from '../HealthCheckService'
 
 const checkModelMock = vi.fn()
@@ -13,6 +14,14 @@ vi.mock('../../utils/v1ProviderShim', () => ({
   toV1ModelForCheckApi: (model: unknown) => model,
   toV1ProviderShim: (provider: unknown) => provider
 }))
+
+vi.mock('../../utils/healthCheck', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/healthCheck')>('../../utils/healthCheck')
+  return {
+    ...actual,
+    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults)
+  }
+})
 
 function deferred() {
   let resolve!: () => void
@@ -47,5 +56,22 @@ describe('checkModelsHealth', () => {
 
     second.resolve()
     await run
+  })
+
+  it('rejects when the health check pipeline fails outside per-key results', async () => {
+    checkModelMock.mockResolvedValue(undefined)
+    vi.mocked(aggregateApiKeyResults).mockImplementationOnce(() => {
+      throw new Error('aggregation failed')
+    })
+
+    await expect(
+      checkModelsHealth({
+        provider: { id: 'openai' } as never,
+        models: [{ id: 'model-a' }] as never,
+        apiKeys: ['sk-test'],
+        isConcurrent: true,
+        timeout: 1000
+      })
+    ).rejects.toThrow('aggregation failed')
   })
 })

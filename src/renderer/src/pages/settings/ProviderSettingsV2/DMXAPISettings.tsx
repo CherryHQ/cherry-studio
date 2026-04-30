@@ -7,7 +7,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingSubtitle } from '..'
+import { ProviderSettingsSubtitle } from './components/ProviderSettingsPrimitives'
 
 interface DMXAPISettingsProps {
   providerId: string
@@ -77,7 +77,9 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
       </div>
 
       <div className="flex w-full flex-col gap-2">
-        <SettingSubtitle className="mt-1.5">{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
+        <ProviderSettingsSubtitle className="mt-1.5">
+          {t('settings.provider.dmxapi.select_platform')}
+        </ProviderSettingsSubtitle>
         <RadioGroup
           className="flex w-full flex-col gap-2"
           value={selectedPlatform}

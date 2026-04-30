@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '@renderer/pages/settings/ProviderSettingsV2/hooks/providerSetting/constants'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -6,6 +7,8 @@ import { useTranslation } from 'react-i18next'
 
 import { toCreateModelDto } from './modelSync'
 import type { ModelPullApplyPayload } from './useModelListSyncSelections'
+
+const logger = loggerService.withContext('ProviderSettingsV2:PullReconcileSubmit')
 
 type UsePullReconcileSubmitOptions = {
   providerId: string
@@ -45,7 +48,8 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
           })
         )
         onApplyCommitted()
-      } catch {
+      } catch (error) {
+        logger.error('Failed to apply pull reconcile selection', { providerId, error })
         window.toast.error(t('settings.models.manage.sync_pull_failed'))
       }
     },

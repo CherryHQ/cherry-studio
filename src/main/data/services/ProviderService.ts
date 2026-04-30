@@ -313,7 +313,7 @@ class ProviderService {
     const newEntry = {
       id: crypto.randomUUID(),
       key,
-      label,
+      ...(label ? { label } : {}),
       isEnabled: true
     }
 
@@ -370,12 +370,21 @@ class ProviderService {
         return entry
       }
 
-      return {
+      const updatedEntry = {
         ...entry,
-        ...(updates.label !== undefined ? { label: updates.label || undefined } : {}),
         ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
         ...(nextKeyValue ? { key: nextKeyValue } : {})
       }
+
+      if (updates.label !== undefined) {
+        if (updates.label) {
+          updatedEntry.label = updates.label
+        } else {
+          delete updatedEntry.label
+        }
+      }
+
+      return updatedEntry
     })
 
     const [updated] = await db

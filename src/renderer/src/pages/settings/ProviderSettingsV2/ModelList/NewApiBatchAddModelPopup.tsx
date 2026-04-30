@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useModelMutations } from '@renderer/hooks/useModels'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
@@ -23,6 +24,8 @@ import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../components/ProviderSettingsPrimitives'
 import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer/helpers'
+
+const logger = loggerService.withContext('ProviderSettingsV2:NewApiBatchAddModelPopup')
 
 interface ShowParams {
   title: string
@@ -44,6 +47,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const [open, setOpen] = useState(true)
   const resolvedRef = useRef(false)
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  const [submitting, setSubmitting] = useState(false)
   const { createModels } = useModelMutations()
   const { t } = useTranslation()
 
@@ -76,8 +80,16 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   }
 
   const onSubmit = async () => {
-    if (await onAddModel({ provider: provider.id, endpointType })) {
-      closeWithResult({})
+    try {
+      setSubmitting(true)
+      if (await onAddModel({ provider: provider.id, endpointType })) {
+        closeWithResult({})
+      }
+    } catch (error) {
+      logger.error('Failed to batch add models', { providerId: provider.id, error })
+      window.toast.error(t('settings.models.manage.sync_pull_failed'))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -91,10 +103,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       }}>
       <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground/90">
+          <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-muted-foreground/80">
+          <DialogDescription className="text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
             {t('settings.models.add.endpoint_type.tooltip')}
           </DialogDescription>
         </DialogHeader>
@@ -118,10 +130,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel} disabled={submitting}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={() => void onSubmit()}>{t('settings.models.add.add_model')}</Button>
+          <Button disabled={submitting} onClick={() => void onSubmit()}>
+            {t('settings.models.add.add_model')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

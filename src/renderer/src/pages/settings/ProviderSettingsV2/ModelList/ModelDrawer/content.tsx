@@ -8,6 +8,7 @@ import {
   WebSearchTag
 } from '@renderer/components/Tags/Model'
 import { cn } from '@renderer/utils'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,9 +114,9 @@ export function ModelCapabilityToggles({
   onReset
 }: ModelCapabilityTogglesProps) {
   const { t } = useTranslation()
-  const isRerankDisabled = selectedCaps.has('embedding')
-  const isEmbeddingDisabled = selectedCaps.has('rerank')
-  const isOtherDisabled = selectedCaps.has('rerank') || selectedCaps.has('embedding')
+  const isRerankDisabled = selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)
+  const isEmbeddingDisabled = selectedCaps.has(MODEL_CAPABILITY.RERANK)
+  const isOtherDisabled = selectedCaps.has(MODEL_CAPABILITY.RERANK) || selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)
 
   return (
     <div className="space-y-3">
@@ -133,37 +134,37 @@ export function ModelCapabilityToggles({
       <div className="flex flex-wrap items-center gap-1.5">
         <VisionTag
           showLabel
-          inactive={isOtherDisabled || !selectedCaps.has('vision')}
+          inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.IMAGE_RECOGNITION)}
           disabled={isOtherDisabled}
-          onClick={() => onToggle('vision')}
+          onClick={() => onToggle(MODEL_CAPABILITY.IMAGE_RECOGNITION)}
         />
         <WebSearchTag
           showLabel
-          inactive={isOtherDisabled || !selectedCaps.has('web_search')}
+          inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.WEB_SEARCH)}
           disabled={isOtherDisabled}
-          onClick={() => onToggle('web_search')}
+          onClick={() => onToggle(MODEL_CAPABILITY.WEB_SEARCH)}
         />
         <ReasoningTag
           showLabel
-          inactive={isOtherDisabled || !selectedCaps.has('reasoning')}
+          inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.REASONING)}
           disabled={isOtherDisabled}
-          onClick={() => onToggle('reasoning')}
+          onClick={() => onToggle(MODEL_CAPABILITY.REASONING)}
         />
         <ToolsCallingTag
           showLabel
-          inactive={isOtherDisabled || !selectedCaps.has('function_calling')}
+          inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.FUNCTION_CALL)}
           disabled={isOtherDisabled}
-          onClick={() => onToggle('function_calling')}
+          onClick={() => onToggle(MODEL_CAPABILITY.FUNCTION_CALL)}
         />
         <RerankerTag
           disabled={isRerankDisabled}
-          inactive={isRerankDisabled || !selectedCaps.has('rerank')}
-          onClick={() => onToggle('rerank')}
+          inactive={isRerankDisabled || !selectedCaps.has(MODEL_CAPABILITY.RERANK)}
+          onClick={() => onToggle(MODEL_CAPABILITY.RERANK)}
         />
         <EmbeddingTag
           disabled={isEmbeddingDisabled}
-          inactive={isEmbeddingDisabled || !selectedCaps.has('embedding')}
-          onClick={() => onToggle('embedding')}
+          inactive={isEmbeddingDisabled || !selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)}
+          onClick={() => onToggle(MODEL_CAPABILITY.EMBEDDING)}
         />
       </div>
     </div>

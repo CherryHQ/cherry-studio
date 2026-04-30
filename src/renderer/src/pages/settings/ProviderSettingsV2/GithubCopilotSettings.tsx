@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingRow, SettingSubtitle } from '..'
+import { ProviderSettingsSubtitle } from './components/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('GithubCopilotSettings')
 
@@ -283,13 +283,13 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       </div>
                     </div>
                   </div>
-                  <SettingRow>
+                  <div className="flex min-h-6 flex-row items-center justify-between">
                     <Input value={userCode} readOnly className="mr-2 font-mono font-semibold text-sm" />
                     <Button type="button" variant="secondary" onClick={handleCopyUserCode}>
                       <Copy className="size-4" />
                       {t('common.copy')}
                     </Button>
-                  </SettingRow>
+                  </div>
                 </div>
               )}
 
@@ -368,8 +368,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     <div className="pt-[15px]">
       {renderAuthContent()}
       {authStatus === AuthStatus.AUTHENTICATED && (
-        <SettingRow className="mt-5">
-          <SettingSubtitle className="mt-0">{t('settings.provider.copilot.rate_limit')}</SettingSubtitle>
+        <div className="mt-5 flex min-h-6 flex-row items-center justify-between">
+          <ProviderSettingsSubtitle className="mt-0">
+            {t('settings.provider.copilot.rate_limit')}
+          </ProviderSettingsSubtitle>
           <div
             className="w-[200px]"
             onPointerUp={() => {
@@ -392,7 +394,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               }}
             />
           </div>
-        </SettingRow>
+        </div>
       )}
     </div>
   )

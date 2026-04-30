@@ -262,7 +262,6 @@ class CherryINOAuthService {
       }
 
       const tokenJson = await tokenResponse.json()
-      logger.debug('Token exchange raw response:', tokenJson)
       const tokenData = TokenResponseSchema.parse(tokenJson)
 
       const { access_token: accessToken, refresh_token: refreshToken } = tokenData
@@ -286,7 +285,6 @@ class CherryINOAuthService {
       }
 
       const apiKeysJson = await apiKeysResponse.json()
-      logger.debug('API keys raw response:', apiKeysJson)
       // Schema transforms and extracts keys to string array
       const keysArray = ApiKeysResponseSchema.parse(apiKeysJson)
       const apiKeys = keysArray.filter(Boolean).join(',')
@@ -397,19 +395,19 @@ class CherryINOAuthService {
         return null
       }
 
-      const tokenData = await response.json()
-      const newAccessToken = tokenData.access_token
-      const newRefreshToken = tokenData.refresh_token
+      const tokenJson = await response.json()
+      const tokenData = TokenResponseSchema.parse(tokenJson)
+      const { access_token: newAccessToken, refresh_token: newRefreshToken } = tokenData
 
-      if (newAccessToken) {
-        // Save new tokens using internal method
-        await this.saveTokenInternal(newAccessToken, newRefreshToken)
-        logger.info('Successfully refreshed access token')
-        return newAccessToken
-      }
-
-      return null
+      // Save new tokens using internal method
+      await this.saveTokenInternal(newAccessToken, newRefreshToken)
+      logger.info('Successfully refreshed access token')
+      return newAccessToken
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        logger.error('Invalid token refresh response format:', error.issues)
+        return null
+      }
       logger.error('Failed to refresh token:', error as Error)
       return null
     }

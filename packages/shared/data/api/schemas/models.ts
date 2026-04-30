@@ -31,7 +31,7 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 /** DTO for creating a new model */
-export const CreateModelSchema = z.object({
+export const CreateModelSchema = z.strictObject({
   /** Provider ID */
   providerId: z.string().min(1),
   /** Model ID (used in API calls) */

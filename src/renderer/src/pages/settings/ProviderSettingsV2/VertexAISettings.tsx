@@ -5,7 +5,12 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
+import {
+  ProviderHelpLink,
+  ProviderHelpText,
+  ProviderHelpTextRow,
+  ProviderSettingsSubtitle
+} from './components/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string
@@ -51,7 +56,9 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.service_account.title')}</SettingSubtitle>
+      <ProviderSettingsSubtitle className="mt-1.5">
+        {t('settings.provider.vertex_ai.service_account.title')}
+      </ProviderSettingsSubtitle>
       <div
         className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
@@ -59,9 +66,9 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         <span>{t('settings.provider.vertex_ai.service_account.description')}</span>
       </div>
 
-      <SettingSubtitle className="mt-1.5">
+      <ProviderSettingsSubtitle className="mt-1.5">
         {t('settings.provider.vertex_ai.service_account.client_email')}
-      </SettingSubtitle>
+      </ProviderSettingsSubtitle>
       <Input
         className="mt-1.5 w-full"
         type="password"
@@ -70,13 +77,13 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         onChange={(e) => setLocalClientEmail(e.target.value)}
         onBlur={saveAuthConfig}
       />
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('settings.provider.vertex_ai.service_account.client_email_help')}</SettingHelpText>
-      </SettingHelpTextRow>
+      <ProviderHelpTextRow>
+        <ProviderHelpText>{t('settings.provider.vertex_ai.service_account.client_email_help')}</ProviderHelpText>
+      </ProviderHelpTextRow>
 
-      <SettingSubtitle className="mt-1.5">
+      <ProviderSettingsSubtitle className="mt-1.5">
         {t('settings.provider.vertex_ai.service_account.private_key')}
-      </SettingSubtitle>
+      </ProviderSettingsSubtitle>
       <Textarea.Input
         className="mt-1.5 min-h-24 w-full"
         value={localPrivateKey}
@@ -87,17 +94,19 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
         rows={4}
       />
       {apiKeyWebsite && (
-        <SettingHelpTextRow className="justify-between">
+        <ProviderHelpTextRow className="justify-between">
           <RowFlex>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+            <ProviderHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
+            </ProviderHelpLink>
           </RowFlex>
-          <SettingHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</SettingHelpText>
-        </SettingHelpTextRow>
+          <ProviderHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</ProviderHelpText>
+        </ProviderHelpTextRow>
       )}
       <>
-        <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
+        <ProviderSettingsSubtitle className="mt-1.5">
+          {t('settings.provider.vertex_ai.project_id')}
+        </ProviderSettingsSubtitle>
         <Input
           className="mt-1.5 w-full"
           type="password"
@@ -106,11 +115,13 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           onChange={(e) => setLocalProjectId(e.target.value)}
           onBlur={saveAuthConfig}
         />
-        <SettingHelpTextRow>
-          <SettingHelpText>{t('settings.provider.vertex_ai.project_id_help')}</SettingHelpText>
-        </SettingHelpTextRow>
+        <ProviderHelpTextRow>
+          <ProviderHelpText>{t('settings.provider.vertex_ai.project_id_help')}</ProviderHelpText>
+        </ProviderHelpTextRow>
 
-        <SettingSubtitle className="mt-1.5">{t('settings.provider.vertex_ai.location')}</SettingSubtitle>
+        <ProviderSettingsSubtitle className="mt-1.5">
+          {t('settings.provider.vertex_ai.location')}
+        </ProviderSettingsSubtitle>
         <Input
           className="mt-1.5 w-full"
           value={localLocation}
@@ -118,9 +129,9 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           onChange={(e) => setLocalLocation(e.target.value)}
           onBlur={saveAuthConfig}
         />
-        <SettingHelpTextRow>
-          <SettingHelpText>{t('settings.provider.vertex_ai.location_help')}</SettingHelpText>
-        </SettingHelpTextRow>
+        <ProviderHelpTextRow>
+          <ProviderHelpText>{t('settings.provider.vertex_ai.location_help')}</ProviderHelpText>
+        </ProviderHelpTextRow>
       </>
     </>
   )

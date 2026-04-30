@@ -90,6 +90,7 @@ export async function checkModelsHealth(
     }
   } catch (error) {
     logger.error('[ProviderSettingsV2 HealthCheckService] Model health check failed:', error as Error)
+    throw error
   }
 
   return results
