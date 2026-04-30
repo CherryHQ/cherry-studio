@@ -220,6 +220,26 @@ describe('model utils', () => {
         expect(isSupportTemperatureModel(qwenMt)).toBe(false)
       })
 
+      it('returns false for Kimi K2.5+ and K3+ models', () => {
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.5' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'Kimi-K2.5' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.6' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'Kimi-K2.6' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2.7' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k3' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k3.5' }))).toBe(false)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k4' }))).toBe(false)
+      })
+
+      it('returns true for older Kimi models', () => {
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2' }))).toBe(true)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-0711-preview' }))).toBe(true)
+        expect(isSupportTemperatureModel(createModel({ id: 'kimi-k2-turbo-preview' }))).toBe(true)
+      })
+
       it('returns false for null/undefined models', () => {
         expect(isSupportTemperatureModel(null)).toBe(false)
         expect(isSupportTemperatureModel(undefined)).toBe(false)
@@ -251,6 +271,26 @@ describe('model utils', () => {
       it('returns false for Qwen MT models', () => {
         const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
         expect(isSupportTopPModel(qwenMt)).toBe(false)
+      })
+
+      it('returns false for Kimi K2.5+ and K3+ models', () => {
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.5' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'Kimi-K2.5' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.6' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'Kimi-K2.6' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2.7' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k3' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k3.5' }))).toBe(false)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k4' }))).toBe(false)
+      })
+
+      it('returns true for older Kimi models', () => {
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2' }))).toBe(true)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-0711-preview' }))).toBe(true)
+        expect(isSupportTopPModel(createModel({ id: 'kimi-k2-turbo-preview' }))).toBe(true)
       })
 
       it('returns false for null/undefined models', () => {
