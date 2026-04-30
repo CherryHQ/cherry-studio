@@ -13,7 +13,6 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { useModelMutations } from '@renderer/hooks/useModels'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
@@ -23,6 +22,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../components/ProviderSettingsPrimitives'
+import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer/helpers'
 
 interface ShowParams {
   title: string
@@ -108,8 +108,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
                 <SelectValue placeholder={t('settings.models.add.endpoint_type.placeholder')} />
               </SelectTrigger>
               <SelectContent className={drawerClasses.selectContent}>
-                {endpointTypeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+                {MODEL_ENDPOINT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
                     {t(opt.label)}
                   </SelectItem>
                 ))}
