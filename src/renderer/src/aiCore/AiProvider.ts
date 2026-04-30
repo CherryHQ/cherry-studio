@@ -16,6 +16,7 @@ import {
 } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
+import { normalizeImageDimension } from '@renderer/utils/imageGeneration'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway } from 'ai'
 
@@ -412,7 +413,7 @@ export default class AiProvider {
     // 转换参数格式
     const aiSdkParams = {
       prompt,
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...normalizeImageDimension(imageSize),
       n: batchSize || 1,
       ...(signal && { abortSignal: signal })
     }
@@ -451,7 +452,7 @@ export default class AiProvider {
         images: inputImages, // 输入图像（必需）
         ...(mask && { mask }) // 可选的 mask（用于 inpainting）
       },
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...normalizeImageDimension(imageSize),
       ...(signal && { abortSignal: signal })
     })
 
