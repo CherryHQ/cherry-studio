@@ -75,7 +75,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
                 visibility: hasChildren ? 'visible' : 'hidden'
               }}
             />
-            <Text role="button" tabIndex={0} className={node.status === 'ERROR' ? 'error-text' : 'default-text'}>
+            <Text
+              role="button"
+              tabIndex={0}
+              title={node.name}
+              className={`${node.status === 'ERROR' ? 'error-text' : 'default-text'} text-ellipsis`}>
               {node.name}
             </Text>
           </HStack>

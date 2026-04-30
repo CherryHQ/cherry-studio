@@ -163,7 +163,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
                   <>
                     <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">
                       <GridItem colSpan={8} padding={0} className={'table-header'}>
-                        <Text tabIndex={0}>{t('trace.name')}</Text>
+                        <Text tabIndex={0} className="text-ellipsis">
+                          {t('trace.name')}
+                        </Text>
                       </GridItem>
                       <GridItem colSpan={5} padding={0} className={'table-header'}>
                         <Text>{t('trace.tokenUsage')}</Text>&nbsp;

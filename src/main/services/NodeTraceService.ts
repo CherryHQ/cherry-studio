@@ -163,8 +163,8 @@ export class NodeTraceService extends BaseService implements Activatable {
     }
 
     this.traceWin = new BrowserWindow({
-      width: 600,
-      minWidth: 500,
+      width: 900,
+      minWidth: 700,
       minHeight: 600,
       height: 800,
       autoHideMenuBar: true,
