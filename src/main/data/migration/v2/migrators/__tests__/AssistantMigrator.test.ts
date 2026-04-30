@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { AssistantMigrator, mergeOldAssistants } from '../AssistantMigrator'
 import type { OldAssistant } from '../mappings/AssistantMappings'
+import * as AssistantMappings from '../mappings/AssistantMappings'
+
+vi.mock('../mappings/AssistantMappings', async (importActual) => {
+  const actual = await importActual<typeof AssistantMappings>()
+  return { ...actual, transformAssistant: vi.fn(actual.transformAssistant) }
+})
 
 function createMockContext(reduxData: Record<string, unknown> = {}) {
   const reduxState = new ReduxStateReader(reduxData)
@@ -173,6 +179,29 @@ describe('AssistantMigrator', () => {
     it('should fail when all assistants are skipped but source had data', async () => {
       // All assistants lack valid IDs — every one gets skipped
       const assistants = [{ name: 'no-id-1' }, { name: 'no-id-2' }]
+      const ctx = createMockContext({ assistants: { assistants, presets: [] } })
+      const result = await migrator.prepare(ctx as any)
+      expect(result.success).toBe(false)
+      expect(result.itemCount).toBe(0)
+    })
+
+    it('should fail when every transformAssistant throws (systemic transform failure)', async () => {
+      // Mode 2 of the systemic-failure guard: every row passes id validation
+      // but transformAssistant throws, so preparedResults stays empty even
+      // though sourceById.size > 0. Was previously masked by the now-removed
+      // `sourceById.size === 0` form of the guard. Uses mockImplementationOnce
+      // per row so the spy auto-reverts to its real impl after this test.
+      const transformSpy = vi.mocked(AssistantMappings.transformAssistant)
+      const assistants = [
+        { id: 'ast-a', name: 'A' },
+        { id: 'ast-b', name: 'B' },
+        { id: 'ast-c', name: 'C' }
+      ]
+      for (let i = 0; i < assistants.length; i++) {
+        transformSpy.mockImplementationOnce(() => {
+          throw new Error('boom')
+        })
+      }
       const ctx = createMockContext({ assistants: { assistants, presets: [] } })
       const result = await migrator.prepare(ctx as any)
       expect(result.success).toBe(false)
@@ -816,6 +845,24 @@ describe('AssistantMigrator', () => {
       const result = await migrator.validate(ctx as any)
       expect(result.success).toBe(false)
       expect(result.errors[0].message).toContain('DB_CORRUPT')
+    })
+
+    it('passes prepare → execute → validate when only the backstop default row was inserted', async () => {
+      // Empty v1 sources → execute() inserts the backstop row but doesn't push
+      // it onto preparedResults. validate() must account for it so the count
+      // check succeeds (otherwise count_mismatch aborts the whole migration).
+      const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
+
+      await migrator.prepare(ctx as any)
+      await migrator.execute(ctx as any)
+
+      // Swap select after execute so validate sees count=1 (the backstop row)
+      // without breaking execute()'s userModel lookup which uses the same handle.
+      mockValidateDb(ctx, 1, [{ id: 'default', name: 'Default Assistant' }])
+
+      const result = await migrator.validate(ctx as any)
+      expect(result.success).toBe(true)
+      expect(result.errors).toEqual([])
     })
   })
 })

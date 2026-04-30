@@ -105,11 +105,13 @@ export class AssistantMigrator extends BaseMigrator {
   private preparedResults: AssistantTransformResult[] = []
   private skippedCount = 0
   private validAssistantIds = new Set<string>()
+  private didInsertBackstop = false
 
   override reset(): void {
     this.preparedResults = []
     this.skippedCount = 0
     this.validAssistantIds.clear()
+    this.didInsertBackstop = false
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -230,6 +232,7 @@ export class AssistantMigrator extends BaseMigrator {
         // verifyForeignKeys() runs before DefaultAssistantSeeder fires.
         if (!hasDefaultFromSources) {
           await tx.insert(assistantTable).values(DEFAULT_ASSISTANT_PAYLOAD).onConflictDoNothing()
+          this.didInsertBackstop = true
           logger.info('Inserted default assistant backstop row (no v1 source produced one)')
         }
 
@@ -356,10 +359,12 @@ export class AssistantMigrator extends BaseMigrator {
       const count = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
-      if (count !== this.preparedResults.length) {
+      // execute() may have inserted a backstop default row not in preparedResults.
+      const expectedCount = this.preparedResults.length + (this.didInsertBackstop ? 1 : 0)
+      if (count !== expectedCount) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedResults.length} assistants but found ${count}`
+          message: `Expected ${expectedCount} assistants but found ${count}`
         })
       }
 
