@@ -61,19 +61,25 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'agents',
     targetTable: 'agent',
+    // COALESCE legacy NULLs to the spec defaults from 0016_late_stryfe.sql so
+    // the new NOT NULL constraints don't reject existing rows.
     columns: [
       'id',
       'type',
       'name',
-      'description',
-      'accessible_paths',
-      'instructions',
+      { name: 'description', expr: "COALESCE(description, '')", sourceColumn: 'description' },
+      { name: 'accessible_paths', expr: "COALESCE(accessible_paths, '[]')", sourceColumn: 'accessible_paths' },
+      {
+        name: 'instructions',
+        expr: "COALESCE(instructions, 'You are a helpful assistant.')",
+        sourceColumn: 'instructions'
+      },
       'model',
       'plan_model',
       'small_model',
-      'mcps',
-      'allowed_tools',
-      'configuration',
+      { name: 'mcps', expr: "COALESCE(mcps, '[]')", sourceColumn: 'mcps' },
+      { name: 'allowed_tools', expr: "COALESCE(allowed_tools, '[]')", sourceColumn: 'allowed_tools' },
+      { name: 'configuration', expr: "COALESCE(configuration, '{}')", sourceColumn: 'configuration' },
       { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
       {
         name: 'deleted_at',
@@ -95,21 +101,27 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'sessions',
     targetTable: 'agent_session',
+    // Same NOT NULL coalesce as the agent spec — 0016_late_stryfe tightened
+    // both tables in the same step.
     columns: [
       'id',
       'agent_type',
       'agent_id',
       'name',
-      'description',
-      'accessible_paths',
-      'instructions',
+      { name: 'description', expr: "COALESCE(description, '')", sourceColumn: 'description' },
+      { name: 'accessible_paths', expr: "COALESCE(accessible_paths, '[]')", sourceColumn: 'accessible_paths' },
+      {
+        name: 'instructions',
+        expr: "COALESCE(instructions, 'You are a helpful assistant.')",
+        sourceColumn: 'instructions'
+      },
       'model',
       'plan_model',
       'small_model',
-      'mcps',
-      'allowed_tools',
-      { name: 'slash_commands', expr: 'slash_commands' },
-      'configuration',
+      { name: 'mcps', expr: "COALESCE(mcps, '[]')", sourceColumn: 'mcps' },
+      { name: 'allowed_tools', expr: "COALESCE(allowed_tools, '[]')", sourceColumn: 'allowed_tools' },
+      { name: 'slash_commands', expr: "COALESCE(slash_commands, '[]')", sourceColumn: 'slash_commands' },
+      { name: 'configuration', expr: "COALESCE(configuration, '{}')", sourceColumn: 'configuration' },
       { name: 'sort_order', expr: 'sort_order', fallbackExpr: '0' },
       {
         name: 'created_at',
@@ -142,7 +154,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'source_url',
       'namespace',
       'author',
-      'tags',
+      // tags became NOT NULL DEFAULT '[]' in 0016_late_stryfe.
+      { name: 'tags', expr: "COALESCE(tags, '[]')", sourceColumn: 'tags' },
       'content_hash',
       'is_enabled',
       'created_at',
