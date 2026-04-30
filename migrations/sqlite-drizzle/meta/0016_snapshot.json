@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f20b8040-af0d-4ac6-880c-cce4981b6f1a",
+  "id": "6bef0872-c2b2-486d-a37f-17dc7baf8ec9",
   "prevId": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
   "tables": {
     "agent": {
@@ -32,21 +32,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -74,22 +76,25 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -398,8 +403,9 @@
           "name": "tags",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "content_hash": {
           "name": "content_hash",
@@ -414,7 +420,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": true
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -488,21 +494,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -530,29 +538,33 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "slash_commands": {
           "name": "slash_commands",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -952,8 +964,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'active'"
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -1353,18 +1364,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "group_id": {
-          "name": "group_id",
+        "description": {
+          "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
           "autoincrement": false
         },
         "dimensions": {
@@ -1378,7 +1382,7 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -1399,14 +1403,14 @@
           "name": "chunk_size",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "chunk_overlap": {
           "name": "chunk_overlap",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "threshold": {
@@ -1427,7 +1431,7 @@
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "hybrid_alpha": {
@@ -1454,22 +1458,13 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "knowledge_base_group_id_group_id_fk": {
-          "name": "knowledge_base_group_id_group_id_fk",
-          "tableFrom": "knowledge_base",
-          "tableTo": "group",
-          "columnsFrom": ["group_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "knowledge_base_embedding_model_id_user_model_id_fk": {
           "name": "knowledge_base_embedding_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
           "columnsFrom": ["embedding_model_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "knowledge_base_rerank_model_id_user_model_id_fk": {
@@ -1487,7 +1482,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
         }
       }
     },
@@ -1534,14 +1529,8 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "phase": {
-          "name": "phase",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'idle'"
         },
         "error": {
           "name": "error",
@@ -1611,15 +1600,7 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'processing', 'completed', 'failed')"
-        },
-        "knowledge_item_phase_check": {
-          "name": "knowledge_item_phase_check",
-          "value": "\"knowledge_item\".\"phase\" IS NULL OR (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"phase\" IN ('reading', 'embedding')) OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"phase\" = 'preparing')"
-        },
-        "knowledge_item_status_phase_error_check": {
-          "name": "knowledge_item_status_phase_error_check",
-          "value": "(\"knowledge_item\".\"status\" IN ('idle', 'completed') AND \"knowledge_item\".\"phase\" IS NULL AND \"knowledge_item\".\"error\" IS NULL) OR (\"knowledge_item\".\"status\" = 'processing' AND \"knowledge_item\".\"error\" IS NULL) OR (\"knowledge_item\".\"status\" = 'failed' AND \"knowledge_item\".\"phase\" IS NULL AND \"knowledge_item\".\"error\" IS NOT NULL AND length(trim(\"knowledge_item\".\"error\")) > 0)"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
         }
       }
     },
@@ -1926,8 +1907,9 @@
           "name": "searchable_text",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "status": {
           "name": "status",
@@ -1940,7 +1922,7 @@
           "name": "siblings_group_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2104,7 +2086,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2435,14 +2417,15 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "is_name_manually_edited": {
           "name": "is_name_manually_edited",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2471,7 +2454,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2479,7 +2462,7 @@
           "name": "is_pinned",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2487,7 +2470,7 @@
           "name": "pinned_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },

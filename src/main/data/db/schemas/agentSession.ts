@@ -1,4 +1,5 @@
 import type { AgentConfiguration, SlashCommand } from '@shared/data/api/schemas/agents'
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps } from './_columnHelpers'
@@ -15,16 +16,16 @@ export const agentSessionTable = sqliteTable(
       .notNull()
       .references(() => agentTable.id, { onDelete: 'cascade' }),
     name: text().notNull(),
-    description: text(),
-    accessiblePaths: text({ mode: 'json' }).$type<string[]>(),
-    instructions: text(),
+    description: text().notNull().default(''),
+    accessiblePaths: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    instructions: text().notNull(),
     model: text().notNull(),
     planModel: text(),
     smallModel: text(),
-    mcps: text({ mode: 'json' }).$type<string[]>(),
-    allowedTools: text({ mode: 'json' }).$type<string[]>(),
-    slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>(),
-    configuration: text({ mode: 'json' }).$type<AgentConfiguration>(),
+    mcps: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>().notNull().default(sql`'[]'`),
+    configuration: text({ mode: 'json' }).$type<AgentConfiguration>().notNull().default(sql`'{}'`),
     sortOrder: integer().notNull().default(0),
     ...createUpdateTimestamps
   },

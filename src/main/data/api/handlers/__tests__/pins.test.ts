@@ -26,6 +26,7 @@ const PIN_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_PIN_ID = '22222222-2222-4222-8222-222222222222'
 const ENTITY_ID = '33333333-3333-4333-8333-333333333333'
 const MODEL_ID = 'openai::gpt-4o'
+const AGENT_ID = '44444444-4444-4444-8444-444444444444'
 
 describe('pinHandlers', () => {
   beforeEach(() => {
@@ -68,6 +69,17 @@ describe('pinHandlers', () => {
       expect(listByEntityTypeMock).not.toHaveBeenCalled()
     })
 
+    it('should accept model as a pin entity type when listing', async () => {
+      listByEntityTypeMock.mockResolvedValueOnce([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+
+      const result = await pinHandlers['/pins'].GET({
+        query: { entityType: 'model' }
+      } as never)
+
+      expect(listByEntityTypeMock).toHaveBeenCalledWith('model')
+      expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
+    })
+
     it('should delegate POST with parsed body (idempotency returns the same row on repeat calls)', async () => {
       const row = {
         id: PIN_ID,
@@ -83,6 +95,24 @@ describe('pinHandlers', () => {
 
       expect(pinMock).toHaveBeenNthCalledWith(1, { entityType: 'topic', entityId: ENTITY_ID })
       expect(pinMock).toHaveBeenNthCalledWith(2, { entityType: 'topic', entityId: ENTITY_ID })
+    })
+
+    it('should accept UUID agent ids for agent pins', async () => {
+      const row = {
+        id: PIN_ID,
+        entityType: 'agent',
+        entityId: AGENT_ID,
+        orderKey: 'a0'
+      }
+      pinMock.mockResolvedValue(row)
+
+      await expect(
+        pinHandlers['/pins'].POST({
+          body: { entityType: 'agent', entityId: AGENT_ID }
+        } as never)
+      ).resolves.toMatchObject(row)
+
+      expect(pinMock).toHaveBeenCalledWith({ entityType: 'agent', entityId: AGENT_ID })
     })
 
     it('should accept UniqueModelId entityId values for model pins', async () => {

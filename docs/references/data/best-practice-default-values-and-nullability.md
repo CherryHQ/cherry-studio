@@ -120,7 +120,7 @@ reverse evidence that `x` should be `NOT NULL` — see R3.
 
 | Location | Best for | Trade-off | SQLite-specific note |
 |---|---|---|---|
-| **#1 DB DEFAULT** (`text().notNull().default('')`) | Type-level "empty" values that **by definition won't change** (`''`, `0`, `false`, `[]`) | Single source at the schema; DB enforces it for any caller including raw SQL | **Effectively a near-permanent choice in SQLite** — `drizzle-kit` can't auto-generate the rebuild. See [§ DB defaults are near-permanent](#db-defaults-are-near-permanent) below. |
+| **#1 DB DEFAULT** (`text().notNull().default('')`) | Type-level "empty" values that **by definition won't change** (`''`, `0`, `false`, `[]`) | Single source at the schema; DB enforces it for any caller including raw SQL | **Effectively a near-permanent choice in SQLite** — every change forces a full-table rebuild and never touches existing rows. See [§ DB defaults are near-permanent](#db-defaults-are-near-permanent) below. |
 | **#2 Drizzle `$defaultFn`** (`integer().$defaultFn(() => Date.now())`) | Dynamic per-row values: UUIDs, `Date.now()` | Lives in schema file but runs in the JS layer; consistent for all Drizzle-driven inserts | Doesn't apply to raw SQL writers — but those should be rare here |
 | **#3 Zod `.default()`** | **Avoid** on entity / Create / Update — see warnings below | Couples shared schema package to runtime constants; forces `z.input` / `z.output` type split; bypasses non-handler callers (seeders, internal-service calls) | n/a |
 | **#4 Service `dto.x ?? DEFAULT`** | Tunable product values that may evolve (e.g. `DEFAULT_ASSISTANT_SETTINGS`) | Lives next to business logic; covers **all** callers (handler, seeder, internal); changes are pure code edits with no migration | Best fit when the ideal value tracks product iteration |
@@ -147,8 +147,8 @@ never on the entity, Create, or Update.
 Putting a value into a DB column `DEFAULT` for the first time costs nothing — it lands in the next migration's `CREATE TABLE`. **Changing it later is expensive and asymmetric**, so the first write is effectively the final one. Three forces compound:
 
 - **SQLite has no `ALTER COLUMN SET DEFAULT`** ([sqlite.org/lang_altertable](https://www.sqlite.org/lang_altertable.html)). Changing a `DEFAULT` requires the 12-step table-rebuild dance: create a new table with the new schema, copy data, drop, rename, recreate indexes / triggers / FKs.
-- **`drizzle-kit` does not auto-generate that rebuild**. When it detects a `DEFAULT` change it emits an explanatory comment in the migration file — text along the lines of *"SQLite does not support … out of the box, we do not generate automatic migration for that, so it has to be done manually"* — plus a SQLite docs link, **without naming the affected table or column** ([drizzle-team/drizzle-orm#2489](https://github.com/drizzle-team/drizzle-orm/issues/2489)). Maintainer guidance: run `drizzle-kit generate --custom` to create an empty migration and hand-write the rebuild SQL.
-- **`DEFAULT` changes never touch existing rows**. Rows created before the change keep their old default value. Retroactive update needs a separate `UPDATE` step in the same migration.
+- **Each change costs a full-table rebuild at runtime**. `drizzle-kit` auto-generates the rebuild SQL (PRAGMA / `CREATE __new_xxx` / `INSERT ... SELECT` / `DROP` / `RENAME` / re-create indexes), so codegen is not the bottleneck — the SQLite operation is. It copies every row, holds a schema lock for the duration, and consumes ~2× temporary disk for the duplicated table; on multi-GB tables this is no longer free. FTS5 virtual tables and triggers attached to the rebuilt table are also dropped and must be recreated by separate custom-SQL statements.
+- **`DEFAULT` changes never touch existing rows**. Rows created before the change keep their old default value. If the new constraint can't tolerate the old values (e.g. tightening to `NOT NULL` while legacy rows hold `NULL`), the rebuild's `INSERT ... SELECT` line must be hand-edited with `COALESCE(col, 'fallback')` — `drizzle-kit` will not synthesize that for you.
 
 Before placing a value into a DB `DEFAULT`, ask:
 
@@ -160,7 +160,7 @@ Before placing a value into a DB `DEFAULT`, ask:
 
 **The safe bias**: only DB-DEFAULT the values that are **type-level "empty"** (`''`, `0`, `false`, `[]`) — those almost never change because they're absence markers, not product decisions. Anything that's a product choice (`'🌟'`, default model parameters, sentinel category values) goes in service `??` first; promote to DB only after the value has stabilized through at least one release cycle in production.
 
-A service-side default change is a code edit, one PR, no migration risk. A DB `DEFAULT` change is a hand-written SQLite migration that risks data corruption on large tables and is reviewed differently. **Don't trade tomorrow's agility for today's tidiness.**
+A service-side default change is a code edit, one PR, no migration risk. A DB `DEFAULT` change is a full-table rebuild migration: copy every row, recreate indexes / triggers / FTS, and hand-write `COALESCE` for any legacy NULL backfill the new constraint can't tolerate. Reviewed differently, gated differently, slow on production-sized tables. **Don't trade tomorrow's agility for today's tidiness.**
 
 ### Quick chooser
 

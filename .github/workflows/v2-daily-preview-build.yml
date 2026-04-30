@@ -1,0 +1,469 @@
+name: v2 Daily Preview Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 11 * * *" # 19:00 BJ Time
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check-repository:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ github.repository == 'CherryHQ/cherry-studio' }}
+    steps:
+      - name: Check if running in main repository
+        run: |
+          echo "Running in repository: ${{ github.repository }}"
+          echo "Should run: ${{ github.repository == 'CherryHQ/cherry-studio' }}"
+
+  cleanup-artifacts:
+    needs: check-repository
+    if: needs.check-repository.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old preview artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cutoff_date=$(date -d "14 days ago" +%Y-%m-%d)
+
+          gh api repos/$REPO/actions/artifacts --paginate | \
+          jq -r '.artifacts[] | select(.name | startswith("cherry-studio-v2-preview-")) | select(.created_at < "'$cutoff_date'") | .id' | \
+          while read artifact_id; do
+            echo "Deleting artifact $artifact_id"
+            gh api repos/$REPO/actions/artifacts/$artifact_id -X DELETE
+          done
+
+  metadata:
+    needs: check-repository
+    if: needs.check-repository.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.meta.outputs.date }}
+      sha: ${{ steps.meta.outputs.sha }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - name: Check out v2 branch
+        uses: actions/checkout@v6
+        with:
+          ref: v2
+          fetch-depth: 1
+
+      - name: Resolve build metadata
+        id: meta
+        shell: bash
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHA:0:7}" >> $GITHUB_OUTPUT
+          echo "date=$(TZ=Asia/Shanghai date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "Building v2 at $SHA"
+
+  preview-build:
+    needs:
+      - check-repository
+      - metadata
+    if: needs.check-repository.outputs.should_run == 'true'
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+      fail-fast: false
+
+    steps:
+      - name: Check out v2 branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.metadata.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Patch preview app identity
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+          const replacements = [
+            {
+              path: 'electron-builder.yml',
+              replace: (content) =>
+                content
+                  .replace(/^appId: .+$/m, 'appId: com.cherryai.cherrystudio')
+                  .replace(/^productName: .+$/m, 'productName: Cherry Studio Next')
+            },
+            {
+              path: 'scripts/notarize.js',
+              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+            },
+            {
+              path: 'src/main/index.ts',
+              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+            },
+            {
+              path: 'src/main/services/selection/SelectionService.ts',
+              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+            }
+          ]
+
+          for (const item of replacements) {
+            const original = fs.readFileSync(item.path, 'utf8')
+            const updated = item.replace(original)
+            if (updated === original) {
+              throw new Error(`Preview identity replacement made no changes in ${item.path}`)
+            }
+            fs.writeFileSync(item.path, updated)
+            console.log(`Patched ${item.path}`)
+          }
+
+          const builderConfig = fs.readFileSync('electron-builder.yml', 'utf8')
+          console.log(builderConfig.split('\n').slice(0, 2).join('\n'))
+          NODE
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Build Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          pnpm build:mac
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          pnpm build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - name: Rename artifacts with preview format
+        shell: bash
+        run: |
+          mkdir -p renamed-artifacts
+          DATE="${{ needs.metadata.outputs.date }}"
+          PREFIX="cherry-studio-v2-preview-${DATE}"
+
+          copy_first() {
+            local pattern="$1"
+            local target="$2"
+            local source
+            source=$(find dist -name "$pattern" -type f -print -quit)
+            if [ -n "$source" ]; then
+              cp "$source" "renamed-artifacts/$target"
+            fi
+          }
+
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            copy_first "*-x64-setup.exe" "${PREFIX}-x64-setup.exe"
+            copy_first "*-arm64-setup.exe" "${PREFIX}-arm64-setup.exe"
+            copy_first "*-x64-portable.exe" "${PREFIX}-x64-portable.exe"
+            copy_first "*-arm64-portable.exe" "${PREFIX}-arm64-portable.exe"
+          fi
+
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            copy_first "*-arm64.dmg" "${PREFIX}-arm64.dmg"
+            copy_first "*-x64.dmg" "${PREFIX}-x64.dmg"
+            copy_first "*-arm64.zip" "${PREFIX}-arm64.zip"
+            copy_first "*-x64.zip" "${PREFIX}-x64.zip"
+          fi
+
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            copy_first "*-x86_64.AppImage" "${PREFIX}-x86_64.AppImage"
+            copy_first "*-arm64.AppImage" "${PREFIX}-arm64.AppImage"
+            copy_first "*-amd64.deb" "${PREFIX}-amd64.deb"
+            copy_first "*-arm64.deb" "${PREFIX}-arm64.deb"
+            copy_first "*-x86_64.rpm" "${PREFIX}-x86_64.rpm"
+            copy_first "*-arm64.rpm" "${PREFIX}-arm64.rpm"
+          fi
+
+          cp dist/latest*.yml renamed-artifacts/ 2>/dev/null || true
+          cp dist/*.blockmap renamed-artifacts/ 2>/dev/null || true
+
+      - name: List files to be uploaded
+        shell: bash
+        run: |
+          echo "Files to upload:"
+          if [ -x "$(command -v tree)" ]; then
+            tree renamed-artifacts
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            dir renamed-artifacts
+          else
+            ls -la renamed-artifacts
+          fi
+          echo "Total: $(find renamed-artifacts -type f | wc -l) files"
+
+      - name: Upload Windows x64 setup
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-setup.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-setup.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Windows arm64 setup
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-setup.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-setup.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Windows x64 portable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-portable.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64-portable.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Windows arm64 portable
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-portable.exe
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64-portable.exe
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS arm64 dmg
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.dmg
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.dmg
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS x64 dmg
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.dmg
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.dmg
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS arm64 zip
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.zip
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.zip
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload macOS x64 zip
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.zip
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x64.zip
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux x86_64 AppImage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.AppImage
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.AppImage
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 AppImage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.AppImage
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.AppImage
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux amd64 deb
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-amd64.deb
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-amd64.deb
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 deb
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.deb
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.deb
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux x86_64 rpm
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.rpm
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-x86_64.rpm
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload Linux arm64 rpm
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.rpm
+          path: renamed-artifacts/cherry-studio-v2-preview-${{ needs.metadata.outputs.date }}-arm64.rpm
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+
+  build-summary:
+    needs:
+      - check-repository
+      - metadata
+      - preview-build
+    if: always() && needs.check-repository.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow scripts
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.metadata.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install notification dependencies
+        run: pnpm install
+
+      - name: Create summary report
+        shell: bash
+        env:
+          BUILD_RESULT: ${{ needs.preview-build.result }}
+          BUILD_DATE: ${{ needs.metadata.outputs.date }}
+          BUILD_SHA: ${{ needs.metadata.outputs.sha }}
+          SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          echo "## Cherry Studio v2 Preview Build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`v2\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${SHORT_SHA}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Date: \`${BUILD_DATE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: \`${BUILD_RESULT}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Download: [Actions artifacts](${RUN_URL})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Feishu notification
+        if: always()
+        shell: bash
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_RELEASE_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_RELEASE_WEBHOOK_SECRET }}
+          BUILD_RESULT: ${{ needs.preview-build.result }}
+          BUILD_DATE: ${{ needs.metadata.outputs.date }}
+          BUILD_SHA: ${{ needs.metadata.outputs.sha }}
+          SHORT_SHA: ${{ needs.metadata.outputs.short_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$BUILD_RESULT" in
+            success)
+              STATUS_TEXT="succeeded"
+              COLOR="green"
+              ;;
+            cancelled)
+              STATUS_TEXT="cancelled"
+              COLOR="orange"
+              ;;
+            *)
+              STATUS_TEXT="failed"
+              COLOR="red"
+              ;;
+          esac
+
+          DESCRIPTION=$(printf "**Branch:** v2\n\n**Commit:** %.7s\n\n**Date:** %s\n\n**Status:** %s\n\n**Download:** [Actions Artifacts](%s)" "$BUILD_SHA" "$BUILD_DATE" "$STATUS_TEXT" "$RUN_URL")
+
+          pnpm tsx scripts/feishu-notify.ts send \
+            -t "Cherry Studio v2 preview build ${STATUS_TEXT}" \
+            -d "$DESCRIPTION" \
+            -c "$COLOR"
