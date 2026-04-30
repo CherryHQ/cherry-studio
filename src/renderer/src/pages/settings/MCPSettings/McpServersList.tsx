@@ -208,13 +208,6 @@ const McpServersList: FC = () => {
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
         <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
           <div className="flex min-h-0 w-full min-w-[700px] flex-1 flex-col">
-            <div className="grid grid-cols-[minmax(220px,1fr)_72px_112px_112px_76px] items-center gap-3 border-border/70 border-b bg-background-subtle/70 px-4 py-2.5 font-semibold text-muted-foreground text-xs">
-              <span>{t('settings.mcp.name')}</span>
-              <span>{t('settings.mcp.npx_list.version')}</span>
-              <span>{t('settings.mcp.type')}</span>
-              <span>{t('settings.mcp.provider')}</span>
-              <span className="text-right">{t('settings.mcp.active')}</span>
-            </div>
             <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
               {filteredMcpServers.length > 0 ? (
                 <Sortable
