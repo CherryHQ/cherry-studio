@@ -15,10 +15,17 @@ import store from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
-import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@renderer/utils/provider'
+import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider, isVertexProvider } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
 
+import {
+  createVertexModelListRequest,
+  DEFAULT_VERTEX_MODEL_PUBLISHERS,
+  getVertexModelId,
+  getVertexModelPublisher,
+  isSupportedVertexPublisherModel
+} from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
@@ -27,7 +34,8 @@ import {
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
-  TogetherModelsResponseSchema
+  TogetherModelsResponseSchema,
+  VertexPublisherModelsResponseSchema
 } from './schemas'
 
 const logger = loggerService.withContext('ModelListService')
@@ -181,6 +189,81 @@ const geminiFetcher: ModelFetcher = {
       const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
       return toModel(id, provider, { name: m.displayName || id, description: m.description })
     })
+  }
+}
+
+const vertexFetcher: ModelFetcher = {
+  match: (p) => isVertexProvider(p),
+  fetch: async (provider, signal) => {
+    const request = await createVertexModelListRequest(provider)
+
+    if (!request) {
+      return []
+    }
+
+    const publisherModelGroups = await Promise.all(
+      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher) => {
+        try {
+          const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
+          let pageToken: string | undefined
+
+          do {
+            const searchParams = new URLSearchParams({
+              pageSize: '100',
+              listAllVersions: 'true'
+            })
+
+            if (pageToken) {
+              searchParams.set('pageToken', pageToken)
+            }
+
+            const response = await getFromApi({
+              url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
+              headers: request.headers,
+              responseSchema: VertexPublisherModelsResponseSchema,
+              abortSignal: signal
+            })
+
+            publisherModels.push(...response.publisherModels)
+            pageToken = response.nextPageToken
+          } while (pageToken)
+
+          return publisherModels
+        } catch (error) {
+          logger.warn('Skipping Vertex publisher model listing after request failure', {
+            providerId: provider.id,
+            publisher,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return []
+        }
+      })
+    )
+
+    const publisherModels = publisherModelGroups.flat()
+
+    const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
+      const id = getVertexModelId(model.name)
+      const ownedBy = getVertexModelPublisher(model.name)
+
+      return toModel(id, provider, {
+        name: pickPreferredString([model.displayName, id]) || id,
+        description: model.description,
+        owned_by: ownedBy
+      })
+    })
+
+    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.id))
+
+    if (filteredModels.length !== listedModels.length) {
+      logger.info('Filtered unsupported Vertex publisher models from model list', {
+        providerId: provider.id,
+        filteredCount: listedModels.length - filteredModels.length,
+        returnedCount: filteredModels.length
+      })
+    }
+
+    return filteredModels
   }
 }
 
@@ -392,6 +475,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
+  vertexFetcher,
   githubFetcher,
   copilotFetcher,
   ovmsFetcher,

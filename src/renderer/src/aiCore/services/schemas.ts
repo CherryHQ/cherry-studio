@@ -67,6 +67,25 @@ export const GeminiModelsResponseSchema = z.object({
   nextPageToken: z.string().optional()
 })
 
+// === Vertex AI Model Garden ===
+
+export const VertexPublisherModelsResponseSchema = z.object({
+  publisherModels: z
+    .array(
+      z.looseObject({
+        name: z.string(),
+        displayName: z.string().optional(),
+        description: z.string().optional(),
+        versionId: z.string().optional(),
+        launchStage: z.string().optional(),
+        versionState: z.string().optional()
+      })
+    )
+    .optional()
+    .default([]),
+  nextPageToken: z.string().optional()
+})
+
 // === GitHub Models ===
 
 export const GitHubModelsResponseSchema = z.array(
