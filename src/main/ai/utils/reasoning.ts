@@ -5,6 +5,11 @@ import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
+import {
+  computeBudgetTokens,
+  FALLBACK_TOKEN_LIMIT,
+  getThinkingBudget as sharedGetThinkingBudget
+} from '@shared/ai/reasoningBudget'
 import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -622,34 +627,19 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
-// Conservative fallback token limit for models not in THINKING_TOKEN_MAP.
-const FALLBACK_TOKEN_LIMIT = { min: 1024, max: 16384 }
-
-function computeBudgetTokens(
-  tokenLimit: { min: number; max: number },
-  effortRatio: number,
-  maxTokens?: number
-): number {
-  const budget = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
-  const capped = maxTokens !== undefined ? Math.min(budget, maxTokens) : budget
-  return Math.max(1024, capped)
-}
-
+/**
+ * Main-side wrapper around the shared `getThinkingBudget` — fixes the
+ * `effortRatioMap` argument so internal callers don't pass it on every
+ * call. Uses the strict (no-fallback) variant: unknown models return
+ * `undefined`. The renderer Code page calls the shared function directly
+ * with `{ fallbackOnUnknown: true }`.
+ */
 export function getThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
   modelId: string
 ): number | undefined {
-  if (reasoningEffort === undefined || reasoningEffort === 'none') {
-    return undefined
-  }
-
-  const tokenLimit = findTokenLimit(modelId)
-  if (!tokenLimit) {
-    return undefined
-  }
-
-  return computeBudgetTokens(tokenLimit, EFFORT_RATIO[reasoningEffort], maxTokens)
+  return sharedGetThinkingBudget(maxTokens, reasoningEffort, modelId, EFFORT_RATIO)
 }
 
 // Compute a fallback budgetTokens using a conservative token limit when

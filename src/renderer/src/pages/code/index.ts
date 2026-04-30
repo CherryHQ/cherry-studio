@@ -14,10 +14,10 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models/reasoning'
-import { type EndpointType, type Model, type Provider } from '@renderer/types'
+import { EFFORT_RATIO, type EndpointType, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { getFancyProviderName, sanitizeProviderName } from '@renderer/utils/naming'
-import { getThinkingBudget } from '@renderer/utils/reasoningBudget'
+import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import { codeCLI } from '@shared/config/constant'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 
@@ -223,7 +223,9 @@ export const generateToolEnvironment = ({
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)
         const budgetTokens = isSupportedThinkingTokenClaudeModel(model)
-          ? getThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id)
+          ? getThinkingBudget(context?.maxTokens, context?.reasoningEffort, model.id, EFFORT_RATIO, {
+              fallbackOnUnknown: true
+            })
           : undefined
         const providerType = modelProvider.type
         const providerName = sanitizeProviderName(getFancyProviderName(modelProvider))
