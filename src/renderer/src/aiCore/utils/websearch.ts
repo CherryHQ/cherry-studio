@@ -28,7 +28,7 @@ export function getWebSearchParams(model: Model): Record<string, any> {
     }
   }
 
-  if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
+  if (model.provider === 'deepseek' || isOpenAIWebSearchChatCompletionOnlyModel(model)) {
     return {
       web_search_options: {}
     }
