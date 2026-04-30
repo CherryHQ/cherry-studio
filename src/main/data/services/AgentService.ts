@@ -19,6 +19,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
@@ -34,11 +35,10 @@ function rowToAgent(row: AgentRow): AgentEntity {
 }
 
 /** Compute the default workspace paths for an agent without creating any directories. */
-function computeWorkspacePaths(paths: string[] | undefined, id: string): string[] {
+function computeWorkspacePaths(paths: string[] | undefined): string[] {
   if (paths && paths.length > 0) return paths
-  const shortId = id.substring(id.length - 9)
-  // getPath returns the workspace root; append the per-agent short-ID subdirectory.
-  return [`${application.getPath('feature.agents.workspaces')}/${shortId}`]
+  // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+  return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
 }
 
 export class AgentService {
@@ -48,7 +48,7 @@ export class AgentService {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
-    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths, id)
+    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -303,11 +303,11 @@ export class AgentService {
     return !!result
   }
 
-  /** Returns the agent row regardless of soft-deletion, for bootstrap use. */
-  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null } | null> {
+  /** Returns the agent row fields needed by bootstrap regardless of soft-deletion. */
+  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null; accessiblePaths: string[] } | null> {
     const row = await this.findAgentRow(id, { includeDeleted: true })
     if (!row) return null
-    return { deletedAt: row.deletedAt ?? null }
+    return { deletedAt: row.deletedAt ?? null, accessiblePaths: row.accessiblePaths }
   }
 }
 

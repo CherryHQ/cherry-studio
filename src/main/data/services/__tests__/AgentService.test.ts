@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
@@ -44,6 +46,7 @@ vi.mock('@main/services/agents/agentUtils', async (importOriginal) => {
 
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
+  const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   async function insertAgent(overrides: Partial<typeof agentTable.$inferInsert> = {}): Promise<{ id: string }> {
     const id = overrides.id ?? `agent_test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
@@ -59,6 +62,22 @@ describe('AgentService', () => {
     await dbh.db.insert(agentTable).values(base)
     return { id }
   }
+
+  describe('createAgent', () => {
+    it('uses a UUID workspace directory instead of deriving it from the agent id', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Workspace Test',
+        model: 'claude-3-5-sonnet'
+      })
+
+      expect(agent.accessiblePaths).toHaveLength(1)
+      const workspace = agent.accessiblePaths[0]
+      expect(path.dirname(workspace)).toBe('/mock/feature.agents.workspaces')
+      expect(path.basename(workspace)).toMatch(uuidV4Pattern)
+      expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
+    })
+  })
 
   describe('deleteAgent', () => {
     it('hard-deletes a non-builtin agent and removes the row', async () => {

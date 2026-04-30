@@ -241,6 +241,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const shouldForceMulti = isMulti && valueIds.length >= 2
   const multiEnabled = isMulti && !userOptedOut && (multiEnabledLocal || shouldForceMulti)
 
+  // If an external controlled update grows the selection back to 2+ items, the prior opt-out is
+  // stale. Re-enable multi before the next row click can collapse the caller's restored selection.
+  useEffect(() => {
+    if (isMulti && userOptedOut && valueIds.length >= 2) {
+      setUserOptedOut(false)
+    }
+  }, [isMulti, userOptedOut, valueIds.length])
+
   const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const selectedSet = useMemo(() => new Set(valueIds), [valueIds])
 

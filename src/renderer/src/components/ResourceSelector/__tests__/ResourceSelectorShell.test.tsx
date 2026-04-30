@@ -207,12 +207,17 @@ describe('ResourceSelectorShell', () => {
       expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('keeps multi OFF after the user opts out even if the controlled value later grows to >= 2', () => {
+    it('re-enables multi after opt-out when the controlled value externally grows to >= 2', () => {
+      const onChangeSpy = vi.fn()
       function Wrapper() {
         const [value, setValue] = useState<string[]>(['1', '2'])
+        const handleChange = (next: string[]) => {
+          onChangeSpy(next)
+          setValue(next)
+        }
         return (
           <div>
-            <button type="button" data-testid="promote" onClick={() => setValue(['1', '2'])}>
+            <button type="button" data-testid="promote" onClick={() => setValue(['1', '2', '3'])}>
               promote
             </button>
             <ResourceSelectorShell
@@ -225,7 +230,7 @@ describe('ResourceSelectorShell', () => {
               labels={LABELS}
               multi
               value={value}
-              onChange={setValue}
+              onChange={handleChange}
               multiToggleLabel="Multi"
             />
           </div>
@@ -239,11 +244,16 @@ describe('ResourceSelectorShell', () => {
 
       fireEvent.click(switchEl)
       expect(switchEl).toHaveAttribute('aria-checked', 'false')
+      expect(onChangeSpy).toHaveBeenLastCalledWith(['1'])
+      onChangeSpy.mockClear()
 
       act(() => {
         fireEvent.click(screen.getByTestId('promote'))
       })
-      expect(switchEl).toHaveAttribute('aria-checked', 'false')
+      expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true')
+
+      clickRowByName('Epsilon')
+      expect(onChangeSpy).toHaveBeenCalledWith(['1', '2', '3', '5'])
     })
   })
 
