@@ -21,8 +21,7 @@ export type McpMode = z.infer<typeof McpModeSchema>
  * Assistant settings — inference parameters + context source toggles.
  * Stored as a single JSON column in the database.
  *
- * Default values are aligned with `DEFAULT_ASSISTANT_SETTINGS` in
- * `src/renderer/src/services/AssistantService.ts` (v1 source of truth).
+ * Default values are centralized in `DEFAULT_ASSISTANT_SETTINGS`.
  *
  * `enable*` flags control whether the corresponding parameter is sent to the model.
  * When `enable* = false`, the value is still stored but not used — the model's own
@@ -30,62 +29,50 @@ export type McpMode = z.infer<typeof McpModeSchema>
  */
 export const AssistantSettingsSchema = z.object({
   // -- Inference parameters --
-  // Defaults: AssistantService.ts L45–62, constants from config/constant.ts
-  /** @default 1.0 — from DEFAULT_TEMPERATURE */
-  temperature: z.number().min(0).max(2).default(1.0),
-  /** @default false — disabled = use model's own default */
-  enableTemperature: z.boolean().default(false),
-  /** @default 1 */
-  topP: z.number().min(0).max(1).default(1),
-  /** @default false */
-  enableTopP: z.boolean().default(false),
-  // TODO: use constant instead
-  /** @default 4096 — from DEFAULT_MAX_TOKENS */
-  maxTokens: z.number().int().positive().default(4096),
-  /** @default false — disabled = use model's own default */
-  enableMaxTokens: z.boolean().default(false),
-  // TODO: use constant instead
-  /** @default 5 — from DEFAULT_CONTEXTCOUNT */
-  contextCount: z.number().int().positive().default(5),
-  /** @default true — streaming provides better UX */
-  streamOutput: z.boolean().default(true),
-  /** @default 'default' — let model decide.
+  /** from DEFAULT_TEMPERATURE */
+  temperature: z.number().min(0).max(2),
+  /** disabled = use model's own default */
+  enableTemperature: z.boolean(),
+  topP: z.number().min(0).max(1),
+  enableTopP: z.boolean(),
+  /** from DEFAULT_MAX_TOKENS */
+  maxTokens: z.number().int().positive(),
+  /** disabled = use model's own default */
+  enableMaxTokens: z.boolean(),
+  /** from DEFAULT_CONTEXTCOUNT */
+  contextCount: z.number().int().positive(),
+  /** streaming provides better UX */
+  streamOutput: z.boolean(),
+  /** let model decide.
    *  String (not enum) because providers define custom values (e.g. 'xlow', 'high-reasoning'). */
-  reasoning_effort: z.string().default('default'),
-  /** @default false — Qwen-specific thinking mode */
-  qwenThinkMode: z.boolean().default(false),
+  reasoning_effort: z.string(),
+  /** Qwen-specific thinking mode */
+  qwenThinkMode: z.boolean(),
 
   // -- Tool use --
-  /** @default 'auto' */
-  mcpMode: McpModeSchema.default('auto'),
-  /** @default 'function' — gracefully falls back to prompt if not supported */
-  toolUseMode: z.enum(['function', 'prompt']).default('function'),
-  /** @default 20 */
-  maxToolCalls: z.number().int().positive().default(20),
-  /** @default true */
-  enableMaxToolCalls: z.boolean().default(true),
+  mcpMode: McpModeSchema,
+  /** gracefully falls back to prompt if not supported */
+  toolUseMode: z.enum(['function', 'prompt']),
+  maxToolCalls: z.number().int().positive(),
+  enableMaxToolCalls: z.boolean(),
 
   // -- Context sources --
-  /** @default false */
-  enableWebSearch: z.boolean().default(false),
+  enableWebSearch: z.boolean(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
    *  - `string` → string value, rendered as text input
    *  - `number` → number value, rendered as number spinner
    *  - `boolean` → boolean value, rendered as toggle
-   *  - `json` → arbitrary JSON value, rendered as JSON editor
-   *  @default [] */
-  customParameters: z
-    .array(
-      z.discriminatedUnion('type', [
-        z.object({ name: z.string(), type: z.literal('string'), value: z.string() }),
-        z.object({ name: z.string(), type: z.literal('number'), value: z.number() }),
-        z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
-        z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
-      ])
-    )
-    .default([])
+   *  - `json` → arbitrary JSON value, rendered as JSON editor */
+  customParameters: z.array(
+    z.discriminatedUnion('type', [
+      z.object({ name: z.string(), type: z.literal('string'), value: z.string() }),
+      z.object({ name: z.string(), type: z.literal('number'), value: z.number() }),
+      z.object({ name: z.string(), type: z.literal('boolean'), value: z.boolean() }),
+      z.object({ name: z.string(), type: z.literal('json'), value: z.unknown() })
+    ])
+  )
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -118,7 +105,7 @@ export const AssistantIdSchema = z.uuidv4()
 /**
  * Complete Assistant entity as returned by the API.
  *
- * DB-nullable fields have defaults so the runtime type is always non-null.
+ * Row mappers normalize DB-nullable fields before returning this entity.
  * `modelId` is explicitly `.nullable()` because an assistant may have no model set.
  */
 export const AssistantSchema = z.strictObject({
@@ -127,11 +114,11 @@ export const AssistantSchema = z.strictObject({
   /** Display name */
   name: z.string().min(1),
   /** System prompt text or prompt template ID reference */
-  prompt: z.string().default(''),
+  prompt: z.string(),
   /** Emoji icon for UI display */
-  emoji: z.emoji().default('🌟'),
+  emoji: z.emoji(),
   /** Long-form description */
-  description: z.string().default(''),
+  description: z.string(),
   /** Inference settings — model params + context toggles */
   settings: AssistantSettingsSchema,
   /** Default/primary model ID in UniqueModelId format ("providerId::modelId") */

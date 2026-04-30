@@ -39,6 +39,17 @@ export {
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as EmojiAvatar } from './composites/EmojiAvatar'
 export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
+export {
+  type EntityItemBase,
+  EntitySelector,
+  type EntitySelectorContextMenuFactory,
+  type EntitySelectorMultiSelect,
+  type EntitySelectorPopoverContentProps,
+  type EntitySelectorProps,
+  type EntitySelectorRowContext,
+  type EntitySelectorSearch,
+  type EntitySelectorSection
+} from './composites/EntitySelector'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
 export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/PageSidePanel'

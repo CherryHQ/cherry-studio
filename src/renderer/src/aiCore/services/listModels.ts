@@ -11,6 +11,8 @@ import {
 } from '@ai-sdk/provider-utils'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
+import store from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
@@ -212,6 +214,39 @@ const githubFetcher: ModelFetcher = {
   }
 }
 
+const copilotFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.copilot,
+  fetch: async (provider, signal) => {
+    const headers = {
+      ...COPILOT_DEFAULT_HEADERS,
+      ...store.getState().copilot.defaultHeaders,
+      ...provider.extra_headers
+    }
+    const { token } = await window.api.copilot.getToken(headers)
+    const response = await getFromApi({
+      url: `${withoutTrailingSlash(provider.apiHost)}/models`,
+      headers: {
+        ...headers,
+        Authorization: `Bearer ${token}`
+      },
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    const filtered = response.data.filter((m) => {
+      const modelId = m.id.toLowerCase()
+      const policyState = (m as { policy?: { state?: string } }).policy?.state
+      return (
+        policyState !== 'disabled' &&
+        !/^accounts\/[^/]+\/routers\//.test(modelId) &&
+        !/^(tts|whisper|speech)/.test(modelId.split('/').pop() || '')
+      )
+    })
+
+    return dedup(filtered, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
+  }
+}
+
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
@@ -359,6 +394,7 @@ const fetchers: ModelFetcher[] = [
   ollamaFetcher,
   geminiFetcher,
   githubFetcher,
+  copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,

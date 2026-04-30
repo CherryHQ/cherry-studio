@@ -12,28 +12,33 @@ const PIN_BASE = {
 
 const UUID_ENTITY_ID = '22222222-2222-4222-8222-222222222222'
 const MODEL_ENTITY_ID = 'openai::gpt-4o'
+const AGENT_ENTITY_ID = '44444444-4444-4444-8444-444444444444'
 
 describe('pin schemas', () => {
-  it('includes model in the shared entity type vocabulary', () => {
+  it('includes model and agent in the shared entity type vocabulary', () => {
     expect(EntityTypeSchema.safeParse('model').success).toBe(true)
-    expect(EntityTypeSchema.safeParse('agent').success).toBe(false)
+    expect(EntityTypeSchema.safeParse('agent').success).toBe(true)
   })
 
-  it('accepts both UUID and UniqueModelId through the shared entity id schema', () => {
+  it('accepts UUID and UniqueModelId values through the shared entity id schema', () => {
     expect(EntityIdSchema.safeParse(UUID_ENTITY_ID).success).toBe(true)
     expect(EntityIdSchema.safeParse(MODEL_ENTITY_ID).success).toBe(true)
-    expect(EntityIdSchema.safeParse('not-a-valid-entity-id').success).toBe(false)
+    expect(EntityIdSchema.safeParse(AGENT_ENTITY_ID).success).toBe(true)
+    expect(EntityIdSchema.safeParse('not-a-uuid').success).toBe(false)
   })
 
   it('uses a flat pin schema over the shared entity type and id schemas', () => {
     expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'model', entityId: MODEL_ENTITY_ID }).success).toBe(true)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'agent', entityId: AGENT_ENTITY_ID }).success).toBe(true)
     expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'assistant', entityId: UUID_ENTITY_ID }).success).toBe(true)
     expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'assistant', entityId: MODEL_ENTITY_ID }).success).toBe(true)
-    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'agent', entityId: UUID_ENTITY_ID }).success).toBe(false)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'topic', entityId: AGENT_ENTITY_ID }).success).toBe(true)
+    expect(PinSchema.safeParse({ ...PIN_BASE, entityType: 'bot', entityId: UUID_ENTITY_ID }).success).toBe(false)
   })
 
   it('derives create-pin input from the shared flat entity reference', () => {
     expect(CreatePinSchema.safeParse({ entityType: 'model', entityId: MODEL_ENTITY_ID }).success).toBe(true)
+    expect(CreatePinSchema.safeParse({ entityType: 'agent', entityId: AGENT_ENTITY_ID }).success).toBe(true)
     expect(CreatePinSchema.safeParse({ entityType: 'topic', entityId: UUID_ENTITY_ID }).success).toBe(true)
     expect(CreatePinSchema.safeParse({ entityType: 'topic', entityId: MODEL_ENTITY_ID }).success).toBe(true)
   })
