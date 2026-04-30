@@ -126,7 +126,7 @@ export const ScheduledTaskEntitySchema = z.object({
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.object({
-  id: z.number(),
+  id: z.string(),
   taskId: z.string(),
   sessionId: z.string().nullable().optional(),
   runAt: z.string(),
@@ -209,7 +209,7 @@ export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntit
 
 // AgentSessionMessageEntity representing a message within a session
 export const AgentSessionMessageEntitySchema = z.object({
-  id: z.number(),
+  id: z.string(),
   sessionId: z.string(),
   role: SessionMessageRoleSchema,
   content: z.unknown(),

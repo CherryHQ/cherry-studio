@@ -126,6 +126,13 @@
       "when": 1777474700000,
       "tag": "0017_giant_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777534254558,
+      "tag": "0018_nosy_jazinda",
+      "breakpoints": true
     }
   ],
   "version": "7"

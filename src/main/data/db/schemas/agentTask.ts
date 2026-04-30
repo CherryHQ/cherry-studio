@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentTable } from './agent'
 
 export const agentTaskTable = sqliteTable(
@@ -34,7 +34,7 @@ export const agentTaskTable = sqliteTable(
 export const agentTaskRunLogTable = sqliteTable(
   'agent_task_run_log',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
+    id: uuidPrimaryKeyOrdered(),
     taskId: text()
       .notNull()
       .references(() => agentTaskTable.id, { onDelete: 'cascade' }),

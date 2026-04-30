@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1617cf3c-aa91-403b-b9d4-8816223d34b0",
-  "prevId": "6bef0872-c2b2-486d-a37f-17dc7baf8ec9",
+  "id": "47ff5ff8-38b1-40da-9156-1f3ae12b39ca",
+  "prevId": "1617cf3c-aa91-403b-b9d4-8816223d34b0",
   "tables": {
     "agent": {
       "name": "agent",
@@ -211,7 +211,7 @@
           "name": "active_chat_ids",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'[]'"
         },
@@ -677,10 +677,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": true
+          "autoincrement": false
         },
         "session_id": {
           "name": "session_id",
@@ -861,10 +861,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": true
+          "autoincrement": false
         },
         "task_id": {
           "name": "task_id",

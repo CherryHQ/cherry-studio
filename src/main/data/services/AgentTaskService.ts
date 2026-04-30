@@ -405,14 +405,14 @@ export class AgentTaskService {
 
   // --- Task run logs ---
 
-  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<number> {
+  async logTaskRun(log: Omit<InsertTaskRunLogRow, 'id'>): Promise<string> {
     const database = application.get('DbService').getDb()
     const result = await database.insert(taskRunLogsTable).values(log).returning({ id: taskRunLogsTable.id })
     return result[0].id
   }
 
   async updateTaskRunLog(
-    logId: number,
+    logId: string,
     updates: Partial<Pick<InsertTaskRunLogRow, 'status' | 'result' | 'error' | 'durationMs' | 'sessionId'>>
   ): Promise<void> {
     const database = application.get('DbService').getDb()
