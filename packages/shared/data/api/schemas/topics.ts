@@ -110,8 +110,9 @@ export type TopicSchemas = {
      *
      * The list is a server-composed view: pinned topics first (joining the
      * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `topic.orderKey`. Cursor encodes the section
-     * + last orderKey so paging across the boundary is seamless.
+     * unpinned topics ordered by `updatedAt DESC, id ASC` (recency + id
+     * tiebreak). The cursor encodes the section + last boundary so paging
+     * across the boundary is seamless.
      */
     GET: {
       query?: ListTopicsQuery

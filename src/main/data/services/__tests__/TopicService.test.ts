@@ -211,6 +211,25 @@ describe('TopicService', () => {
       const result = await service.listByCursor({ cursor: badCursor })
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
+
+    it('stale pin cursor (anchor pin row deleted) advances to topic section, no duplicates', async () => {
+      // Renderer paged into the pin section, the anchor pin was unpinned
+      // before the next page. Without the empty-result guard, the unpinned
+      // section would restart from the top and the renderer would see
+      // duplicates of items it already received.
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'u1', name: 'U1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'u2', name: 'U2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
+      ])
+      // Cursor points at a pin orderKey for a row that no longer exists.
+      const result = await service.listByCursor({ cursor: 'pin:a99' })
+      expect(result.items).toHaveLength(0)
+      expect(result.nextCursor).toBe('topic:')
+
+      const next = await service.listByCursor({ cursor: result.nextCursor })
+      expect(next.items.map((t) => t.id)).toEqual(['u2', 'u1'])
+    })
   })
 
   describe('delete', () => {

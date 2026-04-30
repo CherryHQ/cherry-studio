@@ -268,6 +268,13 @@ export class TopicService {
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
 
+      // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
+      // non-empty `cursor.orderKey`. Hand back a topic-section-start cursor so
+      // the next call advances cleanly instead of restarting topics from the top.
+      if (pinRows.length === 0 && cursor.orderKey !== '') {
+        return { items: [], nextCursor: encodeTopicSectionStart() }
+      }
+
       const hasMoreInPin = pinRows.length > limit
       for (const row of pinRows.slice(0, limit)) {
         items.push({ topic: rowToTopic(row.topic), pinOrderKey: row.pinOrderKey })

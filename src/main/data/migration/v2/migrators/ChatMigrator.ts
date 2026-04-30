@@ -823,6 +823,9 @@ export class ChatMigrator extends BaseMigrator {
       if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
 
       await db.run(sql`PRAGMA foreign_keys = OFF`)
+      // Bare finally would let a PRAGMA-reset failure (closed conn, writer-lock)
+      // overwrite the original tx error. Capture, reset, then rethrow the tx one.
+      let txErr: unknown
       try {
         await db.transaction(async (tx) => {
           await tx.insert(topicTable).values(batch.map((d) => d.topic))
@@ -830,9 +833,15 @@ export class ChatMigrator extends BaseMigrator {
             await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
           }
         })
-      } finally {
-        await db.run(sql`PRAGMA foreign_keys = ON`)
+      } catch (e) {
+        txErr = e
       }
+      try {
+        await db.run(sql`PRAGMA foreign_keys = ON`)
+      } catch (resetErr) {
+        logger.error('FK pragma reset failed', resetErr as Error, { hadTxError: txErr !== undefined })
+      }
+      if (txErr) throw txErr
 
       for (const id of batchIds) seenMessageIds.add(id)
       topicsInserted += batch.length
