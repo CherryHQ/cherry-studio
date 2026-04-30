@@ -17,7 +17,7 @@ import {
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { gateway } from 'ai'
+import { createGateway } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -332,7 +332,7 @@ export default class AiProvider {
   public async models(): Promise<Model[]> {
     // Gateway provider 使用 AI SDK 的 gateway API
     if (this.actualProvider.id === SystemProviderIds.gateway) {
-      const gatewayModels = (await gateway.getAvailableModels()).models
+      const gatewayModels = (await createGateway({ apiKey: this.actualProvider.apiKey }).getAvailableModels()).models
       return normalizeGatewayModels(this.actualProvider, gatewayModels)
     }
 
