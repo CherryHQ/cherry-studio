@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    }))
+    withContext: vi.fn(() => mockLogger)
   }
 }))
 
@@ -447,6 +446,78 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     // defaultAssistant's topic maps to the default-assistant id
     expect(internal.topicAssistantLookup.get('topic-X')).toBe('default')
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
+  })
+})
+
+describe('ChatMigrator validate orphan-ratio diagnostic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function makeStubDb(targetTopicCount: number) {
+    // All count queries → constant; all sample queries → []. Tracks call order
+    // so the first count query (topicTable) returns the desired target topic count.
+    const select = vi.fn()
+    let firstCountReturned = false
+    select.mockImplementation((arg) => {
+      if (arg) {
+        const get = vi.fn().mockImplementation(() => {
+          if (!firstCountReturned) {
+            firstCountReturned = true
+            return Promise.resolve({ count: targetTopicCount })
+          }
+          return Promise.resolve({ count: 0 })
+        })
+        return {
+          from: vi.fn().mockReturnValue({
+            get,
+            where: vi.fn().mockReturnValue({ get })
+          })
+        }
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue([]) })
+        })
+      }
+    })
+    return { select }
+  }
+
+  it('warns when orphanedAssistantTopics / topicCount > 0.5', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['topicCount'] = 100
+    m['skippedTopics'] = 100 // expectedTopics = 0 → no count_low error
+    m['orphanedAssistantTopics'] = 60 // 60/100 = 0.6 > 0.5
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['promotedToRootCount'] = 0
+
+    const ctx = { db: makeStubDb(0) }
+    await migrator.validate(ctx as any)
+
+    const warned = mockLogger.warn.mock.calls.some((call) =>
+      String(call[0]).includes('High orphan-assistant ratio: 60/100')
+    )
+    expect(warned).toBe(true)
+  })
+
+  it('does not warn when orphan ratio is at or below 0.5', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['topicCount'] = 100
+    m['skippedTopics'] = 100
+    m['orphanedAssistantTopics'] = 50 // exactly 0.5, not > 0.5
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['promotedToRootCount'] = 0
+
+    const ctx = { db: makeStubDb(0) }
+    await migrator.validate(ctx as any)
+
+    const warned = mockLogger.warn.mock.calls.some((call) => String(call[0]).includes('High orphan-assistant ratio'))
+    expect(warned).toBe(false)
   })
 })
 

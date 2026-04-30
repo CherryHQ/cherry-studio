@@ -613,18 +613,9 @@ export class ChatMigrator extends BaseMigrator {
   }
 
   /**
-   * Prepare a single topic and its messages for migration
-   *
-   * @param oldTopic - Source topic from Dexie (has messages, may lack metadata)
-   * @returns Prepared data or null if topic should be skipped
-   *
-   * ## Data Merging
-   *
-   * Topic data comes from two sources:
-   * - Dexie `topics` table: Has `id`, `messages[]`, `assistantId`
-   * - Redux `assistants[].topics[]`: Has metadata (`name`, `pinned`, `prompt`, etc.)
-   *
-   * We merge Redux metadata into the Dexie topic before transformation.
+   * Prepare a single topic and its messages. See README-ChatMigrator.md for the
+   * source layout (Dexie topic rows + Redux topic metadata + defaultAssistant slot)
+   * and the merge contract.
    */
   private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
     // Validate required fields
@@ -686,18 +677,21 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Fall back to default — null/'' would drive PATCH /assistants/ 400 loops in renderer.
-    let resolvedAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId || DEFAULT_ASSISTANT_ID
-
-    if (
-      resolvedAssistantId !== DEFAULT_ASSISTANT_ID &&
-      this.validAssistantIds &&
-      !this.validAssistantIds.has(resolvedAssistantId)
-    ) {
+    // Both branches (no source id, dangling FK) bump the orphan counter so the
+    // >50% diagnostic warning catches default-only users too.
+    const sourceAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
+    let resolvedAssistantId: string
+    if (!sourceAssistantId) {
+      resolvedAssistantId = DEFAULT_ASSISTANT_ID
+      this.orphanedAssistantTopics++
+    } else if (this.validAssistantIds && !this.validAssistantIds.has(sourceAssistantId)) {
       logger.warn(
-        `Topic ${oldTopic.id}: assistant ${resolvedAssistantId} not in assistant table, falling back to default`
+        `Topic ${oldTopic.id}: assistant ${sourceAssistantId} not in assistant table, falling back to default`
       )
       resolvedAssistantId = DEFAULT_ASSISTANT_ID
       this.orphanedAssistantTopics++
+    } else {
+      resolvedAssistantId = sourceAssistantId
     }
 
     // Write resolved value back for transformTopic consumption (avoids mutating original beyond this point)
