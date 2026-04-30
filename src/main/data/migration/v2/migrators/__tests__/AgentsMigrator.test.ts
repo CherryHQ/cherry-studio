@@ -87,14 +87,13 @@ describe('AgentsMigrator', () => {
 
   it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
     const run = vi.fn().mockResolvedValue(undefined)
-    // remapAgentPrefixIds uses db.transaction(); mock it to invoke the callback with
-    // a tx that returns no old-prefix rows (remapping is a no-op).
-    const txSelect = vi.fn().mockReturnValue({
+    // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
+    // mock to return empty arrays so the remap loop is a no-op.
+    const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
     })
-    const txUpdate = vi.fn()
-    const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
-      await cb({ select: txSelect, update: txUpdate })
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
@@ -102,31 +101,31 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run, transaction } }))
+    const result = await migrator.execute(createMigrationContext({ db: { run, select, update } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(45)
 
     const outer = getExecutedSql(run)
-    // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → INSERTs → COMMIT
+    // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → [INSERTs] → COMMIT
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
     expect(outer[2]).toBe('BEGIN')
-    // remapAgentPrefixIds adds PRAGMA FK OFF + FK ON around db.transaction()
-    // AgentsMigrator finally adds PRAGMA FK ON + DETACH
-    // run order tail: ...COMMIT, PRAGMA FK OFF, PRAGMA FK ON, PRAGMA FK ON, DETACH
-    expect(outer.at(-5)).toBe('COMMIT')
-    expect(outer.at(-4)).toBe('PRAGMA foreign_keys = OFF')
+    // After import COMMIT: remapAgentPrefixIds emits PRAGMA FK OFF → BEGIN → COMMIT → PRAGMA FK ON
+    // Then execute() finally emits PRAGMA FK ON → DETACH
+    // run tail: ...COMMIT(import), PRAGMA FK OFF, BEGIN, COMMIT, PRAGMA FK ON, PRAGMA FK ON, DETACH
+    expect(outer.at(-7)).toBe('COMMIT')
+    expect(outer.at(-6)).toBe('PRAGMA foreign_keys = OFF')
+    expect(outer.at(-5)).toBe('BEGIN')
+    expect(outer.at(-4)).toBe('COMMIT')
     expect(outer.at(-3)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    // INSERT statements are between BEGIN and COMMIT
-    const insertCalls = outer.slice(3, -5)
+    // INSERT statements sit between the initial BEGIN and the main COMMIT
+    const insertCalls = outer.slice(3, -7)
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
-    // db.transaction() called once for UUID remapping
-    expect(transaction).toHaveBeenCalledTimes(1)
     // No old-prefix IDs returned → no UPDATE calls
-    expect(txUpdate).not.toHaveBeenCalled()
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
@@ -241,14 +240,13 @@ describe('AgentsMigrator', () => {
 
     const run = vi.fn().mockResolvedValue(undefined)
     const get = vi.fn().mockResolvedValue({ count: 8 })
-    const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
-      const tx = {
-        select: vi.fn().mockReturnValue({ from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) }),
-        update: vi.fn()
-      }
-      await cb(tx)
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
     })
-    const migrationContext = createMigrationContext({ db: { run, get, transaction } })
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    })
+    const migrationContext = createMigrationContext({ db: { run, get, select, update } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)
