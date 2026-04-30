@@ -1,14 +1,17 @@
 import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { CreateChannelDto, UpdateChannelDto } from '@shared/data/api/schemas/channels'
-import type { ChannelType } from '@shared/data/api/schemas/channels'
+import type {
+  AgentChannelType,
+  CreateAgentChannelDto,
+  UpdateAgentChannelDto
+} from '@shared/data/api/schemas/agentChannels'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChannels')
 
-export const useChannels = (type?: ChannelType) => {
+export const useChannels = (type?: AgentChannelType) => {
   const { t } = useTranslation()
   const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
     query: type ? { type } : undefined,
@@ -18,7 +21,7 @@ export const useChannels = (type?: ChannelType) => {
 
   const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
   const createChannel = useCallback(
-    async (channelData: CreateChannelDto) => {
+    async (channelData: CreateAgentChannelDto) => {
       try {
         return await createTrigger({ body: channelData })
       } catch (err) {
@@ -34,7 +37,7 @@ export const useChannels = (type?: ChannelType) => {
     refresh: ({ args }) => ['/channels', `/channels/${args?.params.channelId}` as never]
   })
   const updateChannel = useCallback(
-    async (id: string, updates: UpdateChannelDto) => {
+    async (id: string, updates: UpdateAgentChannelDto) => {
       try {
         return await updateTrigger({ params: { channelId: id }, body: updates as never })
       } catch (err) {

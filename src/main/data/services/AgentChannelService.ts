@@ -9,7 +9,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { ChannelEntity, CreateChannelDto } from '@shared/data/api/schemas/channels'
+import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
@@ -22,21 +22,21 @@ function normalizeChannelConfig(config: unknown): Record<string, unknown> {
 }
 
 export class AgentChannelService {
-  private rowToEntity(row: ChannelRow): ChannelEntity {
+  private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
     return {
       ...clean,
-      type: row.type as ChannelEntity['type'],
-      config: normalizeChannelConfig(row.config) as ChannelEntity['config'],
-      permissionMode: (row.permissionMode ?? undefined) as ChannelEntity['permissionMode'],
+      type: row.type as AgentChannelEntity['type'],
+      config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
+      permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
-    } as ChannelEntity
+    } as AgentChannelEntity
   }
 
   async createChannel(
     data:
-      | CreateChannelDto
+      | CreateAgentChannelDto
       | {
           type: ChannelConfig['type']
           name: string
@@ -45,7 +45,7 @@ export class AgentChannelService {
           isActive?: boolean
           permissionMode?: string | null
         }
-  ): Promise<ChannelEntity> {
+  ): Promise<AgentChannelEntity> {
     const database = application.get('DbService').getDb()
 
     const insertData: InsertChannelRow = {
@@ -67,19 +67,19 @@ export class AgentChannelService {
     return this.rowToEntity(result[0])
   }
 
-  async getChannel(id: string): Promise<ChannelEntity | null> {
+  async getChannel(id: string): Promise<AgentChannelEntity | null> {
     const database = application.get('DbService').getDb()
     const result = await database.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1)
     return result[0] ? this.rowToEntity(result[0]) : null
   }
 
-  async findBySessionId(sessionId: string): Promise<ChannelEntity | null> {
+  async findBySessionId(sessionId: string): Promise<AgentChannelEntity | null> {
     const database = application.get('DbService').getDb()
     const result = await database.select().from(channelsTable).where(eq(channelsTable.sessionId, sessionId)).limit(1)
     return result[0] ? this.rowToEntity(result[0]) : null
   }
 
-  async listChannels(filters?: { agentId?: string; type?: string }): Promise<ChannelEntity[]> {
+  async listChannels(filters?: { agentId?: string; type?: string }): Promise<AgentChannelEntity[]> {
     const database = application.get('DbService').getDb()
 
     const agentCond = filters?.agentId ? eq(channelsTable.agentId, filters.agentId) : undefined
@@ -112,7 +112,7 @@ export class AgentChannelService {
     updates: Partial<
       Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'>
     >
-  ): Promise<ChannelEntity | null> {
+  ): Promise<AgentChannelEntity | null> {
     const database = application.get('DbService').getDb()
     const normalizedUpdates = {
       ...updates,
@@ -159,7 +159,7 @@ export class AgentChannelService {
     logger.info('Channel unsubscribed from task', { channelId, taskId })
   }
 
-  async getSubscribedChannels(taskId: string): Promise<ChannelEntity[]> {
+  async getSubscribedChannels(taskId: string): Promise<AgentChannelEntity[]> {
     const database = application.get('DbService').getDb()
     const subs = await database
       .select({ channelId: channelTaskSubscriptionsTable.channelId })

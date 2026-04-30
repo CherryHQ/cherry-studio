@@ -3,27 +3,27 @@ import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflow
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
-  ActiveChannelConfigSchemasByType,
-  ChannelListQuerySchema,
-  type ChannelSchemas,
-  CreateChannelSchema,
-  UpdateChannelSchema
-} from '@shared/data/api/schemas/channels'
+  ActiveAgentChannelConfigSchemasByType,
+  AgentChannelListQuerySchema,
+  type AgentChannelSchemas,
+  CreateAgentChannelSchema,
+  UpdateAgentChannelSchema
+} from '@shared/data/api/schemas/agentChannels'
 
-export const agentChannelHandlers: HandlersFor<ChannelSchemas> = {
+export const agentChannelHandlers: HandlersFor<AgentChannelSchemas> = {
   '/channels': {
     GET: async ({ query }) => {
-      const parsed = ChannelListQuerySchema.safeParse(query ?? {})
+      const parsed = AgentChannelListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const filters = Object.keys(parsed.data).length > 0 ? parsed.data : undefined
       return await agentChannelService.listChannels(filters)
     },
 
     POST: async ({ body }) => {
-      const parsed = CreateChannelSchema.safeParse(body)
+      const parsed = CreateAgentChannelSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       if (parsed.data.isActive !== false) {
-        const activeConfig = ActiveChannelConfigSchemasByType[parsed.data.type].safeParse(parsed.data.config)
+        const activeConfig = ActiveAgentChannelConfigSchemasByType[parsed.data.type].safeParse(parsed.data.config)
         if (!activeConfig.success) throw toDataApiError(activeConfig.error)
       }
       return await agentChannelWorkflowService.createChannel(parsed.data)
@@ -38,7 +38,7 @@ export const agentChannelHandlers: HandlersFor<ChannelSchemas> = {
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateChannelSchema.safeParse(body)
+      const parsed = UpdateAgentChannelSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       const channel = await agentChannelWorkflowService.updateChannel(params.channelId, parsed.data)
       if (!channel) throw DataApiErrorFactory.notFound('Channel', params.channelId)

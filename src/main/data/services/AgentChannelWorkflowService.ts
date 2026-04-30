@@ -2,10 +2,10 @@ import { loggerService } from '@logger'
 import { channelManager } from '@main/services/agents/services/channels'
 import { toDataApiError } from '@shared/data/api'
 import {
-  ActiveChannelConfigSchemasByType,
-  ChannelConfigSchemasByType,
-  type UpdateChannelDto
-} from '@shared/data/api/schemas/channels'
+  ActiveAgentChannelConfigSchemasByType,
+  AgentChannelConfigSchemasByType,
+  type UpdateAgentChannelDto
+} from '@shared/data/api/schemas/agentChannels'
 
 import { agentChannelService } from './AgentChannelService'
 
@@ -35,12 +35,14 @@ export class AgentChannelWorkflowService {
     }
   }
 
-  async updateChannel(channelId: string, updates: UpdateChannelDto) {
+  async updateChannel(channelId: string, updates: UpdateAgentChannelDto) {
     const existing = await agentChannelService.getChannel(channelId)
     if (!existing) return null
 
     const validatedConfig =
-      updates.config !== undefined ? ChannelConfigSchemasByType[existing.type].safeParse(updates.config) : undefined
+      updates.config !== undefined
+        ? AgentChannelConfigSchemasByType[existing.type].safeParse(updates.config)
+        : undefined
     if (validatedConfig && !validatedConfig.success) {
       throw toDataApiError(validatedConfig.error)
     }
@@ -48,7 +50,7 @@ export class AgentChannelWorkflowService {
     const nextIsActive = updates.isActive ?? existing.isActive
     const nextConfig = validatedConfig?.success ? validatedConfig.data : existing.config
     if (nextIsActive) {
-      const activeConfig = ActiveChannelConfigSchemasByType[existing.type].safeParse(nextConfig)
+      const activeConfig = ActiveAgentChannelConfigSchemasByType[existing.type].safeParse(nextConfig)
       if (!activeConfig.success) throw toDataApiError(activeConfig.error)
     }
 
