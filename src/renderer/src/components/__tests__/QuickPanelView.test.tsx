@@ -1,11 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit'
+import type * as VirtualListModule from '@renderer/components/VirtualList'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React, { useEffect } from 'react'
 import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as VirtualListModule from '@renderer/components/VirtualList'
 import type { QuickPanelListItem } from '../QuickPanel'
 import { QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
 
