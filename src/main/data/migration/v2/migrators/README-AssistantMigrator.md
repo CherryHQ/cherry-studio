@@ -54,7 +54,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | Missing/invalid id | `!id` or `typeof id !== 'string'` | Skip source, log warning |
 | Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |
-| All sources skipped | `preparedResults.length === 0 && sourceById.size === 0` | Fail prepare phase |
+| All sources skipped | `totalRawSources > 0 && skippedCount > 0 && preparedResults.length === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
 | Dangling MCP server ref | `mcpServerIdMapping` lookup miss | Drop the junction row, log warning |
 | Missing `mcpServerIdMapping` while assistants reference MCP servers | `sharedData.get('mcpServerIdMapping') === undefined` | Throw — `McpServerMigrator` must run before this one |
