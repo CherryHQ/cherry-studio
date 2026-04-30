@@ -350,14 +350,15 @@ export const searchOrchestrationPlugin = (
                 step.toolCalls.some((toolCall) => toolCall.toolName === BUILTIN_WEB_SEARCH_TOOL_NAME)
               )
 
-              return hasWebSearchCall
-                ? {
-                    ...stepConfig,
-                    activeTools: (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
-                      (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
-                    )
-                  }
-                : stepConfig
+              if (!hasWebSearchCall) return stepConfig
+              const filteredTools = (stepConfig?.activeTools ?? Object.keys(params.tools!)).filter(
+                (toolName) => toolName !== BUILTIN_WEB_SEARCH_TOOL_NAME
+              )
+              // When web search is the only tool, don't set activeTools to [] — Anthropic
+              // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
+              // already prevents actual re-searching.
+              if (filteredTools.length === 0) return stepConfig
+              return { ...stepConfig, activeTools: filteredTools }
             }
           }
         }
