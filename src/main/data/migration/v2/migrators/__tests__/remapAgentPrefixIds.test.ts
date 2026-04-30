@@ -2,10 +2,11 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
-import { AgentIdMigrationSeeder } from '@data/db/seeding/seeders/agentIdMigrationSeeder'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { remapAgentPrefixIds } from '../AgentsMigrator'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
@@ -43,23 +44,21 @@ async function insertTask(db: ReturnType<typeof setupTestDatabase>['db'], taskId
   })
 }
 
-describe('AgentIdMigrationSeeder', () => {
+describe('remapAgentPrefixIds', () => {
   const dbh = setupTestDatabase()
-  const seeder = new AgentIdMigrationSeeder()
 
   it('migrates agent_* prefix IDs to UUIDs and updates FK references', async () => {
     const agentId = 'agent_1234567890_abc123'
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, 'session_111_aaa', agentId)
 
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
 
     const agents = await dbh.db.select().from(agentTable)
     expect(agents).toHaveLength(1)
     expect(agents[0].id).toMatch(UUID_PATTERN)
     expect(agents[0].id).not.toBe(agentId)
 
-    // Session FK was updated to the new agent UUID
     const sessions = await dbh.db.select().from(agentSessionTable)
     expect(sessions[0].agentId).toBe(agents[0].id)
   })
@@ -75,13 +74,12 @@ describe('AgentIdMigrationSeeder', () => {
       content: { role: 'user', content: 'hello' } as never
     })
 
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
 
     const sessions = await dbh.db.select().from(agentSessionTable)
     const newSession = sessions.find((s) => s.id !== sessionId)!
     expect(newSession.id).toMatch(UUID_PATTERN)
 
-    // Message sessionId updated
     const messages = await dbh.db.select().from(agentSessionMessageTable)
     expect(messages[0].sessionId).toBe(newSession.id)
   })
@@ -98,7 +96,7 @@ describe('AgentIdMigrationSeeder', () => {
       status: 'success'
     })
 
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
 
     const tasks = await dbh.db.select().from(agentTaskTable)
     const newTask = tasks.find((t) => t.id !== taskId)!
@@ -112,7 +110,7 @@ describe('AgentIdMigrationSeeder', () => {
     await insertAgent(dbh.db, 'cherry-claw-default')
     await insertAgent(dbh.db, 'cherry-assistant-default')
 
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
 
     const agents = await dbh.db.select().from(agentTable)
     const ids = agents.map((a) => a.id)
@@ -128,14 +126,14 @@ describe('AgentIdMigrationSeeder', () => {
     await insertAgent(dbh.db, uuidId)
 
     const before = await dbh.db.select({ id: agentTable.id }).from(agentTable)
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
     const after = await dbh.db.select({ id: agentTable.id }).from(agentTable)
 
     expect(after.map((r) => r.id)).toContain(uuidId)
     expect(after.length).toBe(before.length)
   })
 
-  it('passes PRAGMA foreign_key_check after migration', async () => {
+  it('passes PRAGMA foreign_key_check after remapping', async () => {
     const agentId = 'agent_9999999999_zzz'
     const sessionId = 'session_9999999999_zzz'
     const taskId = 'task_9999999999_zzz'
@@ -143,7 +141,7 @@ describe('AgentIdMigrationSeeder', () => {
     await insertSession(dbh.db, sessionId, agentId)
     await insertTask(dbh.db, taskId, agentId)
 
-    await seeder.run(dbh.db)
+    await remapAgentPrefixIds(dbh.db)
 
     const violations = await dbh.db.all(sql`PRAGMA foreign_key_check`)
     expect(violations).toHaveLength(0)

@@ -1,6 +1,13 @@
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -16,6 +23,63 @@ import {
 } from './mappings/AgentsDbMappings'
 
 const logger = loggerService.withContext('AgentsMigrator')
+
+/** Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
+ *  Manages its own PRAGMA foreign_keys = OFF + transaction. Idempotent. */
+export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
+  // PRAGMA foreign_keys cannot be changed inside a transaction; set it before.
+  // libsql creates a fresh connection per transaction() — must re-set before each call.
+  await db.run(sql`PRAGMA foreign_keys = OFF`)
+  try {
+    await db.transaction(async (tx) => {
+      const oldAgents = await tx
+        .select({ id: agentTable.id })
+        .from(agentTable)
+        .where(
+          sql`${agentTable.id} GLOB 'agent_*' OR ${agentTable.id} = 'cherry-claw-default' OR ${agentTable.id} = 'cherry-assistant-default'`
+        )
+
+      for (const { id: oldId } of oldAgents) {
+        const newId = uuidv4()
+        await tx.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
+        await tx.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
+        await tx.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
+        await tx.update(agentTaskTable).set({ agentId: newId }).where(eq(agentTaskTable.agentId, oldId))
+        await tx.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
+      }
+
+      const oldSessions = await tx
+        .select({ id: agentSessionTable.id })
+        .from(agentSessionTable)
+        .where(sql`${agentSessionTable.id} GLOB 'session_*'`)
+
+      for (const { id: oldId } of oldSessions) {
+        const newId = uuidv4()
+        await tx.update(agentSessionTable).set({ id: newId }).where(eq(agentSessionTable.id, oldId))
+        await tx
+          .update(agentSessionMessageTable)
+          .set({ sessionId: newId })
+          .where(eq(agentSessionMessageTable.sessionId, oldId))
+        await tx.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
+        await tx.update(agentTaskRunLogTable).set({ sessionId: newId }).where(eq(agentTaskRunLogTable.sessionId, oldId))
+      }
+
+      const oldTasks = await tx
+        .select({ id: agentTaskTable.id })
+        .from(agentTaskTable)
+        .where(sql`${agentTaskTable.id} GLOB 'task_*'`)
+
+      for (const { id: oldId } of oldTasks) {
+        const newId = uuidv4()
+        await tx.update(agentTaskTable).set({ id: newId }).where(eq(agentTaskTable.id, oldId))
+        await tx.update(agentTaskRunLogTable).set({ taskId: newId }).where(eq(agentTaskRunLogTable.taskId, oldId))
+        await tx.update(agentChannelTaskTable).set({ taskId: newId }).where(eq(agentChannelTaskTable.taskId, oldId))
+      }
+    })
+  } finally {
+    await db.run(sql`PRAGMA foreign_keys = ON`)
+  }
+}
 
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
@@ -117,6 +181,10 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
+
+      // Remap old prefix IDs to UUID v4 after the import commits.
+      // remapAgentPrefixIds manages its own PRAGMA FK OFF + transaction.
+      await remapAgentPrefixIds(ctx.db)
     } catch (error) {
       if (!committed) {
         try {
