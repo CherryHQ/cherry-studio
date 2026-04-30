@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { assistantTable } from './assistant'
 import { groupTable } from './group'
 
@@ -26,19 +26,16 @@ export const topicTable = sqliteTable(
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-    // Sort order within group
-    sortOrder: integer().notNull().default(0),
-    // Pinning state and order
-    isPinned: integer({ mode: 'boolean' }).notNull().default(false),
-    pinnedOrder: integer().notNull().default(0),
+
+    // Fractional-indexing order key, partitioned by groupId.
+    ...orderKeyColumns,
 
     ...createUpdateDeleteTimestamps
   },
   (t) => [
     index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
-    index('topic_group_sort_idx').on(t.groupId, t.sortOrder),
     index('topic_updated_at_idx').on(t.updatedAt),
-    index('topic_is_pinned_idx').on(t.isPinned, t.pinnedOrder),
+    scopedOrderKeyIndex('topic', 'groupId')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
   ]
 )
