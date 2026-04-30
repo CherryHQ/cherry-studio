@@ -8,6 +8,8 @@
 import * as z from 'zod'
 
 import { type Topic, TopicSchema } from '../../types/topic'
+import type { CursorPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTOs
@@ -34,20 +36,41 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
  * DTO for updating an existing topic.
+ *
+ * Pin state and ordering are NOT updated through this DTO:
+ * - Pin/unpin: `POST /pins` / `DELETE /pins/:id`
+ * - Reorder: `PATCH /topics/:id/order` (see `OrderEndpoints`)
  */
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
   assistantId: true,
-  groupId: true,
-  sortOrder: true,
-  isPinned: true,
-  pinnedOrder: true
+  groupId: true
 }).partial()
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
- * DTO for setting active node
+ * Query parameters for `GET /topics` (cursor pagination + search).
+ */
+export const ListTopicsQuerySchema = z.strictObject({
+  /** Opaque cursor from previous page's `nextCursor`. */
+  cursor: z.string().optional(),
+  /** Page size; defaults to 50 in the service. */
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  /** Substring filter on topic name (case-insensitive LIKE). */
+  q: z.string().optional()
+})
+export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/**
+ * DTO for setting active node. Pins the exact `nodeId` — the conversation
+ * view truncates there; the user's next message forks the tree.
+ *
+ * Note: a navigator-style `descend` flag (walk down to a leaf before pinning)
+ * lives on `DeJeune/ai-service` along with its renderer consumers
+ * (`MessageGroup.tsx`, `SiblingNavigator.tsx`). It will be reintroduced when
+ * that branch lands; shipping the flag without consumers leaves an unreachable
+ * contract surface.
  */
 export const SetActiveNodeSchema = z.strictObject({
   /** Node ID to set as active */
@@ -68,14 +91,33 @@ export interface ActiveNodeResponse {
 // ============================================================================
 
 /**
- * Topic API Schema definitions
+ * Topic API Schema definitions.
+ *
+ * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
+ * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
+ * server-side; callers do not include the scope in the request body.
  */
 export type TopicSchemas = {
   /**
    * Topics collection endpoint
+   * @example GET /topics?limit=50
+   * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    */
   '/topics': {
+    /**
+     * List topics with cursor pagination + optional name search.
+     *
+     * The list is a server-composed view: pinned topics first (joining the
+     * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
+     * unpinned topics ordered by `updatedAt DESC, id ASC` (recency + id
+     * tiebreak). The cursor encodes the section + last boundary so paging
+     * across the boundary is seamless.
+     */
+    GET: {
+      query?: ListTopicsQuery
+      response: CursorPaginationResponse<Topic>
+    }
     /** Create a new topic (optionally fork from existing node) */
     POST: {
       body: CreateTopicDto
@@ -121,4 +163,4 @@ export type TopicSchemas = {
       response: ActiveNodeResponse
     }
   }
-}
+} & OrderEndpoints<'/topics'>
