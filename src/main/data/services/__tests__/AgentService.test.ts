@@ -80,7 +80,7 @@ describe('AgentService', () => {
   })
 
   describe('deleteAgent', () => {
-    it('hard-deletes a non-builtin agent and removes the row', async () => {
+    it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
       const deleted = await agentService.deleteAgent(id)
@@ -90,19 +90,7 @@ describe('AgentService', () => {
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
 
-    it('soft-deletes a builtin agent by setting deletedAt', async () => {
-      await insertAgent({ id: 'cherry-claw-default' })
-
-      const deleted = await agentService.deleteAgent('cherry-claw-default')
-
-      expect(deleted).toBe(true)
-      const [row] = await dbh.db.select().from(agentTable)
-      expect(row?.deletedAt).toBeTruthy()
-      // Row still exists in the table
-      expect(row?.id).toBe('cherry-claw-default')
-    })
-
-    it('purges agent pins on hard delete (pin table has no FK)', async () => {
+    it('purges agent pins on delete (pin table has no FK)', async () => {
       const { id } = await insertAgent({ id: 'agent_with_pin_001' })
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
       await pinService.pin({ entityType: 'agent', entityId: id })
@@ -112,16 +100,6 @@ describe('AgentService', () => {
 
       const remaining = await pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-    })
-
-    it('purges agent pins on builtin soft delete (pin table has no FK)', async () => {
-      await insertAgent({ id: 'cherry-claw-default' })
-      await pinService.pin({ entityType: 'agent', entityId: 'cherry-claw-default' })
-
-      await agentService.deleteAgent('cherry-claw-default')
-
-      const remaining = await pinService.listByEntityType('agent')
-      expect(remaining).toEqual([])
     })
   })
 
