@@ -181,7 +181,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
                       orientation="end"
                       style={{
                         width: '100%',
-                        marginTop: '36px',
+                        marginTop: '0px',
                         marginBottom: '0px'
                       }}
                     />
