@@ -358,7 +358,7 @@ export const searchOrchestrationPlugin = (
               // rejects empty tools arrays. The tool's internal cache (cachedSearchResultsPromise)
               // already prevents actual re-searching.
               if (filteredTools.length === 0) return stepConfig
-              return { ...stepConfig, activeTools: filteredTools }
+              return { ...(stepConfig ?? {}), activeTools: filteredTools }
             }
           }
         }
