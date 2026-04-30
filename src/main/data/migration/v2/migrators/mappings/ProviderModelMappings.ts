@@ -21,7 +21,12 @@ import type {
   ProviderSettings,
   ReasoningFormatType
 } from '@shared/data/types/provider'
-import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@types'
+import type {
+  LegacyAnthropicCacheControlSettings,
+  Model as LegacyModel,
+  ModelType,
+  Provider as LegacyProvider
+} from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ProviderModelMappings')
@@ -366,11 +371,13 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
   }
 
   if (legacy.anthropicCacheControl) {
+    // Legacy Redux state always used the old format with tokenThreshold etc.
+    const oldCache = legacy.anthropicCacheControl as unknown as LegacyAnthropicCacheControlSettings
     settings.cacheControl = {
-      enabled: true,
-      tokenThreshold: legacy.anthropicCacheControl.tokenThreshold,
-      cacheSystemMessage: legacy.anthropicCacheControl.cacheSystemMessage,
-      cacheLastNMessages: legacy.anthropicCacheControl.cacheLastNMessages
+      enabled: (oldCache.tokenThreshold ?? 0) > 0,
+      tokenThreshold: oldCache.tokenThreshold,
+      cacheSystemMessage: oldCache.cacheSystemMessage,
+      cacheLastNMessages: oldCache.cacheLastNMessages
     }
     hasValue = true
   }
