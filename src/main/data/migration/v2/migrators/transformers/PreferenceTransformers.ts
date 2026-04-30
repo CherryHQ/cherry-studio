@@ -398,9 +398,8 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
       override.basicAuthUsername = basicAuthUsername
     }
 
-    const basicAuthPassword = provider.basicAuthPassword?.trim()
-    if (basicAuthPassword) {
-      override.basicAuthPassword = basicAuthPassword
+    if (provider.basicAuthPassword) {
+      override.basicAuthPassword = provider.basicAuthPassword
     }
 
     if (Object.keys(override).length > 0) {

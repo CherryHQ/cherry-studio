@@ -57,6 +57,7 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
+import { shouldClearWebSearchProvider } from './utils/webSearchProviderGuard'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -454,14 +455,17 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
 
     // Clear web search provider if disabled or model has mandatory search.
     // Do not treat unloaded preference cache as "provider is not configured".
-    if (assistant.webSearchProviderId) {
-      if (isMandatoryWebSearchModel(model)) {
-        updateAssistant({ ...assistant, webSearchProviderId: undefined })
-      } else if (isWebSearchProviderOverridesLoaded) {
-        if (!webSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
-          updateAssistant({ ...assistant, webSearchProviderId: undefined })
-        }
-      }
+    if (
+      shouldClearWebSearchProvider({
+        hasProviderOverride: Boolean(assistant.webSearchProviderId),
+        isMandatoryWebSearchModel: isMandatoryWebSearchModel(model),
+        isProviderOverridesLoaded: isWebSearchProviderOverridesLoaded,
+        isSelectedProviderEnabled: assistant.webSearchProviderId
+          ? webSearchService.isWebSearchEnabled(assistant.webSearchProviderId)
+          : false
+      })
+    ) {
+      updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
 
     // Auto-enable/disable image generation based on model capabilities

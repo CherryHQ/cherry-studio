@@ -268,7 +268,7 @@ describe('PreferenceTransformers', () => {
             apiHost: 'https://searx.example.com',
             engines: ['news'],
             basicAuthUsername: 'user',
-            basicAuthPassword: 'pass'
+            basicAuthPassword: ' pass '
           }
         ]
       })
@@ -279,7 +279,7 @@ describe('PreferenceTransformers', () => {
           apiHost: 'https://searx.example.com',
           engines: ['news'],
           basicAuthUsername: 'user',
-          basicAuthPassword: 'pass'
+          basicAuthPassword: ' pass '
         }
       })
     })

@@ -1,4 +1,7 @@
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
+import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const webSearchEngineProviderMock = vi.hoisted(() => ({
@@ -24,6 +27,7 @@ import {
 
 const preferenceServiceMock = preferenceService as typeof preferenceService & {
   _resetMockState?: () => void
+  _getMockState?: () => Partial<UnifiedPreferenceType>
 }
 
 type WebSearchPreferenceAlias = keyof typeof WEB_SEARCH_PREFERENCE_KEYS
@@ -53,6 +57,14 @@ async function seedWebSearchPreferences(overrides: Partial<Record<WebSearchPrefe
 describe('webSearchPreferences', () => {
   beforeEach(() => {
     preferenceServiceMock._resetMockState?.()
+    vi.mocked(preferenceService.isCached).mockImplementation((key: UnifiedPreferenceKeyType) => {
+      const mockState = preferenceServiceMock._getMockState?.()
+      return mockState ? key in mockState && mockState[key] !== undefined : false
+    })
+    vi.mocked(preferenceService.getCachedValue).mockImplementation(<K extends UnifiedPreferenceKeyType>(key: K) => {
+      return preferenceServiceMock._getMockState?.()[key] as UnifiedPreferenceType[K] | undefined
+    })
+    MockCacheUtils.resetMocks()
     webSearchEngineProviderMock.search.mockReset()
     webSearchEngineProviderMock.search.mockResolvedValue({ results: [] })
   })
@@ -76,6 +88,20 @@ describe('webSearchPreferences', () => {
         engines: ['web'],
         basicAuthUsername: 'user',
         basicAuthPassword: 'pass'
+      })
+    )
+  })
+
+  it('preserves leading and trailing basic auth password spaces when resolving providers', () => {
+    const providers = resolveWebSearchProviders({
+      searxng: {
+        basicAuthPassword: ' pass with spaces '
+      }
+    })
+
+    expect(providers.find((provider) => provider.id === 'searxng')).toEqual(
+      expect.objectContaining({
+        basicAuthPassword: ' pass with spaces '
       })
     )
   })
@@ -261,6 +287,124 @@ describe('webSearchPreferences', () => {
     vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
 
     expect(getCachedRendererWebSearchState()).toBeNull()
+  })
+
+  it.each([
+    {
+      name: 'requires an API key even when the preset has a host',
+      overrides: {},
+      providerId: 'tavily',
+      expected: false
+    },
+    {
+      name: 'rejects blank API keys for API-key providers',
+      overrides: { tavily: { apiKeys: ['   '] } },
+      providerId: 'tavily',
+      expected: false
+    },
+    {
+      name: 'enables API-key providers with a configured key',
+      overrides: { tavily: { apiKeys: ['tavily-key'] } },
+      providerId: 'tavily',
+      expected: true
+    },
+    {
+      name: 'requires a host for non-API-key providers without preset hosts',
+      overrides: {},
+      providerId: 'searxng',
+      expected: false
+    },
+    {
+      name: 'enables non-API-key providers with a configured host',
+      overrides: { searxng: { apiHost: 'https://search.example.com' } },
+      providerId: 'searxng',
+      expected: true
+    },
+    {
+      name: 'enables non-API-key providers that have a preset host',
+      overrides: {},
+      providerId: 'exa-mcp',
+      expected: true
+    }
+  ] as const)('isWebSearchEnabled $name', async ({ overrides, providerId, expected }) => {
+    await seedWebSearchPreferences({ providerOverrides: overrides })
+
+    const service = new WebSearchService()
+
+    expect(service.isWebSearchEnabled(providerId)).toBe(expected)
+  })
+
+  it('keeps successful renderer web-search results when a non-abort query fails', async () => {
+    await seedWebSearchPreferences({ searchWithTime: false })
+    webSearchEngineProviderMock.search.mockImplementation(async (query: string) => {
+      if (query === 'bad') {
+        throw new Error('search failed')
+      }
+
+      return {
+        query,
+        results: [
+          {
+            title: query,
+            content: `content for ${query}`,
+            url: `https://example.com/${query}`
+          }
+        ]
+      }
+    })
+
+    vi.useFakeTimers()
+    const service = new WebSearchService()
+    const resultPromise = service.processWebsearch(
+      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
+      { websearch: { question: ['good', 'bad', 'better'] } },
+      'request-partial'
+    )
+
+    await vi.runAllTimersAsync()
+    const result = await resultPromise
+    vi.useRealTimers()
+
+    expect(result).toEqual({
+      query: 'good | bad | better',
+      results: [
+        {
+          title: 'good',
+          content: 'content for good',
+          url: 'https://example.com/good'
+        },
+        {
+          title: 'better',
+          content: 'content for better',
+          url: 'https://example.com/better'
+        }
+      ]
+    })
+    expect(cacheService.setShared).toHaveBeenCalledWith(
+      'chat.web_search.active_searches',
+      expect.objectContaining({
+        'request-partial': {
+          phase: 'partial_failure',
+          countAfter: 2
+        }
+      })
+    )
+  })
+
+  it('still throws renderer web-search abort failures', async () => {
+    await seedWebSearchPreferences({ searchWithTime: false })
+    const abortError = new DOMException('Request was aborted.', 'AbortError')
+    webSearchEngineProviderMock.search.mockRejectedValue(abortError)
+
+    const service = new WebSearchService()
+
+    await expect(
+      service.processWebsearch(
+        { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
+        { websearch: { question: ['abort me'] } },
+        'request-abort'
+      )
+    ).rejects.toBe(abortError)
   })
 
   it('uses async preferences for search when the renderer cache is cold', async () => {

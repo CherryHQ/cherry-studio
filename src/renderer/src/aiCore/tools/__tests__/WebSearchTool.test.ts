@@ -118,7 +118,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     expect(secondResult).toBe(searchResponse)
   })
 
-  it('returns an empty result when the configured provider is unavailable', async () => {
+  it('returns an explicit unavailable result when the configured provider is unavailable', async () => {
     mocks.getWebSearchProviderAsync.mockResolvedValue(undefined)
 
     const searchTool = webSearchToolWithPreExtractedKeywords(
@@ -127,9 +127,17 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       'request-1'
     )
 
-    await expect(searchTool.execute?.({ additionalContext: undefined }, {} as never)).resolves.toEqual({
-      query: '',
-      results: []
+    const result = await searchTool.execute?.({ additionalContext: undefined }, {} as never)
+
+    expect(result).toEqual({
+      query: 'latest cherry studio',
+      results: [
+        {
+          title: 'Web search provider unavailable',
+          content: 'Web search provider "tavily" is unavailable, so the prepared search could not be executed.',
+          url: 'web-search-provider-unavailable'
+        }
+      ]
     })
 
     expect(mocks.processWebsearch).not.toHaveBeenCalled()
@@ -137,5 +145,11 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       webSearchProviderId: 'tavily',
       requestId: 'request-1'
     })
+
+    const modelOutput = (searchTool as any).toModelOutput({ output: result })
+    const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
+
+    expect(modelText).toContain('configured provider is unavailable')
+    expect(modelText).not.toContain('No search needed')
   })
 })

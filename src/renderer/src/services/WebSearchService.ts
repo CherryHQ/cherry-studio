@@ -13,6 +13,7 @@ import type {
   WebSearchStatus
 } from '@renderer/types'
 import { addAbortController } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
 import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import type {
@@ -347,10 +348,44 @@ export class WebSearchService {
     )
     const searchResults = await Promise.allSettled(searchPromises)
 
+    const abortedSearch = searchResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected' && isAbortError(result.reason)
+    )
+    if (abortedSearch) {
+      throw abortedSearch.reason
+    }
+
+    const successfulSearches = searchResults.filter(
+      (result): result is PromiseFulfilledResult<WebSearchProviderResponse> => result.status === 'fulfilled'
+    )
+    const failedSearches: Array<{ result: PromiseRejectedResult; index: number }> = []
+    searchResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        failedSearches.push({ result, index })
+      }
+    })
+
+    failedSearches.forEach(({ result, index }) => {
+      logger.warn('Partial web search query failed', {
+        requestId,
+        query: questions[index],
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+      })
+    })
+
     // 统计成功完成的搜索数量
-    const successfulSearchCount = searchResults.filter((result) => result.status === 'fulfilled').length
+    const successfulSearchCount = successfulSearches.length
     logger.verbose(`Successful search count: ${successfulSearchCount}`)
-    if (successfulSearchCount > 1) {
+    if (failedSearches.length > 0 && successfulSearchCount > 0) {
+      await this.setWebSearchStatus(
+        requestId,
+        {
+          phase: 'partial_failure',
+          countAfter: successfulSearchCount
+        },
+        1000
+      )
+    } else if (successfulSearchCount > 1) {
       await this.setWebSearchStatus(
         requestId,
         {
@@ -361,15 +396,14 @@ export class WebSearchService {
       )
     }
 
+    if (successfulSearchCount === 0) {
+      throw failedSearches[0]?.result.reason ?? new Error('Web search failed with no successful results')
+    }
+
     let finalResults: WebSearchProviderResult[] = []
-    searchResults.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        if (result.value.results) {
-          finalResults.push(...result.value.results)
-        }
-      }
-      if (result.status === 'rejected') {
-        throw result.reason
+    successfulSearches.forEach((result) => {
+      if (result.value.results) {
+        finalResults.push(...result.value.results)
       }
     })
 
@@ -457,7 +491,7 @@ export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides)
       apiHost: override?.apiHost?.trim() || preset.defaultApiHost,
       engines: override?.engines || [],
       basicAuthUsername: override?.basicAuthUsername?.trim() || '',
-      basicAuthPassword: override?.basicAuthPassword?.trim() || ''
+      basicAuthPassword: override?.basicAuthPassword ?? ''
     }
   })
 }

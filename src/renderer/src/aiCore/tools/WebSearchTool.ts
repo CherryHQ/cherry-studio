@@ -12,6 +12,7 @@ const logger = loggerService.withContext('WebSearchTool')
 export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
 
 const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
+const WEB_SEARCH_PROVIDER_UNAVAILABLE_URL = 'web-search-provider-unavailable'
 
 function normalizeWebSearchQueries(questions: string[]): string[] {
   if (questions[0] === 'not_needed') {
@@ -97,8 +98,14 @@ You can use this tool as-is to search with the prepared queries, or provide addi
             requestId
           })
           return {
-            query: '',
-            results: []
+            query: finalQueries.join(' | '),
+            results: [
+              {
+                title: 'Web search provider unavailable',
+                content: `Web search provider "${webSearchProviderId}" is unavailable, so the prepared search could not be executed.`,
+                url: WEB_SEARCH_PROVIDER_UNAVAILABLE_URL
+              }
+            ]
           }
         }
 
@@ -122,7 +129,10 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     },
     toModelOutput: ({ output: results }) => {
       let summary = 'No search needed based on the query analysis.'
-      if (results.query && results.results.length > 0) {
+      const hasUnavailableResult = results.results.some((result) => result.url === WEB_SEARCH_PROVIDER_UNAVAILABLE_URL)
+      if (hasUnavailableResult) {
+        summary = 'Web search was requested but the configured provider is unavailable.'
+      } else if (results.query && results.results.length > 0) {
         summary = `Found ${results.results.length} relevant sources. Use [number] format to cite specific information.`
       }
 
