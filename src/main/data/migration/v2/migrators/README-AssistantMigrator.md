@@ -33,7 +33,7 @@ A field on `primary` "wins" only when it is **present**. Otherwise `secondary`'s
 |------|--------------------------------------------------|
 | `string` | `undefined`, `null`, `''` |
 | Array | `undefined`, `null`, `[]` |
-| Plain object | `undefined`, `null`, `{}` (e.g. default-seeded `customParameters: {}`) |
+| Plain object | `undefined`, `null`, `{}` (e.g. default-seeded `defaultModel: {}`) |
 | Boolean | `undefined`, `null` only — `false` is a real choice |
 | Object (settings root) | `undefined`, `null` (the settings root itself; nested keys follow the same rules) |
 
