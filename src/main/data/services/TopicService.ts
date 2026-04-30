@@ -1,6 +1,4 @@
-/**
- * Topic Service - handles topic CRUD, branch switching, and ordering.
- */
+// Topic CRUD, branch switching, ordering.
 
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
@@ -41,18 +39,11 @@ function rowToTopic(row: TopicRow): Topic {
   }
 }
 
-/** Build the scope predicate for a topic's groupId (nullable-aware). */
 function topicScopePredicate(groupId: string | null): SQL {
   return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
 }
 
-/**
- * Cursor format:
- *   `pin:<pin.orderKey>`           — boundary inside the pin section
- *   `topic:<updatedAt>:<id>`       — boundary inside the unpinned section
- *                                    (sorted by updatedAt DESC, id ASC tie-break)
- *   `topic:`                       — pin section exhausted, start of unpinned
- */
+// Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
 type Cursor =
   | { section: 'pin'; orderKey: string }
   | { section: 'topic'; updatedAt: number; id: string }
@@ -60,13 +51,8 @@ type Cursor =
 
 const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
 
-/**
- * Cursors are server-issued opaque tokens. A renderer holding a stale cursor
- * (older app version, schema rotated) should not be locked out with a 422 —
- * fall back to the first page and warn so the renderer can transparently
- * recover. Throwing here surfaces as a permanent client-side error with no
- * recovery path.
- */
+// Stale/legacy cursors fall back to first page (warn) instead of throwing —
+// cursors are opaque server-issued tokens, a 422 here would lock out renderers.
 function decodeCursor(raw: string): Cursor {
   const firstColon = raw.indexOf(':')
   if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
@@ -116,9 +102,6 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
 }
 
 export class TopicService {
-  /**
-   * Get a topic by ID
-   */
   async getById(id: string): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
@@ -135,17 +118,13 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  /**
-   * Create a new topic.
-   */
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
     const groupId = dto.groupId ?? null
 
     const row = (await db.transaction(async (tx) => {
-      // Verify source message exists in-tx so a concurrent delete between the
-      // check and insert can't leave the new topic pointing at a deleted node.
-      // Inlined SELECT — messageService.getById has no tx-aware overload.
+      // In-tx so a concurrent delete can't slip between check and insert;
+      // inlined because messageService.getById has no tx-aware overload.
       if (dto.sourceNodeId) {
         const [src] = await tx
           .select({ id: messageTable.id })
@@ -180,18 +159,11 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  /**
-   * Update a topic.
-   *
-   * Pin state and ordering are NOT mutable through this DTO — pin/unpin goes
-   * through `POST /pins` / `DELETE /pins/:id`, and reorder goes through
-   * `PATCH /topics/:id/order`.
-   */
+  /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
     const topic = await db.transaction(async (tx) => {
-      // Verify topic exists (inline check — getById has no tx-aware overload).
       const [existing] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -206,9 +178,6 @@ export class TopicService {
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
       const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
-      // Defensive: the transaction collapses the getById-then-write race, but
-      // surface a clean NOT_FOUND if the row vanished anyway instead of letting
-      // rowToTopic crash on undefined.
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
       return rowToTopic(row)
@@ -220,50 +189,31 @@ export class TopicService {
   }
 
   /**
-   * Delete a topic and all its messages (hard delete).
-   *
-   * Purges the polymorphic pin row alongside the topic so unpinning and
-   * deletion stay consistent — see `pinTable` JSDoc for the consumer-side
-   * `purgeForEntity` contract.
-   *
-   * **Soft-delete invariant**: this service treats `deletedAt`-set rows as
-   * not-existing for read paths (see `getById` / `listByCursor`'s `isNull`
-   * filters). The current `delete()` is hard delete, so the column stays
-   * NULL in practice. If a future caller introduces a soft-delete path for
-   * topics, it MUST also call `pinService.purgeForEntity(tx, 'topic', id)`
-   * in the same transaction — otherwise the pin row outlives the topic and
-   * `listByCursor`'s pin section JOIN silently hides the row from BOTH the
-   * pinned and unpinned sections, making the topic invisible with no log.
+   * Hard delete + tag/pin purge. Any future soft-delete path MUST also
+   * call `pinService.purgeForEntity(tx, 'topic', id)` — a surviving pin row
+   * makes `listByCursor`'s JOIN silently hide the topic from both sections.
    *
    * TODO: Clean up associated files (images, attachments) from disk.
    */
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
-    // Verify topic exists
     await this.getById(id)
 
     await db.transaction(async (tx) => {
-      // Hard delete all messages first (due to foreign key)
       await tx.delete(messageTable).where(eq(messageTable.topicId, id))
       await tagService.purgeForEntity(tx, 'topic', id)
       await pinService.purgeForEntity(tx, 'topic', id)
-
-      // Hard delete topic
       await tx.delete(topicTable).where(eq(topicTable.id, id))
     })
 
     logger.info('Deleted topic', { id })
   }
 
-  /**
-   * Set the active node for a topic
-   */
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
 
     await db.transaction(async (tx) => {
-      // Verify topic exists (in-tx, soft-delete excluded)
       const [topic] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -271,7 +221,6 @@ export class TopicService {
         .limit(1)
       if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
 
-      // Verify node exists, belongs to this topic, and is not soft-deleted
       const [message] = await tx
         .select({ topicId: messageTable.topicId })
         .from(messageTable)
@@ -295,22 +244,11 @@ export class TopicService {
   }
 
   /**
-   * Cursor-paginated topic list with optional name search.
-   *
-   * The view is composed:
-   *  1. Pinned topics, joined through `pin` on `entityType='topic'`, ordered
-   *     by `pin.orderKey` ASC. Pin order is user-controlled (drag-to-reorder).
-   *  2. Unpinned topics, ordered by `topic.updatedAt DESC, topic.id ASC`.
-   *     Recency-by-default matches the v1 list-time sort and what users
-   *     intuitively expect ("new conversation goes to the top"). `topic.orderKey`
-   *     is still maintained on the row for a future drag-mode toggle (see
-   *     data-ordering-guide §"Why no dual-mode sort"), but the default list
-   *     reads ignore it for unpinned rows.
-   *
-   * The cursor encodes which section the caller is in so subsequent pages
-   * continue from the right boundary, and a partial pin page that fits into
-   * the limit transparently spills into the unpinned section to fill the
-   * remainder.
+   * Two-section page: pinned topics (via `pin` JOIN, ordered by pin.orderKey)
+   * then unpinned (ordered by `updatedAt DESC, id ASC`). A partial pin page
+   * spills into the unpinned section to fill `limit`. `topic.orderKey` is
+   * maintained but unused at read time — it's there for a future drag-mode
+   * toggle.
    */
   async listByCursor(query: ListTopicsQuery = {}): Promise<CursorPaginationResponse<Topic>> {
     const db = application.get('DbService').getDb()
@@ -320,7 +258,6 @@ export class TopicService {
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
-    // ── Section 1: pinned topics ─────────────────────────────────────────
     if (cursor.section === 'pin') {
       const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
       const pinRows = await db
@@ -345,20 +282,16 @@ export class TopicService {
       }
 
       if (items.length >= limit) {
-        // Pin section exactly filled the page; next page starts the unpinned section.
         return {
           items: items.map((i) => i.topic),
           nextCursor: encodeTopicSectionStart()
         }
       }
-      // Pin section exhausted with room to spare — fall through.
     }
 
-    // ── Section 2: unpinned topics ───────────────────────────────────────
     // Tuple cursor `(updatedAt, id)` over `ORDER BY updatedAt DESC, id ASC`:
-    // the next page contains rows with smaller `updatedAt`, OR rows tied on
-    // `updatedAt` with a strictly larger `id`. Without the id tiebreaker
-    // pages would dedup or skip rows whenever two topics share a timestamp.
+    // the id tiebreaker prevents dedup/skip across pages when two rows share
+    // an updatedAt.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
 
@@ -391,10 +324,6 @@ export class TopicService {
     return { items: items.map((i) => i.topic), nextCursor }
   }
 
-  /**
-   * Move a single topic relative to an anchor. Scope (groupId) is inferred
-   * from the target row.
-   */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
@@ -412,12 +341,7 @@ export class TopicService {
     })
   }
 
-  /**
-   * Apply a batch of reorder moves atomically. Cross-scope batches (mixing
-   * topics from different groupId partitions) are rejected with
-   * VALIDATION_ERROR — reorder is a same-scope operation. `groupId = NULL`
-   * is its own scope (the "ungrouped" partition).
-   */
+  /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
