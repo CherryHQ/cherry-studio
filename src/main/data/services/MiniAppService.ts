@@ -44,7 +44,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
     ...clean,
     type: clean.type,
     status: clean.status,
-    sortOrder: clean.sortOrder ?? 0,
+    sortOrder: row.sortOrder,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
     createdAt: timestampToISO(clean.createdAt),
     updatedAt: timestampToISO(clean.updatedAt)
