@@ -362,22 +362,12 @@ function dedupMoves(moves: Array<{ id: string; anchor: OrderRequest }>): {
   deduped: Array<{ id: string; anchor: OrderRequest }>
   droppedCount: number
 } {
-  const seen = new Set<string>()
-  const dedupedReversed: Array<{ id: string; anchor: OrderRequest }> = []
-
-  for (let i = moves.length - 1; i >= 0; i--) {
-    const move = moves[i]
-    if (seen.has(move.id)) {
-      continue
-    }
-
-    seen.add(move.id)
-    dedupedReversed.push(move)
+  const byId = new Map<string, { id: string; anchor: OrderRequest }>()
+  for (const m of moves) {
+    byId.set(m.id, m)
   }
-
-  const deduped = dedupedReversed.reverse()
-  const droppedCount = moves.length - deduped.length
-  return { deduped, droppedCount }
+  const droppedCount = moves.length - byId.size
+  return { deduped: [...byId.values()], droppedCount }
 }
 
 /**

@@ -226,7 +226,7 @@ describe('orderKey', () => {
       expect(await readIds()).toEqual(['b', 'c', 'a'])
     })
 
-    it('dedups by last occurrence order before applying sequential moves', async () => {
+    it('dedups by last occurrence then applies moves in stable dedup output order', async () => {
       await seedFx(['a', 'b', 'c', 'd'])
       await dbh.db.transaction(async (tx) => {
         await applyMoves(
@@ -241,7 +241,7 @@ describe('orderKey', () => {
         )
       })
 
-      expect(await readIds()).toEqual(['d', 'b', 'c', 'a'])
+      expect(await readIds()).toEqual(['b', 'c', 'd', 'a'])
     })
 
     it('is a no-op when newKey === currentKey', async () => {

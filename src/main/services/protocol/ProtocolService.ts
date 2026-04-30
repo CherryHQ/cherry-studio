@@ -1,6 +1,5 @@
 import { exec } from 'node:child_process'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
@@ -61,17 +60,13 @@ export class ProtocolService extends BaseService {
   }
 
   private registerProtocolScheme() {
-    // Dev (electron runs the app from source): register electron.exe + resolved app entry.
-    // Packaged: register the app executable only. Do not call both — the one-arg form would
-    // overwrite the dev registration on Windows and deep links would launch Electron with the
-    // URL as argv[1] ("Unable to find Electron app at …").
     if (process.defaultApp) {
       if (process.argv.length >= 2) {
-        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [path.resolve(process.argv[1])])
+        app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
       }
-    } else {
-      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
     }
+
+    app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
   }
 
   private handleProtocolUrl(url: string) {

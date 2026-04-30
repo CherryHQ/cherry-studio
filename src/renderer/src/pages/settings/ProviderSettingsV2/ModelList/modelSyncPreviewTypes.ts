@@ -3,7 +3,6 @@
  * No DataApi route; keep out of @shared to avoid implying a main-process contract.
  */
 
-import { ModelSyncReferenceImpactSchema } from '@shared/data/api/schemas/providers'
 import { ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -28,6 +27,15 @@ export const ModelSyncPreviewMissingItemSchema = z.strictObject({
   replacement: UniqueModelIdSchema.optional()
 })
 export type ModelSyncPreviewMissingItem = z.infer<typeof ModelSyncPreviewMissingItemSchema>
+
+export const ModelSyncReferenceImpactSchema = z.strictObject({
+  uniqueModelId: UniqueModelIdSchema,
+  assistantCount: z.number().int().nonnegative(),
+  knowledgeCount: z.number().int().nonnegative(),
+  preferenceReferences: z.array(z.string()),
+  strongReferenceCount: z.number().int().nonnegative()
+})
+export type ModelSyncReferenceImpact = z.infer<typeof ModelSyncReferenceImpactSchema>
 
 export const ModelSyncReferenceSummarySchema = z.strictObject({
   impactedModelCount: z.number().int().nonnegative(),

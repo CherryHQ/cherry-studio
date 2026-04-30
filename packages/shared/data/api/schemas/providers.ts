@@ -7,7 +7,6 @@
 import * as z from 'zod'
 
 import type { EndpointType, Model } from '../../types/model'
-import { UniqueModelIdSchema } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -105,15 +104,6 @@ export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 export interface ProviderPresetMetadata {
   websites?: ProviderWebsites
 }
-
-export const ModelSyncReferenceImpactSchema = z.strictObject({
-  uniqueModelId: UniqueModelIdSchema,
-  assistantCount: z.number().int().nonnegative(),
-  knowledgeCount: z.number().int().nonnegative(),
-  preferenceReferences: z.array(z.string()),
-  strongReferenceCount: z.number().int().nonnegative()
-})
-export type ModelSyncReferenceImpact = z.infer<typeof ModelSyncReferenceImpactSchema>
 
 // Re-exported for handler-side re-use
 export type { ApiKeyEntry, AuthConfig, EndpointConfig, ProviderSettings }

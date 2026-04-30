@@ -13,7 +13,7 @@ index 243aa9c186c2b647bfd307984e3a8ad8d2f00086..14406ffff6acb8a3d38eb338d20da069
 +   */
 +  reasoning_effort: import_v42.z.enum(["high", "max"]).optional()
  });
-
+ 
  // src/chat/deepseek-prepare-tools.ts
 @@ -470,7 +474,8 @@ var DeepSeekChatLanguageModel = class {
          messages,
@@ -40,7 +40,7 @@ index 6a2d2d14739e3b50faa398ff94092bd5b0ea874d..947eb026b4eecd256c1009be364b35aa
 +   */
 +  reasoning_effort: z2.enum(["high", "max"]).optional()
  });
-
+ 
  // src/chat/deepseek-prepare-tools.ts
 @@ -459,7 +463,8 @@ var DeepSeekChatLanguageModel = class {
          messages,
