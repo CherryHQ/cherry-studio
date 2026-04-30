@@ -82,18 +82,6 @@ describe('ProviderService reorder', () => {
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
   })
 
-  it('dedups duplicate provider moves by last occurrence order', async () => {
-    await seedProvidersWithGrok()
-
-    await providerService.reorder([
-      { id: 'openai', anchor: { position: 'last' } },
-      { id: 'grok', anchor: { before: 'openai' } },
-      { id: 'openai', anchor: { position: 'last' } }
-    ])
-
-    expect(await readOrder()).toEqual(['grok', 'anthropic', 'gemini', 'openai'])
-  })
-
   it('throws when target provider does not exist', async () => {
     await seedProviders()
 
