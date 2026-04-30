@@ -10,6 +10,8 @@ export const BUILTIN_WEB_SEARCH_TOOL_NAME = 'builtin_web_search'
 
 const MAX_BUILTIN_WEB_SEARCH_QUERIES = 3
 
+const DEEPSEEK_DSML_SUPPRESSION = '\n- Do not output DSML tags'
+
 function normalizeWebSearchQueries(questions: string[]): string[] {
   if (questions[0] === 'not_needed') {
     return ['not_needed']
@@ -120,7 +122,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         '{question}',
         "Based on the search results, please answer the user's question with proper citations."
       ).replace('{references}', referenceContent)
-      const instructions = isDeepSeekModel ? `${fullInstructions}\n- Do not output DSML tags` : fullInstructions
+      const instructions = isDeepSeekModel ? `${fullInstructions}${DEEPSEEK_DSML_SUPPRESSION}` : fullInstructions
       return {
         type: 'content',
         value: [

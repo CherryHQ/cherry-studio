@@ -208,7 +208,7 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
-export const isDeepSeekModel = (model?: Model | null): boolean => {
+export const isDeepSeekModel = (model?: Model): boolean => {
   if (!model) {
     return false
   }
