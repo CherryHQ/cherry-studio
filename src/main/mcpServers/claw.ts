@@ -588,10 +588,7 @@ class ClawServer {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }
 
-    await agentChannelWorkflowService.updateChannel(channelId, {
-      type: existing.type,
-      ...updates
-    })
+    await agentChannelWorkflowService.updateChannel(channelId, updates)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
     return {

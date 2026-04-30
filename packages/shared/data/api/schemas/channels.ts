@@ -159,7 +159,6 @@ export const CreateChannelSchema = z.discriminatedUnion('type', [
 export type CreateChannelDto = z.infer<typeof CreateChannelSchema>
 
 export const UpdateChannelSchema = z.strictObject({
-  type: ChannelTypeSchema.optional(),
   name: z.string().optional(),
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),

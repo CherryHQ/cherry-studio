@@ -413,7 +413,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         const existingChannel = channelList.find((channel) => channel.id === channelId)
         if (!existingChannel) return
 
-        const apiUpdates: Record<string, unknown> = { type: existingChannel.type }
+        const apiUpdates: Record<string, unknown> = {}
         if (updates.name !== undefined) apiUpdates.name = updates.name
         if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
         if (updates.config !== undefined) apiUpdates.config = updates.config

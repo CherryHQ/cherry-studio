@@ -13,6 +13,7 @@ import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/se
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
+  type AgentConfiguration,
   AgentConfigurationSchema,
   type AgentEntity,
   type CreateAgentDto,
@@ -24,13 +25,21 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
+function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
+  if (raw == null) return undefined
+  const parsed = AgentConfigurationSchema.safeParse(raw)
+  if (parsed.success) return parsed.data
+  logger.warn('Agent configuration drift detected', { issues: parsed.error.issues.map((i) => i.message) })
+  return raw as AgentConfiguration
+}
+
 function rowToAgent(row: AgentRow): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     accessiblePaths: row.accessiblePaths,
-    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined,
+    configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

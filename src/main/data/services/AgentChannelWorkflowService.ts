@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { channelManager } from '@main/services/agents/services/channels'
-import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
+import { toDataApiError } from '@shared/data/api'
 import {
   ActiveChannelConfigSchemasByType,
   ChannelConfigSchemasByType,
@@ -39,10 +39,6 @@ export class AgentChannelWorkflowService {
     const existing = await agentChannelService.getChannel(channelId)
     if (!existing) return null
 
-    if (updates.type && updates.type !== existing.type) {
-      throw DataApiErrorFactory.validation({ type: ['channel type cannot be changed'] })
-    }
-
     const validatedConfig =
       updates.config !== undefined ? ChannelConfigSchemasByType[existing.type].safeParse(updates.config) : undefined
     if (validatedConfig && !validatedConfig.success) {
@@ -56,9 +52,8 @@ export class AgentChannelWorkflowService {
       if (!activeConfig.success) throw toDataApiError(activeConfig.error)
     }
 
-    const { type: _type, ...updatesWithoutType } = updates
     const serviceUpdates = {
-      ...updatesWithoutType,
+      ...updates,
       ...(validatedConfig?.success ? { config: validatedConfig.data } : {})
     }
 

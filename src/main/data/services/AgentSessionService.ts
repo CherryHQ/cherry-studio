@@ -22,6 +22,14 @@ import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionService')
 
+function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
+  if (raw == null) return undefined
+  const parsed = AgentConfigurationSchema.safeParse(raw)
+  if (parsed.success) return parsed.data
+  logger.warn('Session configuration drift detected', { issues: parsed.error.issues.map((i) => i.message) })
+  return raw as AgentConfiguration
+}
+
 function agentRowToSessionDefaults(row: Record<string, unknown>): {
   type: AgentType
   model: string
@@ -42,7 +50,7 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     name: (row.name as string) || '',
     model: row.model as string,
     accessiblePaths: row.accessiblePaths as string[],
-    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined
+    configuration: parseConfiguration(row.configuration)
   }
 }
 
@@ -52,7 +60,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
     accessiblePaths: row.accessiblePaths,
-    configuration: row.configuration != null ? AgentConfigurationSchema.parse(row.configuration) : undefined,
+    configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
