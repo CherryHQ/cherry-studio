@@ -18,7 +18,7 @@ vi.mock('@renderer/hooks/useProviders', () => ({
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
 }))
 
-vi.mock('../../AnthropicSettings', () => ({
+vi.mock('../../ProviderSpecific/AnthropicSettings', () => ({
   default: () => <div>anthropic-settings</div>
 }))
 

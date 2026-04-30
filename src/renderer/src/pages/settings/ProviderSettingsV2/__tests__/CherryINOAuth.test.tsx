@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CherryINOAuth from '../CherryINOAuth'
+import CherryINOAuth from '../ProviderSpecific/CherryINOAuth'
 
 const useProviderMock = vi.fn()
 const useProviderAuthConfigMock = vi.fn()

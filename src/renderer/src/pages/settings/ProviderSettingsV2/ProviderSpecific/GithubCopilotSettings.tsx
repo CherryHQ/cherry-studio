@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ProviderSettingsSubtitle } from './components/ProviderSettingsPrimitives'
+import { ProviderSettingsSubtitle } from '../shared/primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('GithubCopilotSettings')
 

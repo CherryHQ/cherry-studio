@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ProviderSpecificSettings from '../ProviderSpecificSettings'
+import ProviderSpecificSettings from '../../ProviderSpecific/ProviderSpecificSettings'
 
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
@@ -23,19 +23,19 @@ vi.mock('../OpenAIAlert', () => ({
   default: () => <div>openai-alert</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderOAuth', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/ProviderOAuth', () => ({
   default: ({ providerId }: any) => <div>{`provider-oauth-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/CherryINOAuth', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/CherryINOAuth', () => ({
   default: ({ providerId }: any) => <div>{`cherryin-oauth-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/DMXAPISettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/DMXAPISettings', () => ({
   default: ({ providerId }: any) => <div>{`dmxapi-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/OVMSSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/OVMSSettings', () => ({
   default: () => <div>ovms-settings</div>
 }))
 
@@ -43,23 +43,23 @@ vi.mock('../AnthropicAuthSection', () => ({
   default: ({ providerId }: any) => <div>{`anthropic-auth-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/LMStudioSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/LMStudioSettings', () => ({
   default: ({ providerId }: any) => <div>{`lmstudio-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/GPUStackSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/GPUStackSettings', () => ({
   default: ({ providerId }: any) => <div>{`gpustack-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/GithubCopilotSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/GithubCopilotSettings', () => ({
   default: ({ providerId }: any) => <div>{`copilot-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/AwsBedrockSettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/AwsBedrockSettings', () => ({
   default: ({ providerId }: any) => <div>{`aws-bedrock-settings-${providerId}`}</div>
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettingsV2/VertexAISettings', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/VertexAISettings', () => ({
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 

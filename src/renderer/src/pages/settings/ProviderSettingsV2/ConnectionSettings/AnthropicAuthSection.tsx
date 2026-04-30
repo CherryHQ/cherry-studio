@@ -1,0 +1,57 @@
+import { useProvider, useProviderMutations } from '@renderer/hooks/useProviders'
+import type { AuthConfig } from '@shared/data/types/provider'
+import { useTranslation } from 'react-i18next'
+
+import AnthropicSettings from '../ProviderSpecific/AnthropicSettings'
+import InlineSelector from '../shared/primitives/InlineSelector'
+import ProviderField from '../shared/primitives/ProviderField'
+import ProviderSection from '../shared/primitives/ProviderSection'
+
+interface AnthropicAuthSectionProps {
+  providerId: string
+}
+
+function buildAnthropicAuthConfig(type: 'api-key' | 'oauth'): AuthConfig {
+  if (type === 'oauth') {
+    return {
+      type: 'oauth',
+      clientId: ''
+    }
+  }
+
+  return {
+    type: 'api-key'
+  }
+}
+
+export default function AnthropicAuthSection({ providerId }: AnthropicAuthSectionProps) {
+  const { t } = useTranslation()
+  const { provider } = useProvider(providerId)
+  const { updateAuthConfig } = useProviderMutations(providerId)
+
+  if (!provider) {
+    return null
+  }
+
+  return (
+    <ProviderSection>
+      <ProviderField title={t('settings.provider.anthropic.auth_method')}>
+        <div className="w-[220px]">
+          <InlineSelector
+            value={provider.authType || 'api-key'}
+            onChange={(value) => void updateAuthConfig(buildAnthropicAuthConfig(value as 'api-key' | 'oauth'))}
+            options={[
+              { value: 'api-key', label: t('settings.provider.anthropic.apikey') },
+              { value: 'oauth', label: t('settings.provider.anthropic.oauth') }
+            ]}
+          />
+        </div>
+        {provider.authType === 'oauth' && (
+          <div className="mt-4">
+            <AnthropicSettings />
+          </div>
+        )}
+      </ProviderField>
+    </ProviderSection>
+  )
+}

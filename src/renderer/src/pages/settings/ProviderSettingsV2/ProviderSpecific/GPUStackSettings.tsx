@@ -8,7 +8,7 @@ import {
   ProviderHelpText,
   ProviderHelpTextRow,
   ProviderSettingsSubtitle
-} from './components/ProviderSettingsPrimitives'
+} from '../shared/primitives/ProviderSettingsPrimitives'
 
 interface Props {
   providerId: string

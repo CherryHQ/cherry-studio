@@ -34,7 +34,7 @@ vi.mock('../components/ProviderHeader', () => ({
   default: ({ providerId }: any) => <div>{`provider-header-${providerId}`}</div>
 }))
 
-vi.mock('../components/AuthenticationSection', () => ({
+vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
   default: ({ providerId }: any) => <div>{`authentication-section-${providerId}`}</div>
 }))
 

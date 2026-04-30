@@ -1,9 +1,9 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProviders'
 
-import AuthenticationSection from './components/AuthenticationSection'
 import ProviderHeader from './components/ProviderHeader'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './components/ProviderSettingsPrimitives'
+import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
