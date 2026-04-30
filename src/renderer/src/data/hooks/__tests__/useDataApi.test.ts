@@ -1,11 +1,14 @@
+import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/config/constant'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
 import type { Cache } from 'swr'
 import useSWR, { SWRConfig, unstable_serialize, useSWRConfig } from 'swr'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Tests exercise the real implementation; the global renderer setup otherwise
 // replaces this module with a mock for consuming components.
@@ -19,7 +22,14 @@ vi.mock('@renderer/config/constant', async (importOriginal) => {
   return { ...actual, isDev: true }
 })
 
-import { __testing, useReadCache, useWriteCache } from '../useDataApi'
+import {
+  __testing,
+  useInfiniteFlatItems,
+  useInfiniteQuery,
+  usePaginatedQuery,
+  useReadCache,
+  useWriteCache
+} from '../useDataApi'
 
 const {
   createKeyMatcher,
@@ -481,5 +491,356 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     // Give any pending revalidation a chance to run — it should not.
     await new Promise((r) => setTimeout(r, 30))
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ============================================================================
+// useInfiniteQuery / useInfiniteFlatItems / usePaginatedQuery: pagination hooks
+//
+// These suites cover three contracts:
+//   1. Type contracts (compile-time): subtype precision on `pages`, mutator
+//      signature, removed `items` field, path-mode guards.
+//   2. `useInfiniteFlatItems` behavior (pure useMemo wrapper).
+//   3. `useInfiniteQuery` integration: real SWR + spied dataApiService.get.
+// ============================================================================
+
+describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
+  // The bodies of these tests never execute (`if (false)`), but TypeScript
+  // type-checks them. Regressions — losing `BranchMessagesResponse` precision
+  // on `pages`, restoring the legacy `items` field, or wiring an offset path
+  // into `useInfiniteQuery` — fail the build.
+
+  it('preserves BranchMessagesResponse subtype fields on pages (issue 14593)', () => {
+    if ((false as boolean) === true) {
+      const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
+      // `pages[0]` is BranchMessagesResponse — assigning to that type compiles only
+      // if the precise subtype (including `activeNodeId`) is preserved.
+      const _firstPage: BranchMessagesResponse | undefined = r.pages[0]
+      // The `activeNodeId` extension field is exposed without cast.
+      const _activeNodeId: string | null | undefined = r.pages[0]?.activeNodeId
+      // mutate accepts the full subtype array (issue 14593 — would have failed
+      // when mutate was typed `KeyedMutator<CursorPaginationResponse<T>[]>`).
+      const _mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]> = r.mutate
+      void [_firstPage, _activeNodeId, _mutate]
+    }
+  })
+
+  it('removes the legacy `items` field from useInfiniteQuery result', () => {
+    if ((false as boolean) === true) {
+      const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
+      // @ts-expect-error - `items` was removed; derive via useInfiniteFlatItems
+      void r.items
+    }
+  })
+
+  it('rejects offset-paginated paths passed to useInfiniteQuery', () => {
+    if ((false as boolean) === true) {
+      // `/assistants` returns OffsetPaginationResponse, so `CursorPaginatedPath`
+      // collapses it to `never` — TS rejects the path argument outright.
+
+      // @ts-expect-error - offset-paginated path rejected by CursorPaginatedPath guard
+      void useInfiniteQuery('/assistants')
+    }
+  })
+
+  it('rejects cursor-paginated paths passed to usePaginatedQuery', () => {
+    if ((false as boolean) === true) {
+      // `/topics/:topicId/messages` returns CursorPaginationResponse, so
+      // `OffsetPaginatedPath` collapses it to `never` and TS rejects the path.
+
+      // @ts-expect-error - cursor-paginated path rejected by OffsetPaginatedPath guard
+      void usePaginatedQuery('/topics/:topicId/messages', { params: { topicId: '' } })
+    }
+  })
+
+  it('useInfiniteFlatItems infers the page item type', () => {
+    if ((false as boolean) === true) {
+      const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
+
+      const messages = useInfiniteFlatItems(r.pages, { reverseItems: true })
+      // messages is BranchMessage[] — assigning the head must match the page item
+      // type, not collapse to unknown / any.
+      const _first: BranchMessagesResponse['items'][number] | undefined = messages[0]
+      void _first
+    }
+  })
+})
+
+describe('useInfiniteFlatItems behavior', () => {
+  type Page<T> = { items: T[]; nextCursor?: string }
+
+  it('returns empty array when pages is undefined', () => {
+    const { result } = renderHook(() => useInfiniteFlatItems<Page<number>>(undefined))
+    expect(result.current).toEqual([])
+  })
+
+  it('flattens pages in their natural order by default', () => {
+    const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
+    const { result } = renderHook(() => useInfiniteFlatItems(pages))
+    expect(result.current).toEqual(['a', 'b', 'c', 'd'])
+  })
+
+  it('reversePages flips page order before flattening', () => {
+    const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
+    const { result } = renderHook(() => useInfiniteFlatItems(pages, { reversePages: true }))
+    expect(result.current).toEqual(['c', 'd', 'a', 'b'])
+  })
+
+  it('reverseItems flips items within each page', () => {
+    const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
+    const { result } = renderHook(() => useInfiniteFlatItems(pages, { reverseItems: true }))
+    expect(result.current).toEqual(['b', 'a', 'd', 'c'])
+  })
+
+  it('combines reversePages and reverseItems', () => {
+    const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
+    const { result } = renderHook(() => useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true }))
+    expect(result.current).toEqual(['d', 'c', 'b', 'a'])
+  })
+
+  it('returns the same reference across rerenders when pages/options unchanged', () => {
+    const pages: Page<string>[] = [{ items: ['a'] }]
+    const { result, rerender } = renderHook(({ p }) => useInfiniteFlatItems(p), { initialProps: { p: pages } })
+    const first = result.current
+    rerender({ p: pages })
+    expect(result.current).toBe(first)
+  })
+
+  it('does not mutate input pages or their items arrays', () => {
+    const pages: Page<string>[] = [{ items: ['a', 'b'] }, { items: ['c', 'd'] }]
+    const items0 = pages[0].items
+    const items1 = pages[1].items
+    renderHook(() => useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true }))
+    expect(pages[0].items).toBe(items0)
+    expect(pages[0].items).toEqual(['a', 'b'])
+    expect(pages[1].items).toBe(items1)
+    expect(pages[1].items).toEqual(['c', 'd'])
+  })
+})
+
+describe('useInfiniteQuery integration', () => {
+  // Spy `dataApiService.get` per test. The default `mockResolvedValue` keeps the
+  // hook from falling back to the IPC-backed real implementation if SWR fires
+  // an unanticipated extra fetch (strict-mode double render, focus revalidate,
+  // etc.) — the original would throw in this test environment.
+  const emptyPage = { items: [], nextCursor: undefined, activeNodeId: null }
+
+  function spyGet() {
+    return vi.spyOn(dataApiService, 'get').mockResolvedValue(emptyPage as never)
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('accumulates pages, paginates via loadNext', async () => {
+    // Cursor-aware mock: return values based on the actual cursor in the
+    // request, not call sequence. `useSWRInfinite` defaults
+    // `revalidateFirstPage: true` so `loadNext` produces both a page-0
+    // revalidate and a page-1 fetch — order-based mocks would mis-feed them.
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const cursor = opts?.query?.cursor
+      if (!cursor) return { items: [], nextCursor: 'c1', activeNodeId: null }
+      if (cursor === 'c1') return { items: [], nextCursor: 'c2', activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    expect(result.current.hasNext).toBe(true)
+    expect(result.current.pages[0]?.nextCursor).toBe('c1')
+
+    await act(async () => {
+      result.current.loadNext()
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    expect(result.current.pages[1]?.nextCursor).toBe('c2')
+  })
+
+  it('hasNext is false when last page has no nextCursor', async () => {
+    spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    expect(result.current.hasNext).toBe(false)
+  })
+
+  it('reset() collapses back to the first page', async () => {
+    const getSpy = spyGet()
+    getSpy
+      .mockResolvedValueOnce({ items: [], nextCursor: 'c1', activeNodeId: null } as never)
+      .mockResolvedValueOnce({ items: [], nextCursor: 'c2', activeNodeId: null } as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => {
+      result.current.loadNext()
+    })
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+
+    await act(async () => {
+      result.current.reset()
+    })
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+  })
+
+  it('mutate replaces the pages array directly', async () => {
+    spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: 'a1' } as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+
+    const overriddenPages = [
+      { items: [], nextCursor: undefined, activeNodeId: 'overridden' }
+    ] as unknown as BranchMessagesResponse[]
+
+    await act(async () => {
+      await result.current.mutate(overriddenPages, { revalidate: false })
+    })
+
+    expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
+  })
+
+  it('pages reference is stable across rerenders when SWR data is unchanged', async () => {
+    spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      () => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+      { wrapper: Wrapper }
+    )
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    const firstRef = result.current.pages
+    rerender()
+    expect(result.current.pages).toBe(firstRef)
+  })
+
+  it('passes swrOptions through to useSWRInfinite', async () => {
+    // Sanity-check that `swrOptions` reach `useSWRInfinite` by setting
+    // `revalidateFirstPage: false` and verifying `refresh()` does NOT refetch
+    // page 1 when only one page is loaded.
+    const getSpy = spyGet()
+    getSpy.mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () =>
+        useInfiniteQuery('/topics/:topicId/messages', {
+          params: { topicId: 't1' },
+          swrOptions: { revalidateFirstPage: false }
+        }),
+      { wrapper: Wrapper }
+    )
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    expect(getSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePaginatedQuery reset-on-query-change', () => {
+  // The hook resets `currentPage` to 1 when the consumer's `query` content
+  // changes. Implementation uses SWR's `unstable_serialize` to derive a
+  // stable, key-order-independent hash — so `{a,b}` vs `{b,a}` must NOT
+  // trigger a reset, while a real value change must.
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // total=30 + default limit=10 → 3 pages, so `nextPage()` is allowed at least once.
+  function spyOffsetGet() {
+    return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 } as never)
+  }
+
+  it('does NOT reset page when query keys reorder but values are unchanged', async () => {
+    spyOffsetGet()
+
+    const { Wrapper } = makeWrapper()
+    type Q = { a?: string; b?: string }
+    const { result, rerender } = renderHook(
+      ({ q }: { q: Q }) => usePaginatedQuery('/assistants', { query: q as never }),
+      {
+        wrapper: Wrapper,
+        initialProps: { q: { a: '1', b: '2' } as Q }
+      }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.page).toBe(1)
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+
+    // Same content, different key order — order-independent hash means no reset
+    rerender({ q: { b: '2', a: '1' } as Q })
+    // Allow any potentially scheduled effect to flush
+    await new Promise((r) => setTimeout(r, 30))
+    expect(result.current.page).toBe(2)
+  })
+
+  it('resets page to 1 when query content actually changes', async () => {
+    spyOffsetGet()
+
+    const { Wrapper } = makeWrapper()
+    type Q = { search: string }
+    const { result, rerender } = renderHook(
+      ({ q }: { q: Q }) => usePaginatedQuery('/assistants', { query: q as never }),
+      {
+        wrapper: Wrapper,
+        initialProps: { q: { search: 'foo' } as Q }
+      }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+
+    rerender({ q: { search: 'bar' } as Q })
+    await waitFor(() => expect(result.current.page).toBe(1))
+  })
+
+  it('does NOT reset page on rerender with the same query object reference', async () => {
+    // Independent of unstable_serialize semantics: even if the consumer holds
+    // a stable reference, the hook must not reset on every rerender.
+    spyOffsetGet()
+
+    const { Wrapper } = makeWrapper()
+    const stableQuery = { search: 'foo' } as never
+    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants', { query: stableQuery }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+
+    rerender()
+    rerender()
+    expect(result.current.page).toBe(2)
   })
 })

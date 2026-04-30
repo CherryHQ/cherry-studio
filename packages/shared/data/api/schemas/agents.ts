@@ -127,7 +127,7 @@ export const AgentSessionMessageEntitySchema = z.strictObject({
   sessionId: z.string(),
   role: z.enum(['user', 'assistant', 'tool', 'system']),
   content: z.unknown(),
-  agentSessionId: z.string(),
+  agentSessionId: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -186,17 +186,19 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
+// accessiblePaths is optional at create time — AgentService.computeWorkspacePaths()
+// fills the default from the agent's workspace path, which is the single runtime source.
+//
 // Create requests still require an explicit `model` even though the entity
 // allows it to be NULL — a freshly created agent must reference a real
 // user_model. Re-declared here because `pick(AGENT_MUTABLE_FIELDS)` would
 // otherwise inherit the entity's optional model.
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  accessiblePaths: z.array(z.string()).default([]),
+  accessiblePaths: z.array(z.string()).optional(),
   model: ModelIdAtomSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 

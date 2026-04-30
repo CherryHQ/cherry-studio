@@ -14,9 +14,9 @@ export const topicTable = sqliteTable(
   'topic',
   {
     id: uuidPrimaryKey(),
-    name: text(),
+    name: text().notNull().default(''),
     // Whether the name was manually edited by user
-    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
     // FK to assistant table - "last used assistant"
     // SET NULL: preserve topic when assistant is deleted
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
@@ -27,10 +27,10 @@ export const topicTable = sqliteTable(
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     // Sort order within group
-    sortOrder: integer().default(0),
+    sortOrder: integer().notNull().default(0),
     // Pinning state and order
-    isPinned: integer({ mode: 'boolean' }).default(false),
-    pinnedOrder: integer().default(0),
+    isPinned: integer({ mode: 'boolean' }).notNull().default(false),
+    pinnedOrder: integer().notNull().default(0),
 
     ...createUpdateDeleteTimestamps
   },

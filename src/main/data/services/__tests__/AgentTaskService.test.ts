@@ -14,6 +14,7 @@ describe('TaskService', () => {
     await dbh.db.insert(agentTable).values({
       type: 'claude-code',
       name: 'Test Agent',
+      instructions: 'You are a helpful assistant.',
       // `model` is FK-constrained to user_model.id; tests insert NULL to skip
       // the constraint since they don't exercise model behavior.
       model: null,

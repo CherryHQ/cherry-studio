@@ -106,7 +106,7 @@ describe('TemporaryChatService', () => {
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })
 
-    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=null', async () => {
+    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
       const topic = await service.createTopic({ name: 'T' })
       const snapshot = { id: 'mdl-1', name: 'GPT', provider: 'openai' }
       const msg = await service.appendMessage(topic.id, {
@@ -119,7 +119,7 @@ describe('TemporaryChatService', () => {
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
-      expect(msg.searchableText).toBeNull()
+      expect(msg.searchableText).toBe('')
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.modelSnapshot).toEqual(snapshot)

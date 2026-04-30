@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c0341f3c-91fd-4c38-ad19-be3d6f3861bd",
+  "id": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
   "prevId": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
   "tables": {
     "agent": {
@@ -53,7 +53,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -138,35 +138,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "agent_model_user_model_id_fk": {
-          "name": "agent_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_plan_model_user_model_id_fk": {
-          "name": "agent_plan_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_small_model_user_model_id_fk": {
-          "name": "agent_small_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -537,7 +509,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -630,33 +602,6 @@
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_user_model_id_fk": {
-          "name": "agent_session_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_plan_model_user_model_id_fk": {
-          "name": "agent_session_plan_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_small_model_user_model_id_fk": {
-          "name": "agent_session_small_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1132,7 +1077,7 @@
           "name": "prompt",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1140,14 +1085,14 @@
           "name": "emoji",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1162,7 +1107,7 @@
           "name": "settings",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {

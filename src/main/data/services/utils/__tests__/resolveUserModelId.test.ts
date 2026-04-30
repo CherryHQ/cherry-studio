@@ -50,9 +50,8 @@ describe('resolveUserModelId', () => {
         sortOrder: 0
       }
 
-      const result = await resolveAgentModelFieldsInPlace(dbh.db, target)
+      await resolveAgentModelFieldsInPlace(dbh.db, target)
 
-      expect(result).toBe(target) // same reference (in place)
       expect(target).toEqual({
         model: main,
         planModel: plan,

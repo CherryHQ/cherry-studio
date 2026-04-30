@@ -353,7 +353,7 @@ export type OldBlock =
  */
 export interface NewTopic {
   id: string
-  name: string | null
+  name: string
   isNameManuallyEdited: boolean
   assistantId: string | null
   activeNodeId: string | null
@@ -375,7 +375,7 @@ export interface NewMessage {
   topicId: string
   role: string
   data: MessageData
-  searchableText: string | null
+  searchableText: string
   status: 'success' | 'error' | 'paused'
   siblingsGroupId: number
   modelId: string | null
@@ -419,7 +419,7 @@ export interface NewMessage {
 export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null): NewTopic {
   return {
     id: oldTopic.id,
-    name: oldTopic.name || null,
+    name: oldTopic.name || '',
     isNameManuallyEdited: oldTopic.isNameManuallyEdited ?? false,
     assistantId: oldTopic.assistantId || null,
     activeNodeId,
@@ -508,7 +508,7 @@ export function transformMessage(
     topicId: correctTopicId,
     role: oldMessage.role,
     data: { blocks: dataBlocks },
-    searchableText: searchableText || null,
+    searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),

@@ -44,7 +44,7 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     // ON DELETE SET NULL). Sessions inheriting from such an agent will also
     // receive an undefined model; the read path / call sites handle it.
     model: (row.model as string | null) ?? undefined,
-    accessiblePaths: (row.accessiblePaths as string[] | null) ?? []
+    accessiblePaths: row.accessiblePaths as string[]
   }
 }
 
@@ -53,7 +53,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
   return {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
-    accessiblePaths: row.accessiblePaths ?? [],
+    accessiblePaths: row.accessiblePaths,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -83,24 +83,29 @@ export class AgentSessionService {
 
     // `sessionData.{model,planModel,smallModel}` may be in legacy
     // `providerId:modelId` form (from the renderer) — normalize first, then
-    // fall back to the agent's already-FK-valid value.
+    // fall back to the agent's already-FK-valid value below.
     await resolveAgentModelFieldsInPlace(db, sessionData)
 
+    // Omit undefined fields so DB DEFAULTs (e.g. '', '[]', '{}') apply.
+    // instructions has no DB DEFAULT — supply the same product-strategic default
+    // AgentService.createAgent uses, so a session created from an agent missing
+    // instructions still satisfies NOT NULL.
     const insertData: InsertSessionRow = {
       id,
       agentId,
       agentType: agent.type,
       name: sessionData.name || agent.name || 'New Session',
-      description: sessionData.description ?? null,
-      accessiblePaths: sessionData.accessiblePaths ?? null,
-      instructions: sessionData.instructions ?? null,
-      model: sessionData.model ?? agent.model ?? null,
-      planModel: sessionData.planModel ?? agent.planModel ?? null,
-      smallModel: sessionData.smallModel ?? agent.smallModel ?? null,
-      mcps: sessionData.mcps ?? null,
-      allowedTools: sessionData.allowedTools ?? null,
-      slashCommands: sessionData.slashCommands ?? null,
-      configuration: sessionData.configuration ?? null,
+      description: sessionData.description,
+      accessiblePaths: sessionData.accessiblePaths,
+      instructions: sessionData.instructions || 'You are a helpful assistant.',
+      // `||` (not `??`) so empty-string never reaches the FK column either.
+      model: sessionData.model || agent.model,
+      planModel: sessionData.planModel || agent.planModel,
+      smallModel: sessionData.smallModel || agent.smallModel,
+      mcps: sessionData.mcps,
+      allowedTools: sessionData.allowedTools,
+      slashCommands: sessionData.slashCommands,
+      configuration: sessionData.configuration,
       sortOrder: 0
     }
 

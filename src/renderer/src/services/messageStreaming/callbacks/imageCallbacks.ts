@@ -71,14 +71,21 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         }
       }
 
+      if (!imageBlockId && blockManager.hasInitialPlaceholder) {
+        imageBlockId = blockManager.initialPlaceholderBlockId
+      }
+
       if (imageBlockId) {
         if (!imageData) {
           const changes: Partial<ImageMessageBlock> = {
             status: MessageBlockStatus.SUCCESS
           }
-          blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE)
+          blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
         } else {
-          const changes = await buildImageBlockFields(imageData)
+          const changes = {
+            type: MessageBlockType.IMAGE,
+            ...(await buildImageBlockFields(imageData))
+          }
           blockManager.smartBlockUpdate(imageBlockId, changes, MessageBlockType.IMAGE, true)
         }
         imageBlockId = null

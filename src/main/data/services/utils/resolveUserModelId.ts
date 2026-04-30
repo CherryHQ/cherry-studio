@@ -46,16 +46,19 @@ const AGENT_MODEL_FK_FIELDS = ['model', 'planModel', 'smallModel'] as const
  * holds. Fields not present on `target` are left untouched, so partial-update
  * payloads (which only carry the fields the caller is changing) do not
  * accidentally null out untouched columns.
+ *
+ * The parameter is typed as `object` (not a generic) on purpose: a generic
+ * `T extends Record<string, unknown>` would widen the caller's variable type
+ * after the await — every field would become `unknown` — which is the wrong
+ * trade for a side-effecting helper. Returning `void` keeps the caller's
+ * narrow type intact.
  */
-export async function resolveAgentModelFieldsInPlace<T extends Record<string, unknown>>(
-  db: DbOrTx,
-  target: T
-): Promise<T> {
+export async function resolveAgentModelFieldsInPlace(db: DbOrTx, target: object): Promise<void> {
+  const record = target as Record<string, unknown>
   await Promise.all(
-    AGENT_MODEL_FK_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(target, field)).map(async (field) => {
-      const raw = target[field] as string | null | undefined
-      ;(target as Record<string, unknown>)[field] = await resolveUserModelId(db, raw)
+    AGENT_MODEL_FK_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(record, field)).map(async (field) => {
+      const raw = record[field] as string | null | undefined
+      record[field] = await resolveUserModelId(db, raw)
     })
   )
-  return target
 }

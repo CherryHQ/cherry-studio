@@ -110,7 +110,8 @@ export class AgentSessionMessageService {
     return {
       ...clean,
       role: row.role as AgentSessionMessageEntity['role'],
-      agentSessionId: row.agentSessionId ?? '',
+      // NULL = "no upstream session yet" — preserve, do not coerce to ''.
+      agentSessionId: row.agentSessionId,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
