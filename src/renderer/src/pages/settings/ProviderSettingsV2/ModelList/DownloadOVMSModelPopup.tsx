@@ -1,14 +1,16 @@
-import { Button, RowFlex } from '@cherrystudio/ui'
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@shared/data/types/provider'
-import type { FormProps } from 'antd'
-import { AutoComplete, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderSettingsDrawer from '../components/ProviderSettingsDrawer'
+import { drawerClasses } from '../components/ProviderSettingsPrimitives'
+
 const logger = loggerService.withContext('OVMSClient')
+const HUGGINGFACE_SOURCE_VALUE = '__huggingface__'
 
 interface ShowParams {
   title: string
@@ -91,9 +93,19 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [cancelled, setCancelled] = useState(false)
-  const [form] = Form.useForm()
+  const [formValues, setFormValues] = useState<FieldType>({
+    modelId: '',
+    modelName: '',
+    modelSource: 'https://www.modelscope.cn/models',
+    task: 'text_generation'
+  })
+  const [error, setError] = useState<string | null>(null)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
+
+  const updateField = <K extends keyof FieldType>(field: K, value: FieldType[K]) => {
+    setFormValues((current) => ({ ...current, [field]: value }))
+  }
 
   const startFakeProgress = () => {
     setProgress(0)
@@ -133,7 +145,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const handlePresetSelect = (value: string) => {
     const selectedPreset = PRESET_MODELS.find((model) => model.modelId === value)
     if (selectedPreset) {
-      form.setFieldsValue({
+      setFormValues({
         modelId: selectedPreset.modelId,
         modelName: selectedPreset.modelName,
         modelSource: selectedPreset.modelSource,
@@ -148,7 +160,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       const lastSlashIndex = value.lastIndexOf('/')
       if (lastSlashIndex !== -1 && lastSlashIndex < value.length - 1) {
         const modelName = value.substring(lastSlashIndex + 1)
-        form.setFieldValue('modelName', modelName)
+        updateField('modelName', modelName)
       }
     }
   }
@@ -168,42 +180,46 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       return
     }
     setOpen(false)
-  }
-
-  const onClose = () => {
     resolve({})
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
+  const onFinish = async () => {
+    const values = formValues
+    if (!values.modelId) {
+      setError(t('ovms.download.model_id.required'))
+      return
+    }
+    if (!/^OpenVINO\/.+/.test(values.modelId)) {
+      setError(t('ovms.download.model_id.model_id_pattern'))
+      return
+    }
+    if (!values.modelName) {
+      setError(t('ovms.download.model_name.required'))
+      return
+    }
+    setError(null)
     setLoading(true)
     setCancelled(false) // Reset cancelled state
     startFakeProgress()
     try {
       const { modelName, modelId, modelSource, task } = values
-      logger.info(`🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${modelSource}, task: ${task}`)
-      const result = await window.api.ovms.addModel(modelName, modelId, modelSource, task)
+      const normalizedModelSource = modelSource === HUGGINGFACE_SOURCE_VALUE ? '' : modelSource
+      logger.info(
+        `🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${normalizedModelSource}, task: ${task}`
+      )
+      const result = await window.api.ovms.addModel(modelName, modelId, normalizedModelSource, task)
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
-        Modal.success({
-          title: t('ovms.download.success'),
-          content: t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }),
-          onOk: () => {
-            setOpen(false)
-          }
-        })
+        window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
+        setOpen(false)
+        resolve({})
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
         // Only show error if not cancelled by user
         if (!cancelled) {
-          Modal.error({
-            title: t('ovms.download.error'),
-            content: <div dangerouslySetInnerHTML={{ __html: result.message }}></div>,
-            onOk: () => {
-              // Keep the form open for retry
-            }
-          })
+          setError(result.message)
         }
       }
     } catch (error: any) {
@@ -211,124 +227,115 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       logger.error(`Download crashed, is it cancelled? ${cancelled}`)
       // Only show error if not cancelled by user
       if (!cancelled) {
-        Modal.error({
-          title: t('ovms.download.error'),
-          content: error.message,
-          onOk: () => {
-            // Keep the form open for retry
-          }
-        })
+        setError(error.message)
       }
     } finally {
       setLoading(false)
     }
   }
 
+  const footer = (
+    <div className={drawerClasses.footer}>
+      <Button variant={loading ? 'default' : 'outline'} type="button" onClick={() => void onCancel()}>
+        {loading ? t('common.cancel') : t('common.cancel')}
+      </Button>
+      <Button disabled={loading} onClick={() => void onFinish()}>
+        {t('ovms.download.button')}
+      </Button>
+    </div>
+  )
+
   return (
-    <Modal
+    <ProviderSettingsDrawer
+      size="form"
       title={title}
       open={open}
-      onCancel={onCancel}
-      maskClosable={false}
-      afterClose={onClose}
-      footer={null}
-      transitionName="animation-move-down"
-      centered
-      closeIcon={!loading}>
-      <Form
-        form={form}
-        labelCol={{ flex: '110px' }}
-        labelAlign="left"
-        colon={false}
-        className="mt-[25px]"
-        onFinish={onFinish}
-        disabled={false}>
-        <Form.Item
-          name="modelId"
-          label={t('ovms.download.model_id.label')}
-          rules={[
-            { required: true, message: t('ovms.download.model_id.required') },
-            {
-              pattern: /^OpenVINO\/.+/,
-              message: t('ovms.download.model_id.model_id_pattern')
-            }
-          ]}>
-          <AutoComplete
-            placeholder={t('ovms.download.model_id.placeholder')}
-            options={PRESET_MODELS.map((model) => ({
-              value: model.modelId,
-              label: model.label
-            }))}
-            onSelect={handlePresetSelect}
-            onChange={handleModelIdChange}
-            disabled={loading}
-            allowClear
-          />
-        </Form.Item>
-        <Form.Item
-          name="modelName"
-          label={t('ovms.download.model_name.label')}
-          rules={[{ required: true, message: t('ovms.download.model_name.required') }]}>
+      onClose={() => void onCancel()}
+      showHeaderCloseButton={!loading}
+      footer={footer}>
+      <div className={drawerClasses.fieldList}>
+        <div className="space-y-2">
+          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
           <Input
+            className={drawerClasses.input}
+            value={formValues.modelId}
+            onChange={(event) => {
+              updateField('modelId', event.target.value)
+              handleModelIdChange(event.target.value)
+            }}
+            placeholder={t('ovms.download.model_id.placeholder')}
+            disabled={loading}
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {PRESET_MODELS.map((model) => (
+              <Tooltip key={model.modelId} content={model.label}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto rounded-full px-2 py-1 text-[11px]"
+                  disabled={loading}
+                  onClick={() => handlePresetSelect(model.modelId)}>
+                  {model.modelName}
+                </Button>
+              </Tooltip>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
+          <Input
+            className={drawerClasses.input}
+            value={formValues.modelName}
+            onChange={(event) => updateField('modelName', event.target.value)}
             placeholder={t('ovms.download.model_name.placeholder')}
             spellCheck={false}
             maxLength={200}
             disabled={loading}
           />
-        </Form.Item>
-        <Form.Item
-          name="modelSource"
-          label={t('ovms.download.model_source')}
-          initialValue="https://www.modelscope.cn/models"
-          rules={[{ required: false }]}>
+        </div>
+        <div className="space-y-2">
+          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
           <Select
-            options={[
-              { value: '', label: 'HuggingFace' },
-              { value: 'https://hf-mirror.com', label: 'HF-Mirror' },
-              { value: 'https://www.modelscope.cn/models', label: 'ModelScope' }
-            ]}
-            disabled={loading}
-          />
-        </Form.Item>
-        <Form.Item
-          name="task"
-          label={t('ovms.download.model_task')}
-          initialValue="text_generation"
-          rules={[{ required: false }]}>
-          <Select
-            options={[
-              { value: 'text_generation', label: 'Text Generation' },
-              { value: 'embeddings', label: 'Embeddings' },
-              { value: 'rerank', label: 'Rerank' },
-              { value: 'image_generation', label: 'Image Generation' }
-            ]}
-            disabled={loading}
-          />
-        </Form.Item>
+            value={formValues.modelSource}
+            onValueChange={(value) => updateField('modelSource', value)}
+            disabled={loading}>
+            <SelectTrigger className={drawerClasses.selectTrigger}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className={drawerClasses.selectContent}>
+              <SelectItem value={HUGGINGFACE_SOURCE_VALUE}>HuggingFace</SelectItem>
+              <SelectItem value="https://hf-mirror.com">HF-Mirror</SelectItem>
+              <SelectItem value="https://www.modelscope.cn/models">ModelScope</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
+          <Select value={formValues.task} onValueChange={(value) => updateField('task', value)} disabled={loading}>
+            <SelectTrigger className={drawerClasses.selectTrigger}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className={drawerClasses.selectContent}>
+              <SelectItem value="text_generation">Text Generation</SelectItem>
+              <SelectItem value="embeddings">Embeddings</SelectItem>
+              <SelectItem value="rerank">Rerank</SelectItem>
+              <SelectItem value="image_generation">Image Generation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {loading && (
-          <Form.Item className="mb-4">
-            <Progress
-              percent={Math.round(progress)}
-              status={progress === 100 ? 'success' : 'active'}
-              strokeColor={{
-                '0%': '#108ee9',
-                '100%': '#87d068'
-              }}
-              showInfo={true}
-              format={(percent) => `${percent}%`}
-            />
-            <div className="mt-2 text-center text-[#666] text-sm">{t('ovms.download.tip')}</div>
-          </Form.Item>
+          <div className="space-y-2">
+            <div className={drawerClasses.healthProgressTrack}>
+              <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
+            </div>
+            <div className="text-center text-sm text-muted-foreground">
+              {Math.round(progress)}% · {t('ovms.download.tip')}
+            </div>
+          </div>
         )}
-        <Form.Item className="mb-2 text-center">
-          <RowFlex className="relative items-center justify-end">
-            <Button variant="default" type={loading ? 'button' : 'submit'} onClick={loading ? onCancel : undefined}>
-              {loading ? t('common.cancel') : t('ovms.download.button')}
-            </Button>
-          </RowFlex>
-        </Form.Item>
-      </Form>
-    </Modal>
+        {error ? <div className={drawerClasses.errorText}>{error}</div> : null}
+      </div>
+    </ProviderSettingsDrawer>
   )
 }
 

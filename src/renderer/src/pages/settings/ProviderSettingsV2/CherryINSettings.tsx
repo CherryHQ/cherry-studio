@@ -1,6 +1,6 @@
+import { SelectDropdown } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettingsV2/utils/provider'
-import { Select } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,11 +59,14 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
   const options = useMemo(
     () =>
       API_HOST_OPTIONS.map((option) => ({
+        id: option.value,
         value: option.value,
-        label: (
+        label: option.labelKey,
+        description: option.description,
+        content: (
           <div className="flex flex-col gap-0.5">
             <span>{option.labelKey}</span>
-            <span className="text-[var(--color-text-3)] text-xs">{t(option.description)}</span>
+            <span className="text-muted-foreground/70 text-xs">{t(option.description)}</span>
           </div>
         )
       })),
@@ -71,14 +74,15 @@ const CherryINSettings: FC<CherryINSettingsProps> = ({ providerId }) => {
   )
 
   return (
-    <Select
-      value={getCurrentHost}
-      onChange={handleHostChange}
-      options={options}
-      style={{ width: '100%', marginTop: 5 }}
-      optionLabelProp="label"
-      labelRender={(option) => option.value}
-    />
+    <div className="mt-1.5 w-full">
+      <SelectDropdown
+        items={options}
+        selectedId={getCurrentHost}
+        onSelect={handleHostChange}
+        renderSelected={(item) => <span className="truncate">{item.value}</span>}
+        renderItem={(item) => item.content}
+      />
+    </div>
   )
 }
 

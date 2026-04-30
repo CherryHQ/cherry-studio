@@ -1,17 +1,28 @@
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useModelMutations } from '@renderer/hooks/useModels'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { FormProps } from 'antd'
-import { Form, Modal, Select } from 'antd'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { drawerClasses } from '../components/ProviderSettingsPrimitives'
 
 interface ShowParams {
   title: string
@@ -26,25 +37,27 @@ interface Props extends ShowParams {
 type FieldType = {
   provider: string
   group?: string
-  endpointType?: number | string
+  endpointType?: EndpointType
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
-  const [form] = Form.useForm()
+  const resolvedRef = useRef(false)
+  const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const { createModels } = useModelMutations()
   const { t } = useTranslation()
 
-  const onOk = () => {
+  const closeWithResult = (data: any) => {
+    if (resolvedRef.current) {
+      return
+    }
+    resolvedRef.current = true
     setOpen(false)
+    resolve(data)
   }
 
   const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
+    closeWithResult({})
   }
 
   const onAddModel = async (values: FieldType) => {
@@ -62,53 +75,56 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     return true
   }
 
-  const onFinish: FormProps<FieldType>['onFinish'] = async (values) => {
-    if (await onAddModel(values)) {
-      resolve({})
+  const onSubmit = async () => {
+    if (await onAddModel({ provider: provider.id, endpointType })) {
+      closeWithResult({})
     }
   }
 
   return (
-    <Modal
-      title={title}
+    <Dialog
       open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      maskClosable={false}
-      afterClose={onClose}
-      footer={null}
-      transitionName="animation-move-down"
-      centered>
-      <Form
-        form={form}
-        labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
-        labelAlign="left"
-        colon={false}
-        className="mt-[25px]"
-        onFinish={onFinish}
-        initialValues={{
-          endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-        }}>
-        <Form.Item
-          name="endpointType"
-          label={t('settings.models.add.endpoint_type.label')}
-          tooltip={t('settings.models.add.endpoint_type.tooltip')}
-          rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
-          <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
-            {endpointTypeOptions.map((opt) => (
-              <Select.Option key={opt.value} value={opt.value}>
-                {t(opt.label)}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
-        <Form.Item className="mb-2 text-center">
-          <Flex className="relative items-center justify-end">
-            <Button type="submit">{t('settings.models.add.add_model')}</Button>
-          </Flex>
-        </Form.Item>
-      </Form>
-    </Modal>
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onCancel()
+        }
+      }}>
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-(--color-background) p-5 sm:max-w-md">
+        <DialogHeader className="gap-1.5 pr-6">
+          <DialogTitle className="text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground/90">
+            {title}
+          </DialogTitle>
+          <DialogDescription className="text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-muted-foreground/80">
+            {t('settings.models.add.endpoint_type.tooltip')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className={drawerClasses.fieldList}>
+          <div className="space-y-2">
+            <label className="font-medium text-[13px] text-foreground/85">
+              {t('settings.models.add.endpoint_type.label')}
+            </label>
+            <Select value={endpointType} onValueChange={(value) => setEndpointType(value as EndpointType)}>
+              <SelectTrigger className={drawerClasses.selectTrigger}>
+                <SelectValue placeholder={t('settings.models.add.endpoint_type.placeholder')} />
+              </SelectTrigger>
+              <SelectContent className={drawerClasses.selectContent}>
+                {endpointTypeOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {t(opt.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={() => void onSubmit()}>{t('settings.models.add.add_model')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

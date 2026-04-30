@@ -6,7 +6,6 @@ import NavigationService from '@renderer/services/NavigationService'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   modelId: string
@@ -38,41 +37,26 @@ export const FreeTrialModelTagV2: FC<Props> = ({ modelId, providerId, showLabel 
 
   if (!showLabel) {
     return (
-      <Container>
+      <div className="flex flex-row items-center gap-1">
         <CustomTag
-          color="var(--color-link)"
+          color="var(--color-primary)"
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {getProviderLabel(linkedProviderId)}
           <ArrowUpRight size={12} />
         </CustomTag>
-      </Container>
+      </div>
     )
   }
 
   return (
-    <Container>
+    <div className="flex flex-row items-center gap-1">
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
-      <PoweredBy>{t('common.powered_by')}</PoweredBy>
-      <LinkText onClick={onSelectProvider}>{getProviderLabel(linkedProviderId)}</LinkText>
-    </Container>
+      <span className="text-xs text-muted-foreground">{t('common.powered_by')}</span>
+      <button type="button" className="text-primary text-xs hover:underline" onClick={onSelectProvider}>
+        {getProviderLabel(linkedProviderId)}
+      </button>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-`
-
-const PoweredBy = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-`
-
-const LinkText = styled.a`
-  font-size: 12px;
-  color: var(--color-link);
-`

@@ -20,7 +20,6 @@ import {
 } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 interface ModelTagsProps {
   model: ProviderSettingsDisplayModel
@@ -71,7 +70,10 @@ const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
   }, [maxWidth, showLabel])
 
   return (
-    <Container ref={containerRef} style={style}>
+    <div
+      ref={containerRef}
+      className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible"
+      style={style}>
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
@@ -83,22 +85,8 @@ const ModelTagsWithLabelV2: FC<ModelTagsProps> = ({
       {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
       {showFree && isFreeModel(model) && <FreeTag size={size} />}
       {isRerankModel(model) && <RerankerTag size={size} />}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
-  min-width: 0;
-  max-width: 100%;
-  overflow: visible;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
 
 export default memo(ModelTagsWithLabelV2)
