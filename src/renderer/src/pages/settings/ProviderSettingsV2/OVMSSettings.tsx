@@ -154,7 +154,7 @@ const OVMSSettings: FC = () => {
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="font-medium">Intel OVMS Guide:</p>
+          <p className="font-medium">{t('ovms.guide')}</p>
           <div dangerouslySetInnerHTML={{ __html: t('ovms.description') }} />
         </div>
       </div>
