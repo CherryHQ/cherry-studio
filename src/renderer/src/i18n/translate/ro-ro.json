@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Tip endpoint",
           "placeholder": "Selectează tip endpoint",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Te rugăm să selectezi un tip de endpoint",
           "tooltip": "Selectează formatul tipului de endpoint API"
         },
@@ -5118,6 +5119,7 @@
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Model folosit la crearea unui nou asistent; dacă asistentul nu este setat, va fi folosit acest model",
       "empty": "Nu s-au găsit modele",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "Gazdă API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "Adresa API este invalidă",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Previzualizare: {{url}}",
       "api_host_tooltip": "Suprascrie doar când furnizorul tău necesită un endpoint personalizat compatibil cu OpenAI.",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Eroare format JSON",
         "login": "Conectare la Github",
         "logout": "Ieșire GitHub",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "Copiază codul de autorizare al dispozitivului",
         "step_copy_code_detail": "Codul de autorizare a fost copiat automat, îl poți copia și manual",
         "step_get_code": "Obține codul de autorizare",
-        "step_get_code_desc": "Generează codul de autorizare al dispozitivului"
+        "step_get_code_desc": "Generează codul de autorizare al dispozitivului",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Ești sigur că vrei să ștergi acest furnizor?",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Elimină cheile duplicate",
       "remove_invalid_keys": "Elimină cheile invalide",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Caută furnizori...",
       "search_placeholder": "Caută id sau nume model",
       "title": "Furnizor model",

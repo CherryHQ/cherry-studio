@@ -30,8 +30,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
     return <div className={modelListClasses.emptyState}>{t('common.no_results')}</div>
   }
 
-  const enabledModelCount = sections.enabledSections.reduce((count, section) => count + section.items.length, 0)
-
   return (
     <div className={modelListClasses.listScroller}>
       <div className="flex min-h-full min-w-0 w-full flex-col gap-3">
@@ -40,7 +38,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
               <span className={modelListClasses.subsectionRule} />
-              <span className={modelListClasses.subsectionCountEnabled}>{enabledModelCount}</span>
+              <span className={modelListClasses.subsectionCountEnabled}>{sections.displayEnabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">
               {sections.enabledSections.map(({ groupName, items }, index) => (
@@ -50,6 +48,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
                   items={items}
                   defaultOpen={index <= 5}
                   disabled={sections.isHealthChecking}
+                  pendingModelIds={sections.pendingModelIds}
                   onEditModel={sections.onEditModel}
                   onToggleModel={sections.onToggleModel}
                 />
@@ -62,7 +61,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
             <div className={modelListClasses.subsectionRow}>
               <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
               <span className={modelListClasses.subsectionRule} />
-              <span className={modelListClasses.subsectionCountDisabled}>{sections.disabledModelCount}</span>
+              <span className={modelListClasses.subsectionCountDisabled}>{sections.displayDisabledModelCount}</span>
             </div>
             <div className="flex flex-col gap-3">
               {sections.disabledSections.map(({ groupName, items }, index) => (
@@ -72,6 +71,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({ sections }) => {
                   items={items}
                   defaultOpen={index <= 2}
                   disabled={sections.isHealthChecking}
+                  pendingModelIds={sections.pendingModelIds}
                   onEditModel={sections.onEditModel}
                   onToggleModel={sections.onToggleModel}
                 />

@@ -120,9 +120,10 @@ export const providerListClasses = {
  * `cherry-studio-ui-design` `ModelServicePage` — custom request headers side panel (one card per header).
  */
 export const customHeaderDrawerClasses = {
-  headerTitleRow: 'flex w-full min-w-0 items-center justify-between gap-2',
-  headerTitleText: 'truncate font-semibold text-foreground text-sm',
-  bodyScroll: 'flex flex-col gap-2.5 py-3',
+  bodyScroll: 'flex flex-col gap-4 py-3',
+  /** JSON mode — matches design mock monospace block for custom headers. */
+  headersJsonEditor:
+    'min-h-[120px] w-full resize-y rounded-xl border border-[color:var(--section-border)] bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
   card: 'space-y-1.5 rounded-xl border border-[color:var(--section-border)] bg-muted/50 p-2.5',
   cardRow: 'flex items-center gap-1.5',
   cardRowLabel: 'w-10 shrink-0 text-xs text-muted-foreground/40',
@@ -132,10 +133,7 @@ export const customHeaderDrawerClasses = {
   removeIconButton:
     'size-6 text-destructive/50 shadow-none hover:bg-transparent hover:text-destructive [&_svg]:size-[9px]',
   addRowButton:
-    'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[color:var(--section-border)] py-2 text-xs text-muted-foreground/40 shadow-none hover:border-[color:var(--section-border)] hover:text-foreground',
-  footerOutlineBtn:
-    'h-auto px-2.5 py-1 text-xs text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground',
-  footerPrimaryBtn: 'h-auto px-3 py-1 text-xs'
+    'flex h-auto w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[color:var(--section-border)] py-2 text-xs text-muted-foreground/40 shadow-none hover:border-[color:var(--section-border)] hover:text-foreground'
 } as const
 
 export const drawerClasses = {
@@ -289,6 +287,8 @@ export const modelListClasses = {
   rowMain: 'min-w-0 flex-1 items-start gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
   rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
+  /** Model name / ID line — hover + click to copy (design `ModelServicePage` `ModelRow`). */
+  rowNameCopyable: 'cursor-pointer transition-colors hover:text-primary',
   /** Shown when model id !== name; hidden in narrow container via `.ps-model-list-id` rule. */
   modelIdBadge:
     'ps-model-list-id min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-[length:var(--font-size-body-xs)] text-muted-foreground leading-[var(--line-height-body-xs)]',

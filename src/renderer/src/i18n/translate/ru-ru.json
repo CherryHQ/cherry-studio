@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Тип конечной точки",
           "placeholder": "Выберите тип конечной точки",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Пожалуйста, выберите тип конечной точки",
           "tooltip": "Выберите формат типа конечной точки API"
         },
@@ -5118,6 +5119,7 @@
         "title": "Проверка состояния моделей",
         "use_all_keys": "Использовать все ключи"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "empty": "Модели не найдены",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "Хост API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "Недопустимый адрес API",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Предпросмотр: {{url}}",
       "api_host_tooltip": "Переопределяйте только когда провайдер требует пользовательский адрес, совместимый с OpenAI.",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Ошибка формата JSON",
         "login": "Войти в Github",
         "logout": "Выйти из Github",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "Скопировать код авторизации устройства",
         "step_copy_code_detail": "Код авторизации автоматически скопирован, вы также можете скопировать его вручную",
         "step_get_code": "Получить код авторизации",
-        "step_get_code_desc": "Сгенерировать код авторизации устройства"
+        "step_get_code_desc": "Сгенерировать код авторизации устройства",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Вы уверены, что хотите удалить этот провайдер?",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Поиск поставщиков...",
       "search_placeholder": "Поиск по ID или имени модели",
       "title": "Провайдеры моделей",

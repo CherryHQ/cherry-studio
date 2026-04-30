@@ -5119,6 +5119,7 @@
         "title": "模型健康检测",
         "use_all_keys": "使用密钥"
       },
+      "copy_model_id_tooltip": "点击复制模型 ID：{{id}}",
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
@@ -5367,7 +5368,9 @@
         }
       },
       "api_host": "API 地址",
+      "api_host_drawer_hint": "自定义 API 请求地址；留空则使用目录默认地址。",
       "api_host_no_valid": "API 地址不合法",
+      "api_host_placeholder": "未配置",
       "api_host_preview": "预览：{{url}}",
       "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
       "api_key": {
@@ -5434,6 +5437,7 @@
         "header_name_placeholder": "请求头名称",
         "header_value_placeholder": "请求头取值",
         "headers_description": "自定义请求头（JSON 格式）",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式错误",
         "login": "登录 Github",
         "logout": "退出 Github",
@@ -5454,7 +5458,9 @@
         "step_copy_code_desc": "复制设备授权码",
         "step_copy_code_detail": "授权码已自动复制，您也可以手动复制",
         "step_get_code": "获取授权码",
-        "step_get_code_desc": "生成设备授权码"
+        "step_get_code_desc": "生成设备授权码",
+        "toggle_headers_editor_json": "切换为 JSON 编辑",
+        "toggle_headers_editor_list": "切换为键值列表"
       },
       "delete": {
         "content": "确定要删除此模型提供商吗？",
@@ -5518,6 +5524,8 @@
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
+      "request_configuration": "请求配置",
+      "request_configuration_tooltip": "配置 API Host 与自定义请求头",
       "search": "搜索模型平台...",
       "search_placeholder": "搜索模型 ID 或名称",
       "title": "模型服务",

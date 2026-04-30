@@ -48,7 +48,7 @@ const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
 export default function EditModelDrawer({ providerId, open, model, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
-  const { updateModel } = useModelMutations()
+  const { deleteModel, updateModel } = useModelMutations()
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
@@ -214,12 +214,42 @@ export default function EditModelDrawer({ providerId, open, model, onClose }: Ed
     [saveModel]
   )
 
+  const handleDeleteModel = useCallback(async () => {
+    if (!model) {
+      return
+    }
+
+    const { modelId } = parseUniqueModelId(model.id)
+
+    window.modal.confirm({
+      title: t('common.delete_confirm'),
+      content: t('settings.models.manage.remove_model'),
+      okButtonProps: { danger: true },
+      okText: t('common.delete'),
+      centered: true,
+      onOk: async () => {
+        await deleteModel(model.providerId ?? providerId, modelId)
+        window.toast.success(t('common.delete_success'))
+        onClose()
+      }
+    })
+  }, [deleteModel, model, onClose, providerId, t])
+
   if (!provider || !model) {
     return null
   }
 
   const footer = (
     <ProviderActions className={drawerClasses.footer}>
+      {!model.isEnabled ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="mr-auto px-2.5 text-destructive/80 shadow-none hover:bg-destructive/[0.06] hover:text-destructive"
+          onClick={() => void handleDeleteModel()}>
+          {t('common.delete')}
+        </Button>
+      ) : null}
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
       </Button>

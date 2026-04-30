@@ -20,8 +20,16 @@ export default function ApiHost({ providerId }: ApiHostProps) {
   const { updateProvider } = useProviderMutations(providerId)
   const [customHeaderOpen, setCustomHeaderOpen] = useState(false)
   const meta = useProviderMeta(providerId)
-  const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
-    useProviderEndpoints(provider)
+  const {
+    primaryEndpoint,
+    apiHost,
+    setApiHost,
+    anthropicApiHost,
+    setAnthropicApiHost,
+    apiVersion,
+    setApiVersion,
+    isVertexProvider
+  } = useProviderEndpoints(provider)
   const { syncProviderModels } = useProviderModelSync(providerId)
   const topology = getProviderHostTopology(provider)
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
@@ -66,22 +74,18 @@ export default function ApiHost({ providerId }: ApiHostProps) {
           <ApiHostField
             providerIdForSettings={provider.id}
             apiHost={apiHost}
-            setApiHost={setApiHost}
-            hostPreview={hostPreview.hostPreview}
-            isApiHostResettable={hostPreview.isApiHostResettable}
             isCherryIN={meta.isCherryIN}
             isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
-            onCommitApiHost={endpointActions.commitApiHost}
+            isApiHostResettable={hostPreview.isApiHostResettable}
             onResetApiHost={endpointActions.resetApiHost}
-            onOpenCustomHeaders={() => setCustomHeaderOpen(true)}
+            onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
         ) : (
           <AnthropicApiHostField
             anthropicApiHost={anthropicApiHost}
-            setAnthropicApiHost={setAnthropicApiHost}
             anthropicHostPreview={hostPreview.anthropicHostPreview}
-            onCommitAnthropicApiHost={endpointActions.commitAnthropicApiHost}
+            onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
         )}
         {meta.isAzureOpenAI && (
@@ -97,6 +101,12 @@ export default function ApiHost({ providerId }: ApiHostProps) {
         providerId={providerId}
         open={customHeaderOpen}
         onClose={() => setCustomHeaderOpen(false)}
+        hostEditMode={isAnthropicPrimaryEndpoint ? 'anthropic' : 'primary'}
+        apiHost={apiHost}
+        anthropicApiHost={anthropicApiHost}
+        commitApiHost={endpointActions.commitApiHost}
+        commitAnthropicApiHost={endpointActions.commitAnthropicApiHost}
+        isVertexProvider={isVertexProvider}
       />
     </>
   )

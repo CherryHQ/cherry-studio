@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Tipo de punto final",
           "placeholder": "Seleccionar tipo de punto final",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Seleccione el tipo de punto final",
           "tooltip": "Seleccione el formato del tipo de punto final de la API"
         },
@@ -5118,6 +5119,7 @@
         "title": "Verificación de salud del modelo",
         "use_all_keys": "Usar todas las claves"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Modelo predeterminado del asistente",
       "default_assistant_model_description": "Modelo utilizado al crear nuevos asistentes, si el asistente no tiene un modelo asignado, se utiliza este modelo",
       "empty": "Sin modelos",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "Dirección API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "La dirección de la API no es válida",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Vista previa: {{url}}",
       "api_host_tooltip": "Sobrescribir solo cuando el proveedor necesite una dirección compatible con OpenAI personalizada.",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Formato JSON incorrecto",
         "login": "Iniciar sesión en Github",
         "logout": "Cerrar sesión en Github",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "Copiar el código de autorización del dispositivo",
         "step_copy_code_detail": "El código de autorización se ha copiado automáticamente; también puedes copiarlo manualmente",
         "step_get_code": "Obtener código de autorización",
-        "step_get_code_desc": "Generar el código de autorización del dispositivo"
+        "step_get_code_desc": "Generar el código de autorización del dispositivo",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "¿Está seguro de que desea eliminar este proveedor de modelos?",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Eliminar claves duplicadas",
       "remove_invalid_keys": "Eliminar claves inválidas",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Buscar plataforma de modelos...",
       "search_placeholder": "Buscar ID o nombre del modelo",
       "title": "Servicio de modelos",

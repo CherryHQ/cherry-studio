@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Endpunkttyp",
           "placeholder": "Endpunkttyp auswählen",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Endpunkttyp auswählen",
           "tooltip": "API-Endpunkttyp-Format auswählen"
         },
@@ -5118,6 +5119,7 @@
         "title": "Modell-Gesundheitscheck",
         "use_all_keys": "Schlüssel verwenden"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Modell für neue Assistenten. Wird verwendet, wenn Assistent kein Modell hat.",
       "empty": "Kein Modell",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "API-Adresse",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "API-Adresse ist ungültig",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Vorschau: {{url}}",
       "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON-Formatfehler",
         "login": "Bei GitHub anmelden",
         "logout": "Von GitHub abmelden",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "Geräte-Autorisierungscode kopieren",
         "step_copy_code_detail": "Autorisierungscode automatisch kopiert, Sie können auch manuell kopieren",
         "step_get_code": "Autorisierungscode abrufen",
-        "step_get_code_desc": "Geräte-Autorisierungscode generieren"
+        "step_get_code_desc": "Geräte-Autorisierungscode generieren",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Diesen Modellanbieter wirklich löschen?",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Modellplattform suchen...",
       "search_placeholder": "Modell-ID oder Name suchen",
       "title": "Modelldienst",

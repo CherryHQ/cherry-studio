@@ -46,6 +46,7 @@ const baseProps = {
   onRunHealthCheck: vi.fn(),
   onRefreshModels: vi.fn(),
   onAddModel: vi.fn(),
+  onOpenManageModels: vi.fn(),
   onDownloadModel: vi.fn()
 }
 

@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Τύπος Endpoint",
           "placeholder": "Επιλέξτε τύπο endpoint",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Παρακαλώ επιλέξτε τύπο endpoint",
           "tooltip": "Επιλέξτε τη μορφή τύπου endpoint του API"
         },
@@ -5118,6 +5119,7 @@
         "title": "Ελεγχος υγείας μοντέλου",
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
       "default_assistant_model_description": "Το μοντέλο που χρησιμοποιείται όταν δημιουργείτε νέο υπάλληλο. Αν το υπάλληλο δεν έχει επιλεγμένο ένα μοντέλο, τότε θα χρησιμοποιεί αυτό το μοντέλο.",
       "empty": "Δεν υπάρχουν μοντέλα",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "Διεύθυνση API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "Η διεύθυνση API δεν είναι έγκυρη",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Προεπισκόπηση: {{url}}",
       "api_host_tooltip": "Αντικατάσταση μόνο όταν ο πάροχος απαιτεί προσαρμοσμένη διεύθυνση συμβατή με OpenAI.",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Λάθος σύνταξη JSON",
         "login": "Σύνδεση με το Github",
         "logout": "Αποσύνδεση από το Github",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "Αντιγραφή κωδικού εξουσιοδότησης συσκευής",
         "step_copy_code_detail": "Ο κωδικός εξουσιοδότησης αντιγράφηκε αυτόματα, μπορείτε επίσης να τον αντιγράψετε χειροκίνητα",
         "step_get_code": "Λήψη κωδικού εξουσιοδότησης",
-        "step_get_code_desc": "Δημιουργία κωδικού εξουσιοδότησης συσκευής"
+        "step_get_code_desc": "Δημιουργία κωδικού εξουσιοδότησης συσκευής",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον παροχό;",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
       "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
       "title": "Υπηρεσία μονάδων",

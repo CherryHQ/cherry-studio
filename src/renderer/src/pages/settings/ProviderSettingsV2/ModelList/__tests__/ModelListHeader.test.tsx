@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '../modelListDerivedState'
 import ModelListHeader from '../ModelListHeader'
@@ -50,15 +50,27 @@ const baseProps = {
   onRunHealthCheck: vi.fn(),
   onRefreshModels: vi.fn(),
   onAddModel: vi.fn(),
+  onOpenManageModels: vi.fn(),
   onDownloadModel: vi.fn()
 }
 
 describe('ModelListHeader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
+    vi.useRealTimers()
+  })
+
   it('renders the model list title and icon-only actions with accessible labels', () => {
     render(<ModelListHeader {...baseProps} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
     expect(screen.getByText(/1\/3 common\.enabled/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
 
     expect(screen.queryByText('button.manage')).not.toBeInTheDocument()
 
@@ -73,7 +85,20 @@ describe('ModelListHeader', () => {
     expect(baseProps.onRefreshModels).toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.add.add_model' }))
+    vi.advanceTimersByTime(220)
     expect(baseProps.onAddModel).toHaveBeenCalled()
+  })
+
+  it('opens manage models on add-button double click without firing the delayed add flow', () => {
+    render(<ModelListHeader {...baseProps} />)
+
+    const addButton = screen.getByRole('button', { name: 'settings.models.add.add_model' })
+    fireEvent.click(addButton)
+    fireEvent.doubleClick(addButton)
+    vi.advanceTimersByTime(220)
+
+    expect(baseProps.onOpenManageModels).toHaveBeenCalledTimes(1)
+    expect(baseProps.onAddModel).not.toHaveBeenCalled()
   })
 
   it('switches the bulk action label when all models are enabled', () => {
@@ -82,10 +107,11 @@ describe('ModelListHeader', () => {
     expect(screen.getByRole('button', { name: 'settings.models.bulk_disable' })).toBeInTheDocument()
   })
 
-  it('expands search when the search toggle is activated', () => {
+  it('shows search by default and collapses it when the search toggle is activated', () => {
     render(<ModelListHeader {...baseProps} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
+    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
   })
 })

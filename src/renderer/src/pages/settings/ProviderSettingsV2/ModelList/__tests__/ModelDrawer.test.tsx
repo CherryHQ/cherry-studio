@@ -8,6 +8,7 @@ import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
 const useProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
+const deleteModelMock = vi.fn()
 const updateModelMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -48,6 +49,7 @@ vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModel: (...args: any[]) => createModelMock(...args),
+    deleteModel: (...args: any[]) => deleteModelMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
 }))
@@ -108,6 +110,7 @@ describe('Model drawers', () => {
       success: vi.fn(),
       error: vi.fn()
     }
+    ;(window as any).modal = { confirm: vi.fn() }
 
     useModelsMock.mockReturnValue({ models: [] })
   })
@@ -273,5 +276,79 @@ describe('Model drawers', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
     )
+  })
+
+  it('shows delete only for disabled models and deletes after confirmation', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    const onClose = vi.fn()
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={onClose}
+        model={
+          {
+            id: 'openai::claude-4-sonnet',
+            providerId: 'openai',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            isEnabled: false,
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: '$' },
+              output: { perMillionTokens: 0, currency: '$' }
+            }
+          } as any
+        }
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /common\.delete/i }))
+
+    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
+    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(options.okButtonProps).toEqual({ danger: true })
+
+    await options.onOk()
+
+    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'claude-4-sonnet')
+    expect(window.toast.success).toHaveBeenCalledWith('common.delete_success')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('does not show delete action for enabled models', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::claude-4-sonnet',
+            providerId: 'openai',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            isEnabled: true,
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: '$' },
+              output: { perMillionTokens: 0, currency: '$' }
+            }
+          } as any
+        }
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /common\.delete/i })).not.toBeInTheDocument()
   })
 })

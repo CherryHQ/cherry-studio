@@ -2,7 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { Download, Eye, EyeOff, Filter, HeartPulse, Plus, Search, X } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
@@ -27,6 +27,7 @@ export interface ModelListHeaderProps {
   onRunHealthCheck: () => void
   onRefreshModels: () => void
   onAddModel: () => void
+  onOpenManageModels: () => void
   onDownloadModel: () => void
 }
 
@@ -52,11 +53,13 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   onRunHealthCheck,
   onRefreshModels,
   onAddModel,
+  onOpenManageModels,
   onDownloadModel
 }) => {
   const { t } = useTranslation()
-  const [showModelSearch, setShowModelSearch] = useState(false)
+  const [showModelSearch, setShowModelSearch] = useState(true)
   const [showCapFilter, setShowCapFilter] = useState(false)
+  const addModelClickTimeoutRef = useRef<number | null>(null)
 
   const toggleVisibleModelsLabel = allEnabled ? t('settings.models.bulk_disable') : t('settings.models.bulk_enable')
   const filterTooltip = showCapFilter
@@ -80,6 +83,34 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       return !open
     })
   }, [setSelectedCapabilityFilter])
+
+  useEffect(() => {
+    return () => {
+      if (addModelClickTimeoutRef.current !== null) {
+        window.clearTimeout(addModelClickTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const onTriggerAddModel = useCallback(() => {
+    if (addModelClickTimeoutRef.current !== null) {
+      window.clearTimeout(addModelClickTimeoutRef.current)
+    }
+
+    addModelClickTimeoutRef.current = window.setTimeout(() => {
+      addModelClickTimeoutRef.current = null
+      onAddModel()
+    }, 220)
+  }, [onAddModel])
+
+  const onTriggerManageModels = useCallback(() => {
+    if (addModelClickTimeoutRef.current !== null) {
+      window.clearTimeout(addModelClickTimeoutRef.current)
+      addModelClickTimeoutRef.current = null
+    }
+
+    onOpenManageModels()
+  }, [onOpenManageModels])
 
   return (
     <div className={modelListClasses.headerToolStack}>
@@ -177,7 +208,8 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
                 disabled={isBusy}
                 aria-label={t('settings.models.add.add_model')}
-                onClick={onAddModel}>
+                onClick={onTriggerAddModel}
+                onDoubleClick={onTriggerManageModels}>
                 <Plus className={modelListClasses.toolbarDesignIcon} />
                 <span>{t('common.add')}</span>
               </Button>

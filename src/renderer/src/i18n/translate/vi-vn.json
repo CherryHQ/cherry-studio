@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "Loại Điểm Cuối",
           "placeholder": "Chọn loại điểm cuối",
+          "remove_chip": "[to be translated]:Remove",
           "required": "Vui lòng chọn một loại điểm cuối",
           "tooltip": "Chọn định dạng loại điểm cuối API"
         },
@@ -5081,12 +5082,15 @@
       },
       "api_key": "Khóa API",
       "base_url": "URL cơ sở",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "Todo",
         "all_models_passed": "Tất cả các mô hình đã vượt qua kiểm tra",
         "button_caption": "Kiểm tra sức khỏe",
         "disabled": "Vô hiệu hóa",
         "disclaimer": "Việc kiểm tra sức khỏe yêu cầu gửi các yêu cầu, vui lòng sử dụng một cách thận trọng. Các mô hình tính phí theo từng yêu cầu có thể phát sinh chi phí bổ sung, vui lòng tự chịu trách nhiệm.",
+        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Đồng thời",
         "enabled": "Đã bật",
         "failed": "Thất bại",
@@ -5097,43 +5101,40 @@
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "Không tìm thấy khóa API, vui lòng thêm khóa API trước.",
         "no_results": "Không có kết quả",
-        "passed": "Đã thông qua",
-        "select_api_key": "Chọn khóa API để sử dụng:",
-        "single": "Unico",
-        "start": "Bắt đầu",
-        "timeout": "Hết thời gian",
-        "title": "Kontrola zdraví modelu",
-        "use_all_keys": "Clave(s)",
-        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "outcome_fail_short": "{{count}} failed",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
+        "passed": "Đã thông qua",
         "pipeline_heading": "Detection progress",
         "progress_count": "{{done}} / {{total}}",
         "progress_current": "Đang kiểm tra: {{name}}",
         "progress_hint": "Bạn có thể đóng bảng này; quá trình kiểm tra vẫn tiếp tục ở nền.",
         "progress_title": "Đang chạy kiểm tra sức khỏe",
         "retry": "Check again",
-        "status_checking": "Checking…"
+        "select_api_key": "Chọn khóa API để sử dụng:",
+        "single": "Unico",
+        "start": "Bắt đầu",
+        "status_checking": "Checking…",
+        "timeout": "Hết thời gian",
+        "title": "Kontrola zdraví modelu",
+        "use_all_keys": "Clave(s)"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
       "empty": "Không tìm thấy mô hình nào",
+      "list_title": "Model list",
       "manage": {
+        "add_custom_model": "Add custom model",
         "add_listed": {
           "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
           "label": "Thêm các mô hình vào danh sách"
         },
         "add_whole_group": "Thêm toàn bộ nhóm",
-        "fetch_list": "Lấy danh sách mô hình",
-        "refetch_list": "Tải lại danh sách mô hình",
-        "remove_listed": "Xóa các mô hình khỏi danh sách",
-        "remove_model": "Xóa mô hình",
-        "remove_whole_group": "Xóa toàn bộ nhóm",
-        "add_custom_model": "Add custom model",
         "drawer_title": "Model management",
         "fetch_deselect_all_add": "Deselect all",
         "fetch_deselect_all_remove": "Deselect all",
+        "fetch_list": "Lấy danh sách mô hình",
         "fetch_ok": "OK",
         "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
         "fetch_result_title": "Pull result",
@@ -5146,7 +5147,11 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
+        "refetch_list": "Tải lại danh sách mô hình",
         "reload_catalog": "Refresh list",
+        "remove_listed": "Xóa các mô hình khỏi danh sách",
+        "remove_model": "Xóa mô hình",
+        "remove_whole_group": "Xóa toàn bộ nhóm",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
         "status_all": "All",
@@ -5201,6 +5206,11 @@
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Khuyến nghị chọn mô hình nhẹ và không nên chọn mô hình suy nghĩ."
       },
+      "toolbar": {
+        "filter_close": "Close filter",
+        "filter_open": "Filter by capability",
+        "pull_short": "Pull"
+      },
       "topic_naming": {
         "auto": "Tự động đặt tên chủ đề",
         "label": "Đặt tên chủ đề",
@@ -5211,15 +5221,7 @@
       "translate_model_prompt_message": "Vui lòng nhập lời nhắc mô hình dịch",
       "translate_model_prompt_title": "Dịch Mô hình Nhắc",
       "use_assistant": "Sử dụng Trợ lý",
-      "use_model": "Mô hình Mặc định",
-      "bulk_disable": "Disable all",
-      "bulk_enable": "Enable all",
-      "list_title": "Model list",
-      "toolbar": {
-        "filter_close": "Close filter",
-        "filter_open": "Filter by capability",
-        "pull_short": "Pull"
-      }
+      "use_model": "Mô hình Mặc định"
     },
     "moresetting": {
       "check": {
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "Máy chủ API",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "Địa chỉ API không hợp lệ",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "Xem trước: {{url}}",
       "api_host_tooltip": "Chỉ ghi đè khi nhà cung cấp của bạn yêu cầu một điểm cuối tương thích OpenAI tùy chỉnh.",
       "api_key": {
@@ -5374,6 +5378,7 @@
         "tip": "Dùng dấu phẩy để phân tách nhiều khóa"
       },
       "api_version": "Phiên bản API",
+      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID Khóa Truy Cập AWS",
         "access_key_id_help": "Votre ID de clé d'accès AWS pour accéder aux services AWS Bedrock",
@@ -5414,6 +5419,7 @@
       "check_all_keys": "Kiểm tra tất cả các phím",
       "check_multiple_keys": "Kiểm tra nhiều khóa API",
       "copilot": {
+        "add_request_header": "Add header",
         "auth_failed": "Xác thực Github Copilot thất bại.",
         "auth_success": "Xác thực GitHub Copilot thành công.",
         "auth_success_title": "Chứng nhận thành công.",
@@ -5426,7 +5432,12 @@
         "description": "Tài khoản GitHub của bạn cần đăng ký Copilot.",
         "description_detail": "GitHub Copilot là một trợ lý mã nguồn được hỗ trợ bởi AI, yêu cầu có đăng ký GitHub Copilot hợp lệ để sử dụng.",
         "expand": "Mở rộng",
+        "header_field_name": "Header",
+        "header_field_value": "Value",
+        "header_name_placeholder": "Header name",
+        "header_value_placeholder": "Header value",
         "headers_description": "Tiêu đề yêu cầu tùy chỉnh (định dạng JSON)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "Lỗi định dạng JSON",
         "login": "Đăng nhập vào Github",
         "logout": "Thoát GitHub",
@@ -5448,11 +5459,8 @@
         "step_copy_code_detail": "Mã xác thực đã được sao chép tự động, bạn cũng có thể sao chép thủ công",
         "step_get_code": "Lấy Mã Ủy Quyền",
         "step_get_code_desc": "Tạo mã ủy quyền thiết bị",
-        "add_request_header": "Add header",
-        "header_field_name": "Header",
-        "header_field_value": "Value",
-        "header_name_placeholder": "Header name",
-        "header_value_placeholder": "Header value"
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
@@ -5484,15 +5492,15 @@
         "balance": "Cân bằng",
         "button": "Iniciar sesión con {{provider}}",
         "cherryIn": {
+          "account_title": "Cherry IN account",
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
           "login_button": "Đăng nhập bằng OAuth",
           "logout_button": "Keluar",
-          "title": "Đăng nhập OAuth",
-          "account_title": "Cherry IN account",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
+          "title": "Đăng nhập OAuth",
           "use_api_key": "Use API key instead"
         },
         "connect": "Kết nối {{provider}}",
@@ -5516,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "Nhà cung cấp tìm kiếm...",
       "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
       "title": "Nhà cung cấp mô hình",
@@ -5540,8 +5550,7 @@
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
           "title": "Cấu hình Tài khoản Dịch vụ"
         }
-      },
-      "auth_connection_section": "Connection & authentication"
+      }
     },
     "proxy": {
       "address": "Địa chỉ Proxy",

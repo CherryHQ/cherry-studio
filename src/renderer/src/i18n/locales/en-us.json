@@ -5119,6 +5119,7 @@
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
+      "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
@@ -5367,7 +5368,9 @@
         }
       },
       "api_host": "API Host",
+      "api_host_drawer_hint": "Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "API address is invalid",
+      "api_host_placeholder": "Not configured",
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
@@ -5434,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON format error",
         "login": "Log in to Github",
         "logout": "Exit GitHub",
@@ -5454,7 +5458,9 @@
         "step_copy_code_desc": "Copy device authorization code",
         "step_copy_code_detail": "Authorization code has been automatically copied, you can also copy it manually",
         "step_get_code": "Get Authorization Code",
-        "step_get_code_desc": "Generate device authorization code"
+        "step_get_code_desc": "Generate device authorization code",
+        "toggle_headers_editor_json": "Switch to JSON editor",
+        "toggle_headers_editor_list": "Switch to header list"
       },
       "delete": {
         "content": "Are you sure you want to delete this provider?",
@@ -5518,6 +5524,8 @@
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
+      "request_configuration": "Request configuration",
+      "request_configuration_tooltip": "Configure API Host and custom request headers",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
       "title": "Model Provider",

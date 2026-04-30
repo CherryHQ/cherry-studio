@@ -5053,6 +5053,7 @@
         "endpoint_type": {
           "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",
+          "remove_chip": "[to be translated]:Remove",
           "required": "エンドポイントタイプを選択してください",
           "tooltip": "APIエンドポイントタイプフォーマットを選択"
         },
@@ -5118,6 +5119,7 @@
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
+      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
@@ -5366,7 +5368,9 @@
         }
       },
       "api_host": "APIホスト",
+      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
       "api_host_no_valid": "APIアドレスが無効です",
+      "api_host_placeholder": "[to be translated]:Not configured",
       "api_host_preview": "プレビュー：{{url}}",
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
@@ -5433,6 +5437,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSONフォーマットエラー",
         "login": "GitHubにログインする",
         "logout": "GitHubから退出する",
@@ -5453,7 +5458,9 @@
         "step_copy_code_desc": "デバイス認証コードをコピー",
         "step_copy_code_detail": "認証コードは自動的にコピーされましたが、手動でもコピーできます",
         "step_get_code": "認証コードを取得",
-        "step_get_code_desc": "デバイス認証コードを生成"
+        "step_get_code_desc": "デバイス認証コードを生成",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "このプロバイダーを削除してもよろしいですか？",
@@ -5517,6 +5524,8 @@
       },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
+      "request_configuration": "[to be translated]:Request configuration",
+      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
       "title": "モデルプロバイダー",

@@ -21,13 +21,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ...actual,
     HelpTooltip: ({ title }: any) => <span>{title}</span>,
     InputGroup: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    InputGroupAddon: ({ children }: any) => <div>{children}</div>,
-    InputGroupButton: ({ children, onClick, ...props }: any) => (
-      <button type="button" onClick={onClick} {...props}>
-        {children}
-      </button>
-    ),
-    InputGroupInput: ({ onChange, onBlur, ...props }: any) => <input onChange={onChange} onBlur={onBlur} {...props} />,
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })
@@ -37,7 +30,30 @@ vi.mock('@renderer/pages/settings/ProviderSettingsV2/CherryINSettings', () => ({
 }))
 
 vi.mock('../ProviderCustomHeaderDrawer', () => ({
-  default: ({ open }: any) => (open ? <div>custom-header-drawer</div> : null)
+  default: ({
+    providerId,
+    open,
+    hostEditMode,
+    commitApiHost,
+    commitAnthropicApiHost,
+    anthropicApiHost,
+    apiHost
+  }: any) =>
+    open ? (
+      <div data-testid="request-config-drawer" data-provider={providerId} data-mode={hostEditMode}>
+        <span>{`host-edit:${hostEditMode}:${hostEditMode === 'anthropic' ? anthropicApiHost : apiHost}`}</span>
+        <button
+          type="button"
+          onClick={() =>
+            hostEditMode === 'anthropic'
+              ? commitAnthropicApiHost('https://anthropic-drawer.example')
+              : commitApiHost('https://drawer-commit.example')
+          }
+          data-testid="drawer-commit-host">
+          commit-host
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('@renderer/hooks/useProviders', () => ({
@@ -66,10 +82,9 @@ vi.mock('../../hooks/useProviderModelSync', () => ({
 }))
 
 vi.mock('../ProviderField', () => ({
-  default: ({ title, help, action, children, className }: any) => (
+  default: ({ title, help, children, className }: any) => (
     <div className={className}>
       <div>{title}</div>
-      {action}
       {help}
       {children}
     </div>
@@ -89,10 +104,6 @@ describe('ApiHost', () => {
     settings: {}
   } as any
 
-  const baseProps = {
-    providerId: 'openai'
-  }
-
   const endpointState = {
     primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
     apiHost: 'https://api.example.com',
@@ -100,7 +111,8 @@ describe('ApiHost', () => {
     anthropicApiHost: 'https://anthropic.example.com',
     setAnthropicApiHost: vi.fn(),
     apiVersion: '2024-01-01',
-    setApiVersion: vi.fn()
+    setApiVersion: vi.fn(),
+    isVertexProvider: false
   }
 
   beforeEach(() => {
@@ -119,7 +131,7 @@ describe('ApiHost', () => {
     })
   })
 
-  it('derives preview state locally and uses local endpoint actions for commit/reset', () => {
+  it('commits host from the request-configuration drawer and resets the primary API host from the connection row', () => {
     const commitApiHost = vi.fn()
     const resetApiHost = vi.fn()
 
@@ -135,57 +147,24 @@ describe('ApiHost', () => {
       resetApiHost
     })
 
-    render(<ApiHost {...baseProps} />)
+    render(<ApiHost providerId="openai" />)
 
-    expect(useProviderEndpointsMock).toHaveBeenCalledWith(provider)
-    expect(useProviderHostPreviewMock).toHaveBeenCalledWith({
-      provider,
-      apiHost: endpointState.apiHost,
-      anthropicApiHost: endpointState.anthropicApiHost
-    })
-    expect(useProviderEndpointActionsMock).toHaveBeenCalledWith({
-      provider,
-      primaryEndpoint: 'openai-chat-completions',
-      apiHost: endpointState.apiHost,
-      setApiHost: endpointState.setApiHost,
-      providerApiHost: '',
-      anthropicApiHost: endpointState.anthropicApiHost,
-      setAnthropicApiHost: endpointState.setAnthropicApiHost,
-      apiVersion: endpointState.apiVersion,
-      patchProvider: updateProviderMock,
-      syncProviderModels: syncProviderModelsMock
-    })
-
-    fireEvent.blur(screen.getByDisplayValue('https://api.example.com'))
-    expect(commitApiHost).toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: '重置' }))
+    /** `settings.provider.api.url.reset`: en-US "Reset", zh-CN "重置" */
+    fireEvent.click(screen.getByRole('button', { name: /^重置$|^Reset$/ }))
     expect(resetApiHost).toHaveBeenCalled()
+
+    /** `settings.provider.request_configuration_tooltip`: bilingual label on the config trigger */
+    fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
+
+    expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-mode', 'primary')
+
+    fireEvent.click(screen.getByTestId('drawer-commit-host'))
+    expect(commitApiHost).toHaveBeenCalledWith('https://drawer-commit.example')
   })
 
-  it('opens the custom header drawer locally', () => {
-    useProviderHostPreviewMock.mockReturnValue({
-      hostPreview: 'https://api.example.com/chat/completions',
-      anthropicHostPreview: 'https://api.example.com/messages',
-      isApiHostResettable: false
-    })
-    useProviderEndpointActionsMock.mockReturnValue({
-      commitApiHost: vi.fn(),
-      commitAnthropicApiHost: vi.fn(),
-      commitApiVersion: vi.fn(),
-      resetApiHost: vi.fn()
-    })
+  it('uses anthropic drawer mode when anthropic messaging is the primary endpoint', () => {
+    const anthropicCommit = vi.fn()
 
-    const { container } = render(<ApiHost {...baseProps} />)
-    const settingsButton = container.querySelector('button')
-
-    expect(settingsButton).not.toBeNull()
-    fireEvent.click(settingsButton!)
-
-    expect(screen.getByText('custom-header-drawer')).toBeInTheDocument()
-  })
-
-  it('shows the anthropic host field when anthropic is the default endpoint', () => {
     useProviderHostPreviewMock.mockReturnValue({
       hostPreview: 'https://api.example.com/chat/completions',
       anthropicHostPreview: 'https://anthropic.example.com/messages',
@@ -193,7 +172,7 @@ describe('ApiHost', () => {
     })
     useProviderEndpointActionsMock.mockReturnValue({
       commitApiHost: vi.fn(),
-      commitAnthropicApiHost: vi.fn(),
+      commitAnthropicApiHost: anthropicCommit,
       commitApiVersion: vi.fn(),
       resetApiHost: vi.fn()
     })
@@ -203,10 +182,16 @@ describe('ApiHost', () => {
       primaryEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     })
 
-    render(<ApiHost {...baseProps} />)
+    render(<ApiHost providerId="openai" />)
 
-    expect(screen.getByDisplayValue('https://anthropic.example.com')).toBeInTheDocument()
-    expect(screen.queryByDisplayValue('https://api.example.com')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Configure API Host|配置 API Host/i }))
+
+    const drawer = screen.getByTestId('request-config-drawer')
+    expect(drawer).toHaveAttribute('data-mode', 'anthropic')
+    expect(drawer.textContent).toContain(endpointState.anthropicApiHost)
+
+    fireEvent.click(screen.getByTestId('drawer-commit-host'))
+    expect(anthropicCommit).toHaveBeenCalledWith('https://anthropic-drawer.example')
   })
 
   it('returns no connection field when the provider hides connection settings', () => {
@@ -243,7 +228,7 @@ describe('ApiHost', () => {
   it('renders nothing when the provider is missing', () => {
     useProviderMock.mockReturnValue({ provider: undefined })
 
-    const { container } = render(<ApiHost {...baseProps} />)
+    const { container } = render(<ApiHost providerId="openai" />)
 
     expect(container).toBeEmptyDOMElement()
   })

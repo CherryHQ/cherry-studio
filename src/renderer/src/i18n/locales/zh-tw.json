@@ -5119,6 +5119,7 @@
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
       },
+      "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
@@ -5367,7 +5368,9 @@
         }
       },
       "api_host": "API 主機位址",
+      "api_host_drawer_hint": "自訂 API 請求網址；留空則使用目錄預設。",
       "api_host_no_valid": "API 位址不合法",
+      "api_host_placeholder": "未設定",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
@@ -5434,6 +5437,7 @@
         "header_name_placeholder": "標頭名稱",
         "header_value_placeholder": "標頭值",
         "headers_description": "自訂請求標頭（JSON 格式）",
+        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式錯誤",
         "login": "登入 GitHub",
         "logout": "登出 GitHub",
@@ -5454,7 +5458,9 @@
         "step_copy_code_desc": "複製裝置授權碼",
         "step_copy_code_detail": "授權碼已自動複製，您也可以手動複製",
         "step_get_code": "取得授權碼",
-        "step_get_code_desc": "產生裝置授權碼"
+        "step_get_code_desc": "產生裝置授權碼",
+        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
+        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
       },
       "delete": {
         "content": "確定要刪除此提供者嗎？",
@@ -5518,6 +5524,8 @@
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
+      "request_configuration": "請求設定",
+      "request_configuration_tooltip": "設定 API Host 與自訂請求標頭",
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
       "title": "模型提供者",

@@ -1,10 +1,10 @@
-import React, { memo } from 'react'
+import React, { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../components/ProviderSettingsPrimitives'
 import HealthCheckDrawer from './HealthCheckDrawer'
 import ManageModelsDrawer from './ManageModelsDrawer'
-import { EditModelDrawer } from './ModelDrawer'
+import { AddModelDrawer, EditModelDrawer } from './ModelDrawer'
 import { ModelListHealthProvider } from './modelListHealthContext'
 import { useModelListHealth } from './modelListHealthContext'
 import ModelListHelpLinks from './ModelListHelpLinks'
@@ -24,6 +24,7 @@ interface ModelListProps {
 
 function ModelListContent({ providerId }: { providerId: string }) {
   const { t } = useTranslation()
+  const [addModelDrawerOpen, setAddModelDrawerOpen] = useState(false)
   const health = useModelListHealth()
   const browse = useProviderModelListBrowse({
     providerId,
@@ -33,6 +34,12 @@ function ModelListContent({ providerId }: { providerId: string }) {
   const pullReconcile = useProviderModelPullReconcile(providerId)
   const { openOvmsModelDownload } = useOvmsModelDownloadAction(providerId)
   const isToolbarBusy = browse.isBulkUpdating || health.isHealthChecking || pullReconcile.isBusy
+  const openAddModelDrawer = useCallback(() => {
+    setAddModelDrawerOpen(true)
+  }, [])
+  const closeAddModelDrawer = useCallback(() => {
+    setAddModelDrawerOpen(false)
+  }, [])
 
   return (
     <>
@@ -54,11 +61,13 @@ function ModelListContent({ providerId }: { providerId: string }) {
           onToggleVisibleModels={browse.header.onToggleVisibleModels}
           onRunHealthCheck={health.openHealthCheck}
           onRefreshModels={pullReconcile.openPullReconcile}
-          onAddModel={membership.openMembershipDrawer}
+          onAddModel={openAddModelDrawer}
+          onOpenManageModels={membership.openMembershipDrawer}
           onDownloadModel={openOvmsModelDownload}
         />
         <ModelListSections sections={browse.sections} />
       </div>
+      <AddModelDrawer providerId={providerId} open={addModelDrawerOpen} prefill={null} onClose={closeAddModelDrawer} />
       <EditModelDrawer
         providerId={providerId}
         open={browse.editDrawer.open}

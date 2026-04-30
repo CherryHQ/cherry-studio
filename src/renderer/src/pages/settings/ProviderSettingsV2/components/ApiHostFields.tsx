@@ -1,6 +1,7 @@
 import { HelpTooltip, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import CherryINSettings from '@renderer/pages/settings/ProviderSettingsV2/CherryINSettings'
-import { RotateCcw, Settings2 } from 'lucide-react'
+import { cn } from '@renderer/utils'
+import { RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderField from './ProviderField'
@@ -47,29 +48,23 @@ export function AzureApiVersionField({
 interface ApiHostFieldProps {
   providerIdForSettings: string
   apiHost: string
-  setApiHost: (value: string) => void
-  hostPreview: string
-  isApiHostResettable: boolean
   isCherryIN: boolean
   isChineseUser: boolean
   isVertexAI: boolean
-  onCommitApiHost: () => void
+  isApiHostResettable: boolean
   onResetApiHost: () => void
-  onOpenCustomHeaders: () => void
+  onOpenRequestConfig: () => void
 }
 
 export function ApiHostField({
   providerIdForSettings,
   apiHost,
-  setApiHost,
-  hostPreview,
-  isApiHostResettable,
   isCherryIN,
   isChineseUser,
   isVertexAI,
-  onCommitApiHost,
+  isApiHostResettable,
   onResetApiHost,
-  onOpenCustomHeaders
+  onOpenRequestConfig
 }: ApiHostFieldProps) {
   const { t } = useTranslation()
 
@@ -97,35 +92,45 @@ export function ApiHostField({
         <CherryINSettings providerId={providerIdForSettings} />
       ) : (
         <div className={fieldClasses.inputRow}>
-          <InputGroup className={fieldClasses.inputGroup}>
-            <InputGroupInput
-              className={fieldClasses.input}
-              value={apiHost}
-              placeholder={t('settings.provider.api_host')}
-              onChange={(event) => setApiHost(event.target.value)}
-              onBlur={onCommitApiHost}
-            />
+          <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
+            <div
+              role="presentation"
+              className={cn(
+                fieldClasses.input,
+                'block min-h-[1.25em] min-w-0 flex-1 cursor-default truncate bg-transparent py-0 font-mono tabular-nums'
+              )}
+              title={apiHost.trim()}>
+              {apiHost.trim() ? apiHost.trim() : t('settings.provider.api_host_placeholder')}
+            </div>
           </InputGroup>
-          {isApiHostResettable ? (
-            <Tooltip content={t('settings.provider.api.url.reset')}>
+          <div className="inline-flex shrink-0 items-center gap-1">
+            {isApiHostResettable ? (
+              <Tooltip content={t('settings.provider.api.url.reset')}>
+                <span className="inline-flex shrink-0">
+                  <button
+                    type="button"
+                    className={fieldClasses.iconButton}
+                    aria-label={t('settings.provider.api.url.reset')}
+                    onClick={() => {
+                      onResetApiHost()
+                    }}>
+                    <RotateCcw size={12} />
+                  </button>
+                </span>
+              </Tooltip>
+            ) : null}
+            <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
               <span className="inline-flex shrink-0">
                 <button
                   type="button"
-                  aria-label={t('settings.provider.api.url.reset')}
                   className={fieldClasses.iconButton}
-                  onClick={onResetApiHost}>
-                  <RotateCcw size={12} />
+                  aria-label={t('settings.provider.request_configuration_tooltip')}
+                  onClick={onOpenRequestConfig}>
+                  <Settings size={12} aria-hidden />
                 </button>
               </span>
             </Tooltip>
-          ) : null}
-          <Tooltip content={t('settings.provider.copilot.custom_headers')}>
-            <span className={fieldClasses.inputRowEndSlot}>
-              <button type="button" className={fieldClasses.iconButton} onClick={onOpenCustomHeaders}>
-                <Settings2 size={12} />
-              </button>
-            </span>
-          </Tooltip>
+          </div>
         </div>
       )}
     </ProviderField>
@@ -134,16 +139,14 @@ export function ApiHostField({
 
 interface AnthropicApiHostFieldProps {
   anthropicApiHost: string
-  setAnthropicApiHost: (value: string) => void
   anthropicHostPreview: string
-  onCommitAnthropicApiHost: () => void
+  onOpenRequestConfig: () => void
 }
 
 export function AnthropicApiHostField({
   anthropicApiHost,
-  setAnthropicApiHost,
   anthropicHostPreview,
-  onCommitAnthropicApiHost
+  onOpenRequestConfig
 }: AnthropicApiHostFieldProps) {
   const { t } = useTranslation()
 
@@ -160,15 +163,30 @@ export function AnthropicApiHostField({
           {t('settings.provider.anthropic_api_host_preview', { url: anthropicHostPreview || '—' })}
         </div>
       }>
-      <InputGroup className={fieldClasses.inputGroupBlock}>
-        <InputGroupInput
-          className={fieldClasses.input}
-          value={anthropicApiHost}
-          placeholder={t('settings.provider.anthropic_api_host')}
-          onChange={(event) => setAnthropicApiHost(event.target.value)}
-          onBlur={onCommitAnthropicApiHost}
-        />
-      </InputGroup>
+      <div className={fieldClasses.inputRow}>
+        <InputGroup className={`${fieldClasses.inputGroupBlock} flex-1 items-center`}>
+          <div
+            role="presentation"
+            className={cn(
+              fieldClasses.input,
+              'block min-h-[1.25em] min-w-0 flex-1 cursor-default truncate bg-transparent py-0 font-mono tabular-nums'
+            )}
+            title={anthropicApiHost.trim()}>
+            {anthropicApiHost.trim() ? anthropicApiHost.trim() : t('settings.provider.api_host_placeholder')}
+          </div>
+        </InputGroup>
+        <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+          <span className="inline-flex shrink-0">
+            <button
+              type="button"
+              className={fieldClasses.iconButton}
+              aria-label={t('settings.provider.request_configuration_tooltip')}
+              onClick={onOpenRequestConfig}>
+              <Settings size={12} aria-hidden />
+            </button>
+          </span>
+        </Tooltip>
+      </div>
     </ProviderField>
   )
 }

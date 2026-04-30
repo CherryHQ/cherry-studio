@@ -14,6 +14,7 @@ interface ModelListGroupProps {
   items: ModelListGroupItem[]
   defaultOpen: boolean
   disabled?: boolean
+  pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
 }
@@ -23,6 +24,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   items,
   defaultOpen,
   disabled,
+  pendingModelIds,
   onEditModel,
   onToggleModel
 }) => {
@@ -59,7 +61,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               model={model}
               onEdit={onEditModel}
               onToggleEnabled={onToggleModel}
-              disabled={disabled}
+              disabled={disabled || pendingModelIds.has(model.id)}
             />
           ))}
         </div>

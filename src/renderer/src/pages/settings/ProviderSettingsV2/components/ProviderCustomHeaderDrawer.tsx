@@ -1,18 +1,27 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProviders'
-import { Plus, Trash2, X } from 'lucide-react'
+import { cn, validateApiHost } from '@renderer/utils'
+import { trim } from 'lodash'
+import { Plus, Settings, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { applyProviderCustomHeaderSideEffects } from '../adapters/providerSettingsSideEffects'
+import ProviderActions from './ProviderActions'
 import ProviderSettingsDrawer from './ProviderSettingsDrawer'
-import { customHeaderDrawerClasses, modelListClasses } from './ProviderSettingsPrimitives'
+import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from './ProviderSettingsPrimitives'
 
 interface ProviderCustomHeaderDrawerProps {
   providerId: string
   open: boolean
   onClose: () => void
+  hostEditMode: 'primary' | 'anthropic'
+  apiHost: string
+  anthropicApiHost: string
+  commitApiHost: (explicitNext?: string) => void
+  commitAnthropicApiHost: (explicitNext?: string) => void
+  isVertexProvider: boolean
 }
 
 interface HeaderRow {
@@ -20,6 +29,8 @@ interface HeaderRow {
   key: string
   value: string
 }
+
+type HeadersUiMode = 'list' | 'json'
 
 function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow {
   const id =
@@ -49,7 +60,46 @@ function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
   return out
 }
 
-export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }: ProviderCustomHeaderDrawerProps) {
+/** Parse JSON object for custom headers; primitive values coerced to strings. */
+function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string, string> } | { ok: false } {
+  const t = trim(raw)
+  if (t === '') {
+    return { ok: true, headers: {} }
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(t) as unknown
+  } catch {
+    return { ok: false }
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false }
+  }
+  const out: Record<string, string> = {}
+  for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+    const kk = trim(key)
+    if (!kk) {
+      continue
+    }
+    if (val !== null && typeof val === 'object') {
+      return { ok: false }
+    }
+    out[kk] = val === null || val === undefined ? '' : String(val)
+  }
+  return { ok: true, headers: out }
+}
+
+export default function ProviderCustomHeaderDrawer({
+  providerId,
+  open,
+  onClose,
+  hostEditMode,
+  apiHost,
+  anthropicApiHost,
+  commitApiHost,
+  commitAnthropicApiHost,
+  isVertexProvider
+}: ProviderCustomHeaderDrawerProps) {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(providerId)
   const { defaultHeaders, updateDefaultHeaders } = useCopilot()
@@ -60,16 +110,69 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
+  const [draftHost, setDraftHost] = useState('')
+  const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
+  const [jsonDraft, setJsonDraft] = useState('')
 
   useEffect(() => {
     if (!open) {
       return
     }
     setRows(headersObjectToRows(sourceHeaders))
-  }, [open, sourceHeaders])
+    setJsonDraft(JSON.stringify(sourceHeaders, null, 2))
+    setHeadersUiMode('list')
+    setDraftHost(trim(hostEditMode === 'anthropic' ? anthropicApiHost : apiHost))
+  }, [open, sourceHeaders, hostEditMode, anthropicApiHost, apiHost])
+
+  const syncListToJson = useCallback(() => {
+    setJsonDraft(JSON.stringify(rowsToHeadersObject(rows), null, 2))
+  }, [rows])
+
+  const applyJsonToRowsOrToast = useCallback((): boolean => {
+    const parsed = parseHeadersJsonDraft(jsonDraft)
+    if (!parsed.ok) {
+      window.toast.error(t('settings.provider.copilot.invalid_json'))
+      return false
+    }
+    setRows(headersObjectToRows(parsed.headers))
+    return true
+  }, [jsonDraft, t])
+
+  const toggleHeadersUiMode = useCallback(() => {
+    if (headersUiMode === 'list') {
+      syncListToJson()
+      setHeadersUiMode('json')
+      return
+    }
+    if (!applyJsonToRowsOrToast()) {
+      return
+    }
+    setHeadersUiMode('list')
+  }, [applyJsonToRowsOrToast, headersUiMode, syncListToJson])
 
   const handleSave = useCallback(async () => {
-    const parsedHeaders = rowsToHeadersObject(rows)
+    const trimmed = trim(draftHost)
+    if (hostEditMode === 'primary') {
+      if (!validateApiHost(trimmed) || (!isVertexProvider && !trimmed)) {
+        window.toast.error(t('settings.provider.api_host_no_valid'))
+        return
+      }
+      commitApiHost(trimmed)
+    } else {
+      commitAnthropicApiHost(trimmed)
+    }
+
+    let parsedHeaders: Record<string, string>
+    if (headersUiMode === 'json') {
+      const parsed = parseHeadersJsonDraft(jsonDraft)
+      if (!parsed.ok) {
+        window.toast.error(t('settings.provider.copilot.invalid_json'))
+        return
+      }
+      parsedHeaders = parsed.headers
+    } else {
+      parsedHeaders = rowsToHeadersObject(rows)
+    }
 
     applyProviderCustomHeaderSideEffects({
       providerId,
@@ -81,99 +184,167 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     window.toast.success(t('message.save.success.title'))
     onClose()
-  }, [onClose, provider?.settings, providerId, rows, t, updateDefaultHeaders, updateProvider])
-
-  const headerTitle = (
-    <div className={customHeaderDrawerClasses.headerTitleRow}>
-      <span className={customHeaderDrawerClasses.headerTitleText}>{t('settings.provider.copilot.custom_headers')}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={modelListClasses.manageDrawerCloseInTitle}
-        onClick={onClose}
-        aria-label={t('common.close')}>
-        <X aria-hidden className="size-[11px]" />
-      </Button>
-    </div>
-  )
+  }, [
+    commitAnthropicApiHost,
+    commitApiHost,
+    draftHost,
+    headersUiMode,
+    hostEditMode,
+    isVertexProvider,
+    jsonDraft,
+    onClose,
+    provider?.settings,
+    providerId,
+    rows,
+    t,
+    updateDefaultHeaders,
+    updateProvider
+  ])
 
   const footer = (
-    <div className="flex items-center justify-end gap-2">
-      <Button type="button" variant="outline" className={customHeaderDrawerClasses.footerOutlineBtn} onClick={onClose}>
+    <ProviderActions className={drawerClasses.footer}>
+      <Button type="button" variant="outline" onClick={onClose}>
         {t('common.cancel')}
       </Button>
-      <Button type="button" className={customHeaderDrawerClasses.footerPrimaryBtn} onClick={() => void handleSave()}>
+      <Button type="button" onClick={() => void handleSave()}>
         {t('common.save')}
       </Button>
-    </div>
+    </ProviderActions>
   )
+
+  const hostLabel =
+    hostEditMode === 'anthropic'
+      ? t('settings.provider.anthropic_api_host')
+      : `${t('settings.provider.api_host')} (Endpoint URL)`
+
+  const toggleLabel =
+    headersUiMode === 'list'
+      ? t('settings.provider.copilot.toggle_headers_editor_json')
+      : t('settings.provider.copilot.toggle_headers_editor_list')
 
   return (
     <ProviderSettingsDrawer
       open={open}
       onClose={onClose}
-      title={headerTitle}
+      title={t('settings.provider.request_configuration')}
       footer={footer}
-      size="manage"
-      showHeaderCloseButton={false}
-      contentClassName="!w-[min(280px,calc(100vw-1.5rem))]">
+      size="form">
       <div className={customHeaderDrawerClasses.bodyScroll}>
-        {rows.map((row) => (
-          <div key={row.id} className={customHeaderDrawerClasses.card}>
-            <div className={customHeaderDrawerClasses.cardRow}>
-              <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-key-${row.id}`}>
-                {t('settings.provider.copilot.header_field_name')}
-              </label>
-              <input
-                id={`provider-hdr-key-${row.id}`}
-                className={customHeaderDrawerClasses.cardInput}
-                value={row.key}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, key: v } : r)))
-                }}
-                placeholder={t('settings.provider.copilot.header_name_placeholder')}
-                autoComplete="off"
-              />
-            </div>
-            <div className={customHeaderDrawerClasses.cardRow}>
-              <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-val-${row.id}`}>
-                {t('settings.provider.copilot.header_field_value')}
-              </label>
-              <input
-                id={`provider-hdr-val-${row.id}`}
-                className={customHeaderDrawerClasses.cardInput}
-                value={row.value}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, value: v } : r)))
-                }}
-                placeholder={t('settings.provider.copilot.header_value_placeholder')}
-                autoComplete="off"
-              />
-            </div>
-            <div className={customHeaderDrawerClasses.cardRemoveRow}>
+        <div className="space-y-1.5">
+          <label className="font-medium text-muted-foreground/60 text-xs" htmlFor="provider-request-config-host">
+            {hostLabel}
+          </label>
+          <InputGroup className={fieldClasses.inputGroup}>
+            <InputGroupInput
+              id="provider-request-config-host"
+              className={fieldClasses.input}
+              value={draftHost}
+              placeholder={t('settings.provider.api_host')}
+              onChange={(e) => {
+                setDraftHost(e.target.value)
+              }}
+              autoComplete="off"
+            />
+          </InputGroup>
+          <p className="break-words text-muted-foreground/40 text-xs leading-relaxed">
+            {t('settings.provider.api_host_drawer_hint')}
+          </p>
+        </div>
+
+        <div className="space-y-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-medium text-muted-foreground/60 text-xs">
+              {t('settings.provider.copilot.custom_headers')}
+            </span>
+            <Tooltip content={toggleLabel}>
+              <button
+                type="button"
+                aria-label={toggleLabel}
+                className={cn(fieldClasses.iconButton, 'shrink-0')}
+                onClick={toggleHeadersUiMode}>
+                <Settings className="size-3" aria-hidden />
+              </button>
+            </Tooltip>
+          </div>
+
+          {headersUiMode === 'list' ? (
+            <>
+              {rows.map((row) => (
+                <div key={row.id} className={customHeaderDrawerClasses.card}>
+                  <div className={customHeaderDrawerClasses.cardRow}>
+                    <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-key-${row.id}`}>
+                      {t('settings.provider.copilot.header_field_name')}
+                    </label>
+                    <input
+                      id={`provider-hdr-key-${row.id}`}
+                      className={customHeaderDrawerClasses.cardInput}
+                      value={row.key}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, key: v } : r)))
+                      }}
+                      placeholder={t('settings.provider.copilot.header_name_placeholder')}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className={customHeaderDrawerClasses.cardRow}>
+                    <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-val-${row.id}`}>
+                      {t('settings.provider.copilot.header_field_value')}
+                    </label>
+                    <input
+                      id={`provider-hdr-val-${row.id}`}
+                      className={customHeaderDrawerClasses.cardInput}
+                      value={row.value}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, value: v } : r)))
+                      }}
+                      placeholder={t('settings.provider.copilot.header_value_placeholder')}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className={customHeaderDrawerClasses.cardRemoveRow}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={customHeaderDrawerClasses.removeIconButton}
+                      onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
+                      aria-label={t('common.delete')}>
+                      <Trash2 aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+              ))}
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                className={customHeaderDrawerClasses.removeIconButton}
-                onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                aria-label={t('common.delete')}>
-                <Trash2 aria-hidden />
+                className={customHeaderDrawerClasses.addRowButton}
+                onClick={() => setRows((prev) => [...prev, newRow()])}>
+                <Plus className="size-2.5 shrink-0" aria-hidden />
+                <span>{t('settings.provider.copilot.add_request_header')}</span>
               </Button>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <textarea
+                value={jsonDraft}
+                onChange={(e) => {
+                  setJsonDraft(e.target.value)
+                }}
+                spellCheck={false}
+                autoComplete="off"
+                rows={8}
+                aria-label={t('settings.provider.copilot.custom_headers')}
+                placeholder={t('settings.provider.copilot.headers_json_placeholder')}
+                className={customHeaderDrawerClasses.headersJsonEditor}
+              />
+              <p className="text-muted-foreground/40 text-xs leading-relaxed">
+                {t('settings.provider.copilot.headers_description')}
+              </p>
             </div>
-          </div>
-        ))}
-        <Button
-          type="button"
-          variant="ghost"
-          className={customHeaderDrawerClasses.addRowButton}
-          onClick={() => setRows((prev) => [...prev, newRow()])}>
-          <Plus className="size-2.5 shrink-0" aria-hidden />
-          <span>{t('settings.provider.copilot.add_request_header')}</span>
-        </Button>
+          )}
+        </div>
       </div>
     </ProviderSettingsDrawer>
   )

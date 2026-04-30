@@ -1,5 +1,7 @@
-import { Avatar, AvatarFallback, RowFlex, Switch } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/pages/settings/ProviderSettingsV2/config/models'
+import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettingsV2/ModelList/utils'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import React, { memo, useCallback } from 'react'
@@ -17,8 +19,22 @@ interface ModelListItemProps {
   onToggleEnabled: (model: Model, enabled: boolean) => Promise<void>
 }
 
+const logger = loggerService.withContext('ModelListItem')
+
 const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onEdit, onToggleEnabled }) => {
   const { t } = useTranslation()
+
+  const copyId = getModelClipboardId(model)
+
+  const handleCopyName = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      void navigator.clipboard.writeText(copyId).catch((err: unknown) => {
+        logger.error('Failed to copy model id', err instanceof Error ? err : new Error(String(err)))
+      })
+    },
+    [copyId]
+  )
 
   const handleEdit = useCallback(() => {
     onEdit(model)
@@ -45,9 +61,16 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
           )
         })()}
         <div className={modelListClasses.rowBody}>
-          <span className="block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
-            {model.name}
-          </span>
+          <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
+            <span
+              className={cn(
+                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
+                modelListClasses.rowNameCopyable
+              )}
+              onClick={handleCopyName}>
+              {model.name}
+            </span>
+          </Tooltip>
         </div>
       </RowFlex>
       <RowFlex className={modelListClasses.rowActions}>
