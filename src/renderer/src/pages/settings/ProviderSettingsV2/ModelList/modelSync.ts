@@ -21,6 +21,7 @@ const logger = loggerService.withContext('ProviderModelSync')
 
 type ProviderRegistryModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/registry-models`>
 type ProviderRotatedKeyPath = Extract<ConcreteApiPaths, `/providers/${string}/rotated-key`>
+type ProviderRotatedKeyResponse = { apiKey: string }
 
 const LEGACY_CAPABILITY_TO_V2: Record<LegacyModelCapability['type'], RuntimeModelCapability | undefined> = {
   text: undefined,
@@ -170,7 +171,7 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
     let apiKey = ''
     try {
       const rotatedKeyPath: ProviderRotatedKeyPath = `/providers/${providerId}/rotated-key`
-      const keyData = await dataApiService.get(rotatedKeyPath)
+      const keyData = (await dataApiService.get(rotatedKeyPath)) as ProviderRotatedKeyResponse
       apiKey = keyData.apiKey
       logger.info('Fetched rotated provider API key for model sync', {
         providerId,
