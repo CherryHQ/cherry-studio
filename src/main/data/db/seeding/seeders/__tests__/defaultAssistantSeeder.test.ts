@@ -1,6 +1,10 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
-import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  DEFAULT_ASSISTANT_ID,
+  DEFAULT_ASSISTANT_PAYLOAD,
+  DEFAULT_ASSISTANT_SETTINGS
+} from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -14,11 +18,10 @@ describe('DefaultAssistantSeeder', () => {
 
     const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, DEFAULT_ASSISTANT_ID)).limit(1)
 
-    expect(row).toBeDefined()
-    expect(row.id).toBe(DEFAULT_ASSISTANT_ID)
-    expect(row.name).toBe('Default Assistant')
-    expect(row.emoji).toBe('🌟')
-    expect(row.settings).toEqual(DEFAULT_ASSISTANT_SETTINGS)
+    // Match the entire shared payload — drift between DEFAULT_ASSISTANT_PAYLOAD
+    // and what the seeder writes (e.g. a future field added to the payload that
+    // the seeder forgets) fails this assertion.
+    expect(row).toMatchObject(DEFAULT_ASSISTANT_PAYLOAD)
   })
 
   it('is a no-op when the default assistant already exists', async () => {
