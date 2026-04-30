@@ -9,7 +9,6 @@ const useProviderConnectionCheckMock = vi.fn()
 const apiKeyPropsSpy = vi.fn()
 const apiHostPropsSpy = vi.fn()
 const providerConnectionCheckDrawerPropsSpy = vi.fn()
-const providerSettingsDrawerPropsSpy = vi.fn()
 const providerSpecificSettingsPropsSpy = vi.fn()
 const openConnectionCheckMock = vi.fn()
 
@@ -61,13 +60,6 @@ vi.mock('../ProviderConnectionCheckDrawer', () => ({
   default: (props: any) => {
     providerConnectionCheckDrawerPropsSpy(props)
     return props.open ? <div>provider-connection-check-drawer</div> : null
-  }
-}))
-
-vi.mock('../ProviderSettingsDrawer', () => ({
-  default: (props: any) => {
-    providerSettingsDrawerPropsSpy(props)
-    return props.open ? <div>provider-settings-drawer</div> : null
   }
 }))
 
