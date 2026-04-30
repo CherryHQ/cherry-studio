@@ -11,8 +11,9 @@ import { downloadImageAsBase64 } from '@main/services/agents/services/channels/C
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type ChatTransport,
   type EmbeddingModelUsage,
@@ -49,22 +50,6 @@ import {
 import { getCustomParameters } from './utils/reasoning'
 
 const logger = loggerService.withContext('AiService')
-
-/**
- * Heuristic for detecting embedding / rerank models. Prefers explicit endpoint
- * type metadata from the provider registry, falls back to a regex on model id
- * to cover user-imported models that have not been classified yet.
- */
-const EMBEDDING_MODEL_ID_REGEX =
-  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
-
-// TODO： move to shared
-function isEmbeddingModel(model: Model): boolean {
-  const endpointTypes = model.endpointTypes ?? []
-  if (endpointTypes.includes(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)) return true
-  if (endpointTypes.includes(ENDPOINT_TYPE.JINA_RERANK)) return true
-  return EMBEDDING_MODEL_ID_REGEX.test(model.id)
-}
 
 /**
  * Merge caller-supplied extra tools into the Cherry-resolved ToolSet.
