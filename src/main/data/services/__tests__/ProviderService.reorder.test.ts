@@ -1,6 +1,7 @@
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -75,12 +76,18 @@ describe('ProviderService reorder', () => {
   it('throws when target provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('missing', { position: 'first' })).rejects.toThrow(/missing/)
+    await expect(providerService.move('missing', { position: 'first' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+      details: { resource: 'Provider', id: 'missing' }
+    })
   })
 
   it('throws when anchor provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { after: 'missing' })).rejects.toThrow(/missing/)
+    await expect(providerService.move('openai', { after: 'missing' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+      details: { resource: 'Provider', id: 'missing' }
+    })
   })
 })

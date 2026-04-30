@@ -13,7 +13,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import type {
@@ -73,20 +73,12 @@ function rowToRuntimeProvider(row: UserProvider): Provider {
 
 class ProviderService {
   private rethrowOrderError(error: unknown): never {
-    if (error instanceof Error) {
-      const moveTargetMatch = error.message.match(/move target id "(.+)" not found/)
-      if (moveTargetMatch) {
-        throw DataApiErrorFactory.notFound('Provider', moveTargetMatch[1])
-      }
-
-      const anchorMatch = error.message.match(/anchor id "(.+)" .* not found/)
-      if (anchorMatch) {
-        throw DataApiErrorFactory.notFound('Provider', anchorMatch[1])
-      }
-
-      if (error.message.includes("cannot equal the move's own id")) {
-        throw DataApiErrorFactory.invalidOperation(error.message)
-      }
+    if (
+      error instanceof DataApiError &&
+      error.code === ErrorCode.NOT_FOUND &&
+      error.details?.resource === 'user_provider'
+    ) {
+      throw DataApiErrorFactory.notFound('Provider', error.details.id)
     }
 
     throw error
