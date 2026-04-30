@@ -15,6 +15,15 @@ vi.mock('@renderer/utils/oauth', () => ({
   oauthWithCherryIn: vi.fn()
 }))
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+
+  return {
+    ...actual,
+    Skeleton: ({ className }: { className?: string }) => <div className={className} data-testid="skeleton" />
+  }
+})
+
 vi.mock('@cherrystudio/ui/icons', () => ({
   Cherryin: {
     Avatar: ({ size }: { size?: number }) => <div data-testid="cherryin-avatar">{size ?? 0}</div>

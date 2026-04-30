@@ -1,6 +1,6 @@
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 
@@ -8,6 +8,11 @@ const patchProviderMock = vi.fn().mockResolvedValue(undefined)
 const syncProviderModelsMock = vi.fn().mockResolvedValue([])
 const setApiHostMock = vi.fn()
 const setAnthropicApiHostMock = vi.fn()
+
+async function flushEndpointAction() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -38,6 +43,10 @@ describe('useProviderEndpointActions', () => {
     window.toast = {
       error: vi.fn()
     } as any
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('debounces api host persistence without syncing models', async () => {
@@ -92,14 +101,13 @@ describe('useProviderEndpointActions', () => {
       })
     )
 
-    act(() => {
+    await act(async () => {
       result.current.commitApiHost()
+      await flushEndpointAction()
     })
 
-    await waitFor(() => {
-      expect(patchProviderMock).toHaveBeenCalledTimes(1)
-      expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    })
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
 
     expect(syncProviderModelsMock).toHaveBeenCalledWith({
       ...provider,
@@ -134,13 +142,12 @@ describe('useProviderEndpointActions', () => {
 
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
 
-    act(() => {
+    await act(async () => {
       result.current.commitApiHost()
+      await flushEndpointAction()
     })
 
-    await waitFor(() => {
-      expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    })
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
 
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
   })
@@ -161,13 +168,12 @@ describe('useProviderEndpointActions', () => {
       })
     )
 
-    act(() => {
+    await act(async () => {
       result.current.commitApiHost()
+      await flushEndpointAction()
     })
 
-    await waitFor(() => {
-      expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
-    })
+    expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
 
     expect(window.toast.error).toHaveBeenCalledWith('settings.provider.api_host_no_valid')
     expect(patchProviderMock).not.toHaveBeenCalled()
@@ -202,13 +208,12 @@ describe('useProviderEndpointActions', () => {
       })
     )
 
-    act(() => {
+    await act(async () => {
       result.current.commitApiHost()
+      await flushEndpointAction()
     })
 
-    await waitFor(() => {
-      expect(patchProviderMock).toHaveBeenCalledTimes(1)
-    })
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
 
     expect(patchProviderMock).toHaveBeenCalledWith({
       endpointConfigs: {

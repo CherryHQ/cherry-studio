@@ -41,12 +41,6 @@ describe('useProviderModelSync', () => {
   })
 
   it('disables fallback model fetching when existing models are supplied', async () => {
-    fetchResolvedProviderModelsMock.mockResolvedValue([
-      { id: 'openai:model-alpha', providerId: 'openai', name: 'Alpha' },
-      { id: 'openai:model-beta', providerId: 'openai', name: 'Beta' }
-    ])
-    createModelsMock.mockResolvedValue([{ id: 'openai:model-beta' }])
-
     const existingModels = [{ id: 'openai:model-alpha', providerId: 'openai', name: 'Alpha' }] as any
     const { result } = renderHook(() => useProviderModelSync('openai', { existingModels }))
 
@@ -61,8 +55,9 @@ describe('useProviderModelSync', () => {
         swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS
       }
     )
-    expect(createModelsMock).toHaveBeenCalledTimes(1)
-    expect(createModelsMock.mock.calls[0][0]).toHaveLength(1)
+    expect(dataApiGetMock).not.toHaveBeenCalled()
+    expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
+    expect(createModelsMock).not.toHaveBeenCalled()
   })
 
   it('checks the latest server models before inserting and skips create when any already exist', async () => {

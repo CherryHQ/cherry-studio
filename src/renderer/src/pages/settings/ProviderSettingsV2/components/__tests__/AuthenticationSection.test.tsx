@@ -8,7 +8,6 @@ const useProviderApiKeyMock = vi.fn()
 const useProviderConnectionCheckMock = vi.fn()
 const apiKeyPropsSpy = vi.fn()
 const apiHostPropsSpy = vi.fn()
-const apiActionsPropsSpy = vi.fn()
 const providerConnectionCheckDrawerPropsSpy = vi.fn()
 const providerSettingsDrawerPropsSpy = vi.fn()
 const providerSpecificSettingsPropsSpy = vi.fn()
@@ -55,17 +54,6 @@ vi.mock('../ApiHost', () => ({
   default: (props: any) => {
     apiHostPropsSpy(props)
     return <div>api-host</div>
-  }
-}))
-
-vi.mock('../ApiActions', () => ({
-  default: (props: any) => {
-    apiActionsPropsSpy(props)
-    return (
-      <button type="button" onClick={props.onOpenApiKeyList}>
-        open-api-key-list
-      </button>
-    )
   }
 }))
 
@@ -155,12 +143,6 @@ describe('AuthenticationSection', () => {
         providerId: 'openai'
       })
     )
-    expect(apiActionsPropsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: 'openai',
-        onOpenApiKeyList: expect.any(Function)
-      })
-    )
     expect(providerConnectionCheckDrawerPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         open: true,
@@ -194,13 +176,14 @@ describe('AuthenticationSection', () => {
     )
   })
 
-  it('returns nothing when the provider is missing', () => {
+  it('keeps authentication shell mounted when the provider is missing', () => {
     useProviderMock.mockReturnValue({
       provider: undefined
     })
 
     const { container } = render(<AuthenticationSection providerId="missing" />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(container.querySelector('[aria-labelledby="provider-auth-connection-heading"]')).not.toBeNull()
+    expect(apiKeyPropsSpy).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'missing' }))
   })
 })
