@@ -38,7 +38,7 @@ patchedDependencies:
     hash: 306ee28d1836838d4f6bb8b2f3541756846d36f7b3d85c594d62d0301b91ad58
     path: patches/@ai-sdk__anthropic.patch
   '@ai-sdk/deepseek@2.0.29':
-    hash: 3c35be27bda31a46998b6fb077c0b5bc27763b7942e4ae5223927ea53177b1dd
+    hash: db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790
     path: patches/@ai-sdk__deepseek@2.0.29.patch
   '@ai-sdk/google@3.0.64':
     hash: 3dbdd2fbbe5a44bc23a04b1195329dd8d78043447e925342ad5ed53c8c3b96ec
@@ -1361,7 +1361,7 @@ importers:
         version: 3.0.54(zod@4.3.4)
       '@ai-sdk/deepseek':
         specifier: ^2.0.29
-        version: 2.0.29(patch_hash=3c35be27bda31a46998b6fb077c0b5bc27763b7942e4ae5223927ea53177b1dd)(zod@4.3.4)
+        version: 2.0.29(patch_hash=db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790)(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.64
         version: 3.0.64(patch_hash=3dbdd2fbbe5a44bc23a04b1195329dd8d78043447e925342ad5ed53c8c3b96ec)(zod@4.3.4)
@@ -15107,7 +15107,7 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/deepseek@2.0.29(patch_hash=3c35be27bda31a46998b6fb077c0b5bc27763b7942e4ae5223927ea53177b1dd)(zod@4.3.4)':
+  '@ai-sdk/deepseek@2.0.29(patch_hash=db4c4c1e60c18e61952ec4432de7a401adf44420bdbfe4bb6f726a8958642790)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
