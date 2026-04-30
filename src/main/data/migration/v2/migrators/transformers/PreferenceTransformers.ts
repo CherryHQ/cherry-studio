@@ -153,6 +153,7 @@
  * ```
  */
 
+import { loggerService } from '@logger'
 import type {
   WebSearchProviderId,
   WebSearchProviderOverride,
@@ -165,6 +166,8 @@ import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
 
 // Re-export TransformResult for convenience
 export type { TransformResult }
+
+const logger = loggerService.withContext('PreferenceTransformers')
 
 // ============================================================================
 // Utility Functions
@@ -225,6 +228,12 @@ function isSupportedWebSearchProviderId(value: string): value is WebSearchProvid
 export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
   const defaultProvider = sources.defaultProvider?.trim()
 
+  if (defaultProvider && !isSupportedWebSearchProviderId(defaultProvider)) {
+    logger.warn('Unsupported legacy web-search default provider dropped during v2 migration', {
+      providerId: defaultProvider
+    })
+  }
+
   return {
     'chat.web_search.default_provider':
       defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
@@ -249,6 +258,14 @@ function isStringInList<const T extends readonly string[]>(value: unknown, list:
 }
 
 function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESSION_METHODS)[number] {
+  if (value === 'rag') {
+    logger.warn('Legacy web-search RAG compression downgraded to none during v2 migration')
+  } else if (typeof value === 'string' && !isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS)) {
+    logger.warn('Unknown web-search compression method coerced to none during v2 migration', {
+      method: value
+    })
+  }
+
   return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
 }
 
@@ -352,6 +369,9 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     const preset = presetById.get(provider.id)
 
     if (!preset) {
+      logger.warn('Unsupported legacy web-search provider dropped during v2 migration', {
+        providerId: provider.id
+      })
       return
     }
 

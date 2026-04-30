@@ -101,7 +101,7 @@
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
-      "description": "Whether web search should include recent-date constraints where supported"
+      "description": "Prepend today's date to the query as a textual hint (no provider-side time filtering)"
     },
     {
       "targetKey": "chat.web_search.provider_overrides",

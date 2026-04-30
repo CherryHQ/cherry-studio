@@ -55,6 +55,15 @@ export const WEB_SEARCH_PREFERENCE_KEYS = {
   cutoffUnit: 'chat.web_search.compression.cutoff_unit'
 } as const
 
+const WEB_SEARCH_PREFERENCE_ENTRIES = Object.entries(WEB_SEARCH_PREFERENCE_KEYS) as Array<
+  [
+    keyof typeof WEB_SEARCH_PREFERENCE_KEYS,
+    (typeof WEB_SEARCH_PREFERENCE_KEYS)[keyof typeof WEB_SEARCH_PREFERENCE_KEYS]
+  ]
+>
+
+const WEB_SEARCH_PREFERENCE_KEY_LIST = WEB_SEARCH_PREFERENCE_ENTRIES.map(([, key]) => key)
+
 type WebSearchPreferenceValues = {
   [K in keyof typeof WEB_SEARCH_PREFERENCE_KEYS]: WebSearchPreferenceSnapshot[(typeof WEB_SEARCH_PREFERENCE_KEYS)[K]]
 }
@@ -118,7 +127,7 @@ export class WebSearchService {
    * @private
    * @returns 网络搜索状态
    */
-  private getWebSearchState(): WebSearchState {
+  private getWebSearchState(): WebSearchState | null {
     return getCachedRendererWebSearchState()
   }
 
@@ -128,7 +137,11 @@ export class WebSearchService {
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
   public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
-    const providers = filterSupportedWebSearchProviders(this.getWebSearchState().providers)
+    const providers = getCachedRendererWebSearchProviders()
+    if (!providers) {
+      return false
+    }
+
     const provider = providers.find((provider) => provider.id === providerId)
 
     if (!provider) {
@@ -136,10 +149,10 @@ export class WebSearchService {
     }
 
     if (webSearchProviderRequiresApiKey(provider.id)) {
-      return provider.apiKey?.trim() !== ''
+      return Boolean(provider.apiKey?.trim())
     }
 
-    return provider.apiHost?.trim() !== ''
+    return Boolean(provider.apiHost?.trim())
   }
 
   /**
@@ -150,8 +163,7 @@ export class WebSearchService {
    * @returns 如果启用覆盖搜索则返回true，否则返回false
    */
   public isOverwriteEnabled(): boolean {
-    const { overwrite } = this.getWebSearchState()
-    return overwrite
+    return this.getWebSearchState()?.overwrite ?? false
   }
 
   /**
@@ -160,7 +172,11 @@ export class WebSearchService {
    * @returns 网络搜索提供商
    */
   public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
-    const providers = filterSupportedWebSearchProviders(this.getWebSearchState().providers)
+    const providers = getCachedRendererWebSearchProviders()
+    if (!providers) {
+      return undefined
+    }
+
     logger.debug('providers', providers)
     const provider = providers.find((provider) => provider.id === providerId)
 
@@ -185,7 +201,7 @@ export class WebSearchService {
     httpOptions?: RequestInit,
     spanId?: string
   ): Promise<WebSearchProviderResponse> {
-    const websearch = this.getWebSearchState()
+    const websearch = await getRendererWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider, spanId)
 
     const formattedQuery = websearch.searchWithTime ? `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}` : query
@@ -269,7 +285,7 @@ export class WebSearchService {
    * - 处理特殊的summarize请求
    * - 并行执行多个搜索查询
    * - 聚合搜索结果并处理失败情况
-   * - 根据配置应用结果压缩（RAG或截断）
+   * - 根据配置应用截断压缩
    * - 返回最终的搜索响应
    *
    * @param webSearchProvider - 要使用的网络搜索提供商
@@ -380,7 +396,7 @@ export class WebSearchService {
       }
     }
 
-    const { compressionConfig } = this.getWebSearchState()
+    const { compressionConfig } = await getRendererWebSearchState()
 
     // 截断压缩处理
     if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
@@ -505,18 +521,40 @@ export async function updateWebSearchProviderPreferenceOverride(
 }
 
 export function buildRendererWebSearchState(preferences: WebSearchPreferenceValues): WebSearchState {
+  const defaultProvider = getPreferenceOrDefault(
+    WEB_SEARCH_PREFERENCE_KEYS.defaultProvider,
+    preferences.defaultProvider
+  )
+  const excludeDomains = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.excludeDomains, preferences.excludeDomains)
+  const maxResults = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.maxResults, preferences.maxResults)
+  const providerOverrides = getPreferenceOrDefault(
+    WEB_SEARCH_PREFERENCE_KEYS.providerOverrides,
+    preferences.providerOverrides
+  )
+  const searchWithTime = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.searchWithTime, preferences.searchWithTime)
+  const subscribeSources = getPreferenceOrDefault(
+    WEB_SEARCH_PREFERENCE_KEYS.subscribeSources,
+    preferences.subscribeSources
+  )
+  const compressionMethod = getPreferenceOrDefault(
+    WEB_SEARCH_PREFERENCE_KEYS.compressionMethod,
+    preferences.compressionMethod
+  )
+  const cutoffLimit = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.cutoffLimit, preferences.cutoffLimit)
+  const cutoffUnit = getPreferenceOrDefault(WEB_SEARCH_PREFERENCE_KEYS.cutoffUnit, preferences.cutoffUnit)
+
   return {
-    defaultProvider: preferences.defaultProvider,
-    providers: resolveWebSearchProviders(preferences.providerOverrides),
-    searchWithTime: preferences.searchWithTime,
-    maxResults: Math.max(1, preferences.maxResults),
-    excludeDomains: preferences.excludeDomains,
-    subscribeSources: preferences.subscribeSources,
+    defaultProvider,
+    providers: resolveWebSearchProviders(providerOverrides),
+    searchWithTime,
+    maxResults: Math.max(1, maxResults),
+    excludeDomains,
+    subscribeSources,
     overwrite: false,
     compressionConfig: {
-      method: preferences.compressionMethod,
-      cutoffLimit: normalizeWebSearchCutoffLimit(preferences.cutoffLimit),
-      cutoffUnit: preferences.cutoffUnit
+      method: compressionMethod,
+      cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit),
+      cutoffUnit
     }
   }
 }
@@ -526,17 +564,49 @@ export async function getRendererWebSearchState(): Promise<WebSearchState> {
   return buildRendererWebSearchState(preferences)
 }
 
-export function getCachedRendererWebSearchState(): WebSearchState {
+export function getCachedRendererWebSearchState(): WebSearchState | null {
+  const missingKeys = WEB_SEARCH_PREFERENCE_KEY_LIST.filter((key) => !preferenceService.isCached(key))
+
+  if (missingKeys.length > 0) {
+    logger.warn('Web search preference cache is not ready; skip sync state read', { missingKeys })
+    return null
+  }
+
   const getCachedPreference = <K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] => {
     const cachedValue = preferenceService.getCachedValue(key)
     return (cachedValue !== undefined ? cachedValue : getDefaultValue(key)) as PreferenceDefaultScopeType[K]
   }
 
   const preferences = Object.fromEntries(
-    Object.entries(WEB_SEARCH_PREFERENCE_KEYS).map(([alias, key]) => [alias, getCachedPreference(key)])
+    WEB_SEARCH_PREFERENCE_ENTRIES.map(([alias, key]) => [alias, getCachedPreference(key)])
   ) as WebSearchPreferenceValues
 
   return buildRendererWebSearchState(preferences)
+}
+
+function getCachedRendererWebSearchProviders(): WebSearchProvider[] | null {
+  const providerOverridesKey = WEB_SEARCH_PREFERENCE_KEYS.providerOverrides
+  if (!preferenceService.isCached(providerOverridesKey)) {
+    logger.warn('Web search provider overrides cache is not ready; skip sync provider read')
+    return null
+  }
+
+  const providerOverrides =
+    preferenceService.getCachedValue(providerOverridesKey) ?? getDefaultValue(providerOverridesKey)
+
+  return filterSupportedWebSearchProviders(resolveWebSearchProviders(providerOverrides))
+}
+
+function getPreferenceOrDefault<K extends PreferenceKeyType>(
+  key: K,
+  value: PreferenceDefaultScopeType[K] | null | undefined
+): PreferenceDefaultScopeType[K] {
+  const defaultValue = getDefaultValue(key)
+  if (value === undefined || (value === null && defaultValue !== null)) {
+    return defaultValue as PreferenceDefaultScopeType[K]
+  }
+
+  return value as PreferenceDefaultScopeType[K]
 }
 
 function normalizeWebSearchProviderOverride(override: WebSearchProviderOverride): WebSearchProviderOverride {

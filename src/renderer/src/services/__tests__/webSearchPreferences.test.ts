@@ -14,14 +14,40 @@ vi.mock('@renderer/providers/WebSearchProvider', () => ({
 import {
   buildRendererWebSearchState,
   buildWebSearchProviderOverrides,
+  getCachedRendererWebSearchState,
   resolveWebSearchProviders,
   updateWebSearchProviderOverride,
   updateWebSearchProviderPreferenceOverride,
+  WEB_SEARCH_PREFERENCE_KEYS,
   WebSearchService
 } from '../WebSearchService'
 
 const preferenceServiceMock = preferenceService as typeof preferenceService & {
   _resetMockState?: () => void
+}
+
+type WebSearchPreferenceAlias = keyof typeof WEB_SEARCH_PREFERENCE_KEYS
+
+async function seedWebSearchPreferences(overrides: Partial<Record<WebSearchPreferenceAlias, unknown>> = {}) {
+  const overrideValues = Object.fromEntries(
+    (Object.entries(overrides) as Array<[WebSearchPreferenceAlias, unknown]>).map(([alias, value]) => [
+      WEB_SEARCH_PREFERENCE_KEYS[alias],
+      value
+    ])
+  )
+
+  await preferenceService.setMultiple({
+    [WEB_SEARCH_PREFERENCE_KEYS.defaultProvider]: null,
+    [WEB_SEARCH_PREFERENCE_KEYS.excludeDomains]: [],
+    [WEB_SEARCH_PREFERENCE_KEYS.maxResults]: 5,
+    [WEB_SEARCH_PREFERENCE_KEYS.providerOverrides]: {},
+    [WEB_SEARCH_PREFERENCE_KEYS.searchWithTime]: true,
+    [WEB_SEARCH_PREFERENCE_KEYS.subscribeSources]: [],
+    [WEB_SEARCH_PREFERENCE_KEYS.compressionMethod]: 'none',
+    [WEB_SEARCH_PREFERENCE_KEYS.cutoffLimit]: 2000,
+    [WEB_SEARCH_PREFERENCE_KEYS.cutoffUnit]: 'char',
+    ...overrideValues
+  })
 }
 
 describe('webSearchPreferences', () => {
@@ -230,8 +256,33 @@ describe('webSearchPreferences', () => {
     expect(state.searchWithTime).toBe(false)
   })
 
+  it('returns null for sync renderer state while the preference cache is cold', () => {
+    vi.mocked(preferenceService.isCached).mockReturnValue(false)
+    vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
+
+    expect(getCachedRendererWebSearchState()).toBeNull()
+  })
+
+  it('uses async preferences for search when the renderer cache is cold', async () => {
+    await seedWebSearchPreferences({ searchWithTime: false })
+    vi.mocked(preferenceService.isCached).mockReturnValue(false)
+    vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
+
+    const service = new WebSearchService()
+    await service.search(
+      { id: 'tavily', name: 'Tavily', apiKey: 'key', apiHost: 'https://api.tavily.com' },
+      'latest news'
+    )
+
+    expect(webSearchEngineProviderMock.search).toHaveBeenCalledWith(
+      'latest news',
+      expect.objectContaining({ searchWithTime: false }),
+      undefined
+    )
+  })
+
   it('adds current date context to search queries when searchWithTime is enabled', async () => {
-    await preferenceService.set('chat.web_search.search_with_time', true)
+    await seedWebSearchPreferences({ searchWithTime: true })
 
     const service = new WebSearchService()
     await service.search(
@@ -247,7 +298,7 @@ describe('webSearchPreferences', () => {
   })
 
   it('passes the original search query when searchWithTime is disabled', async () => {
-    await preferenceService.set('chat.web_search.search_with_time', false)
+    await seedWebSearchPreferences({ searchWithTime: false })
 
     const service = new WebSearchService()
     await service.search(

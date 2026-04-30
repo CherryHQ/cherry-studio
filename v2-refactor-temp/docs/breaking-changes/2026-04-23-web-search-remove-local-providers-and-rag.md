@@ -14,7 +14,7 @@
 ## 影响范围
 
 - 设置页不再展示本地搜索引擎和 RAG 压缩设置。
-- 默认搜索 provider 或路由中残留旧 `local-*` 值时，Renderer 只做防御性展示/空态处理，不做默认 provider 迁移。
+- 旧默认搜索 provider 会迁移到 V2 Preference；残留 `local-*` 或未知 provider 值会被置为未选择。
 - 旧 `compressionConfig.method = 'rag'` 不再作为有效 V2 Preference 值保存。
 - 独立知识库功能不受影响；本次只移除 Web Search 对知识库/RAG 压缩的依赖。
 
@@ -35,4 +35,3 @@
 ## 关联 PR/提交
 
 - PR: <https://github.com/CherryHQ/cherry-studio/pull/14443>
-- Commit: `cddbf6440 refactor(web-search): remove rag compression`
