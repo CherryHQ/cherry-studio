@@ -41,6 +41,7 @@ describe('DefaultAssistantSeeder', () => {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Other',
+      emoji: '🤖',
       settings: DEFAULT_ASSISTANT_SETTINGS
     })
 
