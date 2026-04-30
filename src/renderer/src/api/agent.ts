@@ -95,7 +95,7 @@ export class AgentApiClient {
 
   public getSessionMessagesPaths = (agentId: string, sessionId: string) => ({
     base: `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`,
-    withId: (id: number) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
+    withId: (id: string) => `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages/${id}`
   })
 
   public channelPaths = {
@@ -265,7 +265,7 @@ export class AgentApiClient {
     }
   }
 
-  public async deleteSessionMessage(agentId: string, sessionId: string, messageId: number): Promise<void> {
+  public async deleteSessionMessage(agentId: string, sessionId: string, messageId: string): Promise<void> {
     const url = this.getSessionMessagesPaths(agentId, sessionId).withId(messageId)
     try {
       await this.axios.delete(url)

@@ -448,7 +448,7 @@ export const SessionIdParamSchema = z.object({
 })
 
 export const SessionMessageIdParamSchema = z.object({
-  messageId: z.coerce.number().int().positive('Message ID must be a positive integer')
+  messageId: z.string().min(1, 'Message ID is required')
 })
 
 // Query validation schemas
