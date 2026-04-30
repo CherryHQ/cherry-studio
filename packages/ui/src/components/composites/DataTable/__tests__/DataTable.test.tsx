@@ -144,15 +144,16 @@ describe('DataTable', () => {
 
     const table = screen.getByRole('table')
     const shell = table.closest('[data-slot="data-table-shell"]')
-    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-background', 'shadow-xs')
+    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-card', 'shadow-xs')
 
     expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass(
-      'h-12',
-      'bg-background-subtle',
+      'h-10',
+      'bg-background-subtle/70',
       'px-3',
-      'text-sm',
+      'py-2',
+      'text-xs',
       'font-semibold',
-      'text-foreground-muted'
+      'text-muted-foreground'
     )
     expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass(
       'px-3',

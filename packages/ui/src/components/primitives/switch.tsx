@@ -15,6 +15,7 @@ const switchRootVariants = cva(
   {
     variants: {
       size: {
+        xs: ['h-4.5 w-8'],
         sm: ['w-9 h-5'],
         md: ['w-11 h-5.5'],
         lg: ['w-11 h-6']
@@ -39,6 +40,7 @@ const switchThumbVariants = cva(
   {
     variants: {
       size: {
+        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
         sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
         md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
         lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
@@ -49,6 +51,11 @@ const switchThumbVariants = cva(
       }
     },
     compoundVariants: [
+      {
+        size: 'xs',
+        loading: true,
+        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
+      },
       {
         size: 'sm',
         loading: true,
@@ -84,7 +91,7 @@ const switchThumbSvgVariants = cva(['transition-all'], {
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
   /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
   loading?: boolean
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   classNames?: {
     root?: string
     thumb?: string

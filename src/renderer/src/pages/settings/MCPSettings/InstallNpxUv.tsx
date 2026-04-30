@@ -160,10 +160,10 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
     return (
       <Button
-        className="nodrag h-9 rounded-full px-2.5 text-destructive shadow-none"
+        className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none"
         variant="ghost"
         onClick={() => navigate({ to: '/settings/plugins' })}>
-        <Package size={15} className="text-destructive" />
+        <Package size={14} className="text-destructive" />
       </Button>
     )
   }

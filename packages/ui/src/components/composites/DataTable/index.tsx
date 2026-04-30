@@ -61,14 +61,13 @@ const normalizeKey = (key: DataTableKey) => String(key)
 const toCssSize = (value: number | string | undefined) => (typeof value === 'number' ? `${value}px` : value)
 
 const contentContainmentClassName = 'min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]'
-const tableShellClassName =
-  'w-full max-w-full overflow-hidden rounded-lg border border-border/70 bg-background shadow-xs'
+const tableShellClassName = 'w-full max-w-full overflow-hidden rounded-lg border border-border/70 bg-card shadow-xs'
 const tableScrollAreaClassName = 'w-full max-w-full overflow-x-auto'
-const tableHeaderClassName = 'sticky top-0 z-1 bg-background-subtle'
-const tableHeaderRowClassName = 'border-border/70 bg-background-subtle hover:bg-transparent'
+const tableHeaderClassName = 'sticky top-0 z-1 bg-background-subtle/70'
+const tableHeaderRowClassName = 'border-border/70 bg-background-subtle/70 hover:bg-transparent'
 const tableHeaderCellClassName =
-  'h-12 bg-background-subtle px-3 py-2.5 text-sm font-semibold leading-5 text-foreground-muted'
-const tableBodyRowClassName = 'border-border/60 bg-background hover:bg-muted/40 data-[state=selected]:bg-muted/60'
+  'h-10 bg-background-subtle/70 px-3 py-2 font-semibold text-muted-foreground text-xs leading-4'
+const tableBodyRowClassName = 'border-border/60 bg-card hover:bg-muted/40 data-[state=selected]:bg-muted/60'
 const tableBodyCellClassName = 'px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
 const tableExpandedCellClassName = 'bg-muted/20 px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
 const tableEmptyCellClassName = 'h-24 px-3 py-6 text-center text-sm font-medium text-foreground-muted'

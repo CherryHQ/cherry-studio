@@ -177,7 +177,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       cell: ({ row }) => {
         const tool = row.original
 
-        return <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
+        return (
+          <Switch size="xs" checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
+        )
       }
     },
     {
@@ -202,6 +204,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                   : t('settings.mcp.tools.autoApprove.tooltip.disabled')
             }>
             <Switch
+              size="xs"
               checked={isToolAutoApproved(tool, server)}
               disabled={!isToolEnabled(tool)}
               onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}

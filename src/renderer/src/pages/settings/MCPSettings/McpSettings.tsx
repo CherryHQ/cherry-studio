@@ -597,364 +597,387 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="w-[calc(100%+10px)] overflow-y-auto pr-2.5"
+            className="mx-auto flex w-full max-w-[920px] flex-col gap-5 pb-6"
             id="mcp-settings-form">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem className="mb-4">
-                  <FormLabel>{t('settings.mcp.name')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem className="mb-4">
-                  <FormLabel>{t('settings.mcp.description')}</FormLabel>
-                  <FormControl>
-                    <Textarea.Input rows={2} placeholder={t('common.description')} {...field} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            {server.type !== 'inMemory' && (
-              <FormField
-                control={form.control}
-                name="serverType"
-                render={({ field }) => (
-                  <FormItem className="mb-4">
-                    <FormLabel>{t('settings.mcp.type')}</FormLabel>
-                    <FormControl>
-                      <Select
-                        value={field.value}
-                        onValueChange={(value) => {
-                          field.onChange(value)
-                          setServerType(value as MCPServer['type'])
-                        }}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="stdio">{t('settings.mcp.stdio')}</SelectItem>
-                          <SelectItem value="sse">{t('settings.mcp.sse')}</SelectItem>
-                          <SelectItem value="streamableHttp">{t('settings.mcp.streamableHttp')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {(serverType === 'sse' || serverType === 'streamableHttp') && (
-              <>
+            <McpFormSection>
+              <McpFormGrid>
                 <FormField
                   control={form.control}
-                  name="baseUrl"
+                  name="name"
                   render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.url')}
-                        <InfoTooltip content={t('settings.mcp.baseUrlTooltip')} />
-                      </FormLabel>
+                    <FormItem className="min-w-0">
+                      <FormLabel>{t('settings.mcp.name')}</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder={serverType === 'sse' ? 'http://localhost:3000/sse' : 'http://localhost:3000/mcp'}
-                          {...field}
-                        />
+                        <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="headers"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.headers')}
-                        <InfoTooltip content={t('settings.mcp.headersTooltip')} />
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea.Input
-                          rows={3}
-                          placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
-                          className="font-mono"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            {serverType === 'stdio' && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="command"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel>{t('settings.mcp.command')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="uvx or npx"
-                          {...field}
-                          onChange={(e) => {
-                            field.onChange(e)
-                            handleCommandChange(e.target.value)
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {isShowRegistry && registry && (
+                {server.type !== 'inMemory' && (
                   <FormField
                     control={form.control}
-                    name="registryUrl"
+                    name="serverType"
                     render={({ field }) => (
-                      <FormItem className="mb-4">
-                        <FormLabel className="flex items-center gap-1">
-                          {t('settings.mcp.registry')}
-                          <InfoTooltip content={t('settings.mcp.registryTooltip')} />
-                        </FormLabel>
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.type')}</FormLabel>
                         <FormControl>
-                          <RadioGroup
-                            value={selectedRegistryType === 'custom' ? 'custom' : field.value || ''}
-                            onValueChange={onSelectRegistry}
-                            className="flex flex-row flex-wrap gap-4">
-                            <label className="flex items-center gap-2 text-sm">
-                              <RadioGroupItem value="" />
-                              {t('settings.mcp.registryDefault')}
-                            </label>
-                            {registry.map((reg) => (
-                              <label key={reg.url} className="flex items-center gap-2 text-sm">
-                                <RadioGroupItem value={reg.url} />
-                                {reg.name}
-                              </label>
-                            ))}
-                          </RadioGroup>
+                          <Select
+                            value={field.value}
+                            onValueChange={(value) => {
+                              field.onChange(value)
+                              setServerType(value as MCPServer['type'])
+                            }}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="stdio">{t('settings.mcp.stdio')}</SelectItem>
+                              <SelectItem value="sse">{t('settings.mcp.sse')}</SelectItem>
+                              <SelectItem value="streamableHttp">{t('settings.mcp.streamableHttp')}</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </FormControl>
-                        {selectedRegistryType === 'custom' && (
-                          <Input
-                            className="mt-2"
-                            placeholder={t(
-                              'settings.mcp.customRegistryPlaceholder',
-                              '请输入私有仓库地址，如: https://npm.company.com'
-                            )}
-                            value={customRegistryUrl}
-                            onChange={(e) => onCustomRegistryChange(e.target.value)}
-                          />
-                        )}
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
                 )}
-
                 <FormField
                   control={form.control}
-                  name="args"
+                  name="description"
                   render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.args')}
-                        <InfoTooltip content={t('settings.mcp.argsTooltip')} />
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea.Input rows={3} placeholder={`arg1\narg2`} className="font-mono" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="env"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.env')}
-                        <InfoTooltip content={t('settings.mcp.envTooltip')} />
-                      </FormLabel>
+                    <FormItem className="min-w-0 xl:col-span-2">
+                      <FormLabel>{t('settings.mcp.description')}</FormLabel>
                       <FormControl>
                         <Textarea.Input
-                          rows={3}
-                          placeholder={`KEY1=value1\nKEY2=value2`}
-                          className="font-mono"
+                          rows={2}
+                          placeholder={t('common.description')}
+                          className="min-h-[64px] px-3 py-2 text-sm leading-5"
                           {...field}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-              </>
-            )}
-            {serverType === 'inMemory' && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="args"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.args')}
-                        <InfoTooltip content={t('settings.mcp.argsTooltip')} />
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea.Input rows={3} placeholder={`arg1\narg2`} className="font-mono" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="env"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel className="flex items-center gap-1">
-                        {t('settings.mcp.env')}
-                        <InfoTooltip content={t('settings.mcp.envTooltip')} />
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea.Input
-                          rows={3}
-                          placeholder={`KEY1=value1\nKEY2=value2`}
-                          className="font-mono"
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </>
-            )}
-            <FormField
-              control={form.control}
-              name="longRunning"
-              render={({ field }) => (
-                <FormItem className="mb-4 flex flex-row items-center gap-3">
-                  <FormLabel className="flex items-center gap-1">
-                    {t('settings.mcp.longRunning', 'Long Running')}
-                    <InfoTooltip content={t('settings.mcp.longRunningTooltip')} />
-                  </FormLabel>
-                  <FormControl>
-                    <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
+              </McpFormGrid>
+            </McpFormSection>
+
+            <McpFormSection>
+              {(serverType === 'sse' || serverType === 'streamableHttp') && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="baseUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.url')}
+                          <InfoTooltip content={t('settings.mcp.baseUrlTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={
+                              serverType === 'sse' ? 'http://localhost:3000/sse' : 'http://localhost:3000/mcp'
+                            }
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="headers"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.headers')}
+                          <InfoTooltip content={t('settings.mcp.headersTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`Content-Type=application/json\nAuthorization=Bearer token`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
               )}
-            />
-            <FormField
-              control={form.control}
-              name="timeout"
-              render={({ field }) => (
-                <FormItem className="mb-4">
-                  <FormLabel className="flex items-center gap-1">
-                    {t('settings.mcp.timeout', 'Timeout')}
-                    <InfoTooltip
-                      content={t(
-                        'settings.mcp.timeoutTooltip',
-                        'Timeout in seconds for requests to this server, default is 60 seconds'
+              {serverType === 'stdio' && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="command"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.command')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="uvx or npx"
+                            {...field}
+                            onChange={(e) => {
+                              field.onChange(e)
+                              handleCommandChange(e.target.value)
+                            }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {isShowRegistry && registry && (
+                    <FormField
+                      control={form.control}
+                      name="registryUrl"
+                      render={({ field }) => (
+                        <FormItem className="min-w-0">
+                          <FormLabel className="flex items-center gap-1">
+                            {t('settings.mcp.registry')}
+                            <InfoTooltip content={t('settings.mcp.registryTooltip')} />
+                          </FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              value={selectedRegistryType === 'custom' ? 'custom' : field.value || ''}
+                              onValueChange={onSelectRegistry}
+                              className="flex flex-row flex-wrap gap-x-4 gap-y-2">
+                              <label className="flex items-center gap-2 text-sm">
+                                <RadioGroupItem value="" />
+                                {t('settings.mcp.registryDefault')}
+                              </label>
+                              {registry.map((reg) => (
+                                <label key={reg.url} className="flex items-center gap-2 text-sm">
+                                  <RadioGroupItem value={reg.url} />
+                                  {reg.name}
+                                </label>
+                              ))}
+                            </RadioGroup>
+                          </FormControl>
+                          {selectedRegistryType === 'custom' && (
+                            <Input
+                              className="mt-2"
+                              placeholder={t(
+                                'settings.mcp.customRegistryPlaceholder',
+                                '请输入私有仓库地址，如: https://npm.company.com'
+                              )}
+                              value={customRegistryUrl}
+                              onChange={(e) => onCustomRegistryChange(e.target.value)}
+                            />
+                          )}
+                        </FormItem>
                       )}
                     />
-                  </FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="60"
-                        value={field.value ?? ''}
-                        onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-                        className="w-32"
-                      />
-                      <span className="text-foreground-muted text-sm">s</span>
-                    </div>
-                  </FormControl>
-                </FormItem>
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="args"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.args')}
+                          <InfoTooltip content={t('settings.mcp.argsTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`arg1\narg2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="env"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.env')}
+                          <InfoTooltip content={t('settings.mcp.envTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`KEY1=value1\nKEY2=value2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
               )}
-            />
+              {serverType === 'inMemory' && (
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="args"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.args')}
+                          <InfoTooltip content={t('settings.mcp.argsTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`arg1\narg2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="env"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel className="flex items-center gap-1">
+                          {t('settings.mcp.env')}
+                          <InfoTooltip content={t('settings.mcp.envTooltip')} />
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea.Input
+                            rows={3}
+                            placeholder={`KEY1=value1\nKEY2=value2`}
+                            className="max-h-[160px] min-h-[84px] px-3 py-2 font-mono text-sm leading-5"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              )}
+            </McpFormSection>
+
+            <McpFormSection>
+              <McpFormGrid>
+                <FormField
+                  control={form.control}
+                  name="longRunning"
+                  render={({ field }) => (
+                    <FormItem className={mcpInlineSettingItemClassName}>
+                      <FormLabel className="flex items-center gap-1">
+                        {t('settings.mcp.longRunning', 'Long Running')}
+                        <InfoTooltip content={t('settings.mcp.longRunningTooltip')} />
+                      </FormLabel>
+                      <FormControl>
+                        <Switch size="sm" checked={!!field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="timeout"
+                  render={({ field }) => (
+                    <FormItem className={mcpInlineSettingItemClassName}>
+                      <FormLabel className="flex items-center gap-1">
+                        {t('settings.mcp.timeout', 'Timeout')}
+                        <InfoTooltip
+                          content={t(
+                            'settings.mcp.timeoutTooltip',
+                            'Timeout in seconds for requests to this server, default is 60 seconds'
+                          )}
+                        />
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="60"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                            className="h-8 w-24 py-0"
+                          />
+                          <span className="text-foreground-muted text-xs">s</span>
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </McpFormGrid>
+            </McpFormSection>
 
             <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
               <ChevronDown
-                size={18}
-                style={{
-                  transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.3s',
-                  marginRight: 8,
-                  stroke: 'var(--color-primary)'
-                }}
+                size={16}
+                className={cn('transition-transform duration-200', showAdvanced && 'rotate-180')}
               />
               {t('common.advanced_settings')}
             </AdvancedSettingsButton>
 
             {showAdvanced && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="provider"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel>{t('settings.mcp.provider', 'Provider')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="providerUrl"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel>{t('settings.mcp.providerUrl', 'Provider URL')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://provider-website.com" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="logoUrl"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel>{t('settings.mcp.logoUrl', 'Logo URL')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://example.com/logo.png" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tags"
-                  render={({ field }) => (
-                    <FormItem className="mb-4">
-                      <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
-                      <FormControl>
-                        <TagsInput
-                          value={field.value ?? []}
-                          onChange={(next) => {
-                            field.onChange(next)
-                            setIsFormChanged(true)
-                          }}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </>
+              <McpFormSection>
+                <McpFormGrid>
+                  <FormField
+                    control={form.control}
+                    name="provider"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.provider', 'Provider')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="providerUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.providerUrl', 'Provider URL')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://provider-website.com" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="logoUrl"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0">
+                        <FormLabel>{t('settings.mcp.logoUrl', 'Logo URL')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://example.com/logo.png" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem className="min-w-0 xl:col-span-2">
+                        <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
+                        <FormControl>
+                          <TagsInput
+                            value={field.value ?? []}
+                            onChange={(next) => {
+                              field.onChange(next)
+                              setIsFormChanged(true)
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </McpFormGrid>
+              </McpFormSection>
             )}
           </form>
         </Form>
@@ -1099,8 +1122,31 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
   <span className={cn('font-medium text-sm', className)} {...props} />
 )
 
-const AdvancedSettingsButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('-mt-2.5 mb-4 flex cursor-pointer items-center text-primary', className)} {...props} />
+const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('border-border/60 border-t pt-5 first:border-t-0 first:pt-0', className)} {...props} />
+)
+
+const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2', className)} {...props} />
+)
+
+const mcpInlineSettingItemClassName =
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
+
+const AdvancedSettingsButton = ({
+  className,
+  type = 'button',
+  variant = 'ghost',
+  size = 'sm',
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Button>) => (
+  <Button
+    type={type}
+    variant={variant}
+    size={size}
+    className={cn('h-8 w-fit gap-1.5 px-2 text-primary hover:text-primary', className)}
+    {...props}
+  />
 )
 
 const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
@@ -1184,7 +1230,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2">
+    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
       {value.map((tag, index) => (
         <span
           key={`${tag}-${index}`}
@@ -1199,7 +1245,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
         </span>
       ))}
       <input
-        className="min-w-[120px] flex-1 bg-transparent text-sm outline-none"
+        className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         value={draft}
         placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
         onChange={(e) => {

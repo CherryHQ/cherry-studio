@@ -138,95 +138,118 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <Scrollbar
-      ref={scrollRef}
-      className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-3.75 overflow-hidden overflow-y-auto p-5 pt-3.75">
-      <div className="flex w-full items-center justify-between [&_h2]:m-0 [&_h2]:text-[22px]">
-        <div className="flex items-center gap-3">
-          <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
-          <span className="text-muted-foreground text-sm">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-1 flex-col gap-4 overflow-hidden p-5 pt-4">
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SettingTitle className="text-xl">{t('settings.mcp.newServer')}</SettingTitle>
+          <span className="shrink-0 text-muted-foreground text-sm">
             {activeServerCount}/{mcpServers.length}
           </span>
-          <CollapsibleSearchBar
-            onSearch={setSearchText}
-            placeholder={t('settings.mcp.search.placeholder')}
-            tooltip={t('settings.mcp.search.tooltip')}
-            style={{ borderRadius: 20 }}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <InstallNpxUv mini />
-          <Button variant="ghost" onClick={() => setIsEditing((value) => !value)}>
-            <EditIcon size={14} />
-            {isEditing ? t('common.completed') : t('common.edit')}
-          </Button>
-          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-            <PopoverTrigger asChild>
-              <Button>
-                <Plus size={16} />
-                {t('common.add')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" side="bottom" className="w-auto p-1">
-              <MenuList className="gap-1">
-                <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
-                <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={handleImportJson} />
-                <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={handleImportDxt} />
-              </MenuList>
-            </PopoverContent>
-          </Popover>
         </div>
       </div>
-      <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)}>
-        <TabsList className="h-auto rounded-full bg-muted/80 p-0.5">
-          <TabsTrigger value="all" className="rounded-full px-2.5 py-1 text-xs">
-            {t('models.all')}
-          </TabsTrigger>
-          <TabsTrigger value="enabled" className="rounded-full px-2.5 py-1 text-xs">
-            {t('common.enabled')}
-          </TabsTrigger>
-          <TabsTrigger value="disabled" className="rounded-full px-2.5 py-1 text-xs">
-            {t('common.disabled')}
-          </TabsTrigger>
-          <TabsTrigger value="stdio" className="rounded-full px-2.5 py-1 text-xs">
-            STDIO
-          </TabsTrigger>
-          <TabsTrigger value="sse" className="rounded-full px-2.5 py-1 text-xs">
-            SSE
-          </TabsTrigger>
-          <TabsTrigger value="builtin" className="rounded-full px-2.5 py-1 text-xs">
-            {t('settings.mcp.builtinServers')}
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-      <Sortable
-        items={filteredMcpServers}
-        itemKey="id"
-        onSortEnd={onSortEnd}
-        layout="list"
-        horizontal={false}
-        listStyle={{ display: 'flex', flexDirection: 'column', width: '100%' }}
-        itemStyle={{ width: '100%' }}
-        gap="4px"
-        restrictions={{ scrollableAncestor: true }}
-        useDragOverlay
-        showGhost
-        renderItem={(server) => (
-          <McpServerCard
-            server={server}
-            isEditing={isEditing}
-            onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })}
-          />
-        )}
-      />
-      {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (
-        <EmptyState
-          compact
-          preset="no-resource"
-          description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
-          className="mt-5"
-        />
-      )}
+      <div className="w-full overflow-x-auto">
+        <div className="flex w-full min-w-[500px] items-center justify-between gap-3">
+          <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="shrink-0">
+            <TabsList className="h-8 rounded-lg bg-muted/70 p-0.5">
+              <TabsTrigger value="all" className="h-7 rounded-full px-2.5 text-xs">
+                {t('models.all')}
+              </TabsTrigger>
+              <TabsTrigger value="enabled" className="h-7 rounded-full px-2.5 text-xs">
+                {t('common.enabled')}
+              </TabsTrigger>
+              <TabsTrigger value="disabled" className="h-7 rounded-full px-2.5 text-xs">
+                {t('common.disabled')}
+              </TabsTrigger>
+              <TabsTrigger value="stdio" className="h-7 rounded-full px-2.5 text-xs">
+                STDIO
+              </TabsTrigger>
+              <TabsTrigger value="sse" className="h-7 rounded-full px-2.5 text-xs">
+                SSE
+              </TabsTrigger>
+              <TabsTrigger value="builtin" className="h-7 rounded-full px-2.5 text-xs">
+                {t('settings.mcp.builtinServers')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('settings.mcp.search.placeholder')}
+              tooltip={t('settings.mcp.search.tooltip')}
+              maxWidth={200}
+              style={{ borderRadius: 16 }}
+            />
+            <InstallNpxUv mini />
+            <Button
+              variant="ghost"
+              className="h-8 rounded-lg px-2.5 text-xs shadow-none"
+              onClick={() => setIsEditing((value) => !value)}>
+              <EditIcon size={14} />
+              {isEditing ? t('common.completed') : t('common.edit')}
+            </Button>
+            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="secondary" className="h-8 rounded-lg px-2.5 text-xs shadow-none">
+                  <Plus size={15} />
+                  {t('common.add')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="bottom" className="w-auto p-1">
+                <MenuList className="gap-1">
+                  <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
+                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={handleImportJson} />
+                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={handleImportDxt} />
+                </MenuList>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+      </div>
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
+          <div className="flex min-h-0 w-full min-w-[700px] flex-1 flex-col">
+            <div className="grid grid-cols-[minmax(220px,1fr)_72px_112px_112px_76px] items-center gap-3 border-border/70 border-b bg-background-subtle/70 px-4 py-2.5 font-semibold text-muted-foreground text-xs">
+              <span>{t('settings.mcp.name')}</span>
+              <span>{t('settings.mcp.npx_list.version')}</span>
+              <span>{t('settings.mcp.type')}</span>
+              <span>{t('settings.mcp.provider')}</span>
+              <span className="text-right">{t('settings.mcp.active')}</span>
+            </div>
+            <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
+              {filteredMcpServers.length > 0 ? (
+                <Sortable
+                  className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
+                  items={filteredMcpServers}
+                  itemKey="id"
+                  onSortEnd={onSortEnd}
+                  layout="list"
+                  horizontal={false}
+                  listStyle={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 0 }}
+                  itemStyle={{ width: '100%' }}
+                  gap={0}
+                  restrictions={{ scrollableAncestor: true }}
+                  useDragOverlay
+                  showGhost
+                  renderItem={(server) => (
+                    <McpServerCard
+                      server={server}
+                      isEditing={isEditing}
+                      onEdit={() => navigate({ to: `/settings/mcp/settings/${server.id}` })}
+                    />
+                  )}
+                />
+              ) : (
+                <EmptyState
+                  compact
+                  preset="no-resource"
+                  description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
+                  className="py-12"
+                />
+              )}
+            </Scrollbar>
+          </div>
+        </div>
+      </div>
 
       <AddMcpServerModal
         visible={isAddModalVisible}
@@ -235,7 +258,7 @@ const McpServersList: FC = () => {
         existingServers={mcpServers} // 傳遞現有的伺服器列表
         initialImportMethod={modalType}
       />
-    </Scrollbar>
+    </div>
   )
 }
 
