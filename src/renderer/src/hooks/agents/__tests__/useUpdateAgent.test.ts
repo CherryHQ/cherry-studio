@@ -51,9 +51,6 @@ describe('useUpdateAgent', () => {
       expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' }, body: { name: 'Updated' } })
       expect(updated).toBeDefined()
       expect(updated?.id).toBe('agent-1')
-      // Zod defaults should be applied
-      expect(updated?.configuration?.permission_mode).toBe('default')
-      expect(updated?.configuration?.max_turns).toBe(100)
       expect(mockToast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
     })
 

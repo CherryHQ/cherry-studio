@@ -53,8 +53,6 @@ describe('useUpdateSession', () => {
       body: { model: 'claude-3' }
     })
     expect(updated).toBeDefined()
-    // Zod defaults should be applied
-    expect(updated?.configuration?.permission_mode).toBe('default')
     expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
   })
 

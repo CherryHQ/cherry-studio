@@ -50,7 +50,7 @@ describe('useAgent', () => {
     )
   })
 
-  it('applies configuration defaults when configuration has raw values', () => {
+  it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
     const mockAgent = {
       id: 'agent-1',
       name: 'Test Agent',
@@ -66,9 +66,10 @@ describe('useAgent', () => {
 
     const { result } = renderHook(() => useAgent('agent-1'))
 
-    expect(result.current.agent?.configuration?.permission_mode).toBe('default')
-    expect(result.current.agent?.configuration?.max_turns).toBe(100)
-    expect(result.current.agent?.configuration?.env_vars).toEqual({})
+    // Known field preserved; optional fields not explicitly set remain undefined
+    expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
+    expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
 
   it('falls back instead of throwing when persisted configuration is malformed', () => {

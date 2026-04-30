@@ -12,6 +12,8 @@ const buildErrorMessage = async (response: Response, fallback: string) => {
   return text ? `${fallback}: ${text}` : fallback
 }
 
+// TODO(v2): migrate PUT /agents/reorder and PUT /agents/:id/sessions/reorder to DataApi
+// Tracked: these endpoints need DataApi handler + service, then this hook can be deleted.
 export const useLegacyAgentReorderClient = () => {
   const [{ host, port, apiKey }] = useMultiplePreferences(API_SERVER_PREFERENCE_KEYS)
 

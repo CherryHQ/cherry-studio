@@ -4,7 +4,7 @@ import { agentSessionService as sessionService } from '@data/services/AgentSessi
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
-import type { CherryClawConfiguration, GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
+import type { GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
 
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
@@ -208,7 +208,7 @@ class SchedulerService {
         throw new Error(`Agent not found: ${task.agentId}`)
       }
 
-      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      const config = agent.configuration ?? {}
       const workspacePath = agent.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file

@@ -168,8 +168,7 @@ describe('channelHandlers', () => {
       })
     })
 
-    it('PATCH updates channel through the workflow service without requiring callers to resend type', async () => {
-      getChannelMock.mockResolvedValueOnce(mockChannel)
+    it('PATCH delegates to the workflow service and returns the updated channel', async () => {
       updateChannelMock.mockResolvedValueOnce({ ...mockChannel, name: 'Updated' })
 
       const result = await channelHandlers['/channels/:channelId'].PATCH({
@@ -177,12 +176,12 @@ describe('channelHandlers', () => {
         body: { name: 'Updated' }
       } as never)
 
-      expect(updateChannelMock).toHaveBeenCalledWith(CHANNEL_ID, { type: 'telegram', name: 'Updated' })
+      expect(updateChannelMock).toHaveBeenCalledWith(CHANNEL_ID, { name: 'Updated' })
       expect(result).toMatchObject({ name: 'Updated' })
     })
 
-    it('PATCH throws NOT_FOUND when channel does not exist', async () => {
-      getChannelMock.mockResolvedValueOnce(null)
+    it('PATCH throws NOT_FOUND when the workflow service returns null', async () => {
+      updateChannelMock.mockResolvedValueOnce(null)
 
       await expect(
         channelHandlers['/channels/:channelId'].PATCH({
@@ -192,13 +191,11 @@ describe('channelHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('PATCH rejects invalid config for the persisted channel type', async () => {
-      getChannelMock.mockResolvedValueOnce(mockChannel)
-
+    it('PATCH rejects body that fails UpdateChannelSchema validation', async () => {
       await expect(
         channelHandlers['/channels/:channelId'].PATCH({
           params: { channelId: CHANNEL_ID },
-          body: { config: { app_id: 'wrong-shape' } }
+          body: { type: 123 }
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 

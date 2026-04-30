@@ -1,6 +1,11 @@
 import { loggerService } from '@logger'
 import { channelManager } from '@main/services/agents/services/channels'
-import type { UpdateChannelDto } from '@shared/data/api/schemas/channels'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
+import {
+  ActiveChannelConfigSchemasByType,
+  ChannelConfigSchemasByType,
+  type UpdateChannelDto
+} from '@shared/data/api/schemas/channels'
 
 import { agentChannelService } from './AgentChannelService'
 
@@ -34,8 +39,29 @@ export class AgentChannelWorkflowService {
     const existing = await agentChannelService.getChannel(channelId)
     if (!existing) return null
 
-    const serviceUpdates = { ...updates }
-    delete serviceUpdates.type
+    if (updates.type && updates.type !== existing.type) {
+      throw DataApiErrorFactory.validation({ type: ['channel type cannot be changed'] })
+    }
+
+    const validatedConfig =
+      updates.config !== undefined ? ChannelConfigSchemasByType[existing.type].safeParse(updates.config) : undefined
+    if (validatedConfig && !validatedConfig.success) {
+      throw toDataApiError(validatedConfig.error)
+    }
+
+    const nextIsActive = updates.isActive ?? existing.isActive
+    const nextConfig = validatedConfig?.success ? validatedConfig.data : existing.config
+    if (nextIsActive) {
+      const activeConfig = ActiveChannelConfigSchemasByType[existing.type].safeParse(nextConfig)
+      if (!activeConfig.success) throw toDataApiError(activeConfig.error)
+    }
+
+    const { type: _type, ...updatesWithoutType } = updates
+    const serviceUpdates = {
+      ...updatesWithoutType,
+      ...(validatedConfig?.success ? { config: validatedConfig.data } : {})
+    }
+
     const channel = await agentChannelService.updateChannel(channelId, serviceUpdates)
     if (!channel) return null
 

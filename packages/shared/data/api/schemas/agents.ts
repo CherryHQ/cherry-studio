@@ -40,9 +40,9 @@ export const AgentConfigurationSchema = z
   .object({
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
-    permission_mode: AgentPermissionModeSchema.optional().default('default'),
-    max_turns: z.number().optional().default(100),
-    env_vars: z.record(z.string(), z.string()).optional().default({}),
+    permission_mode: AgentPermissionModeSchema.optional(),
+    max_turns: z.number().optional(),
+    env_vars: z.record(z.string(), z.string()).optional(),
     soul_enabled: z.boolean().optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
@@ -54,6 +54,9 @@ export const AgentConfigurationSchema = z
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional()
   })
+  // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
+  // and may contain keys written by older or newer versions of the app. Unknown fields must
+  // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
