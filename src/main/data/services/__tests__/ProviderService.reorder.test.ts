@@ -17,16 +17,6 @@ describe('ProviderService reorder', () => {
     ])
   }
 
-  async function seedProvidersWithGrok() {
-    const [openaiKey, anthropicKey, geminiKey, grokKey] = generateOrderKeySequence(4)
-    await dbh.db.insert(userProviderTable).values([
-      { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
-      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey },
-      { providerId: 'gemini', name: 'Gemini', orderKey: geminiKey },
-      { providerId: 'grok', name: 'Grok', orderKey: grokKey }
-    ])
-  }
-
   async function readOrder() {
     const rows = await dbh.db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
     return rows.map((row) => row.providerId)
