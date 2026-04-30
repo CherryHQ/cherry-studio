@@ -96,6 +96,7 @@ describe('vision helpers', () => {
 
     it('detects OpenAI and third-party generative image models', () => {
       expect(isGenerateImageModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
+      expect(isGenerateImageModel(createModel({ id: 'gpt-image-2' }))).toBe(true)
 
       providerMock.mockReturnValue({ type: 'custom' } as any)
       expect(isGenerateImageModel(createModel({ id: 'gemini-2.5-flash-image' }))).toBe(true)
@@ -110,6 +111,7 @@ describe('vision helpers', () => {
     it('requires both generate and text-to-image support', () => {
       expect(isPureGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(true)
       expect(isPureGenerateImageModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      expect(isPureGenerateImageModel(createModel({ id: 'gpt-image-2' }))).toBe(false)
       expect(isPureGenerateImageModel(createModel({ id: 'gemini-2.5-flash-image-preview' }))).toBe(true)
     })
   })
@@ -127,11 +129,14 @@ describe('vision helpers', () => {
 
     it('identifies dedicated and auto-enabled image generation models', () => {
       expect(isDedicatedImageGenerationModel(createModel({ id: 'grok-2-image-1212' }))).toBe(true)
+      expect(isDedicatedImageGenerationModel(createModel({ id: 'gpt-image-1' }))).toBe(true)
       expect(isAutoEnableImageGenerationModel(createModel({ id: 'gemini-2.5-flash-image-ultra' }))).toBe(true)
+      expect(isAutoEnableImageGenerationModel(createModel({ id: 'gpt-image-2' }))).toBe(true)
     })
 
     it('returns false when models are not in dedicated or auto-enable sets', () => {
       expect(isDedicatedImageGenerationModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      expect(isDedicatedImageGenerationModel(createModel({ id: 'gpt-image-2' }))).toBe(false)
       expect(isAutoEnableImageGenerationModel(createModel({ id: 'gpt-4o' }))).toBe(false)
     })
   })
