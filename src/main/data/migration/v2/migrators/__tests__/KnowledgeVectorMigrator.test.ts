@@ -50,6 +50,8 @@ function createTempRoot() {
 interface MigratedKnowledgeBaseRow {
   id: string
   dimensions: number
+  embeddingModelId: string | null
+  status: 'completed' | 'failed'
 }
 
 interface MigratedKnowledgeItemRow {
@@ -153,6 +155,16 @@ function createMigratedItem(
   }
 }
 
+function createMigratedBase(overrides: Partial<MigratedKnowledgeBaseRow> = {}): MigratedKnowledgeBaseRow {
+  return {
+    id: 'kb-1',
+    dimensions: 2,
+    embeddingModelId: 'ollama::nomic-embed-text',
+    status: 'completed',
+    ...overrides
+  }
+}
+
 describe('KnowledgeVectorMigrator', () => {
   let tempRoot: string
   let knowledgeBaseDir: string
@@ -195,7 +207,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [
         createMigratedItem('item-file'),
         createMigratedItem('item-directory', {
@@ -266,7 +278,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [
         createMigratedItem('item-sitemap', {
           type: 'sitemap',
@@ -350,7 +362,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file')],
       reduxData: {
         knowledge: {
@@ -473,7 +485,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file', { data: { source: '/tmp/file-from-item.md' } })],
       reduxData: {
         knowledge: {
@@ -531,7 +543,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file', { data: {} })],
       reduxData: {
         knowledge: {
@@ -567,6 +579,38 @@ describe('KnowledgeVectorMigrator', () => {
     ).toBe(true)
   })
 
+  it('skips failed bases without reading or rebuilding legacy vectors', async () => {
+    const loadBase = vi.fn()
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [createMigratedBase({ embeddingModelId: null, status: 'failed' })],
+      migratedItems: [createMigratedItem('item-file')],
+      knowledgeVectorSource: { loadBase } as any,
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(loadBase).not.toHaveBeenCalled()
+    expect(migrator.preparedBasePlans).toEqual([])
+    expect(
+      result.warnings?.some((warning) =>
+        warning.includes('Skipped knowledge vector records (missing_embedding_model): count=1')
+      )
+    ).toBe(true)
+  })
+
   it('assigns chunkIndex per migrated item in read order', async () => {
     const dbPath = path.join(knowledgeBaseDir, 'kb-1')
     await createLegacyVectorDb(dbPath, [
@@ -587,7 +631,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file')],
       reduxData: {
         knowledge: {
@@ -636,7 +680,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file')],
       reduxData: {
         knowledge: {
@@ -686,7 +730,7 @@ describe('KnowledgeVectorMigrator', () => {
     ])
 
     const migrationCtx = createMigrationCtx({
-      migratedBases: [{ id: 'kb-1', dimensions: 2 }],
+      migratedBases: [createMigratedBase()],
       migratedItems: [createMigratedItem('item-file')],
       reduxData: {
         knowledge: {

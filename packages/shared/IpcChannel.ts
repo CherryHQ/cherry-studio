@@ -193,6 +193,7 @@ export enum IpcChannel {
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
+  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
   KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
   KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',

@@ -21,6 +21,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 ## Key Transformations
 
 1. Loader identity remapping
+   - Failed knowledge bases without a resolved embedding model are skipped at the base level; they keep their SQLite base/items and must be rebuilt after the user selects a new model.
    - `uniqueLoaderId` is not kept as a persisted field.
    - It is resolved back to `knowledge_item.id` and written into `external_id`.
    - `uniqueIds[]` takes precedence over legacy `uniqueId`.
@@ -79,6 +80,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 ## Skipped Data
 
 - Bases missing from migrated `knowledge_base`
+- Bases marked `failed` or with `embeddingModelId = null`
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows mapped to non-indexable container item types such as `directory` or `sitemap`

@@ -36,6 +36,10 @@ type FailedKnowledgeItemStatusUpdate = {
   error: string
 }
 
+type KnowledgeItemsByBaseOptions = {
+  groupId?: string | null
+}
+
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
   return KnowledgeItemSchema.parse({
     id: row.id,
@@ -70,7 +74,7 @@ export class KnowledgeItemService {
       conditions.push(groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, groupId))
     }
 
-    const where = conditions.length === 1 ? conditions[0] : and(...conditions)
+    const where = and(...conditions)
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select()
@@ -87,6 +91,27 @@ export class KnowledgeItemService {
       total: count,
       page: query.page
     }
+  }
+
+  async getItemsByBaseId(baseId: string, options: KnowledgeItemsByBaseOptions = {}): Promise<KnowledgeItem[]> {
+    await knowledgeBaseService.getById(baseId)
+
+    const conditions = [eq(knowledgeItemTable.baseId, baseId)]
+
+    if (options.groupId !== undefined) {
+      conditions.push(
+        options.groupId === null ? isNull(knowledgeItemTable.groupId) : eq(knowledgeItemTable.groupId, options.groupId)
+      )
+    }
+
+    const where = and(...conditions)
+    const rows = await this.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(where)
+      .orderBy(knowledgeItemTable.createdAt, knowledgeItemTable.id)
+
+    return rows.map((row) => rowToKnowledgeItem(row))
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {

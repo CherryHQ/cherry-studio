@@ -3,13 +3,15 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type {
-  CreateKnowledgeBaseDto,
-  KnowledgeBase,
-  KnowledgeItem,
-  KnowledgeItemChunk,
-  KnowledgeRuntimeAddItemInput,
-  KnowledgeSearchResult
+import {
+  type CreateKnowledgeBaseDto,
+  type KnowledgeBase,
+  type KnowledgeItem,
+  type KnowledgeItemChunk,
+  type KnowledgeRuntimeAddItemInput,
+  KnowledgeRuntimeAddItemInputSchema,
+  type KnowledgeSearchResult,
+  type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -21,10 +23,29 @@ import {
   KnowledgeRuntimeDeleteItemChunkPayloadSchema,
   KnowledgeRuntimeItemChunksPayloadSchema,
   KnowledgeRuntimeItemsPayloadSchema,
+  KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
+
+function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
+  return {
+    name: sourceBase.name,
+    groupId: sourceBase.groupId ?? undefined,
+    emoji: sourceBase.emoji,
+    dimensions: dto.dimensions,
+    embeddingModelId: dto.embeddingModelId,
+    rerankModelId: sourceBase.rerankModelId,
+    fileProcessorId: sourceBase.fileProcessorId,
+    chunkSize: sourceBase.chunkSize,
+    chunkOverlap: sourceBase.chunkOverlap,
+    threshold: sourceBase.threshold,
+    documentCount: sourceBase.documentCount,
+    searchMode: sourceBase.searchMode,
+    hybridAlpha: sourceBase.hybridAlpha
+  }
+}
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -81,6 +102,44 @@ export class KnowledgeOrchestrationService extends BaseService {
         interruptedItemIds
       })
     }
+  }
+
+  async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
+
+    const createDto = createRestoreBaseDto(sourceBase, dto)
+    const rootItems = await knowledgeItemService.getItemsByBaseId(sourceBase.id, { groupId: null })
+    const restoredBase = await this.createBase(createDto)
+
+    try {
+      if (rootItems.length > 0) {
+        await this.addItems(
+          restoredBase.id,
+          rootItems.map((item) =>
+            KnowledgeRuntimeAddItemInputSchema.parse({
+              type: item.type,
+              data: item.data
+            })
+          )
+        )
+      }
+    } catch (error) {
+      try {
+        await this.deleteBase(restoredBase.id)
+      } catch (cleanupError) {
+        logger.error(
+          'Failed to delete restored knowledge base after item restoration failed',
+          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          {
+            sourceBaseId: sourceBase.id,
+            restoredBaseId: restoredBase.id
+          }
+        )
+      }
+      throw error
+    }
+
+    return restoredBase
   }
 
   async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
@@ -147,11 +206,14 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     return items.filter((item) => !descendantSelectedIds.has(item.id))
   }
-
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
       const { base } = KnowledgeRuntimeCreateBasePayloadSchema.parse(payload)
       return await this.createBase(base)
+    })
+    this.ipcHandle(IpcChannel.KnowledgeRuntime_RestoreBase, async (_, payload: unknown) => {
+      const dto = KnowledgeRuntimeRestoreBasePayloadSchema.parse(payload)
+      return await this.restoreBase(dto)
     })
     this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: unknown) => {
       const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)

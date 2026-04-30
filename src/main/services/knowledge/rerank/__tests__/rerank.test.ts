@@ -39,6 +39,8 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     emoji: overrides.emoji ?? '📁',
     dimensions: overrides.dimensions ?? 1024,
     embeddingModelId: overrides.embeddingModelId ?? 'ollama::nomic-embed-text',
+    status: overrides.status ?? 'completed',
+    error: overrides.error ?? null,
     chunkSize: overrides.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: overrides.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     searchMode: overrides.searchMode ?? 'hybrid',

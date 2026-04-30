@@ -72,6 +72,8 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    status: 'completed',
+    error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     searchMode: 'hybrid',

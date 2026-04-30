@@ -35,6 +35,8 @@ describe('KnowledgeItemService', () => {
       emoji: '📁',
       dimensions: 1024,
       embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      status: 'completed',
+      error: null,
       chunkSize: 1024,
       chunkOverlap: 200,
       searchMode: 'hybrid'
@@ -109,6 +111,80 @@ describe('KnowledgeItemService', () => {
 
       expect(result.total).toBe(2)
       expect(result.items.map((item) => item.id).sort()).toEqual(['dir-a', 'note-root'])
+    })
+  })
+
+  describe('getItemsByBaseId', () => {
+    it('returns items in creation order for a knowledge base', async () => {
+      await seedItem({
+        id: 'item-2',
+        data: { source: 'item-2', content: 'item 2' },
+        createdAt: 20,
+        updatedAt: 20
+      })
+      await seedItem({
+        id: 'item-1',
+        data: { source: 'item-1', content: 'item 1' },
+        createdAt: 10,
+        updatedAt: 10
+      })
+
+      const result = await service.getItemsByBaseId('kb-1')
+
+      expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2'])
+      expect(result[0]).toMatchObject({
+        id: 'item-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'note',
+        data: { source: 'item-1', content: 'item 1' },
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+    })
+
+    it('filters root items when groupId is null', async () => {
+      await seedItem({
+        id: 'root-2',
+        data: { source: 'root-2', content: 'root 2' },
+        createdAt: 20,
+        updatedAt: 20
+      })
+      await seedItem({
+        id: 'root-1',
+        data: { source: 'root-1', content: 'root 1' },
+        createdAt: 10,
+        updatedAt: 10
+      })
+      await seedItem({
+        id: 'child-1',
+        groupId: 'root-1',
+        data: { source: 'child-1', content: 'child 1' },
+        createdAt: 15,
+        updatedAt: 15
+      })
+
+      const result = await service.getItemsByBaseId('kb-1', { groupId: null })
+
+      expect(result.map((item) => item.id)).toEqual(['root-1', 'root-2'])
+    })
+
+    it('filters items by group id', async () => {
+      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: 'note-a', groupId: 'dir-a', data: { source: 'a', content: 'a' } })
+      await seedItem({ id: 'note-root', data: { source: 'root', content: 'root' } })
+
+      const result = await service.getItemsByBaseId('kb-1', { groupId: 'dir-a' })
+
+      expect(result.map((item) => item.id)).toEqual(['note-a'])
+    })
+
+    it('throws NotFound when listing items for a missing base', async () => {
+      await expect(service.getItemsByBaseId('missing')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        status: 404
+      })
     })
   })
 

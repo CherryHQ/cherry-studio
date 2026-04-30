@@ -51,6 +51,8 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   return KnowledgeBaseSchema.parse({
     ...clean,
     groupId: row.groupId,
+    embeddingModelId: row.embeddingModelId,
+    error: row.error,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   })
@@ -132,7 +134,12 @@ export class KnowledgeBaseService {
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const existing = await this.getById(id)
 
-    const nextConfig = {
+    const nextConfig: {
+      chunkSize: number
+      chunkOverlap: number
+      searchMode: KnowledgeBase['searchMode']
+      hybridAlpha: number | null | undefined
+    } = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
       searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,

@@ -71,6 +71,8 @@ describe('AssistantDataService', () => {
       emoji: '📁',
       dimensions: 1024,
       embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+      status: 'completed',
+      error: null,
       chunkSize: 1024,
       chunkOverlap: 200,
       searchMode: 'hybrid'

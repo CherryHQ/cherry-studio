@@ -1,4 +1,5 @@
 import {
+  type KnowledgeBaseStatus,
   type KnowledgeItemData,
   type KnowledgeItemPhase,
   type KnowledgeItemStatus,
@@ -22,9 +23,10 @@ export const knowledgeBaseTable = sqliteTable(
     emoji: text().notNull(),
     dimensions: integer().notNull(),
 
-    embeddingModelId: text()
-      .notNull()
-      .references(() => userModelTable.id),
+    embeddingModelId: text().references(() => userModelTable.id),
+
+    status: text().$type<KnowledgeBaseStatus>().notNull().default('completed'),
+    error: text(),
 
     // Preserve the base when an optional rerank model is removed.
     rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
@@ -40,7 +42,25 @@ export const knowledgeBaseTable = sqliteTable(
 
     ...createUpdateTimestamps
   },
-  (t) => [check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('default', 'bm25', 'hybrid')`)]
+  (t) => [
+    check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('default', 'bm25', 'hybrid')`),
+    check('knowledge_base_status_check', sql`${t.status} IN ('completed', 'failed')`),
+    check(
+      'knowledge_base_status_error_check',
+      sql`
+        (
+          ${t.status} = 'completed'
+          AND ${t.embeddingModelId} IS NOT NULL
+          AND ${t.error} IS NULL
+        )
+        OR (
+          ${t.status} = 'failed'
+          AND ${t.error} IS NOT NULL
+          AND length(trim(${t.error})) > 0
+        )
+      `
+    )
+  ]
 )
 
 // User-added sources and expanded import children; chunks/embeddings live in the vector store.

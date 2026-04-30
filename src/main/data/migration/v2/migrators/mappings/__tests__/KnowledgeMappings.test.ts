@@ -28,7 +28,7 @@ describe('KnowledgeMappings', () => {
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
-  it('transformKnowledgeBase rejects knowledge bases without an embedding model', () => {
+  it('transformKnowledgeBase marks knowledge bases without an embedding model as failed', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -38,8 +38,13 @@ describe('KnowledgeMappings', () => {
         1024
       )
     ).toStrictEqual({
-      ok: false,
-      reason: 'missing_embedding_model'
+      ok: true,
+      value: expect.objectContaining({
+        id: 'kb-1',
+        embeddingModelId: null,
+        status: 'failed',
+        error: 'missing_embedding_model'
+      })
     })
   })
 

@@ -30,7 +30,8 @@ import type {
   KnowledgeBase,
   KnowledgeItemChunk,
   KnowledgeRuntimeAddItemInput,
-  KnowledgeSearchResult as KnowledgeVectorSearchResult
+  KnowledgeSearchResult as KnowledgeVectorSearchResult,
+  RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -353,6 +354,8 @@ const api = {
   knowledgeRuntime: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { base }),
+    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_RestoreBase, dto),
     deleteBase: (baseId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
     addItems: (baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> =>

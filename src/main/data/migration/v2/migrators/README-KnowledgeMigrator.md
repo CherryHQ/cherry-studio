@@ -22,7 +22,9 @@
 
 1. Base metadata migration
    - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
-   - Model references are resolved against migrated `user_model` rows; missing or dangling embedding/rerank references are cleared with warnings.
+   - Model references are resolved against migrated `user_model` rows.
+   - Missing or dangling embedding model references are preserved as recoverable failed bases with `embeddingModelId = null`, `status = failed`, and `error = missing_embedding_model`.
+   - Missing or dangling rerank references are cleared with warnings.
    - Migrated base `searchMode` is set to `hybrid`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
    - Invalid runtime tuning fields are normalized to schema-safe defaults/nulls instead of causing the whole base to be skipped.
@@ -67,7 +69,7 @@
 | _no legacy grouping field_ | `groupId` | V1 knowledge bases do not carry group metadata; migrate as `null` |
 | _constant_ | `emoji` | Always `📁` during v1 migration |
 | `dimensions` | `dimensions` | Read from legacy vector DB `vectors.vector` blob length (`length(vector)/4`) |
-| `model` | `embeddingModelId` | Converted to `provider::modelId`, then resolved against `user_model`; missing/dangling references are cleared |
+| `model` | `embeddingModelId` / `status` / `error` | Converted to `provider::modelId`, then resolved against `user_model`; missing/dangling references produce a failed recoverable base |
 | `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId`, then resolved against `user_model`; dangling references are cleared |
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
 | `chunkSize` | `chunkSize` | Copied when positive integer; otherwise normalized to the default chunk size |
@@ -118,11 +120,11 @@
   - the `vectors` table
   - a non-null vector blob whose byte length can be converted to a positive dimension count (`length(vector)/4`)
 - If the per-base legacy knowledge store path resolves to a directory instead of a SQLite file, that base is treated as an unsupported legacy layout and is skipped.
-- If the legacy vector DB is missing, empty, invalid, or the vector blob length cannot be parsed into a valid positive dimension count, that base is treated as unusable in V2 migration:
+- If the legacy vector DB is missing, empty, invalid, or the vector blob length cannot be parsed into a valid positive dimension count, a base with a resolvable embedding model is treated as unusable in V2 migration:
   - the base is skipped
   - all items under that base are skipped
   - a warning is recorded during `prepare`
-- Missing or dangling embedding model identity is cleared to `null` with a warning. It does not cause the base or its items to be skipped.
+- Missing or dangling embedding model identity is cleared to `null`, `status` is set to `failed`, and `error` is set to `missing_embedding_model` with a warning. It does not cause the base or its items to be skipped, and does not require legacy vector DB inspection; valid legacy `dimensions` are preserved, otherwise a positive fallback dimension is used until the user restores the base with a new embedding model.
 - Non-structural tuning config (`chunkSize`, `chunkOverlap`, `threshold`, `documentCount`) is migrated on a best-effort basis:
   - valid values are preserved
   - invalid `chunkSize` / `chunkOverlap` values are replaced with defaults
@@ -132,6 +134,31 @@
 - Legacy v1 knowledge data does not include that field, so migrated items keep it as `null`.
 - This document describes migration behavior only; runtime APIs may set `groupId` after migration.
 - Runtime schema enforces same-base group ownership through `(baseId, groupId) -> (baseId, id)`.
+
+## Missing Embedding Model Recovery
+
+A common recoverable case is a legacy knowledge base whose embedding model id exists in Redux but not in the V2 `user_model` table. For example, Redux may contain `ollama::dengcao/Qwen3-Embedding-0.6B:Q8_0` while no matching migrated user model row exists.
+
+The migrator handles this as a recoverable failed base:
+
+```text
+embeddingModelId = null
+status = failed
+error = missing_embedding_model
+```
+
+The base and its `knowledge_item` rows are preserved. `KnowledgeVectorMigrator` skips vectors for this base because the embedding model contract cannot be verified.
+
+User recovery is handled by runtime restore, not by mutating the failed base in place:
+
+```text
+knowledge-runtime:restore-base
+ -> create a new knowledge base with the source base config and selected embedding model
+ -> copy source root items only
+ -> run the normal createBase + addItems indexing flow
+```
+
+The original failed base remains available after restore so the UI can let the user confirm success before deleting it.
 
 ## Validation
 

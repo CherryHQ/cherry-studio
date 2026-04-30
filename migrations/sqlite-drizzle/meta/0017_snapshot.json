@@ -1389,7 +1389,22 @@
           "name": "embedding_model_id",
           "type": "text",
           "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
+          "default": "'completed'"
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "rerank_model_id": {
@@ -1499,6 +1514,14 @@
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
           "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+        },
+        "knowledge_base_status_check": {
+          "name": "knowledge_base_status_check",
+          "value": "\"knowledge_base\".\"status\" IN ('completed', 'failed')"
+        },
+        "knowledge_base_status_error_check": {
+          "name": "knowledge_base_status_error_check",
+          "value": "(\n\t\t\"knowledge_base\".\"status\" = 'completed'\n\t\tAND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n\t\tAND \"knowledge_base\".\"error\" IS NULL\n\t)\n\tOR (\n\t\t\"knowledge_base\".\"status\" = 'failed'\n\t\tAND \"knowledge_base\".\"error\" IS NOT NULL\n\t\tAND length(trim(\"knowledge_base\".\"error\")) > 0\n\t)"
         }
       }
     },

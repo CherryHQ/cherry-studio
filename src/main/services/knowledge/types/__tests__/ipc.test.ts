@@ -8,6 +8,7 @@ import {
   KnowledgeRuntimeDeleteItemChunkPayloadSchema,
   KnowledgeRuntimeItemChunksPayloadSchema,
   KnowledgeRuntimeItemsPayloadSchema,
+  KnowledgeRuntimeRestoreBasePayloadSchema,
   KnowledgeRuntimeSearchPayloadSchema
 } from '../ipc'
 
@@ -39,6 +40,15 @@ describe('knowledge runtime payload schemas', () => {
   it('accepts valid payloads for every runtime operation', () => {
     const cases = [
       { name: 'create base', schema: KnowledgeRuntimeCreateBasePayloadSchema, payload: { base: createBaseInput() } },
+      {
+        name: 'restore base',
+        schema: KnowledgeRuntimeRestoreBasePayloadSchema,
+        payload: {
+          sourceBaseId: 'base-1',
+          dimensions: 3072,
+          embeddingModelId: 'openai::text-embedding-3-large'
+        }
+      },
       { name: 'base', schema: KnowledgeRuntimeBasePayloadSchema, payload: { baseId: 'base-1' } },
       { name: 'add items', schema: KnowledgeRuntimeAddItemsPayloadSchema, payload: createAddItemsPayload(1) },
       { name: 'items', schema: KnowledgeRuntimeItemsPayloadSchema, payload: createPayload(1) },
@@ -66,6 +76,11 @@ describe('knowledge runtime payload schemas', () => {
         name: 'create base',
         schema: KnowledgeRuntimeCreateBasePayloadSchema,
         payload: { base: { ...createBaseInput(), name: '' } }
+      },
+      {
+        name: 'restore base',
+        schema: KnowledgeRuntimeRestoreBasePayloadSchema,
+        payload: { sourceBaseId: 'base-1', dimensions: 3072, embeddingModelId: '', chunkOverlap: 120 }
       },
       { name: 'base', schema: KnowledgeRuntimeBasePayloadSchema, payload: { baseId: '' } },
       { name: 'add items', schema: KnowledgeRuntimeAddItemsPayloadSchema, payload: createAddItemsPayload(0) },

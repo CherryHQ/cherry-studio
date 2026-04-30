@@ -28,6 +28,8 @@ const BASE: KnowledgeBase = {
   emoji: '📁',
   dimensions: 1024,
   embeddingModelId: 'ollama::nomic-embed-text',
+  status: 'completed',
+  error: null,
   chunkSize: 1024,
   chunkOverlap: 200,
   searchMode: 'hybrid',

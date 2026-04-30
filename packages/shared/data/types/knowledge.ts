@@ -33,6 +33,12 @@ export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
 
+export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
+export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
+export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
+export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
+export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL = 'missing_embedding_model'
+
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
@@ -58,7 +64,9 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   groupId: z.string().trim().min(1).nullable(),
   emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
+  embeddingModelId: z.string().trim().min(1).nullable(),
+  status: KnowledgeBaseStatusSchema,
+  error: z.string().trim().min(1).nullable(),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
@@ -72,6 +80,32 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
 })
 
 export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+  if (value.status === 'completed') {
+    if (value.embeddingModelId === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['embeddingModelId'],
+        message: 'Completed knowledge base requires an embedding model'
+      })
+    }
+
+    if (value.error !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['error'],
+        message: 'Completed knowledge base cannot have an error'
+      })
+    }
+  }
+
+  if (value.status === 'failed' && value.error === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['error'],
+      message: 'Failed knowledge base requires an error'
+    })
+  }
+
   if (value.chunkOverlap >= value.chunkSize) {
     ctx.addIssue({
       code: 'custom',
@@ -332,44 +366,54 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 // Runtime Operation Schemas
 // ============================================================================
 
+const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
+  dimensions: z.number().int().positive(),
+  embeddingModelId: z.string().trim().min(1),
+  rerankModelId: z.string().optional(),
+  fileProcessorId: z.string().optional(),
+  chunkSize: KnowledgeChunkSizeSchema.optional(),
+  chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
+  documentCount: KnowledgeDocumentCountSchema.optional(),
+  searchMode: KnowledgeSearchModeSchema.optional(),
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
+})
+
+const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
+  if (value.chunkOverlap != null && value.chunkSize == null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSize'],
+      message: 'Chunk size is required when chunk overlap is provided'
+    })
+  }
+
+  if (value.chunkOverlap != null && value.chunkSize != null && value.chunkOverlap >= value.chunkSize) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkOverlap'],
+      message: 'Chunk overlap must be smaller than chunk size'
+    })
+  }
+}
+
 /**
  * Runtime create-base request. This is intentionally not a DataApi endpoint:
  * orchestration creates the SQLite row and initializes the vector store.
  */
-export const CreateKnowledgeBaseSchema = z
-  .strictObject({
-    name: z.string().trim().min(1),
-    groupId: z.string().trim().min(1).optional(),
-    emoji: KnowledgeBaseEmojiSchema.optional(),
-    dimensions: z.number().int().positive(),
-    embeddingModelId: z.string().trim().min(1),
-    rerankModelId: z.string().optional(),
-    fileProcessorId: z.string().optional(),
-    chunkSize: KnowledgeChunkSizeSchema.optional(),
-    chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
-    threshold: KnowledgeThresholdSchema.optional(),
-    documentCount: KnowledgeDocumentCountSchema.optional(),
-    searchMode: KnowledgeSearchModeSchema.optional(),
-    hybridAlpha: KnowledgeHybridAlphaSchema.optional()
-  })
-  .superRefine((value, ctx) => {
-    if (value.chunkOverlap != null && value.chunkSize == null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['chunkSize'],
-        message: 'Chunk size is required when chunk overlap is provided'
-      })
-    }
-
-    if (value.chunkOverlap != null && value.chunkSize != null && value.chunkOverlap >= value.chunkSize) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['chunkOverlap'],
-        message: 'Chunk overlap must be smaller than chunk size'
-      })
-    }
-  })
+export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend({
+  name: z.string().trim().min(1),
+  groupId: z.string().trim().min(1).optional(),
+  emoji: KnowledgeBaseEmojiSchema.optional()
+}).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
+
+export const RestoreKnowledgeBaseSchema = z.strictObject({
+  sourceBaseId: z.string().trim().min(1),
+  dimensions: z.number().int().positive(),
+  embeddingModelId: z.string().trim().min(1)
+})
+export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: z.string().trim().min(1).nullable().optional()

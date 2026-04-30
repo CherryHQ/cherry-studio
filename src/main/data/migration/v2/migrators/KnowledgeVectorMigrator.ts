@@ -337,6 +337,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       )
 
       for (const base of migratedBases) {
+        if (base.status === 'failed' || base.embeddingModelId === null) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
+          this.recordSkippedWarning('missing_embedding_model', warningMessage)
+          continue
+        }
+
         const legacyBase = legacyBasesById.get(base.id)
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base not found`

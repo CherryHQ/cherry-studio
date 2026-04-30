@@ -42,6 +42,8 @@ describe('KnowledgeBaseService', () => {
       emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+      status: 'completed',
+      error: null,
       rerankModelId: null,
       fileProcessorId: 'processor-1',
       chunkSize: 800,
@@ -112,6 +114,8 @@ describe('KnowledgeBaseService', () => {
       expect(result.chunkOverlap).toBe(200)
       expect(result.emoji).toBe('📁')
       expect(result.searchMode).toBe('hybrid')
+      expect(result.status).toBe('completed')
+      expect(result.error).toBeNull()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.name).toBe('New Base')
@@ -126,6 +130,8 @@ describe('KnowledgeBaseService', () => {
       expect(row.emoji).toBe('📁')
       expect(row.searchMode).toBe('hybrid')
       expect(row.hybridAlpha).toBeNull()
+      expect(row.status).toBe('completed')
+      expect(row.error).toBeNull()
     })
 
     it('should create a knowledge base with explicit valid chunk config', async () => {
@@ -163,6 +169,53 @@ describe('KnowledgeBaseService', () => {
           }
         }
       })
+    })
+  })
+
+  describe('status constraints', () => {
+    it('allows persisted failed bases with null embedding model ids and non-empty errors', async () => {
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          status: 'failed',
+          error: 'missing_embedding_model'
+        })
+      ).resolves.toBeDefined()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      expect(row).toMatchObject({
+        embeddingModelId: null,
+        status: 'failed',
+        error: 'missing_embedding_model'
+      })
+    })
+
+    it('rejects invalid persisted knowledge base status combinations', async () => {
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          status: 'completed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          id: 'kb-failed-null-error',
+          embeddingModelId: null,
+          status: 'failed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          id: 'kb-failed-empty-error',
+          embeddingModelId: null,
+          status: 'failed',
+          error: ''
+        })
+      ).rejects.toThrow()
     })
   })
 

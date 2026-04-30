@@ -7,7 +7,7 @@
  * - Knowledge item reads within a base or by item id
  *
  * DataApi only exposes operations that are satisfied by the database layer.
- * Runtime/index mutations that create, delete, or rebuild vector-store
+ * Runtime/index mutations that create, delete, restore, or reindex vector-store
  * artifacts are coordinated by `KnowledgeOrchestrationService` instead.
  */
 

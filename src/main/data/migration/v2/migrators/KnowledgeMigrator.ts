@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -96,6 +97,12 @@ const getInvalidKnowledgeBaseConfigWarning = (
   }
 
   return `Knowledge base ${base.id}: cleared invalid config fields: ${clearedFields.join(', ')}`
+}
+
+const resolveMigratedFailedBaseDimensions = (base: LegacyKnowledgeBaseWithIdentity): number => {
+  return typeof base.dimensions === 'number' && Number.isInteger(base.dimensions) && base.dimensions > 0
+    ? base.dimensions
+    : 1
 }
 
 export class KnowledgeMigrator extends BaseMigrator {
@@ -433,7 +440,15 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const resolvedDimensions = await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
+        const initialBaseResult = transformKnowledgeBase(validBase, resolveMigratedFailedBaseDimensions(validBase))
+        const embeddingResolution = resolveModelReference(
+          initialBaseResult.value.embeddingModelId ?? null,
+          validModelIds
+        )
+        const resolvedDimensions =
+          embeddingResolution.kind === 'resolved'
+            ? await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
+            : { dimensions: initialBaseResult.value.dimensions, reason: 'ok' as const }
 
         if (resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length
@@ -443,29 +458,23 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
-        if (!baseResult.ok) {
-          this.skippedCount += 1 + items.length
-          this.sourceCount += items.length
-          const warningMessage = `Skipped knowledge base ${validBase.id}: missing embedding model reference`
-          this.recordSkippedWarning('knowledge_base_missing_embedding_model', warningMessage)
-          continue
-        }
-
+        const baseResult =
+          resolvedDimensions.dimensions === initialBaseResult.value.dimensions
+            ? initialBaseResult
+            : transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
         const preparedBase = { ...baseResult.value }
 
-        const embeddingResolution = resolveModelReference(preparedBase.embeddingModelId ?? null, validModelIds)
         if (embeddingResolution.kind === 'resolved') {
           preparedBase.embeddingModelId = embeddingResolution.modelId
         } else {
-          this.skippedCount += 1 + items.length
-          this.sourceCount += items.length
           const warningMessage =
             embeddingResolution.kind === 'dangling'
-              ? `Skipped knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId}`
-              : `Skipped knowledge base ${validBase.id}: missing embedding model reference`
-          this.recordSkippedWarning(`knowledge_base_${embeddingResolution.kind}_embedding_model`, warningMessage)
-          continue
+              ? `Knowledge base ${validBase.id}: dangling embedding model reference ${embeddingResolution.modelId} requires restore with a new embedding model`
+              : `Knowledge base ${validBase.id}: missing embedding model reference requires restore with a new embedding model`
+          this.recordWarning(warningMessage)
+          preparedBase.embeddingModelId = null
+          preparedBase.status = 'failed'
+          preparedBase.error = KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
         }
 
         const rerankResolution = resolveModelReference(preparedBase.rerankModelId ?? null, validModelIds)

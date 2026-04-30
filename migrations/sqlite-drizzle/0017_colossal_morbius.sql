@@ -1,13 +1,13 @@
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
-DELETE FROM `knowledge_item` WHERE `base_id` IN (SELECT `id` FROM `knowledge_base` WHERE `embedding_model_id` IS NULL OR `embedding_model_id` NOT IN (SELECT `id` FROM `user_model`));--> statement-breakpoint
-DELETE FROM `knowledge_base` WHERE `embedding_model_id` IS NULL OR `embedding_model_id` NOT IN (SELECT `id` FROM `user_model`);--> statement-breakpoint
 CREATE TABLE `__new_knowledge_base` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`group_id` text,
 	`emoji` text NOT NULL,
 	`dimensions` integer NOT NULL,
-	`embedding_model_id` text NOT NULL,
+	`embedding_model_id` text,
+	`status` text DEFAULT 'completed' NOT NULL,
+	`error` text,
 	`rerank_model_id` text,
 	`file_processor_id` text,
 	`chunk_size` integer NOT NULL,
@@ -21,10 +21,15 @@ CREATE TABLE `__new_knowledge_base` (
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`embedding_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`rerank_model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "knowledge_base_search_mode_check" CHECK("__new_knowledge_base"."search_mode" IN ('default', 'bm25', 'hybrid'))
+	CONSTRAINT "knowledge_base_search_mode_check" CHECK("__new_knowledge_base"."search_mode" IN ('default', 'bm25', 'hybrid')),
+	CONSTRAINT "knowledge_base_status_check" CHECK("__new_knowledge_base"."status" IN ('completed', 'failed')),
+	CONSTRAINT "knowledge_base_status_error_check" CHECK(
+		("__new_knowledge_base"."status" = 'completed' AND "__new_knowledge_base"."embedding_model_id" IS NOT NULL AND "__new_knowledge_base"."error" IS NULL)
+		OR ("__new_knowledge_base"."status" = 'failed' AND "__new_knowledge_base"."error" IS NOT NULL AND length(trim("__new_knowledge_base"."error")) > 0)
+	)
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_base`("id", "name", "group_id", "emoji", "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", NULL, '📁', "dimensions", "embedding_model_id", "rerank_model_id", "file_processor_id", CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END, CASE WHEN "chunk_overlap" IS NOT NULL AND "chunk_overlap" >= 0 AND "chunk_overlap" < CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END THEN "chunk_overlap" WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 1 THEN 0 WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 200 THEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END - 1 ELSE 200 END, "threshold", "document_count", CASE WHEN "search_mode" IN ('default', 'bm25', 'hybrid') THEN "search_mode" ELSE 'hybrid' END, "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_base`("id", "name", "group_id", "emoji", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "threshold", "document_count", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", NULL, '📁', "dimensions", CASE WHEN "embedding_model_id" IN (SELECT `id` FROM `user_model`) THEN "embedding_model_id" ELSE NULL END, CASE WHEN "embedding_model_id" IN (SELECT `id` FROM `user_model`) THEN 'completed' ELSE 'failed' END, CASE WHEN "embedding_model_id" IN (SELECT `id` FROM `user_model`) THEN NULL ELSE 'missing_embedding_model' END, CASE WHEN "rerank_model_id" IN (SELECT `id` FROM `user_model`) THEN "rerank_model_id" ELSE NULL END, "file_processor_id", CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END, CASE WHEN "chunk_overlap" IS NOT NULL AND "chunk_overlap" >= 0 AND "chunk_overlap" < CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END THEN "chunk_overlap" WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 1 THEN 0 WHEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END <= 200 THEN CASE WHEN "chunk_size" IS NOT NULL AND "chunk_size" > 0 THEN "chunk_size" ELSE 1024 END - 1 ELSE 200 END, "threshold", "document_count", CASE WHEN "search_mode" IN ('default', 'bm25', 'hybrid') THEN "search_mode" ELSE 'hybrid' END, "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
 DROP TABLE `knowledge_base`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_base` RENAME TO `knowledge_base`;--> statement-breakpoint
 CREATE TABLE `__new_knowledge_item` (

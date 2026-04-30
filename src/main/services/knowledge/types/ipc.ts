@@ -1,7 +1,8 @@
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
-  KnowledgeRuntimeAddItemInputSchema
+  KnowledgeRuntimeAddItemInputSchema,
+  RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
@@ -9,6 +10,9 @@ export const KnowledgeRuntimeCreateBasePayloadSchema = z.strictObject({
   base: CreateKnowledgeBaseSchema
 })
 export type KnowledgeRuntimeCreateBasePayload = z.infer<typeof KnowledgeRuntimeCreateBasePayloadSchema>
+
+export const KnowledgeRuntimeRestoreBasePayloadSchema = RestoreKnowledgeBaseSchema
+export type KnowledgeRuntimeRestoreBasePayload = z.infer<typeof KnowledgeRuntimeRestoreBasePayloadSchema>
 
 export const KnowledgeRuntimeBasePayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1)
