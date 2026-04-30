@@ -15,12 +15,11 @@ vi.mock('@logger', () => ({
 
 import { createDeepseekDsmlParserPlugin } from '../deepseekDsmlParserPlugin'
 
-function getMiddleware(): LanguageModelMiddleware {
+async function getMiddleware(): Promise<LanguageModelMiddleware> {
   const plugin = createDeepseekDsmlParserPlugin()
   const ctx = { middlewares: [] as LanguageModelMiddleware[] }
   // configureContext mutates ctx.middlewares by pushing the parser middleware
-
-  plugin.configureContext?.(ctx as any)
+  await plugin.configureContext?.(ctx as any)
   expect(ctx.middlewares).toHaveLength(1)
   return ctx.middlewares[0]
 }
@@ -52,7 +51,7 @@ function buildSourceStream(deltas: string[], finishReasonUnified: 'stop' | 'tool
 }
 
 async function runStream(deltas: string[], finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
-  const middleware = getMiddleware()
+  const middleware = await getMiddleware()
   expect(middleware.wrapStream).toBeDefined()
 
   const source = buildSourceStream(deltas, finishReasonUnified)
