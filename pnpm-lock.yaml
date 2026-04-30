@@ -59,7 +59,7 @@ patchedDependencies:
     hash: aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
     path: patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
   '@openrouter/ai-sdk-provider':
-    hash: 508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52
+    hash: 6f905d5d4efe8dacf34b76a13807f84b19418cf68adc7febeaf1a96fa5886df8
     path: patches/@openrouter__ai-sdk-provider.patch
   '@opeoginni/github-copilot-openai-compatible@1.0.0':
     hash: 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
@@ -408,7 +408,7 @@ importers:
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.3.3
-        version: 2.3.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)
+        version: 2.3.3(patch_hash=6f905d5d4efe8dacf34b76a13807f84b19418cf68adc7febeaf1a96fa5886df8)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -1358,7 +1358,7 @@ importers:
         version: link:../ai-sdk-provider
       '@openrouter/ai-sdk-provider':
         specifier: ^2.3.3
-        version: 2.3.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)
+        version: 2.3.3(patch_hash=6f905d5d4efe8dacf34b76a13807f84b19418cf68adc7febeaf1a96fa5886df8)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: ^6.0.116
         version: 6.0.143(zod@4.3.4)
@@ -15874,7 +15874,7 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@2.3.3(patch_hash=508e8e662b8547de93410cb7c3b1336077f34c6bf79c520ef5273962ea777c52)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@2.3.3(patch_hash=6f905d5d4efe8dacf34b76a13807f84b19418cf68adc7febeaf1a96fa5886df8)(ai@6.0.143(zod@4.3.4))(zod@4.3.4)':
     dependencies:
       ai: 6.0.143(zod@4.3.4)
       zod: 4.3.4
