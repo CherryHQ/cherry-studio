@@ -6,7 +6,6 @@ import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { CHERRY_CLAW_AGENT_ID } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
@@ -39,8 +38,6 @@ function computeWorkspacePaths(paths: string[] | undefined): string[] {
 }
 
 export class AgentService {
-  static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
-
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
 

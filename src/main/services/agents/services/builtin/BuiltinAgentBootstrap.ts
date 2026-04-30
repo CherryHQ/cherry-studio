@@ -14,7 +14,7 @@ import { seedWorkspaceTemplates } from '@main/services/agents/services/cherrycla
 import { skillService } from '@main/services/agents/skills/SkillService'
 import type { CreateAgentDto } from '@shared/data/api/schemas/agents'
 
-import { CHERRY_ASSISTANT_AGENT_ID, CHERRY_CLAW_AGENT_ID } from './BuiltinAgentIds'
+import { CHERRY_ASSISTANT_AGENT_ID } from './BuiltinAgentIds'
 import { provisionBuiltinAgent } from './BuiltinAgentProvisioner'
 
 export { CHERRY_ASSISTANT_AGENT_ID }
@@ -30,7 +30,6 @@ export type BuiltinAgentCreateResult =
  * Returns `{ agentId: null, skippedReason: 'no_model' }` if none is available.
  */
 export async function initCherryClaw(): Promise<BuiltinAgentCreateResult> {
-  const id = CHERRY_CLAW_AGENT_ID
   try {
     const modelsRes = await modelsService.getModels({ providerType: 'anthropic', limit: 1 })
     const firstModel = modelsRes.data?.[0]
@@ -75,7 +74,7 @@ export async function initCherryClaw(): Promise<BuiltinAgentCreateResult> {
       await skillService.initSkillsForAgent(agent.id, workspace)
     } catch (error) {
       logger.warn('Failed to seed builtin skills for CherryClaw agent', {
-        agentId: id,
+        agentId: agent.id,
         error: error instanceof Error ? error.message : String(error)
       })
     }
