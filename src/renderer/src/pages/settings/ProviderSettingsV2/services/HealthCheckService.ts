@@ -57,7 +57,7 @@ export async function checkModelsHealth(
   const results: ModelWithStatus[] = []
 
   try {
-    const modelPromises = models.map(async (model, index) => {
+    const runModelCheck = async (model: ModelCheckOptions['models'][number], index: number) => {
       const keyResults = await checkModelWithMultipleKeys(provider, model, apiKeys, models, timeout)
       const analysis = aggregateApiKeyResults(keyResults)
 
@@ -77,13 +77,15 @@ export async function checkModelsHealth(
 
       onModelChecked?.(result, index)
       return result
-    })
+    }
 
     if (isConcurrent) {
-      await Promise.all(modelPromises)
+      await Promise.all(models.map(runModelCheck))
     } else {
-      for (const promise of modelPromises) {
-        await promise
+      for (let index = 0; index < models.length; index++) {
+        const model = models[index]
+        if (!model) continue
+        await runModelCheck(model, index)
       }
     }
   } catch (error) {

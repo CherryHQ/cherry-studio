@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "api_key": {
         "label": "API-Schlüssel",
+        "save_failed": "API-Schlüssel konnten nicht gespeichert werden",
         "tip": "Mehrere Schlüssel durch Komma oder Leerzeichen trennen"
       },
       "api_version": "API-Version",

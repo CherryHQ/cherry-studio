@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {
         "label": "Chave API",
+        "save_failed": "Falha ao guardar chaves API",
         "tip": "Use vírgula para separar várias chaves"
       },
       "api_version": "Versão da API",

@@ -1,10 +1,14 @@
+import { loggerService } from '@logger'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
+import i18n from '@renderer/i18n'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { debounce } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ApiKeysData } from './types'
+
+const logger = loggerService.withContext('useProviderApiKey')
 
 export interface ApiKeyValue {
   serverApiKey: string
@@ -150,7 +154,11 @@ export function useProviderApiKey(providerId: string) {
   const saveLater = useMemo(
     () =>
       debounce((nextValue: string) => {
-        void saveApiKeyRef.current(nextValue)
+        void saveApiKeyRef.current(nextValue).catch((error) => {
+          logger.error('Failed to save API keys', error as Error)
+          window.toast.error(i18n.t('settings.provider.api_key.save_failed'))
+          setValue((current) => ({ ...current, hasPendingSync: true }))
+        })
       }, 150),
     []
   )

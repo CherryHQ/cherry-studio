@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
         "label": "APIキー",
+        "save_failed": "APIキーの保存に失敗しました",
         "tip": "複数のキーはカンマまたはスペースで区切ります"
       },
       "api_version": "APIバージョン",

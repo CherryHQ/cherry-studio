@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createMock, listMock, getByProviderIdMock, updateMock, deleteMock } = vi.hoisted(() => ({
+const { createMock, listMock, getByProviderIdMock, updateMock, deleteMock, getApiKeysMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteMock: vi.fn()
+  deleteMock: vi.fn(),
+  getApiKeysMock: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -14,7 +15,8 @@ vi.mock('@data/services/ProviderService', () => ({
     list: listMock,
     getByProviderId: getByProviderIdMock,
     update: updateMock,
-    delete: deleteMock
+    delete: deleteMock,
+    getApiKeys: getApiKeysMock
   }
 }))
 
@@ -59,6 +61,23 @@ describe('providerHandlers', () => {
         id: 'custom-provider',
         name: 'CherryAI'
       })
+    })
+  })
+
+  describe('/providers/:providerId/api-keys', () => {
+    it('returns all api keys so settings edits preserve disabled entries', async () => {
+      const keys = [
+        { id: 'enabled-key', key: 'sk-enabled', isEnabled: true },
+        { id: 'disabled-key', key: 'sk-disabled', isEnabled: false, label: 'Backup' }
+      ]
+      getApiKeysMock.mockResolvedValueOnce(keys)
+
+      const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
+        params: { providerId: 'openai' }
+      } as never)
+
+      expect(getApiKeysMock).toHaveBeenCalledWith('openai')
+      expect(result).toEqual({ keys })
     })
   })
 })

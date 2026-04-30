@@ -167,7 +167,8 @@ export type ProviderSchemas = {
   }
 
   /**
-   * Get all enabled API key values for a provider (for health check etc.)
+   * Get all API key values for a provider settings editor.
+   * Consumers that only need enabled keys should filter by `isEnabled` or use `/rotated-key`.
    * @example GET /providers/openai-main/api-keys
    * @example POST /providers/openai-main/api-keys { "key": "sk-xxx", "label": "From URL import" }
    */

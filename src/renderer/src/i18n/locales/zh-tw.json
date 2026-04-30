@@ -5429,6 +5429,7 @@
       "api_host_tooltip": "僅在供應商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
+        "save_failed": "API 金鑰儲存失敗",
         "tip": "多個金鑰使用逗號分隔"
       },
       "api_version": "API 版本",

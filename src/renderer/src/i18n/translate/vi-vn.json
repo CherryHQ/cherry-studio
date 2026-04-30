@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "Chỉ ghi đè khi nhà cung cấp của bạn yêu cầu một điểm cuối tương thích OpenAI tùy chỉnh.",
       "api_key": {
         "label": "Khóa API",
+        "save_failed": "Không thể lưu khóa API",
         "tip": "Dùng dấu phẩy để phân tách nhiều khóa"
       },
       "api_version": "Phiên bản API",

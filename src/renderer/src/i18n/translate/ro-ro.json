@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "Suprascrie doar când furnizorul tău necesită un endpoint personalizat compatibil cu OpenAI.",
       "api_key": {
         "label": "Cheie API",
+        "save_failed": "Nu s-au putut salva cheile API",
         "tip": "Folosește virgule pentru a separa mai multe chei"
       },
       "api_version": "Versiune API",

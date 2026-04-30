@@ -5376,6 +5376,7 @@
       "api_host_tooltip": "Sobrescribir solo cuando el proveedor necesite una dirección compatible con OpenAI personalizada.",
       "api_key": {
         "label": "Clave API",
+        "save_failed": "Error al guardar las claves API",
         "tip": "Separar múltiples claves con comas"
       },
       "api_version": "Versión API",

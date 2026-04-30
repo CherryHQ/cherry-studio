@@ -28,6 +28,9 @@ describe('useProviderApiKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    ;(window as any).toast = {
+      error: vi.fn()
+    }
     apiKeysData = {
       keys: []
     }
@@ -122,6 +125,24 @@ describe('useProviderApiKey', () => {
     expect(updateApiKeysMock.mock.calls[0][0]).toEqual([
       { id: 'k1', key: 'sk-next', isEnabled: true, label: 'Primary' }
     ])
+  })
+
+  it('reports autosave failures without clearing pending sync state', async () => {
+    updateApiKeysMock.mockRejectedValueOnce(new Error('network down'))
+    const { result } = renderHook(() => useProviderApiKey('openai'))
+
+    act(() => {
+      result.current.setInputApiKey('sk-failing')
+    })
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    expect(window.toast.error).toHaveBeenCalled()
+    expect(result.current.inputApiKey).toBe('sk-failing')
+    expect(result.current.hasPendingSync).toBe(true)
   })
 
   it('commits the current input immediately when requested', async () => {

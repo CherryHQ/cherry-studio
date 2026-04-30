@@ -57,7 +57,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
   '/providers/:providerId/api-keys': {
     GET: async ({ params }) => {
-      const keys = await providerService.getEnabledApiKeys(params.providerId)
+      const keys = await providerService.getApiKeys(params.providerId)
       return { keys }
     },
 
