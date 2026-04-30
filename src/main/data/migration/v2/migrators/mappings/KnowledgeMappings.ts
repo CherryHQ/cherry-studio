@@ -119,6 +119,18 @@ export const toTimestamp = (value: number | undefined): number => {
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
   typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
 
+const normalizeKnowledgeItemError = (
+  status: KnowledgeItemStatus,
+  processingError: string | undefined
+): string | null => {
+  if (status !== 'failed') {
+    return null
+  }
+
+  const normalizedError = processingError?.trim()
+  return normalizedError ? normalizedError : 'Legacy knowledge item failed without an error message.'
+}
+
 const getDefaultChunkOverlap = (chunkSize: number): number => {
   if (chunkSize <= 1) {
     return 0
@@ -312,6 +324,8 @@ export const transformKnowledgeItem = (
     }
   }
 
+  const status = inferKnowledgeItemStatus(item)
+
   return {
     ok: true,
     value: {
@@ -324,9 +338,9 @@ export const transformKnowledgeItem = (
       groupId: null,
       type,
       data,
-      status: inferKnowledgeItemStatus(item),
+      status,
       phase: null,
-      error: item.processingError ?? null,
+      error: normalizeKnowledgeItemError(status, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
     }

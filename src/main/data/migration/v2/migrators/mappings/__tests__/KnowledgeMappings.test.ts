@@ -255,6 +255,53 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
+    const idleResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'idle-note',
+        type: 'note',
+        content: 'idle note',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const completedResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'completed-file',
+        type: 'file',
+        content: 'file-1',
+        uniqueId: 'loader-1',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([['file-1', fileMetadata]])
+      }
+    )
+
+    expect(idleResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'idle',
+        phase: null,
+        error: null
+      })
+    })
+    expect(completedResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'completed',
+        phase: null,
+        error: null
+      })
+    })
+  })
+
   it('transformKnowledgeItem rejects unsupported legacy item types', () => {
     expect(
       transformKnowledgeItem(
