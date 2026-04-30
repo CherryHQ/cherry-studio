@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ApiHost from '../ApiHost'
+import ApiHost from '../../ConnectionSettings/ApiHost'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
@@ -29,7 +29,7 @@ vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/CherryINSe
   default: () => <div>cherry-in-settings</div>
 }))
 
-vi.mock('../ProviderCustomHeaderDrawer', () => ({
+vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({
   default: ({
     providerId,
     open,
@@ -81,7 +81,7 @@ vi.mock('../../hooks/useProviderModelSync', () => ({
   useProviderModelSync: (...args: any[]) => useProviderModelSyncMock(...args)
 }))
 
-vi.mock('../ProviderField', () => ({
+vi.mock('../../shared/primitives/ProviderField', () => ({
   default: ({ title, help, children, className }: any) => (
     <div className={className}>
       <div>{title}</div>
@@ -91,7 +91,7 @@ vi.mock('../ProviderField', () => ({
   )
 }))
 
-vi.mock('../ProviderSection', () => ({
+vi.mock('../../shared/primitives/ProviderSection', () => ({
   default: ({ children }: any) => <section>{children}</section>
 }))
 

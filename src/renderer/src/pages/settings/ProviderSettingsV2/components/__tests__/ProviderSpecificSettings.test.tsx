@@ -39,7 +39,7 @@ vi.mock('@renderer/pages/settings/ProviderSettingsV2/ProviderSpecific/OVMSSettin
   default: () => <div>ovms-settings</div>
 }))
 
-vi.mock('../AnthropicAuthSection', () => ({
+vi.mock('../../ConnectionSettings/AnthropicAuthSection', () => ({
   default: ({ providerId }: any) => <div>{`anthropic-auth-${providerId}`}</div>
 }))
 

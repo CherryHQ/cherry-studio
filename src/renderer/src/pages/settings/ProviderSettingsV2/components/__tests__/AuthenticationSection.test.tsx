@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import AuthenticationSection from '../AuthenticationSection'
+import AuthenticationSection from '../../ConnectionSettings/AuthenticationSection'
 
 const useProviderMock = vi.fn()
 const useProviderApiKeyMock = vi.fn()
@@ -38,7 +38,7 @@ vi.mock('../../hooks/providerSetting/useProviderApiKey', () => ({
   useProviderApiKey: (...args: any[]) => useProviderApiKeyMock(...args)
 }))
 
-vi.mock('../ApiKey', () => ({
+vi.mock('../../ConnectionSettings/ApiKey', () => ({
   default: (props: any) => {
     apiKeyPropsSpy(props)
     return (
@@ -49,21 +49,21 @@ vi.mock('../ApiKey', () => ({
   }
 }))
 
-vi.mock('../ApiHost', () => ({
+vi.mock('../../ConnectionSettings/ApiHost', () => ({
   default: (props: any) => {
     apiHostPropsSpy(props)
     return <div>api-host</div>
   }
 }))
 
-vi.mock('../ProviderConnectionCheckDrawer', () => ({
+vi.mock('../../ConnectionSettings/ProviderConnectionCheckDrawer', () => ({
   default: (props: any) => {
     providerConnectionCheckDrawerPropsSpy(props)
     return props.open ? <div>provider-connection-check-drawer</div> : null
   }
 }))
 
-vi.mock('../ProviderSpecificSettings', () => ({
+vi.mock('../../ProviderSpecific/ProviderSpecificSettings', () => ({
   default: (props: any) => {
     providerSpecificSettingsPropsSpy(props)
     return <div>{`provider-specific-${props.placement}`}</div>

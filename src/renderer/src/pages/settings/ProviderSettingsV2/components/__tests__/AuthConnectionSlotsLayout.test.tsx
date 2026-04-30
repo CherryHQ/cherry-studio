@@ -1,9 +1,9 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import AuthConnectionSlotsLayout from '../AuthConnectionSlotsLayout'
+import AuthConnectionSlotsLayout from '../../ConnectionSettings/AuthConnectionSlotsLayout'
 
-vi.mock('../ProviderSpecificSettings', () => ({
+vi.mock('../../ProviderSpecific/ProviderSpecificSettings', () => ({
   default: ({ placement }: any) => <div>{placement}</div>
 }))
 

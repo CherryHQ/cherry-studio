@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import AnthropicAuthSection from '../AnthropicAuthSection'
+import AnthropicAuthSection from '../../ConnectionSettings/AnthropicAuthSection'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
@@ -22,7 +22,7 @@ vi.mock('../../ProviderSpecific/AnthropicSettings', () => ({
   default: () => <div>anthropic-settings</div>
 }))
 
-vi.mock('../InlineSelector', () => ({
+vi.mock('../../shared/primitives/InlineSelector', () => ({
   default: ({ value, onChange, options }: any) => (
     <div>
       <div>{`selected:${value}`}</div>
@@ -35,11 +35,11 @@ vi.mock('../InlineSelector', () => ({
   )
 }))
 
-vi.mock('../ProviderField', () => ({
+vi.mock('../../shared/primitives/ProviderField', () => ({
   default: ({ children }: any) => <div>{children}</div>
 }))
 
-vi.mock('../ProviderSection', () => ({
+vi.mock('../../shared/primitives/ProviderSection', () => ({
   default: ({ children }: any) => <div>{children}</div>
 }))
 
