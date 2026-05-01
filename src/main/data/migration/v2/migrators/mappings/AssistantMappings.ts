@@ -21,9 +21,22 @@
 
 import type { AssistantInsert } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { ZodType } from 'zod'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+
+function sanitizeLegacySettings(legacy: Record<string, unknown>): Record<string, unknown> {
+  const shape = AssistantSettingsSchema.shape as Record<string, ZodType>
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(legacy)) {
+    const fieldSchema = shape[key]
+    if (!fieldSchema) continue
+    const parsed = fieldSchema.safeParse(value)
+    if (parsed.success) out[key] = parsed.data
+  }
+  return out
+}
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -175,10 +188,12 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // service would supply: '🌟' for emoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the
   // DB-default '' for prompt / description. Keeps the migrator's output consistent with
   // every other write path even though we're not going through the service layer.
-  const settings: AssistantInsert['settings'] =
-    Object.keys(legacySettings).length > 0
-      ? { ...DEFAULT_ASSISTANT_SETTINGS, ...(legacySettings as Partial<AssistantInsert['settings']>) }
-      : DEFAULT_ASSISTANT_SETTINGS
+  //
+  // Per-field sanitiser drops legacy values that don't validate against the v2 schema
+  // (e.g. v1's `maxTokens: 0` sentinel for disabled-state) so the v2 row never starts
+  // life with a value that future PATCHes will reject.
+  const sanitized = sanitizeLegacySettings(legacySettings)
+  const settings: AssistantInsert['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
 
   return {
     assistant: {

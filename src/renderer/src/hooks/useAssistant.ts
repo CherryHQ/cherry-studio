@@ -32,9 +32,7 @@ export function useAssistant(id: string) {
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
-      void patchAssistant(id, {
-        settings: { ...assistant.settings, ...settings }
-      })
+      void patchAssistant(id, { settings })
     },
     [assistant, id, patchAssistant]
   )
