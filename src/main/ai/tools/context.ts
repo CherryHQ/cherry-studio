@@ -25,8 +25,10 @@ export interface RequestContext {
    *  `kb__search` reading `assistant.knowledgeBaseIds` — pull from here. */
   readonly assistant?: Assistant
 
-  /** Whole-request abort signal. Tools must forward this to any outgoing IO. */
-  readonly abortSignal: AbortSignal
+  /**
+   * Whole-request abort signal — present for cancellable paths
+   */
+  readonly abortSignal?: AbortSignal
 }
 
 /**
@@ -70,5 +72,5 @@ export function getToolCallContext(options: ToolExecutionOptions): ToolCallConte
 function isRequestContext(value: unknown): value is RequestContext {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<RequestContext>
-  return typeof candidate.requestId === 'string' && typeof candidate.abortSignal === 'object'
+  return typeof candidate.requestId === 'string'
 }

@@ -20,11 +20,21 @@ const isAgentTool = (toolName: AgentToolsType) => {
 }
 
 const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
-  let toolName = toolResponse.tool.name
+  const toolName = toolResponse.tool.name
   const toolType = toolResponse.tool.type
+
+  // New agentic builtin names (`kb__search`, `web__search`, future `web__fetch`).
+  if (toolName === 'kb__search') {
+    return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
+  }
+  if (toolName === 'web__search') {
+    return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+  }
+
+  // Legacy `builtin_*` prefix — kept for historical messages still in DB.
   if (toolName.startsWith(builtinToolsPrefix)) {
-    toolName = toolName.slice(builtinToolsPrefix.length)
-    switch (toolName) {
+    const suffix = toolName.slice(builtinToolsPrefix.length)
+    switch (suffix) {
       case 'web_search':
       case 'web_search_preview':
         return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
@@ -33,7 +43,9 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       default:
         return null
     }
-  } else if (isAgentTool(toolName as AgentToolsType)) {
+  }
+
+  if (isAgentTool(toolName as AgentToolsType)) {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
   return null

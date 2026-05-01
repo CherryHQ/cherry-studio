@@ -36,9 +36,14 @@ import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
+import { registerBuiltinTools } from './tools/builtin'
+import { KB_SEARCH_TOOL_NAME } from './tools/builtin/KnowledgeSearchTool'
+import { WEB_SEARCH_TOOL_NAME } from './tools/builtin/WebSearchTool'
+import type { RequestContext } from './tools/context'
 import { syncMcpToolsToRegistry } from './tools/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/mcp/resolveAssistantMcpTools'
 import { registry } from './tools/registry'
+import { createAiRepair } from './tools/repair'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
 import {
@@ -241,6 +246,7 @@ export interface AiEmbedResult {
 @DependsOn(['PreferenceService', 'McpService'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
+    registerBuiltinTools()
     this.registerIpcHandlers()
     logger.info('AiService initialized')
   }
@@ -369,9 +375,12 @@ export class AiService extends BaseService {
     extensions: AiStreamExtensions = {}
   ): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
-    const signal = request.requestOptions?.signal ?? new AbortController().signal
+    const signal = request.requestOptions?.signal
+    if (!signal) {
+      throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
+    }
 
-    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request, signal)
 
     // Wire injectedMessageSource for Claude Code: PendingMessageQueue implements AsyncIterable<Message>
     if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
@@ -450,7 +459,7 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request)
+    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request, signal)
 
     // Same extension points as streamText minus `hooks` — `agent.generate`
     // has no iteration model, so per-iteration hooks would have no effect.
@@ -491,7 +500,7 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParams(request)
+    const { sdkConfig } = await this.buildAgentParams(request, signal)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -564,7 +573,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, model } = await this.buildAgentParams(request)
+    const { sdkConfig, model } = await this.buildAgentParams(request, signal)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
@@ -633,7 +642,10 @@ export class AiService extends BaseService {
 
   // ── Shared agent parameter resolution ──
 
-  private async buildAgentParams(request: AsInProcess<AiBaseRequest> & { chatId?: string }) {
+  private async buildAgentParams(
+    request: AsInProcess<AiBaseRequest> & { chatId?: string },
+    signal: AbortSignal | undefined
+  ) {
     const { provider, model, assistant } = await this.getProviderAndModel(request)
 
     const chatId = request.chatId
@@ -661,6 +673,22 @@ export class AiService extends BaseService {
         if (entry) resolved[id] = entry.tool
       }
       tools = Object.keys(resolved).length > 0 ? resolved : undefined
+    }
+
+    if ((assistant?.knowledgeBaseIds?.length ?? 0) > 0) {
+      const kbEntry = registry.getByName(KB_SEARCH_TOOL_NAME)
+      if (kbEntry) {
+        tools = { ...tools, [KB_SEARCH_TOOL_NAME]: kbEntry.tool }
+      }
+    }
+
+    // Builtin web__search — exposed when the assistant opts in. The tool
+    // itself picks the active provider at execute time.
+    if (assistant?.settings?.enableWebSearch) {
+      const webEntry = registry.getByName(WEB_SEARCH_TOOL_NAME)
+      if (webEntry) {
+        tools = { ...tools, [WEB_SEARCH_TOOL_NAME]: webEntry.tool }
+      }
     }
 
     const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
@@ -706,6 +734,22 @@ export class AiService extends BaseService {
       }
     }
 
+    const requestContext: RequestContext = {
+      requestId: crypto.randomUUID(),
+      topicId: chatId,
+      assistant,
+      abortSignal: signal
+    }
+
+    // LLM-driven repair runs on the same provider/model via ai-core directly
+    // — going through `AiService.generateText` would create a circular
+    // dependency (repair.ts ⇄ AiService).
+    const repairToolCallFunc = createAiRepair({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: sdkConfig.modelId
+    })
+
     const options: AgentOptions = {
       // Disable AI SDK transparent retries by default — they can duplicate
       // stream state in the multi-iteration tool loop. Caller can override
@@ -721,7 +765,12 @@ export class AiService extends BaseService {
       ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
       // AI-SDK standard params extracted from customParameters
       // (topK / frequencyPenalty / presencePenalty / stopSequences / seed).
-      ...standardParams
+      ...standardParams,
+      // Threaded into AI SDK as `experimental_context`; tools unwrap with
+      // `getToolCallContext(options)` to read `assistant`, `requestId`,
+      // `topicId`, and `abortSignal`.
+      context: requestContext,
+      repairToolCall: repairToolCallFunc
     }
 
     return { sdkConfig, tools, plugins, system, options, provider, model }

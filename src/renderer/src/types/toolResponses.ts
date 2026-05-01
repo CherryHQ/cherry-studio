@@ -1,36 +1,18 @@
-/** TODO(renderer/aiCore-cleanup): replace these temporary mirrored tool response types with shared/main-owned contracts once knowledge/web/memory tools stop depending on legacy aiCore definitions. */
-export interface KnowledgeSearchToolInput {
-  additionalContext?: string
-}
-
-export interface KnowledgeSearchToolOutputItem {
-  id: string
-  content: string
-  sourceUrl?: string
-  type?: string
-  file?: unknown
-  metadata?: unknown
-}
-
-export type KnowledgeSearchToolOutput = KnowledgeSearchToolOutputItem[]
-
-export interface WebSearchToolInput {
-  additionalContext?: string
-}
-
-export interface WebSearchToolOutputItem {
-  query?: string
-  results: Array<{
-    title: string
-    url: string
-    content?: string
-    snippet?: string
-  }>
-}
-
-export interface WebSearchToolOutput {
-  results?: WebSearchToolOutputItem[]
-}
+/**
+ * Re-export shared builtin-tool wire contracts. Main and renderer share the
+ * same source of truth in `@shared/data/types/builtin-tools`.
+ *
+ * TODO(renderer/aiCore-cleanup): apply the same migration to memory once
+ * its agentic rewrite lands.
+ */
+export type {
+  KbSearchInput as KnowledgeSearchToolInput,
+  KbSearchOutput as KnowledgeSearchToolOutput,
+  KbSearchOutputItem as KnowledgeSearchToolOutputItem,
+  WebSearchInput as WebSearchToolInput,
+  WebSearchOutput as WebSearchToolOutput,
+  WebSearchOutputItem as WebSearchToolOutputItem
+} from '@shared/data/types/builtin-tools'
 
 export interface MemorySearchToolInput {
   query?: string
