@@ -131,6 +131,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         parentId: null,
         role: 'user',
         data: { parts: userMessageParts },
+        searchableText: userText,
         status: 'success',
         siblingsGroupId: 0,
         createdAt,
