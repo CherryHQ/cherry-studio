@@ -25,7 +25,14 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { KnowledgeSearchResult as KnowledgeVectorSearchResult } from '@shared/data/types/knowledge'
+import type {
+  CreateKnowledgeBaseDto,
+  KnowledgeBase,
+  KnowledgeItemChunk,
+  KnowledgeRuntimeAddItemInput,
+  KnowledgeSearchResult as KnowledgeVectorSearchResult,
+  RestoreKnowledgeBaseDto
+} from '@shared/data/types/knowledge'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -345,16 +352,24 @@ const api = {
       })
   },
   knowledgeRuntime: {
-    createBase: (baseId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { baseId }),
+    createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { base }),
+    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_RestoreBase, dto),
     deleteBase: (baseId: string): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
-    addItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, itemIds }),
+    addItems: (baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
+    reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ReindexItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query })
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query }),
+    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId }),
+    deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItemChunk, { baseId, itemId, chunkId })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
