@@ -95,13 +95,15 @@ describe('AgentsMigrator', () => {
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
+    // remapAgentPrefixIds runs PRAGMA foreign_key_check via db.all; empty => no FK violations.
+    const all = vi.fn().mockResolvedValue([])
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run, select, update } }))
+    const result = await migrator.execute(createMigrationContext({ db: { run, select, update, all } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(45)
@@ -246,7 +248,8 @@ describe('AgentsMigrator', () => {
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
     })
-    const migrationContext = createMigrationContext({ db: { run, get, select, update } })
+    const all = vi.fn().mockResolvedValue([])
+    const migrationContext = createMigrationContext({ db: { run, get, select, update, all } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

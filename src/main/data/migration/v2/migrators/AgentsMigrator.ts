@@ -1,13 +1,6 @@
-import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
+import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -21,79 +14,9 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
+import { remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 const logger = loggerService.withContext('AgentsMigrator')
-
-/** Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
- *  Uses manual BEGIN/COMMIT (not db.transaction()) so PRAGMA foreign_keys = OFF and all
- *  DML share the same connection — db.transaction() may open a fresh connection in libsql.
- *  Idempotent. */
-export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
-  // PRAGMA foreign_keys cannot be changed inside a transaction; must be set before BEGIN.
-  await db.run(sql.raw('PRAGMA foreign_keys = OFF'))
-  let committed = false
-  try {
-    await db.run(sql.raw('BEGIN'))
-
-    const oldAgents = await db
-      .select({ id: agentTable.id })
-      .from(agentTable)
-      .where(
-        sql`${agentTable.id} GLOB 'agent_*' OR ${agentTable.id} = 'cherry-claw-default' OR ${agentTable.id} = 'cherry-assistant-default'`
-      )
-
-    for (const { id: oldId } of oldAgents) {
-      const newId = uuidv4()
-      await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
-      await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
-      await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
-      await db.update(agentTaskTable).set({ agentId: newId }).where(eq(agentTaskTable.agentId, oldId))
-      await db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
-    }
-
-    const oldSessions = await db
-      .select({ id: agentSessionTable.id })
-      .from(agentSessionTable)
-      .where(sql`${agentSessionTable.id} GLOB 'session_*'`)
-
-    for (const { id: oldId } of oldSessions) {
-      const newId = uuidv4()
-      await db.update(agentSessionTable).set({ id: newId }).where(eq(agentSessionTable.id, oldId))
-      await db
-        .update(agentSessionMessageTable)
-        .set({ sessionId: newId })
-        .where(eq(agentSessionMessageTable.sessionId, oldId))
-      await db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
-      await db.update(agentTaskRunLogTable).set({ sessionId: newId }).where(eq(agentTaskRunLogTable.sessionId, oldId))
-    }
-
-    const oldTasks = await db
-      .select({ id: agentTaskTable.id })
-      .from(agentTaskTable)
-      .where(sql`${agentTaskTable.id} GLOB 'task_*'`)
-
-    for (const { id: oldId } of oldTasks) {
-      const newId = uuidv4()
-      await db.update(agentTaskTable).set({ id: newId }).where(eq(agentTaskTable.id, oldId))
-      await db.update(agentTaskRunLogTable).set({ taskId: newId }).where(eq(agentTaskRunLogTable.taskId, oldId))
-      await db.update(agentChannelTaskTable).set({ taskId: newId }).where(eq(agentChannelTaskTable.taskId, oldId))
-    }
-
-    await db.run(sql.raw('COMMIT'))
-    committed = true
-  } catch (error) {
-    if (!committed) {
-      try {
-        await db.run(sql.raw('ROLLBACK'))
-      } catch (rollbackError) {
-        logger.warn('ROLLBACK failed in remapAgentPrefixIds', rollbackError as Error)
-      }
-    }
-    throw error
-  } finally {
-    await db.run(sql.raw('PRAGMA foreign_keys = ON'))
-  }
-}
 
 export class AgentsMigrator extends BaseMigrator {
   readonly id = 'agents'
@@ -180,6 +103,7 @@ export class AgentsMigrator extends BaseMigrator {
     const importStatements = statements.slice(1, -1)
     let isAttached = false
     let committed = false
+    let pendingError: unknown = null
 
     try {
       await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -205,26 +129,37 @@ export class AgentsMigrator extends BaseMigrator {
         try {
           await ctx.db.run(sql.raw('ROLLBACK'))
         } catch (rollbackError) {
-          logger.warn('ROLLBACK failed after migration error', rollbackError as Error)
+          logger.error(
+            'ROLLBACK failed after agents migration error — DB may be in an inconsistent state',
+            rollbackError as Error
+          )
         }
       }
       logger.error('Agents migration execute failed:', error as Error)
-      throw error
-    } finally {
+      pendingError = error
+    }
+
+    // FK re-enable must succeed: a silent failure leaves the rest of the migration
+    // pipeline (and the app) running with FK enforcement off, which masks
+    // referential corruption. Only overwrite pendingError if the main path succeeded —
+    // otherwise the original failure is more informative.
+    try {
+      await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
+    } catch (pragmaError) {
+      logger.error('Failed to re-enable foreign_keys after agents migration — aborting', pragmaError as Error)
+      if (!pendingError) pendingError = pragmaError
+    }
+
+    if (isAttached) {
       try {
-        await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
-      } catch (pragmaError) {
-        logger.warn('Failed to re-enable foreign_keys after agents migration', pragmaError as Error)
-      }
-      if (isAttached) {
-        try {
-          await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
-        } catch (detachError) {
-          // DETACH must not mask the original error; just log it so it surfaces in diagnostics.
-          logger.warn('Failed to DETACH agents_legacy database', detachError as Error)
-        }
+        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      } catch (detachError) {
+        // DETACH must not mask the original error; log loudly so it surfaces in diagnostics.
+        logger.error('Failed to DETACH agents_legacy database', detachError as Error)
       }
     }
+
+    if (pendingError) throw pendingError
 
     return {
       success: true,
@@ -310,7 +245,7 @@ export class AgentsMigrator extends BaseMigrator {
       try {
         await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
       } catch (detachError) {
-        logger.warn('Failed to DETACH agents_legacy database during validation', detachError as Error)
+        logger.error('Failed to DETACH agents_legacy database during validation', detachError as Error)
       }
     }
 
