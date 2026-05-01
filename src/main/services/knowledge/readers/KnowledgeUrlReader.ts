@@ -14,8 +14,7 @@ export async function loadUrlDocuments(
   if (!markdown) {
     logger.warn('Knowledge URL reader received empty markdown', {
       itemId: item.id,
-      sourceUrl: item.data.url,
-      name: item.data.name
+      sourceUrl: item.data.source
     })
     throw new Error(`Knowledge URL returned empty markdown: ${item.data.url}`)
   }
@@ -24,10 +23,7 @@ export async function loadUrlDocuments(
     new Document({
       text: markdown,
       metadata: {
-        itemId: item.id,
-        itemType: item.type,
-        sourceUrl: item.data.url,
-        name: item.data.name
+        source: item.data.source
       }
     })
   ]

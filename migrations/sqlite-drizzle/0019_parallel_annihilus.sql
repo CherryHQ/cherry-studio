@@ -17,7 +17,7 @@ CREATE TABLE `__new_agent_channel` (
 	CONSTRAINT "agent_channel_permission_mode_check" CHECK("__new_agent_channel"."permission_mode" IS NULL OR "__new_agent_channel"."permission_mode" IN ('default', 'acceptEdits', 'bypassPermissions', 'plan'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_channel`("id", "type", "name", "agent_id", "session_id", "config", "is_active", "active_chat_ids", "permission_mode", "created_at", "updated_at") SELECT "id", "type", "name", "agent_id", "session_id", "config", "is_active", COALESCE("active_chat_ids", '[]'), "permission_mode", "created_at", "updated_at" FROM `agent_channel`;--> statement-breakpoint
+INSERT INTO `__new_agent_channel`("id", "type", "name", "agent_id", "session_id", "config", "is_active", "active_chat_ids", "permission_mode", "created_at", "updated_at") SELECT "id", "type", "name", "agent_id", "session_id", "config", "is_active", "active_chat_ids", "permission_mode", "created_at", "updated_at" FROM `agent_channel`;--> statement-breakpoint
 DROP TABLE `agent_channel`;--> statement-breakpoint
 ALTER TABLE `__new_agent_channel` RENAME TO `agent_channel`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
