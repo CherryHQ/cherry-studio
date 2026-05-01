@@ -1,24 +1,14 @@
-/**
- * MCP tool sync: keeps the ToolRegistry's MCP entries aligned with the live
- * set of active MCP servers and their `listTools` output.
- *
- * Flow:
- *  1. AiService.buildAgentParams calls `syncMcpToolsToRegistry()` when an
- *     MCP-using request arrives (`mcpToolIds.length > 0`).
- *  2. `mcpServerService.list({ isActive: true })` yields the live server set.
- *  3. Per-server `McpService.listTools` (5-min cached) resolves current tool
- *     definitions; each is registered as a ToolEntry.
- *  4. Any MCP entry already in the registry whose name no longer appears in
- *     this snapshot is deregistered — this is what fixes server-uninstall
- *     and schema-drift bugs without per-request closure rebuilding.
- */
-
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
+
+async function resolveServerById(serverId: string): Promise<MCPServer | undefined> {
+  const { items } = await mcpServerService.list({ isActive: true })
+  return items.find((s) => s.id === serverId)
+}
 
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
@@ -39,9 +29,13 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
         serverDisabledAutoApprove: disabledAutoApproveTools
       }),
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
+      const server = await resolveServerById(mcpTool.serverId)
+      if (!server) {
+        throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
+      }
       const mcpService = application.get('McpService')
       const result: MCPCallToolResponse = await mcpService.callTool({
-        server: { id: mcpTool.serverId } as MCPServer,
+        server,
         name: mcpTool.name,
         args,
         callId: toolCallId
