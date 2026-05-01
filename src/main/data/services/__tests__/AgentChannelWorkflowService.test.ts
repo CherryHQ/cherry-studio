@@ -189,16 +189,33 @@ describe('AgentChannelWorkflowService', () => {
       const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
       getChannelMock.mockResolvedValue(existing)
 
-      // Discord config has `bot_token` AND `allowed_channel_ids` (number-keyed channel IDs are not the issue;
-      // the strict-shape check rejects the missing telegram-specific fields when re-parsed as telegram).
-      // We use a clearly-invalid shape: an extra unknown key plus wrong value type for bot_token.
+      // Discord shape carries `allowed_channel_ids`; telegram strictObject only knows
+      // `bot_token` + `allowed_chat_ids`, so a discord-shaped config posted to a
+      // telegram channel must be rejected by the per-type config validator.
       await expect(
         agentChannelWorkflowService.updateChannel('ch-1', {
-          config: { bot_token: 12345 } as never // wrong type — telegram schema requires string
+          config: { bot_token: 'tok', allowed_channel_ids: ['c1'] }
         })
       ).rejects.toMatchObject({ code: expect.any(String) })
 
       // updateChannel must NOT be called when validation fails
+      expect(updateChannelMock).not.toHaveBeenCalled()
+      expect(syncChannelMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects wrong-typed config values for the existing channel type', async () => {
+      const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
+      getChannelMock.mockResolvedValue(existing)
+
+      // No union member of UpdateAgentChannelSchema.config accepts a numeric
+      // bot_token, so the body has to be cast through `unknown` to reach the
+      // runtime validator under test.
+      await expect(
+        agentChannelWorkflowService.updateChannel('ch-1', {
+          config: { bot_token: 12345 } as unknown as { bot_token: string }
+        })
+      ).rejects.toMatchObject({ code: expect.any(String) })
+
       expect(updateChannelMock).not.toHaveBeenCalled()
       expect(syncChannelMock).not.toHaveBeenCalled()
     })

@@ -7,7 +7,7 @@ import type {
   CreateAgentChannelDto,
   UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChannels')
@@ -20,7 +20,7 @@ export const useChannels = (type?: AgentChannelType) => {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
-  const channels = useMemo(() => data ?? (EMPTY_CHANNELS as AgentChannelEntity[]), [data])
+  const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
 
   const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
   const createChannel = useCallback(

@@ -104,7 +104,7 @@ export class AgentSessionService {
     // instructions has no DB DEFAULT — supply the same product-strategic default
     // AgentService.createAgent uses, so a session created from an agent missing
     // instructions still satisfies NOT NULL.
-    const insertData: InsertSessionRow = {
+    const insertData: Omit<InsertSessionRow, 'sortOrder'> = {
       id,
       agentId,
       agentType: agent.type,
@@ -118,8 +118,7 @@ export class AgentSessionService {
       mcps: sessionData.mcps,
       allowedTools: sessionData.allowedTools,
       slashCommands: sessionData.slashCommands,
-      configuration: sessionData.configuration,
-      sortOrder: 0
+      configuration: sessionData.configuration
     }
 
     const db = application.get('DbService').getDb()
@@ -133,8 +132,8 @@ export class AgentSessionService {
             .select({ min: sql<number>`COALESCE(MIN(${sessionsTable.sortOrder}), 0)` })
             .from(sessionsTable)
             .where(eq(sessionsTable.agentId, agentId))
-          insertData.sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(sessionsTable).values(insertData)
+          const sortOrder = (minRow?.min ?? 0) - 1
+          await tx.insert(sessionsTable).values({ ...insertData, sortOrder })
         }),
       {
         ...defaultHandlersFor('Session', id),

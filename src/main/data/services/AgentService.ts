@@ -63,7 +63,7 @@ export class AgentService {
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: InsertAgentRow = {
+    const insertData: Omit<InsertAgentRow, 'sortOrder'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -75,8 +75,7 @@ export class AgentService {
       mcps: req.mcps,
       allowedTools: req.allowedTools,
       configuration: req.configuration,
-      accessiblePaths: resolvedPaths,
-      sortOrder: 0
+      accessiblePaths: resolvedPaths
     }
 
     const database = application.get('DbService').getDb()
@@ -89,8 +88,8 @@ export class AgentService {
           const [minRow] = await tx
             .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
             .from(agentsTable)
-          insertData.sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(agentsTable).values(insertData)
+          const sortOrder = (minRow?.min ?? 0) - 1
+          await tx.insert(agentsTable).values({ ...insertData, sortOrder })
         }),
       defaultHandlersFor('Agent', id)
     )

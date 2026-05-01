@@ -46,6 +46,7 @@ describe('useSessions', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+    mockUsePaginatedQuery.mockReset()
   })
 
   it('returns empty sessions when agentId is null', () => {
