@@ -1,15 +1,11 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentChannelTable as channelsTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
-import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill'
-import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
@@ -48,15 +44,14 @@ function rowToAgent(row: AgentRow): AgentEntity {
 /** Compute the default workspace paths for an agent without creating any directories. */
 function computeWorkspacePaths(paths: string[] | undefined): string[] {
   if (paths && paths.length > 0) return paths
-  // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+  // Workspace dir uses its own uuid, decoupled from agent.id, so id-format
+  // changes never require moving on-disk workspaces.
   return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
 }
 
 export class AgentService {
-  static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
-
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
-    const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
     const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
@@ -279,27 +274,6 @@ export class AgentService {
       return false
     }
 
-    if (isBuiltinAgentId(id)) {
-      const deletedAt = Date.now()
-      const updatedAt = Date.now()
-
-      await withSqliteErrors(
-        async () =>
-          database.transaction(async (tx) => {
-            await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
-            await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
-            await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
-            await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-            // Pin table has no FK; consumer services must purge their own pins on delete.
-            await pinService.purgeForEntity(tx, 'agent', id)
-            await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
-          }),
-        defaultHandlersFor('Agent', id)
-      )
-
-      return true
-    }
-
     // Wrap pin purge + agent delete in one transaction so a partial delete cannot leave
     // dangling pin rows behind (mirrors AssistantService.delete + ProviderService.delete).
     const result = await withSqliteErrors(
@@ -317,13 +291,6 @@ export class AgentService {
   async agentExists(id: string): Promise<boolean> {
     const result = await this.findAgentRow(id)
     return !!result
-  }
-
-  /** Returns the agent row fields needed by bootstrap regardless of soft-deletion. */
-  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null; accessiblePaths: string[] } | null> {
-    const row = await this.findAgentRow(id, { includeDeleted: true })
-    if (!row) return null
-    return { deletedAt: row.deletedAt ?? null, accessiblePaths: row.accessiblePaths }
   }
 }
 

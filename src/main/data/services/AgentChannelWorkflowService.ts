@@ -78,7 +78,7 @@ export class AgentChannelWorkflowService {
         sessionId: existing.sessionId ?? null,
         config: existing.config,
         isActive: existing.isActive,
-        activeChatIds: existing.activeChatIds ?? null,
+        activeChatIds: existing.activeChatIds,
         permissionMode: existing.permissionMode ?? null
       }
 

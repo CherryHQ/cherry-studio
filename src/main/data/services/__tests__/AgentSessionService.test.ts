@@ -60,7 +60,7 @@ describe('AgentSessionService', () => {
 
       expect(session).not.toBeNull()
       expect(session!.agentId).toBe(agentId)
-      expect(session!.id).toMatch(/^session_/)
+      expect(session!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
       expect(session!.model).toBe('claude-3-5-sonnet')
       expect(session!.agentType).toBe('claude-code')
     })

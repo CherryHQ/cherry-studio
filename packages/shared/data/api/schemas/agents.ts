@@ -173,7 +173,7 @@ export const AgentSessionDetailSchema = AgentSessionEntitySchema.extend({
 export type AgentSessionDetail = z.infer<typeof AgentSessionDetailSchema>
 
 export const AgentSessionMessageEntitySchema = z.strictObject({
-  id: z.number(),
+  id: z.string(),
   sessionId: z.string(),
   role: z.enum(['user', 'assistant', 'tool', 'system']),
   content: z.unknown(),
@@ -203,7 +203,7 @@ export const ScheduledTaskEntitySchema = z.strictObject({
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.strictObject({
-  id: z.number(),
+  id: z.string(),
   taskId: z.string(),
   sessionId: z.string().nullable().optional(),
   runAt: z.string(),
