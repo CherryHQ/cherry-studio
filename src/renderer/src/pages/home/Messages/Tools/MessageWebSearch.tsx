@@ -1,6 +1,6 @@
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
-import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/data/types/builtin-tools'
+import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema } from '@shared/ai/builtinTools'
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

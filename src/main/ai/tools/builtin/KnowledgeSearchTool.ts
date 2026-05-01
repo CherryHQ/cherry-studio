@@ -18,7 +18,7 @@ import {
   kbSearchInputSchema,
   type KbSearchOutput,
   kbSearchOutputSchema
-} from '@shared/data/types/builtin-tools'
+} from '@shared/ai/builtinTools'
 import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 

@@ -1,7 +1,7 @@
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
 import type { NormalToolResponse } from '@renderer/types'
-import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/data/types/builtin-tools'
+import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
 import styled from 'styled-components'

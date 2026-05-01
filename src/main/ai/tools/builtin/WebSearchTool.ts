@@ -21,7 +21,7 @@ import {
   webSearchInputSchema,
   type WebSearchOutput,
   webSearchOutputSchema
-} from '@shared/data/types/builtin-tools'
+} from '@shared/ai/builtinTools'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 

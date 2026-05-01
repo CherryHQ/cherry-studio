@@ -1,6 +1,6 @@
 /**
  * Re-export shared builtin-tool wire contracts. Main and renderer share the
- * same source of truth in `@shared/data/types/builtin-tools`.
+ * same source of truth in `@shared/ai/builtinTools`.
  *
  * TODO(renderer/aiCore-cleanup): apply the same migration to memory once
  * its agentic rewrite lands.
@@ -12,7 +12,7 @@ export type {
   WebSearchInput as WebSearchToolInput,
   WebSearchOutput as WebSearchToolOutput,
   WebSearchOutputItem as WebSearchToolOutputItem
-} from '@shared/data/types/builtin-tools'
+} from '@shared/ai/builtinTools'
 
 export interface MemorySearchToolInput {
   query?: string
