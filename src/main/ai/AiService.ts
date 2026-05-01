@@ -36,9 +36,8 @@ import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
-import { registerMcpTools } from './tools/mcp/mcpTools'
+import { resolveMcpTools } from './tools/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/mcp/resolveAssistantMcpTools'
-import { ToolRegistry } from './tools/registry'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
 import {
@@ -240,8 +239,6 @@ export interface AiEmbedResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['PreferenceService', 'McpService'])
 export class AiService extends BaseService {
-  private readonly toolRegistry = new ToolRegistry()
-
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     logger.info('AiService initialized')
@@ -653,10 +650,9 @@ export class AiService extends BaseService {
     if (!mcpToolIds && request.assistantId) {
       mcpToolIds = await resolveAssistantMcpToolIds(request.assistantId)
     }
-    if (mcpToolIds?.length) {
-      await registerMcpTools(this.toolRegistry, mcpToolIds)
-    }
-    const tools = this.toolRegistry.resolve(mcpToolIds)
+    // Resolve MCP tools per request — never cache across requests. See
+    // `resolveMcpTools` for the rationale (server uninstall + schema drift).
+    const tools = mcpToolIds?.length ? await resolveMcpTools(mcpToolIds) : undefined
 
     const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
     const plugins =
