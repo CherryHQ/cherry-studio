@@ -1487,6 +1487,11 @@
         "placeholder": "Themen durchsuchen...",
         "title": "Suche"
       },
+      "sort": {
+        "created": "Erstellung",
+        "manual": "Manuell",
+        "updated": "Aktualisiert"
+      },
       "title": "Thema",
       "unpin": "Anheften aufheben"
     },

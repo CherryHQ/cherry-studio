@@ -1487,6 +1487,11 @@
         "placeholder": "Caută subiecte...",
         "title": "Caută"
       },
+      "sort": {
+        "created": "Creare",
+        "manual": "Manual",
+        "updated": "Actualizare"
+      },
       "title": "Subiecte",
       "unpin": "Detașează subiectul"
     },

@@ -1487,6 +1487,11 @@
         "placeholder": "Rechercher des sujets...",
         "title": "Rechercher"
       },
+      "sort": {
+        "created": "Création",
+        "manual": "Manuel",
+        "updated": "Mise à jour"
+      },
       "title": "Sujet",
       "unpin": "Annuler le fixage"
     },

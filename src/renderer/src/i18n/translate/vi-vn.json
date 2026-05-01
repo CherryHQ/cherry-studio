@@ -1487,6 +1487,11 @@
         "placeholder": "Tìm kiếm chủ đề...",
         "title": "Tìm kiếm"
       },
+      "sort": {
+        "created": "Tạo",
+        "manual": "Thủ công",
+        "updated": "Cập nhật"
+      },
       "title": "Chủ đề",
       "unpin": "Bỏ ghim chủ đề"
     },

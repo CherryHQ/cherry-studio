@@ -1487,6 +1487,11 @@
         "placeholder": "トピックを検索...",
         "title": "検索"
       },
+      "sort": {
+        "created": "作成順",
+        "manual": "手動",
+        "updated": "更新順"
+      },
       "title": "トピック",
       "unpin": "固定解除"
     },

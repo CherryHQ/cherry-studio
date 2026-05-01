@@ -1487,6 +1487,11 @@
         "placeholder": "Pesquisar tópicos...",
         "title": "Pesquisar"
       },
+      "sort": {
+        "created": "Criação",
+        "manual": "Manual",
+        "updated": "Atualizado"
+      },
       "title": "Tópicos",
       "unpin": "Desfixar"
     },

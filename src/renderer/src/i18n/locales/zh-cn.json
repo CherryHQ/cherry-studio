@@ -1487,6 +1487,11 @@
         "placeholder": "搜索话题...",
         "title": "搜索"
       },
+      "sort": {
+        "created": "创建时间",
+        "manual": "手动",
+        "updated": "最近对话"
+      },
       "title": "话题",
       "unpin": "取消固定"
     },
