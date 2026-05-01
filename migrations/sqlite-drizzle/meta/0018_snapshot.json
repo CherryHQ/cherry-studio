@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
-  "prevId": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
+  "id": "fddb815d-3abb-4305-afa0-4ca88c952e89",
+  "prevId": "6bef0872-c2b2-486d-a37f-17dc7baf8ec9",
   "tables": {
     "agent": {
       "name": "agent",
@@ -32,21 +32,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -74,22 +76,25 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -398,8 +403,9 @@
           "name": "tags",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "content_hash": {
           "name": "content_hash",
@@ -414,7 +420,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": true
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -488,21 +494,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -530,29 +538,33 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "slash_commands": {
           "name": "slash_commands",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -952,8 +964,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'active'"
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -1896,8 +1907,9 @@
           "name": "searchable_text",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "status": {
           "name": "status",
@@ -1910,7 +1922,7 @@
           "name": "siblings_group_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2023,8 +2035,8 @@
         }
       }
     },
-    "miniapp": {
-      "name": "miniapp",
+    "mini_app": {
+      "name": "mini_app",
       "columns": {
         "app_id": {
           "name": "app_id",
@@ -2054,8 +2066,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2074,7 +2086,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2130,19 +2142,19 @@
         }
       },
       "indexes": {
-        "miniapp_status_sort_idx": {
-          "name": "miniapp_status_sort_idx",
+        "mini_app_status_sort_idx": {
+          "name": "mini_app_status_sort_idx",
           "columns": ["status", "sort_order"],
           "isUnique": false
         },
-        "miniapp_type_idx": {
-          "name": "miniapp_type_idx",
-          "columns": ["type"],
+        "mini_app_kind_idx": {
+          "name": "mini_app_kind_idx",
+          "columns": ["kind"],
           "isUnique": false
         },
-        "miniapp_status_type_idx": {
-          "name": "miniapp_status_type_idx",
-          "columns": ["status", "type"],
+        "mini_app_status_kind_idx": {
+          "name": "mini_app_status_kind_idx",
+          "columns": ["status", "kind"],
           "isUnique": false
         }
       },
@@ -2150,13 +2162,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "miniapp_status_check": {
-          "name": "miniapp_status_check",
-          "value": "\"miniapp\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         },
-        "miniapp_type_check": {
-          "name": "miniapp_type_check",
-          "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         }
       }
     },
@@ -2405,14 +2417,15 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "is_name_manually_edited": {
           "name": "is_name_manually_edited",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2437,29 +2450,12 @@
           "notNull": false,
           "autoincrement": false
         },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
-        },
-        "is_pinned": {
-          "name": "is_pinned",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": false
-        },
-        "pinned_order": {
-          "name": "pinned_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false,
-          "default": 0
+          "notNull": true,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -2489,19 +2485,14 @@
           "columns": ["group_id", "updated_at"],
           "isUnique": false
         },
-        "topic_group_sort_idx": {
-          "name": "topic_group_sort_idx",
-          "columns": ["group_id", "sort_order"],
-          "isUnique": false
-        },
         "topic_updated_at_idx": {
           "name": "topic_updated_at_idx",
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_is_pinned_idx": {
-          "name": "topic_is_pinned_idx",
-          "columns": ["is_pinned", "pinned_order"],
+        "topic_group_id_order_key_idx": {
+          "name": "topic_group_id_order_key_idx",
+          "columns": ["group_id", "order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {
@@ -3023,8 +3014,12 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    },
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    }
   },
   "internal": {
     "indexes": {}

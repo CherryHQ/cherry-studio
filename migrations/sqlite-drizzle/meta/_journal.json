@@ -109,8 +109,29 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1777609340459,
-      "tag": "0015_outgoing_kid_colt",
+      "when": 1777461460041,
+      "tag": "0015_groovy_tiger_shark",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1777474576049,
+      "tag": "0016_late_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1777474700000,
+      "tag": "0017_giant_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777609965802,
+      "tag": "0018_daffy_vivisector",
       "breakpoints": true
     }
   ],

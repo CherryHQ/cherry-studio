@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
-  "prevId": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
+  "id": "6bef0872-c2b2-486d-a37f-17dc7baf8ec9",
+  "prevId": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
   "tables": {
     "agent": {
       "name": "agent",
@@ -32,21 +32,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -74,22 +76,25 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -398,8 +403,9 @@
           "name": "tags",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "content_hash": {
           "name": "content_hash",
@@ -414,7 +420,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": true
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -488,21 +494,23 @@
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "accessible_paths": {
           "name": "accessible_paths",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "instructions": {
           "name": "instructions",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "model": {
@@ -530,29 +538,33 @@
           "name": "mcps",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "allowed_tools": {
           "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "slash_commands": {
           "name": "slash_commands",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         },
         "configuration": {
           "name": "configuration",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
         },
         "sort_order": {
           "name": "sort_order",
@@ -952,8 +964,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'active'"
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -1896,8 +1907,9 @@
           "name": "searchable_text",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "status": {
           "name": "status",
@@ -1910,7 +1922,7 @@
           "name": "siblings_group_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2074,7 +2086,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2405,14 +2417,15 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "is_name_manually_edited": {
           "name": "is_name_manually_edited",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2441,7 +2454,7 @@
           "name": "sort_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
@@ -2449,7 +2462,7 @@
           "name": "is_pinned",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": false
         },
@@ -2457,7 +2470,7 @@
           "name": "pinned_order",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": 0
         },
