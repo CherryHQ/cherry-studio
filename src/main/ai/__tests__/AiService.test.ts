@@ -30,26 +30,9 @@ describe('AiService', () => {
     vi.clearAllMocks()
   })
 
-  it('manages the image-request lifecycle: register → abort → remove', () => {
-    const service = createService()
-    const ctrl = new AbortController()
-
-    // abort() against an unknown id is a no-op (no throw).
-    expect(() => service.abort('never-registered')).not.toThrow()
-
-    // register + abort → signal is aborted.
-    service.registerRequest('req-1', ctrl)
-    service.abort('req-1')
-    expect(ctrl.signal.aborted).toBe(true)
-
-    // After removeRequest(), abort() on the same id has no effect —
-    // the controller is detached so stray abort calls can't retro-cancel.
-    const ctrl2 = new AbortController()
-    service.registerRequest('req-2', ctrl2)
-    service.removeRequest('req-2')
-    service.abort('req-2')
-    expect(ctrl2.signal.aborted).toBe(false)
-  })
+  // image-request abort lifecycle moved to imageRequestRegistry.test.ts —
+  // the service no longer owns that state, so its tests live with the
+  // registry instead of with the AiService surface.
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()

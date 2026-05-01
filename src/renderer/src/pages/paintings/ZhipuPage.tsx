@@ -53,7 +53,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const activeRequestIdRef = useRef<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -100,8 +100,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    const requestId = uuid()
-    activeRequestIdRef.current = requestId
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     try {
       // 准备API请求参数
@@ -146,28 +146,24 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         actualImageSize = `${customWidth}x${customHeight}`
       }
 
-      const result = await window.api.ai.generateImage({
-        requestId,
-        payload: {
+      const result = await window.api.ai.generateImage(
+        {
           uniqueModelId: `${zhipuProvider.id}::${painting.model}`,
           prompt: painting.prompt,
           negativePrompt: painting.negativePrompt || undefined,
           size: actualImageSize,
           n: painting.numImages,
           quality: painting.quality
-        }
-      })
+        },
+        controller.signal
+      )
 
-      if (activeRequestIdRef.current !== requestId) {
-        return
-      }
+      if (controller.signal.aborted) return
 
       if (result.images.length > 0) {
         const validFiles = await persistGeneratedImages(result.images)
 
-        if (activeRequestIdRef.current !== requestId) {
-          return
-        }
+        if (controller.signal.aborted) return
 
         await FileManager.addFiles(validFiles)
 
@@ -184,18 +180,18 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         })
       }
     } finally {
-      if (activeRequestIdRef.current === requestId) {
-        activeRequestIdRef.current = null
+      // Only flip loading off if this controller is still the latest — a
+      // newer request may have replaced us via abortControllerRef.current.
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
         setIsLoading(false)
       }
     }
   }
 
-  const onCancel = async () => {
-    if (activeRequestIdRef.current) {
-      await window.api.ai.abortImageGeneration({ requestId: activeRequestIdRef.current })
-    }
-    activeRequestIdRef.current = null
+  const onCancel = () => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     setIsLoading(false)
   }
 

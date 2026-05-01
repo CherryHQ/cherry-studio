@@ -13,6 +13,7 @@ import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { serializeError } from '@shared/types/error'
 import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type ChatTransport,
@@ -292,15 +293,6 @@ export interface AiImageResult {
   images: GeneratedImagePayload[]
 }
 
-export interface AiImageGenerateRequest {
-  requestId: string
-  payload: AiImageRequest
-}
-
-export interface AiImageAbortRequest {
-  requestId: string
-}
-
 /** Embedding request. */
 export interface AiEmbedRequest extends AiBaseRequest {
   values: string[]
@@ -338,8 +330,6 @@ export interface AiEmbedResult {
 @DependsOn(['PreferenceService', 'McpService'])
 export class AiService extends BaseService {
   private readonly toolRegistry = new ToolRegistry()
-  /** Tracks in-flight non-streaming image requests so they can be aborted by id. */
-  private readonly activeRequests = new Map<string, AbortController>()
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
@@ -359,21 +349,39 @@ export class AiService extends BaseService {
       return this.embedMany(request)
     })
 
-    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: AiImageGenerateRequest) => {
-      const controller = new AbortController()
-      this.registerRequest(request.requestId, controller)
-      try {
-        return await this.generateImage({
-          ...request.payload,
-          requestOptions: { ...request.payload.requestOptions, signal: controller.signal }
-        })
-      } finally {
-        this.removeRequest(request.requestId)
+    // Image generation uses MessagePort instead of `ipcHandle` so the
+    // renderer can drive abort without a main-side request registry. The
+    // renderer-side helper (`preload/invokeWithAbort.ts`) creates a
+    // MessageChannel per call and transfers `port2` here; we receive it as
+    // `event.ports[0]`. Caller posts `'abort'`, we post one terminal
+    // `result` / `error` and close. AC lifetime = handler invocation; no
+    // shared state on the service.
+    this.ipcOn(IpcChannel.Ai_GenerateImage, (event, payload: AiImageRequest) => {
+      const port = event.ports[0]
+      if (!port) {
+        logger.error('Ai_GenerateImage received without a MessagePort — caller bypassed invokeWithAbort')
+        return
       }
-    })
 
-    this.ipcHandle(IpcChannel.Ai_AbortImage, async (_, request: AiImageAbortRequest) => {
-      this.abort(request.requestId)
+      const controller = new AbortController()
+      port.on('message', (msg) => {
+        if ((msg.data as { type?: string } | undefined)?.type === 'abort') controller.abort()
+      })
+      port.start()
+
+      void (async () => {
+        try {
+          const result = await this.generateImage({
+            ...payload,
+            requestOptions: { ...payload.requestOptions, signal: controller.signal }
+          })
+          port.postMessage({ type: 'result', value: result })
+        } catch (err) {
+          port.postMessage({ type: 'error', error: serializeError(err) })
+        } finally {
+          port.close()
+        }
+      })()
     })
 
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
@@ -855,27 +863,5 @@ export class AiService extends BaseService {
     const model = await modelService.getByKey(providerId, modelId)
 
     return { provider, model, assistant }
-  }
-
-  // ── Request tracking (image generation abort) ──
-  // Kept public so the image-abort IPC handler (and tests) can drive the
-  // lifecycle directly. Other long-running requests (streaming chat) own
-  // their own AbortController via AiStreamManager and do not register here.
-
-  registerRequest(requestId: string, controller: AbortController): void {
-    this.activeRequests.set(requestId, controller)
-  }
-
-  removeRequest(requestId: string): void {
-    this.activeRequests.delete(requestId)
-  }
-
-  abort(requestId: string): void {
-    const controller = this.activeRequests.get(requestId)
-    if (controller) {
-      controller.abort()
-      this.activeRequests.delete(requestId)
-      logger.info('Request aborted', { requestId })
-    }
   }
 }

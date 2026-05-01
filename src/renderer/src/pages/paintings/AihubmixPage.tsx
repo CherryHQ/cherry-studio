@@ -64,8 +64,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const activeImageRequestIdRef = useRef<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
@@ -165,7 +164,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     const controller = new AbortController()
-    setAbortController(controller)
+    abortControllerRef.current = controller
     setIsLoading(true)
 
     let body: string | FormData = ''
@@ -178,30 +177,23 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (mode === 'aihubmix_image_generate') {
         // TODO(renderer/aiCore-cleanup): the remaining Gemini/Ideogram/custom fetch branches should move behind main AI/image IPC so this page no longer owns provider-specific transport logic.
         if (painting.model.startsWith('imagen-')) {
-          const requestId = uuid()
-          activeImageRequestIdRef.current = requestId
-
-          const result = await window.api.ai.generateImage({
-            requestId,
-            payload: {
+          const result = await window.api.ai.generateImage(
+            {
               uniqueModelId: `${aihubmixProvider.id}::${painting.model}`,
               prompt,
               size: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
               n: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
               personGeneration: painting.personGeneration
-            }
-          })
+            },
+            controller.signal
+          )
 
-          if (activeImageRequestIdRef.current !== requestId) {
-            return
-          }
+          if (controller.signal.aborted) return
 
           if (result.images.length > 0) {
             const validFiles = await persistGeneratedImages(result.images)
 
-            if (activeImageRequestIdRef.current !== requestId) {
-              return
-            }
+            if (controller.signal.aborted) return
 
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls: [] })
@@ -337,35 +329,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           // 注意：FormData会自动设置Content-Type，不应手动设置
           const apiHeaders = { 'Api-Key': aihubmixProvider.apiKey }
 
-          try {
-            const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
-              method: 'POST',
-              headers: apiHeaders,
-              body
-            })
+          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
+            method: 'POST',
+            headers: apiHeaders,
+            body
+          })
 
-            if (!response.ok) {
-              const errorData = await response.json()
-              logger.error('V3 API错误:', errorData)
-              throw new Error(errorData.error?.message || t('paintings.generate_failed'))
-            }
-
-            const data = await response.json()
-            logger.silly(`V3 API响应: ${data}`)
-            const urls = data.data.map((item) => item.url)
-
-            if (urls.length > 0) {
-              const validFiles = await downloadImages(urls)
-              await FileManager.addFiles(validFiles)
-              updatePaintingState({ files: validFiles, urls })
-            }
-            return
-          } catch (error: unknown) {
-            handleError(error)
-          } finally {
-            setIsLoading(false)
-            setAbortController(null)
+          if (!response.ok) {
+            const errorData = await response.json()
+            logger.error('V3 API错误:', errorData)
+            throw new Error(errorData.error?.message || t('paintings.generate_failed'))
           }
+
+          const data = await response.json()
+          logger.silly(`V3 API响应: ${data}`)
+          const urls = data.data.map((item) => item.url)
+
+          if (urls.length > 0) {
+            const validFiles = await downloadImages(urls)
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+          return
         } else {
           let requestData: any = {}
           if (painting.model === 'gpt-image-1') {
@@ -582,9 +567,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     } catch (error: unknown) {
       handleError(error)
     } finally {
-      activeImageRequestIdRef.current = null
-      setIsLoading(false)
-      setAbortController(null)
+      // Only flip loading off if this controller is still the latest — a
+      // newer request may have replaced us via abortControllerRef.current.
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+        setIsLoading(false)
+      }
     }
   }
 
@@ -602,11 +590,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onCancel = () => {
-    abortController?.abort()
-    if (activeImageRequestIdRef.current) {
-      void window.api.ai.abortImageGeneration({ requestId: activeImageRequestIdRef.current })
-      activeImageRequestIdRef.current = null
-    }
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsLoading(false)
   }
 
   const nextImage = () => {

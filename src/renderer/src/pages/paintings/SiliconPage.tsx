@@ -115,7 +115,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
-  const activeRequestIdRef = useRef<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -180,8 +180,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     // TODO: extract to hook
-    const requestId = uuid()
-    activeRequestIdRef.current = requestId
+    const controller = new AbortController()
+    abortControllerRef.current = controller
     setIsLoading(true)
 
     if (!painting.model) {
@@ -189,9 +189,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     try {
-      const result = await window.api.ai.generateImage({
-        requestId,
-        payload: {
+      const result = await window.api.ai.generateImage(
+        {
           uniqueModelId: `${provider.id}::${painting.model}`,
           prompt,
           negativePrompt: painting.negativePrompt || undefined,
@@ -201,19 +200,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           numInferenceSteps: painting.steps || 25,
           guidanceScale: painting.guidanceScale || 4.5,
           promptEnhancement: painting.promptEnhancement || false
-        }
-      })
+        },
+        controller.signal
+      )
 
-      if (activeRequestIdRef.current !== requestId) {
-        return
-      }
+      if (controller.signal.aborted) return
 
       if (result.images.length > 0) {
         const validFiles = await persistGeneratedImages(result.images)
 
-        if (activeRequestIdRef.current !== requestId) {
-          return
-        }
+        if (controller.signal.aborted) return
 
         await FileManager.addFiles(validFiles)
 
@@ -227,18 +223,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         })
       }
     } finally {
-      if (activeRequestIdRef.current === requestId) {
-        activeRequestIdRef.current = null
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
         setIsLoading(false)
       }
     }
   }
 
-  const onCancel = async () => {
-    if (activeRequestIdRef.current) {
-      await window.api.ai.abortImageGeneration({ requestId: activeRequestIdRef.current })
-    }
-    activeRequestIdRef.current = null
+  const onCancel = () => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     setIsLoading(false)
   }
 

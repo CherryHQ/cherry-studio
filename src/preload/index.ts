@@ -74,6 +74,7 @@ import type {
   SkillResult,
   SkillToggleOptions
 } from '../renderer/src/types/skill'
+import { invokeWithAbort } from './invokeWithAbort'
 
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -837,8 +838,7 @@ const api = {
       uniqueModelId?: string
       values: string[]
     }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
-    generateImage: (request: {
-      requestId: string
+    generateImage: (
       payload: {
         uniqueModelId?: string
         prompt: string
@@ -853,16 +853,15 @@ const api = {
         guidanceScale?: number
         promptEnhancement?: boolean
         personGeneration?: string
-      }
-    }): Promise<{
+      },
+      signal?: AbortSignal
+    ): Promise<{
       images: Array<{
         kind: 'base64'
         data: string
         mediaType?: string
       }>
-    }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, request),
-    abortImageGeneration: (request: { requestId: string }): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AbortImage, request),
+    }> => invokeWithAbort(IpcChannel.Ai_GenerateImage, payload, signal),
     listModels: (request: {
       providerId?: string
       assistantId?: string
