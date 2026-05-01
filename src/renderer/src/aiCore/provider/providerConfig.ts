@@ -357,10 +357,18 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
     ? store.getState().settings.openAI?.streamOptions?.includeUsage
     : undefined
 
+  const providerSettings = {
+    ...ctx.baseConfig,
+    ...commonOptions,
+    name: ctx.actualProvider.id,
+    includeUsage,
+    ...(ctx.endpoint ? { customEndpoint: ctx.endpoint } : {})
+  } as ProviderConfig<'openai-compatible'>['providerSettings'] & { customEndpoint?: string }
+
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
+    providerSettings
   }
 }
 

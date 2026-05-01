@@ -838,6 +838,18 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+  } else if (isDedicatedImageGenerationModel(model)) {
+    logger.info('checkApi: dedicated image model detected, calling generateImage', { modelId: model.id })
+    const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+    await Promise.race([
+      ai.generateImage({
+        model: model.id,
+        prompt: 'test',
+        imageSize: '1024x1024',
+        batchSize: 1
+      }),
+      timerPromise
+    ])
   } else {
     const abortId = uuid()
     const signal = readyToAbort(abortId)
