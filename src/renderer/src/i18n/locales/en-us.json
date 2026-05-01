@@ -2122,6 +2122,194 @@
     "videos": "video",
     "videos_file": "video file"
   },
+  "knowledge_v2": {
+    "add": {
+      "group": "Group",
+      "icon": "Icon",
+      "submit": "Create",
+      "title": "New Knowledge Base"
+    },
+    "context": {
+      "delete": "Delete Knowledge Base",
+      "delete_confirm_description": "This knowledge base cannot be recovered after deletion.",
+      "delete_confirm_title": "Delete Knowledge Base?",
+      "move_to": "Move to",
+      "rename": "Rename"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "Delete",
+        "preview_source": "Preview Source",
+        "reindex": "Reindex",
+        "view_chunks": "View Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "Recursively import supported files from a folder",
+          "title": "Click to select a folder"
+        },
+        "footer": {
+          "selected_directories": "{{count}} directories selected",
+          "selected_files": "{{count}} files selected",
+          "selected_notes": "{{count}} notes selected"
+        },
+        "note": {
+          "description": "Select existing notes as knowledge base sources",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_title": "Notes are not connected yet"
+        },
+        "placeholder": {
+          "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "Click to select files or drag them here"
+        },
+        "sitemap": {
+          "description": "Enter a sitemap URL:",
+          "help": "Pages listed in the sitemap will be read and indexed",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "Folder",
+          "file": "File",
+          "note": "Note",
+          "sitemap": "Website",
+          "url": "URL"
+        },
+        "submit": {
+          "error": "Failed to add data source",
+          "success": "Data source added to knowledge base"
+        },
+        "title": "Add Data Source",
+        "url": {
+          "description": "Enter a webpage URL:",
+          "help": "Page text will be fetched, chunked, and indexed automatically",
+          "input_label": "Webpage URL",
+          "placeholder": "https://docs.cherry-ai.com/",
+          "title": "Import a single webpage"
+        }
+      },
+      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
+      "chunk_delete_confirm_title": "Delete Chunk?",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
+      "delete_confirm_title": "Delete Data Source?",
+      "empty_description": "No data sources yet",
+      "filters": {
+        "all": "All",
+        "directory": "Folders",
+        "file": "Files",
+        "note": "Notes",
+        "sitemap": "Websites",
+        "url": "URLs"
+      },
+      "ready_summary": "{{ready}}/{{total}} ready",
+      "status": {
+        "chunking": "Chunking",
+        "embedding": "Embedding",
+        "error": "Error",
+        "pending": "Waiting",
+        "ready": "Ready"
+      }
+    },
+    "dimensions": "Embedding Dimensions",
+    "embedding_model": "Embedding Model",
+    "embedding_model_required": "Knowledge base embedding model is required",
+    "empty": "No knowledge bases",
+    "error": {
+      "failed_to_create": "Failed to create knowledge base",
+      "failed_to_edit": "Failed to edit knowledge base"
+    },
+    "groups": {
+      "add": "New Group",
+      "create_base_here": "Create here",
+      "delete": "Delete Group",
+      "delete_confirm_description": "Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_title": "Delete Group?",
+      "error": {
+        "failed_to_create": "Failed to create group",
+        "failed_to_update": "Failed to rename group"
+      },
+      "name_placeholder": "Enter group name...",
+      "name_required": "Group name is required",
+      "rename": "Rename",
+      "rename_title": "Rename Group",
+      "ungrouped": "Ungrouped"
+    },
+    "meta": {
+      "documents_count": "{{count}} documents"
+    },
+    "name_required": "Knowledge base name is required",
+    "not_set": "Not Set",
+    "rag": {
+      "chunk_overlap": "Overlap Size",
+      "chunk_overlap_invalid": "Chunk overlap must be greater than or equal to 0",
+      "chunk_overlap_must_be_smaller": "Chunk overlap must be smaller than chunk size",
+      "chunk_overlap_requires_chunk_size": "Chunk size is required when chunk overlap is set",
+      "chunk_size": "Chunk Size",
+      "chunk_size_change_warning": "Chunk size and overlap changes only apply to newly added content",
+      "chunk_size_invalid": "Chunk size must be greater than 0",
+      "chunking": "Chunking",
+      "default_separator": "Auto (recommended)",
+      "document_count": "Document Count",
+      "file_processing": "File Processing",
+      "file_processing_hint": "File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "hints": {
+        "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
+        "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
+        "dimensions": "The vector dimension output by the current embedding model, used to create and match vector indexes.",
+        "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
+        "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
+        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
+        "processor": "Parser used when importing files to extract body text, tables, and related content.",
+        "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
+        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter."
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "Only configurable in Hybrid retrieval mode",
+      "processor": "Processing Provider",
+      "rerank_disabled": "Disabled",
+      "reset_defaults": "Reset Defaults",
+      "retrieval": "Retrieval Settings",
+      "search_mode": {
+        "bm25": "Full-text Search",
+        "default": "Vector Search",
+        "hybrid": "Hybrid Search (recommended)",
+        "title": "Search Mode"
+      },
+      "separator_rule": "Separator Rule",
+      "threshold": "Similarity Threshold",
+      "tokens_unit": "tokens"
+    },
+    "recall": {
+      "collapse": "Collapse Chunk",
+      "copy": "Copy Chunk",
+      "duration": "{{duration}}ms",
+      "empty_description": "Matched document chunks and scores will appear here",
+      "empty_title": "Enter a query to test retrieval",
+      "expand": "Expand Chunk",
+      "history_clear": "Clear",
+      "history_remove": "Remove History",
+      "history_title": "Search History",
+      "placeholder": "Enter test query...",
+      "result_count": "{{count}} results",
+      "searching": "Searching...",
+      "submit": "Search",
+      "top_score": "Top: {{score}}"
+    },
+    "rename_title": "Rename Knowledge Base",
+    "search": "Search Knowledge Base",
+    "status": {
+      "completed": "Ready",
+      "failed": "Failed",
+      "processing": "Processing"
+    },
+    "tabs": {
+      "data_source": "Data Sources",
+      "rag_config": "RAG Config",
+      "recall_test": "Recall Test"
+    },
+    "title": "Knowledge Base"
+  },
   "languages": {
     "arabic": "Arabic",
     "chinese": "Chinese",
@@ -3303,6 +3491,7 @@
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3320,6 +3509,7 @@
     "lmstudio": "LM Studio",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -3330,9 +3520,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3342,7 +3535,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
+    "system": "System OCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",

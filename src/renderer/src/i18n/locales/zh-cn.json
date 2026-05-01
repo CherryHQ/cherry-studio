@@ -2122,6 +2122,194 @@
     "videos": "视频",
     "videos_file": "视频文件"
   },
+  "knowledge_v2": {
+    "add": {
+      "group": "分组",
+      "icon": "图标",
+      "submit": "创建",
+      "title": "新建知识库"
+    },
+    "context": {
+      "delete": "删除知识库",
+      "delete_confirm_description": "删除后将无法恢复该知识库。",
+      "delete_confirm_title": "确认删除知识库",
+      "move_to": "移动到",
+      "rename": "重命名"
+    },
+    "data_source": {
+      "actions": {
+        "delete": "删除",
+        "preview_source": "预览原文",
+        "reindex": "重新索引",
+        "view_chunks": "查看 Chunks"
+      },
+      "add_dialog": {
+        "directory": {
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
+        },
+        "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
+          "selected_notes": "已选 {{count}} 个笔记"
+        },
+        "note": {
+          "description": "选择已有笔记作为知识库数据源",
+          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_title": "暂未接入笔记数据源"
+        },
+        "placeholder": {
+          "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "点击选择文件或拖拽到此处"
+        },
+        "sitemap": {
+          "description": "输入 Sitemap 地址：",
+          "help": "将读取 Sitemap 中包含的页面并建立索引",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
+        },
+        "sources": {
+          "directory": "目录",
+          "file": "文件",
+          "note": "笔记",
+          "sitemap": "网站",
+          "url": "网址"
+        },
+        "submit": {
+          "error": "添加数据源失败",
+          "success": "数据源已添加到知识库"
+        },
+        "title": "添加数据源",
+        "url": {
+          "description": "输入网页链接：",
+          "help": "将自动抓取页面文本并分块索引",
+          "input_label": "网页地址",
+          "placeholder": "https://docs.cherry-ai.com/",
+          "title": "导入单个网页"
+        }
+      },
+      "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
+      "chunk_delete_confirm_title": "确认删除 Chunk",
+      "chunks_count": "{{count}} chunks",
+      "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
+      "delete_confirm_title": "确认删除数据源",
+      "empty_description": "暂无数据源",
+      "filters": {
+        "all": "全部",
+        "directory": "目录",
+        "file": "文件",
+        "note": "笔记",
+        "sitemap": "网站",
+        "url": "网址"
+      },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
+      "status": {
+        "chunking": "分块中",
+        "embedding": "嵌入中",
+        "error": "错误",
+        "pending": "等待中",
+        "ready": "就绪"
+      }
+    },
+    "dimensions": "嵌入维度",
+    "embedding_model": "嵌入模型",
+    "embedding_model_required": "知识库嵌入模型是必需的",
+    "empty": "暂无知识库",
+    "error": {
+      "failed_to_create": "知识库创建失败",
+      "failed_to_edit": "知识库编辑失败"
+    },
+    "groups": {
+      "add": "新建分组",
+      "create_base_here": "在此分组新建",
+      "delete": "删除分组",
+      "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
+      "delete_confirm_title": "确认删除分组",
+      "error": {
+        "failed_to_create": "分组创建失败",
+        "failed_to_update": "分组重命名失败"
+      },
+      "name_placeholder": "输入分组名称...",
+      "name_required": "分组名称为必填项",
+      "rename": "重命名",
+      "rename_title": "重命名分组",
+      "ungrouped": "未分组"
+    },
+    "meta": {
+      "documents_count": "{{count}} 文档"
+    },
+    "name_required": "知识库名称为必填项",
+    "not_set": "未设置",
+    "rag": {
+      "chunk_overlap": "重叠大小",
+      "chunk_overlap_invalid": "分块重叠必须大于等于 0",
+      "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
+      "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_size": "分段大小",
+      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_invalid": "分块大小必须大于 0",
+      "chunking": "分块规则 (Chunking)",
+      "default_separator": "自动（推荐）",
+      "document_count": "文档数量",
+      "file_processing": "文件处理",
+      "file_processing_hint": "文件处理会在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
+      "hints": {
+        "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
+        "dimensions": "当前嵌入模型输出的向量维度，用于创建和匹配向量索引。",
+        "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
+        "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
+        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
+        "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
+        "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
+        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。"
+      },
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
+      "processor": "处理服务商",
+      "rerank_disabled": "不使用",
+      "reset_defaults": "恢复默认",
+      "retrieval": "检索设置",
+      "search_mode": {
+        "bm25": "全文检索",
+        "default": "向量检索",
+        "hybrid": "混合检索（推荐）",
+        "title": "检索模式"
+      },
+      "separator_rule": "分隔符规则",
+      "threshold": "相似度阈值",
+      "tokens_unit": "tokens"
+    },
+    "recall": {
+      "collapse": "收起片段",
+      "copy": "复制片段",
+      "duration": "{{duration}}ms",
+      "empty_description": "结果将展示匹配的文档片段和分数",
+      "empty_title": "输入查询语句开始检索测试",
+      "expand": "展开片段",
+      "history_clear": "清空",
+      "history_remove": "删除历史",
+      "history_title": "搜索历史",
+      "placeholder": "输入测试 Query...",
+      "result_count": "{{count}} 个结果",
+      "searching": "正在检索...",
+      "submit": "检索",
+      "top_score": "最高: {{score}}"
+    },
+    "rename_title": "重命名知识库",
+    "search": "搜索知识库",
+    "status": {
+      "completed": "就绪",
+      "failed": "失败",
+      "processing": "处理中"
+    },
+    "tabs": {
+      "data_source": "数据源",
+      "rag_config": "RAG 配置",
+      "recall_test": "召回测试"
+    },
+    "title": "知识库"
+  },
   "languages": {
     "arabic": "阿拉伯文",
     "chinese": "简体中文",
@@ -3303,6 +3491,7 @@
     "dashscope": "阿里云百炼",
     "deepseek": "深度求索",
     "dmxapi": "DMXAPI",
+    "doc2x": "Doc2X",
     "doubao": "火山引擎",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -3320,6 +3509,7 @@
     "lmstudio": "LM Studio",
     "longcat": "龙猫",
     "mimo": "Xiaomi MiMo",
+    "mineru": "MinerU",
     "minimax": "MiniMax",
     "minimax-global": "MiniMax 海外版",
     "mistral": "Mistral",
@@ -3330,9 +3520,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3342,7 +3535,9 @@
     "silicon": "硅基流动",
     "sophnet": "SophNet",
     "stepfun": "阶跃星辰",
+    "system": "系统OCR",
     "tencent-cloud-ti": "腾讯云 TI",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
