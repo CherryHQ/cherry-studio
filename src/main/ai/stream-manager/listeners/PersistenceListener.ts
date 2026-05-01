@@ -180,15 +180,13 @@ export class PersistenceListener implements StreamListener {
     }
 
     if (status === 'success' && finalMessage && this.opts.backend.afterPersist) {
-      try {
-        await this.opts.backend.afterPersist(finalMessage)
-      } catch (err) {
+      void this.opts.backend.afterPersist(finalMessage).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,
           topicId: this.opts.topicId,
           err
         })
-      }
+      })
     }
   }
 }
