@@ -442,7 +442,7 @@ export class ChannelMessageHandler {
     if (channel?.permissionMode && session.configuration) {
       session.configuration = {
         ...session.configuration,
-        permission_mode: channel.permissionMode as PermissionMode
+        permission_mode: channel.permissionMode
       }
     }
   }
@@ -525,7 +525,11 @@ export class ChannelMessageHandler {
       if (session) {
         // Ensure channel's session_id stays in sync
         if (channelRow && channelRow.sessionId !== session.id) {
-          channelService.updateChannel(channelId, { sessionId: session.id }).catch(() => {})
+          channelService
+            .updateChannel(channelId, { sessionId: session.id })
+            .catch((err) =>
+              logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
+            )
         }
         return session as GetAgentSessionResponse
       }

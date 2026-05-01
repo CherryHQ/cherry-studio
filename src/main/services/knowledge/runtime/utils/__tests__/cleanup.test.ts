@@ -1,248 +1,213 @@
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getStoreIfExistsMock, knowledgeItemUpdateMock, loggerErrorMock, loggerWarnMock, vectorDeleteMock } =
-  vi.hoisted(() => ({
-    appGetMock: vi.fn(),
-    getStoreIfExistsMock: vi.fn(),
-    knowledgeItemUpdateMock: vi.fn(),
-    loggerErrorMock: vi.fn(),
-    loggerWarnMock: vi.fn(),
-    vectorDeleteMock: vi.fn()
-  }))
-
-vi.mock('@application', () => ({
-  application: {
-    get: appGetMock
+const {
+  knowledgeItemUpdateStatusMock,
+  loggerErrorMock,
+  loggerWarnMock,
+  vectorStoreDeleteMock,
+  vectorStoreServiceMock
+} = vi.hoisted(() => ({
+  knowledgeItemUpdateStatusMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
+  vectorStoreDeleteMock: vi.fn(),
+  vectorStoreServiceMock: {
+    getStoreIfExists: vi.fn()
   }
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    KnowledgeVectorStoreService: vectorStoreServiceMock
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    update: knowledgeItemUpdateMock
+    updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      warn: loggerWarnMock,
-      error: loggerErrorMock
+      error: loggerErrorMock,
+      warn: loggerWarnMock
     })
   }
 }))
 
 const { deleteItemVectors, deleteVectorsForEntries, failItems } = await import('../cleanup')
 
-function createBase() {
+function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    groupId: null,
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    status: 'completed',
+    error: null,
+    chunkSize: 1024,
+    chunkOverlap: 200,
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
-describe('cleanup', () => {
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+
+  return { promise, resolve }
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+describe('deleteItemVectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    knowledgeItemUpdateStatusMock.mockResolvedValue(undefined)
+    vectorStoreServiceMock.getStoreIfExists.mockResolvedValue({
+      delete: vectorStoreDeleteMock
+    })
+  })
 
-    appGetMock.mockImplementation((serviceName: string) => {
-      if (serviceName === 'KnowledgeVectorStoreService') {
-        return {
-          getStoreIfExists: getStoreIfExistsMock
-        }
+  it('does not delete vectors when the vector store does not exist', async () => {
+    vectorStoreServiceMock.getStoreIfExists.mockResolvedValue(null)
+
+    await expect(deleteItemVectors(createBase(), ['item-1'])).resolves.toBeUndefined()
+
+    expect(vectorStoreDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates item ids before deleting vectors', async () => {
+    await deleteItemVectors(createBase(), ['item-1', 'item-1', 'item-2'])
+
+    expect(vectorStoreDeleteMock).toHaveBeenCalledTimes(2)
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-1')
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-2')
+  })
+
+  it('waits for every vector delete attempt before reporting failures', async () => {
+    const pendingDelete = createDeferred()
+    let rejected = false
+
+    vectorStoreDeleteMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-fail') {
+        throw new Error('delete failed')
       }
 
-      throw new Error(`Unexpected application.get(${serviceName}) in test`)
+      await pendingDelete.promise
+    })
+
+    const deletePromise = deleteItemVectors(createBase(), ['item-fail', 'item-slow']).catch((error: unknown) => {
+      rejected = true
+      throw error
+    })
+
+    await flushPromises()
+    expect(rejected).toBe(false)
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-fail')
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-slow')
+
+    pendingDelete.resolve()
+    await expect(deletePromise).rejects.toThrow('Failed to delete vectors for knowledge items in base kb-1: item-fail')
+  })
+})
+
+describe('deleteVectorsForEntries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vectorStoreServiceMock.getStoreIfExists.mockResolvedValue({
+      delete: vectorStoreDeleteMock
     })
   })
 
-  it('does nothing when no vector store exists for the base', async () => {
-    const base = createBase()
-
-    getStoreIfExistsMock.mockResolvedValueOnce(undefined)
-
-    await expect(deleteItemVectors(base, ['item-1'])).resolves.toBeUndefined()
-
-    expect(getStoreIfExistsMock).toHaveBeenCalledWith(base)
-    expect(vectorDeleteMock).not.toHaveBeenCalled()
-  })
-
-  it('deduplicates item ids before deleting from an existing vector store', async () => {
-    const base = createBase()
-
-    getStoreIfExistsMock.mockResolvedValueOnce({
-      delete: vectorDeleteMock
-    })
-    vectorDeleteMock.mockResolvedValue(undefined)
-
-    await expect(deleteItemVectors(base, ['item-1', 'item-1', 'item-2'])).resolves.toBeUndefined()
-
-    expect(getStoreIfExistsMock).toHaveBeenCalledWith(base)
-    expect(vectorDeleteMock).toHaveBeenCalledTimes(2)
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
-  })
-
-  it('keeps deleting remaining items and reports partial failures', async () => {
-    const base = createBase()
-    const deleteError = new Error('delete failed for item-2')
-
-    getStoreIfExistsMock.mockResolvedValueOnce({
-      delete: vectorDeleteMock
-    })
-    vectorDeleteMock.mockImplementation(async (itemId: string) => {
-      if (itemId === 'item-2') {
-        throw deleteError
-      }
-    })
-
-    await expect(deleteItemVectors(base, ['item-1', 'item-2'])).rejects.toMatchObject({
-      name: 'DeleteItemVectorsError',
-      message: 'Failed to delete vectors for knowledge items in base kb-1: item-2',
-      baseId: 'kb-1',
-      succeededItemIds: ['item-1'],
-      failed: [
-        {
-          itemId: 'item-2',
-          error: deleteError
-        }
-      ]
-    })
-
-    expect(vectorDeleteMock).toHaveBeenCalledTimes(2)
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
-  })
-
-  it('logs partial vector cleanup failures and continues when continueOnError is enabled', async () => {
-    const base = createBase()
-
-    getStoreIfExistsMock.mockResolvedValueOnce({
-      delete: vectorDeleteMock
-    })
-    vectorDeleteMock.mockImplementation(async (itemId: string) => {
-      if (itemId === 'item-2') {
-        throw new Error('delete failed for item-2')
+  it('logs and continues when deleting vectors fails for one base', async () => {
+    const firstBase = createBase()
+    const secondBase = { ...createBase(), id: 'kb-2' }
+    vectorStoreDeleteMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-fail') {
+        throw new Error('delete failed')
       }
     })
 
     await expect(
-      deleteVectorsForEntries(
-        [
-          {
-            base,
-            item: {
-              id: 'item-1'
-            }
-          },
-          {
-            base,
-            item: {
-              id: 'item-2'
-            }
-          }
-        ] as any,
-        { continueOnError: true }
-      )
+      deleteVectorsForEntries([
+        { base: firstBase, itemIds: ['item-fail'] },
+        { base: secondBase, itemIds: ['item-ok'] }
+      ])
     ).resolves.toBeUndefined()
 
-    expect(loggerWarnMock).toHaveBeenCalledWith('Failed to delete knowledge item vectors during interruption cleanup', {
-      baseId: 'kb-1',
-      itemIds: ['item-1', 'item-2'],
-      succeededItemIds: ['item-1'],
-      failedItemIds: ['item-2'],
-      cleanupError: 'Failed to delete vectors for knowledge items in base kb-1: item-2'
-    })
-  })
-
-  it('throws vector cleanup errors when continueOnError is disabled', async () => {
-    const base = createBase()
-
-    getStoreIfExistsMock.mockResolvedValueOnce({
-      delete: vectorDeleteMock
-    })
-    vectorDeleteMock.mockRejectedValueOnce(new Error('delete failed for item-1'))
-
-    await expect(
-      deleteVectorsForEntries(
-        [
-          {
-            base,
-            item: { id: 'item-1' }
-          }
-        ] as any,
-        { continueOnError: false }
-      )
-    ).rejects.toMatchObject({
-      name: 'DeleteItemVectorsError',
-      baseId: 'kb-1',
-      failed: [
-        {
-          itemId: 'item-1'
-        }
-      ]
-    })
-
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-fail')
+    expect(vectorStoreDeleteMock).toHaveBeenCalledWith('item-ok')
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to delete knowledge item vectors during runtime cleanup',
+      expect.objectContaining({
+        message: 'Failed to delete vectors for knowledge items in base kb-1: item-fail'
+      }),
+      {
+        baseId: firstBase.id,
+        itemIds: ['item-fail'],
+        failedItemIds: ['item-fail']
+      }
+    )
     expect(loggerWarnMock).not.toHaveBeenCalled()
   })
+})
 
-  it('groups entries by base before deleting vectors', async () => {
-    const firstBase = createBase()
-    const secondBase = {
-      ...createBase(),
-      id: 'kb-2'
-    }
-
-    getStoreIfExistsMock
-      .mockResolvedValueOnce({ delete: vectorDeleteMock })
-      .mockResolvedValueOnce({ delete: vectorDeleteMock })
-    vectorDeleteMock.mockResolvedValue(undefined)
-
-    await expect(
-      deleteVectorsForEntries(
-        [
-          { base: firstBase, item: { id: 'item-1' } },
-          { base: firstBase, item: { id: 'item-2' } },
-          { base: secondBase, item: { id: 'item-3' } }
-        ] as any,
-        { continueOnError: true }
-      )
-    ).resolves.toBeUndefined()
-
-    expect(getStoreIfExistsMock).toHaveBeenNthCalledWith(1, firstBase)
-    expect(getStoreIfExistsMock).toHaveBeenNthCalledWith(2, secondBase)
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-1')
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-2')
-    expect(vectorDeleteMock).toHaveBeenCalledWith('item-3')
+describe('failItems', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    knowledgeItemUpdateStatusMock.mockResolvedValue(undefined)
   })
 
-  it('marks interrupted items as failed and logs persistence errors per item', async () => {
-    knowledgeItemUpdateMock.mockImplementation(async (itemId: string) => {
-      if (itemId === 'item-2') {
-        throw new Error('persist failed')
+  it('marks unique item ids failed with the failure reason', async () => {
+    await failItems(['item-1', 'item-1', 'item-2'], 'read failed')
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledTimes(2)
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('item-1', 'failed', { error: 'read failed' })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('item-2', 'failed', { error: 'read failed' })
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('throws an aggregate error after logging persistence failures', async () => {
+    const persistError = new Error('database locked')
+    knowledgeItemUpdateStatusMock.mockImplementation(async (itemId: string) => {
+      if (itemId === 'item-fail') {
+        throw persistError
       }
     })
 
-    await expect(failItems(['item-1', 'item-2', 'item-1'], 'stop')).resolves.toBeUndefined()
-
-    expect(knowledgeItemUpdateMock).toHaveBeenCalledTimes(2)
-    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith('item-1', {
-      status: 'failed',
-      error: 'stop'
+    await expect(failItems(['item-ok', 'item-fail'], 'read failed')).rejects.toMatchObject({
+      name: 'FailedToPersistFailureStateError',
+      itemIds: ['item-fail'],
+      reason: 'read failed'
     })
-    expect(knowledgeItemUpdateMock).toHaveBeenCalledWith('item-2', {
-      status: 'failed',
-      error: 'stop'
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('item-ok', 'failed', { error: 'read failed' })
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('item-fail', 'failed', { error: 'read failed' })
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to persist knowledge item failure state', persistError, {
+      itemId: 'item-fail',
+      reason: 'read failed'
     })
     expect(loggerErrorMock).toHaveBeenCalledWith(
-      'Failed to persist interrupted knowledge item state',
-      expect.objectContaining({ message: 'persist failed' }),
+      'Failed to persist failure state for knowledge items',
+      expect.objectContaining({ name: 'FailedToPersistFailureStateError' }),
       {
-        itemId: 'item-2',
-        reason: 'stop'
+        count: 1,
+        itemIds: ['item-fail'],
+        reason: 'read failed'
       }
     )
   })

@@ -123,6 +123,9 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
+  // Knowledge recall test query history (session-only)
+  'knowledge.recall.search_queries': Record<string, string[]>
+
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
@@ -193,6 +196,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
+  'knowledge.recall.search_queries': {},
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],
