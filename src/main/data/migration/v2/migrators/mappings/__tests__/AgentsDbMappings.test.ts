@@ -342,6 +342,7 @@ describe('AgentsDbMappings', () => {
       'session_id',
       'config',
       'is_active',
+      'active_chat_ids',
       'created_at',
       'updated_at'
     ])
@@ -380,6 +381,7 @@ describe('AgentsDbMappings', () => {
 
     const channelInsert = find('agent_channel')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
+    expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")
     expect(channelInsert).toContain("COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS created_at")
     expect(channelInsert).toContain("COALESCE(updated_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS updated_at")
   })
@@ -417,7 +419,8 @@ describe('AgentsDbMappings', () => {
         timeout_minutes: { defaultExpr: '2' }
       },
       agent_channel: {
-        is_active: { defaultExpr: '1' }
+        is_active: { defaultExpr: '1' },
+        active_chat_ids: { defaultExpr: "'[]'" }
       }
     }
 

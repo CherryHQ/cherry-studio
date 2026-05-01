@@ -269,7 +269,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'session_id',
       'config',
       notNullCol('is_active', '1'),
-      'active_chat_ids',
+      notNullCol('active_chat_ids', "'[]'"),
       'permission_mode',
       {
         name: 'created_at',
