@@ -185,6 +185,40 @@ describe('AgentChannelWorkflowService', () => {
       )
     })
 
+    it('rejects discord-shaped config when existing channel is telegram (cross-type guard)', async () => {
+      const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
+      getChannelMock.mockResolvedValue(existing)
+
+      // Discord config has `bot_token` AND `allowed_channel_ids` (number-keyed channel IDs are not the issue;
+      // the strict-shape check rejects the missing telegram-specific fields when re-parsed as telegram).
+      // We use a clearly-invalid shape: an extra unknown key plus wrong value type for bot_token.
+      await expect(
+        agentChannelWorkflowService.updateChannel('ch-1', {
+          config: { bot_token: 12345 } as never // wrong type — telegram schema requires string
+        })
+      ).rejects.toMatchObject({ code: expect.any(String) })
+
+      // updateChannel must NOT be called when validation fails
+      expect(updateChannelMock).not.toHaveBeenCalled()
+      expect(syncChannelMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects activation when active-only constraints are not satisfied', async () => {
+      // Telegram active schema enforces `bot_token: z.string().min(1)`; an empty string on activation should fail.
+      const existing = makeChannel({ type: 'telegram', isActive: false, config: { bot_token: '' } })
+      getChannelMock.mockResolvedValue(existing)
+
+      await expect(
+        agentChannelWorkflowService.updateChannel('ch-1', {
+          isActive: true
+          // config not changed; uses existing.config which has empty bot_token
+        })
+      ).rejects.toMatchObject({ code: expect.any(String) })
+
+      expect(updateChannelMock).not.toHaveBeenCalled()
+      expect(syncChannelMock).not.toHaveBeenCalled()
+    })
+
     it('calls resync (without awaitConnect) after rollback', async () => {
       const existing = makeChannel()
       const updated = makeChannel({ name: 'Changed' })

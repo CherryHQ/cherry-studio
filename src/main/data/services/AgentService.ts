@@ -14,9 +14,9 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
-  AgentConfigurationSchema,
   type AgentEntity,
   type CreateAgentDto,
+  sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
@@ -26,11 +26,11 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('AgentService')
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
-  if (raw == null) return undefined
-  const parsed = AgentConfigurationSchema.safeParse(raw)
-  if (parsed.success) return parsed.data
-  logger.warn('Agent configuration drift detected', { issues: parsed.error.issues.map((i) => i.message) })
-  return raw as AgentConfiguration
+  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+  if (invalidKeys.length > 0) {
+    logger.warn('Agent configuration drift detected; dropping invalid keys', { invalidKeys })
+  }
+  return data
 }
 
 function rowToAgent(row: AgentRow): AgentEntity {
@@ -83,10 +83,13 @@ export class AgentService {
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          const [maxRow] = await tx
-            .select({ max: sql<number>`COALESCE(MAX(${agentsTable.sortOrder}), -1)` })
+          // Prepend: place new agent ahead of existing rows under asc(sortOrder).
+          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
+          // preserving the user-visible "newest at top" ordering.
+          const [minRow] = await tx
+            .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
             .from(agentsTable)
-          insertData.sortOrder = (maxRow?.max ?? -1) + 1
+          insertData.sortOrder = (minRow?.min ?? 0) - 1
           await tx.insert(agentsTable).values(insertData)
         }),
       defaultHandlersFor('Agent', id)

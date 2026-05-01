@@ -69,14 +69,17 @@ export class AgentChannelWorkflowService {
       await channelManager.syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })
       return channel
     } catch (error) {
+      // `existing` came from rowToEntity which runs nullsToUndefined; without
+      // an explicit ?? null Drizzle's set() treats undefined as "skip column"
+      // and the failed update's value would persist for nullable fields.
       const restoreUpdates = {
         name: existing.name,
-        agentId: existing.agentId,
-        sessionId: existing.sessionId,
+        agentId: existing.agentId ?? null,
+        sessionId: existing.sessionId ?? null,
         config: existing.config,
         isActive: existing.isActive,
-        activeChatIds: existing.activeChatIds,
-        permissionMode: existing.permissionMode
+        activeChatIds: existing.activeChatIds ?? null,
+        permissionMode: existing.permissionMode ?? null
       }
 
       await agentChannelService.updateChannel(channelId, restoreUpdates).catch((restoreError) => {

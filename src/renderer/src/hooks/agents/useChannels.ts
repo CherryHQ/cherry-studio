@@ -2,14 +2,17 @@ import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
+  AgentChannelEntity,
   AgentChannelType,
   CreateAgentChannelDto,
   UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChannels')
+
+const EMPTY_CHANNELS: readonly AgentChannelEntity[] = Object.freeze([])
 
 export const useChannels = (type?: AgentChannelType) => {
   const { t } = useTranslation()
@@ -17,7 +20,7 @@ export const useChannels = (type?: AgentChannelType) => {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
-  const channels = data ?? []
+  const channels = useMemo(() => data ?? (EMPTY_CHANNELS as AgentChannelEntity[]), [data])
 
   const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
   const createChannel = useCallback(

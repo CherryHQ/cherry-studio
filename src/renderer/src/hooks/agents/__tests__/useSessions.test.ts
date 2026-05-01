@@ -1,8 +1,24 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUsePaginatedQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSessions } from '../useSessions'
+
+const buildPaginatedReturn = (overrides: Record<string, unknown> = {}) => ({
+  items: [],
+  total: 0,
+  page: 1,
+  isLoading: false,
+  isRefreshing: false,
+  error: undefined,
+  hasNext: false,
+  hasPrev: false,
+  prevPage: vi.fn(),
+  nextPage: vi.fn(),
+  refresh: vi.fn(),
+  reset: vi.fn(),
+  ...overrides
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -81,6 +97,54 @@ describe('useSessions', () => {
     expect(ids).toContain('s-3')
     // s-2 should appear only once
     expect(ids.filter((id: string) => id === 's-2').length).toBe(1)
+  })
+
+  it('loadMore drives nextPage when hasMore is true', async () => {
+    // Stable references across re-renders to avoid the [agentId, items, page]
+    // effect re-firing on every render and triggering an infinite loop.
+    const stableItems = [{ id: 's-1', name: 'Session 1' }]
+    const nextPage = vi.fn()
+    const stableReturn = buildPaginatedReturn({
+      items: stableItems,
+      total: 5,
+      hasNext: true,
+      nextPage
+    })
+    const emptyReturn = buildPaginatedReturn()
+    mockUsePaginatedQuery.mockImplementation((queryPath: string) =>
+      queryPath === '/agents/:agentId/sessions' ? stableReturn : emptyReturn
+    )
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    await act(async () => {})
+    expect(result.current.hasMore).toBe(true)
+
+    act(() => {
+      result.current.loadMore()
+    })
+    expect(nextPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('loadMore is a no-op when hasMore is false', async () => {
+    const stableItems = [{ id: 's-1', name: 'Session 1' }]
+    const nextPage = vi.fn()
+    const stableReturn = buildPaginatedReturn({
+      items: stableItems,
+      total: 1,
+      hasNext: false,
+      nextPage
+    })
+    const emptyReturn = buildPaginatedReturn()
+    mockUsePaginatedQuery.mockImplementation((queryPath: string) =>
+      queryPath === '/agents/:agentId/sessions' ? stableReturn : emptyReturn
+    )
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    await act(async () => {})
+    act(() => {
+      result.current.loadMore()
+    })
+    expect(nextPage).not.toHaveBeenCalled()
   })
 
   it('resets loadedSessions when agentId changes', async () => {

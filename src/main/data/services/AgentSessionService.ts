@@ -11,9 +11,9 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   type AgentConfiguration,
-  AgentConfigurationSchema,
   type AgentSessionEntity,
   type CreateSessionDto,
+  sanitizeAgentConfiguration,
   SESSION_MUTABLE_FIELDS,
   type UpdateSessionDto
 } from '@shared/data/api/schemas/agents'
@@ -23,11 +23,11 @@ import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 const logger = loggerService.withContext('SessionService')
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
-  if (raw == null) return undefined
-  const parsed = AgentConfigurationSchema.safeParse(raw)
-  if (parsed.success) return parsed.data
-  logger.warn('Session configuration drift detected', { issues: parsed.error.issues.map((i) => i.message) })
-  return raw as AgentConfiguration
+  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+  if (invalidKeys.length > 0) {
+    logger.warn('Session configuration drift detected; dropping invalid keys', { invalidKeys })
+  }
+  return data
 }
 
 function agentRowToSessionDefaults(row: Record<string, unknown>): {
@@ -126,11 +126,14 @@ export class AgentSessionService {
     await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          const [maxRow] = await tx
-            .select({ max: sql<number>`COALESCE(MAX(${sessionsTable.sortOrder}), -1)` })
+          // Prepend: place new session ahead of existing rows for this agent.
+          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
+          // preserving the user-visible "newest at top" ordering.
+          const [minRow] = await tx
+            .select({ min: sql<number>`COALESCE(MIN(${sessionsTable.sortOrder}), 0)` })
             .from(sessionsTable)
             .where(eq(sessionsTable.agentId, agentId))
-          insertData.sortOrder = (maxRow?.max ?? -1) + 1
+          insertData.sortOrder = (minRow?.min ?? 0) - 1
           await tx.insert(sessionsTable).values(insertData)
         }),
       {

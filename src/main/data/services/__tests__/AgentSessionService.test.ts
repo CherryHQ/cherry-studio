@@ -81,6 +81,16 @@ describe('AgentSessionService', () => {
         code: 'NOT_FOUND'
       })
     })
+
+    it('places newly created sessions at the top of asc(sortOrder) listings', async () => {
+      const agentId = await insertAgent(`agent_${Date.now()}_prepend`)
+      await agentSessionService.createSession(agentId, { name: 'older-1' })
+      await agentSessionService.createSession(agentId, { name: 'older-2' })
+      const newest = await agentSessionService.createSession(agentId, { name: 'newest' })
+
+      const { sessions } = await agentSessionService.listSessions(agentId)
+      expect(sessions[0]?.id).toBe(newest!.id)
+    })
   })
 
   describe('getSession', () => {

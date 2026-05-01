@@ -60,6 +60,41 @@ export const AgentConfigurationSchema = z
   .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
+/**
+ * Read-side sanitizer for stored configuration JSON.
+ *
+ * `safeParse` failure on `.loose()` schemas means a *known* key has the wrong
+ * type — not unknown extras. Returning the raw blob as-is would launder a
+ * type mismatch (e.g. `max_turns: "5"`) into the response, defeating downstream
+ * `?? DEFAULT` fallbacks. Instead, drop only the offending top-level keys so
+ * those branches can fire normally; well-typed fields and unknown extras are
+ * preserved.
+ */
+export function sanitizeAgentConfiguration(raw: unknown): {
+  data: AgentConfiguration | undefined
+  invalidKeys: string[]
+} {
+  if (raw == null) return { data: undefined, invalidKeys: [] }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return { data: undefined, invalidKeys: ['<root>'] }
+  }
+  const parsed = AgentConfigurationSchema.safeParse(raw)
+  if (parsed.success) return { data: parsed.data, invalidKeys: [] }
+
+  const invalidKeys = Array.from(
+    new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
+  )
+  const filtered: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!invalidKeys.includes(key)) filtered[key] = value
+  }
+  const reparsed = AgentConfigurationSchema.safeParse(filtered)
+  return {
+    data: reparsed.success ? reparsed.data : ({} as AgentConfiguration),
+    invalidKeys
+  }
+}
+
 // ============================================================================
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
 // ============================================================================

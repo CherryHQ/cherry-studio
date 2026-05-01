@@ -72,7 +72,7 @@ describe('useAgent', () => {
     expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
 
-  it('falls back instead of throwing when persisted configuration is malformed', () => {
+  it('drops type-mismatched keys but preserves valid sibling keys when persisted configuration is malformed', () => {
     const mockAgent = {
       id: 'agent-1',
       name: 'Test Agent',
@@ -80,7 +80,9 @@ describe('useAgent', () => {
       type: 'claude-code',
       accessiblePaths: [],
       allowedTools: [],
-      configuration: { permission_mode: 'invalid', env_vars: null },
+      // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
+      // max_turns/200 is well-typed and must survive.
+      configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -88,7 +90,9 @@ describe('useAgent', () => {
 
     const { result } = renderHook(() => useAgent('agent-1'))
 
-    expect(result.current.agent?.configuration).toEqual(mockAgent.configuration)
+    // Bad keys are stripped so callers' `?? DEFAULT` fallbacks fire normally;
+    // valid keys round-trip unchanged.
+    expect(result.current.agent?.configuration).toEqual({ max_turns: 200 })
   })
 
   it('returns loading state correctly', () => {

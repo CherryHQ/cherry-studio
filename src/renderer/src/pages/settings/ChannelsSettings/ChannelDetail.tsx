@@ -1,5 +1,6 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -15,6 +16,8 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
+
+const logger = loggerService.withContext('ChannelDetail')
 
 // --------------- Types ---------------
 
@@ -99,7 +102,9 @@ const ChannelLogModal: FC<{
     window.api.channel
       .getLogs(channelId)
       .then(setLogs)
-      .catch(() => {})
+      .catch((err) => {
+        logger.warn('Failed to load channel logs', { channelId, err })
+      })
 
     // Subscribe to real-time logs
     const unsub = window.api.channel.onLog((entry) => {
@@ -379,7 +384,9 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       .then((list) => {
         setStatuses(new Map(list.map((s) => [s.channelId, s])))
       })
-      .catch(() => {})
+      .catch((err) => {
+        logger.warn('Failed to load initial channel statuses', { err })
+      })
 
     const unsub = window.api.channel.onStatusChange((status) => {
       setStatuses((prev) => {
