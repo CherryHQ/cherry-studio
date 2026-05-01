@@ -86,7 +86,7 @@ const AgentChannelBaseFields = {
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
   isActive: z.boolean(),
-  activeChatIds: z.array(z.string()).nullable().optional(),
+  activeChatIds: z.array(z.string()).optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -97,7 +97,7 @@ const MutableAgentChannelFields = {
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
   isActive: z.boolean(),
-  activeChatIds: z.array(z.string()).nullable().optional(),
+  activeChatIds: z.array(z.string()).optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional()
 } as const
 
@@ -184,7 +184,7 @@ export const UpdateAgentChannelSchema = z.strictObject({
     ])
     .optional(),
   isActive: z.boolean().optional(),
-  activeChatIds: z.array(z.string()).nullable().optional(),
+  activeChatIds: z.array(z.string()).optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional()
 })
 export type UpdateAgentChannelDto = z.infer<typeof UpdateAgentChannelSchema>
