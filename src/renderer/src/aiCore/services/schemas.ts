@@ -157,6 +157,27 @@ export const OVMSConfigResponseSchema = z.record(
   })
 )
 
+// === Vercel AI Gateway (/v3/ai/config) ===
+
+export const VercelGatewayModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      modelType: z.string().optional(),
+      specification: z
+        .looseObject({
+          specificationVersion: z.string().optional(),
+          provider: z.string().optional(),
+          modelId: z.string().optional(),
+          type: z.string().optional()
+        })
+        .optional()
+    })
+  )
+})
+
 // === AIHubMix ===
 
 export const AIHubMixModelsResponseSchema = z.object({
