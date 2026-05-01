@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "01da15dd-ef42-44e5-8d1c-0cfac67fe31e",
+  "id": "81ca1260-c019-4858-ad8d-59ff84ad16cf",
   "prevId": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
   "tables": {
     "agent": {
@@ -3018,7 +3018,8 @@
       "\"miniapp\"": "\"mini_app\""
     },
     "columns": {
-      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\"",
+      "\"topic\".\"sort_order\"": "\"topic\".\"order_key\""
     }
   },
   "internal": {
