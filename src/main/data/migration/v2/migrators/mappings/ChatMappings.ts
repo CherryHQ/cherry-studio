@@ -41,32 +41,20 @@
 
 import type { JSONObject } from '@ai-sdk/provider'
 import type {
-  BlockType,
   CherryMessagePart,
   CitationReference,
   CitationType,
-  CodeBlock,
-  CompactBlock,
   ContentReference,
   DataUIPart,
   DynamicToolUIPart,
-  ErrorBlock,
-  FileBlock,
   FileUIPart,
-  ImageBlock,
-  MainTextBlock,
   MessageData,
-  MessageDataBlock,
   MessageStats,
   ModelSnapshot,
   ReasoningUIPart,
   ReferenceCategory,
   SerializedErrorData,
-  TextUIPart,
-  ThinkingBlock,
-  ToolBlock,
-  TranslationBlock,
-  VideoBlock
+  TextUIPart
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
 import type { FileMetadata } from '@types'
@@ -539,7 +527,7 @@ export function transformMessage(
     parentId,
     topicId: correctTopicId,
     role: oldMessage.role,
-    data: { blocks: dataBlocks },
+    data: { parts },
     searchableText: searchableText || '',
     status: normalizeStatus(oldMessage.status),
     siblingsGroupId,
@@ -646,72 +634,6 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
 
   // Return null if no data was actually added
   return Object.keys(stats).length > 0 ? stats : null
-}
-
-// ============================================================================
-// Block Transformation Functions
-// ============================================================================
-
-/**
- * Transform old blocks to new format and extract citation references
- *
- * This function:
- * 1. Converts each old block to new format (removing id, messageId, status)
- * 2. Extracts CitationMessageBlocks and converts to ContentReference[]
- * 3. Extracts searchable text from text-based blocks
- *
- * @param oldBlocks - Array of old blocks from message_blocks table
- * @returns Object containing:
- *   - dataBlocks: Transformed blocks (excluding CitationBlocks)
- *   - citationReferences: Extracted citation references
- *   - searchableText: Combined searchable text
- *
- * ## Block Type Mapping:
- * | Old Type | New Type | Notes |
- * |----------|----------|-------|
- * | main_text | MainTextBlock | Direct, references added later |
- * | thinking | ThinkingBlock | thinking_millsec → thinkingMs |
- * | translation | TranslationBlock | Direct copy |
- * | code | CodeBlock | Direct copy |
- * | image | ImageBlock | file.id → fileId |
- * | file | FileBlock | file.id → fileId |
- * | video | VideoBlock | Direct copy |
- * | tool | ToolBlock | Direct copy |
- * | citation | (removed) | Converted to MainTextBlock.references |
- * | error | ErrorBlock | Direct copy |
- * | compact | CompactBlock | Direct copy |
- * | unknown | (skipped) | Placeholder blocks are dropped |
- */
-export function transformBlocks(oldBlocks: OldBlock[]): {
-  dataBlocks: MessageDataBlock[]
-  citationReferences: ContentReference[]
-  searchableText: string
-} {
-  const dataBlocks: MessageDataBlock[] = []
-  const citationReferences: ContentReference[] = []
-  const searchableTexts: string[] = []
-
-  for (const oldBlock of oldBlocks) {
-    const transformed = transformSingleBlock(oldBlock)
-
-    if (transformed.block) {
-      dataBlocks.push(transformed.block)
-    }
-
-    if (transformed.citations) {
-      citationReferences.push(...transformed.citations)
-    }
-
-    if (transformed.searchableText) {
-      searchableTexts.push(transformed.searchableText)
-    }
-  }
-
-  return {
-    dataBlocks,
-    citationReferences,
-    searchableText: searchableTexts.join('\n')
-  }
 }
 
 // ============================================================================
@@ -948,189 +870,6 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
     case 'unknown':
     default:
       return { part: null, extraParts: null, citations: null, searchableText: null }
-  }
-}
-
-/**
- * Transform a single old block to new format
- *
- * @param oldBlock - Single old block
- * @returns Transformed block and extracted data
- */
-function transformSingleBlock(oldBlock: OldBlock): {
-  block: MessageDataBlock | null
-  citations: ContentReference[] | null
-  searchableText: string | null
-} {
-  const baseFields = {
-    createdAt: parseTimestamp(oldBlock.createdAt),
-    updatedAt: oldBlock.updatedAt ? parseTimestamp(oldBlock.updatedAt) : undefined,
-    metadata: oldBlock.metadata,
-    error: oldBlock.error
-  }
-
-  switch (oldBlock.type) {
-    case 'main_text': {
-      const block = oldBlock as OldMainTextBlock
-      return {
-        block: {
-          type: 'main_text' as BlockType.MAIN_TEXT,
-          content: block.content,
-          ...baseFields
-          // knowledgeBaseIds and citationReferences are intentionally dropped
-          // References will be added from CitationBlocks and mentions
-        } as MainTextBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'thinking': {
-      const block = oldBlock as OldThinkingBlock
-      return {
-        block: {
-          type: 'thinking' as BlockType.THINKING,
-          content: block.content,
-          thinkingMs: block.thinking_millsec, // Field rename
-          ...baseFields
-        } as ThinkingBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'translation': {
-      const block = oldBlock as OldTranslationBlock
-      return {
-        block: {
-          type: 'translation' as BlockType.TRANSLATION,
-          content: block.content,
-          sourceBlockId: block.sourceBlockId,
-          sourceLanguage: block.sourceLanguage,
-          targetLanguage: block.targetLanguage,
-          ...baseFields
-        } as TranslationBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'code': {
-      const block = oldBlock as OldCodeBlock
-      return {
-        block: {
-          type: 'code' as BlockType.CODE,
-          content: block.content,
-          language: block.language,
-          ...baseFields
-        } as CodeBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'image': {
-      const block = oldBlock as OldImageBlock
-      return {
-        block: {
-          type: 'image' as BlockType.IMAGE,
-          url: block.url,
-          fileId: block.file?.id, // file.id → fileId
-          ...baseFields
-        } as ImageBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'file': {
-      const block = oldBlock as OldFileBlock
-      return {
-        block: {
-          type: 'file' as BlockType.FILE,
-          fileId: block.file.id, // file.id → fileId
-          ...baseFields
-        } as FileBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'video': {
-      const block = oldBlock as OldVideoBlock
-      return {
-        block: {
-          type: 'video' as BlockType.VIDEO,
-          url: block.url,
-          filePath: block.filePath,
-          ...baseFields
-        } as VideoBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'tool': {
-      const block = oldBlock as OldToolBlock
-      return {
-        block: {
-          type: 'tool' as BlockType.TOOL,
-          toolId: block.toolId,
-          toolName: block.toolName,
-          arguments: block.arguments,
-          content: block.content,
-          ...baseFields
-        } as ToolBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'citation': {
-      // CitationBlocks are NOT converted to blocks
-      // Instead, their content is extracted as ContentReferences
-      const block = oldBlock as OldCitationBlock
-      const citations = extractCitationReferences(block)
-      return {
-        block: null, // No block output
-        citations,
-        searchableText: null
-      }
-    }
-
-    case 'error': {
-      return {
-        block: {
-          type: 'error' as BlockType.ERROR,
-          ...baseFields
-        } as ErrorBlock,
-        citations: null,
-        searchableText: null
-      }
-    }
-
-    case 'compact': {
-      const block = oldBlock as OldCompactBlock
-      return {
-        block: {
-          type: 'compact' as BlockType.COMPACT,
-          content: block.content,
-          compactedContent: block.compactedContent,
-          ...baseFields
-        } as CompactBlock,
-        citations: null,
-        searchableText: block.content
-      }
-    }
-
-    case 'unknown':
-    default:
-      // Skip unknown/placeholder blocks
-      return {
-        block: null,
-        citations: null,
-        searchableText: null
-      }
   }
 }
 

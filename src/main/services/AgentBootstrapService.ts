@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { modelsService } from '@main/apiServer/services/models'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
@@ -61,10 +60,6 @@ export class AgentBootstrapService extends BaseService {
     this.ipcHandle(IpcChannel.Agent_RunTask, async (_, agentId: string, taskId: string) => {
       const parsed = validateRunTaskArgs(agentId, taskId)
       await schedulerService.runTaskNow(parsed.agentId, parsed.taskId)
-    })
-
-    this.ipcHandle(IpcChannel.Agent_GetModels, async (_, filter: Parameters<typeof modelsService.getModels>[0]) => {
-      return modelsService.getModels(validateGetModelsFilter(filter))
     })
 
     await channelManager.start()
