@@ -78,7 +78,7 @@ describe('web__search', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(WEB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('web')
-    expect(entry.defer).toBe('never')
+    expect(entry.defer).toBe('auto')
   })
 
   it('returns [] when no provider is configured', async () => {
@@ -131,5 +131,24 @@ describe('web__search', () => {
     webSearchSearch.mockRejectedValue(new Error('upstream 503'))
     getResolvedConfig.mockResolvedValue({ providers: [usableProvider], runtime: {}, providerOverrides: {} })
     expect(await callExecute({ query: 'q' })).toEqual([])
+  })
+
+  describe('applies', () => {
+    it('returns true only when assistant.settings.enableWebSearch is set', () => {
+      const applies = entry.applies!
+      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
+      expect(
+        applies({
+          assistant: { id: 'a', settings: {} } as never,
+          mcpToolIds: new Set()
+        })
+      ).toBe(false)
+      expect(
+        applies({
+          assistant: { id: 'a', settings: { enableWebSearch: true } } as never,
+          mcpToolIds: new Set()
+        })
+      ).toBe(true)
+    })
   })
 })

@@ -1,4 +1,8 @@
-import type { ToolEntry } from './types'
+import { loggerService } from '@logger'
+
+import type { ToolApplyScope, ToolEntry } from './types'
+
+const logger = loggerService.withContext('ToolRegistry')
 
 /**
  * Filter accepted by {@link ToolRegistry.getAll}. All conditions are AND-ed;
@@ -32,13 +36,6 @@ export class ToolRegistry {
   }
 
   // ── Catalog queries ──
-
-  /**
-   * List entries matching {@link ToolFilter}. Availability checks are NOT
-   * applied here — they're async and not every caller can await. Callers
-   * that need availability filtering should iterate the result and call
-   * {@link isAvailable}.
-   */
   getAll(filter?: ToolFilter): ToolEntry[] {
     let list = [...this.entries.values()]
     if (filter?.namespace !== undefined) {
@@ -53,7 +50,7 @@ export class ToolRegistry {
           e.namespace.toLowerCase().includes(q)
       )
     }
-    return list
+    return list.sort((a, b) => a.name.localeCompare(b.name))
   }
 
   getByName(name: string): ToolEntry | undefined {
@@ -80,17 +77,24 @@ export class ToolRegistry {
   }
 
   /**
-   * Resolve {@link ToolEntry.isAvailable} for a single entry. Treats
-   * thrown checks and absent checks as available (the entry stays visible);
-   * only an explicit `false` return hides it.
+   * Entries whose `applies` returns true for this scope (or have no
+   * `applies` predicate). Output ordering matches {@link getAll} — sorted
+   * by `name` for deterministic prompt-prefix shape across requests.
    */
-  async isAvailable(entry: ToolEntry): Promise<boolean> {
-    if (!entry.isAvailable) return true
-    try {
-      return (await entry.isAvailable()) !== false
-    } catch {
-      return true
+  selectActive(scope: ToolApplyScope): ToolEntry[] {
+    const out: ToolEntry[] = []
+    for (const entry of this.getAll()) {
+      if (!entry.applies) {
+        out.push(entry)
+        continue
+      }
+      try {
+        if (entry.applies(scope)) out.push(entry)
+      } catch (err) {
+        logger.warn(`tool ${entry.name}.applies threw; treating as inactive`, err as Error)
+      }
     }
+    return out
   }
 }
 

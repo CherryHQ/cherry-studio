@@ -21,23 +21,10 @@ import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
-/** Hub aggregation server auto-injected when an assistant is in `auto` MCP mode. */
-const HUB_MCP_SERVER: MCPServer = {
-  id: 'hub',
-  name: 'mcp-hub',
-  type: 'inMemory',
-  isActive: true,
-  provider: 'CherryAI',
-  installSource: 'builtin',
-  isTrusted: true
-}
-
 /**
  * Resolve the effective MCP mode for an assistant:
  *   - If `settings.mcpMode` is set, use it verbatim.
  *   - Otherwise, 'manual' when the assistant has any linked servers, else 'disabled'.
- * Exported so `systemPromptPlugin` can decide whether to append the hub-mode
- * system prompt on top of the user prompt.
  */
 export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   const mode = assistant.settings?.mcpMode
@@ -46,8 +33,8 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
 }
 
 async function resolveServersForAssistant(assistant: Assistant, mode: McpMode): Promise<MCPServer[]> {
-  if (mode === 'auto') return [HUB_MCP_SERVER]
   const { items: activeServers } = await mcpServerService.list({ isActive: true })
+  if (mode === 'auto') return activeServers
   const linkedIds = new Set(assistant.mcpServerIds)
   return activeServers.filter((server) => linkedIds.has(server.id))
 }

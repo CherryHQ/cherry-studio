@@ -89,8 +89,9 @@ export function createKbSearchToolEntry(): ToolEntry {
     name: KB_SEARCH_TOOL_NAME,
     namespace: 'kb',
     description: "Search the user's private knowledge base",
-    defer: 'never',
-    tool: kbSearchTool
+    defer: 'auto',
+    tool: kbSearchTool,
+    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

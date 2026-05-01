@@ -78,7 +78,8 @@ function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
     namespace: `mcp:${server.id}`,
     description: mcpTool.description || mcpTool.name,
     defer: 'auto',
-    tool: createMcpTool(mcpTool, server.disabledAutoApproveTools)
+    tool: createMcpTool(mcpTool, server.disabledAutoApproveTools),
+    applies: (scope) => scope.mcpToolIds.has(mcpTool.id)
   }
 }
 

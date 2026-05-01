@@ -140,4 +140,16 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getByName('mcp__ok__t')).toBeDefined()
     expect(reg.getAll()).toHaveLength(1)
   })
+
+  it('synced entry only applies when its id is in scope.mcpToolIds', async () => {
+    const reg = new ToolRegistry()
+    list.mockResolvedValue({ items: [activeServer('gh')] })
+    listTools.mockResolvedValue([mcpTool('gh', 'search'), mcpTool('gh', 'fork')])
+    await syncMcpToolsToRegistry(reg)
+
+    const searchEntry = reg.getByName('mcp__gh__search')!
+    expect(searchEntry.applies!({ mcpToolIds: new Set(['mcp__gh__search']) })).toBe(true)
+    expect(searchEntry.applies!({ mcpToolIds: new Set(['mcp__gh__fork']) })).toBe(false)
+    expect(searchEntry.applies!({ mcpToolIds: new Set() })).toBe(false)
+  })
 })

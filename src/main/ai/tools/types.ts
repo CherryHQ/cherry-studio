@@ -1,4 +1,16 @@
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Tool } from 'ai'
+
+/**
+ * Minimum read-only context a {@link ToolEntry.applies} predicate consults.
+ * Lives here (and not in `agentParams/scope.ts`) so the tool layer doesn't
+ * depend on the request-pipeline layer; `RequestScope` extends this shape.
+ */
+export interface ToolApplyScope {
+  readonly assistant?: Assistant
+  /** MCP tool ids this assistant has access to (server allowlist + per-tool disable applied). */
+  readonly mcpToolIds: ReadonlySet<string>
+}
 
 /**
  * Whether a tool is exposed inline to the LLM or hidden behind tool_search.
@@ -53,11 +65,5 @@ export interface ToolEntry {
   /** AI SDK Tool (schema + execute + needsApproval + toModelOutput). */
   tool: Tool
 
-  /**
-   * Optional toolset-level availability check. Returning false hides the tool
-   * from `getAll()` results without removing the entry — useful when an MCP
-   * server is configured but its API key is missing, or a builtin tool's
-   * provider preference isn't set.
-   */
-  isAvailable?: () => boolean | Promise<boolean>
+  applies?(scope: ToolApplyScope): boolean
 }

@@ -1,4 +1,3 @@
-import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
@@ -9,8 +8,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
-import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { serializeError } from '@shared/types/error'
@@ -20,67 +18,26 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
-  stepCountIs,
   type ToolSet,
   type UIMessageChunk
 } from 'ai'
 
-import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
-import { resolveCapabilities } from './capabilities'
+import { type AgentLoopHooks, runAgentLoop } from './agent/loop'
+import { buildAgentParams } from './agent/params/buildAgentParams'
+import { composeHooks } from './agent/params/composeHooks'
+import type { RequestFeature } from './agent/params/feature'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
-import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
-import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
-import { providerToAiSdkConfig } from './provider/config'
-import { getAiSdkProviderId } from './provider/factory'
-import { listModels as listModelsFromProvider } from './services/listModels'
+import { listModels as listModelsFromProvider } from './provider/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/builtin'
-import { KB_SEARCH_TOOL_NAME } from './tools/builtin/KnowledgeSearchTool'
-import { WEB_SEARCH_TOOL_NAME } from './tools/builtin/WebSearchTool'
-import type { RequestContext } from './tools/context'
-import { syncMcpToolsToRegistry } from './tools/mcp/mcpTools'
-import { resolveAssistantMcpToolIds } from './tools/mcp/resolveAssistantMcpTools'
-import { registry } from './tools/registry'
-import { createAiRepair } from './tools/repair'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
-import {
-  buildCapabilityProviderOptions,
-  extractAiSdkStandardParams,
-  mergeCustomProviderParameters
-} from './utils/options'
-import { getCustomParameters } from './utils/reasoning'
 
 const logger = loggerService.withContext('AiService')
 
-function mergeTools(base: ToolSet | undefined, extra: ToolSet | undefined): ToolSet | undefined {
-  if (!extra) return base
-  if (!base) return extra
-  return { ...extra, ...base }
-}
-
-function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> {
-  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
-  if (!enableMaxToolCalls) {
-    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
-  }
-
-  const raw = assistant.settings?.maxToolCalls
-  const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
-  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  return stepCountIs(count)
-}
-
 // ── Request types ──────────────────────────────────────────────────
-//
-// Shared request shapes (`AiTransportOptions`, `AiBaseRequest`,
-// `AiStreamRequest`, `ChatTrigger`) live in `./types/requests` so that
-// `stream-manager` can import them without depending on `AiService`. The
-// types below — `AiRequestOptions`, `AsInProcess`, the non-streaming
-// request shapes, the `*Extensions` and `*Result` types — are only used
-// by `AiService` itself, so they stay here.
 
 /**
  * In-process per-request transport config. Extends `AiTransportOptions`
@@ -120,58 +77,6 @@ export interface AiGenerateRequest extends AiBaseRequest {
 }
 
 // ── SDK extensions ─────────────────────────────────────────────────
-//
-// Extensions carry non-serialisable behaviour (hooks, plugin references,
-// live `ToolSet` entries) that callers want to attach to a particular
-// streamText / generateText invocation. They are passed as an extra
-// argument rather than baked into the request shape so:
-//
-//  - transport payloads (IPC, stream-manager dispatch) stay pure data;
-//  - stream-manager treats extensions as an opaque passthrough — it does
-//    not need to import `AgentLoopHooks` / `AgentOptions` to wire them;
-//  - SDK evolution (AI SDK adding a new hook) never ripples through the
-//    Request types that IPC / Renderer / Provider code sees.
-
-/** Extensions for `streamText`. */
-export interface AiStreamExtensions {
-  /**
-   * Agent-loop hooks supplied by the caller. See `AgentLoopHooks` for the
-   * full list of extension points (onStart / beforeIteration / prepareStep
-   * / onStepFinish / afterIteration / onFinish / onError).
-   *
-   * `onFinish` composes with the built-in token tracker — the internal
-   * hook fires first, then the caller's `onFinish`; caller errors are
-   * logged but never cancel the internal analytics. Other value-returning
-   * hooks (`prepareStep`, `onError`, `beforeIteration`, `afterIteration`)
-   * are handed to the caller as-is — AiService has no internal behaviour
-   * on those paths today.
-   */
-  hooks?: AgentLoopHooks
-
-  /**
-   * AI SDK agent options override. Shallow-merged over the defaults built
-   * from `assistant.settings`. Use to force `toolChoice`, attach
-   * `providerOptions` / `telemetry`, tweak temperature per-call, etc.
-   */
-  optionsOverride?: Partial<AgentOptions>
-
-  /**
-   * Extra AiPlugins appended after the built-in plugin set. Plugin order
-   * is significant — caller plugins run after Cherry's built-ins (reasoning,
-   * simulate-streaming, etc).
-   */
-  extraPlugins?: AiPlugin[]
-
-  /**
-   * Extra tools merged into the resolved ToolSet. Cherry-resolved tools
-   * (MCP + assistant config) win on name conflict — caller entries only
-   * fill in names the registry does not already cover.
-   */
-  extraTools?: ToolSet
-}
-
-/** Extensions for `generateText`. Same shape as `AiStreamExtensions` minus `hooks` (no iteration model). */
-export type AiGenerateExtensions = Omit<AiStreamExtensions, 'hooks'>
 
 /** Result of non-streaming text generation. */
 export interface AiGenerateResult {
@@ -372,7 +277,7 @@ export class AiService extends BaseService {
    */
   async streamText(
     request: AsInProcess<AiStreamRequest>,
-    extensions: AiStreamExtensions = {}
+    extraFeatures: readonly RequestFeature[] = []
   ): Promise<ReadableStream<UIMessageChunk>> {
     logger.info('streamText started', { chatId: request.chatId })
     const signal = request.requestOptions?.signal
@@ -380,7 +285,11 @@ export class AiService extends BaseService {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
     }
 
-    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request, signal)
+    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures
+    )
 
     // Wire injectedMessageSource for Claude Code: PendingMessageQueue implements AsyncIterable<Message>
     if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
@@ -390,14 +299,6 @@ export class AiService extends BaseService {
         injectedMessageSource: request.pendingMessages
       }
     }
-
-    // Compose caller-supplied extensions over the built-ins.
-    const mergedPlugins = extensions.extraPlugins?.length ? [...plugins, ...extensions.extraPlugins] : plugins
-    const mergedTools = mergeTools(tools, extensions.extraTools)
-    const mergedOptions: AgentOptions = extensions.optionsOverride
-      ? { ...options, ...extensions.optionsOverride }
-      : options
-    const mergedHooks = this.composeHooks(model, extensions.hooks)
 
     // Inline any `file://` URLs in the UIMessages' file parts as base64
     // data URLs. AI SDK's `convertToModelMessages` doesn't fetch
@@ -410,74 +311,49 @@ export class AiService extends BaseService {
         providerSettings: sdkConfig.providerSettings,
         modelId: sdkConfig.modelId,
         messageId: request.messageId,
-        plugins: mergedPlugins,
-        tools: mergedTools,
+        plugins,
+        tools,
         system,
-        options: mergedOptions,
+        options,
         pendingMessages: request.pendingMessages,
-        hooks: mergedHooks
+        hooks: this.composeAllHooks(model, hookParts)
       },
       preparedMessages,
       signal
     )
   }
 
-  /**
-   * Merge the caller's `AgentLoopHooks` with AiService's internal hooks.
-   *
-   * - `onFinish` is **always** composed: the internal token tracker fires
-   *   first, then the caller's `onFinish`. Caller errors are logged but
-   *   never prevent the internal analytics from completing.
-   * - For the value-returning hooks (`prepareStep`, `onError`,
-   *   `beforeIteration`, `afterIteration`) the caller hook takes over
-   *   entirely — AiService has no internal behaviour to preserve there.
-   * - For fire-and-forget hooks (`onStart`, `onStepFinish`) the caller
-   *   hook is passed through; no internal hook exists today.
-   */
-  private composeHooks(model: Model, callerHooks?: AgentLoopHooks): AgentLoopHooks {
-    const callerOnFinish = callerHooks?.onFinish
-    return {
-      ...callerHooks,
-      onFinish: (result) => {
-        this.trackUsage(model, result.totalUsage)
-        if (!callerOnFinish) return
-        try {
-          callerOnFinish(result)
-        } catch (err) {
-          logger.warn('caller onFinish hook threw', { err })
-        }
-      }
+  private composeAllHooks(model: Model, builtHookParts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks {
+    const internal: Partial<AgentLoopHooks> = {
+      onFinish: (result) => this.trackUsage(model, result.totalUsage)
     }
+    return composeHooks([internal, ...builtHookParts])
   }
 
   // ── Non-streaming text generation (agent.generate) ──
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,
-    extensions: AiGenerateExtensions = {}
+    extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParams(request, signal)
-
-    // Same extension points as streamText minus `hooks` — `agent.generate`
-    // has no iteration model, so per-iteration hooks would have no effect.
-    const mergedPlugins = extensions.extraPlugins?.length ? [...plugins, ...extensions.extraPlugins] : plugins
-    const mergedTools = mergeTools(tools, extensions.extraTools)
-    const mergedOptions: AgentOptions = extensions.optionsOverride
-      ? { ...options, ...extensions.optionsOverride }
-      : options
+    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures
+    )
 
     const agent = await createAgent<AppProviderSettingsMap, typeof sdkConfig.providerId, ToolSet>({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
-      plugins: mergedPlugins,
+      plugins,
       agentSettings: {
-        tools: mergedTools,
+        tools,
         instructions: request.system ?? system,
-        ...mergedOptions
+        ...options
       }
     })
 
@@ -500,7 +376,7 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParams(request, signal)
+    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -573,7 +449,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, model } = await this.buildAgentParams(request, signal)
+    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
@@ -583,11 +459,6 @@ export class AiService extends BaseService {
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
     return { embeddings: result.embeddings, usage: result.usage }
-  }
-
-  async getEmbeddingDimensions(request: AiBaseRequest): Promise<number> {
-    const { embeddings } = await this.embedMany({ ...request, values: ['test'] })
-    return embeddings[0].length
   }
 
   // ── Model listing ──
@@ -642,138 +513,14 @@ export class AiService extends BaseService {
 
   // ── Shared agent parameter resolution ──
 
-  private async buildAgentParams(
+  private async buildAgentParamsFor(
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    extraFeatures: readonly RequestFeature[] = []
   ) {
     const { provider, model, assistant } = await this.getProviderAndModel(request)
-
-    const chatId = request.chatId
-    const isSession = chatId && isAgentSessionTopic(chatId)
-    const agentSessionId = isSession ? extractAgentSessionId(chatId) : undefined
-    const sdkConfig = {
-      ...(await providerToAiSdkConfig(provider, model, { agentSessionId })),
-      modelId: model.apiModelId ?? model.id
-    }
-
-    // Resolve MCP tool IDs — if the caller did not pass an explicit list we
-    // derive one from the assistant's MCP config so renderers don't need to
-    // know anything about MCP tool discovery.
-    let mcpToolIds = request.mcpToolIds
-    if (!mcpToolIds && request.assistantId) {
-      mcpToolIds = await resolveAssistantMcpToolIds(request.assistantId)
-    }
-
-    let tools: ToolSet | undefined
-    if (mcpToolIds?.length) {
-      await syncMcpToolsToRegistry()
-      const resolved: ToolSet = {}
-      for (const id of mcpToolIds) {
-        const entry = registry.getByName(id)
-        if (entry) resolved[id] = entry.tool
-      }
-      tools = Object.keys(resolved).length > 0 ? resolved : undefined
-    }
-
-    if ((assistant?.knowledgeBaseIds?.length ?? 0) > 0) {
-      const kbEntry = registry.getByName(KB_SEARCH_TOOL_NAME)
-      if (kbEntry) {
-        tools = { ...tools, [KB_SEARCH_TOOL_NAME]: kbEntry.tool }
-      }
-    }
-
-    // Builtin web__search — exposed when the assistant opts in. The tool
-    // itself picks the active provider at execute time.
-    if (assistant?.settings?.enableWebSearch) {
-      const webEntry = registry.getByName(WEB_SEARCH_TOOL_NAME)
-      if (webEntry) {
-        tools = { ...tools, [WEB_SEARCH_TOOL_NAME]: webEntry.tool }
-      }
-    }
-
-    const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
-    const plugins =
-      assistant && capabilities
-        ? buildPlugins({ provider, model, assistant, capabilities, mcpToolIds, topicId: chatId })
-        : []
-    // System prompt is owned entirely by `systemPromptPlugin`
-    // (`replacePromptVariables` + hub-mode append). Leave
-    // `agentSettings.instructions` undefined so the plugin is the single
-    // source of truth.
-    const system = undefined
-
-    // `temperature` / `topP` / `maxOutputTokens` are applied by
-    // `modelParamsPlugin` via `transformParams` with full model-capability
-    // awareness (reasoning disables temperature on Claude, mutually exclusive
-    // with topP on some models, thinking-token budget subtraction, etc.).
-    const stopWhen = assistant ? resolveStopWhen(assistant) : undefined
-    const { headers, maxRetries } = request.requestOptions ?? {}
-
-    // Capability-driven `providerOptions` — per-provider-family reasoning
-    // params, service tier, verbosity, generate-image flags. Stable for the
-    // (assistant, model, provider, capabilities) tuple, so they belong at
-    // the agent level; flow to `agentSettings.providerOptions` in runAgentLoop.
-    let providerOptions =
-      assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
-
-    // User-supplied `assistant.settings.customParameters` — same lifetime
-    // as the assistant, so also agent-level rather than per-call. Split into
-    // AI-SDK standard params (top-level) and provider-scoped params (merged
-    // into providerOptions on top of the capability defaults).
-    let standardParams: Partial<Record<string, unknown>> = {}
-    if (assistant) {
-      const customParams = getCustomParameters(assistant)
-      if (Object.keys(customParams).length > 0) {
-        const split = extractAiSdkStandardParams(customParams)
-        standardParams = split.standardParams
-        providerOptions = mergeCustomProviderParameters(
-          providerOptions,
-          split.providerParams,
-          getAiSdkProviderId(provider)
-        )
-      }
-    }
-
-    const requestContext: RequestContext = {
-      requestId: crypto.randomUUID(),
-      topicId: chatId,
-      assistant,
-      abortSignal: signal
-    }
-
-    // LLM-driven repair runs on the same provider/model via ai-core directly
-    // — going through `AiService.generateText` would create a circular
-    // dependency (repair.ts ⇄ AiService).
-    const repairToolCallFunc = createAiRepair({
-      providerId: sdkConfig.providerId,
-      providerSettings: sdkConfig.providerSettings,
-      modelId: sdkConfig.modelId
-    })
-
-    const options: AgentOptions = {
-      // Disable AI SDK transparent retries by default — they can duplicate
-      // stream state in the multi-iteration tool loop. Caller can override
-      // via `requestOptions.maxRetries` for non-streaming / idempotent flows.
-      maxRetries: maxRetries ?? 0,
-      // Inner-loop tool-call limit. When the user disables it, leave unset so
-      // the AI SDK default (`stepCountIs(20)`) applies.
-      ...(stopWhen && { stopWhen }),
-      // Per-call extra headers from `request.requestOptions.headers`. Layered
-      // on top of provider-level defaults; later plugins (e.g.
-      // `anthropicHeadersPlugin`) layer on top of these via `transformParams`.
-      ...(headers && { headers }),
-      ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
-      // AI-SDK standard params extracted from customParameters
-      // (topK / frequencyPenalty / presencePenalty / stopSequences / seed).
-      ...standardParams,
-      // Threaded into AI SDK as `experimental_context`; tools unwrap with
-      // `getToolCallContext(options)` to read `assistant`, `requestId`,
-      // `topicId`, and `abortSignal`.
-      context: requestContext,
-      repairToolCall: repairToolCallFunc
-    }
-
-    return { sdkConfig, tools, plugins, system, options, provider, model }
+    const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
+    return { ...built, provider, model, assistant }
   }
 
   // ── Token usage tracking ──
@@ -822,8 +569,6 @@ export class AiService extends BaseService {
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
-    // Provider/model from v2 DataApi (SQLite)
-    logger.info('getProviderAndModel', { providerId, modelId, assistantId: request.assistantId })
     const provider = await providerService.getByProviderId(providerId)
     const model = await modelService.getByKey(providerId, modelId)
 

@@ -188,10 +188,6 @@ export class McpService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(callId))
     this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, server) => this.getServerVersion(server))
     this.ipcHandle(IpcChannel.Mcp_GetServerLogs, (_e, server) => this.getServerLogs(server))
-    this.ipcHandle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
-      const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
-      return resolveHubToolName(nameOrId)
-    })
     this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
       try {
         const tempPath = await fileStorage.createTempFile(event, fileName)
@@ -205,36 +201,6 @@ export class McpService extends BaseService {
         }
       }
     })
-  }
-
-  /**
-   * List all tools from all active MCP servers (excluding hub).
-   * Used by Hub server's tool registry.
-   */
-  public async listAllActiveServerTools(): Promise<MCPTool[]> {
-    const { items: activeServers } = await mcpServerService.list({ isActive: true })
-
-    const results = await Promise.allSettled(
-      activeServers.map(async (server) => {
-        const tools = await this.listToolsImpl(server)
-        const disabledTools = new Set(server.disabledTools ?? [])
-        return disabledTools.size > 0 ? tools.filter((tool) => !disabledTools.has(tool.name)) : tools
-      })
-    )
-
-    const allTools: MCPTool[] = []
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        allTools.push(...result.value)
-      } else {
-        logger.error(
-          `[listAllActiveServerTools] Failed to list tools from ${activeServers[index].name}:`,
-          result.reason as Error
-        )
-      }
-    })
-
-    return allTools
   }
 
   /**

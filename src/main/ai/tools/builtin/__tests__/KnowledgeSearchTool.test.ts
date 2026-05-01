@@ -49,7 +49,7 @@ describe('kb__search', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('never')
+    expect(entry.defer).toBe('auto')
   })
 
   it('returns [] when assistant has no knowledge bases', async () => {
@@ -111,5 +111,14 @@ describe('kb__search', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['broken', 'good'] }) }
     )) as Array<{ id: number; content: string }>
     expect(result).toEqual([{ id: 1, content: 'ok', score: 0.7 }])
+  })
+
+  describe('applies', () => {
+    it('returns true only when the assistant has at least one knowledge base id', () => {
+      const applies = entry.applies!
+      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
+      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
+      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+    })
   })
 })

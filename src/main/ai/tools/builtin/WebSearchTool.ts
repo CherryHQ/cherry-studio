@@ -105,8 +105,9 @@ export function createWebSearchToolEntry(): ToolEntry {
     name: WEB_SEARCH_TOOL_NAME,
     namespace: 'web',
     description: 'Search the web for current information',
-    defer: 'never',
-    tool: webSearchTool
+    defer: 'auto',
+    tool: webSearchTool,
+    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
   }
 }
 

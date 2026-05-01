@@ -36,7 +36,7 @@ describe('AiService', () => {
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParams').mockResolvedValue({
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
