@@ -79,6 +79,33 @@ export interface ErrorContext {
   error: Error
 }
 
+// ── Tool execution events (ported from AI SDK v7 design) ──
+//
+// AI SDK v6's `ToolLoopAgentSettings` does NOT expose tool-level callbacks —
+// `onStepFinish` is the closest, but it fires per LLM step (post tool batch)
+// and lacks per-call `durationMs`. v7 introduces
+// `experimental_onToolExecutionStart/End` on the Agent layer; we mirror that
+// shape here and dispatch from a wrapper around each tool's `execute`. When
+// we eventually upgrade to v7, swap the wrapper for a direct forward to
+// `agentSettings.experimental_onToolExecution*` and the hook signatures stay
+// stable.
+
+export interface ToolExecutionStartEvent {
+  /** Same as `toolCallId`; named `callId` to match v7. */
+  callId: string
+  toolName: string
+  /** Tool call arguments parsed from the model output. */
+  input: unknown
+  /** Messages sent to the model that produced this tool call. */
+  messages: ModelMessage[]
+}
+
+export type ToolExecutionEndEvent = ToolExecutionStartEvent & {
+  /** Wall-clock duration of the tool's `execute` function only. */
+  durationMs: number
+  toolOutput: { type: 'tool-result'; output: unknown } | { type: 'tool-error'; error: unknown }
+}
+
 export interface AgentLoopHooks {
   /** Before the loop starts. Use for: otel root span, load memory */
   onStart?: () => Promise<void> | void
@@ -91,6 +118,12 @@ export interface AgentLoopHooks {
 
   /** Forwarded to AI SDK onStepFinish. Use for: progress push, otel step span */
   onStepFinish?: (step: StepResult<ToolSet>) => void
+
+  /** Fires before a tool's `execute` runs. Use for: progress push, otel tool span start. */
+  onToolExecutionStart?: (event: ToolExecutionStartEvent) => Promise<void> | void
+
+  /** Fires after `execute` completes (success or error). `durationMs` excludes hook latency. */
+  onToolExecutionEnd?: (event: ToolExecutionEndEvent) => Promise<void> | void
 
   /** After each outer loop iteration. Use for: persist, memory update, SWR invalidate.
    *  Return true to continue outer loop (restart with pending messages). */
@@ -183,6 +216,99 @@ const ZERO_USAGE: LanguageModelUsage = {
   outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined }
 }
 
+// Mirror v7's `notify`: await the callback so hook ordering is deterministic,
+// but never let a thrown hook abort the tool call. v7 silently swallows; we
+// log at warn level since we already have a contextual logger.
+async function notifyHook<E>(cb: ((event: E) => Promise<void> | void) | undefined, event: E): Promise<void> {
+  if (!cb) return
+  try {
+    await cb(event)
+  } catch (err) {
+    logger.warn('tool-execution hook threw', err as Error)
+  }
+}
+
+async function callHook<R>(name: string, fn: () => Promise<R> | R): Promise<R | undefined> {
+  try {
+    return await fn()
+  } catch (err) {
+    logger.warn(`hook ${name} threw; ignoring return value`, err as Error)
+    return undefined
+  }
+}
+
+/**
+ * Wrap a user-supplied hook so it stays isolated when forwarded to a
+ * third party (e.g. the AI SDK calls `prepareStep` / `onStepFinish` from
+ * inside its execution loop). Returns `undefined` if the source hook is
+ * absent so we don't pay for an empty wrapper.
+ */
+function wrapForwardedHook<F extends (...args: never[]) => unknown>(name: string, fn: F | undefined): F | undefined {
+  if (!fn) return undefined
+  return ((...args: Parameters<F>) => callHook(name, () => fn(...args))) as F
+}
+
+/**
+ * Wrap each tool's `execute` so `onToolExecutionStart` / `onToolExecutionEnd`
+ * fire around the call. The wrapper measures `durationMs` from immediately
+ * after the start hook resolves to immediately before the end hook is
+ * dispatched, matching v7's `executeToolCall` (excludes hook latency from the
+ * tool's measured duration). Errors propagate after the end hook runs so the
+ * SDK still treats tool failures normally.
+ */
+function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
+  if (!tools) return tools
+  if (!hooks.onToolExecutionStart && !hooks.onToolExecutionEnd) return tools
+
+  const wrapped: ToolSet = {}
+  for (const [name, tool] of Object.entries(tools)) {
+    const originalExecute = tool.execute
+    if (typeof originalExecute !== 'function') {
+      wrapped[name] = tool
+      continue
+    }
+    wrapped[name] = {
+      ...tool,
+      execute: async (input: unknown, options) => {
+        const startEvent: ToolExecutionStartEvent = {
+          callId: options.toolCallId,
+          toolName: name,
+          input,
+          messages: options.messages
+        }
+        await notifyHook(hooks.onToolExecutionStart, startEvent)
+
+        const startTime = performance.now()
+        try {
+          // NOTE: AI SDK v6 allows `execute` to return AsyncIterable for
+          // preliminary streaming results. None of this codebase's tools
+          // use that today; if one ever does, the iterable would be
+          // returned untouched but the end hook would fire prematurely.
+          // Update the wrapper at that point — see v7's `for await` loop
+          // in `execute-tool-call.ts` for the reference implementation.
+          const output = await originalExecute(input, options)
+          const durationMs = performance.now() - startTime
+          await notifyHook(hooks.onToolExecutionEnd, {
+            ...startEvent,
+            durationMs,
+            toolOutput: { type: 'tool-result', output }
+          })
+          return output
+        } catch (error) {
+          const durationMs = performance.now() - startTime
+          await notifyHook(hooks.onToolExecutionEnd, {
+            ...startEvent,
+            durationMs,
+            toolOutput: { type: 'tool-error', error }
+          })
+          throw error
+        }
+      }
+    } as ToolSet[string]
+  }
+  return wrapped
+}
+
 export function runAgentLoop<T extends AppProviderKey>(
   params: AgentLoopParams<T>,
   initialMessages: UIMessage[],
@@ -245,7 +371,7 @@ export function runAgentLoop<T extends AppProviderKey>(
 
   ;(async () => {
     // ★ onStart
-    await hooks.onStart?.()
+    await callHook('onStart', () => hooks.onStart?.())
 
     // Single track: all message state is ModelMessage[] throughout the loop.
     // Converted once at entry, then directly appended (no lossy round-trips).
@@ -256,11 +382,15 @@ export function runAgentLoop<T extends AppProviderKey>(
     let lastFinishReason = 'unknown'
     let hasUsedProvidedMessageId = false
 
+    const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
+
     while (!signal.aborted) {
       iterationNumber++
 
       // ★ beforeIteration (compileContext, memory, otel)
-      const beforeResult = await hooks.beforeIteration?.({ iterationNumber, messages, totalSteps })
+      const beforeResult = await callHook('beforeIteration', () =>
+        hooks.beforeIteration?.({ iterationNumber, messages, totalSteps })
+      )
       if (beforeResult?.messages) {
         messages = beforeResult.messages
         modelMessages = await convertToModelMessages(messages)
@@ -275,7 +405,7 @@ export function runAgentLoop<T extends AppProviderKey>(
         plugins: params.plugins,
         agentSettings: {
           // Tools
-          tools: params.tools as ToolSet,
+          tools: toolsWithHooks as ToolSet,
           toolChoice: opts.toolChoice,
           activeTools: opts.activeTools as Array<keyof ToolSet>,
           // System
@@ -302,8 +432,8 @@ export function runAgentLoop<T extends AppProviderKey>(
           experimental_repairToolCall: opts.repairToolCall,
           experimental_download: opts.download,
           // Hooks (forwarded from AgentLoopHooks)
-          prepareStep: hooks.prepareStep,
-          onStepFinish: hooks.onStepFinish
+          prepareStep: wrapForwardedHook('prepareStep', hooks.prepareStep),
+          onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
         }
       })
 
@@ -354,12 +484,13 @@ export function runAgentLoop<T extends AppProviderKey>(
       //    DO NOT project it onto `MessageStats.timeThinkingMs` to avoid
       //    a polluted value in the DB.
       //
-      //    Precise separation path: expose `onToolCallStart` /
-      //    `onToolCallFinish` on `AgentLoopHooks` (AI SDK `agentSettings`
-      //    already supports them — see `OnToolCallFinishEvent.durationMs`
-      //    for the native tool-execution measurement). AiService's
-      //    `composeHooks` attaches an internal hook that accumulates
-      //    `durationMs` for tool calls whose start timestamp falls inside
+      //    Precise separation path: use the `onToolExecutionStart` /
+      //    `onToolExecutionEnd` hooks on `AgentLoopHooks` (ported from AI
+      //    SDK v7's design and dispatched via `wrapToolsWithExecutionHooks`
+      //    in this file — `ToolLoopAgentSettings` in v6 does NOT expose
+      //    them on the Agent layer). AiService's `composeHooks` attaches
+      //    an internal hook that accumulates `event.durationMs` for tool
+      //    calls whose start timestamp falls inside
       //    `[reasoningStartedAt, reasoningEndedAt]`, writing the sum back
       //    onto `exec.timings.toolMsDuringReasoning`. `statsFromTerminal`
       //    then computes
@@ -421,16 +552,18 @@ export function runAgentLoop<T extends AppProviderKey>(
       lastFinishReason = finishReason
 
       // ★ afterIteration (persist, memory, SWR invalidate)
-      const shouldContinue = await hooks.afterIteration?.(
-        { iterationNumber, messages, totalSteps },
-        {
-          messages: response.messages,
-          usage: iterationUsage,
-          finishReason,
-          steps,
-          response: { id: response.id, modelId: response.modelId, timestamp: response.timestamp },
-          sources
-        }
+      const shouldContinue = await callHook('afterIteration', () =>
+        hooks.afterIteration?.(
+          { iterationNumber, messages, totalSteps },
+          {
+            messages: response.messages,
+            usage: iterationUsage,
+            finishReason,
+            steps,
+            response: { id: response.id, modelId: response.modelId, timestamp: response.timestamp },
+            sources
+          }
+        )
       )
 
       // Continue if afterIteration explicitly returns true
@@ -466,7 +599,9 @@ export function runAgentLoop<T extends AppProviderKey>(
     // ★ onFinish (analytics, otel root span). Cleanup is centralised in
     // `settleWriter` below — don't close `pendingMessages` here, the `.then`
     // handler will do it exactly once.
-    hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps, finishReason: lastFinishReason })
+    await callHook('onFinish', () =>
+      hooks.onFinish?.({ totalUsage, totalIterations: iterationNumber, totalSteps, finishReason: lastFinishReason })
+    )
   })()
     .then(() => settleWriter())
     .catch(async (err) => {
