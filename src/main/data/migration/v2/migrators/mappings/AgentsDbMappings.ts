@@ -64,6 +64,16 @@ export type AgentsTableMigrationSpec = {
   columns: readonly AgentsColumnExpr[]
   /** Optional WHERE clause appended to the SELECT to filter source rows */
   whereClause?: string
+  /**
+   * Source-only equivalent of `whereClause`, used by the post-execute
+   * validator. `whereClause` references target tables (e.g. `agent`) which is
+   * fine during INSERT — at that moment target IDs equal source IDs. After
+   * `remapAgentPrefixIds` rewrites target IDs to UUIDs, re-running
+   * `whereClause` against `agents_legacy.<src>` returns 0 because the source
+   * still holds the old IDs. `validateWhereClause` filters using only
+   * `agents_legacy.*` tables so the filter is stable across remap.
+   */
+  validateWhereClause?: string
 }
 
 /**
@@ -147,7 +157,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     // Exclude sessions whose agent no longer exists — they would fail the
     // post-migration PRAGMA foreign_key_check (agent_session.agent_id →
     // agent.id) and cause the entire migration to be marked failed.
-    whereClause: 'agent_id IN (SELECT id FROM agent)'
+    whereClause: 'agent_id IN (SELECT id FROM agent)',
+    validateWhereClause: 'agent_id IN (SELECT id FROM agents_legacy.agents)'
   },
   {
     sourceTable: 'skills',
@@ -179,7 +190,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     columns: ['agent_id', 'skill_id', notNullCol('is_enabled', '0'), 'created_at', 'updated_at'],
     // Only import agent_skill rows whose agent and skill were both successfully
     // migrated; orphaned rows would fail the FK checks.
-    whereClause: 'agent_id IN (SELECT id FROM agent) AND skill_id IN (SELECT id FROM agent_global_skill)'
+    whereClause: 'agent_id IN (SELECT id FROM agent) AND skill_id IN (SELECT id FROM agent_global_skill)',
+    validateWhereClause:
+      'agent_id IN (SELECT id FROM agents_legacy.agents) AND skill_id IN (SELECT id FROM agents_legacy.skills)'
   },
   {
     sourceTable: 'scheduled_tasks',
@@ -217,7 +230,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     ],
     // Only import tasks whose agent was successfully migrated; orphaned rows
     // would fail the FK check on agent_task.agent_id → agent.id.
-    whereClause: 'agent_id IN (SELECT id FROM agent)'
+    whereClause: 'agent_id IN (SELECT id FROM agent)',
+    validateWhereClause: 'agent_id IN (SELECT id FROM agents_legacy.agents)'
   },
   {
     sourceTable: 'task_run_logs',
@@ -250,7 +264,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     ],
     // Only import logs whose task was successfully migrated; orphaned rows
     // would fail the FK check on agent_task_run_log.task_id → agent_task.id.
-    whereClause: 'task_id IN (SELECT id FROM agent_task)'
+    whereClause: 'task_id IN (SELECT id FROM agent_task)',
+    validateWhereClause:
+      'task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agents_legacy.agents))'
   },
   {
     sourceTable: 'channels',
@@ -269,7 +285,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'session_id',
       'config',
       notNullCol('is_active', '1'),
-      'active_chat_ids',
+      notNullCol('active_chat_ids', "'[]'"),
       'permission_mode',
       {
         name: 'created_at',
@@ -288,7 +304,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     // agent was deleted or whose session was filtered out.
     whereClause:
       '(agent_id IS NULL OR agent_id IN (SELECT id FROM agent)) AND ' +
-      '(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))'
+      '(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))',
+    validateWhereClause:
+      '(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)) AND ' +
+      '(session_id IS NULL OR session_id IN (SELECT id FROM agents_legacy.sessions WHERE agent_id IN (SELECT id FROM agents_legacy.agents)))'
   },
   {
     sourceTable: 'channel_task_subscriptions',
@@ -296,7 +315,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     columns: ['channel_id', 'task_id'],
     // Only import subscriptions whose channel and task were both successfully
     // migrated; orphaned rows would fail the FK checks.
-    whereClause: 'channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)'
+    whereClause: 'channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)',
+    validateWhereClause:
+      'channel_id IN (SELECT id FROM agents_legacy.channels WHERE ' +
+      '(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)) AND ' +
+      '(session_id IS NULL OR session_id IN (SELECT id FROM agents_legacy.sessions WHERE agent_id IN (SELECT id FROM agents_legacy.agents)))) AND ' +
+      'task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agents_legacy.agents))'
   },
   {
     sourceTable: 'session_messages',
@@ -323,7 +347,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     ],
     // Only import messages whose session was successfully migrated; messages
     // referencing a filtered-out session would fail the FK check.
-    whereClause: 'session_id IN (SELECT id FROM agent_session)'
+    whereClause: 'session_id IN (SELECT id FROM agent_session)',
+    validateWhereClause:
+      'session_id IN (SELECT id FROM agents_legacy.sessions WHERE agent_id IN (SELECT id FROM agents_legacy.agents))'
   }
 ] as const
 

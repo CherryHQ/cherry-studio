@@ -5,7 +5,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
 import { extractRtkBinaries } from '../utils/rtk'
-import { bootstrapBuiltinAgents } from './agents/services/builtin/BuiltinAgentBootstrap'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
 import { schedulerService } from './agents/services/SchedulerService'
@@ -46,9 +45,9 @@ export function validateGetModelsFilter(filter: unknown) {
 /**
  * Lifecycle-managed service that orchestrates agent subsystem initialization.
  *
- * Wraps the non-lifecycle agent singletons (schedulerService, channelManager,
- * bootstrapBuiltinAgents) so their startup/shutdown is managed by the
- * application lifecycle instead of manual calls in index.ts.
+ * Wraps the non-lifecycle agent singletons (schedulerService, channelManager)
+ * so their startup/shutdown is managed by the application lifecycle instead of
+ * manual calls in index.ts.
  */
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.WhenReady)
@@ -56,9 +55,6 @@ export function validateGetModelsFilter(filter: unknown) {
 export class AgentBootstrapService extends BaseService {
   protected async onReady(): Promise<void> {
     await this.extractRtkBinaries()
-
-    await bootstrapBuiltinAgents()
-    logger.info('Built-in agents bootstrapped')
 
     await schedulerService.restoreSchedulers()
     logger.info('Schedulers restored')

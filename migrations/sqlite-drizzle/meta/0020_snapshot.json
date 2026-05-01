@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "1617cf3c-aa91-403b-b9d4-8816223d34b0",
-  "prevId": "6bef0872-c2b2-486d-a37f-17dc7baf8ec9",
+  "id": "ed7b7b01-f9ea-41a9-93b5-e723435ca7ac",
+  "prevId": "39877ab7-aad7-4432-adb5-c526fd17cca5",
   "tables": {
     "agent": {
       "name": "agent",
@@ -205,7 +205,7 @@
           "name": "active_chat_ids",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'[]'"
         },
@@ -626,10 +626,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": true
+          "autoincrement": false
         },
         "session_id": {
           "name": "session_id",
@@ -789,10 +789,10 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "integer",
+          "type": "text",
           "primaryKey": true,
           "notNull": true,
-          "autoincrement": true
+          "autoincrement": false
         },
         "task_id": {
           "name": "task_id",
@@ -1364,22 +1364,43 @@
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
+        "group_id": {
+          "name": "group_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
+          "autoincrement": false
+        },
+        "emoji": {
+          "name": "emoji",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "dimensions": {
           "name": "dimensions",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "embedding_model_id": {
           "name": "embedding_model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1403,14 +1424,14 @@
           "name": "chunk_size",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "chunk_overlap": {
           "name": "chunk_overlap",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "threshold": {
@@ -1431,7 +1452,7 @@
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "hybrid_alpha": {
@@ -1458,13 +1479,22 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "knowledge_base_group_id_group_id_fk": {
+          "name": "knowledge_base_group_id_group_id_fk",
+          "tableFrom": "knowledge_base",
+          "tableTo": "group",
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "knowledge_base_embedding_model_id_user_model_id_fk": {
           "name": "knowledge_base_embedding_model_id_user_model_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user_model",
           "columnsFrom": ["embedding_model_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "knowledge_base_rerank_model_id_user_model_id_fk": {
@@ -1482,7 +1512,15 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid') OR \"knowledge_base\".\"search_mode\" IS NULL"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+        },
+        "knowledge_base_status_check": {
+          "name": "knowledge_base_status_check",
+          "value": "\"knowledge_base\".\"status\" IN ('completed', 'failed')"
+        },
+        "knowledge_base_status_error_check": {
+          "name": "knowledge_base_status_error_check",
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" > 0\n          AND \"knowledge_base\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },
@@ -1529,8 +1567,14 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'idle'"
+          "autoincrement": false
+        },
+        "phase": {
+          "name": "phase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "error": {
           "name": "error",
@@ -1600,7 +1644,15 @@
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
-          "value": "\"knowledge_item\".\"status\" IN ('idle', 'pending', 'file_processing', 'read', 'embed', 'completed', 'failed')"
+          "value": "\"knowledge_item\".\"status\" IN ('idle', 'processing', 'completed', 'failed')"
+        },
+        "knowledge_item_phase_check": {
+          "name": "knowledge_item_phase_check",
+          "value": "\n        \"knowledge_item\".\"phase\" IS NULL\n        OR (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"phase\" IN ('reading', 'embedding'))\n        OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"phase\" = 'preparing')\n      "
+        },
+        "knowledge_item_status_phase_error_check": {
+          "name": "knowledge_item_status_phase_error_check",
+          "value": "\n        (\n          \"knowledge_item\".\"status\" IN ('idle', 'completed')\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          -- Containers may stay processing after their own prepare phase ends\n          -- while descendant leaf items continue reading/embedding.\n          \"knowledge_item\".\"status\" = 'processing'\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'failed'\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_item\".\"error\")) > 0\n        )\n      "
         }
       }
     },
@@ -2035,8 +2087,8 @@
         }
       }
     },
-    "miniapp": {
-      "name": "miniapp",
+    "mini_app": {
+      "name": "mini_app",
       "columns": {
         "app_id": {
           "name": "app_id",
@@ -2066,8 +2118,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -2142,19 +2194,19 @@
         }
       },
       "indexes": {
-        "miniapp_status_sort_idx": {
-          "name": "miniapp_status_sort_idx",
+        "mini_app_status_sort_idx": {
+          "name": "mini_app_status_sort_idx",
           "columns": ["status", "sort_order"],
           "isUnique": false
         },
-        "miniapp_type_idx": {
-          "name": "miniapp_type_idx",
-          "columns": ["type"],
+        "mini_app_kind_idx": {
+          "name": "mini_app_kind_idx",
+          "columns": ["kind"],
           "isUnique": false
         },
-        "miniapp_status_type_idx": {
-          "name": "miniapp_status_type_idx",
-          "columns": ["status", "type"],
+        "mini_app_status_kind_idx": {
+          "name": "mini_app_status_kind_idx",
+          "columns": ["status", "kind"],
           "isUnique": false
         }
       },
@@ -2162,13 +2214,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "miniapp_status_check": {
-          "name": "miniapp_status_check",
-          "value": "\"miniapp\".\"status\" IN ('enabled', 'disabled', 'pinned')"
+        "mini_app_status_check": {
+          "name": "mini_app_status_check",
+          "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
         },
-        "miniapp_type_check": {
-          "name": "miniapp_type_check",
-          "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
+        "mini_app_kind_check": {
+          "name": "mini_app_kind_check",
+          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         }
       }
     },
@@ -2490,14 +2542,14 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_assistant_id_idx": {
-          "name": "topic_assistant_id_idx",
-          "columns": ["assistant_id"],
-          "isUnique": false
-        },
         "topic_group_id_order_key_idx": {
           "name": "topic_group_id_order_key_idx",
           "columns": ["group_id", "order_key"],
+          "isUnique": false
+        },
+        "topic_assistant_id_idx": {
+          "name": "topic_assistant_id_idx",
+          "columns": ["assistant_id"],
           "isUnique": false
         }
       },
@@ -3014,8 +3066,12 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {
+      "\"miniapp\"": "\"mini_app\""
+    },
+    "columns": {
+      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
+    }
   },
   "internal": {
     "indexes": {}

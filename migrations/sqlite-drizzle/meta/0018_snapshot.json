@@ -1652,7 +1652,7 @@
         },
         "knowledge_item_status_phase_error_check": {
           "name": "knowledge_item_status_phase_error_check",
-          "value": "\n        (\n          \"knowledge_item\".\"status\" IN ('idle', 'completed')\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'processing'\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'failed'\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_item\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_item\".\"status\" IN ('idle', 'completed')\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          -- Containers may stay processing after their own prepare phase ends\n          -- while descendant leaf items continue reading/embedding.\n          \"knowledge_item\".\"status\" = 'processing'\n          AND \"knowledge_item\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_item\".\"status\" = 'failed'\n          AND \"knowledge_item\".\"phase\" IS NULL\n          AND \"knowledge_item\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_item\".\"error\")) > 0\n        )\n      "
         }
       }
     },
