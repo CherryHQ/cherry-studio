@@ -123,8 +123,29 @@
     {
       "idx": 17,
       "version": "6",
-      "when": 1777530874782,
-      "tag": "0017_dry_mongu",
+      "when": 1777474700000,
+      "tag": "0017_giant_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777555974425,
+      "tag": "0018_tearful_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1777636561235,
+      "tag": "0019_parallel_annihilus",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1777644716023,
+      "tag": "0020_parallel_gargoyle",
       "breakpoints": true
     }
   ],

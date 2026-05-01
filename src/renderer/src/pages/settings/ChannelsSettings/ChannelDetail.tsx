@@ -1,5 +1,6 @@
 import { DeleteOutlined, EditOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
@@ -15,6 +16,8 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
+
+const logger = loggerService.withContext('ChannelDetail')
 
 // --------------- Types ---------------
 
@@ -99,7 +102,9 @@ const ChannelLogModal: FC<{
     window.api.channel
       .getLogs(channelId)
       .then(setLogs)
-      .catch(() => {})
+      .catch((err) => {
+        logger.warn('Failed to load channel logs', { channelId, err })
+      })
 
     // Subscribe to real-time logs
     const unsub = window.api.channel.onLog((entry) => {
@@ -346,7 +351,22 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
     }
   }, [agentList])
 
-  const channelList = channels ?? []
+  const channelList: ChannelData[] = useMemo(
+    () =>
+      (channels ?? []).map((ch) => ({
+        id: ch.id,
+        type: ch.type,
+        name: ch.name,
+        agentId: ch.agentId,
+        sessionId: ch.sessionId,
+        config: ch.config,
+        isActive: ch.isActive,
+        permissionMode: ch.permissionMode,
+        createdAt: ch.createdAt ? new Date(ch.createdAt).getTime() : null,
+        updatedAt: ch.updatedAt ? new Date(ch.updatedAt).getTime() : null
+      })),
+    [channels]
+  )
 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const editingChannel = channelList.find((ch) => ch.id === editingChannelId) ?? null
@@ -364,7 +384,9 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       .then((list) => {
         setStatuses(new Map(list.map((s) => [s.channelId, s])))
       })
-      .catch(() => {})
+      .catch((err) => {
+        logger.warn('Failed to load initial channel statuses', { err })
+      })
 
     const unsub = window.api.channel.onStatusChange((status) => {
       setStatuses((prev) => {
@@ -383,45 +405,37 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   const handleAdd = useCallback(async () => {
     const existingCount = channels?.length ?? 0
-    try {
-      const newChannel = await createChannel({
-        type: channelDef.type,
-        name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
-        config: channelDef.defaultConfig,
-        is_active: true
-      })
+    const newChannel = await createChannel({
+      type: channelDef.type,
+      name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
+      config: channelDef.defaultConfig,
+      isActive: true
+    } as never)
+    if (newChannel) {
       setEditingChannelId(newChannel.id)
-    } catch {
-      // ignore
     }
   }, [channels?.length, createChannel, channelDef])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
-      try {
-        const apiUpdates: Record<string, unknown> = {}
-        if (updates.name !== undefined) apiUpdates.name = updates.name
-        if (updates.agentId !== undefined) apiUpdates.agent_id = updates.agentId
-        if (updates.config !== undefined) apiUpdates.config = updates.config
-        if (updates.isActive !== undefined) apiUpdates.is_active = updates.isActive
-        if (updates.permissionMode !== undefined) apiUpdates.permission_mode = updates.permissionMode
+      if (!channelList.some((ch) => ch.id === channelId)) return
 
-        await updateChannel(channelId, apiUpdates)
-      } catch {
-        // ignore
-      }
+      const apiUpdates: Record<string, unknown> = {}
+      if (updates.name !== undefined) apiUpdates.name = updates.name
+      if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
+      if (updates.config !== undefined) apiUpdates.config = updates.config
+      if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
+      if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
+
+      await updateChannel(channelId, apiUpdates as never)
     },
-    [updateChannel]
+    [channelList, updateChannel]
   )
 
   const handleDelete = useCallback(
     async (channelId: string) => {
-      try {
-        await deleteChannel(channelId)
-        setEditingChannelId((prev) => (prev === channelId ? null : prev))
-      } catch {
-        // ignore
-      }
+      await deleteChannel(channelId)
+      setEditingChannelId((prev) => (prev === channelId ? null : prev))
     },
     [deleteChannel]
   )

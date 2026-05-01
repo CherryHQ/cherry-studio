@@ -4,6 +4,7 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
+import { type AgentConfiguration, AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
 import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
@@ -66,35 +67,7 @@ export const SlashCommandSchema = z.object({
 export type SlashCommand = z.infer<typeof SlashCommandSchema>
 
 // ------------------ Agent configuration & base schema ------------------
-export const AgentConfigurationSchema = z
-  .object({
-    avatar: z.string().optional(), // agent type as mark of default avatar; single emoji; URL or path to avatar image.
-    slash_commands: z.array(z.string()).optional(), // Array of slash commands to trigger the agent, this is from agent init response
-
-    // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
-    permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
-    env_vars: z.record(z.string(), z.string()).optional().default({}), // Custom environment variables for the agent runtime
-
-    // Soul
-    soul_enabled: z.boolean().optional(),
-    bootstrap_completed: z.boolean().optional(),
-
-    // Scheduler
-    scheduler_enabled: z.boolean().optional(),
-    scheduler_type: SchedulerTypeSchema.optional(),
-    scheduler_cron: z.string().optional(),
-    scheduler_interval: z.number().optional(),
-    scheduler_one_time_delay: z.number().optional(),
-    scheduler_last_run: z.string().optional(),
-
-    // Heartbeat
-    heartbeat_enabled: z.boolean().optional(),
-    heartbeat_interval: z.number().optional() // minutes, default 30
-  })
-  .loose()
-
-export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+export { type AgentConfiguration, AgentConfigurationSchema }
 
 /** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
 export type CherryClawConfiguration = AgentConfiguration
@@ -126,7 +99,7 @@ export const ScheduledTaskEntitySchema = z.object({
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.object({
-  id: z.number(),
+  id: z.string(),
   taskId: z.string(),
   sessionId: z.string().nullable().optional(),
   runAt: z.string(),
@@ -226,7 +199,7 @@ export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntit
 
 // AgentSessionMessageEntity representing a message within a session
 export const AgentSessionMessageEntitySchema = z.object({
-  id: z.number(),
+  id: z.string(),
   sessionId: z.string(),
   role: SessionMessageRoleSchema,
   content: z.unknown(),
@@ -465,7 +438,7 @@ export const SessionIdParamSchema = z.object({
 })
 
 export const SessionMessageIdParamSchema = z.object({
-  messageId: z.coerce.number().int().positive('Message ID must be a positive integer')
+  messageId: z.string().min(1, 'Message ID is required')
 })
 
 // Query validation schemas
