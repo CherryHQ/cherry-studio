@@ -755,7 +755,7 @@ export const DefaultPreferences: PreferenceSchemas = {
       'store',
       'paintings',
       'translate',
-      'miniapp',
+      'mini_app',
       'knowledge',
       'files',
       'code_tools',

@@ -18,8 +18,8 @@ import {
   UpdateMiniAppSchema
 } from '@shared/data/api/schemas/miniApps'
 
-export const miniappHandlers: HandlersFor<MiniAppSchemas> = {
-  '/miniapps': {
+export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
+  '/mini-apps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
       return await miniAppService.list(parsed)
@@ -35,7 +35,7 @@ export const miniappHandlers: HandlersFor<MiniAppSchemas> = {
     }
   },
 
-  '/miniapps/:appId': {
+  '/mini-apps/:appId': {
     GET: async ({ params }) => {
       return await miniAppService.getByAppId(params.appId)
     },
@@ -51,7 +51,7 @@ export const miniappHandlers: HandlersFor<MiniAppSchemas> = {
     }
   },
 
-  '/miniapps/_actions/reset-defaults': {
+  '/mini-apps/_actions/reset-defaults': {
     DELETE: async () => {
       await miniAppService.resetDefaults()
       return undefined

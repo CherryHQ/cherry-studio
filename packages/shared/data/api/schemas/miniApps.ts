@@ -81,7 +81,7 @@ export interface MiniAppSchemas {
    * decision tree, this should become PUT /mini-apps/order with body { items: [...] }.
    * Hold until a unified reorder spec is finalized.
    */
-  '/miniapps': {
+  '/mini-apps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
       query?: ListMiniAppsQuery
@@ -105,7 +105,7 @@ export interface MiniAppSchemas {
    * @example PATCH /mini-apps/qwen { "status": "disabled" }
    * @example DELETE /mini-apps/qwen
    */
-  '/miniapps/:appId': {
+  '/mini-apps/:appId': {
     /** Get a miniapp by appId */
     GET: {
       params: { appId: string }
@@ -134,7 +134,7 @@ export interface MiniAppSchemas {
    *
    * @example DELETE /mini-apps/_actions/reset-defaults
    */
-  '/miniapps/_actions/reset-defaults': {
+  '/mini-apps/_actions/reset-defaults': {
     /** Reset all default app preferences to builtin defaults */
     DELETE: {
       response: void
