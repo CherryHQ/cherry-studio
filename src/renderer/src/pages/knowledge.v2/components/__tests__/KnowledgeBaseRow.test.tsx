@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
+vi.mock('@renderer/pages/knowledge.v2/utils', () => ({
+  formatRelativeTime: () => '2小时前'
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <button {...props}>{children}</button>
@@ -26,6 +30,9 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: {
+      language: 'zh-CN'
+    },
     t: (key: string, options?: { count?: number }) =>
       (
         ({
@@ -33,7 +40,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.context.delete': '删除知识库',
           'knowledge_v2.context.move_to': '移动到',
           'knowledge_v2.context.rename': '重命名',
-          'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`
+          'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`,
+          'knowledge_v2.status.completed': '就绪',
+          'knowledge_v2.status.failed': '失败'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -72,7 +81,7 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 })
 
 describe('KnowledgeBaseRow', () => {
-  it('renders the base name without item count or status dot', () => {
+  it('renders the base name, updated time, and completed status dot', () => {
     const { container } = render(
       <KnowledgeBaseRow
         base={createKnowledgeBase()}
@@ -86,7 +95,24 @@ describe('KnowledgeBaseRow', () => {
     )
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
+    expect(screen.getByText('2小时前')).toBeInTheDocument()
     expect(screen.queryByText('0 文档')).not.toBeInTheDocument()
-    expect(container.querySelector('.bg-emerald-500')).not.toBeInTheDocument()
+    expect(container.querySelector('.bg-primary')).toHaveAttribute('aria-label', '就绪')
+  })
+
+  it('renders the failed status dot from the base status', () => {
+    const { container } = render(
+      <KnowledgeBaseRow
+        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        groups={[createGroup()]}
+        selected={false}
+        onSelectBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
   })
 })

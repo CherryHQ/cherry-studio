@@ -115,7 +115,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.context.delete_confirm_description': '删除后无法恢复',
           'knowledge_v2.context.delete_confirm_title': '确认删除知识库',
           'knowledge_v2.context.rename': '重命名',
-          'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`
+          'knowledge_v2.meta.documents_count': `${options?.count ?? 0} 文档`,
+          'knowledge_v2.status.completed': '就绪',
+          'knowledge_v2.status.failed': '失败'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -144,11 +146,28 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the current selected base item count without a knowledge base status', () => {
-    render(<DetailHeader base={createKnowledgeBase()} itemCount={3} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
+  it('renders the current selected base item count and completed status', () => {
+    const { container } = render(
+      <DetailHeader base={createKnowledgeBase()} itemCount={3} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />
+    )
 
     expect(screen.getByText('3 文档')).toBeInTheDocument()
-    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
+    expect(screen.getByText('就绪')).toBeInTheDocument()
+    expect(container.querySelector('.bg-primary')).toHaveAttribute('aria-label', '就绪')
+  })
+
+  it('renders the failed status from the base status', () => {
+    const { container } = render(
+      <DetailHeader
+        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        itemCount={0}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
   })
 
   it('opens the more menu and shows rename and delete actions', () => {

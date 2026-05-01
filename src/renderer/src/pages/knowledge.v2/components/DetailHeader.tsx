@@ -1,9 +1,12 @@
 import { Button, ConfirmDialog, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { formatRelativeTime } from '@renderer/pages/knowledge.v2/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Clock3, FileText, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { statusDotClassNames } from './statusStyles'
 
 interface DetailHeaderProps {
   base: KnowledgeBase
@@ -21,6 +24,7 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     () => formatRelativeTime(base.updatedAt, i18n.language),
     [base.updatedAt, i18n.language]
   )
+  const statusLabel = t(`knowledge_v2.status.${base.status}`)
 
   const handleRenameBase = useCallback(() => {
     setIsMenuOpen(false)
@@ -39,11 +43,23 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     <>
       <header className="flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-3.5">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-xs">
+          <div
+            className="flex size-6 shrink-0 items-center justify-center rounded text-xs"
+            style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
             <span aria-hidden="true">{base.emoji}</span>
           </div>
 
-          <h1 className="min-w-0 truncate text-[0.6875rem] text-foreground leading-4.125">{base.name}</h1>
+          <div className="min-w-0">
+            <h1 className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[11px] text-foreground">{base.name}</span>
+              <span
+                className={cn('size-1 shrink-0 rounded-full', statusDotClassNames[base.status])}
+                aria-label={statusLabel}
+                title={statusLabel}
+              />
+              <span className="text-[9px] text-muted-foreground/35">{statusLabel}</span>
+            </h1>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-3 text-[0.5625rem] text-muted-foreground/35 leading-3.375">

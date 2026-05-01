@@ -32,7 +32,7 @@ const RecallSearchBar = () => {
   return (
     <div className="shrink-0 px-3 pt-3 pb-2">
       <div className="flex items-center gap-1.5">
-        <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1.25 transition-all focus-within:border-cherry-primary/40 focus-within:ring-1 focus-within:ring-cherry-primary/15">
+        <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border/40 bg-muted/20 px-2.5 py-1.25 transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/15">
           <Search className="size-3 shrink-0 text-muted-foreground/35" />
           <Input
             value={query}
@@ -53,7 +53,7 @@ const RecallSearchBar = () => {
               type="button"
               variant="ghost"
               tabIndex={-1}
-              className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-cherry-primary' : 'text-muted-foreground/30'}`}
+              className={`min-h-0 shrink-0 rounded-none p-0 shadow-none transition-colors hover:bg-transparent hover:text-foreground ${isHistoryOpen ? 'text-primary' : 'text-muted-foreground/30'}`}
               onMouseDown={keepInputFocus}
               onClick={(event) => {
                 event.stopPropagation()
@@ -77,7 +77,7 @@ const RecallSearchBar = () => {
         <Button
           type="button"
           disabled={!canSearch}
-          className="h-7 min-h-7 shrink-0 rounded-lg bg-cherry-primary px-3 text-[0.6875rem] text-white leading-4.125 shadow-none transition-all hover:bg-cherry-primary-dark active:scale-[0.97] disabled:opacity-40"
+          className="h-7 min-h-7 shrink-0 rounded-lg bg-primary px-3 text-[0.6875rem] text-white leading-4.125 shadow-none transition-all hover:bg-primary-hover active:scale-[0.97] disabled:opacity-40"
           onClick={() => {
             runSearch()
             setHistoryOpen(false)

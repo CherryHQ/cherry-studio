@@ -163,6 +163,9 @@ vi.mock('@cherrystudio/ui', () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: {
+      language: 'zh-CN'
+    },
     t: (key: string, options?: { count?: number }) =>
       (
         ({
@@ -183,7 +186,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.context.move_to': '移动到',
           'knowledge_v2.context.delete': '删除知识库',
           'knowledge_v2.context.delete_confirm_title': '确认删除知识库',
-          'knowledge_v2.context.delete_confirm_description': '删除后无法恢复'
+          'knowledge_v2.context.delete_confirm_description': '删除后无法恢复',
+          'knowledge_v2.status.completed': '就绪',
+          'knowledge_v2.status.failed': '失败'
         }) as Record<string, string>
       )[key] ?? (typeof options?.count === 'number' ? `${options.count}` : key)
   })
