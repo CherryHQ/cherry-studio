@@ -100,6 +100,10 @@ class BackupManager {
       const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
       const hasDataRestore = await fs.pathExists(dataRestore)
 
+      if (!hasIndexedDBRestore && !hasLocalStorageRestore && !hasDataRestore) {
+        return
+      }
+
       // Restore IndexedDB
       if (hasIndexedDBRestore) {
         logger.info('[handleStartupRestore] Found IndexedDB.restore directories, completing restoration...')
@@ -559,11 +563,21 @@ class BackupManager {
 
   /**
    * Restore from direct backup format (version 6+)
-   * Directly replaces IndexedDB and Local Storage directories.
-   * On Windows, uses .restore suffix to avoid file lock issues - handled on next startup.
+   * Writes restored IndexedDB / Local Storage / Data to `*.restore` staging directories
+   * on every platform. The atomic swap into place happens at the next startup via
+   * `handleStartupRestore`, before any window or database connection is opened.
+   *
+   * Why the staging step on macOS/Linux too: previously the live directories were
+   * overwritten in place while Chromium and libsql still held them open, which
+   * silently corrupted the freshly restored data on relaunch (see issue #14774).
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
+
+    const userDataPath = app.getPath('userData')
+    const indexedDBDest = path.join(userDataPath, 'IndexedDB.restore')
+    const localStorageDest = path.join(userDataPath, 'Local Storage.restore')
+    const dataDest = path.join(userDataPath, 'Data.restore')
 
     try {
       // Read and validate metadata
@@ -586,24 +600,14 @@ class BackupManager {
 
       onProgress({ stage: 'restoring_database', progress: 30, total: 100 })
 
-      const userDataPath = app.getPath('userData')
-
-      // Restore IndexedDB and Local Storage
-      // On Windows, use .restore suffix to avoid file lock issues - handled on next startup
-      // On macOS/Linux, use direct replacement
-      const restoreSuffix = isWin ? '.restore' : ''
-
       // IndexedDB & Local Storage Path
       const indexedDBSource = path.join(this.tempDir, 'IndexedDB')
-      const indexedDBDest = path.join(userDataPath, 'IndexedDB' + restoreSuffix)
       const localStorageSource = path.join(this.tempDir, 'Local Storage')
-      const localStorageDest = path.join(userDataPath, 'Local Storage' + restoreSuffix)
 
-      logger.debug('[restoreDirect] Restoring database directories...')
+      logger.debug('[restoreDirect] Staging database directories...')
 
-      // Windows: copy to .restore suffix directories (swap happens on next startup)
-      // macOS/Linux: copy directly to target directories
-      // Always remove target directory first to ensure clean overwrite
+      // Always remove the staging directory first to drop any leftovers from a previous
+      // aborted attempt, then copy fresh data in.
       if (await fs.pathExists(indexedDBSource)) {
         await fs.remove(indexedDBDest).catch(() => {})
         await fs.copy(indexedDBSource, indexedDBDest)
@@ -618,16 +622,15 @@ class BackupManager {
 
       //  Restore Data directory
       const dataSource = path.join(this.tempDir, 'Data')
-      const dataDest = path.join(userDataPath, 'Data' + restoreSuffix)
       const dataExists = await fs.pathExists(dataSource)
       const dataFiles = dataExists ? await fs.readdir(dataSource) : []
 
       if (dataExists && dataFiles.length > 0) {
-        logger.debug('[restoreDirect] Restoring Data directory...')
+        logger.debug('[restoreDirect] Staging Data directory...')
 
         const totalSize = await this.getDirSize(dataSource, { dereferenceSymlinks: false })
 
-        await fs.remove(dataDest)
+        await fs.remove(dataDest).catch(() => {})
 
         await this.copyDirWithProgress(
           dataSource,
@@ -643,14 +646,22 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
-      logger.info('[restoreDirect] Restore completed successfully, relaunching app...')
+      logger.info('[restoreDirect] Restore staged successfully, relaunching app to apply...')
 
-      // Relaunch app to load restored data
+      // Relaunch app: handleStartupRestore will swap *.restore directories into place
+      // before any DB connection or renderer window is created.
       app.relaunch()
       app.exit(0)
     } catch (error) {
       logger.error('[restoreDirect] Restore failed:', error as Error)
-      await fs.remove(this.tempDir).catch(() => {})
+      // Drop any half-written staging directories so the next startup does not
+      // swap a partial restore into place.
+      await Promise.all([
+        fs.remove(this.tempDir).catch(() => {}),
+        fs.remove(indexedDBDest).catch(() => {}),
+        fs.remove(localStorageDest).catch(() => {}),
+        fs.remove(dataDest).catch(() => {})
+      ])
       throw error
     }
   }
@@ -674,11 +685,11 @@ class BackupManager {
 
       logger.debug('[restoreLegacy] restore Data directory')
 
-      // Restore Data directory
-      const restoreSuffix = isWin ? '.restore' : ''
+      // Stage Data directory under .restore — handleStartupRestore swaps it into place
+      // on the next launch, after the renderer reload triggered by the legacy restore flow.
       const userDataPath = app.getPath('userData')
       const dataSourcePath = path.join(this.tempDir, 'Data')
-      const dataDestPath = path.join(userDataPath, 'Data' + restoreSuffix)
+      const dataDestPath = path.join(userDataPath, 'Data.restore')
 
       const dataExists = await fs.pathExists(dataSourcePath)
       const dataFiles = dataExists ? await fs.readdir(dataSourcePath) : []
@@ -687,7 +698,7 @@ class BackupManager {
         // Get total size of source directory
         const dataTotalSize = await this.getDirSize(dataSourcePath, { dereferenceSymlinks: false })
 
-        await fs.remove(dataDestPath)
+        await fs.remove(dataDestPath).catch(() => {})
 
         // Use streaming copy
         await this.copyDirWithProgress(
