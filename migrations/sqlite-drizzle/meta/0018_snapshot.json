@@ -1382,7 +1382,7 @@
           "name": "dimensions",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "embedding_model_id": {
@@ -1397,8 +1397,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'completed'"
+          "autoincrement": false
         },
         "error": {
           "name": "error",
@@ -1521,7 +1520,7 @@
         },
         "knowledge_base_status_error_check": {
           "name": "knowledge_base_status_error_check",
-          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n          AND \"knowledge_base\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" > 0\n          AND \"knowledge_base\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },

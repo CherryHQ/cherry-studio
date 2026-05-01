@@ -11,6 +11,7 @@ The current implementation is split into four responsibility areas:
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
+   - Persist `knowledge_base.groupId`, `emoji`, and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
    - Validate `type` / `data` consistency.
    - Persist `knowledge_item.status`, `phase`, and `error`.
    - Reconcile container item status from child item state.
@@ -122,10 +123,19 @@ Current status writes are:
 - `processing, phase = preparing` for active `directory` / `sitemap` preparation
 - `processing, phase = reading` while a leaf item reads source documents
 - `processing, phase = embedding` while a leaf item embeds and writes vectors
+- `processing, phase = null` after a container's own preparation finishes while descendant leaf items are still processing
 - `completed, phase = null` after successful leaf indexing or when a container has no active children
 - `failed, phase = null` on error, cleanup failure, or shutdown interruption
 
 `status` is the aggregate business state. `phase` is runtime progress. Container status is reconciled from its own phase and child statuses.
+
+Current persisted `knowledge_base` columns include:
+
+- `groupId`: nullable group assignment; `null` means ungrouped.
+- `emoji`: user-visible base icon, filled by service/migration defaults.
+- `dimensions`: positive embedding vector width for completed bases; nullable for failed migrated bases with unknown dimensions.
+- `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
+- `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
 
 ## Delete And Reindex
 
@@ -154,23 +164,25 @@ Base deletion follows the same ordering:
 delete-base(baseId)
  -> runtime interrupts base work and returns interrupted item ids
  -> data service deletes the SQLite base and cascaded items
- -> runtime best-effort deletes base vector artifacts
+ -> runtime deletes base vector artifacts
 ```
 
 If SQLite deletion fails after runtime work was interrupted, orchestration marks the interrupted items failed and rethrows the SQLite error.
-If post-SQLite artifact cleanup fails, orchestration logs the cleanup error and keeps the base deletion successful because the durable SQLite rows are already gone.
+If post-SQLite artifact cleanup fails, orchestration logs the cleanup error and rejects the delete call with a partial-deletion error. At that point the durable SQLite rows are already gone, but callers should not report the operation as fully successful because vector artifacts may remain on disk.
 
 Base restore creates a new knowledge base from an existing base when the caller needs a fresh embedding/index setup, such as a migrated base whose legacy embedding model is unavailable or a completed base whose embedding model was changed by the user:
 
 ```text
 restore-base(sourceBaseId, embeddingModelId, dimensions)
  -> data service loads the source base
- -> orchestration creates a new base with source config plus the new embedding model/dimensions
  -> data service loads source root items
- -> orchestration adds those root items to the new base
+ -> orchestration creates a new base with source config plus the new embedding model/dimensions
+ -> orchestration adds each root item to the new base
 ```
 
-The source base is preserved. If item restoration fails after the new base is created, orchestration best-effort deletes the new base and rethrows the original item restoration error.
+`dimensions` must already be resolved for the selected `embeddingModelId` before calling `restore-base`. Automatic flows should fill it from AI Core dimension detection; manual flows accept the user-provided value and rely on the caller to confirm it matches the model. The restore backend only validates that `dimensions` is a positive integer and uses it to create the new vector store; it does not perform a second model probe. If the value does not match the model's actual embedding output size, the mismatch is expected to surface during the subsequent reindex/write-vector phase.
+
+The source base is preserved. For completed source bases, `restore-base` is only valid when `embeddingModelId` or `dimensions` changes; a completed base with unchanged embedding config would be a no-op clone and is rejected. If one or more root items cannot be accepted into the restored base, orchestration aggregates those synchronous acceptance failures, best-effort deletes the new base, and rethrows the aggregate error. Later background indexing failures are recorded on item status instead of this synchronous restore error.
 
 ### Migrated Bases With Missing Embedding Models
 
@@ -179,14 +191,17 @@ During v1-to-v2 migration, a legacy knowledge base may reference an embedding mo
 In that case, migration must preserve the user-created knowledge data instead of dropping the base:
 
 - `knowledge_base.embeddingModelId = null`
+- `knowledge_base.dimensions = valid legacy dimensions, or null when unknown`
 - `knowledge_base.status = failed`
 - `knowledge_base.error = missing_embedding_model`
 - `knowledge_item` rows under that base continue to migrate
 - legacy vectors for that base are skipped because there is no confirmed embedding model contract
 
+`knowledge_base.error` is a shared `KnowledgeBaseErrorCode` value, not a free-form string. The current recoverable base-level error code is `missing_embedding_model`.
+
 This means the migrated base is visible as recoverable data, but it is not usable for search/index operations until the user chooses a valid embedding model.
 
-The recovery path is `knowledge-runtime:restore-base`, not an in-place rebuild:
+The failed-base recovery path is `knowledge-runtime:restore-base`, not an in-place rebuild:
 
 ```text
 user selects a valid embedding model for the failed base

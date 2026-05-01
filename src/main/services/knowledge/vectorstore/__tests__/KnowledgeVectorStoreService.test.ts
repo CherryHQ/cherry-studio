@@ -196,6 +196,23 @@ describe('KnowledgeVectorStoreService', () => {
     expect(loggerInfoMock).toHaveBeenCalledWith('Opening existing vector store from disk', { baseId: base.id })
   })
 
+  it('rejects failed bases with null dimensions before touching the provider', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = {
+      ...createBase(),
+      dimensions: null,
+      embeddingModelId: null,
+      status: 'failed',
+      error: 'missing_embedding_model'
+    } satisfies KnowledgeBase
+
+    await expect(service.createStore(base)).rejects.toThrow('not ready for vector store operations')
+    await expect(service.getStoreIfExists(base)).rejects.toThrow('not ready for vector store operations')
+
+    expect(providerCreateMock).not.toHaveBeenCalled()
+    expect(providerExistsMock).not.toHaveBeenCalled()
+  })
+
   it('returns the cached store from getStoreIfExists without probing the provider', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()

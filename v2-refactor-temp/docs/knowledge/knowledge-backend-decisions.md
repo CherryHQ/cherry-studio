@@ -440,9 +440,8 @@ preparation 被 interrupt 时：
 
 1. `null`
 2. `preparing`
-3. `file_processing`（保留值，当前 runtime 不写入）
-4. `reading`
-5. `embedding`
+3. `reading`
+4. `embedding`
 
 `KnowledgeRuntimeService` 当前写入的 active 状态是：
 
@@ -458,7 +457,7 @@ preparation 被 interrupt 时：
 2. `phase` 是 runtime 内部进度，不应由通用 Data API update DTO 对外暴露
 3. container 的最终状态由自身 phase 和 children 状态自下而上 reconcile
 
-这个拆分解决的核心问题是：`processing/read/embed/file_processing` 不再同时表达总体状态和运行阶段，directory/sitemap 的 preparation 与 children indexing 也不会混在同一个字段里。
+这个拆分解决的核心问题是：`processing/read/embed` 不再同时表达总体状态和运行阶段，directory/sitemap 的 preparation 与 children indexing 也不会混在同一个字段里。
 
 ## 9. Lifecycle 行为
 
@@ -645,10 +644,9 @@ getEmbedModel(base)
 后续只有在以下行为真正落地之后，才应更新本文档：
 
 1. runtime queue 从单队列改成 per-base queue
-2. `phase = file_processing` 真的开始参与 runtime 执行链路
-3. rerank runtime 配置真正接通
-4. `fileProcessorId` 开始参与 runtime 执行链路
-5. 用户添加 nested `directory` / `sitemap`
-6. queue interrupt 从当前 root + fresh descendants 模型改成 stable-loop 或 generation/runId 模型
+2. rerank runtime 配置真正接通
+3. `fileProcessorId` 开始参与 runtime 执行链路
+4. 用户添加 nested `directory` / `sitemap`
+5. queue interrupt 从当前 root + fresh descendants 模型改成 stable-loop 或 generation/runId 模型
 
 在这些行为落地之前，文档应继续以“当前已实现”为准，不提前写成目标设计。

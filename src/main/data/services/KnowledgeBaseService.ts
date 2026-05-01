@@ -15,6 +15,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_EMOJI,
+  DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
   KnowledgeBaseSchema
@@ -51,6 +52,7 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   return KnowledgeBaseSchema.parse({
     ...clean,
     groupId: row.groupId,
+    dimensions: row.dimensions,
     embeddingModelId: row.embeddingModelId,
     error: row.error,
     createdAt: timestampToISO(row.createdAt),
@@ -112,6 +114,8 @@ export class KnowledgeBaseService {
       emoji: dto.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
+      status: DEFAULT_KNOWLEDGE_BASE_STATUS,
+      error: null,
       rerankModelId: dto.rerankModelId ?? null,
       fileProcessorId: dto.fileProcessorId ?? null,
       chunkSize: createConfig.chunkSize,
@@ -166,10 +170,10 @@ export class KnowledgeBaseService {
     if (dto.emoji !== undefined && dto.emoji !== existing.emoji) {
       updates.emoji = dto.emoji
     }
-    if (dto.rerankModelId !== undefined && (dto.rerankModelId ?? undefined) !== existing.rerankModelId) {
+    if (dto.rerankModelId !== undefined && dto.rerankModelId !== existing.rerankModelId) {
       updates.rerankModelId = dto.rerankModelId
     }
-    if (dto.fileProcessorId !== undefined && (dto.fileProcessorId ?? undefined) !== existing.fileProcessorId) {
+    if (dto.fileProcessorId !== undefined && dto.fileProcessorId !== existing.fileProcessorId) {
       updates.fileProcessorId = dto.fileProcessorId
     }
     if (nextConfig.chunkSize !== existing.chunkSize) {
@@ -178,10 +182,10 @@ export class KnowledgeBaseService {
     if (nextConfig.chunkOverlap !== existing.chunkOverlap) {
       updates.chunkOverlap = nextConfig.chunkOverlap
     }
-    if (dto.threshold !== undefined && (dto.threshold ?? undefined) !== existing.threshold) {
+    if (dto.threshold !== undefined && dto.threshold !== existing.threshold) {
       updates.threshold = dto.threshold
     }
-    if (dto.documentCount !== undefined && (dto.documentCount ?? undefined) !== existing.documentCount) {
+    if (dto.documentCount !== undefined && dto.documentCount !== existing.documentCount) {
       updates.documentCount = dto.documentCount
     }
     if (nextConfig.searchMode !== existing.searchMode) {

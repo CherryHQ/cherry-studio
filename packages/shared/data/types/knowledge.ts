@@ -37,7 +37,10 @@ export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
 export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
-export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL = 'missing_embedding_model'
+export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model'] as const
+export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
+export type KnowledgeBaseErrorCode = z.infer<typeof KnowledgeBaseErrorCodeSchema>
+export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCode = 'missing_embedding_model'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
@@ -63,10 +66,10 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   name: z.string().trim().min(1),
   groupId: z.string().trim().min(1).nullable(),
   emoji: KnowledgeBaseEmojiSchema,
-  dimensions: z.number().int().positive(),
+  dimensions: z.number().int().positive().nullable(),
   embeddingModelId: z.string().trim().min(1).nullable(),
   status: KnowledgeBaseStatusSchema,
-  error: z.string().trim().min(1).nullable(),
+  error: KnowledgeBaseErrorCodeSchema.nullable(),
   rerankModelId: z.string().optional(),
   fileProcessorId: z.string().optional(),
   chunkSize: KnowledgeChunkSizeSchema,
@@ -94,6 +97,14 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
         code: 'custom',
         path: ['error'],
         message: 'Completed knowledge base cannot have an error'
+      })
+    }
+
+    if (value.dimensions === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Completed knowledge base requires positive dimensions'
       })
     }
   }
@@ -410,6 +421,10 @@ export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
   sourceBaseId: z.string().trim().min(1),
+  // Dimensions must be the resolved embedding vector size for embeddingModelId.
+  // Automatic callers should fill this from AI Core dimension detection; manual
+  // callers are responsible for confirming the value matches the selected model.
+  // Restore validates shape only and does not probe the model again server-side.
   dimensions: z.number().int().positive(),
   embeddingModelId: z.string().trim().min(1)
 })

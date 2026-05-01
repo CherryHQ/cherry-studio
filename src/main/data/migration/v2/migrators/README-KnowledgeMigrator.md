@@ -24,6 +24,7 @@
    - Legacy base model/rerank model are transformed to `embeddingModelId` and `rerankModelId`.
    - Model references are resolved against migrated `user_model` rows.
    - Missing or dangling embedding model references are preserved as recoverable failed bases with `embeddingModelId = null`, `status = failed`, and `error = missing_embedding_model`.
+   - `error = missing_embedding_model` is the current shared `KnowledgeBaseErrorCode` member for recoverable base-level embedding model loss.
    - Missing or dangling rerank references are cleared with warnings.
    - Migrated base `searchMode` is set to `hybrid`.
    - Legacy preprocess provider id is mapped to `fileProcessorId`.
@@ -53,10 +54,11 @@
      - otherwise -> `idle`
 
 6. Vector dimension dependency
-   - The target `knowledge_base.dimensions` column is required.
+   - Completed bases require a resolved positive `knowledge_base.dimensions` value.
    - The migrator resolves dimensions from the legacy per-base vector DB, using the first non-null `vectors.vector` blob length.
    - This migrator does not copy vector rows. It only prepares the base and item records needed by `KnowledgeVectorMigrator`.
-   - If dimension resolution fails, the base and its items are skipped because the target schema cannot safely materialize that base.
+   - If dimension resolution fails for a base with a resolved embedding model, the base and its items are skipped because the target schema cannot safely materialize a completed base.
+   - If the embedding model is missing or dangling, the base is preserved as `failed`; valid legacy `dimensions` are kept, otherwise `dimensions` is `null`.
 
 ## Field Mappings
 
@@ -68,7 +70,7 @@
 | `name` | `name` | Direct copy |
 | _no legacy grouping field_ | `groupId` | V1 knowledge bases do not carry group metadata; migrate as `null` |
 | _constant_ | `emoji` | Always `📁` during v1 migration |
-| `dimensions` | `dimensions` | Read from legacy vector DB `vectors.vector` blob length (`length(vector)/4`) |
+| `dimensions` | `dimensions` | Completed bases use legacy vector DB blob length (`length(vector)/4`); failed bases keep valid legacy dimensions or `null` |
 | `model` | `embeddingModelId` / `status` / `error` | Converted to `provider::modelId`, then resolved against `user_model`; missing/dangling references produce a failed recoverable base |
 | `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId`, then resolved against `user_model`; dangling references are cleared |
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
@@ -113,7 +115,7 @@
 
 ## Current Constraint Decisions
 
-- `dimensions` is required in target schema.
+- `dimensions` is required only for completed bases; failed migrated bases may have `dimensions = null`.
 - The legacy Redux `dimensions` field is not treated as the migration source of truth.
 - `dimensions` is resolved from legacy vector DB content by inspecting:
   - the per-base legacy vector DB file
@@ -124,7 +126,7 @@
   - the base is skipped
   - all items under that base are skipped
   - a warning is recorded during `prepare`
-- Missing or dangling embedding model identity is cleared to `null`, `status` is set to `failed`, and `error` is set to `missing_embedding_model` with a warning. It does not cause the base or its items to be skipped, and does not require legacy vector DB inspection; valid legacy `dimensions` are preserved, otherwise a positive fallback dimension is used until the user restores the base with a new embedding model.
+- Missing or dangling embedding model identity is cleared to `null`, `status` is set to `failed`, and `error` is set to `missing_embedding_model` with a warning. That error value is a shared `KnowledgeBaseErrorCode`, not a free-form string. It does not require legacy vector DB inspection; valid legacy `dimensions` are preserved and invalid or missing legacy `dimensions` are stored as `null`.
 - Non-structural tuning config (`chunkSize`, `chunkOverlap`, `threshold`, `documentCount`) is migrated on a best-effort basis:
   - valid values are preserved
   - invalid `chunkSize` / `chunkOverlap` values are replaced with defaults

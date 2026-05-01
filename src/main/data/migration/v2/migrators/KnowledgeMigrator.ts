@@ -27,7 +27,7 @@ import {
   transformKnowledgeBase,
   transformKnowledgeItem
 } from './mappings/KnowledgeMappings'
-import { resolveModelReference } from './transformers/ModelTransformers'
+import { legacyModelToUniqueId, resolveModelReference } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('KnowledgeMigrator')
 
@@ -99,10 +99,10 @@ const getInvalidKnowledgeBaseConfigWarning = (
   return `Knowledge base ${base.id}: cleared invalid config fields: ${clearedFields.join(', ')}`
 }
 
-const resolveMigratedFailedBaseDimensions = (base: LegacyKnowledgeBaseWithIdentity): number => {
+const resolveLegacyKnowledgeBaseDimensions = (base: LegacyKnowledgeBaseWithIdentity): number | null => {
   return typeof base.dimensions === 'number' && Number.isInteger(base.dimensions) && base.dimensions > 0
     ? base.dimensions
-    : 1
+    : null
 }
 
 export class KnowledgeMigrator extends BaseMigrator {
@@ -440,17 +440,14 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const initialBaseResult = transformKnowledgeBase(validBase, resolveMigratedFailedBaseDimensions(validBase))
-        const embeddingResolution = resolveModelReference(
-          initialBaseResult.value.embeddingModelId ?? null,
-          validModelIds
-        )
+        const embeddingModelId = legacyModelToUniqueId(validBase.model ?? null)
+        const embeddingResolution = resolveModelReference(embeddingModelId, validModelIds)
         const resolvedDimensions =
           embeddingResolution.kind === 'resolved'
             ? await this.resolveDimensionsForBase(validBase, ctx.paths.knowledgeBaseDir)
-            : { dimensions: initialBaseResult.value.dimensions, reason: 'ok' as const }
+            : { dimensions: resolveLegacyKnowledgeBaseDimensions(validBase), reason: 'legacy_dimensions' as const }
 
-        if (resolvedDimensions.dimensions === null) {
+        if (embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions === null) {
           this.skippedCount += 1 + items.length
           this.sourceCount += items.length
           const warningMessage = `Skipped knowledge base ${validBase.id}: ${resolvedDimensions.reason}`
@@ -458,10 +455,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const baseResult =
-          resolvedDimensions.dimensions === initialBaseResult.value.dimensions
-            ? initialBaseResult
-            : transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
         const preparedBase = { ...baseResult.value }
 
         if (embeddingResolution.kind === 'resolved') {

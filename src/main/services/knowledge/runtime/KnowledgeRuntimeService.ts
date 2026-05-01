@@ -17,7 +17,13 @@ import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
 import { KnowledgeQueueManager } from '../queue/KnowledgeQueueManager'
-import type { KnowledgeQueueTaskContext, KnowledgeQueueTaskEntry } from '../queue/types'
+import type {
+  IndexLeafTaskEntry,
+  KnowledgeQueueTaskContext,
+  KnowledgeQueueTaskDescriptor,
+  KnowledgeQueueTaskEntry,
+  PrepareRootTaskEntry
+} from '../queue/types'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { rerankKnowledgeSearchResults } from '../rerank/rerank'
 import type { IndexableKnowledgeItem } from '../types/items'
@@ -38,6 +44,13 @@ const EXPECTED_QUEUE_INTERRUPT_REASONS = new Set([
   DELETE_INTERRUPTED_REASON,
   REINDEX_INTERRUPTED_REASON
 ])
+const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
+
+type QueueTaskLogContext = {
+  baseId: string
+  itemId: string
+  kind: KnowledgeQueueTaskEntry['kind']
+}
 
 const mapChunkDocument = (chunk: {
   id_: string
@@ -215,6 +228,10 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
+    if (!SEARCH_TOKEN_PATTERN.test(query)) {
+      return []
+    }
+
     const base = await knowledgeBaseService.getById(baseId)
     const model = getEmbedModel(base)
     const embedResult = await embedMany({ model, values: [query] })
@@ -291,12 +308,11 @@ export class KnowledgeRuntimeService extends BaseService {
     let didStart = false
     const promise = this.queue.enqueue({
       base,
-      baseId: base.id,
-      itemId: item.id,
+      item,
       kind: 'index-leaf',
       execute: (context) => {
         didStart = true
-        return this.executeIndexTask(base, item, context)
+        return this.executeIndexTask(context)
       }
     })
 
@@ -321,12 +337,11 @@ export class KnowledgeRuntimeService extends BaseService {
     let didStart = false
     const promise = this.queue.enqueue({
       base,
-      baseId: base.id,
-      itemId: item.id,
+      item,
       kind: 'prepare-root',
       execute: (context) => {
         didStart = true
-        return this.executePrepareTask(base, item, context)
+        return this.executePrepareTask(context)
       }
     })
 
@@ -343,11 +358,8 @@ export class KnowledgeRuntimeService extends BaseService {
     })
   }
 
-  private async executePrepareTask(
-    base: KnowledgeBase,
-    item: KnowledgeItemOf<'directory'> | KnowledgeItemOf<'sitemap'>,
-    context: KnowledgeQueueTaskContext
-  ): Promise<void> {
+  private async executePrepareTask(context: KnowledgeQueueTaskContext<PrepareRootTaskEntry>): Promise<void> {
+    const { base, item } = context
     const createdItemIds = new Set<string>([item.id])
 
     try {
@@ -382,11 +394,9 @@ export class KnowledgeRuntimeService extends BaseService {
     }
   }
 
-  private async executeIndexTask(
-    base: KnowledgeBase,
-    item: IndexableKnowledgeItem,
-    context: KnowledgeQueueTaskContext
-  ): Promise<void> {
+  private async executeIndexTask(context: KnowledgeQueueTaskContext<IndexLeafTaskEntry>): Promise<void> {
+    const { base, item } = context
+
     try {
       await this.indexLeafItem(base, item, context)
     } catch (error) {
@@ -404,7 +414,7 @@ export class KnowledgeRuntimeService extends BaseService {
   private async indexLeafItem(
     base: KnowledgeBase,
     item: IndexableKnowledgeItem,
-    context: KnowledgeQueueTaskContext
+    context: KnowledgeQueueTaskContext<IndexLeafTaskEntry>
   ): Promise<void> {
     context.signal.throwIfAborted()
     await context.runWithBaseWriteLock(() =>
@@ -547,7 +557,7 @@ export class KnowledgeRuntimeService extends BaseService {
   private async failItemsAfterEnqueueRejection(
     itemIds: string[],
     error: unknown,
-    context: Pick<KnowledgeQueueTaskEntry, 'baseId' | 'itemId' | 'kind'>
+    context: QueueTaskLogContext
   ): Promise<void> {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     logger.error('Knowledge queue rejected runtime task before execution', normalizedError, context)
@@ -604,7 +614,7 @@ export class KnowledgeRuntimeService extends BaseService {
     }
   }
 
-  private async cleanupInterruptedEntries(entries: KnowledgeQueueTaskEntry[], reason: string): Promise<void> {
+  private async cleanupInterruptedEntries(entries: KnowledgeQueueTaskDescriptor[], reason: string): Promise<void> {
     const cleanupEntries = await this.expandInterruptedEntries(entries)
     await this.deleteVectorsForQueueEntries(cleanupEntries)
     await this.persistFailureStateBestEffort(
@@ -617,7 +627,7 @@ export class KnowledgeRuntimeService extends BaseService {
   }
 
   private async expandInterruptedEntries(
-    entries: KnowledgeQueueTaskEntry[]
+    entries: KnowledgeQueueTaskDescriptor[]
   ): Promise<Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }>> {
     const expandedEntries: Array<{ base: KnowledgeBase; baseId: string; itemIds: string[] }> = []
 

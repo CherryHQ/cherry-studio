@@ -46,7 +46,7 @@ describe('chunkDocuments', () => {
     const documents = [
       new Document({
         text: 'hello world',
-        metadata: { source: 'https://example.com/1' }
+        metadata: { source: 'https://example.com/1', page: 1 }
       }),
       new Document({
         text: 'goodbye world',
@@ -65,6 +65,7 @@ describe('chunkDocuments', () => {
       chunkIndex: 0,
       tokenCount: expect.any(Number)
     })
+    expect(metadata[0]).not.toHaveProperty('page')
     expect(metadata[1]).toMatchObject({
       source: 'https://example.com/2',
       itemId: 'item-1',
@@ -75,14 +76,25 @@ describe('chunkDocuments', () => {
     expect(metadata[0]?.tokenCount).toBeGreaterThan(0)
   })
 
-  it('rejects chunk metadata without a source', () => {
+  it('throws before returning chunks when source metadata is missing', () => {
     expect(() =>
-      KnowledgeChunkMetadataSchema.parse({
-        itemId: 'item-1',
-        itemType: 'note',
-        chunkIndex: 0,
-        tokenCount: 2
-      })
+      chunkDocuments(createBase(), createItem(), [
+        new Document({
+          text: 'hello world',
+          metadata: {}
+        })
+      ])
+    ).toThrow()
+  })
+
+  it('throws before returning chunks when source metadata is blank', () => {
+    expect(() =>
+      chunkDocuments(createBase(), createItem(), [
+        new Document({
+          text: 'hello world',
+          metadata: { source: '   ' }
+        })
+      ])
     ).toThrow()
   })
 })

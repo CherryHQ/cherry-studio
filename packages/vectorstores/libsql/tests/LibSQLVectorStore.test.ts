@@ -1335,6 +1335,66 @@ describe('LibSQLVectorStore', () => {
       expect(() => chunks[0]?.getEmbedding()).toThrow('Embedding not set')
     })
 
+    it('should fall back to external_id when listed metadata has no itemId', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-without-item-id',
+          text: 'chunk without item id',
+          embedding: [0.1, 0.2],
+          metadata: { chunkIndex: 0, tokenCount: 4 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.metadata).toMatchObject({
+        itemId: 'item-1',
+        chunkIndex: 0,
+        tokenCount: 4
+      })
+    })
+
+    it('should tolerate invalid metadata JSON when listing documents', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      await store.add([
+        new TextNode({
+          id_: 'chunk-invalid-list-metadata',
+          text: 'chunk with invalid list metadata',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 5 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+      await client.execute({
+        sql: 'UPDATE test_embeddings SET metadata = ? WHERE id = ?',
+        args: ['{"itemId":', 'chunk-invalid-list-metadata']
+      })
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.id_).toBe('chunk-invalid-list-metadata')
+      expect(chunks[0]?.metadata).toEqual({ itemId: 'item-1' })
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to parse metadata JSON for row chunk-invalid-list-metadata',
+        expect.any(Error)
+      )
+
+      warnSpy.mockRestore()
+    })
+
     it('should respect collection when listing documents', async () => {
       store.setCollection('collection-a')
       await store.add([

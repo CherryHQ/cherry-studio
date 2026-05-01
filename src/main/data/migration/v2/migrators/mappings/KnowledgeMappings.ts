@@ -203,7 +203,7 @@ export const resolveLegacyFileMetadata = (
 
 export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
-  dimensions: number
+  dimensions: number | null
 ): KnowledgeBaseTransformResult => {
   const embeddingModelId = legacyModelToUniqueId(base.model ?? null)
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)

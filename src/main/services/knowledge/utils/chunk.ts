@@ -1,4 +1,4 @@
-import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import { type KnowledgeBase, KnowledgeChunkMetadataSchema, type KnowledgeItem } from '@shared/data/types/knowledge'
 import { Document, type Document as VectorStoreDocument, SentenceSplitter } from '@vectorstores/core'
 import { estimateTokenCount } from 'tokenx'
 
@@ -15,16 +15,17 @@ export function chunkDocuments(base: KnowledgeBase, item: KnowledgeItem, documen
     return chunks.map((chunk) => {
       const currentChunkIndex = chunkIndex
       chunkIndex += 1
+      const metadata = KnowledgeChunkMetadataSchema.parse({
+        source: document.metadata.source,
+        itemId: item.id,
+        itemType: item.type,
+        chunkIndex: currentChunkIndex,
+        tokenCount: estimateTokenCount(chunk)
+      })
 
       return new Document({
         text: chunk,
-        metadata: {
-          ...document.metadata,
-          itemId: item.id,
-          itemType: item.type,
-          chunkIndex: currentChunkIndex,
-          tokenCount: estimateTokenCount(chunk)
-        }
+        metadata
       })
     })
   })

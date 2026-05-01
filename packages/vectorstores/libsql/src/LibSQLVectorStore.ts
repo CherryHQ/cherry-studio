@@ -768,7 +768,7 @@ export class LibSQLVectorStore extends BaseVectorStore {
     const collectionCriteria = this.collection.length ? 'AND collection = ?' : ''
     const sql = `SELECT id, external_id, document, metadata FROM ${this.tableName}
                  WHERE external_id = ? ${collectionCriteria}
-                 ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER), id`
+                 ORDER BY CASE WHEN json_valid(metadata) THEN CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER) ELSE NULL END, id`
     const params = this.collection.length ? [refDocId, this.collection] : [refDocId]
     const results = await this.clientInstance.execute({
       sql,

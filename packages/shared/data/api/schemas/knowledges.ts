@@ -33,11 +33,11 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
 export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
-    rerankModelId: z.string().nullable().optional(),
-    fileProcessorId: z.string().nullable().optional(),
-    threshold: KnowledgeBaseEntitySchema.shape.threshold.nullable().optional(),
-    documentCount: KnowledgeBaseEntitySchema.shape.documentCount.nullable().optional(),
-    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha.nullable().optional()
+    rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
+    fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
+    threshold: KnowledgeBaseEntitySchema.shape.threshold,
+    documentCount: KnowledgeBaseEntitySchema.shape.documentCount,
+    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 

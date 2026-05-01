@@ -1,8 +1,13 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeQueueManager } from '../KnowledgeQueueManager'
-import type { EnqueueKnowledgeTaskOptions } from '../types'
+import type {
+  EnqueueKnowledgeTaskOptions,
+  IndexLeafTaskEntry,
+  KnowledgeQueueTaskDescriptor,
+  PrepareRootTaskEntry
+} from '../types'
 
 const { loggerErrorMock, loggerWarnMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn(),
@@ -48,18 +53,87 @@ function createDeferred<T = void>() {
   return { promise, reject, resolve }
 }
 
-function createTask(
+function createNoteItem(
+  id = 'note-1',
+  status: KnowledgeItem['status'] = 'processing',
+  baseId = BASE_ID
+): KnowledgeItemOf<'note'> {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
+  return {
+    id,
+    baseId,
+    groupId: null,
+    type: 'note',
+    data: { source: id, content: `hello ${id}` },
+    ...lifecycle,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+function createDirectoryItem(
+  id = 'dir-1',
+  status: KnowledgeItem['status'] = 'processing',
+  baseId = BASE_ID
+): KnowledgeItemOf<'directory'> {
+  const lifecycle =
+    status === 'failed'
+      ? ({ status, phase: null, error: `failed ${id}` } as const)
+      : ({ status, phase: null, error: null } as const)
+
+  return {
+    id,
+    baseId,
+    groupId: null,
+    type: 'directory',
+    data: { source: `/docs/${id}`, path: `/docs/${id}` },
+    ...lifecycle,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+function createIndexTask(
   itemId: string,
-  execute: EnqueueKnowledgeTaskOptions['execute'],
-  baseId = BASE_ID,
-  kind: EnqueueKnowledgeTaskOptions['kind'] = 'index-leaf'
-): EnqueueKnowledgeTaskOptions {
+  execute: EnqueueKnowledgeTaskOptions<IndexLeafTaskEntry>['execute'],
+  baseId = BASE_ID
+): EnqueueKnowledgeTaskOptions<IndexLeafTaskEntry> {
+  return {
+    base: { ...BASE, id: baseId },
+    kind: 'index-leaf',
+    item: createNoteItem(itemId, 'processing', baseId),
+    execute
+  }
+}
+
+function createPrepareTask(
+  itemId: string,
+  execute: EnqueueKnowledgeTaskOptions<PrepareRootTaskEntry>['execute'],
+  baseId = BASE_ID
+): EnqueueKnowledgeTaskOptions<PrepareRootTaskEntry> {
+  return {
+    base: { ...BASE, id: baseId },
+    kind: 'prepare-root',
+    item: createDirectoryItem(itemId, 'processing', baseId),
+    execute
+  }
+}
+
+function createTaskDescriptor(
+  itemId: string,
+  kind: KnowledgeQueueTaskDescriptor['kind'] = 'index-leaf',
+  baseId = BASE_ID
+): KnowledgeQueueTaskDescriptor {
   return {
     base: { ...BASE, id: baseId },
     baseId,
-    kind,
     itemId,
-    execute
+    itemType: kind === 'index-leaf' ? 'note' : 'directory',
+    kind
   }
 }
 
@@ -84,12 +158,13 @@ describe('KnowledgeQueueManager', () => {
     const manager = new KnowledgeQueueManager()
     const execute = vi.fn(async () => undefined)
 
-    const firstPromise = manager.enqueue(createTask('item-1', execute))
-    const secondPromise = manager.enqueue(createTask('item-1', execute))
+    const firstPromise = manager.enqueue(createIndexTask('item-1', execute))
+    const secondPromise = manager.enqueue(createIndexTask('item-1', execute))
 
     expect(secondPromise).toBe(firstPromise)
     await expect(firstPromise).resolves.toBeUndefined()
     expect(execute).toHaveBeenCalledTimes(1)
+    expect(manager.getSnapshot()).toEqual({ pending: [], running: [] })
   })
 
   it('preserves task kind in snapshots and interrupted entries', async () => {
@@ -98,26 +173,17 @@ describe('KnowledgeQueueManager', () => {
     const started = createDeferred()
 
     const taskPromise = manager.enqueue(
-      createTask(
-        'dir-1',
-        async () => {
-          started.resolve()
-          await blocker.promise
-        },
-        BASE_ID,
-        'prepare-root'
-      )
+      createPrepareTask('dir-1', async () => {
+        started.resolve()
+        await blocker.promise
+      })
     )
     const taskError = captureError(taskPromise)
 
     await started.promise
 
-    expect(manager.getSnapshot().running).toEqual([
-      { base: BASE, baseId: BASE_ID, itemId: 'dir-1', kind: 'prepare-root' }
-    ])
-    expect(manager.interruptItems(['dir-1'], 'deleted')).toEqual([
-      { base: BASE, baseId: BASE_ID, itemId: 'dir-1', kind: 'prepare-root' }
-    ])
+    expect(manager.getSnapshot().running).toEqual([createTaskDescriptor('dir-1', 'prepare-root')])
+    expect(manager.interruptItems(['dir-1'], 'deleted')).toEqual([createTaskDescriptor('dir-1', 'prepare-root')])
 
     blocker.resolve()
     await expect(taskError).resolves.toMatchObject({ message: 'deleted' })
@@ -130,7 +196,7 @@ describe('KnowledgeQueueManager', () => {
 
     const runningPromises = blockers.map((deferred, index) =>
       manager.enqueue(
-        createTask(`running-${index}`, async (context) => {
+        createIndexTask(`running-${index}`, async (context) => {
           executedItemIds.push(context.itemId)
           await deferred.promise
         })
@@ -142,20 +208,19 @@ describe('KnowledgeQueueManager', () => {
     })
 
     const pendingPromise = manager.enqueue(
-      createTask('pending', async (context) => {
+      createIndexTask('pending', async (context) => {
         executedItemIds.push(context.itemId)
       })
     )
     const pendingError = captureError(pendingPromise)
 
-    expect(manager.getSnapshot().pending).toEqual([
-      { base: BASE, baseId: BASE_ID, itemId: 'pending', kind: 'index-leaf' }
-    ])
+    expect(manager.getSnapshot().pending).toEqual([createTaskDescriptor('pending')])
 
     const interruptedEntries = manager.interruptItems(['pending'], 'deleted')
 
-    expect(interruptedEntries).toEqual([{ base: BASE, baseId: BASE_ID, itemId: 'pending', kind: 'index-leaf' }])
+    expect(interruptedEntries).toEqual([createTaskDescriptor('pending')])
     await expect(pendingError).resolves.toMatchObject({ message: 'deleted' })
+    expect(manager.getSnapshot().pending).toEqual([])
 
     for (const blocker of blockers) {
       blocker.resolve()
@@ -174,7 +239,7 @@ describe('KnowledgeQueueManager', () => {
     let signalAbortedAfterFinish = false
 
     const taskPromise = manager.enqueue(
-      createTask('running', async (context) => {
+      createIndexTask('running', async (context) => {
         started.resolve()
         await finish.promise
         signalAbortedAfterFinish = context.signal.aborted
@@ -206,7 +271,7 @@ describe('KnowledgeQueueManager', () => {
     const finish = createDeferred()
 
     const taskPromise = manager.enqueue(
-      createTask('running', async (context) => {
+      createIndexTask('running', async (context) => {
         started.resolve()
         await finish.promise
         context.signal.throwIfAborted()
@@ -229,7 +294,7 @@ describe('KnowledgeQueueManager', () => {
 
     const runningPromises = blockers.map((deferred, index) =>
       manager.enqueue(
-        createTask(`running-${index}`, async (context) => {
+        createIndexTask(`running-${index}`, async (context) => {
           executedItemIds.push(context.itemId)
           await deferred.promise
         })
@@ -242,7 +307,7 @@ describe('KnowledgeQueueManager', () => {
     })
 
     const pendingPromise = manager.enqueue(
-      createTask('pending', async (context) => {
+      createIndexTask('pending', async (context) => {
         executedItemIds.push(context.itemId)
       })
     )
@@ -263,13 +328,8 @@ describe('KnowledgeQueueManager', () => {
     }
 
     await expect(resetPromise).resolves.toEqual([
-      ...Array.from({ length: 5 }, (_, index) => ({
-        base: BASE,
-        baseId: BASE_ID,
-        itemId: `running-${index}`,
-        kind: 'index-leaf'
-      })),
-      { base: BASE, baseId: BASE_ID, itemId: 'pending', kind: 'index-leaf' }
+      ...Array.from({ length: 5 }, (_, index) => createTaskDescriptor(`running-${index}`)),
+      createTaskDescriptor('pending')
     ])
     await expect(Promise.all(runningErrors)).resolves.toEqual(
       Array.from({ length: 5 }, () => expect.objectContaining({ message: 'reset' }))
@@ -285,7 +345,7 @@ describe('KnowledgeQueueManager', () => {
     const executeAfterReset = vi.fn(async () => undefined)
 
     const runningPromise = manager.enqueue(
-      createTask('running', async () => {
+      createIndexTask('running', async () => {
         started.resolve()
         await finish.promise
       })
@@ -295,19 +355,17 @@ describe('KnowledgeQueueManager', () => {
     await started.promise
 
     const resetPromise = manager.reset('reset')
-    const rejectedDuringReset = captureError(manager.enqueue(createTask('during-reset', executeAfterReset)))
+    const rejectedDuringReset = captureError(manager.enqueue(createIndexTask('during-reset', executeAfterReset)))
 
     await expect(rejectedDuringReset).resolves.toMatchObject({ message: 'reset' })
     expect(executeAfterReset).not.toHaveBeenCalled()
 
     finish.resolve()
 
-    await expect(resetPromise).resolves.toEqual([
-      { base: BASE, baseId: BASE_ID, itemId: 'running', kind: 'index-leaf' }
-    ])
+    await expect(resetPromise).resolves.toEqual([createTaskDescriptor('running')])
     await expect(runningError).resolves.toMatchObject({ message: 'reset' })
 
-    await expect(manager.enqueue(createTask('after-reset', executeAfterReset))).resolves.toBeUndefined()
+    await expect(manager.enqueue(createIndexTask('after-reset', executeAfterReset))).resolves.toBeUndefined()
     expect(executeAfterReset).toHaveBeenCalledOnce()
   })
 
@@ -317,7 +375,7 @@ describe('KnowledgeQueueManager', () => {
     const finish = createDeferred()
 
     const runningPromise = manager.enqueue(
-      createTask('running', async () => {
+      createIndexTask('running', async () => {
         started.resolve()
         await finish.promise
       })
@@ -333,9 +391,7 @@ describe('KnowledgeQueueManager', () => {
 
     finish.resolve()
 
-    await expect(resetPromise).resolves.toEqual([
-      { base: BASE, baseId: BASE_ID, itemId: 'running', kind: 'index-leaf' }
-    ])
+    await expect(resetPromise).resolves.toEqual([createTaskDescriptor('running')])
     await expect(runningError).resolves.toMatchObject({ message: 'first-reset' })
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
@@ -348,7 +404,7 @@ describe('KnowledgeQueueManager', () => {
     const events: string[] = []
 
     const firstPromise = manager.enqueue(
-      createTask('first', async (context) => {
+      createIndexTask('first', async (context) => {
         await context.runWithBaseWriteLock(async () => {
           events.push('lock:first')
           firstInWriteLock.resolve()
@@ -358,7 +414,7 @@ describe('KnowledgeQueueManager', () => {
       })
     )
     const secondPromise = manager.enqueue(
-      createTask('second', async (context) => {
+      createIndexTask('second', async (context) => {
         secondStarted.resolve()
         await context.runWithBaseWriteLock(async () => {
           events.push('lock:second')
@@ -385,7 +441,7 @@ describe('KnowledgeQueueManager', () => {
     const events: string[] = []
 
     const firstPromise = manager.enqueue(
-      createTask('first', async (context) => {
+      createIndexTask('first', async (context) => {
         await context.runWithBaseWriteLock(async () => {
           events.push('lock:first')
           firstInWriteLock.resolve()
@@ -395,7 +451,7 @@ describe('KnowledgeQueueManager', () => {
       })
     )
     const secondPromise = manager.enqueue(
-      createTask('second', async (context) => {
+      createIndexTask('second', async (context) => {
         secondStarted.resolve()
         await context.runWithBaseWriteLock(async () => {
           events.push('lock:second')
@@ -421,16 +477,17 @@ describe('KnowledgeQueueManager', () => {
     const failure = new Error('execute failed')
 
     const failedPromise = manager.enqueue(
-      createTask('failed', async () => {
+      createIndexTask('failed', async () => {
         throw failure
       })
     )
     const failedError = captureError(failedPromise)
-    const nextPromise = manager.enqueue(createTask('next', executeNext))
+    const nextPromise = manager.enqueue(createIndexTask('next', executeNext))
 
     await expect(failedError).resolves.toBe(failure)
     await expect(nextPromise).resolves.toBeUndefined()
     expect(executeNext).toHaveBeenCalledOnce()
+    expect(manager.getSnapshot()).toEqual({ pending: [], running: [] })
     expect(loggerErrorMock).toHaveBeenCalledWith('Knowledge queue task failed unexpectedly', failure, {
       baseId: BASE_ID,
       itemId: 'failed',
@@ -445,7 +502,7 @@ describe('KnowledgeQueueManager', () => {
     const failure = new Error('failed after abort')
 
     const taskPromise = manager.enqueue(
-      createTask('running', async (context) => {
+      createIndexTask('running', async (context) => {
         started.resolve()
         await finish.promise
 

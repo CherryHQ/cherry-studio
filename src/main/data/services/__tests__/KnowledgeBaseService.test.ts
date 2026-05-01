@@ -3,7 +3,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateKnowledgeBaseDto } from '@shared/data/types/knowledge'
+import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -173,20 +173,37 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('status constraints', () => {
-    it('allows persisted failed bases with null embedding model ids and non-empty errors', async () => {
+    it('does not define a database default for status', async () => {
+      const result = await dbh.client.execute('PRAGMA table_info(`knowledge_base`)')
+      const statusColumn = result.rows.find((row) => row.name === 'status')
+
+      expect(statusColumn).toBeDefined()
+      expect(statusColumn?.dflt_value).toBeNull()
+    })
+
+    it('allows persisted failed bases with null embedding model ids, null dimensions, and non-empty errors', async () => {
       await expect(
         seedKnowledgeBase({
+          dimensions: null,
           embeddingModelId: null,
           status: 'failed',
-          error: 'missing_embedding_model'
+          error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
         })
       ).resolves.toBeDefined()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
       expect(row).toMatchObject({
+        dimensions: null,
         embeddingModelId: null,
         status: 'failed',
-        error: 'missing_embedding_model'
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+
+      await expect(service.getById('kb-1')).resolves.toMatchObject({
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       })
     })
 
@@ -194,6 +211,7 @@ describe('KnowledgeBaseService', () => {
       await expect(
         seedKnowledgeBase({
           embeddingModelId: null,
+          dimensions: null,
           status: 'completed',
           error: null
         })
@@ -213,7 +231,7 @@ describe('KnowledgeBaseService', () => {
           id: 'kb-failed-empty-error',
           embeddingModelId: null,
           status: 'failed',
-          error: ''
+          error: '' as typeof knowledgeBaseTable.$inferInsert.error
         })
       ).rejects.toThrow()
     })

@@ -1,4 +1,5 @@
 import { FILE_TYPE } from '@shared/data/types/file'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
@@ -43,7 +44,7 @@ describe('KnowledgeMappings', () => {
         id: 'kb-1',
         embeddingModelId: null,
         status: 'failed',
-        error: 'missing_embedding_model'
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       })
     })
   })

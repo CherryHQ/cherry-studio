@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
@@ -8,12 +9,25 @@ import type { KnowledgeVectorStore } from './types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
+function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is KnowledgeBase & { dimensions: number } {
+  if (base.status === 'completed' && typeof base.dimensions === 'number' && base.dimensions > 0) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(
+    'createKnowledgeVectorStore',
+    `Knowledge base '${base.id}' is not ready for vector store operations`
+  )
+}
+
 @Injectable('KnowledgeVectorStoreService')
 @ServicePhase(Phase.WhenReady)
 export class KnowledgeVectorStoreService extends BaseService {
   private instanceCache = new Map<string, KnowledgeVectorStore>()
 
   async createStore(base: KnowledgeBase): Promise<KnowledgeVectorStore> {
+    assertVectorStoreReadyBase(base)
+
     if (this.instanceCache.has(base.id)) {
       logger.debug('Reusing cached vector store', { baseId: base.id })
       return this.instanceCache.get(base.id)!
@@ -33,6 +47,8 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   async getStoreIfExists(base: KnowledgeBase): Promise<KnowledgeVectorStore | undefined> {
+    assertVectorStoreReadyBase(base)
+
     const cachedStore = this.instanceCache.get(base.id)
     if (cachedStore) {
       logger.debug('Using cached vector store from getStoreIfExists', { baseId: base.id })

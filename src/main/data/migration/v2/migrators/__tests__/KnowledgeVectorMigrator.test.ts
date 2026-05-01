@@ -4,7 +4,10 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { createClient } from '@libsql/client'
-import { KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KnowledgeChunkMetadataSchema
+} from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -321,6 +324,115 @@ describe('KnowledgeVectorMigrator', () => {
     ).toBe(true)
   })
 
+  it('prepare records unsupported vector encodings in a distinct warning bucket', async () => {
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [createMigratedBase()],
+      migratedItems: [createMigratedItem('item-file')],
+      knowledgeVectorSource: {
+        loadBase: vi.fn().mockResolvedValue({
+          status: 'ok',
+          dbPath: path.join(knowledgeBaseDir, 'kb-1'),
+          rows: [
+            {
+              pageContent: 'file chunk',
+              uniqueLoaderId: 'loader-file',
+              source: '/tmp/file-1.md',
+              vector: { status: 'unsupported_encoding', encoding: 'string' }
+            }
+          ]
+        })
+      } as unknown as KnowledgeVectorSourceReader,
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBasePlans).toHaveLength(1)
+    expect(migrator.preparedBasePlans[0].rows).toEqual([])
+    expect(migrator.skippedCount).toBe(1)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Skipped knowledge vector records (unsupported_vector_encoding): count=1') &&
+          warning.includes("unsupported vector encoding 'string'") &&
+          warning.includes("uniqueLoaderId 'loader-file'")
+      )
+    ).toBe(true)
+    expect(result.warnings?.some((warning) => warning.includes('missing_vector_payload'))).toBe(false)
+  })
+
+  it('prepare keeps missing vector payloads in the existing warning bucket', async () => {
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [createMigratedBase()],
+      migratedItems: [createMigratedItem('item-file')],
+      knowledgeVectorSource: {
+        loadBase: vi.fn().mockResolvedValue({
+          status: 'ok',
+          dbPath: path.join(knowledgeBaseDir, 'kb-1'),
+          rows: [
+            {
+              pageContent: 'file chunk',
+              uniqueLoaderId: 'loader-file',
+              source: '/tmp/file-1.md',
+              vector: { status: 'missing' }
+            }
+          ]
+        })
+      } as unknown as KnowledgeVectorSourceReader,
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-1',
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file',
+                  type: 'file',
+                  uniqueId: 'loader-file'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBasePlans).toHaveLength(1)
+    expect(migrator.preparedBasePlans[0].rows).toEqual([])
+    expect(migrator.skippedCount).toBe(1)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Skipped knowledge vector records (missing_vector_payload): count=1') &&
+          warning.includes("vector payload missing for uniqueLoaderId 'loader-file'")
+      )
+    ).toBe(true)
+    expect(result.warnings?.some((warning) => warning.includes('unsupported_vector_encoding'))).toBe(false)
+  })
+
   it('does not create a vector index during schema bootstrap', async () => {
     const migrator = new KnowledgeVectorMigrator()
     const client = {
@@ -606,9 +718,49 @@ describe('KnowledgeVectorMigrator', () => {
     expect(migrator.preparedBasePlans).toEqual([])
     expect(
       result.warnings?.some((warning) =>
-        warning.includes('Skipped knowledge vector records (missing_embedding_model): count=1')
+        warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`)
       )
     ).toBe(true)
+  })
+
+  it('flushes skipped warning buckets when prepare fails after partial progress', async () => {
+    const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [
+        createMigratedBase({ id: 'kb-missing-model', embeddingModelId: null, status: 'failed' }),
+        createMigratedBase({ id: 'kb-load-fails' })
+      ],
+      migratedItems: [createMigratedItem('item-file', { baseId: 'kb-load-fails' })],
+      knowledgeVectorSource: { loadBase } as any,
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: 'kb-missing-model',
+              name: 'Missing Model Base',
+              items: []
+            },
+            {
+              id: 'kb-load-fails',
+              name: 'Load Fails Base',
+              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator()
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(false)
+    expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
+    expect(
+      result.warnings?.some((warning) =>
+        warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`)
+      )
+    ).toBe(true)
+    expect(result.warnings).toContain('loadBase failed')
   })
 
   it('assigns chunkIndex per migrated item in read order', async () => {

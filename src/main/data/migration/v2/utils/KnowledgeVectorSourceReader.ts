@@ -12,8 +12,13 @@ export interface LegacyKnowledgeVectorRow {
   pageContent: string
   uniqueLoaderId: string
   source: string
-  vector: number[] | null
+  vector: LegacyKnowledgeVectorDecodeResult
 }
+
+export type LegacyKnowledgeVectorDecodeResult =
+  | { status: 'decoded'; value: number[] }
+  | { status: 'missing' }
+  | { status: 'unsupported_encoding'; encoding: string }
 
 export type LegacyKnowledgeVectorLoadResult =
   | { status: 'ok'; dbPath: string; rows: LegacyKnowledgeVectorRow[] }
@@ -102,30 +107,49 @@ export class KnowledgeVectorSourceReader {
   // client/runtime combinations. In local verification on macOS this returns
   // ArrayBuffer, but other environments may expose Float32Array or another
   // ArrayBufferView, so keep the decoder intentionally permissive.
-  private deserializeLegacyVector(raw: LibsqlValue): number[] | null {
+  private describeLegacyVectorEncoding(raw: LibsqlValue): string {
+    if (raw === null) {
+      return 'null'
+    }
+
+    if (raw === undefined) {
+      return 'undefined'
+    }
+
+    if (typeof raw !== 'object') {
+      return typeof raw
+    }
+
+    return raw.constructor?.name ?? 'Object'
+  }
+
+  private deserializeLegacyVector(raw: LibsqlValue): LegacyKnowledgeVectorDecodeResult {
     if (raw === null || raw === undefined) {
-      return null
+      return { status: 'missing' }
     }
 
     if (raw instanceof Float32Array) {
-      return Array.from(raw)
+      return { status: 'decoded', value: Array.from(raw) }
     }
 
     if (raw instanceof ArrayBuffer) {
-      return Array.from(new Float32Array(raw))
+      return { status: 'decoded', value: Array.from(new Float32Array(raw)) }
     }
 
     if (ArrayBuffer.isView(raw)) {
       const view = raw as ArrayBufferView
-      return Array.from(
-        new Float32Array(view.buffer, view.byteOffset, view.byteLength / Float32Array.BYTES_PER_ELEMENT)
-      )
+      return {
+        status: 'decoded',
+        value: Array.from(
+          new Float32Array(view.buffer, view.byteOffset, view.byteLength / Float32Array.BYTES_PER_ELEMENT)
+        )
+      }
     }
 
     if (Array.isArray(raw)) {
-      return raw.map((value) => Number(value))
+      return { status: 'decoded', value: raw.map((value) => Number(value)) }
     }
 
-    return null
+    return { status: 'unsupported_encoding', encoding: this.describeLegacyVectorEncoding(raw) }
   }
 }

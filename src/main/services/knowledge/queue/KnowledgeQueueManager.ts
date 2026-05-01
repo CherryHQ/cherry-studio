@@ -1,7 +1,14 @@
 import { loggerService } from '@logger'
 import PQueue from 'p-queue'
 
-import type { EnqueueKnowledgeTaskOptions, KnowledgeQueueSnapshot, KnowledgeQueueTaskEntry } from './types'
+import type {
+  EnqueueKnowledgeTaskOptions,
+  IndexLeafTaskEntry,
+  KnowledgeQueueSnapshot,
+  KnowledgeQueueTaskContext,
+  KnowledgeQueueTaskDescriptor,
+  PrepareRootTaskEntry
+} from './types'
 
 const logger = loggerService.withContext('KnowledgeQueueManager')
 const DEFAULT_CONCURRENCY = 5
@@ -22,7 +29,8 @@ type QueueEntry = EnqueueKnowledgeTaskOptions & {
   resolve: () => void
   runPromise?: Promise<void>
   promise: Promise<void>
-  status: KnowledgeQueueTaskStatus | 'settled'
+  status: KnowledgeQueueTaskStatus
+  settled: boolean
 }
 
 export class KnowledgeQueueManager {
@@ -37,7 +45,7 @@ export class KnowledgeQueueManager {
     this.queue = this.createQueue()
   }
 
-  async reset(reason: string): Promise<KnowledgeQueueTaskEntry[]> {
+  async reset(reason: string): Promise<KnowledgeQueueTaskDescriptor[]> {
     if (this.isResetting) {
       throw this.createResetError()
     }
@@ -64,19 +72,19 @@ export class KnowledgeQueueManager {
       return Promise.reject(this.createResetError())
     }
 
-    const existingEntry = this.entries.get(options.itemId)
+    const existingEntry = this.entries.get(options.item.id)
     if (existingEntry) {
       return existingEntry.promise
     }
 
     const entry = this.createEntry(options)
-    this.entries.set(entry.itemId, entry)
+    this.entries.set(entry.item.id, entry)
     this.schedule(entry)
 
     return entry.promise
   }
 
-  interruptItems(itemIds: string[], reason: string): KnowledgeQueueTaskEntry[] {
+  interruptItems(itemIds: string[], reason: string): KnowledgeQueueTaskDescriptor[] {
     const interruptedEntries = this.getEntriesByIds(itemIds)
 
     for (const entry of interruptedEntries) {
@@ -91,27 +99,22 @@ export class KnowledgeQueueManager {
       }
     }
 
-    return interruptedEntries.map((entry) => ({
-      base: entry.base,
-      baseId: entry.baseId,
-      itemId: entry.itemId,
-      kind: entry.kind
-    }))
+    return interruptedEntries.map((entry) => this.createDescriptor(entry))
   }
 
-  interruptBase(baseId: string, reason: string): KnowledgeQueueTaskEntry[] {
-    const itemIds = [...this.entries.values()].filter((entry) => entry.baseId === baseId).map((entry) => entry.itemId)
+  interruptBase(baseId: string, reason: string): KnowledgeQueueTaskDescriptor[] {
+    const itemIds = [...this.entries.values()].filter((entry) => entry.base.id === baseId).map((entry) => entry.item.id)
 
     return this.interruptItems(itemIds, reason)
   }
 
-  interruptAll(reason: string): KnowledgeQueueTaskEntry[] {
+  interruptAll(reason: string): KnowledgeQueueTaskDescriptor[] {
     return this.interruptItems([...this.entries.keys()], reason)
   }
 
   async waitForRunning(itemIds: string[]): Promise<void> {
     const runningPromises = this.getEntriesByIds(itemIds)
-      .filter((entry) => entry.status === 'running')
+      .filter((entry) => !entry.settled && entry.status === 'running')
       .map((entry) => entry.runPromise ?? entry.promise)
 
     if (runningPromises.length === 0) {
@@ -128,15 +131,12 @@ export class KnowledgeQueueManager {
     }
 
     for (const entry of this.entries.values()) {
-      if (entry.status === 'settled') {
+      if (entry.settled) {
         continue
       }
 
       snapshot[entry.status].push({
-        base: entry.base,
-        baseId: entry.baseId,
-        itemId: entry.itemId,
-        kind: entry.kind
+        ...this.createDescriptor(entry)
       })
     }
 
@@ -162,13 +162,14 @@ export class KnowledgeQueueManager {
       promise,
       reject,
       resolve,
+      settled: false,
       status: 'pending'
     }
   }
 
   private schedule(entry: QueueEntry): void {
     void this.queue.add(async () => {
-      if (this.entries.get(entry.itemId) !== entry || entry.status !== 'pending') {
+      if (this.entries.get(entry.item.id) !== entry || entry.settled || entry.status !== 'pending') {
         return
       }
 
@@ -181,14 +182,7 @@ export class KnowledgeQueueManager {
   private async executeEntry(entry: QueueEntry): Promise<void> {
     try {
       this.throwIfInterrupted(entry)
-      await entry.execute({
-        base: entry.base,
-        baseId: entry.baseId,
-        itemId: entry.itemId,
-        kind: entry.kind,
-        signal: entry.controller.signal,
-        runWithBaseWriteLock: (task) => this.runWithBaseWriteLock(entry, task)
-      })
+      await this.executeQueueEntry(entry)
 
       this.throwIfInterrupted(entry)
       this.resolveEntry(entry)
@@ -197,8 +191,8 @@ export class KnowledgeQueueManager {
 
       if (taskError !== entry.interruptError) {
         logger.error('Knowledge queue task failed unexpectedly', taskError, {
-          baseId: entry.baseId,
-          itemId: entry.itemId,
+          baseId: entry.base.id,
+          itemId: entry.item.id,
           kind: entry.kind
         })
       }
@@ -207,10 +201,41 @@ export class KnowledgeQueueManager {
     }
   }
 
+  private async executeQueueEntry(entry: QueueEntry): Promise<void> {
+    if (entry.kind === 'index-leaf') {
+      const context: KnowledgeQueueTaskContext<IndexLeafTaskEntry> = {
+        base: entry.base,
+        baseId: entry.base.id,
+        item: entry.item,
+        itemId: entry.item.id,
+        itemType: entry.item.type,
+        kind: entry.kind,
+        signal: entry.controller.signal,
+        runWithBaseWriteLock: (task) => this.runWithBaseWriteLock(entry, task)
+      }
+
+      await entry.execute(context)
+      return
+    }
+
+    const context: KnowledgeQueueTaskContext<PrepareRootTaskEntry> = {
+      base: entry.base,
+      baseId: entry.base.id,
+      item: entry.item,
+      itemId: entry.item.id,
+      itemType: entry.item.type,
+      kind: entry.kind,
+      signal: entry.controller.signal,
+      runWithBaseWriteLock: (task) => this.runWithBaseWriteLock(entry, task)
+    }
+
+    await entry.execute(context)
+  }
+
   private async runWithBaseWriteLock<T>(entry: QueueEntry, task: () => Promise<T>): Promise<T> {
     this.throwIfInterrupted(entry)
 
-    const { baseId } = entry
+    const baseId = entry.base.id
     const previousLock = this.baseWriteLocks.get(baseId) ?? Promise.resolve()
     let releaseCurrentLock!: () => void
     const currentLock = new Promise<void>((resolve) => {
@@ -250,27 +275,37 @@ export class KnowledgeQueueManager {
   }
 
   private deleteEntry(entry: QueueEntry): void {
-    if (this.entries.get(entry.itemId) === entry) {
-      this.entries.delete(entry.itemId)
+    if (this.entries.get(entry.item.id) === entry) {
+      this.entries.delete(entry.item.id)
+    }
+  }
+
+  private createDescriptor(entry: QueueEntry): KnowledgeQueueTaskDescriptor {
+    return {
+      base: entry.base,
+      baseId: entry.base.id,
+      itemId: entry.item.id,
+      itemType: entry.item.type,
+      kind: entry.kind
     }
   }
 
   private resolveEntry(entry: QueueEntry): void {
-    if (entry.status === 'settled') {
+    if (entry.settled) {
       return
     }
 
-    entry.status = 'settled'
+    entry.settled = true
     entry.resolve()
     this.deleteEntry(entry)
   }
 
   private rejectEntry(entry: QueueEntry, error: Error): void {
-    if (entry.status === 'settled') {
+    if (entry.settled) {
       return
     }
 
-    entry.status = 'settled'
+    entry.settled = true
     entry.reject(error)
     this.deleteEntry(entry)
   }

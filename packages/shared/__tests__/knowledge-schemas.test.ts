@@ -10,6 +10,7 @@ import {
   CreateKnowledgeItemSchema,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
   KnowledgeRuntimeAddItemInputSchema,
@@ -266,6 +267,35 @@ describe('Knowledge base schemas', () => {
     }
   })
 
+  it('requires completed bases to have positive dimensions and allows failed bases with unknown dimensions', () => {
+    const failedBase = {
+      id: 'kb-1',
+      name: 'KB',
+      embeddingModelId: null,
+      groupId: null,
+      emoji: '📁',
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      searchMode: 'hybrid',
+      createdAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z'
+    }
+    const completedBase = {
+      ...failedBase,
+      embeddingModelId: 'embed-model',
+      status: 'completed',
+      error: null
+    }
+
+    expect(KnowledgeBaseSchema.safeParse({ ...completedBase, dimensions: null }).success).toBe(false)
+    expect(KnowledgeBaseSchema.safeParse({ ...completedBase, dimensions: 0 }).success).toBe(false)
+    expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: null }).success).toBe(true)
+    expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 0 }).success).toBe(false)
+    expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 768 }).success).toBe(true)
+  })
+
   it('requires persisted config to be present in entity schema', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
@@ -496,7 +526,7 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
     groupId: null,
     emoji: '📁',
     status: 'failed',
-    error: 'missing_embedding_model',
+    error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     searchMode: 'hybrid',
@@ -561,6 +591,14 @@ it('rejects invalid knowledge base status error combinations', () => {
       error: ''
     }).success
   ).toBe(false)
+  expect(
+    KnowledgeBaseSchema.safeParse({
+      ...validBase,
+      embeddingModelId: null,
+      status: 'failed',
+      error: 'unknown_error'
+    }).success
+  ).toBe(false)
 })
 
 it('rejects embedding model changes in patch schema', () => {
@@ -571,11 +609,25 @@ it('rejects embedding model changes in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
 })
 
-it('rejects chunk config null clears in patch schema', () => {
+it('rejects optional config null clears in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkOverlap: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ searchMode: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ rerankModelId: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ fileProcessorId: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ documentCount: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ hybridAlpha: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: 1024, chunkOverlap: 200 }).success).toBe(true)
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({
+      rerankModelId: 'rerank-1',
+      fileProcessorId: 'processor-1',
+      threshold: 0.5,
+      documentCount: 5,
+      hybridAlpha: 0.7
+    }).success
+  ).toBe(true)
 })
 
 it('keeps patch groupId aligned with topic semantics', () => {

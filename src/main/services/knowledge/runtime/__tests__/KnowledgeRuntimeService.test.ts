@@ -203,6 +203,26 @@ function createDirectoryItem(id = 'dir-1', status: KnowledgeItem['status'] = 'id
   }
 }
 
+function createQueueDescriptor(
+  base: KnowledgeBase,
+  item: KnowledgeItem,
+  kind: 'index-leaf' | 'prepare-root'
+): {
+  base: KnowledgeBase
+  baseId: string
+  itemId: string
+  itemType: KnowledgeItem['type']
+  kind: 'index-leaf' | 'prepare-root'
+} {
+  return {
+    base,
+    baseId: base.id,
+    itemId: item.id,
+    itemType: item.type,
+    kind
+  }
+}
+
 function createDeferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -510,6 +530,24 @@ describe('KnowledgeRuntimeService', () => {
     await vi.waitFor(() => {
       expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', { error: 'read failed' })
     })
+    expect(vectorStoreAddMock).not.toHaveBeenCalled()
+  })
+
+  it('marks an item failed when chunk metadata validation throws before embedding', async () => {
+    const service = new KnowledgeRuntimeService()
+    const item = createNoteItem('note-1', 'processing')
+    chunkDocumentsMock.mockImplementationOnce(() => {
+      throw new Error('Invalid chunk metadata')
+    })
+
+    await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+
+    await vi.waitFor(() => {
+      expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(item.id, 'failed', {
+        error: 'Invalid chunk metadata'
+      })
+    })
+    expect(embedDocumentsMock).not.toHaveBeenCalled()
     expect(vectorStoreAddMock).not.toHaveBeenCalled()
   })
 
@@ -1249,11 +1287,15 @@ describe('KnowledgeRuntimeService', () => {
   it('merges interrupted same-base entries before deleting vectors on stop', async () => {
     const service = new KnowledgeRuntimeService()
     const base = createBase()
+    const firstItem = createNoteItem('note-1')
+    const secondItem = createNoteItem('note-2')
     const waitForRunningMock = vi.fn().mockResolvedValue(undefined)
-    const interruptAllMock = vi.fn().mockReturnValue([
-      { base, baseId: base.id, itemId: 'note-1', kind: 'index-leaf' },
-      { base, baseId: base.id, itemId: 'note-2', kind: 'index-leaf' }
-    ])
+    const interruptAllMock = vi
+      .fn()
+      .mockReturnValue([
+        createQueueDescriptor(base, firstItem, 'index-leaf'),
+        createQueueDescriptor(base, secondItem, 'index-leaf')
+      ])
 
     ;(
       service as unknown as {
@@ -1322,6 +1364,16 @@ describe('KnowledgeRuntimeService', () => {
 
     await expect(service.search('kb-1', 'hello')).rejects.toThrow('Failed to embed search query')
 
+    expect(vectorStoreQueryMock).not.toHaveBeenCalled()
+  })
+
+  it('returns empty search results for punctuation-only queries without embedding', async () => {
+    const service = new KnowledgeRuntimeService()
+
+    await expect(service.search('kb-1', '...')).resolves.toEqual([])
+
+    expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
+    expect(embedManyMock).not.toHaveBeenCalled()
     expect(vectorStoreQueryMock).not.toHaveBeenCalled()
   })
 

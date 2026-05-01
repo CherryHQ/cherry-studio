@@ -1,4 +1,5 @@
 import {
+  type KnowledgeBaseErrorCode,
   type KnowledgeBaseStatus,
   type KnowledgeItemData,
   type KnowledgeItemPhase,
@@ -21,12 +22,12 @@ export const knowledgeBaseTable = sqliteTable(
     name: text().notNull(),
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     emoji: text().notNull(),
-    dimensions: integer().notNull(),
+    dimensions: integer(),
 
     embeddingModelId: text().references(() => userModelTable.id),
 
-    status: text().$type<KnowledgeBaseStatus>().notNull().default('completed'),
-    error: text(),
+    status: text().$type<KnowledgeBaseStatus>().notNull(),
+    error: text().$type<KnowledgeBaseErrorCode>(),
 
     // Preserve the base when an optional rerank model is removed.
     rerankModelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
@@ -51,6 +52,8 @@ export const knowledgeBaseTable = sqliteTable(
         (
           ${t.status} = 'completed'
           AND ${t.embeddingModelId} IS NOT NULL
+          AND ${t.dimensions} IS NOT NULL
+          AND ${t.dimensions} > 0
           AND ${t.error} IS NULL
         )
         OR (
@@ -105,6 +108,8 @@ export const knowledgeItemTable = sqliteTable(
           AND ${t.error} IS NULL
         )
         OR (
+          -- Containers may stay processing after their own prepare phase ends
+          -- while descendant leaf items continue reading/embedding.
           ${t.status} = 'processing'
           AND ${t.error} IS NULL
         )

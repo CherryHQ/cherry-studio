@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import { createClient } from '@libsql/client'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
@@ -341,7 +342,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       dimensions: 768,
       embeddingModelId: null,
       status: 'failed',
-      error: 'missing_embedding_model',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
       rerankModelId: null
     })
     expect(migrator.preparedItems).toHaveLength(1)
@@ -647,6 +648,57 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.skippedCount).toBe(0)
   })
 
+  it('prepare clears dangling rerank model reference while keeping resolved embedding model', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+      dimensions: 1024,
+      reason: 'ok'
+    })
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-dangling-rerank',
+                name: 'KB dangling rerank',
+                model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
+                rerankModel: { id: 'missing-rerank', name: 'missing-rerank', provider: 'silicon' },
+                items: []
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      },
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockResolvedValue([{ id: 'silicon::BAAI/bge-m3' }])
+        })
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBases).toHaveLength(1)
+    expect(migrator.preparedBases[0]).toMatchObject({
+      id: 'kb-dangling-rerank',
+      embeddingModelId: 'silicon::BAAI/bge-m3',
+      status: 'completed',
+      error: null,
+      rerankModelId: null
+    })
+    expect(result.warnings).toContain(
+      'Knowledge base kb-dangling-rerank: dangling rerank model reference silicon::missing-rerank was cleared'
+    )
+  })
+
   it('prepare infers item status from legacy uniqueId', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
@@ -699,7 +751,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(statusById.get('i-failed-with-unique-id')).toBe('completed')
   })
 
-  it('prepare preserves base and items when embedding model is missing', async () => {
+  it('prepare preserves failed missing-model bases with null dimensions when legacy dimensions are missing', async () => {
     const migrator = new KnowledgeMigrator() as any
     const resolveDimensionsForBase = vi
       .spyOn(migrator, 'resolveDimensionsForBase')
@@ -735,16 +787,56 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0]).toMatchObject({
       id: 'kb-no-model',
-      dimensions: 1,
+      dimensions: null,
       embeddingModelId: null,
       status: 'failed',
-      error: 'missing_embedding_model'
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
     })
     expect(migrator.preparedItems).toHaveLength(2)
     expect(migrator.skippedCount).toBe(0)
     expect(migrator.sourceCount).toBe(3)
     expect(resolveDimensionsForBase).not.toHaveBeenCalled()
-    expect(result.warnings?.some((warning: string) => warning.includes('missing embedding model reference'))).toBe(true)
+  })
+
+  it('prepare preserves legacy dimensions for failed bases when embedding model is missing', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const resolveDimensionsForBase = vi
+      .spyOn(migrator, 'resolveDimensionsForBase')
+      .mockRejectedValue(new Error('should not inspect vector DB for missing models'))
+
+    const ctx = {
+      paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase' },
+      sources: {
+        reduxState: {
+          getCategory: vi.fn().mockReturnValue({
+            bases: [
+              {
+                id: 'kb-no-model',
+                name: 'KB without model',
+                dimensions: 768,
+                items: [{ id: 'i1', type: 'note', content: 'test' }]
+              }
+            ]
+          })
+        },
+        dexieExport: {
+          tableExists: vi.fn().mockResolvedValue(false),
+          readTable: vi.fn()
+        }
+      }
+    } as any
+
+    const result = await migrator.prepare(ctx)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBases[0]).toMatchObject({
+      id: 'kb-no-model',
+      dimensions: 768,
+      embeddingModelId: null,
+      status: 'failed',
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+    })
+    expect(resolveDimensionsForBase).not.toHaveBeenCalled()
   })
 
   it('prepare skips duplicate base ids and duplicate item ids with warnings', async () => {
@@ -1020,7 +1112,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         dimensions: 768,
         embeddingModelId: null,
         status: 'failed',
-        error: 'missing_embedding_model',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
         rerankModelId: null,
         fileProcessorId: null,
         chunkSize: 1024,
@@ -1068,7 +1160,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         id: 'kb-missing-model',
         embeddingModelId: null,
         status: 'failed',
-        error: 'missing_embedding_model'
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       }),
       [
         expect.objectContaining({

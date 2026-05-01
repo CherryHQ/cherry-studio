@@ -14,8 +14,12 @@ This document records the current V2 knowledge target schema, migration constrai
 - Persisted columns:
   - `id`
   - `name`
+  - `groupId`
+  - `emoji`
   - `dimensions`
   - `embeddingModelId`
+  - `status`
+  - `error`
   - `rerankModelId`
   - `fileProcessorId`
   - `chunkSize`
@@ -139,7 +143,6 @@ This document records the current V2 knowledge target schema, migration constrai
 - The schema-level `phase` set is:
   - `null`
   - `preparing`
-  - `file_processing`
   - `reading`
   - `embedding`
 - Current runtime writes:
@@ -148,7 +151,7 @@ This document records the current V2 knowledge target schema, migration constrai
   - `processing, phase = embedding` while a leaf item is embedding / writing vectors
   - `completed, phase = null` after successful leaf indexing, or when a container has no active children
   - `failed, phase = null` on runtime failure, interrupt cleanup failure, or shutdown interruption
-- `file_processing` remains reserved until `fileProcessorId` participates in runtime execution.
+- `fileProcessorId` is persisted in base config, but it does not participate in runtime execution yet.
 - In other words:
   - queue structure is implementation detail
   - `status` is aggregate business state

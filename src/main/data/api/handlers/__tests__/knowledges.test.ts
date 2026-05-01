@@ -196,6 +196,23 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
+    it('should reject optional config null clears before calling the service', async () => {
+      await expect(
+        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
+          params: { id: 'kb-1' },
+          body: {
+            rerankModelId: null,
+            fileProcessorId: null,
+            threshold: null,
+            documentCount: null,
+            hybridAlpha: null
+          }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
+    })
+
     it('should reject invalid emoji in PATCH bodies before calling the service', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({

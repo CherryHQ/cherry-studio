@@ -56,6 +56,28 @@ async function createLegacyVectorDb(
   client.close()
 }
 
+async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnType: string, vectorValue: unknown) {
+  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+
+  await client.execute(`
+    CREATE TABLE vectors (
+      id TEXT PRIMARY KEY,
+      pageContent TEXT UNIQUE,
+      uniqueLoaderId TEXT NOT NULL,
+      source TEXT NOT NULL,
+      vector ${vectorColumnType},
+      metadata TEXT
+    )
+  `)
+  const encodedValue = vectorValue == null ? 'NULL' : `'${String(vectorValue).replaceAll("'", "''")}'`
+  await client.execute(`
+    INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
+    VALUES ('legacy-row-1', 'hello vector', 'loader-1', '/tmp/file.md', ${encodedValue}, '{}')
+  `)
+
+  client.close()
+}
+
 describe('KnowledgeVectorSourceReader', () => {
   let tempRoot: string
 
@@ -90,7 +112,47 @@ describe('KnowledgeVectorSourceReader', () => {
           pageContent: 'hello vector',
           uniqueLoaderId: 'loader-1',
           source: '/tmp/file.md',
-          vector: [1, 2]
+          vector: { status: 'decoded', value: [1, 2] }
+        }
+      ]
+    })
+  })
+
+  it('marks null legacy vector payloads as missing', async () => {
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+    const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+    await createLegacyVectorDbWithRawVector(dbPath, 'BLOB', null)
+
+    await expect(reader.loadBase('kb-1')).resolves.toEqual({
+      status: 'ok',
+      dbPath,
+      rows: [
+        {
+          pageContent: 'hello vector',
+          uniqueLoaderId: 'loader-1',
+          source: '/tmp/file.md',
+          vector: { status: 'missing' }
+        }
+      ]
+    })
+  })
+
+  it('marks unknown legacy vector encodings as unsupported', async () => {
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+    const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+    await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
+
+    await expect(reader.loadBase('kb-1')).resolves.toEqual({
+      status: 'ok',
+      dbPath,
+      rows: [
+        {
+          pageContent: 'hello vector',
+          uniqueLoaderId: 'loader-1',
+          source: '/tmp/file.md',
+          vector: { status: 'unsupported_encoding', encoding: 'string' }
         }
       ]
     })

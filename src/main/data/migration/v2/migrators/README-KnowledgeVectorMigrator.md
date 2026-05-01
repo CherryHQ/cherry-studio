@@ -45,6 +45,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 4. Embedding reuse
    - Legacy `vector` payloads are decoded from `F32_BLOB` and written directly to `embeddings`.
+   - Unsupported vector encodings are skipped under `unsupported_vector_encoding`, separate from truly missing payloads.
    - Existing chunk embeddings are reused; this migrator does not re-embed content.
 
 5. Chunk identity regeneration
@@ -85,6 +86,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows mapped to non-indexable container item types such as `directory` or `sitemap`
 - Vector rows with missing or empty `vector` payloads
+- Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
 - Vector rows whose source cannot be resolved from either the legacy row or migrated `knowledge_item.data.source`
 
 If every legacy vector row under one base is skipped, the rebuilt V2 vector store for that base is expected to be empty. This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.

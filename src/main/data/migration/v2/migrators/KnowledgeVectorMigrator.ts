@@ -6,6 +6,7 @@ import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeChunkMetadataSchema,
   type KnowledgeItemData,
   type KnowledgeItemType
@@ -339,7 +340,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
-          this.recordSkippedWarning('missing_embedding_model', warningMessage)
+          this.recordSkippedWarning(KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, warningMessage)
+          continue
+        }
+
+        const dimensions = base.dimensions
+        if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: invalid dimensions`
+          this.recordSkippedWarning('invalid_dimensions', warningMessage)
           continue
         }
 
@@ -403,7 +411,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             continue
           }
 
-          if (!row.vector || row.vector.length === 0) {
+          if (row.vector.status === 'unsupported_encoding') {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
+            this.recordSkippedWarning('unsupported_vector_encoding', warningMessage)
+            continue
+          }
+
+          if (row.vector.status === 'missing' || row.vector.value.length === 0) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
             this.recordSkippedWarning('missing_vector_payload', warningMessage)
@@ -428,7 +443,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             source: sourceText,
             chunkIndex,
             tokenCount: estimateTokenCount(row.pageContent),
-            embedding: row.vector
+            embedding: row.vector.value
           })
         }
 
@@ -438,7 +453,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         this.preparedBasePlans.push({
           baseId: base.id,
           dbPath: source.dbPath,
-          dimensions: base.dimensions,
+          dimensions,
           rows,
           sourceRowCount: vectorRows.length
         })
@@ -452,11 +467,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
+      this.flushSkippedWarnings()
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('KnowledgeVectorMigrator.prepare failed', error as Error)
       return {
         success: false,
         itemCount: this.sourceCount,
-        warnings: [error instanceof Error ? error.message : String(error)]
+        warnings: [...this.warnings, errorMessage]
       }
     }
   }
