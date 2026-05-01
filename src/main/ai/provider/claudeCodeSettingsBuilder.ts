@@ -58,7 +58,6 @@ import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { CherryClawConfiguration } from '@types'
 import { app } from 'electron'
 
 import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './claude-code'
@@ -233,7 +232,7 @@ export async function buildClaudeCodeSessionSettings(
   const spawnClaudeCodeProcess = buildSpawnProcess()
 
   // 7. MCP servers (session + built-in)
-  const sessionConfig = session.configuration as CherryClawConfiguration | undefined
+  const sessionConfig = session.configuration
   const soulEnabled = sessionConfig?.soul_enabled === true
   const isAssistant = sessionConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, soulEnabled, isAssistant)
@@ -377,7 +376,7 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 }
 
 function buildToolPermissions(session: AgentSessionEntity, approvalEmitter: ToolApprovalEmitterHolder) {
-  const sessionConfig = session.configuration as CherryClawConfiguration | undefined
+  const sessionConfig = session.configuration
   const soulEnabled = sessionConfig?.soul_enabled === true
   const isAssistant = sessionConfig?.builtin_role === 'assistant'
 
@@ -452,7 +451,7 @@ async function buildSystemPrompt(
   cwd: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agent = await agentService.getAgent(session.agentId)
-  const agentConfig = agent?.configuration as CherryClawConfiguration | undefined
+  const agentConfig = agent?.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
 
   const builtinRole = session.configuration?.builtin_role as string | undefined

@@ -7,7 +7,7 @@ import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provi
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { application } from '@main/core/application'
-import type { CherryClawConfiguration, ScheduledTaskEntity } from '@types'
+import type { ScheduledTaskEntity } from '@types'
 
 import { channelManager } from './channels/ChannelManager'
 import { readHeartbeat } from './cherryclaw/heartbeat'
@@ -62,13 +62,15 @@ class SchedulerService {
     logger.info('Scheduler poll loop stopped')
   }
 
-  /** Ensure the poll loop is running after agent config changes. */
+  /** Ensure the poll loop is running iff active tasks exist. */
   async syncScheduler(): Promise<void> {
     const hasActive = await taskService.hasActiveTasks()
     if (hasActive) {
       this.startLoop()
+    } else if (this.running) {
+      this.stopLoop()
     } else {
-      logger.debug('No active tasks, skipping scheduler start')
+      logger.debug('No active tasks, scheduler not running')
     }
   }
 
@@ -209,7 +211,7 @@ class SchedulerService {
         throw new Error(`Agent not found: ${task.agentId}`)
       }
 
-      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      const config = agent.configuration ?? {}
       const workspacePath = agent.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file

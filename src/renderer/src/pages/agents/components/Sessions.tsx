@@ -1,8 +1,8 @@
 import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
 import { cacheService } from '@renderer/data/CacheService'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -40,20 +40,17 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
 
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const listRef = useRef<DraggableVirtualListRef>(null)
-  const client = useAgentClient()
 
   // Build sessionId → channelType map from channels table
   const [channelTypeMap, setChannelTypeMap] = useState<Record<string, string>>({})
   useEffect(() => {
-    if (!client) {
-      return
-    }
+    if (!agentId) return
 
-    client
-      .listChannels({ agentId: agentId })
-      .then(({ data }) => {
+    dataApiService
+      .get('/channels' as never, { query: { agentId } })
+      .then((result: any) => {
         const map: Record<string, string> = {}
-        for (const ch of data) {
+        for (const ch of result ?? []) {
           if (ch.sessionId) {
             map[ch.sessionId] = ch.type
           }
@@ -61,7 +58,7 @@ const Sessions = ({ agentId, onSelectItem }: SessionsProps) => {
         setChannelTypeMap(map)
       })
       .catch(() => {})
-  }, [client, agentId, sessions])
+  }, [agentId])
 
   // Use refs to always read the latest values inside the throttled handler,
   // avoiding stale closures caused by recreating the throttle on each render.

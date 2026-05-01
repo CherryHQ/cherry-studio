@@ -1,4 +1,9 @@
-import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeBase,
+  type KnowledgeSearchResult
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
@@ -24,14 +29,23 @@ const { getRerankAdapter } = await import('../adapters')
 const { executeRerankRequest, rerankKnowledgeSearchResults, resolveRerankRuntime } = await import('../rerank')
 
 function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
+  const now = new Date().toISOString()
+
   return {
-    id: 'kb-1',
-    name: 'Knowledge Base',
-    dimensions: 1024,
-    embeddingModelId: 'ollama::nomic-embed-text',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ...overrides
+    ...overrides,
+    id: overrides.id ?? 'kb-1',
+    name: overrides.name ?? 'Knowledge Base',
+    groupId: overrides.groupId ?? null,
+    emoji: overrides.emoji ?? '📁',
+    dimensions: overrides.dimensions ?? 1024,
+    embeddingModelId: overrides.embeddingModelId ?? 'ollama::nomic-embed-text',
+    status: overrides.status ?? 'completed',
+    error: overrides.error ?? null,
+    chunkSize: overrides.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: overrides.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: overrides.searchMode ?? 'hybrid',
+    createdAt: overrides.createdAt ?? now,
+    updatedAt: overrides.updatedAt ?? now
   }
 }
 
@@ -40,13 +54,25 @@ function createSearchResults(): KnowledgeSearchResult[] {
     {
       pageContent: 'alpha',
       score: 0.1,
-      metadata: { type: 'text' },
+      metadata: {
+        itemId: 'item-1',
+        itemType: 'note',
+        source: 'note-1',
+        chunkIndex: 0,
+        tokenCount: 1
+      },
       chunkId: 'chunk-1'
     },
     {
       pageContent: 'beta',
       score: 0.2,
-      metadata: { type: 'text' },
+      metadata: {
+        itemId: 'item-2',
+        itemType: 'note',
+        source: 'note-2',
+        chunkIndex: 1,
+        tokenCount: 1
+      },
       chunkId: 'chunk-2'
     }
   ]

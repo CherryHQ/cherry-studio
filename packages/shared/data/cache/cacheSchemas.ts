@@ -121,6 +121,9 @@ export type UseCacheSchema = {
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
 
+  // Knowledge recall test query history (session-only)
+  'knowledge.recall.search_queries': Record<string, string[]>
+
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
   'minapp.current_id': string
@@ -201,6 +204,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'knowledge.recall.search_queries': {},
 
   // Minapp management
   'minapp.opened_keep_alive': [],

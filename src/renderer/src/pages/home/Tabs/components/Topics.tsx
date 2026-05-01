@@ -356,7 +356,7 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
         key: 'pin',
         icon: topic.pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
         onClick() {
-          onPinTopic(topic)
+          void onPinTopic(topic)
         }
       },
       {

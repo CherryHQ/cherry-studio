@@ -36,7 +36,9 @@
         "comingSoon": "即將推出",
         "connected": "已連線",
         "connecting": "連接",
+        "createError": "",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
+        "deleteError": "",
         "description": "將您的 Agent 連接到訊息平台。",
         "disconnected": "已中斷連線",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "頻道",
+        "updateError": "",
         "wechat": {
           "addAccount": "新增微信帳號",
           "chatIds": "允許的使用者 ID",
@@ -211,6 +214,9 @@
         },
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
+        "error": {
+          "loadFailed": ""
+        },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
@@ -220,6 +226,7 @@
           "error": "錯誤",
           "justNow": "剛剛",
           "label": "執行歷史",
+          "loadError": "",
           "result": "結果",
           "runAt": "執行時間",
           "running": "執行中...",

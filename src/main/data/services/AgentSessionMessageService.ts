@@ -26,7 +26,7 @@ import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 const logger = loggerService.withContext('SessionMessageService')
 
 export class AgentSessionMessageService {
-  async sessionMessageExists(id: number): Promise<boolean> {
+  async sessionMessageExists(id: string): Promise<boolean> {
     const database = application.get('DbService').getDb()
     const result = await database
       .select({ id: sessionMessagesTable.id })
@@ -76,12 +76,8 @@ export class AgentSessionMessageService {
   }
 
   async deleteSessionMessage(agentId: string, sessionId: string, messageId: string): Promise<void> {
-    if (!/^\d+$/.test(messageId)) {
-      throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
-    }
-    const id = Number.parseInt(messageId, 10)
-    if (id <= 0) {
-      throw DataApiErrorFactory.validation({ messageId: ['must be a positive integer'] })
+    if (!messageId) {
+      throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
     const database = application.get('DbService').getDb()
 
@@ -97,7 +93,7 @@ export class AgentSessionMessageService {
       () =>
         database
           .delete(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.id, id), eq(sessionMessagesTable.sessionId, sessionId))),
+          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId))),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {

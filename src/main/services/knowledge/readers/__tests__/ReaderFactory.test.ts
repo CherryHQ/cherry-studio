@@ -82,6 +82,7 @@ vi.mock('../files/DraftsExportReader', () => ({
         createdAt: '2026-04-03T00:00:00.000Z',
         updatedAt: '2026-04-03T00:00:00.000Z',
         data: {
+          source: filePath,
           file: {
             id: 'file-1',
             name: filePath.split('/').pop() || filePath,
@@ -111,6 +112,7 @@ vi.mock('../files/EpubReader', () => ({
         createdAt: '2026-04-03T00:00:00.000Z',
         updatedAt: '2026-04-03T00:00:00.000Z',
         data: {
+          source: filePath,
           file: {
             id: 'file-1',
             name: filePath.split('/').pop() || filePath,
@@ -136,10 +138,12 @@ function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'>
     groupId: null,
     type: 'file',
     status: 'idle',
+    phase: null,
     error: null,
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
+      source: filePath ?? `/tmp/sample${ext}`,
       file: {
         id: 'file-1',
         name: `sample${ext}`,
@@ -162,10 +166,12 @@ function createNoteItem(content: string, sourceUrl?: string): KnowledgeItemOf<'n
     groupId: null,
     type: 'note',
     status: 'idle',
+    phase: null,
     error: null,
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
+      source: sourceUrl ?? 'note-1',
       content,
       sourceUrl
     }
@@ -179,12 +185,13 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
     groupId: null,
     type: 'url',
     status: 'idle',
+    phase: null,
     error: null,
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      url: 'https://example.com',
-      name: 'Example'
+      source: 'https://example.com',
+      url: 'https://example.com'
     }
   }
 }
@@ -196,12 +203,13 @@ function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
     groupId: null,
     type: 'sitemap',
     status: 'idle',
+    phase: null,
     error: null,
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      url: 'https://example.com/sitemap.xml',
-      name: 'Example Sitemap'
+      source: 'https://example.com/sitemap.xml',
+      url: 'https://example.com/sitemap.xml'
     }
   }
 }
@@ -213,11 +221,12 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
     groupId: null,
     type: 'directory',
     status: 'idle',
+    phase: null,
     error: null,
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      name: 'example-directory',
+      source: '/tmp/example-directory',
       path: '/tmp/example-directory'
     }
   }
@@ -239,10 +248,10 @@ describe('loadKnowledgeItemDocuments', () => {
     const item = createFileItem(ext)
     const docs = await loadKnowledgeItemDocuments(item)
 
+    expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(`/tmp/sample${ext}`)
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: expectedReader,
-        filePath: `/tmp/sample${ext}`
+        source: `/tmp/sample${ext}`
       }
     })
   })
@@ -253,8 +262,7 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'text',
-        filePath: '/tmp/sample.log'
+        source: '/tmp/sample.log'
       }
     })
   })
@@ -267,8 +275,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(customReaderSpies.drafts).toHaveBeenCalled()
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'drafts',
-        itemId: 'item-1'
+        source: '/tmp/sample.draftsexport'
       }
     })
   })
@@ -281,8 +288,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(customReaderSpies.epub).toHaveBeenCalled()
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'epub',
-        itemId: 'item-1'
+        source: '/tmp/sample.epub'
       }
     })
   })
@@ -301,9 +307,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: 'hello world',
       metadata: {
-        itemId: 'note-1',
-        itemType: 'note',
-        sourceUrl: 'https://example.com/note'
+        source: 'https://example.com/note'
       }
     })
   })
@@ -328,10 +332,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: '# Example Page\n\nHello knowledge',
       metadata: {
-        itemId: 'url-1',
-        itemType: 'url',
-        sourceUrl: 'https://example.com',
-        name: 'Example'
+        source: 'https://example.com'
       }
     })
   })
@@ -346,8 +347,7 @@ describe('loadKnowledgeItemDocuments', () => {
     )
     expect(loggerWarnMock).toHaveBeenCalledWith('Knowledge URL reader received empty markdown', {
       itemId: 'url-1',
-      sourceUrl: 'https://example.com',
-      name: 'Example'
+      sourceUrl: 'https://example.com'
     })
   })
 
