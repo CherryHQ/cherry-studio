@@ -1,10 +1,10 @@
-import type { MessageData, MessageStats } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
+import { userModelTable } from './userModel'
 
 /**
  * Message table - stores chat messages with tree structure
@@ -25,26 +25,20 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains blocks[], mentions, etc.
+    // Main content - contains blocks[] (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     // Searchable text extracted from data.blocks (populated by trigger, used for FTS5)
-    searchableText: text(),
-
+    searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
-
     // Group ID for siblings (0 = normal branch)
-    siblingsGroupId: integer().default(0),
-    // FK to assistant
-    assistantId: text(),
-    // Preserved assistant info for display
-    assistantMeta: text({ mode: 'json' }).$type<AssistantMeta>(),
-    // Model identifier
-    modelId: text(),
-    // Preserved model info (provider, name)
-    modelMeta: text({ mode: 'json' }).$type<ModelMeta>(),
-    // Trace ID for tracking
-
+    siblingsGroupId: integer().notNull().default(0),
+    // Assistant info is derived via topic → assistant FK chain; not stored on message.
+    // Model identifier: FK to user_model(id) — UniqueModelId "providerId::modelId"
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    // Snapshot of model at message creation time
+    modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
+    // Trace for tracking
     traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
@@ -94,13 +88,15 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     tokenize='trigram'
   )`,
 
-  // Trigger: populate searchable_text and sync FTS on INSERT
+  // Trigger: populate searchable_text and sync FTS on INSERT.
+  // COALESCE wraps group_concat because group_concat returns NULL when no main_text
+  // blocks match (e.g. tool-only or empty messages); searchable_text is NOT NULL.
   `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
-    UPDATE message SET searchable_text = (
+    UPDATE message SET searchable_text = COALESCE((
       SELECT group_concat(json_extract(value, '$.content'), ' ')
       FROM json_each(json_extract(NEW.data, '$.blocks'))
       WHERE json_extract(value, '$.type') = 'main_text'
-    ) WHERE id = NEW.id;
+    ), '') WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
   END`,
@@ -111,15 +107,16 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
   END`,
 
-  // Trigger: update searchable_text and sync FTS on UPDATE OF data
+  // Trigger: update searchable_text and sync FTS on UPDATE OF data.
+  // COALESCE: see message_ai above for rationale.
   `CREATE TRIGGER IF NOT EXISTS message_au AFTER UPDATE OF data ON message BEGIN
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
-    UPDATE message SET searchable_text = (
+    UPDATE message SET searchable_text = COALESCE((
       SELECT group_concat(json_extract(value, '$.content'), ' ')
       FROM json_each(json_extract(NEW.data, '$.blocks'))
       WHERE json_extract(value, '$.type') = 'main_text'
-    ) WHERE id = NEW.id;
+    ), '') WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
   END`

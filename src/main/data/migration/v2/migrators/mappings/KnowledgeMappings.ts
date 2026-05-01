@@ -4,6 +4,8 @@ import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/kn
 import type { FileMetadata } from '@shared/data/types/file'
 import type { KnowledgeItemData, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
+import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
 
@@ -71,9 +73,7 @@ export interface LegacyKnowledgeNote {
   sourceUrl?: string
 }
 
-export type KnowledgeBaseTransformResult =
-  | { ok: true; value: NewKnowledgeBase }
-  | { ok: false; reason: 'embedding_model_missing' }
+export type KnowledgeBaseTransformResult = { ok: true; value: NewKnowledgeBase }
 
 export type KnowledgeItemTransformResult =
   | { ok: true; value: NewKnowledgeItem }
@@ -102,30 +102,12 @@ const hasCompleteFileMetadata = (value: LegacyKnowledgeItem['content'] | FileMet
   typeof value.created_at === 'string' &&
   typeof value.count === 'number'
 
-export const toTimestamp = (value: number | undefined): number | undefined => {
+export const toTimestamp = (value: number | undefined): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value
   }
 
-  return undefined
-}
-
-export const toCompositeModelId = (model: LegacyModel | null | undefined): string | null => {
-  if (!model) {
-    return null
-  }
-
-  const providerId = model.provider?.trim()
-  const modelId = model.id?.trim()
-  if (!providerId || !modelId) {
-    return null
-  }
-
-  if (modelId.includes('::')) {
-    return modelId
-  }
-
-  return `${providerId}::${modelId}`
+  return Date.now()
 }
 
 export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
@@ -192,21 +174,16 @@ export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number
 ): KnowledgeBaseTransformResult => {
-  const embeddingModelId = toCompositeModelId(base.model ?? null)
-  if (!embeddingModelId) {
-    return {
-      ok: false,
-      reason: 'embedding_model_missing'
-    }
-  }
+  const embeddingModelId = legacyModelToUniqueId(base.model ?? null)
+  const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
   const transformedBase: NewKnowledgeBase = {
     id: base.id,
     name: base.name,
     description: base.description,
     dimensions,
-    embeddingModelId,
-    rerankModelId: toCompositeModelId(base.rerankModel ?? null),
+    embeddingModelId: embeddingModelId ?? null,
+    rerankModelId: rerankModelId ?? null,
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize,
     chunkOverlap: base.chunkOverlap,

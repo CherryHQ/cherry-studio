@@ -1,3 +1,14 @@
+import type { IconComponent } from '@cherrystudio/ui/icons'
+import {
+  ClaudeCode,
+  GeminiCli,
+  GithubCopilotCli,
+  IflowCli,
+  KimiCli,
+  OpenaiCodex,
+  OpenCode,
+  QwenCode
+} from '@cherrystudio/ui/icons'
 import { getThinkingBudget } from '@renderer/aiCore/utils/reasoning'
 import {
   isReasoningModel,
@@ -27,17 +38,16 @@ export interface ToolEnvironmentConfig {
   }
 }
 
-// CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeCLI.claudeCode, label: 'Claude Code' },
-  { value: codeCLI.qwenCode, label: 'Qwen Code' },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI' },
-  { value: codeCLI.openaiCodex, label: 'OpenAI Codex' },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI' },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI' },
-  { value: codeCLI.kimiCli, label: 'Kimi CLI' },
-  { value: codeCLI.openCode, label: 'OpenCode' }
-]
+  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
+  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
+  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
+  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
+  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
+  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
+  { value: codeCLI.kimiCli, label: 'Kimi CLI', icon: KimiCli },
+  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
+] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 
@@ -58,7 +68,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeCLI.githubCopilotCli]: () => [],
   [codeCLI.kimiCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeCLI.openCode]: (providers) =>
-    providers.filter((p) => ['openai', 'openai-response', 'anthropic'].includes(p.type))
+    providers.filter((p) => ['openai', 'openai-response', 'anthropic', 'new-api'].includes(p.type))
 }
 
 export const getCodeCliApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -206,8 +216,18 @@ export const generateToolEnvironment = ({
     case codeCLI.openCode:
       // Set environment variable with provider-specific suffix for security
       {
-        env.OPENCODE_BASE_URL = formattedBaseUrl
+        // Determine base URL format based on model's endpoint type and provider type
+        // anthropic: use formatApiHost(url, false) to preserve existing /v1 from provider config
+        // @ai-sdk/anthropic appends /messages to the baseURL (not /v1/messages)
+        // others: append /v1 (standard OpenAI-compatible endpoint)
+        const endpointType = model.endpoint_type
+        const isAnthropicEndpoint =
+          endpointType === 'anthropic' || (!endpointType && modelProvider.type === 'anthropic')
+        const openCodeBaseUrl = isAnthropicEndpoint ? formatApiHost(baseUrl, false) : formattedBaseUrl
+
+        env.OPENCODE_BASE_URL = openCodeBaseUrl
         env.OPENCODE_MODEL_NAME = model.name
+        env.OPENCODE_MODEL_ENDPOINT_TYPE = endpointType || ''
         // Calculate OpenCode-specific config internally
         const isReasoning = isReasoningModel(model)
         const supportsReasoningEffort = isSupportedReasoningEffortModel(model)

@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { type Client, createClient, type Value as LibsqlValue } from '@libsql/client'
-import { application } from '@main/core/application'
 import { sanitizeFilename } from '@main/utils/file'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'

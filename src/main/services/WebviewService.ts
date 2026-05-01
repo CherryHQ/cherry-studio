@@ -1,12 +1,12 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
-import { isSafeExternalUrl } from './security'
+import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 
 const logger = loggerService.withContext('WebviewService')
 

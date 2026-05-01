@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 
@@ -70,9 +70,9 @@ export class KnowledgeAddRuntime {
       throw new Error(CONTAINER_ITEM_INDEXING_UNSUPPORTED_REASON)
     }
 
+    const embeddingModel = getEmbedModel(base)
     const documents = await runAbortable(this.isStopping, ctx, () => loadKnowledgeItemDocuments(item, ctx.signal))
     const chunks = await runAbortable(this.isStopping, ctx, () => chunkDocuments(base, item, documents))
-    const embeddingModel = await runAbortable(this.isStopping, ctx, () => getEmbedModel(base))
     return await runAbortable(this.isStopping, ctx, () => embedDocuments(embeddingModel, chunks, ctx.signal))
   }
 

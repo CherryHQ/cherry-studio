@@ -4,8 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { gte as semverGte } from 'semver'
 
@@ -45,7 +45,7 @@ function getUserBinDir(): string {
 
 /**
  * Extract bundled rtk binary to ~/.cherrystudio/bin/ if not already present or outdated.
- * Called once at app startup.
+ * Invoked during agent subsystem bootstrap.
  */
 export async function extractRtkBinaries(): Promise<void> {
   if (!isPlatformSupported()) {

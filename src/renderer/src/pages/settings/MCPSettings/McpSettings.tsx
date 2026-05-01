@@ -765,7 +765,7 @@ const McpSettings: React.FC = () => {
   return (
     <Container>
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--cs-radius-2xs)' }}>
           <SettingTitle>
             <Flex className="mr-10 items-center justify-between gap-5">
               <Flex className="items-center gap-2">

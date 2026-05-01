@@ -161,7 +161,6 @@ const createAssistant = (overrides: Partial<Assistant> = {}): Assistant => ({
   knowledgeRecognition: 'off' as const,
   regularPhrases: [],
   tags: [],
-  enableMemory: false,
   content: '',
   ...overrides
 })
@@ -421,7 +420,6 @@ describe('ThinkingButton', () => {
       fireEvent.click(getActionIconButton())
       expect(mockUpdateSettings).toHaveBeenCalledWith({
         reasoning_effort: 'none',
-        reasoning_effort_cache: 'none',
         qwenThinkMode: false
       })
     })

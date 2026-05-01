@@ -1,3 +1,6 @@
+import { isMac } from '@renderer/config/constant'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
@@ -57,6 +60,7 @@ export function Sidebar({
   onCloseDockedTab,
   onDismiss
 }: SidebarProps) {
+  const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(setWidth)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
@@ -81,9 +85,12 @@ export function Sidebar({
   // --- Floating sidebar ---
   if (isFloating) {
     return (
-      <div className="absolute inset-0 z-40" onClick={handleDismiss}>
+      <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
-          className="slide-in-from-left-2 absolute top-0 bottom-0 left-0 flex w-[170px] animate-in select-none flex-col rounded-r-[1px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200"
+          className={cn(
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-[174px] animate-in select-none flex-col rounded-r-[4px] rounded-br-[16px] bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            isMac && 'pt-[env(titlebar-area-height)]'
+          )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
@@ -104,7 +111,7 @@ export function Sidebar({
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent">
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
                 <Search size={13} />
                 <span>{searchLabel}</span>
               </div>
@@ -129,7 +136,7 @@ export function Sidebar({
   // --- Hidden sidebar (hover zone + resize handle) ---
   if (layout === 'hidden') {
     return (
-      <div ref={sidebarRef} className="relative h-full w-0 flex-shrink-0">
+      <div ref={sidebarRef} className="relative h-full w-2 flex-shrink-0">
         <div
           className="absolute top-0 bottom-0 left-0 z-50 w-[16px]"
           onMouseEnter={() => {
@@ -160,7 +167,10 @@ export function Sidebar({
     <div
       ref={sidebarRef}
       style={{ width: actualWidth }}
-      className="group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col bg-sidebar">
+      className={cn(
+        'group/sidebar relative z-20 flex h-full flex-shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
       {/* Header */}
       <div
         className={`flex flex-shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
@@ -174,13 +184,13 @@ export function Sidebar({
           <div className="px-3 py-2">
             <div
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent">
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
               <Search size={13} />
               <span>{searchLabel}</span>
             </div>
           </div>
         ) : (
-          <div className="flex justify-center py-1.5">
+          <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
             <SidebarTooltip content={searchLabel}>
               <button
                 type="button"

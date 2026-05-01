@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'

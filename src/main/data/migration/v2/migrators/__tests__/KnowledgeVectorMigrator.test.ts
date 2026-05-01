@@ -49,7 +49,7 @@ vi.mock('node:os', async (importOriginal) => {
   return (await importOriginal()) as any
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     getPath: getPathMock
   }
@@ -321,17 +321,19 @@ describe('KnowledgeVectorMigrator', () => {
     expect(result.warnings?.some((warning) => warning.includes('loader-missing'))).toBe(true)
   })
 
-  it('hard fails when vector index schema creation fails', async () => {
+  it('does not create a vector index during schema bootstrap', async () => {
     const migrator = new KnowledgeVectorMigrator()
     const client = {
-      execute: vi.fn(async ({ sql: statement }: { sql: string }) => {
-        if (statement.includes('libsql_vector_idx')) {
-          throw new Error('vector index failed')
-        }
-      })
+      execute: vi.fn(async () => undefined)
     }
 
-    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).rejects.toThrow('vector index failed')
+    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).resolves.toBeUndefined()
+
+    expect(client.execute).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('libsql_vector_idx')
+      })
+    )
   })
 
   it('hard fails when FTS schema creation fails', async () => {

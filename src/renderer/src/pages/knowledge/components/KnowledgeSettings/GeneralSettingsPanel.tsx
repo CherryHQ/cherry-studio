@@ -1,6 +1,6 @@
 import { InfoTooltip } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'

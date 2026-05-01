@@ -2,9 +2,9 @@
  * Translate History Service - handles translate history CRUD
  */
 
+import { application } from '@application'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
@@ -16,6 +16,8 @@ import type { TranslateHistory } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
 
+import { timestampToISO } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:TranslateHistoryService')
 
 function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): TranslateHistory {
@@ -26,8 +28,8 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
     sourceLanguage: row.sourceLanguage,
     targetLanguage: row.targetLanguage,
     star: row.star,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

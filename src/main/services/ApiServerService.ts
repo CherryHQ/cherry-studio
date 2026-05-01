@@ -1,4 +1,5 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
+import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -12,13 +13,12 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { ApiServer } from '../apiServer'
 import { agentService } from './agents'
-import { loggerService } from './LoggerService'
 
 const logger = loggerService.withContext('ApiServerService')
 
 @Injectable('ApiServerService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class ApiServerService extends BaseService implements Activatable {
   private apiServer: ApiServer | null = null
 

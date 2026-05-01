@@ -1,15 +1,16 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type {
+  InferSharedCacheValue,
   InferUseCacheValue,
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   SharedCacheKey,
-  SharedCacheSchema,
   UseCacheKey,
   UseCacheSchema
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
+import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('useCache')
@@ -17,61 +18,6 @@ const logger = loggerService.withContext('useCache')
 // ============================================================================
 // Template Matching Utilities
 // ============================================================================
-
-/**
- * Checks if a schema key is a template key (contains ${...} placeholder).
- *
- * @param key - The schema key to check
- * @returns true if the key contains template placeholder syntax
- *
- * @example
- * ```typescript
- * isTemplateKey('scroll.position.${id}')  // true
- * isTemplateKey('app.user.avatar')        // false
- * ```
- */
-function isTemplateKey(key: string): boolean {
-  return key.includes('${') && key.includes('}')
-}
-
-/**
- * Converts a template key pattern into a RegExp for matching concrete keys.
- *
- * Each `${variable}` placeholder is replaced with a pattern that matches
- * any non-empty string of word characters (letters, numbers, underscores, hyphens).
- *
- * Template keys follow the same dot-separated pattern as fixed keys.
- * When ${xxx} is treated as a literal string, the key matches: xxx.yyy.zzz_www
- *
- * @param template - The template key pattern (e.g., 'scroll.position.${id}')
- * @returns A RegExp that matches concrete keys for this template
- *
- * @example
- * ```typescript
- * const regex = templateToRegex('scroll.position.${id}')
- * regex.test('scroll.position.topic123')   // true
- * regex.test('scroll.position.topic-123')  // true
- * regex.test('scroll.position.')           // false
- * regex.test('other.key.123')              // false
- * ```
- */
-function templateToRegex(template: string): RegExp {
-  // Escape special regex characters except for ${...} placeholders
-  const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, (match) => {
-    // Don't escape the ${...} syntax, we'll handle it specially
-    if (match === '$' || match === '{' || match === '}') {
-      return match
-    }
-    return '\\' + match
-  })
-
-  // Replace ${...} placeholders with a pattern matching non-empty strings
-  // Allows: word chars (letters, numbers, underscores) and hyphens
-  // Does NOT allow dots or colons since those are structural separators
-  const pattern = escaped.replace(/\$\{[^}]+\}/g, '([\\w\\-]+)')
-
-  return new RegExp(`^${pattern}$`)
-}
 
 /**
  * Finds the schema key that matches a given concrete key.
@@ -135,6 +81,24 @@ function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheVa
   const schemaKey = findMatchingUseCacheSchemaKey(key)
   if (schemaKey) {
     return DefaultUseCache[schemaKey] as InferUseCacheValue<K>
+  }
+  return undefined
+}
+
+/**
+ * Gets the default value for a shared cache key from the schema.
+ *
+ * Works with both fixed keys (direct lookup) and concrete keys that
+ * match template patterns (finds template, returns its default).
+ *
+ * Note: template default values are shared across all instances — e.g., all
+ * `web_search.provider.last_used_key.*` keys fall back to the single default
+ * `''`. This mirrors getUseCacheDefaultValue semantics.
+ */
+function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+  const schemaKey = findMatchingSharedCacheSchemaKey(key)
+  if (schemaKey) {
+    return DefaultSharedCache[schemaKey] as InferSharedCacheValue<K>
   }
   return undefined
 }
@@ -247,26 +211,34 @@ export function useCache<K extends UseCacheKey>(
  * Use this for data that needs to be shared between all app windows.
  * Data is lost when the app restarts.
  *
- * @param key - Cache key from the predefined schema
+ * Supports both fixed keys and template keys (aligned with useCache):
+ * - Fixed keys: `useSharedCache('chat.web_search.active_searches')`
+ * - Template keys: `useSharedCache('web_search.provider.last_used_key.google')`
+ *   matches schema entry `'web_search.provider.last_used_key.${providerId}'`
+ *
+ * Template-instance defaults are shared across all matching instances (inherited
+ * from useCache semantics) — the schema default is written to cache on hook mount.
+ *
+ * @param key - Cache key from the predefined schema (fixed or matching template)
  * @param initValue - Initial value (optional, uses schema default if not provided)
  * @returns [value, setValue] - Similar to useState but shared across all windows
  *
  * @example
  * ```typescript
- * // Shared across all windows
- * const [windowCount, setWindowCount] = useSharedCache('app.windowCount')
+ * // Fixed key
+ * const [active, setActive] = useSharedCache('chat.web_search.active_searches')
  *
- * // With custom initial value
- * const [sharedState, setSharedState] = useSharedCache('app.state', { loaded: false })
+ * // Template key (schema: 'web_search.provider.last_used_key.${providerId}')
+ * const [lastKey, setLastKey] = useSharedCache('web_search.provider.last_used_key.google')
  *
  * // Changes automatically sync to all open windows
- * setWindowCount(3)
+ * setLastKey('api-key-1')
  * ```
  */
 export function useSharedCache<K extends SharedCacheKey>(
   key: K,
-  initValue?: SharedCacheSchema[K]
-): [SharedCacheSchema[K], (value: SharedCacheSchema[K]) => void] {
+  initValue?: InferSharedCacheValue<K>
+): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] {
   /**
    * Subscribe to shared cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the shared cache value changes
@@ -278,8 +250,13 @@ export function useSharedCache<K extends SharedCacheKey>(
   )
 
   /**
-   * Initialize shared cache with default value if it doesn't exist
-   * Priority: existing shared cache value > custom initValue > schema default
+   * Initialize shared cache with default value if it doesn't exist.
+   * Priority: existing shared cache value > custom initValue > schema default.
+   *
+   * Template-instance defaults fall through getSharedCacheDefaultValue, which
+   * resolves the concrete key back to its schema template and returns the
+   * shared default (e.g. all 'web_search.provider.last_used_key.*' instances
+   * share the single default '').
    */
   useEffect(() => {
     if (cacheService.hasShared(key)) {
@@ -287,7 +264,10 @@ export function useSharedCache<K extends SharedCacheKey>(
     }
 
     if (initValue === undefined) {
-      cacheService.setShared(key, DefaultSharedCache[key])
+      const defaultValue = getSharedCacheDefaultValue(key)
+      if (defaultValue !== undefined) {
+        cacheService.setShared(key, defaultValue)
+      }
     } else {
       cacheService.setShared(key, initValue)
     }
@@ -320,13 +300,13 @@ export function useSharedCache<K extends SharedCacheKey>(
    * @param newValue - New value to store in shared cache
    */
   const setValue = useCallback(
-    (newValue: SharedCacheSchema[K]) => {
+    (newValue: InferSharedCacheValue<K>) => {
       cacheService.setShared(key, newValue)
     },
     [key]
   )
 
-  return [value ?? initValue ?? DefaultSharedCache[key], setValue]
+  return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
 }
 
 /**

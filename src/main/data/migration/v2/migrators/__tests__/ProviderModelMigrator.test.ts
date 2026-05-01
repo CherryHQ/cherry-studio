@@ -1,21 +1,37 @@
+import { pinTable } from '@data/db/schemas/pin'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { ProviderModelMigrator } from '../ProviderModelMigrator'
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
 
-function createMockContext(reduxState: Record<string, unknown> = {}): MigrationContext {
+interface MockContextOptions {
+  failOnPinInsert?: boolean
+}
+
+function createMockContext(
+  reduxState: Record<string, unknown> = {},
+  dexieSettings: Record<string, unknown> = {},
+  options: MockContextOptions = {}
+): MigrationContext {
   const insertValues: unknown[][] = []
+  let stagedInsertValues: unknown[][] = []
 
   const mockTx = {
-    insert: vi.fn(() => ({
+    insert: vi.fn((table: unknown) => ({
       values: vi.fn((vals: unknown) => {
-        insertValues.push(Array.isArray(vals) ? vals : [vals])
-        return Promise.resolve()
+        const rows = Array.isArray(vals) ? vals : [vals]
+        if (options.failOnPinInsert && table === pinTable) {
+          throw new Error('pin insert failed')
+        }
+        stagedInsertValues.push(rows)
+        return {
+          onConflictDoNothing: vi.fn(() => Promise.resolve())
+        }
       })
     }))
   }
@@ -24,10 +40,18 @@ function createMockContext(reduxState: Record<string, unknown> = {}): MigrationC
     sources: {
       reduxState: {
         getCategory: vi.fn((cat: string) => reduxState[cat])
+      },
+      dexieSettings: {
+        get: vi.fn((key: string) => dexieSettings[key])
       }
     },
     db: {
-      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx)),
+      transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+        stagedInsertValues = []
+        const result = await fn(mockTx)
+        insertValues.push(...stagedInsertValues)
+        return result
+      }),
       select: vi.fn(() => ({
         from: vi.fn(() => ({
           get: vi.fn(() => Promise.resolve({ count: 0 }))
@@ -142,6 +166,65 @@ describe('ProviderModelMigrator', () => {
       const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
       const modelInsert = inserted[1] // second insert is the model batch
       expect(modelInsert).toHaveLength(1)
+    })
+
+    it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
+      const ctx = createMockContext(
+        {
+          llm: {
+            providers: [makeProvider('openai', [{ id: 'gpt-4o' }]), makeProvider('anthropic', [{ id: 'claude-3' }])]
+          }
+        },
+        {
+          'pinned:models': [
+            { id: 'gpt-4o', provider: 'openai' },
+            '{"id":"gpt-4o","provider":"openai"}',
+            'anthropic/claude-3',
+            'openai::gpt-4o',
+            'missing::model',
+            ''
+          ]
+        }
+      )
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(true)
+      const inserted = (ctx as unknown as { _insertValues: unknown[][] })._insertValues
+      const pinRows = inserted.flat().filter((row): row is { entityId: string; orderKey: string } => {
+        const pinRow = row as { entityId?: unknown; entityType?: unknown; orderKey?: unknown }
+        return (
+          pinRow.entityType === 'model' && typeof pinRow.entityId === 'string' && typeof pinRow.orderKey === 'string'
+        )
+      })
+
+      expect(pinRows.map((row) => row.entityId)).toEqual(['openai::gpt-4o', 'anthropic::claude-3'])
+      expect(pinRows.every((row) => row.orderKey.length > 0)).toBe(true)
+      expect(pinRows[0].orderKey < pinRows[1].orderKey).toBe(true)
+    })
+
+    it('rolls back provider and model inserts when pin insertion fails', async () => {
+      const ctx = createMockContext(
+        {
+          llm: {
+            providers: [makeProvider('openai', [{ id: 'gpt-4o' }])]
+          }
+        },
+        {
+          'pinned:models': ['openai::gpt-4o']
+        },
+        {
+          failOnPinInsert: true
+        }
+      )
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('pin insert failed')
+      expect((ctx as unknown as { _insertValues: unknown[][] })._insertValues).toEqual([])
     })
   })
 

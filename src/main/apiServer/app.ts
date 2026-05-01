@@ -1,4 +1,4 @@
-import { loggerService } from '@main/services/LoggerService'
+import { loggerService } from '@logger'
 import cors from 'cors'
 import express from 'express'
 import { v4 as uuidv4 } from 'uuid'

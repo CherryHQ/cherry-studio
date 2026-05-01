@@ -25,9 +25,23 @@ export {
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as EmojiAvatar } from './composites/EmojiAvatar'
+export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/EmptyState'
+export {
+  type EntityItemBase,
+  EntitySelector,
+  type EntitySelectorContextMenuFactory,
+  type EntitySelectorMultiSelect,
+  type EntitySelectorPopoverContentProps,
+  type EntitySelectorProps,
+  type EntitySelectorRowContext,
+  type EntitySelectorSearch,
+  type EntitySelectorSection
+} from './composites/EntitySelector'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
 export { default as HorizontalScrollContainer } from './composites/HorizontalScrollContainer'
+export { PageSidePanel, type PageSidePanelPlacement, type PageSidePanelProps } from './composites/PageSidePanel'
 export { default as Scrollbar } from './composites/Scrollbar'
+export { SelectDropdown, type SelectDropdownProps } from './composites/SelectDropdown'
 
 // Icon Components — import from '@cherrystudio/ui/icons' path
 export type { CompoundIcon, IconAvatarProps, IconComponent, IconMeta, IconProps } from './icons/types'
@@ -51,6 +65,9 @@ export { default as EditableNumber } from './composites/EditableNumber'
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/IconTooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
+// MenuList
+export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/MenuList'
+export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/MenuList'
 // Sortable
 export {
   CompositeInput,
@@ -65,6 +82,7 @@ export * from './primitives/accordion'
 export * from './primitives/badge'
 export * from './primitives/breadcrumb'
 export * from './primitives/button'
+export * from './primitives/button-group'
 export * from './primitives/checkbox'
 export * from './primitives/combobox'
 export * from './primitives/command'

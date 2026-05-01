@@ -1,22 +1,17 @@
 /**
- * Auto-generated icon exports
- * Do not edit manually
- *
- * Generated at: 2025-12-17T03:03:51.054Z
- * Total icons: 14
+ * Curated exports for general icons
+ * Total icons: 12
  */
 
 export { AddCategory } from './addCategory'
-export { AiChat } from './aiChat'
-export { Aicon27 } from './aicon27'
-export { AiEssentialsIconSet } from './aiEssentialsIconSet'
 export { AiPrompt } from './aiPrompt'
-export { Brain } from './brain'
-export { BrainCircuit } from './brainCircuit'
-export { BrainCog } from './brainCog'
+export { ClaudeCode } from './claudeCode'
 export { CodeAi } from './codeAi'
-export { Emoji } from './emoji'
-export { Group } from './group'
+export { GeminiCli } from './geminiCli'
+export { GithubCopilotCli } from './githubCopilotCli'
+export { IflowCli } from './iflowCli'
+export { KimiCli } from './kimiCli'
 export { MessageAi1 } from './messageAi1'
-export { MessageBalloonAi1 } from './messageBalloonAi1'
-export { Vector } from './vector'
+export { OpenaiCodex } from './openaiCodex'
+export { OpenCode } from './openCode'
+export { QwenCode } from './qwenCode'

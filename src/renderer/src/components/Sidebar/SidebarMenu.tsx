@@ -1,3 +1,5 @@
+import { MenuItem } from '@cherrystudio/ui'
+
 import { ActiveIndicator, MiniAppIcon } from './primitives'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarVisibleLayout } from './types'
@@ -21,7 +23,7 @@ type MenuItemsProps = Omit<SidebarMenuProps, 'layout'>
 
 function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-0.5 px-1.5">
+    <div className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -65,23 +67,23 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
 function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-0 px-1">
+    <div className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
         const miniTabs = item.miniAppTabs ?? []
 
         return (
-          <div key={item.id} className="contents">
+          <div key={item.id} className="flex w-full flex-col gap-1">
             <button
               type="button"
               onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-2 transition-all duration-150 ${
+              className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2.5 transition-all duration-150 ${
                 isActive
                   ? 'bg-sidebar-active-bg text-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}>
-              {isActive && <ActiveIndicator className="rounded-md" />}
+              {isActive && <ActiveIndicator className="rounded-[16px]" />}
               <Icon size={18} strokeWidth={1.6} />
               <span className="text-[9px] leading-tight">{item.label}</span>
             </button>
@@ -91,14 +93,14 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
                 type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 ${
-                  activeTabId === miniTab.id ? 'bg-sidebar-active-bg' : 'hover:bg-accent/40'
+                className={`relative flex w-full flex-col items-center gap-0.5 rounded-[16px] py-2 transition-all duration-150 ${
+                  activeTabId === miniTab.id
+                    ? 'bg-sidebar-active-bg text-foreground'
+                    : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
                 }`}>
-                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-md" />}
+                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-[16px]" />}
                 <MiniAppIcon tab={miniTab} size="md" />
-                <span className="max-w-[50px] truncate text-[8px] text-muted-foreground leading-tight">
-                  {miniTab.title}
-                </span>
+                <span className="max-w-[50px] truncate text-[8px] leading-tight">{miniTab.title}</span>
               </button>
             ))}
           </div>
@@ -110,7 +112,7 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
 
 function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="space-y-0.5 px-2">
+    <div className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -118,18 +120,17 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
         return (
           <div key={item.id}>
-            <button
-              type="button"
-              onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-[7px] text-[13px] transition-all duration-150 ${
-                isActive
-                  ? 'bg-sidebar-active-bg text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-              }`}>
-              {isActive && <ActiveIndicator className="rounded-xl" glow />}
-              <Icon size={16} strokeWidth={1.6} />
-              <span className="truncate">{item.label}</span>
-            </button>
+            <div className="relative">
+              <MenuItem
+                variant="ghost"
+                icon={<Icon size={16} strokeWidth={1.6} />}
+                label={item.label}
+                active={isActive}
+                onClick={() => void onItemClick(item.id)}
+                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+              />
+              {isActive && <ActiveIndicator className="rounded-xl" />}
+            </div>
 
             {miniTabs.map((miniTab) => (
               <button

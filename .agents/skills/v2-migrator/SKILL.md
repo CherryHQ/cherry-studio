@@ -30,7 +30,6 @@ Before writing a migrator, confirm which data needs migration:
 
 | Redux Slice | Legacy Key | v2 Target | Rationale |
 |---|---|---|---|
-| `memory` | `memory.embedderModel` | `preference: feature.memory.embedder_model_id` | Full `Model` object → extract and store only model ID |
 | `nutstore` | `nutstore.autoSyncEnabled` | `preference: data.nutstore.auto_sync_enabled` | Toggle setting |
 | `knowledge` | `knowledge.defaultEmbedModel` | `preference: feature.knowledge.default_embed_model_id` | Full `Model` object → extract and store only model ID |
 | `selectionStore` | `selectionStore.quickAssistantId` | `preference: feature.quick_assistant.id` | User selection |
@@ -77,7 +76,7 @@ Renderer Process                          Main Process
                                           +---------------------------+
 ```
 
-**Multi-renderer note:** Cherry Studio has multiple renderer windows (main app, mini window, selection toolbar). Only the dedicated migration window triggers migration. Main process owns all migration logic; renderers receive progress via IPC.
+**Multi-renderer note:** Cherry Studio has multiple renderer windows (main app, quick assistant, selection toolbar). Only the dedicated migration window triggers migration. Main process owns all migration logic; renderers receive progress via IPC.
 
 ## Key Files
 

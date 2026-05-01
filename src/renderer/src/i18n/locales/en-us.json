@@ -490,6 +490,7 @@
       },
       "prompt": "Prompt Settings",
       "skills": {
+        "addMore": "Add More Skills",
         "builtin": "Built-in",
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "Bun environment is required to run CLI tools",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "count_one": "{{count}} item",
+    "count_other": "{{count}} items",
     "custom_path": "Custom path",
     "custom_path_error": "Failed to set custom terminal path",
     "custom_path_required": "Custom path required for this terminal",
     "custom_path_set": "Custom terminal path set successfully",
     "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "empty": {
+      "no_match": {
+        "description": "Try adjusting your search terms",
+        "title": "No matching tools found"
+      },
+      "no_tool": {
+        "description": "Add a CLI tool or code assistant to get started",
+        "title": "No code tools yet"
+      }
+    },
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",
@@ -1516,21 +1529,28 @@
       "bun_required": "Please install Bun environment first before launching CLI tools",
       "error": "Launch failed, please try again",
       "label": "Launch",
+      "launched": "Launched",
       "success": "Launch successful",
       "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Launching...",
     "model": "Model",
+    "model_hint": "Choose which AI model the CLI tool should use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
+    "official_tag": "Official",
+    "official_tools": "Official",
+    "search_placeholder": "Search CLI tools…",
     "select_folder": "Select Folder",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",
     "terminal": "Terminal",
+    "terminal_hint": "Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Select terminal application",
     "title": "Code Tools",
     "update_options": "Update Options",
-    "working_directory": "Working Directory"
+    "working_directory": "Working Directory",
+    "working_directory_hint": "The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Collapse",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "Actions",
-    "add_failed": "Failed to add memory",
-    "add_first_memory": "Add Your First Memory",
-    "add_memory": "Add Memory",
-    "add_new_user": "Add New User",
-    "add_success": "Memory added successfully",
-    "add_user": "Add User",
-    "add_user_failed": "Failed to add user",
-    "all_users": "All Users",
-    "cannot_delete_default_user": "Cannot delete the default user",
-    "configure_memory_first": "Please configure memory settings first",
-    "content": "Content",
-    "current_user": "Current User",
-    "custom": "Custom",
-    "default": "Default",
-    "default_user": "Default User",
-    "delete_confirm": "Are you sure you want to delete this memory?",
-    "delete_confirm_content": "Are you sure you want to delete {{count}} memories?",
-    "delete_confirm_single": "Are you sure you want to delete this memory?",
-    "delete_confirm_title": "Delete Memories",
-    "delete_failed": "Failed to delete memory",
-    "delete_selected": "Delete Selected",
-    "delete_success": "Memory deleted successfully",
-    "delete_user": "Delete User",
-    "delete_user_confirm_content": "Are you sure you want to delete user {{user}} and all their memories?",
-    "delete_user_confirm_title": "Delete User",
-    "delete_user_failed": "Failed to delete user",
-    "description": "Memory allows you to store and manage information about your interactions with the assistant. You can add, edit, and delete memories, as well as filter and search through them.",
-    "edit_memory": "Edit Memory",
-    "embedding_dimensions": "Embedding Dimensions",
-    "embedding_model": "Embedding Model",
-    "enable_global_memory_first": "Please enable global memory first",
-    "end_date": "End Date",
-    "global_memory": "Global Memory",
-    "global_memory_description": "To use memory features, please enable global memory in assistant settings.",
-    "global_memory_disabled_desc": "To use memory features, please enable global memory in assistant settings first.",
-    "global_memory_disabled_title": "Global Memory Disabled",
-    "global_memory_enabled": "Global memory enabled",
-    "go_to_memory_page": "Go to Memory Page",
-    "initial_memory_content": "Welcome! This is your first memory.",
-    "llm_model": "LLM Model",
-    "load_failed": "Failed to load memories",
-    "loading": "Loading memories...",
-    "loading_memories": "Loading memories...",
-    "memories_description": "Showing {{count}} of {{total}} memories",
-    "memories_reset_success": "All memories for {{user}} have been reset successfully",
-    "memory": "memory",
-    "memory_content": "Memory Content",
-    "memory_placeholder": "Enter memory content...",
-    "new_user_id": "New User ID",
-    "new_user_id_placeholder": "Enter a unique user ID",
-    "no_matching_memories": "No matching memories found",
-    "no_memories": "No memories yet",
-    "no_memories_description": "Start by adding your first memory to get started",
-    "not_configured_desc": "Please configure embedding and LLM models in memory settings to enable memory functionality.",
-    "not_configured_title": "Memory Not Configured",
-    "pagination_total": "{{start}}-{{end}} of {{total}} items",
-    "please_enter_memory": "Please enter memory content",
-    "please_select_embedding_model": "Please select an embedding model",
-    "please_select_llm_model": "Please select an LLM model",
-    "reset_filters": "Reset Filters",
-    "reset_memories": "Reset Memories",
-    "reset_memories_confirm_content": "Are you sure you want to permanently delete all memories for {{user}}? This action cannot be undone.",
-    "reset_memories_confirm_title": "Reset All Memories",
-    "reset_memories_failed": "Failed to reset memories",
-    "reset_user_memories": "Reset User Memories",
-    "reset_user_memories_confirm_content": "Are you sure you want to reset all memories for {{user}}?",
-    "reset_user_memories_confirm_title": "Reset User Memories",
-    "reset_user_memories_failed": "Failed to reset user memories",
-    "score": "Score",
-    "search": "Search",
-    "search_placeholder": "Search memories...",
-    "select_embedding_model_placeholder": "Select Embedding Model",
-    "select_llm_model_placeholder": "Select LLM Model",
-    "select_user": "Select User",
-    "settings": "Settings",
-    "settings_title": "Memory Settings",
-    "start_date": "Start Date",
-    "statistics": "Statistics",
-    "stored_memories": "Stored Memories",
-    "switch_user": "Switch User",
-    "switch_user_confirm": "Switch user context to {{user}}?",
-    "time": "Time",
-    "title": "Memories",
-    "total_memories": "total memories",
-    "try_different_filters": "Try adjusting your search criteria",
-    "update_failed": "Failed to update memory",
-    "update_success": "Memory updated successfully",
-    "user": "User",
-    "user_created": "User {{user}} created and switched successfully",
-    "user_deleted": "User {{user}} deleted successfully",
-    "user_id": "User ID",
-    "user_id_exists": "This user ID already exists",
-    "user_id_invalid_chars": "User ID can only contain letters, numbers, hyphens and underscores",
-    "user_id_placeholder": "Enter user ID (optional)",
-    "user_id_required": "User ID is required",
-    "user_id_reserved": "'default-user' is reserved, please use a different ID",
-    "user_id_rules": "User ID must be unique and contain only letters, numbers, hyphens (-) and underscores (_)",
-    "user_id_too_long": "User ID cannot exceed 50 characters",
-    "user_management": "User Management",
-    "user_memories_reset": "All memories for {{user}} have been reset",
-    "user_switch_failed": "Failed to switch user",
-    "user_switched": "User context switched to {{user}}",
-    "users": "users"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
-    },
-    "clipboard": {
-      "empty": "Clipboard is empty"
-    },
-    "feature": {
-      "chat": "Answer this question",
-      "explanation": "Explanation",
-      "summary": "Content summary",
-      "translate": "Text translation"
-    },
-    "footer": {
-      "backspace_clear": "Backspace to clear",
-      "copy_last_message": "Press C to copy",
-      "esc": "ESC to {{action}}",
-      "esc_back": "return",
-      "esc_close": "close",
-      "esc_pause": "pause"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Ask {{model}} for help...",
-        "title": "What do you want to do with this text?"
-      }
-    },
-    "tooltip": {
-      "pin": "Keep Window on Top"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
@@ -2688,6 +2575,9 @@
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
+    "multi_select": {
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+    },
+    "clipboard": {
+      "empty": "Clipboard is empty"
+    },
+    "feature": {
+      "chat": "Answer this question",
+      "explanation": "Explanation",
+      "summary": "Content summary",
+      "translate": "Text translation"
+    },
+    "footer": {
+      "backspace_clear": "Backspace to clear",
+      "copy_last_message": "Press C to copy",
+      "esc": "ESC to {{action}}",
+      "esc_back": "return",
+      "esc_close": "close",
+      "esc_pause": "pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Ask {{model}} for help...",
+        "title": "What do you want to do with this text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Keep Window on Top"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Select Backup File",
@@ -3775,7 +3696,7 @@
         "title": "Application Filter List",
         "user_tips": {
           "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, CherryStudio.exe, etc."
         }
       },
       "linux": {
@@ -3896,6 +3817,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "New Agent",
+      "empty_text": "No agents yet",
+      "search_placeholder": "Search agents…"
+    },
+    "assistant": {
+      "create_new": "New Assistant",
+      "empty_text": "No assistants yet",
+      "multi_hint": "(mutually exclusive with multi-model)",
+      "multi_label": "Multi-assistant parallel",
+      "search_placeholder": "Search assistants…"
+    },
+    "common": {
+      "edit": "Edit",
+      "pin": "Pin",
+      "pinned_title": "Pinned",
+      "sort": {
+        "asc": "Oldest",
+        "desc": "Recent"
+      },
+      "sort_label": "Sort",
+      "unpin": "Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3961,6 +3907,75 @@
     "channels": {
       "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
       "title": "Channels"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Agent Selector",
+        "triggerPlaceholder": "Select an agent",
+        "valueProp": "Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Assistant Selector",
+        "triggerPlaceholder": "Select an assistant",
+        "triggerSelectedCount": "{{count}} assistants selected",
+        "valueProp": "Current value"
+      },
+      "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "label": "Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "Behavior & Display Config",
+        "callbackEmpty": "No component callback received yet",
+        "clearSelection": "Clear Selection",
+        "configDescription": "Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "Controlled multiSelectMode",
+        "currentProps": "Current Props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "Latest onSelect Return",
+        "loading": "Loading models...",
+        "modelId": "Model ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "Normalized Selected IDs",
+        "outputEmpty": "No data to display yet",
+        "provider": "Provider",
+        "resetOutputs": "Reset Outputs",
+        "resultsDescription": "This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "Outputs & State",
+        "selected": "Current Selection",
+        "selectedEmpty": "No model selected yet",
+        "selectionConfig": "Selection Value Config",
+        "selectionType": "selectionType",
+        "selectionTypeId": "Return Model IDs",
+        "selectionTypeModel": "Return Model Objects",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "Model Selector",
+        "triggerPlaceholder": "Select a model",
+        "triggerSelectedCount": "{{count}} models selected",
+        "valueProp": "Current Value Prop"
+      },
+      "title": "Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5569,29 @@
     "shortcuts": {
       "action": "Action",
       "actions": "operation",
+      "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
+      "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
+      "occupied_by_other_application": "This shortcut is already used by the system or another application",
       "press_shortcut": "Press Shortcut",
+      "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
+      "reset_defaults_failed": "Failed to reset shortcuts to defaults",
       "reset_to_default": "Reset to Default",
+      "save_failed": "Failed to save shortcut",
+      "save_failed_with_name": "Failed to save shortcut: {{name}}",
       "search_message": "Search Message",
       "search_message_in_chat": "Search Message in Current Chat",
+      "search_placeholder": "Search shortcuts...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Selection Assistant: Select Text",
       "selection_assistant_toggle": "Toggle Selection Assistant",
@@ -5577,8 +5599,8 @@
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
       "toggle_new_context": "Clear Context",
-      "toggle_show_assistants": "Toggle Assistants",
       "toggle_show_topics": "Toggle Topics",
+      "toggle_sidebar": "Toggle Sidebar",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"
@@ -5608,7 +5630,7 @@
       "noInstalled": "No skills installed",
       "noResults": "No skills found",
       "noSkillFile": "No SKILL.md found",
-      "searchPlaceholder": "Search skills across registries...",
+      "searchPlaceholder": "Discover more skills...",
       "searchRegistryTitle": "Search skill registries online",
       "searchTitle": "Search Skills",
       "selectFile": "Select a file to view",
@@ -5847,7 +5869,11 @@
     }
   },
   "tab": {
-    "new": "New Tab"
+    "close": "Close Tab",
+    "moveToFirst": "Move to First",
+    "new": "New Tab",
+    "pin": "Pin Tab",
+    "unpin": "Unpin Tab"
   },
   "title": {
     "apps": "Apps",
@@ -5857,7 +5883,6 @@
     "knowledge": "Knowledge Base",
     "launchpad": "Launchpad",
     "mcp-servers": "MCP Servers",
-    "memories": "Memories",
     "notes": "Notes",
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
@@ -6015,7 +6040,7 @@
   },
   "tray": {
     "quit": "Quit",
-    "show_mini_window": "Quick Assistant",
+    "show_quick_assistant": "Quick Assistant",
     "show_window": "Show Window"
   },
   "update": {

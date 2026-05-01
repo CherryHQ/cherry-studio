@@ -1,6 +1,6 @@
+import { MenuItem, MenuList } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
-import ListItem from '@renderer/components/ListItem'
 import RichEditor from '@renderer/components/RichEditor'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
@@ -40,7 +40,6 @@ import styled from 'styled-components'
 
 const { Dragger } = Upload
 
-const TITLE_STYLE = { fontWeight: 500 } as const
 const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown'])
 const ICON_STYLE_16 = { fontSize: 16, flexShrink: 0 } as const
@@ -224,10 +223,9 @@ const SkillsSettings: FC = () => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
 
   // Search state (online registry)
-  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
@@ -237,7 +235,7 @@ const SkillsSettings: FC = () => {
 
   // Multi-select state
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   // Search tab state
   const [searchTab, setSearchTab] = useState<SkillSearchSource>('claude-plugins.dev')
@@ -293,27 +291,18 @@ const SkillsSettings: FC = () => {
 
   // Close search dropdown on outside click (but not when clicking inside a modal)
   useEffect(() => {
-    if (!searchOpen) return
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
       if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
         const modal = (target as Element).closest?.('.ant-modal-root, .ant-modal-wrap, .ant-modal')
         if (modal) return
-        setSearchOpen(false)
         setSearchQuery('')
         clear()
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [searchOpen, clear])
-
-  // Focus input when search opens
-  useEffect(() => {
-    if (searchOpen) {
-      setTimeout(() => searchInputRef.current?.focus(), 50)
-    }
-  }, [searchOpen])
+  }, [clear])
 
   // Filtered skills list
   const filteredSkills = useMemo(() => {
@@ -330,6 +319,7 @@ const SkillsSettings: FC = () => {
   const filteredResults = useMemo(() => {
     return results.filter((r) => r.sourceRegistry === searchTab)
   }, [results, searchTab])
+  const selectedSkillId = selectedSkill?.id
 
   // Pre-compute tab counts in one pass (js-combine-iterations)
   const tabCounts = useMemo(() => {
@@ -385,9 +375,7 @@ const SkillsSettings: FC = () => {
       title: t('settings.skills.confirmBatchUninstall', { count: toDelete.length }),
       centered: true,
       onOk: async () => {
-        for (const skill of toDelete) {
-          await uninstall(skill.id)
-        }
+        await Promise.all(toDelete.map((skill) => uninstall(skill.id)))
         setSelectedIds(new Set())
         setMultiSelectMode(false)
         setSelectedSkill(null)
@@ -459,16 +447,12 @@ const SkillsSettings: FC = () => {
     setSelectedSkill(null)
   }, [])
 
-  const selectedFileName = useMemo(() => {
-    if (!selectedFile) return null
-    const parts = selectedFile.split('/')
-    return parts[parts.length - 1]
-  }, [selectedFile])
+  const selectedFileName = selectedFile ? selectedFile.split('/').pop()! : null
 
   const handleCloseSearch = useCallback(() => {
-    setSearchOpen(false)
     setSearchQuery('')
     clear()
+    searchInputRef.current?.blur()
   }, [clear])
 
   const handleZipInstall = useCallback(
@@ -510,144 +494,147 @@ const SkillsSettings: FC = () => {
     <Container>
       <MainContainer>
         {/* Left Panel */}
-        <MenuList>
-          {selectedSkill ? (
-            <>
-              <ListHeader>
-                <BackButton onClick={handleBack}>
-                  <ArrowLeft size={14} />
-                </BackButton>
-                <Typography.Text strong style={SKILL_NAME_STYLE}>
-                  {selectedSkill.name}
-                </Typography.Text>
-              </ListHeader>
-              <FileTreeContainer>
-                {fileTree.map((node) => (
-                  <FileTreeNode
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    expandedDirs={expandedDirs}
-                    selectedFile={selectedFile}
-                    onToggleDir={toggleDir}
-                    onSelectFile={setSelectedFile}
-                  />
-                ))}
-              </FileTreeContainer>
-            </>
-          ) : (
-            <>
-              <ListHeader>
-                {multiSelectMode ? (
-                  <>
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      disabled={selectedIds.size === 0}
-                      icon={<Trash2 size={14} />}
-                      onClick={handleBatchUninstall}>
-                      {selectedIds.size > 0 ? selectedIds.size : ''}
-                    </Button>
-                    <div style={FLEX_1_STYLE} />
-                    <Button type="text" size="small" onClick={exitMultiSelect}>
-                      <X size={14} />
-                    </Button>
-                  </>
-                ) : (
-                  <Typography.Text strong style={FONT_13_STYLE}>
-                    {t('settings.skills.installed')} ({skills.length})
+        <MenuScroll>
+          <SkillsMenuList>
+            {selectedSkill ? (
+              <>
+                <ListHeader>
+                  <BackButton onClick={handleBack}>
+                    <ArrowLeft size={14} />
+                  </BackButton>
+                  <Typography.Text strong style={SKILL_NAME_STYLE}>
+                    {selectedSkill.name}
                   </Typography.Text>
-                )}
-              </ListHeader>
+                </ListHeader>
+                <FileTreeContainer>
+                  {fileTree.map((node) => (
+                    <FileTreeNode
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      expandedDirs={expandedDirs}
+                      selectedFile={selectedFile}
+                      onToggleDir={toggleDir}
+                      onSelectFile={setSelectedFile}
+                    />
+                  ))}
+                </FileTreeContainer>
+              </>
+            ) : (
+              <>
+                <ListHeader>
+                  {multiSelectMode ? (
+                    <>
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        disabled={selectedIds.size === 0}
+                        icon={<Trash2 size={14} />}
+                        onClick={handleBatchUninstall}>
+                        {selectedIds.size > 0 ? selectedIds.size : ''}
+                      </Button>
+                      <div style={FLEX_1_STYLE} />
+                      <Button type="text" size="small" onClick={exitMultiSelect}>
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography.Text strong style={FONT_13_STYLE}>
+                      {t('settings.skills.installed')} ({skills.length})
+                    </Typography.Text>
+                  )}
+                </ListHeader>
 
-              <FilterContainer>
-                <Input
-                  size="small"
-                  placeholder={t('settings.skills.filterPlaceholder')}
-                  value={localFilter}
-                  onChange={(e) => setLocalFilter(e.target.value)}
-                  prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
-                  allowClear
-                />
-              </FilterContainer>
+                <FilterContainer>
+                  <Input
+                    size="small"
+                    placeholder={t('settings.skills.filterPlaceholder')}
+                    value={localFilter}
+                    onChange={(e) => setLocalFilter(e.target.value)}
+                    prefix={<Search size={12} style={SEARCH_PREFIX_STYLE} />}
+                    allowClear
+                  />
+                </FilterContainer>
 
-              {loading ? (
-                <SpinContainer>
-                  <Spin size="small" />
-                </SpinContainer>
-              ) : filteredSkills.length === 0 ? (
-                <EmptyHint>
-                  <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
-                  <EmptyText>
-                    {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
-                  </EmptyText>
-                </EmptyHint>
-              ) : (
-                filteredSkills.map((skill) => {
-                  const isBuiltin = skill.source === 'builtin'
-                  if (multiSelectMode) {
+                {loading ? (
+                  <SpinContainer>
+                    <Spin size="small" />
+                  </SpinContainer>
+                ) : filteredSkills.length === 0 ? (
+                  <EmptyHint>
+                    <Puzzle size={32} strokeWidth={1} style={EMPTY_ICON_STYLE} />
+                    <EmptyText>
+                      {localFilter ? t('settings.skills.noFilterResults') : t('settings.skills.noInstalled')}
+                    </EmptyText>
+                  </EmptyHint>
+                ) : (
+                  filteredSkills.map((skill) => {
+                    const isBuiltin = skill.source === 'builtin'
+                    if (multiSelectMode) {
+                      return (
+                        <CheckboxItem
+                          key={skill.id}
+                          onClick={() =>
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(skill.id)) {
+                                next.delete(skill.id)
+                              } else if (!isBuiltin) {
+                                next.add(skill.id)
+                              }
+                              return next
+                            })
+                          }>
+                          <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
+                          <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
+                        </CheckboxItem>
+                      )
+                    }
                     return (
-                      <CheckboxItem
+                      <Dropdown
                         key={skill.id}
-                        onClick={() =>
-                          setSelectedIds((prev) => {
-                            const next = new Set(prev)
-                            if (next.has(skill.id)) {
-                              next.delete(skill.id)
-                            } else if (!isBuiltin) {
-                              next.add(skill.id)
-                            }
-                            return next
-                          })
-                        }>
-                        <Checkbox checked={selectedIds.has(skill.id)} disabled={isBuiltin} style={NO_EVENTS_STYLE} />
-                        <CheckboxLabel $disabled={isBuiltin}>{skill.name}</CheckboxLabel>
-                      </CheckboxItem>
+                        trigger={['contextMenu']}
+                        menu={{
+                          items: [
+                            {
+                              key: 'multiSelect',
+                              label: t('settings.skills.multiSelect'),
+                              onClick: () => setMultiSelectMode(true)
+                            },
+                            ...(!isBuiltin
+                              ? [
+                                  { type: 'divider' as const, key: 'div' },
+                                  {
+                                    key: 'uninstall',
+                                    label: t('settings.skills.uninstall'),
+                                    danger: true,
+                                    icon: <Trash2 size={14} />,
+                                    onClick: () => handleContextMenuUninstall(skill)
+                                  }
+                                ]
+                              : [])
+                          ]
+                        }}>
+                        <div>
+                          <MenuItem
+                            label={skill.name}
+                            description={skill.description ?? undefined}
+                            descriptionLines={2}
+                            active={selectedSkillId === skill.id}
+                            onClick={() => setSelectedSkill(skill)}
+                            icon={<Puzzle size={16} />}
+                            className="rounded-xs font-medium"
+                          />
+                        </div>
+                      </Dropdown>
                     )
-                  }
-                  return (
-                    <Dropdown
-                      key={skill.id}
-                      trigger={['contextMenu']}
-                      menu={{
-                        items: [
-                          {
-                            key: 'multiSelect',
-                            label: t('settings.skills.multiSelect'),
-                            onClick: () => setMultiSelectMode(true)
-                          },
-                          ...(!isBuiltin
-                            ? [
-                                { type: 'divider' as const, key: 'div' },
-                                {
-                                  key: 'uninstall',
-                                  label: t('settings.skills.uninstall'),
-                                  danger: true,
-                                  icon: <Trash2 size={14} />,
-                                  onClick: () => handleContextMenuUninstall(skill)
-                                }
-                              ]
-                            : [])
-                        ]
-                      }}>
-                      <div>
-                        <ListItem
-                          title={skill.name}
-                          subtitle={skill.description ?? undefined}
-                          active={false}
-                          onClick={() => setSelectedSkill(skill)}
-                          icon={<Puzzle size={16} />}
-                          titleStyle={TITLE_STYLE}
-                        />
-                      </div>
-                    </Dropdown>
-                  )
-                })
-              )}
-            </>
-          )}
-        </MenuList>
+                  })
+                )}
+              </>
+            )}
+          </SkillsMenuList>
+        </MenuScroll>
 
         {/* Right Panel */}
         <RightContainer>
@@ -671,60 +658,51 @@ const SkillsSettings: FC = () => {
                   ) : null}
                 </DetailMeta>
               ) : null}
-              {searchOpen ? (
-                <SearchInputWrapper>
-                  <Input
-                    ref={searchInputRef as React.Ref<any>}
-                    size="small"
-                    placeholder={t('settings.skills.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    suffix={<X size={12} style={CLOSE_ICON_STYLE} onClick={handleCloseSearch} />}
-                    prefix={<Search size={12} />}
-                  />
-                  {searching || results.length > 0 || (searchQuery && !searching) ? (
-                    <SearchDropdown>
-                      <SearchTabs>
-                        {SEARCH_SOURCES.map((source) => {
-                          const count = tabCounts.get(source) ?? 0
-                          return (
-                            <SearchTab key={source} $active={searchTab === source} onClick={() => setSearchTab(source)}>
-                              {source.replace('.dev', '').replace('.ai', '')}
-                              {count > 0 ? <TabCount>{count}</TabCount> : null}
-                            </SearchTab>
-                          )
-                        })}
-                      </SearchTabs>
-                      <SearchResultsScroll>
-                        {searching ? (
-                          <DropdownLoading>
-                            <Spin size="small" />
-                          </DropdownLoading>
-                        ) : null}
-                        {!searching && searchQuery && filteredResults.length === 0 ? (
-                          <DropdownEmpty>{t('settings.skills.noResults')}</DropdownEmpty>
-                        ) : null}
-                        {filteredResults.map((result) => (
-                          <SearchResultRow
-                            key={`${result.sourceRegistry}:${result.slug}`}
-                            result={result}
-                            isInstalling={isInstalling}
-                            onInstall={handleInstall}
-                            onPreview={setPreviewResult}
-                            installLabel={t('settings.skills.install')}
-                          />
-                        ))}
-                      </SearchResultsScroll>
-                    </SearchDropdown>
-                  ) : null}
-                </SearchInputWrapper>
-              ) : (
-                <Tooltip title={t('settings.skills.searchRegistryTitle')}>
-                  <SearchIconButton onClick={() => setSearchOpen(true)}>
-                    <Search size={16} />
-                  </SearchIconButton>
-                </Tooltip>
-              )}
+              <SearchInputWrapper>
+                <Input
+                  ref={searchInputRef as React.Ref<any>}
+                  placeholder={t('settings.skills.searchPlaceholder')}
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  suffix={searchQuery ? <X size={12} style={CLOSE_ICON_STYLE} onClick={handleCloseSearch} /> : <span />}
+                  prefix={<Search size={12} />}
+                />
+                {searching || results.length > 0 || (searchQuery && !searching) ? (
+                  <SearchDropdown>
+                    <SearchTabs>
+                      {SEARCH_SOURCES.map((source) => {
+                        const count = tabCounts.get(source) ?? 0
+                        return (
+                          <SearchTab key={source} $active={searchTab === source} onClick={() => setSearchTab(source)}>
+                            {source.replace('.dev', '').replace('.ai', '')}
+                            {count > 0 ? <TabCount>{count}</TabCount> : null}
+                          </SearchTab>
+                        )
+                      })}
+                    </SearchTabs>
+                    <SearchResultsScroll>
+                      {searching ? (
+                        <DropdownLoading>
+                          <Spin size="small" />
+                        </DropdownLoading>
+                      ) : null}
+                      {!searching && searchQuery && filteredResults.length === 0 ? (
+                        <DropdownEmpty>{t('settings.skills.noResults')}</DropdownEmpty>
+                      ) : null}
+                      {filteredResults.map((result) => (
+                        <SearchResultRow
+                          key={`${result.sourceRegistry}:${result.slug}`}
+                          result={result}
+                          isInstalling={isInstalling}
+                          onInstall={handleInstall}
+                          onPreview={setPreviewResult}
+                          installLabel={t('settings.skills.install')}
+                        />
+                      ))}
+                    </SearchResultsScroll>
+                  </SearchDropdown>
+                ) : null}
+              </SearchInputWrapper>
             </TopBarRight>
           </TopBar>
 
@@ -863,14 +841,21 @@ const MainContainer = styled.div`
   overflow: hidden;
 `
 
-const MenuList = styled(Scrollbar)`
+const SkillsMenuList = styled(MenuList)`
   display: flex;
   flex-direction: column;
-  gap: 5px;
   width: var(--settings-width);
+  min-height: 100%;
+  gap: 5px;
   padding: 12px;
-  border-right: 0.5px solid var(--color-border);
+  padding-bottom: 48px;
+  box-sizing: border-box;
+`
+
+const MenuScroll = styled(Scrollbar)`
+  width: var(--settings-width);
   height: calc(100vh - var(--navbar-height));
+  border-right: 0.5px solid var(--color-border);
 `
 
 const ListHeader = styled.div`
@@ -932,18 +917,6 @@ const DetailMeta = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-`
-
-const SearchIconButton = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-2);
-  &:hover {
-    background: var(--color-background-soft);
-  }
 `
 
 const SearchInputWrapper = styled.div`

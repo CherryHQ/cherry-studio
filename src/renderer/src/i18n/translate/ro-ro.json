@@ -490,6 +490,7 @@
       },
       "prompt": "Setări prompt",
       "skills": {
+        "addMore": "Adaugă mai multe abilități",
         "builtin": "Încorporat",
         "noFilterResults": "Nicio abilitate potrivită",
         "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "Mediul Bun este necesar pentru a rula instrumente CLI",
     "cli_tool": "Instrument CLI",
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Cale personalizată",
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introdu variabile de mediu personalizate (una pe rând, format: CHEIE=valoare)",
     "environment_variables": "Variabile de mediu",
     "folder_placeholder": "Selectează directorul de lucru",
@@ -1516,21 +1529,28 @@
       "bun_required": "Te rugăm să instalezi mai întâi mediul Bun înainte de a lansa instrumentele CLI",
       "error": "Lansarea a eșuat, te rugăm să încerci din nou",
       "label": "Lansează",
+      "launched": "[to be translated]:Launched",
       "success": "Lansare reușită",
       "validation_error": "Te rugăm să completezi toate câmpurile obligatorii: instrument CLI, model și director de lucru"
     },
     "launching": "Se lansează...",
     "model": "Model",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Selectează aplicația terminal",
     "title": "Instrumente de cod",
     "update_options": "Opțiuni de actualizare",
-    "working_directory": "Director de lucru"
+    "working_directory": "Director de lucru",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Restrânge",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "Acțiuni",
-    "add_failed": "Nu s-a putut adăuga amintirea",
-    "add_first_memory": "Adaugă prima ta amintire",
-    "add_memory": "Adaugă amintire",
-    "add_new_user": "Adaugă utilizator nou",
-    "add_success": "Amintire adăugată cu succes",
-    "add_user": "Adaugă utilizator",
-    "add_user_failed": "Nu s-a putut adăuga utilizatorul",
-    "all_users": "Toți utilizatorii",
-    "cannot_delete_default_user": "Nu se poate șterge utilizatorul implicit",
-    "configure_memory_first": "Te rugăm să configurezi mai întâi setările de memorie",
-    "content": "Conținut",
-    "current_user": "Utilizator curent",
-    "custom": "Personalizat",
-    "default": "Implicit",
-    "default_user": "Utilizator implicit",
-    "delete_confirm": "Ești sigur că vrei să ștergi această amintire?",
-    "delete_confirm_content": "Ești sigur că vrei să ștergi {{count}} amintiri?",
-    "delete_confirm_single": "Ești sigur că vrei să ștergi această amintire?",
-    "delete_confirm_title": "Șterge amintiri",
-    "delete_failed": "Nu s-a putut șterge amintirea",
-    "delete_selected": "Șterge selectate",
-    "delete_success": "Amintire ștearsă cu succes",
-    "delete_user": "Șterge utilizator",
-    "delete_user_confirm_content": "Ești sigur că vrei să ștergi utilizatorul {{user}} și toate amintirile sale?",
-    "delete_user_confirm_title": "Șterge utilizator",
-    "delete_user_failed": "Nu s-a putut șterge utilizatorul",
-    "description": "Memoria îți permite să stochezi și să gestionezi informații despre interacțiunile tale cu asistentul. Poți adăuga, edita și șterge amintiri, precum și să le filtrezi și să cauți prin ele.",
-    "edit_memory": "Editează amintirea",
-    "embedding_dimensions": "Dimensiuni embedding",
-    "embedding_model": "Model embedding",
-    "enable_global_memory_first": "Te rugăm să activezi mai întâi memoria globală",
-    "end_date": "Data de sfârșit",
-    "global_memory": "Memorie globală",
-    "global_memory_description": "Pentru a folosi funcțiile de memorie, te rugăm să activezi memoria globală în setările asistentului.",
-    "global_memory_disabled_desc": "Pentru a folosi funcțiile de memorie, te rugăm să activezi mai întâi memoria globală în setările asistentului.",
-    "global_memory_disabled_title": "Memorie globală dezactivată",
-    "global_memory_enabled": "Memorie globală activată",
-    "go_to_memory_page": "Mergi la pagina Memorie",
-    "initial_memory_content": "Bun venit! Aceasta este prima ta amintire.",
-    "llm_model": "Model LLM",
-    "load_failed": "Nu s-au putut încărca amintirile",
-    "loading": "Se încarcă amintirile...",
-    "loading_memories": "Se încarcă amintirile...",
-    "memories_description": "Se afișează {{count}} din {{total}} amintiri",
-    "memories_reset_success": "Toate amintirile pentru {{user}} au fost resetate cu succes",
-    "memory": "amintire",
-    "memory_content": "Conținut amintire",
-    "memory_placeholder": "Introdu conținutul amintirii...",
-    "new_user_id": "ID utilizator nou",
-    "new_user_id_placeholder": "Introdu un ID de utilizator unic",
-    "no_matching_memories": "Nu s-au găsit amintiri potrivite",
-    "no_memories": "Încă nu există amintiri",
-    "no_memories_description": "Începe prin a adăuga prima ta amintire",
-    "not_configured_desc": "Te rugăm să configurezi modelele de embedding și LLM în setările de memorie pentru a activa funcționalitatea de memorie.",
-    "not_configured_title": "Memorie neconfigurată",
-    "pagination_total": "{{start}}-{{end}} din {{total}} elemente",
-    "please_enter_memory": "Te rugăm să introduci conținutul amintirii",
-    "please_select_embedding_model": "Te rugăm să selectezi un model de embedding",
-    "please_select_llm_model": "Te rugăm să selectezi un model LLM",
-    "reset_filters": "Resetează filtrele",
-    "reset_memories": "Resetează amintirile",
-    "reset_memories_confirm_content": "Ești sigur că vrei să ștergi definitiv toate amintirile pentru {{user}}? Această acțiune nu poate fi anulată.",
-    "reset_memories_confirm_title": "Resetează toate amintirile",
-    "reset_memories_failed": "Nu s-au putut reseta amintirile",
-    "reset_user_memories": "Resetează amintirile utilizatorului",
-    "reset_user_memories_confirm_content": "Ești sigur că vrei să resetezi toate amintirile pentru {{user}}?",
-    "reset_user_memories_confirm_title": "Resetează amintirile utilizatorului",
-    "reset_user_memories_failed": "Nu s-au putut reseta amintirile utilizatorului",
-    "score": "Scor",
-    "search": "Caută",
-    "search_placeholder": "Caută amintiri...",
-    "select_embedding_model_placeholder": "Selectează model embedding",
-    "select_llm_model_placeholder": "Selectează model LLM",
-    "select_user": "Selectează utilizator",
-    "settings": "Setări",
-    "settings_title": "Setări memorie",
-    "start_date": "Data de început",
-    "statistics": "Statistici",
-    "stored_memories": "Amintiri stocate",
-    "switch_user": "Schimbă utilizatorul",
-    "switch_user_confirm": "Schimbi contextul de utilizator la {{user}}?",
-    "time": "Timp",
-    "title": "Amintiri",
-    "total_memories": "Total amintiri",
-    "try_different_filters": "Încearcă să ajustezi criteriile de căutare",
-    "update_failed": "Nu s-a putut actualiza amintirea",
-    "update_success": "Amintire actualizată cu succes",
-    "user": "Utilizator",
-    "user_created": "Utilizatorul {{user}} a fost creat și comutat cu succes",
-    "user_deleted": "Utilizatorul {{user}} a fost șters cu succes",
-    "user_id": "ID utilizator",
-    "user_id_exists": "Acest ID de utilizator există deja",
-    "user_id_invalid_chars": "ID-ul de utilizator poate conține doar litere, cifre, cratime și liniuțe de subliniere",
-    "user_id_placeholder": "Introdu ID utilizator (opțional)",
-    "user_id_required": "ID-ul de utilizator este obligatoriu",
-    "user_id_reserved": "'default-user' este rezervat, te rugăm să folosești un ID diferit",
-    "user_id_rules": "ID-ul de utilizator trebuie să fie unic și să conțină doar litere, cifre, cratime (-) și liniuțe de subliniere (_)",
-    "user_id_too_long": "ID-ul de utilizator nu poate depăși 50 de caractere",
-    "user_management": "Gestionare utilizatori",
-    "user_memories_reset": "Toate amintirile pentru {{user}} au fost resetate",
-    "user_switch_failed": "Nu s-a putut schimba utilizatorul",
-    "user_switched": "Contextul de utilizator a fost schimbat la {{user}}",
-    "users": "Utilizatori"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
-    },
-    "clipboard": {
-      "empty": "Clipboardul este gol"
-    },
-    "feature": {
-      "chat": "Răspunde la această întrebare",
-      "explanation": "Explicație",
-      "summary": "Rezumat conținut",
-      "translate": "Traducere text"
-    },
-    "footer": {
-      "backspace_clear": "Backspace pentru a șterge",
-      "copy_last_message": "Apasă C pentru a copia",
-      "esc": "ESC pentru a {{action}}",
-      "esc_back": "reveni",
-      "esc_close": "închide",
-      "esc_pause": "pune pauză"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Cere ajutor de la {{model}}...",
-        "title": "Ce vrei să faci cu acest text?"
-      }
-    },
-    "tooltip": {
-      "pin": "Menține fereastra deasupra"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Adaugă parametru",
     "all": "Toate",
     "custom_parameters": "Parametri personalizați",
@@ -2688,6 +2575,9 @@
     "function_calling": "Apelare funcții",
     "invalid_model": "Model invalid",
     "json_parse_error": "Format JSON invalid",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
+    },
+    "clipboard": {
+      "empty": "Clipboardul este gol"
+    },
+    "feature": {
+      "chat": "Răspunde la această întrebare",
+      "explanation": "Explicație",
+      "summary": "Rezumat conținut",
+      "translate": "Traducere text"
+    },
+    "footer": {
+      "backspace_clear": "Backspace pentru a șterge",
+      "copy_last_message": "Apasă C pentru a copia",
+      "esc": "ESC pentru a {{action}}",
+      "esc_back": "reveni",
+      "esc_close": "închide",
+      "esc_pause": "pune pauză"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Cere ajutor de la {{model}}...",
+        "title": "Ce vrei să faci cu acest text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Menține fereastra deasupra"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Selectează fișierul de backup",
@@ -3775,7 +3696,7 @@
         "title": "Listă filtrare aplicații",
         "user_tips": {
           "mac": "Te rugăm să introduci Bundle ID-ul aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: com.google.Chrome, com.apple.mail etc.",
-          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, Cherry Studio.exe etc."
+          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, CherryStudio.exe etc."
         }
       },
       "linux": {
@@ -3961,6 +3882,47 @@
     "channels": {
       "description": "Conectați agenți la platforme de mesagerie precum Telegram, Feishu, Discord și altele.",
       "title": "Canale"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5516,29 @@
     "shortcuts": {
       "action": "Acțiune",
       "actions": "Comandă",
+      "bind_first_to_enable": "Asociază mai întâi o comandă rapidă pentru a-i schimba starea de activare",
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
+      "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
-      "mini_window": "Asistent rapid",
       "new_topic": "Subiect nou",
+      "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
       "press_shortcut": "Apasă comanda rapidă",
+      "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
       "reset_defaults": "Resetează la implicite",
       "reset_defaults_confirm": "Ești sigur că vrei să resetezi toate comenzile rapide?",
+      "reset_defaults_failed": "Nu s-a reușit resetarea comenzilor rapide la valorile implicite",
       "reset_to_default": "Resetează la implicit",
+      "save_failed": "Nu s-a putut salva comanda rapidă",
+      "save_failed_with_name": "Nu s-a putut salva comanda rapidă: {{name}}",
       "search_message": "Caută mesaj",
       "search_message_in_chat": "Caută mesaj în chat-ul curent",
+      "search_placeholder": "Căutare comenzi rapide...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Asistent de selecție: Selectează text",
       "selection_assistant_toggle": "Comută Asistentul de selecție",
@@ -5577,8 +5546,8 @@
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
       "toggle_new_context": "Șterge contextul",
-      "toggle_show_assistants": "Comută asistenții",
       "toggle_show_topics": "Comută subiectele",
+      "toggle_sidebar": "Comutare bară laterală",
       "zoom_in": "Mărește",
       "zoom_out": "Micșorează",
       "zoom_reset": "Resetează zoom-ul"
@@ -5608,7 +5577,7 @@
       "noInstalled": "Nicio competență instalată",
       "noResults": "Nicio competență găsită",
       "noSkillFile": "Nu s-a găsit SKILL.md",
-      "searchPlaceholder": "Caută competențe în registre...",
+      "searchPlaceholder": "Descoperă mai multe competențe...",
       "searchRegistryTitle": "Caută registre de competențe online",
       "searchTitle": "Abilități de căutare",
       "selectFile": "Selectați un fișier pentru vizualizare",
@@ -5846,6 +5815,13 @@
       "title": "Zoom pagină"
     }
   },
+  "tab": {
+    "close": "Închide fila",
+    "moveToFirst": "Mută la început",
+    "new": "Filă nouă",
+    "pin": "Fixează fila",
+    "unpin": "Anulați fixarea filei"
+  },
   "title": {
     "apps": "Aplicații",
     "code": "Cod",
@@ -5854,7 +5830,6 @@
     "knowledge": "Bază de cunoștințe",
     "launchpad": "Launchpad",
     "mcp-servers": "Servere MCP",
-    "memories": "Amintiri",
     "notes": "Notițe",
     "openclaw": "OpenClaw",
     "paintings": "Imagini",
@@ -6012,7 +5987,7 @@
   },
   "tray": {
     "quit": "Ieșire",
-    "show_mini_window": "Asistent rapid",
+    "show_quick_assistant": "Asistent rapid",
     "show_window": "Afișează fereastra"
   },
   "update": {

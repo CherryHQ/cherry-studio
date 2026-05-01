@@ -24,12 +24,12 @@ import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/qu
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
 import { Route as SettingsNotesRouteImport } from './routes/settings/notes'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
-import { Route as SettingsMemoryRouteImport } from './routes/settings/memory'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsDocprocessRouteImport } from './routes/settings/docprocess'
 import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
+import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -134,11 +134,6 @@ const SettingsModelRoute = SettingsModelRouteImport.update({
   path: '/model',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsMemoryRoute = SettingsMemoryRouteImport.update({
-  id: '/memory',
-  path: '/memory',
-  getParentRoute: () => SettingsRoute,
-} as any)
 const SettingsMcpRoute = SettingsMcpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
@@ -162,6 +157,11 @@ const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
 const SettingsDataRoute = SettingsDataRouteImport.update({
   id: '/data',
   path: '/data',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsComponentLabRoute = SettingsComponentLabRouteImport.update({
+  id: '/component-lab',
+  path: '/component-lab',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
@@ -320,12 +320,12 @@ export interface FileRoutesByFullPath {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
-  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -369,11 +369,11 @@ export interface FileRoutesByTo {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
-  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -418,12 +418,12 @@ export interface FileRoutesById {
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-server': typeof SettingsApiServerRoute
   '/settings/channels': typeof SettingsChannelsRoute
+  '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/display': typeof SettingsDisplayRoute
   '/settings/docprocess': typeof SettingsDocprocessRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
-  '/settings/memory': typeof SettingsMemoryRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notes': typeof SettingsNotesRoute
   '/settings/provider': typeof SettingsProviderRoute
@@ -470,12 +470,12 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/mcp'
-    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -519,11 +519,11 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
-    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -567,12 +567,12 @@ export interface FileRouteTypes {
     | '/settings/about'
     | '/settings/api-server'
     | '/settings/channels'
+    | '/settings/component-lab'
     | '/settings/data'
     | '/settings/display'
     | '/settings/docprocess'
     | '/settings/general'
     | '/settings/mcp'
-    | '/settings/memory'
     | '/settings/model'
     | '/settings/notes'
     | '/settings/provider'
@@ -715,13 +715,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsModelRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/memory': {
-      id: '/settings/memory'
-      path: '/memory'
-      fullPath: '/settings/memory'
-      preLoaderRoute: typeof SettingsMemoryRouteImport
-      parentRoute: typeof SettingsRoute
-    }
     '/settings/mcp': {
       id: '/settings/mcp'
       path: '/mcp'
@@ -755,6 +748,13 @@ declare module '@tanstack/react-router' {
       path: '/data'
       fullPath: '/settings/data'
       preLoaderRoute: typeof SettingsDataRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/component-lab': {
+      id: '/settings/component-lab'
+      path: '/component-lab'
+      fullPath: '/settings/component-lab'
+      preLoaderRoute: typeof SettingsComponentLabRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/channels': {
@@ -1029,12 +1029,12 @@ interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsApiServerRoute: typeof SettingsApiServerRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
+  SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsDocprocessRoute: typeof SettingsDocprocessRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
-  SettingsMemoryRoute: typeof SettingsMemoryRoute
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsNotesRoute: typeof SettingsNotesRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
@@ -1052,12 +1052,12 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsApiServerRoute: SettingsApiServerRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
+  SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsDocprocessRoute: SettingsDocprocessRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
-  SettingsMemoryRoute: SettingsMemoryRoute,
   SettingsModelRoute: SettingsModelRoute,
   SettingsNotesRoute: SettingsNotesRoute,
   SettingsProviderRoute: SettingsProviderRoute,

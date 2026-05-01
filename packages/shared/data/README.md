@@ -6,7 +6,7 @@ This directory contains shared type definitions for Cherry Studio's data layer.
 
 For comprehensive documentation, see:
 - **Overview**: [docs/references/data/README.md](../../../docs/references/data/README.md)
-- **Cache Types**: [cache-overview.md](../../../docs/references/data/cache-overview.md)
+- **Cache Types**: [cache-overview.md](../../../docs/references/data/cache-overview.md) — schemas in `cache/cacheSchemas.ts`, template matcher in `cache/templateKey.ts`; adding keys: [cache-schema-guide.md](../../../docs/references/data/cache-schema-guide.md)
 - **Preference Types**: [preference-overview.md](../../../docs/references/data/preference-overview.md)
 - **API Types**: [api-types.md](../../../docs/references/data/api-types.md)
 

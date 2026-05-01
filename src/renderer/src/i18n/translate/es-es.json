@@ -490,6 +490,7 @@
       },
       "prompt": "Configuración de indicaciones",
       "skills": {
+        "addMore": "Añadir más habilidades",
         "builtin": "Incorporado",
         "noFilterResults": "Sin habilidades coincidentes",
         "noSkills": "No hay habilidades instaladas. Instala habilidades desde Ajustes > Habilidades.",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Ruta personalizada",
     "custom_path_error": "Error al establecer la ruta de terminal personalizada",
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
     "folder_placeholder": "Seleccionar directorio de trabajo",
@@ -1516,21 +1529,28 @@
       "bun_required": "Instale el entorno Bun antes de iniciar la herramienta de línea de comandos",
       "error": "Error al iniciar, intente nuevamente",
       "label": "Iniciar",
+      "launched": "[to be translated]:Launched",
       "success": "Inicio exitoso",
       "validation_error": "Complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Iniciando...",
     "model": "modelo",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Seleccionar carpeta",
     "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
     "terminal": "terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
-    "working_directory": "directorio de trabajo"
+    "working_directory": "directorio de trabajo",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Replegar",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "Acciones",
-    "add_failed": "Error al agregar memoria",
-    "add_first_memory": "Agrega tu primera memoria",
-    "add_memory": "Agregar memoria",
-    "add_new_user": "Agregar nuevo usuario",
-    "add_success": "Memoria agregada con éxito",
-    "add_user": "Agregar usuario",
-    "add_user_failed": "Error al agregar usuario",
-    "all_users": "Todos los usuarios",
-    "cannot_delete_default_user": "No se puede eliminar el usuario predeterminado",
-    "configure_memory_first": "Por favor, configure primero la configuración de memoria",
-    "content": "Contenido",
-    "current_user": "Usuario actual",
-    "custom": "Personalizado",
-    "default": "Predeterminado",
-    "default_user": "Usuario predeterminado",
-    "delete_confirm": "¿Está seguro de que desea eliminar esta memoria?",
-    "delete_confirm_content": "¿Está seguro de que desea eliminar {{count}} memorias?",
-    "delete_confirm_single": "¿Está seguro de que desea eliminar esta memoria?",
-    "delete_confirm_title": "Eliminar memoria",
-    "delete_failed": "Error al eliminar la memoria",
-    "delete_selected": "Eliminar seleccionados",
-    "delete_success": "Memoria eliminada con éxito",
-    "delete_user": "Eliminar usuario",
-    "delete_user_confirm_content": "¿Está seguro de que desea eliminar al usuario {{user}} y todas sus memorias?",
-    "delete_user_confirm_title": "Eliminar usuario",
-    "delete_user_failed": "Error al eliminar el usuario",
-    "description": "La función de memoria le permite almacenar y gestionar información sobre sus interacciones con el asistente. Puede agregar, editar y eliminar memorias, así como filtrarlas y buscar en ellas.",
-    "edit_memory": "Editar memoria",
-    "embedding_dimensions": "Dimensiones de incrustación",
-    "embedding_model": "Modelo de incrustación",
-    "enable_global_memory_first": "Por favor, active primero la memoria global",
-    "end_date": "Fecha de finalización",
-    "global_memory": "Memoria global",
-    "global_memory_description": "Se debe activar la memoria global en la configuración del asistente para poder usarla",
-    "global_memory_disabled_desc": "Para usar la función de memoria, active primero la memoria global en la configuración del asistente.",
-    "global_memory_disabled_title": "Memoria global desactivada",
-    "global_memory_enabled": "Memoria global habilitada",
-    "go_to_memory_page": "Ir a la página de memorias",
-    "initial_memory_content": "¡Bienvenido! Esta es tu primera memoria.",
-    "llm_model": "Modelo LLM",
-    "load_failed": "Error al cargar la memoria",
-    "loading": "Cargando memorias...",
-    "loading_memories": "Cargando memorias...",
-    "memories_description": "Mostrando {{count}} de {{total}} memorias",
-    "memories_reset_success": "Todas las memorias de {{user}} se han restablecido correctamente",
-    "memory": "memorias",
-    "memory_content": "Contenido de la memoria",
-    "memory_placeholder": "Ingrese el contenido de la memoria...",
-    "new_user_id": "Nuevo ID de usuario",
-    "new_user_id_placeholder": "Ingrese un ID de usuario único",
-    "no_matching_memories": "No se encontraron memorias coincidentes",
-    "no_memories": "No hay memorias aún",
-    "no_memories_description": "Comience agregando su primera memoria",
-    "not_configured_desc": "Configure los modelos de incrustación y LLM en la configuración de memoria para habilitar la función de memoria.",
-    "not_configured_title": "Memoria no configurada",
-    "pagination_total": "Elementos del {{start}} al {{end}} de {{total}}",
-    "please_enter_memory": "Por favor, ingrese el contenido de la memoria",
-    "please_select_embedding_model": "Por favor, seleccione un modelo de incrustación",
-    "please_select_llm_model": "Por favor, seleccione el modelo LLM",
-    "reset_filters": "Restablecer filtros",
-    "reset_memories": "Restablecer memorias",
-    "reset_memories_confirm_content": "¿Está seguro de que desea eliminar permanentemente todas las memorias de {{user}}? Esta acción no se puede deshacer.",
-    "reset_memories_confirm_title": "Restablecer todas las memorias",
-    "reset_memories_failed": "Error al restablecer la memoria",
-    "reset_user_memories": "Restablecer memorias del usuario",
-    "reset_user_memories_confirm_content": "¿Está seguro de que desea restablecer todas las memorias de {{user}}?",
-    "reset_user_memories_confirm_title": "Restablecer memorias del usuario",
-    "reset_user_memories_failed": "Error al restablecer las memorias del usuario",
-    "score": "Puntuación",
-    "search": "Buscar",
-    "search_placeholder": "Buscar en memorias...",
-    "select_embedding_model_placeholder": "Seleccionar modelo de incrustación",
-    "select_llm_model_placeholder": "Seleccionar modelo LLM",
-    "select_user": "Seleccionar usuario",
-    "settings": "Configuración",
-    "settings_title": "Configuración de memoria",
-    "start_date": "Fecha de inicio",
-    "statistics": "Estadísticas",
-    "stored_memories": "Memorias almacenadas",
-    "switch_user": "Cambiar usuario",
-    "switch_user_confirm": "¿Cambiar el contexto de usuario a {{user}}?",
-    "time": "Hora",
-    "title": "Memoria global",
-    "total_memories": "memorias",
-    "try_different_filters": "Intente ajustar los criterios de búsqueda",
-    "update_failed": "Error al actualizar la memoria",
-    "update_success": "Memoria actualizada con éxito",
-    "user": "Usuario",
-    "user_created": "Usuario {{user}} creado y cambiado con éxito",
-    "user_deleted": "Usuario {{user}} eliminado con éxito",
-    "user_id": "ID de usuario",
-    "user_id_exists": "Este ID de usuario ya existe",
-    "user_id_invalid_chars": "El ID de usuario solo puede contener letras, números, guiones y guiones bajos",
-    "user_id_placeholder": "Ingrese el ID de usuario (opcional)",
-    "user_id_required": "El ID de usuario es obligatorio",
-    "user_id_reserved": "'default-user' es una palabra reservada, use otro ID",
-    "user_id_rules": "El ID de usuario debe ser único y solo puede contener letras, números, guiones (-) y guiones bajos (_)",
-    "user_id_too_long": "El ID de usuario no puede superar los 50 caracteres",
-    "user_management": "Gestión de usuarios",
-    "user_memories_reset": "Todas las memorias de {{user}} han sido restablecidas",
-    "user_switch_failed": "Error al cambiar de usuario",
-    "user_switched": "El contexto de usuario ha sido cambiado a {{user}}",
-    "users": "Usuarios"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
-    },
-    "clipboard": {
-      "empty": "El portapapeles está vacío"
-    },
-    "feature": {
-      "chat": "Responder a esta pregunta",
-      "explanation": "Explicación",
-      "summary": "Resumen del contenido",
-      "translate": "Traducción de texto"
-    },
-    "footer": {
-      "backspace_clear": "Presione Retroceso para borrar",
-      "copy_last_message": "Presione C para copiar",
-      "esc": "Presione ESC {{action}}",
-      "esc_back": "Volver",
-      "esc_close": "Cerrar ventana",
-      "esc_pause": "Pausa"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Pregunta a {{model}} para obtener ayuda...",
-        "title": "¿Qué deseas hacer con el texto de abajo?"
-      }
-    },
-    "tooltip": {
-      "pin": "Fijar en la parte superior"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Agregar parámetro",
     "all": "Todo",
     "custom_parameters": "Parámetros personalizados",
@@ -2688,6 +2575,9 @@
     "function_calling": "Llamada a función",
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360 Inteligente",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
+    },
+    "clipboard": {
+      "empty": "El portapapeles está vacío"
+    },
+    "feature": {
+      "chat": "Responder a esta pregunta",
+      "explanation": "Explicación",
+      "summary": "Resumen del contenido",
+      "translate": "Traducción de texto"
+    },
+    "footer": {
+      "backspace_clear": "Presione Retroceso para borrar",
+      "copy_last_message": "Presione C para copiar",
+      "esc": "Presione ESC {{action}}",
+      "esc_back": "Volver",
+      "esc_close": "Cerrar ventana",
+      "esc_pause": "Pausa"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Pregunta a {{model}} para obtener ayuda...",
+        "title": "¿Qué deseas hacer con el texto de abajo?"
+      }
+    },
+    "tooltip": {
+      "pin": "Fijar en la parte superior"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Seleccionar archivo de respaldo",
@@ -3775,7 +3696,7 @@
         "title": "Lista de selección de aplicaciones",
         "user_tips": {
           "mac": "Ingrese el ID de paquete de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "windows": "Ingrese el nombre del archivo ejecutable de la aplicación, uno por línea, sin distinguir mayúsculas y minúsculas, se permite la coincidencia aproximada. Por ejemplo: chrome.exe, weixin.exe, CherryStudio.exe, etc."
         }
       },
       "linux": {
@@ -3961,6 +3882,47 @@
     "channels": {
       "description": "Conecta agentes a plataformas de mensajería como Telegram, Feishu, Discord y más.",
       "title": "Canales"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5516,29 @@
     "shortcuts": {
       "action": "Acción",
       "actions": "operación",
+      "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
+      "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
+      "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
       "press_shortcut": "Presionar atajo",
+      "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
+      "reset_defaults_failed": "Error al restablecer los atajos a los valores predeterminados",
       "reset_to_default": "Restablecer a predeterminado",
+      "save_failed": "Error al guardar el acceso directo",
+      "save_failed_with_name": "Error al guardar el acceso directo: {{name}}",
       "search_message": "Buscar mensaje",
       "search_message_in_chat": "Buscar mensajes en la conversación actual",
+      "search_placeholder": "Buscar accesos directos...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Asistente de selección de texto: obtener palabras",
       "selection_assistant_toggle": "Activar/desactivar el asistente de selección de texto",
@@ -5577,8 +5546,8 @@
       "show_settings": "Abrir configuración",
       "title": "Atajos",
       "toggle_new_context": "Limpiar contexto",
-      "toggle_show_assistants": "Alternar visibilidad de asistentes",
       "toggle_show_topics": "Alternar visibilidad de temas",
+      "toggle_sidebar": "Alternar barra lateral",
       "zoom_in": "Ampliar interfaz",
       "zoom_out": "Reducir interfaz",
       "zoom_reset": "Restablecer zoom"
@@ -5608,7 +5577,7 @@
       "noInstalled": "Sin habilidades instaladas",
       "noResults": "Sin habilidades encontradas",
       "noSkillFile": "No se encontró SKILL.md",
-      "searchPlaceholder": "Buscar habilidades en los registros...",
+      "searchPlaceholder": "Descubrir más habilidades...",
       "searchRegistryTitle": "Buscar registros de habilidades en línea",
       "searchTitle": "Habilidades de búsqueda",
       "selectFile": "Selecciona un archivo para ver",
@@ -5847,7 +5816,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "Cerrar pestaña",
+    "moveToFirst": "Mover al primero",
+    "new": "Nueva pestaña",
+    "pin": "Anclar pestaña",
+    "unpin": "Desanclar pestaña"
   },
   "title": {
     "apps": "Aplicaciones",
@@ -5857,7 +5830,6 @@
     "knowledge": "Base de conocimiento",
     "launchpad": "Centro de lanzamiento",
     "mcp-servers": "Servidores MCP",
-    "memories": "Memorias",
     "notes": "notas",
     "openclaw": "OpenClaw",
     "paintings": "Pinturas",
@@ -6015,7 +5987,7 @@
   },
   "tray": {
     "quit": "Salir",
-    "show_mini_window": "Asistente rápido",
+    "show_quick_assistant": "Asistente rápido",
     "show_window": "Mostrar ventana"
   },
   "update": {

@@ -62,13 +62,13 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 ### CacheService
 
-Three-tier cache system with type-safe and casual (dynamic key) methods.
+Three-tier cache system with type-safe methods (and casual/dynamic key methods on the Memory tier only).
 
 #### Methods
 
 | Category | Method | Signature |
 |----------|--------|-----------|
-| Memory (typed) | `get` | `<K>(key: K) => UseCacheSchema[K]` |
+| Memory (typed) | `get` | `<K>(key: K) => InferUseCacheValue<K>` |
 | Memory (typed) | `set` | `<K>(key: K, value, ttl?) => void` |
 | Memory (typed) | `has` | `<K>(key: K) => boolean` |
 | Memory (typed) | `delete` | `<K>(key: K) => boolean` |
@@ -78,16 +78,11 @@ Three-tier cache system with type-safe and casual (dynamic key) methods.
 | Memory (casual) | `hasCasual` | `(key: string) => boolean` |
 | Memory (casual) | `deleteCasual` | `(key: string) => boolean` |
 | Memory (casual) | `hasTTLCasual` | `(key: string) => boolean` |
-| Shared (typed) | `getShared` | `<K>(key: K) => SharedCacheSchema[K]` |
+| Shared (typed) | `getShared` | `<K>(key: K) => InferSharedCacheValue<K>` |
 | Shared (typed) | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared (typed) | `hasShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `deleteShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `hasSharedTTL` | `<K>(key: K) => boolean` |
-| Shared (casual) | `getSharedCasual` | `<T>(key: string) => T \| undefined` |
-| Shared (casual) | `setSharedCasual` | `<T>(key, value, ttl?) => void` |
-| Shared (casual) | `hasSharedCasual` | `(key: string) => boolean` |
-| Shared (casual) | `deleteSharedCasual` | `(key: string) => boolean` |
-| Shared (casual) | `hasSharedTTLCasual` | `(key: string) => boolean` |
 | Persist | `getPersist` | `<K>(key: K) => RendererPersistCacheSchema[K]` |
 | Persist | `setPersist` | `<K>(key: K, value) => void` |
 | Persist | `hasPersist` | `(key) => boolean` |
@@ -183,11 +178,13 @@ React hooks for data operations.
 | `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
 | `useInvalidateCache` | `()` | `(keys?) => Promise<any>` |
+| `useReadCache` | `()` | `(path, query?) => TResponse \| undefined` |
+| `useWriteCache` | `()` | `async (path, value, query?) => void` |
 
 #### Usage
 
 ```typescript
-import { useQuery, useMutation } from '@data/hooks/useDataApi'
+import { useQuery, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 
 describe('Hooks', () => {
@@ -210,8 +207,26 @@ describe('Hooks', () => {
     const { data } = useQuery('/topics')
     expect(data.custom).toBe(true)
   })
+
+  it('useReadCache reads seeded values', () => {
+    // Pre-populate the mock cache (key shape mirrors production:
+    // omit `query` for [path], pass a non-empty `query` for [path, query]).
+    MockUseDataApiUtils.seedCache('/topics', { topics: [{ id: 't1' }], total: 1 })
+
+    const read = useReadCache()
+    expect(read('/topics')).toEqual({ topics: [{ id: 't1' }], total: 1 })
+  })
+
+  it('useWriteCache persists to mock store (assertable via getCachedValue)', async () => {
+    const write = useWriteCache()
+    await write('/topics', { topics: [], total: 0 })
+
+    expect(MockUseDataApiUtils.getCachedValue('/topics')).toEqual({ topics: [], total: 0 })
+  })
 })
 ```
+
+> **Note:** `useReadCache`/`useWriteCache` share one in-memory `Map` under the hood. `resetMocks()` clears both call history and the cache store; use `clearCache()` if you want to drop cache entries without resetting hook mocks.
 
 ---
 
@@ -254,6 +269,18 @@ await setTheme('dark')
 
 ## Main Process Mocks
 
+### Scope
+
+`tests/__mocks__/main/` holds mocks for **cross-cutting infrastructure only**: `PreferenceService`, `CacheService`, `DbService`, `DataApiService`, plus minimal `MainWindowService` / `WindowManager` stubs. All are pre-mocked globally via `tests/main.setup.ts`.
+
+**Do not add files here for feature-specific lifecycle services** (e.g., `MarkdownTaskService`, `KnowledgeRuntimeService`). The `ServiceOverrides` type is deliberately locked to `keyof typeof defaultServiceInstances` to enforce this boundary. Stub them locally — see [Testing Other Lifecycle Services](#testing-other-lifecycle-services).
+
+| Service category | How to mock |
+|---|---|
+| Infrastructure (listed above) | Already mocked globally; override via `mockApplicationFactory({ Name: {...} })` |
+| Feature-specific lifecycle service | Local `vi.mock('@application')` + `MockBaseService` in the test file |
+| Direct-import singleton (no lifecycle) | `vi.mock('path/to/module')` directly |
+
 ### Application Mock (Unified Factory)
 
 All main-process tests get `application.get()` mocked globally via `tests/main.setup.ts`. Tests that need custom service instances can override specific services using `mockApplicationFactory(overrides)`.
@@ -271,18 +298,18 @@ All main-process tests get `application.get()` mocked globally via `tests/main.s
 **Global setup** (already configured in `tests/main.setup.ts`):
 
 ```typescript
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('./__mocks__/main/application')
   return mockApplicationFactory()
 })
 ```
 
-**Override specific services** in individual test files:
+**Override infrastructure services** in individual test files:
 
 ```typescript
 const mockDb = { select: vi.fn(), insert: vi.fn() }
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     DbService: { getDb: () => mockDb }
@@ -290,20 +317,7 @@ vi.mock('@main/core/application', async () => {
 })
 ```
 
-**Override with custom method spies:**
-
-```typescript
-const mockPreferenceGet = vi.fn()
-
-vi.mock('@main/core/application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
-})
-```
-
-> **Important**: Do NOT create inline `application.get()` mocks in test files. Always use `mockApplicationFactory()` from `@test-mocks/main/application`.
+For **non-infrastructure** services, don't override here — use [Testing Other Lifecycle Services](#testing-other-lifecycle-services) instead.
 
 ---
 
@@ -350,6 +364,10 @@ Internal cache and cross-window shared cache.
 | Shared | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared | `hasShared` | `<K>(key: K) => boolean` |
 | Shared | `deleteShared` | `<K>(key: K) => boolean` |
+| Subscription | `subscribeChange` | `<T>(key, callback) => () => void` — returns a fresh `vi.fn()` unsubscribe stub |
+| Subscription | `subscribeSharedChange` | `<K>(key, callback) => () => void` — returns a fresh `vi.fn()` unsubscribe stub |
+
+> **Note on subscription mocks**: `subscribeChange` / `subscribeSharedChange` are call-tracking stubs — they do **not** replicate the real fire semantics. Use them to verify `registerDisposable(cacheService.subscribeChange(...))` wiring and that subscriptions happen, not to simulate callbacks. The `setShared` / `deleteShared` mocks also record every call to `broadcastCalls` unconditionally (no `isEqual` short-circuit), keeping `getBroadcastHistory()` consumers backward-compatible.
 
 ```typescript
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
@@ -365,6 +383,8 @@ MockMainCacheServiceUtils.setSharedCacheValue('shared.key', 'shared')
 ### Main DataApiService
 
 API coordinator managing ApiServer and IpcAdapter.
+
+#### Methods
 
 | Method | Signature |
 |--------|-----------|
@@ -383,27 +403,110 @@ MockMainDataApiServiceUtils.simulateInitializationError(new Error('Failed'))
 
 ---
 
-## Utility Functions
+### Main PreferenceService
 
-Each mock exports a `MockXxxUtils` object with testing utilities:
+Preference store with typed keys, seeded from `DefaultPreferences.default`.
 
-| Utility | Description |
-|---------|-------------|
-| `resetMocks()` | Reset all mock state and call counts |
-| `setXxxValue()` | Set specific values for testing |
-| `getXxxValue()` | Get current mock values |
-| `simulateXxx()` | Simulate specific scenarios (errors, expiration, etc.) |
-| `getMockCallCounts()` | Get call counts for debugging |
+#### Methods
+
+| Method | Signature |
+|--------|-----------|
+| `initialize` | `() => Promise<void>` |
+| `get` | `<K>(key: K) => UnifiedPreferenceType[K]` |
+| `set` | `<K>(key: K, value) => Promise<void>` |
+| `getMultiple` | `<K>(keys: K[]) => Record<K, UnifiedPreferenceType[K]>` |
+| `setMultiple` | `(values) => Promise<void>` |
+| `subscribeForWindow` | `(windowId, keys) => void` |
+
+```typescript
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+beforeEach(() => MockMainPreferenceServiceUtils.resetMocks())
+
+// Seed a preference value
+MockMainPreferenceServiceUtils.setPreferenceValue('ui.theme', 'dark')
+
+// Simulate an external change (fires main-process subscribers)
+MockMainPreferenceServiceUtils.simulateExternalPreferenceChange('ui.theme', 'light')
+```
+
+Utilities: `setPreferenceValue`, `getPreferenceValue`, `setMultiplePreferenceValues`, `getAllPreferenceValues`, `simulateWindowSubscription`, `simulateExternalPreferenceChange`, `getSubscriptionCounts`.
+
+---
+
+### Testing Other Lifecycle Services
+
+Stub feature-specific lifecycle services **locally in the test file**. A test typically needs three substitutions: `@application`, `BaseService`, and lifecycle decorators.
+
+#### Canonical Setup
+
+```typescript
+import type * as LifecycleModule from '@main/core/lifecycle'
+import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { Phase } from '@main/core/lifecycle/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { appGetMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  startTaskMock: vi.fn(),
+  getTaskResultMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: { get: appGetMock }
+}))
+
+vi.mock('@main/core/lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof LifecycleModule>()
+  class MockBaseService {
+    ipcHandle = vi.fn()
+    protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
+    protected registerDisposable<T extends { dispose: () => void } | (() => void)>(d: T): T {
+      this._disposables.push(d)
+      return d
+    }
+  }
+  return { ...actual, BaseService: MockBaseService }
+})
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  appGetMock.mockImplementation((name: string) => {
+    if (name === 'MarkdownTaskService') {
+      return { startTask: startTaskMock, getTaskResult: getTaskResultMock }
+    }
+    throw new Error(`Unexpected application.get(${name})`)
+  })
+})
+
+// Import SUT after mocks are declared.
+const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
+```
+
+#### Common Assertions
+
+Drive lifecycle hooks (`onInit` / `onStart` / `onStop` / `onDestroy`) manually — the container isn't running in tests.
+
+| Target | How |
+|---|---|
+| Phase | `expect(getPhase(MyService)).toBe(Phase.WhenReady)` |
+| Dependencies | `expect(getDependencies(MyService)).toEqual(['OtherService'])` |
+| Registered IPC channels | `const svc = new MyService(); (svc as any).onInit(); (svc as any).ipcHandle.mock.calls.map(c => c[0])` |
+| Single IPC handler | `ipcHandle.mock.calls.find(c => c[0] === 'channel')?.[1]`, then invoke |
+| Disposables | Drive lifecycle, inspect `(svc as any)._disposables` |
+
+#### Reference Implementations
+
+- `src/main/services/knowledge/__tests__/KnowledgeOrchestrationService.test.ts` — dispatch stub + phase/deps + per-channel handler inspection
+- `src/main/services/__tests__/ShortcutService.test.ts` — richer `MockBaseService` with `registerDisposable` + no-op decorator replacements
 
 ---
 
 ## Best Practices
 
-1. **Use global mocks** - Don't re-mock in individual tests unless necessary
-2. **Use `mockApplicationFactory()`** - When a test needs to override `application.get()`, use `mockApplicationFactory(overrides)` instead of creating inline mocks
-3. **Reset in beforeEach** - Call `MockXxxUtils.resetMocks()` to ensure test isolation
-4. **Use utility functions** - Prefer `MockXxxUtils` over direct mock manipulation
-5. **Type safety** - Mocks match actual service interfaces
+1. Infrastructure services come pre-mocked; override via `mockApplicationFactory({ Name: {...} })`, not ad-hoc `application.get` mocks.
+2. Feature-specific lifecycle services are stubbed locally — don't add them to `tests/__mocks__/main/` or `defaultServiceInstances`.
+3. Each infrastructure mock exposes `MockMain<Name>ServiceUtils` with `resetMocks()` plus service-specific helpers (seeding values, simulating errors). Call `resetMocks()` in `beforeEach`.
 
 ## Troubleshooting
 

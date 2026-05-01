@@ -6,25 +6,29 @@
  */
 
 import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
-import type {
-  BranchMessagesResponse,
-  Message,
-  MessageData,
-  MessageRole,
-  MessageStats,
-  MessageStatus,
-  TreeResponse
+import type { BranchMessagesResponse, Message, TreeResponse } from '@shared/data/types/message'
+import {
+  MessageDataSchema,
+  MessageRoleSchema,
+  MessageStatsSchema,
+  MessageStatusSchema,
+  ModelSnapshotSchema
 } from '@shared/data/types/message'
-import type { AssistantMeta, ModelMeta } from '@shared/data/types/meta'
+import * as z from 'zod'
 
 // ============================================================================
 // DTOs
 // ============================================================================
 
 /**
- * DTO for creating a new message
+ * DTO for creating a new message.
+ *
+ * Hand-written (not `MessageSchema.pick(...)`) because `parentId` has DTO-only
+ * semantics — omitted means "auto-resolve", explicit `null` means "create as
+ * root", a string means "attach to parent". The entity shape can't express
+ * this three-way distinction, so the DTO is authored directly.
  */
-export interface CreateMessageDto {
+export const CreateMessageSchema = z.strictObject({
   /**
    * Parent message ID for positioning this message in the conversation tree.
    *
@@ -38,53 +42,52 @@ export interface CreateMessageDto {
    * - `string` (message ID): Attach to specified parent. Throws NOT_FOUND if
    *   parent doesn't exist, or INVALID_OPERATION if parent belongs to different topic.
    */
-  parentId?: string | null
+  parentId: z.string().nullable().optional(),
   /** Message role */
-  role: MessageRole
+  role: MessageRoleSchema,
   /** Message content */
-  data: MessageData
+  data: MessageDataSchema,
   /** Message status */
-  status?: MessageStatus
+  status: MessageStatusSchema.optional(),
   /** Siblings group ID (0 = normal, >0 = multi-model group) */
-  siblingsGroupId?: number
-  /** Assistant ID */
-  assistantId?: string
-  /** Preserved assistant info */
-  assistantMeta?: AssistantMeta
+  siblingsGroupId: z.number().optional(),
   /** Model identifier */
-  modelId?: string
-  /** Preserved model info */
-  modelMeta?: ModelMeta
+  modelId: z.string().optional(),
+  /** Model snapshot captured at message creation time */
+  modelSnapshot: ModelSnapshotSchema.optional(),
   /** Trace ID */
-  traceId?: string
+  traceId: z.string().optional(),
   /** Statistics */
-  stats?: MessageStats
+  stats: MessageStatsSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
-  setAsActive?: boolean
-}
+  setAsActive: z.boolean().optional()
+})
+export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
 
 /**
  * DTO for updating an existing message
  */
-export interface UpdateMessageDto {
+export const UpdateMessageSchema = z.strictObject({
   /** Updated message content */
-  data?: MessageData
+  data: MessageDataSchema.optional(),
   /** Move message to new parent */
-  parentId?: string | null
+  parentId: z.string().nullable().optional(),
   /** Change siblings group */
-  siblingsGroupId?: number
+  siblingsGroupId: z.number().optional(),
   /** Update status */
-  status?: MessageStatus
+  status: MessageStatusSchema.optional(),
   /** Update trace ID */
-  traceId?: string | null
+  traceId: z.string().nullable().optional(),
   /** Update statistics */
-  stats?: MessageStats | null
-}
+  stats: MessageStatsSchema.nullable().optional()
+})
+export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 
 /**
  * Strategy for updating activeNodeId when the active message is deleted
  */
-export type ActiveNodeStrategy = 'parent' | 'clear'
+export const ActiveNodeStrategySchema = z.enum(['parent', 'clear'])
+export type ActiveNodeStrategy = z.infer<typeof ActiveNodeStrategySchema>
 
 /**
  * Response for delete operation
@@ -105,14 +108,15 @@ export interface DeleteMessageResponse {
 /**
  * Query parameters for GET /topics/:id/tree
  */
-export interface TreeQueryParams {
+export const TreeQuerySchema = z.strictObject({
   /** Root node ID (defaults to tree root) */
-  rootId?: string
+  rootId: z.string().optional(),
   /** End node ID (defaults to topic.activeNodeId) */
-  nodeId?: string
+  nodeId: z.string().optional(),
   /** Depth to expand beyond active path (-1 = all, 0 = path only, 1+ = layers) */
-  depth?: number
-}
+  depth: z.number().int().optional()
+})
+export type TreeQueryParams = z.infer<typeof TreeQuerySchema>
 
 /**
  * Query parameters for GET /topics/:id/messages
@@ -123,12 +127,26 @@ export interface TreeQueryParams {
  *   to load older messages towards root
  * - The cursor message itself is NOT included in the response
  */
-export interface BranchMessagesQueryParams extends CursorPaginationParams {
+export const BranchMessagesQuerySchema = z.strictObject({
+  /** Cursor for pagination (exclusive boundary) */
+  cursor: z.string().optional(),
+  /** Page size */
+  limit: z.number().int().positive().optional(),
   /** End node ID (defaults to topic.activeNodeId) */
-  nodeId?: string
+  nodeId: z.string().optional(),
   /** Whether to include siblingsGroup in response */
-  includeSiblings?: boolean
-}
+  includeSiblings: z.boolean().optional()
+})
+export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema> & CursorPaginationParams
+
+/**
+ * Query parameters for DELETE /messages/:id
+ */
+export const DeleteMessageQuerySchema = z.strictObject({
+  cascade: z.boolean().optional(),
+  activeNodeStrategy: ActiveNodeStrategySchema.optional()
+})
+export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -142,7 +160,7 @@ export interface BranchMessagesQueryParams extends CursorPaginationParams {
  * - /topics/:id/messages - Branch messages for conversation
  * - /messages/:id - Individual message operations
  */
-export interface MessageSchemas {
+export type MessageSchemas = {
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1
@@ -203,10 +221,7 @@ export interface MessageSchemas {
      */
     DELETE: {
       params: { id: string }
-      query?: {
-        cascade?: boolean
-        activeNodeStrategy?: ActiveNodeStrategy
-      }
+      query?: DeleteMessageQuery
       response: DeleteMessageResponse
     }
   }

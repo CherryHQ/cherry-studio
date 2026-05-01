@@ -490,6 +490,7 @@
       },
       "prompt": "Настройки подсказки",
       "skills": {
+        "addMore": "Добавить навыки",
         "builtin": "Встроенный",
         "noFilterResults": "Нет подходящих навыков",
         "noSkills": "Навыки не установлены. Установите навыки в разделе Настройки > Навыки.",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "Запуск CLI-инструментов требует установки среды Bun",
     "cli_tool": "Инструмент",
     "cli_tool_placeholder": "Выберите CLI-инструмент для использования",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Пользовательский путь",
     "custom_path_error": "Не удалось задать пользовательский путь терминала",
     "custom_path_required": "Этот терминал требует установки пользовательского пути",
     "custom_path_set": "Пользовательский путь терминала успешно установлен",
     "description": "Быстро запускает несколько CLI-инструментов для кода, повышая эффективность разработки",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Установите переменные окружения для использования при запуске CLI-инструментов. Каждая переменная должна быть на отдельной строке в формате KEY=value",
     "environment_variables": "Переменные окружения",
     "folder_placeholder": "Выберите рабочую директорию",
@@ -1516,21 +1529,28 @@
       "bun_required": "Пожалуйста, установите среду Bun перед запуском CLI-инструментов",
       "error": "Не удалось запустить. Пожалуйста, попробуйте снова",
       "label": "Запуск",
+      "launched": "[to be translated]:Launched",
       "success": "Запуск успешно завершен",
       "validation_error": "Пожалуйста, заполните все обязательные поля: CLI-инструмент, модель и рабочая директория"
     },
     "launching": "Запуск...",
     "model": "Модель",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Выберите модель для использования",
     "model_required": "Пожалуйста, выберите модель",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Выберите папку",
     "set_custom_path": "Настройка пользовательского пути терминала",
     "supported_providers": "Поддерживаемые поставщики",
     "terminal": "терминал",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Выбор приложения терминала",
     "title": "Инструменты кода",
     "update_options": "Параметры обновления",
-    "working_directory": "Рабочая директория"
+    "working_directory": "Рабочая директория",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Свернуть",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "Действия",
-    "add_failed": "Не удалось добавить память",
-    "add_first_memory": "Добавить первое воспоминание",
-    "add_memory": "Добавить память",
-    "add_new_user": "Добавить нового пользователя",
-    "add_success": "Память успешно добавлена",
-    "add_user": "Добавить пользователя",
-    "add_user_failed": "Не удалось добавить пользователя",
-    "all_users": "Все пользователи",
-    "cannot_delete_default_user": "Нельзя удалить пользователя по умолчанию",
-    "configure_memory_first": "Сначала настройте параметры памяти",
-    "content": "Содержимое",
-    "current_user": "Текущий пользователь",
-    "custom": "Пользовательский",
-    "default": "По умолчанию",
-    "default_user": "Пользователь по умолчанию",
-    "delete_confirm": "Вы уверены, что хотите удалить эту запись памяти?",
-    "delete_confirm_content": "Вы уверены, что хотите удалить {{count}} записей памяти?",
-    "delete_confirm_single": "Вы уверены, что хотите удалить это воспоминание?",
-    "delete_confirm_title": "Удалить память",
-    "delete_failed": "Не удалось удалить память",
-    "delete_selected": "Удалить выбранные",
-    "delete_success": "Память успешно удалена",
-    "delete_user": "Удалить пользователя",
-    "delete_user_confirm_content": "Вы уверены, что хотите удалить пользователя {{user}} и все его воспоминания?",
-    "delete_user_confirm_title": "Удалить пользователя",
-    "delete_user_failed": "Не удалось удалить пользователя",
-    "description": "Память позволяет хранить и управлять информацией о ваших взаимодействиях с ассистентом. Вы можете добавлять, редактировать и удалять воспоминания, а также фильтровать и искать их.",
-    "edit_memory": "Редактировать память",
-    "embedding_dimensions": "Размерность вложения",
-    "embedding_model": "Модель встраивания",
-    "enable_global_memory_first": "Сначала включите глобальную память",
-    "end_date": "Дата окончания",
-    "global_memory": "Глобальная память",
-    "global_memory_description": "Для использования функций памяти необходимо включить глобальную память в настройках ассистента.",
-    "global_memory_disabled_desc": "Чтобы использовать функции памяти, сначала включите глобальную память в настройках ассистента.",
-    "global_memory_disabled_title": "Глобальная память отключена",
-    "global_memory_enabled": "Глобальная память включена",
-    "go_to_memory_page": "Перейти на страницу памяти",
-    "initial_memory_content": "Добро пожаловать! Это ваше первое воспоминание.",
-    "llm_model": "Модель LLM",
-    "load_failed": "Не удалось загрузить память",
-    "loading": "Загрузка воспоминаний...",
-    "loading_memories": "Загрузка воспоминаний...",
-    "memories_description": "Показано {{count}} из {{total}} записей памяти",
-    "memories_reset_success": "Все воспоминания пользователя {{user}} успешно сброшены",
-    "memory": "воспоминаний",
-    "memory_content": "Содержимое памяти",
-    "memory_placeholder": "Введите содержимое памяти...",
-    "new_user_id": "Новый ID пользователя",
-    "new_user_id_placeholder": "Введите уникальный ID пользователя",
-    "no_matching_memories": "Подходящие воспоминания не найдены",
-    "no_memories": "Нет воспоминаний",
-    "no_memories_description": "Начните с добавления вашего первого воспоминания",
-    "not_configured_desc": "Пожалуйста, настройте модели встраивания и LLM в настройках памяти, чтобы включить функциональность памяти.",
-    "not_configured_title": "Память не настроена",
-    "pagination_total": "{{start}}-{{end}} из {{total}} элементов",
-    "please_enter_memory": "Пожалуйста, введите содержимое памяти",
-    "please_select_embedding_model": "Пожалуйста, выберите модель для внедрения",
-    "please_select_llm_model": "Пожалуйста, выберите модель LLM",
-    "reset_filters": "Сбросить фильтры",
-    "reset_memories": "Сбросить воспоминания",
-    "reset_memories_confirm_content": "Вы уверены, что хотите навсегда удалить все воспоминания пользователя {{user}}? Это действие нельзя отменить.",
-    "reset_memories_confirm_title": "Сбросить все воспоминания",
-    "reset_memories_failed": "Не удалось сбросить воспоминания",
-    "reset_user_memories": "Сбросить воспоминания пользователя",
-    "reset_user_memories_confirm_content": "Вы уверены, что хотите сбросить все воспоминания пользователя {{user}}?",
-    "reset_user_memories_confirm_title": "Сбросить воспоминания пользователя",
-    "reset_user_memories_failed": "Не удалось сбросить воспоминания пользователя",
-    "score": "Оценка",
-    "search": "Поиск",
-    "search_placeholder": "Поиск памяти...",
-    "select_embedding_model_placeholder": "Выберите модель внедрения",
-    "select_llm_model_placeholder": "Выбор модели LLM",
-    "select_user": "Выбрать пользователя",
-    "settings": "Настройки",
-    "settings_title": "Настройки памяти",
-    "start_date": "Дата начала",
-    "statistics": "Статистика",
-    "stored_memories": "Запасённые воспоминания",
-    "switch_user": "Переключить пользователя",
-    "switch_user_confirm": "Переключить контекст пользователя на {{user}}?",
-    "time": "Время",
-    "title": "Глобальная память",
-    "total_memories": "всего воспоминаний",
-    "try_different_filters": "Попробуйте изменить критерии поиска",
-    "update_failed": "Не удалось обновить память",
-    "update_success": "Память успешно обновлена",
-    "user": "Пользователь",
-    "user_created": "Пользователь {{user}} создан и переключен успешно",
-    "user_deleted": "Пользователь {{user}} успешно удален",
-    "user_id": "ID пользователя",
-    "user_id_exists": "Этот ID пользователя уже существует",
-    "user_id_invalid_chars": "ID пользователя может содержать только буквы, цифры, дефисы и подчёркивания",
-    "user_id_placeholder": "Введите ID пользователя (необязательно)",
-    "user_id_required": "ID пользователя обязателен",
-    "user_id_reserved": "'default-user' зарезервирован, используйте другой ID",
-    "user_id_rules": "ID пользователя должен быть уникальным и содержать только буквы, цифры, дефисы (-) и подчёркивания (_)",
-    "user_id_too_long": "ID пользователя не может превышать 50 символов",
-    "user_management": "Управление пользователями",
-    "user_memories_reset": "Все воспоминания пользователя {{user}} сброшены",
-    "user_switch_failed": "Не удалось переключить пользователя",
-    "user_switched": "Контекст пользователя переключен на {{user}}",
-    "users": "пользователи"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "Xiaoyi",
     "zhihu": "Zhihu"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
-    },
-    "clipboard": {
-      "empty": "Буфер обмена пуст"
-    },
-    "feature": {
-      "chat": "Ответить на этот вопрос",
-      "explanation": "Объяснение",
-      "summary": "Содержание",
-      "translate": "Текст перевод"
-    },
-    "footer": {
-      "backspace_clear": "Нажмите Backspace, чтобы очистить",
-      "copy_last_message": "Нажмите C для копирования",
-      "esc": "Нажмите ESC {{action}}",
-      "esc_back": "возвращения",
-      "esc_close": "закрытия окна",
-      "esc_pause": "пауза"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "Задайте вопрос {{model}}...",
-        "title": "Что вы хотите сделать с этим текстом?"
-      }
-    },
-    "tooltip": {
-      "pin": "Верхнее окно"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Добавить параметр",
     "all": "Все",
     "custom_parameters": "Пользовательские параметры",
@@ -2688,6 +2575,9 @@
     "function_calling": "Вызов функции",
     "invalid_model": "Недействительная модель",
     "json_parse_error": "Неверный формат JSON",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360AI",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
+    },
+    "clipboard": {
+      "empty": "Буфер обмена пуст"
+    },
+    "feature": {
+      "chat": "Ответить на этот вопрос",
+      "explanation": "Объяснение",
+      "summary": "Содержание",
+      "translate": "Текст перевод"
+    },
+    "footer": {
+      "backspace_clear": "Нажмите Backspace, чтобы очистить",
+      "copy_last_message": "Нажмите C для копирования",
+      "esc": "Нажмите ESC {{action}}",
+      "esc_back": "возвращения",
+      "esc_close": "закрытия окна",
+      "esc_pause": "пауза"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Задайте вопрос {{model}}...",
+        "title": "Что вы хотите сделать с этим текстом?"
+      }
+    },
+    "tooltip": {
+      "pin": "Верхнее окно"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "Выбрать файл резервной копии",
@@ -3961,6 +3882,47 @@
     "channels": {
       "description": "Подключайте агентов к платформам обмена сообщениями, таким как Telegram, Feishu, Discord и другим.",
       "title": "Каналы"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5516,29 @@
     "shortcuts": {
       "action": "Действие",
       "actions": "操作",
+      "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
-      "mini_window": "Быстрый помощник",
       "new_topic": "Новый топик",
+      "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
       "reset_defaults": "Сбросить настройки по умолчанию",
       "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
+      "reset_defaults_failed": "Не удалось сбросить сочетания клавиш к значениям по умолчанию",
       "reset_to_default": "Сбросить настройки по умолчанию",
+      "save_failed": "Не удалось сохранить ярлык",
+      "save_failed_with_name": "Не удалось сохранить ярлык: {{name}}",
       "search_message": "Поиск сообщения",
       "search_message_in_chat": "Поиск сообщения в текущем диалоге",
+      "search_placeholder": "Поисковые ярлыки...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "Помощник выделения: выделить текст",
       "selection_assistant_toggle": "Переключить помощник выделения",
@@ -5577,8 +5546,8 @@
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
       "toggle_new_context": "Очистить контекст",
-      "toggle_show_assistants": "Переключить отображение ассистентов",
       "toggle_show_topics": "Переключить отображение топиков",
+      "toggle_sidebar": "Свернуть боковую панель",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
@@ -5608,7 +5577,7 @@
       "noInstalled": "Навыков не установлено",
       "noResults": "Навыки не найдены",
       "noSkillFile": "Файл SKILL.md не найден",
-      "searchPlaceholder": "Поиск навыков в реестрах...",
+      "searchPlaceholder": "Откройте больше навыков...",
       "searchRegistryTitle": "Ищите реестры навыков онлайн",
       "searchTitle": "Навыки поиска",
       "selectFile": "Выберите файл для просмотра",
@@ -5847,7 +5816,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "Закрыть вкладку",
+    "moveToFirst": "Перейти к первому",
+    "new": "Новая вкладка",
+    "pin": "Закрепить вкладку",
+    "unpin": "Открепить вкладку"
   },
   "title": {
     "apps": "Приложения",
@@ -5857,7 +5830,6 @@
     "knowledge": "База знаний",
     "launchpad": "Запуск",
     "mcp-servers": "MCP серверы",
-    "memories": "Память",
     "notes": "заметки",
     "openclaw": "OpenClaw",
     "paintings": "Рисунки",
@@ -6015,7 +5987,7 @@
   },
   "tray": {
     "quit": "Выйти",
-    "show_mini_window": "Быстрый помощник",
+    "show_quick_assistant": "Быстрый помощник",
     "show_window": "Показать окно"
   },
   "update": {

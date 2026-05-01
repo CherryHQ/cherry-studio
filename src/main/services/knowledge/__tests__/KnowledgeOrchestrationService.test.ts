@@ -29,7 +29,7 @@ const {
   knowledgeItemGetByIdsInBaseMock: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: appGetMock
   }

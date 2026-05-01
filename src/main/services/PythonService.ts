@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 interface PythonExecutionRequest {
@@ -22,7 +23,7 @@ interface PythonExecutionResponse {
  */
 @Injectable('PythonService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class PythonService extends BaseService {
   private pendingRequests = new Map<
     string,
@@ -42,7 +43,7 @@ export class PythonService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcOn('python-execution-response', (_, response: PythonExecutionResponse) => {
+    this.ipcOn(IpcChannel.Python_ExecutionResponse, (_, response: PythonExecutionResponse) => {
       const request = this.pendingRequests.get(response.id)
       if (request) {
         clearTimeout(request.timeoutId)
@@ -71,7 +72,7 @@ export class PythonService extends BaseService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!application.get('WindowService').getMainWindow()) {
+    if (application.get('WindowManager').getWindowsByType(WindowType.Main).length === 0) {
       throw new Error('Main window not found')
     }
 
@@ -96,7 +97,7 @@ export class PythonService extends BaseService {
       })
 
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      application.get('WindowService').getMainWindow()?.webContents.send('python-execution-request', request)
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Python_ExecutionRequest, request)
     })
   }
 }

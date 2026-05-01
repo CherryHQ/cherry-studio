@@ -102,10 +102,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       `
         CREATE INDEX IF NOT EXISTS idx_${VECTORSTORE_TABLE_NAME}_collection
         ON ${VECTORSTORE_TABLE_NAME} (collection)
-      `,
-      `
-        CREATE INDEX IF NOT EXISTS idx_${VECTORSTORE_TABLE_NAME}_vector
-        ON ${VECTORSTORE_TABLE_NAME} (libsql_vector_idx(embeddings, 'metric=cosine'))
       `
     ]
 

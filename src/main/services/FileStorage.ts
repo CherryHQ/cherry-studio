@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
@@ -657,8 +657,9 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const data = await fs.promises.readFile(filePath)
     const base64 = data.toString('base64')
-    const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
-    const mime = `image/${ext}`
+    const rawExt = path.extname(filePath).slice(1)
+    const ext = rawExt === 'jpg' ? 'jpeg' : rawExt
+    const mime = ext ? `image/${ext}` : 'image/png'
     return {
       mime,
       base64,

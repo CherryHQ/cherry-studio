@@ -121,7 +121,7 @@ const GoogleLoginTip = ({
   if (!needsGoogleLogin || !visible) return null
 
   // Render the tip with direct message text
-  const message = t('miniwindow.alert.google_login')
+  const message = t('quickAssistant.alert.google_login')
 
   return (
     <Alert

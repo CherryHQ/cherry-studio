@@ -1,9 +1,40 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, locales } from '@main/utils/language'
+import { handleZoomFactor } from '@main/utils/zoom'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
+import { findShortcutDefinition } from '@shared/shortcuts/definitions'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import { resolveShortcutPreference } from '@shared/shortcuts/utils'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, shell } from 'electron'
+
+const zoomShortcutKeys: ShortcutPreferenceKey[] = [
+  'shortcut.general.zoom_in',
+  'shortcut.general.zoom_out',
+  'shortcut.general.zoom_reset'
+]
+
+const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined => {
+  const definition = findShortcutDefinition(key)
+  if (!definition) return undefined
+  const rawPref = application.get('PreferenceService').get(key) as PreferenceShortcutType | undefined
+  const resolved = resolveShortcutPreference(definition, rawPref)
+  if (!resolved.enabled || !resolved.binding.length) {
+    return undefined
+  }
+  return resolved.binding.join('+')
+}
+
+const getMainWindows = (): Electron.BrowserWindow[] =>
+  application
+    .get('WindowManager')
+    .getAllWindows()
+    .filter((m) => m.type === WindowType.Main)
+    .map((m) => m.window)
+    .filter((w) => !w.isDestroyed())
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
@@ -12,12 +43,21 @@ export class AppMenuService extends BaseService {
   protected async onInit() {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
+
+    for (const key of zoomShortcutKeys) {
+      this.registerDisposable(preferenceService.subscribeChange(key, () => this.setupApplicationMenu()))
+    }
+
     this.setupApplicationMenu()
   }
 
   private setupApplicationMenu(): void {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
+
+    const zoomInAccelerator = getShortcutAccelerator('shortcut.general.zoom_in')
+    const zoomOutAccelerator = getShortcutAccelerator('shortcut.general.zoom_out')
+    const zoomResetAccelerator = getShortcutAccelerator('shortcut.general.zoom_reset')
 
     const template: MenuItemConstructorOptions[] = [
       {
@@ -26,11 +66,8 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              const mainWindow = application.get('WindowService').getMainWindow()
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
-                application.get('WindowService').showMainWindow()
-              }
+              application.get('MainWindowService').showMainWindow()
+              application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.MainWindow_NavigateToAbout)
             }
           },
           { type: 'separator' },
@@ -67,9 +104,21 @@ export class AppMenuService extends BaseService {
           { role: 'forceReload', label: appMenu.forceReload },
           { role: 'toggleDevTools', label: appMenu.toggleDevTools },
           { type: 'separator' },
-          { role: 'resetZoom', label: appMenu.resetZoom },
-          { role: 'zoomIn', label: appMenu.zoomIn },
-          { role: 'zoomOut', label: appMenu.zoomOut },
+          {
+            label: appMenu.resetZoom,
+            accelerator: zoomResetAccelerator,
+            click: () => handleZoomFactor(getMainWindows(), 0, true)
+          },
+          {
+            label: appMenu.zoomIn,
+            accelerator: zoomInAccelerator,
+            click: () => handleZoomFactor(getMainWindows(), 0.1)
+          },
+          {
+            label: appMenu.zoomOut,
+            accelerator: zoomOutAccelerator,
+            click: () => handleZoomFactor(getMainWindows(), -0.1)
+          },
           { type: 'separator' },
           { role: 'togglefullscreen', label: appMenu.toggleFullscreen }
         ]

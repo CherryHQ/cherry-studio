@@ -119,6 +119,31 @@ data: text({ mode: "json" }).$type<MyDataType>();
 
 Drizzle handles JSON serialization/deserialization automatically.
 
+## Column Nullability and Defaults
+
+### When `nullable` vs `NOT NULL`
+
+A column may be `nullable` only when **NULL carries a domain meaning distinct from any value in the column's domain**:
+
+| Pattern | Example |
+|---|---|
+| Optional foreign key | `assistant.modelId` (no model selected yet) |
+| Time of an event that may not have occurred | `deletedAt`, `cancelledAt` |
+| Unassigned-tagged state | `pr.reviewerId` (unassigned vs assigned) |
+
+All other columns should be `NOT NULL` with an appropriate default. If a column "should" always have a value, switch it to `NOT NULL` — do **not** add a `?? someValue` fallback in `rowToEntity` to mask NULL. See [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md).
+
+### Where the default value lives
+
+| Location | Use for | Note |
+|---|---|---|
+| **DB `.default('X')`** | Type-level "empty" values (`''`, `0`, `false`, `[]`) — won't change because they aren't product choices | **Effectively a near-permanent choice in SQLite** — every change requires a full-table rebuild that copies every row and never touches the existing ones; legacy NULL backfill must be hand-written into the rebuild's `INSERT ... SELECT`. For product-chosen values that could evolve (`'🌟'`, default model parameters), prefer service `??`. See [Default Values & Nullability § DB defaults are near-permanent](./best-practice-default-values-and-nullability.md#db-defaults-are-near-permanent). |
+| **Drizzle `$defaultFn(() => …)`** | Dynamic per-row values: UUIDs, `Date.now()` | Lives in the schema file but runs in JS at INSERT time |
+| **Service `dto.x ?? DEFAULT`** | Tunable product values that may evolve (e.g., inference parameters) | No migration needed when defaults change; covers all callers (handler, seeder, internal-service) |
+| **Zod `.default()`** | Avoid on entity / Create / Update schemas | Bypassed by non-handler callers; forces type asymmetry; see [API Design Guidelines § E](./api-design-guidelines.md#e-default-values-do-not-live-in-zod-schemas) |
+
+For the full rationale and decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+
 ## Foreign Keys
 
 ### Basic Usage
@@ -230,10 +255,73 @@ await db.insert(table).values({ id, ...data });
 return this.getById(id);
 ```
 
+### Row → Entity Mapping
+
+All `rowToEntity` functions follow a unified paradigm: a shallow `nullsToUndefined(row)` strips DB NULL → undefined, then date fields are converted manually. See the [Row → Entity Mapping](./data-api-in-main.md#row--entity-mapping) section of `data-api-in-main.md` for the paradigm, and [services/utils/README.md](../../../src/main/data/services/utils/README.md) for function signatures and rejected alternatives.
+
+Key principles:
+
+- **Shallow, not recursive**: only column-level NULLs are handled; nested JSON payloads are not deep-cleaned
+- **No third-party null-handling library**: the in-house `nullsToUndefined` (~10 LOC) is sufficient — avoid dependency bloat
+- **No fabricated fallbacks**: `row.x ?? '🌟'` / `row.x ?? []` is forbidden — see [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md). If a value "should" always be present, fix the column constraint instead of masking NULL in the mapper.
+
 ### Soft delete support
 
 The schema supports soft delete via `deletedAt` field (see `createUpdateDeleteTimestamps`).
 Business logic can choose to use soft delete or hard delete based on requirements.
+
+## Raw SQL Queries & Recursive CTEs
+
+Drizzle's `casing: 'snake_case'` only applies to the ORM channel
+(`db.select()`, `db.insert()`, `db.update()`). Raw SQL via `db.all(sql\`...\`)`
+returns SQLite's native snake_case columns with **no runtime mapping** — the
+TypeScript generic on `db.all<T>()` is a compile-time assertion only. So
+`db.all<typeof messageTable.$inferSelect>(sql\`SELECT * FROM message\`)` lies
+to the type system: at runtime `row.parentId` is `undefined`; the actual key
+is `parent_id`.
+
+Recursive CTEs (`WITH RECURSIVE`) are the main reason raw SQL is needed —
+Drizzle does not yet support them in the query builder.
+
+### Pattern: CTE for IDs, ORM for rows
+
+Keep raw SQL minimal. Use the CTE to compute the **set of IDs** you need
+(single-word column, casing-safe), then fetch full rows through the ORM where
+camelCase mapping is automatic and fully type-safe.
+
+```typescript
+// Step 1 — recursive CTE returns ID-only
+const idRows = await db.all<{ id: string }>(sql`
+  WITH RECURSIVE ancestors AS (
+    SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+    UNION ALL
+    SELECT m.id, m.parent_id FROM message m
+    INNER JOIN ancestors a ON m.id = a.parent_id
+    WHERE m.deleted_at IS NULL
+  )
+  SELECT id FROM ancestors
+`)
+const ids = idRows.map((r) => r.id)
+
+// Step 2 — fetch full rows via ORM (auto camelCase)
+const rows = ids.length > 0
+  ? await db.select().from(messageTable).where(inArray(messageTable.id, ids))
+  : []
+
+// Step 3 — restore CTE order (IN-list does not preserve order)
+const order = new Map(ids.map((id, i) => [id, i]))
+rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+```
+
+If the CTE computes a derived value (e.g. `tree_depth`), select it alongside
+`id` — single-word aliases are also casing-safe — and join it back via a `Map`.
+
+**Don't** `SELECT *` with raw SQL or write a snake→camel helper to patch the
+output: both bypass Drizzle's type-safety and let future schema changes drift
+silently.
+
+Reference implementations: `MessageService.getTree` / `getBranchMessages` /
+`getPathToNode`, `KnowledgeItemService.getCascadeIdsInBase`.
 
 ## Custom SQL
 

@@ -6,48 +6,27 @@ const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
 const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
-const mockSkillInstall = vi.fn()
-const mockSkillUninstallByFolderName = vi.fn()
-const mockSkillList = vi.fn()
-const mockNetFetch = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
 const mockSyncChannel = vi.fn()
 const mockDisconnectChannel = vi.fn()
 const mockWaitForQrUrl = vi.fn()
 const mockQRCodeToDataURL = vi.fn()
-const mockMkdir = vi.fn()
-const mockWriteFile = vi.fn()
-const mockRename = vi.fn()
-const mockAppendFile = vi.fn()
-const mockReadFile = vi.fn()
-const mockReaddir = vi.fn()
-const mockStat = vi.fn()
 const mockListChannels = vi.fn()
 const mockCreateChannel = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 
-vi.mock('node:fs/promises', () => ({
-  mkdir: (...args: unknown[]) => mockMkdir(...args),
-  writeFile: (...args: unknown[]) => mockWriteFile(...args),
-  rename: (...args: unknown[]) => mockRename(...args),
-  appendFile: (...args: unknown[]) => mockAppendFile(...args),
-  readFile: (...args: unknown[]) => mockReadFile(...args),
-  readdir: (...args: unknown[]) => mockReaddir(...args),
-  stat: (...args: unknown[]) => mockStat(...args)
-}))
-
-vi.mock('@main/services/agents/services/TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     createTask: mockCreateTask,
     listTasks: mockListTasks,
     deleteTask: mockDeleteTask
   }
 }))
 
-vi.mock('@main/services/agents/services/AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
     updateAgent: mockUpdateAgent
@@ -69,16 +48,8 @@ vi.mock('qrcode', () => ({
   default: { toDataURL: mockQRCodeToDataURL }
 }))
 
-vi.mock('@main/services/agents/skills', () => ({
-  skillService: {
-    install: mockSkillInstall,
-    uninstallByFolderName: mockSkillUninstallByFolderName,
-    list: mockSkillList
-  }
-}))
-
-vi.mock('@main/services/agents/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     listChannels: mockListChannels,
     createChannel: mockCreateChannel,
     getChannel: mockGetChannel,
@@ -87,16 +58,11 @@ vi.mock('@main/services/agents/services/ChannelService', () => ({
   }
 }))
 
-vi.mock('@main/services/WindowService', () => ({
+vi.mock('@main/services/MainWindowService', () => ({
   windowService: {
     getMainWindow: vi.fn().mockReturnValue(null)
   }
 }))
-
-// Import after mocks — electron is mocked globally in main.setup.ts
-// Override net.fetch with our local mock
-const electron = await import('electron')
-vi.mocked(electron.net.fetch).mockImplementation(mockNetFetch)
 
 const { default: ClawServer } = await import('../claw')
 type ClawServerInstance = InstanceType<typeof ClawServer>
@@ -137,13 +103,13 @@ describe('ClawServer', () => {
   it('should list all tools', async () => {
     const server = createServer()
     const result = await listTools(server)
-    expect(result.tools).toHaveLength(5)
-    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'skills', 'memory', 'config'])
+    expect(result.tools).toHaveLength(3)
+    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'config'])
   })
 
   describe('add action', () => {
     it('should create a task with cron schedule', async () => {
-      const task = { id: 'task_1', name: 'test', schedule_type: 'cron', schedule_value: '0 9 * * 1-5' }
+      const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_1')
@@ -157,14 +123,14 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', {
         name: 'Daily standup',
         prompt: 'Run standup check',
-        schedule_type: 'cron',
-        schedule_value: '0 9 * * 1-5'
+        scheduleType: 'cron',
+        scheduleValue: '0 9 * * 1-5'
       })
       expect(result.content[0].text).toContain('Job created')
     })
 
     it('should create a task with interval schedule', async () => {
-      const task = { id: 'task_2', name: 'check', schedule_type: 'interval', schedule_value: '30' }
+      const task = { id: 'task_2', name: 'check', scheduleType: 'interval', scheduleValue: '30' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_2')
@@ -178,8 +144,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_2', {
         name: 'Health check',
         prompt: 'Check system health',
-        schedule_type: 'interval',
-        schedule_value: '30'
+        scheduleType: 'interval',
+        scheduleValue: '30'
       })
     })
 
@@ -197,8 +163,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'interval',
-          schedule_value: '90'
+          scheduleType: 'interval',
+          scheduleValue: '90'
         })
       )
     })
@@ -217,7 +183,7 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'once'
+          scheduleType: 'once'
         })
       )
     })
@@ -357,259 +323,6 @@ describe('ClawServer', () => {
     })
   })
 
-  describe('skills tool', () => {
-    it('should search marketplace skills', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          skills: [
-            {
-              name: 'gh-create-pr',
-              description: 'Create GitHub PRs',
-              author: 'test-author',
-              namespace: '@test-owner/test-repo',
-              installs: 42,
-              metadata: { repoOwner: 'test-owner', repoName: 'test-repo' }
-            }
-          ],
-          total: 1
-        })
-      }
-      mockNetFetch.mockResolvedValue(mockResponse)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search', query: 'github pr' }, 'skills')
-
-      expect(mockNetFetch).toHaveBeenCalledWith(expect.stringContaining('/api/skills'), { method: 'GET' })
-      expect(result.content[0].text).toContain('gh-create-pr')
-      expect(result.content[0].text).toContain('test-owner/test-repo/gh-create-pr')
-    })
-
-    it('should handle empty search results', async () => {
-      mockNetFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ skills: [], total: 0 })
-      })
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'search', query: 'nonexistent' }, 'skills')
-
-      expect(result.content[0].text).toContain('No skills found')
-    })
-
-    it('should error when query is missing for search', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'search' }, 'skills')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'query' is required")
-    })
-
-    it('should install a marketplace skill', async () => {
-      mockSkillInstall.mockResolvedValue({
-        id: 'skill-1',
-        name: 'gh-create-pr',
-        description: 'Create PRs',
-        folderName: 'gh-create-pr',
-        isEnabled: false
-      })
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' }, 'skills')
-
-      expect(mockSkillInstall).toHaveBeenCalledWith({
-        installSource: 'claude-plugins:owner/repo/gh-create-pr'
-      })
-      expect(result.content[0].text).toContain('Skill installed')
-      expect(result.content[0].text).toContain('gh-create-pr')
-    })
-
-    it('should error when identifier is missing for install', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'install' }, 'skills')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'identifier' is required")
-    })
-
-    it('should remove an installed skill', async () => {
-      mockSkillUninstallByFolderName.mockResolvedValue(undefined)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'remove', name: 'gh-create-pr' }, 'skills')
-
-      expect(mockSkillUninstallByFolderName).toHaveBeenCalledWith('gh-create-pr')
-      expect(result.content[0].text).toContain('removed')
-    })
-
-    it('should error when name is missing for remove', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'remove' }, 'skills')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'name' is required")
-    })
-
-    it('should list installed skills', async () => {
-      mockSkillList.mockResolvedValue([
-        { id: '1', name: 'gh-create-pr', description: 'Create PRs', folderName: 'gh-create-pr', isEnabled: true },
-        { id: '2', name: 'code-review', description: 'Review code', folderName: 'code-review', isEnabled: true }
-      ])
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'list' }, 'skills')
-
-      expect(mockSkillList).toHaveBeenCalled()
-      expect(result.content[0].text).toContain('gh-create-pr')
-      expect(result.content[0].text).toContain('code-review')
-    })
-
-    it('should handle empty skills list', async () => {
-      mockSkillList.mockResolvedValue([])
-
-      const server = createServer()
-      const result = await callTool(server, { action: 'list' }, 'skills')
-
-      expect(result.content[0].text).toBe('No skills installed.')
-    })
-
-    it('should handle unknown skills action', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'unknown' }, 'skills')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Unknown action')
-    })
-  })
-
-  describe('memory tool', () => {
-    const agentWithWorkspace = { accessible_paths: ['/workspace/test'] }
-
-    beforeEach(() => {
-      mockGetAgent.mockResolvedValue(agentWithWorkspace)
-      mockMkdir.mockResolvedValue(undefined)
-      mockWriteFile.mockResolvedValue(undefined)
-      mockRename.mockResolvedValue(undefined)
-      mockAppendFile.mockResolvedValue(undefined)
-      // resolveFileCI: exact path always found (case-sensitive match)
-      mockStat.mockResolvedValue({ mtimeMs: 1000 })
-    })
-
-    it('should update FACT.md atomically', async () => {
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'update', content: '# Facts\n\nNew knowledge' }, 'memory')
-
-      expect(mockMkdir).toHaveBeenCalledWith('/workspace/test/memory', { recursive: true })
-      expect(mockWriteFile).toHaveBeenCalledWith(
-        expect.stringContaining('FACT.md.'),
-        '# Facts\n\nNew knowledge',
-        'utf-8'
-      )
-      expect(mockRename).toHaveBeenCalled()
-      expect(result.content[0].text).toBe('Memory updated.')
-    })
-
-    it('should error when content is missing for update', async () => {
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'update' }, 'memory')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'content' is required")
-    })
-
-    it('should append journal entry with tags', async () => {
-      const server = createServer('agent_1')
-      const result = await callTool(
-        server,
-        { action: 'append', text: 'Deployed v2.0', tags: ['deploy', 'release'] },
-        'memory'
-      )
-
-      expect(mockAppendFile).toHaveBeenCalledWith(
-        '/workspace/test/memory/JOURNAL.jsonl',
-        expect.stringContaining('"text":"Deployed v2.0"'),
-        'utf-8'
-      )
-      expect(result.content[0].text).toContain('Journal entry added')
-    })
-
-    it('should error when text is missing for append', async () => {
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'append' }, 'memory')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'text' is required")
-    })
-
-    it('should search journal entries', async () => {
-      const entries = [
-        '{"ts":"2024-01-01T00:00:00Z","tags":["deploy"],"text":"Deployed v1.0"}',
-        '{"ts":"2024-01-02T00:00:00Z","tags":["bugfix"],"text":"Fixed login bug"}',
-        '{"ts":"2024-01-03T00:00:00Z","tags":["deploy"],"text":"Deployed v2.0"}'
-      ].join('\n')
-      mockReadFile.mockResolvedValue(entries)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search', tag: 'deploy' }, 'memory')
-
-      const parsed = JSON.parse(result.content[0].text)
-      expect(parsed).toHaveLength(2)
-      expect(parsed[0].text).toBe('Deployed v2.0') // reverse chronological
-    })
-
-    it('should search journal with text query', async () => {
-      const entries = [
-        '{"ts":"2024-01-01T00:00:00Z","tags":[],"text":"Setup project"}',
-        '{"ts":"2024-01-02T00:00:00Z","tags":[],"text":"Fixed login bug"}'
-      ].join('\n')
-      mockReadFile.mockResolvedValue(entries)
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search', query: 'login' }, 'memory')
-
-      const parsed = JSON.parse(result.content[0].text)
-      expect(parsed).toHaveLength(1)
-      expect(parsed[0].text).toBe('Fixed login bug')
-    })
-
-    it('should return message when journal has no matches', async () => {
-      mockReadFile.mockResolvedValue('{"ts":"2024-01-01T00:00:00Z","tags":[],"text":"hello"}\n')
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search', query: 'nonexistent' }, 'memory')
-
-      expect(result.content[0].text).toBe('No matching journal entries found.')
-    })
-
-    it('should return message when journal does not exist', async () => {
-      mockReadFile.mockRejectedValue(new Error('ENOENT'))
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'search' }, 'memory')
-
-      expect(result.content[0].text).toBe('No journal entries found.')
-    })
-
-    it('should error when agent has no workspace', async () => {
-      mockGetAgent.mockResolvedValue({ accessible_paths: [] })
-
-      const server = createServer('agent_1')
-      const result = await callTool(server, { action: 'update', content: 'test' }, 'memory')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('no workspace path')
-    })
-
-    it('should handle unknown memory action', async () => {
-      const server = createServer()
-      const result = await callTool(server, { action: 'unknown' }, 'memory')
-
-      expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain('Unknown action')
-    })
-  })
-
   describe('config tool', () => {
     const telegramChannel = {
       id: 'ch_1',
@@ -656,7 +369,7 @@ describe('ClawServer', () => {
         const result = await callTool(server, { action: 'status' }, 'config')
 
         const parsed = JSON.parse(result.content[0].text)
-        expect(parsed.agent_id).toBe('agent_1')
+        expect(parsed.agentId).toBe('agent_1')
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')

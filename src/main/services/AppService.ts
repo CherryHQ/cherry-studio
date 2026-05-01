@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { app } from 'electron'
@@ -27,7 +28,7 @@ export class AppService {
           }
 
           // Get executable path
-          let executablePath = app.getPath('exe')
+          let executablePath = application.getPath('app.exe_file')
           if (process.env.APPIMAGE) {
             // For AppImage packaged apps, use APPIMAGE environment variable
             executablePath = process.env.APPIMAGE

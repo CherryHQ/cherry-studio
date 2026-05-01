@@ -23,7 +23,7 @@ const { setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     getPath: getPathMock
   }

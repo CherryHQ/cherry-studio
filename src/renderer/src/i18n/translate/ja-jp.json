@@ -490,6 +490,7 @@
       },
       "prompt": "プロンプト設定",
       "skills": {
+        "addMore": "スキルを追加",
         "builtin": "組み込み",
         "noFilterResults": "一致するスキルがありません",
         "noSkills": "スキルがインストールされていません。設定 > スキルからスキルをインストールしてください。",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
     "custom_path_set": "カスタムターミナルパスの設定が成功しました",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
@@ -1516,21 +1529,28 @@
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
+      "launched": "[to be translated]:Launched",
       "success": "起動成功",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
     "update_options": "更新オプション",
-    "working_directory": "作業ディレクトリ"
+    "working_directory": "作業ディレクトリ",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "折りたたむ",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "アクション",
-    "add_failed": "メモリーの追加に失敗しました",
-    "add_first_memory": "最初のメモリを追加",
-    "add_memory": "メモリーを追加",
-    "add_new_user": "新しいユーザーを追加",
-    "add_success": "メモリーが正常に追加されました",
-    "add_user": "ユーザーを追加",
-    "add_user_failed": "ユーザーの追加に失敗しました",
-    "all_users": "すべてのユーザー",
-    "cannot_delete_default_user": "デフォルトユーザーは削除できません",
-    "configure_memory_first": "最初にメモリ設定を構成してください",
-    "content": "内容",
-    "current_user": "現在のユーザー",
-    "custom": "カスタム",
-    "default": "デフォルト",
-    "default_user": "デフォルトユーザー",
-    "delete_confirm": "このメモリーを削除してもよろしいですか？",
-    "delete_confirm_content": "{{count}}件のメモリーを削除してもよろしいですか？",
-    "delete_confirm_single": "このメモリを削除してもよろしいですか？",
-    "delete_confirm_title": "メモリーを削除",
-    "delete_failed": "メモリーの削除に失敗しました",
-    "delete_selected": "選択したものを削除",
-    "delete_success": "メモリーが正常に削除されました",
-    "delete_user": "ユーザーを削除",
-    "delete_user_confirm_content": "ユーザー{{user}}とそのすべてのメモリを削除してもよろしいですか？",
-    "delete_user_confirm_title": "ユーザーを削除",
-    "delete_user_failed": "ユーザーの削除に失敗しました",
-    "description": "メモリは、アシスタントとのやりとりに関する情報を保存・管理する機能です。メモリの追加、編集、削除のほか、フィルタリングや検索を行うことができます。",
-    "edit_memory": "メモリーを編集",
-    "embedding_dimensions": "埋め込み次元",
-    "embedding_model": "埋め込みモデル",
-    "enable_global_memory_first": "最初にグローバルメモリを有効にしてください",
-    "end_date": "終了日",
-    "global_memory": "グローバルメモリ",
-    "global_memory_description": "メモリ機能を使用するには、アシスタント設定でグローバルメモリを有効にしてください。",
-    "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
-    "global_memory_disabled_title": "グローバルメモリが無効です",
-    "global_memory_enabled": "グローバルメモリが有効化されました",
-    "go_to_memory_page": "メモリページに移動",
-    "initial_memory_content": "ようこそ！これはあなたの最初の記憶です。",
-    "llm_model": "LLMモデル",
-    "load_failed": "メモリーの読み込みに失敗しました",
-    "loading": "思い出を読み込み中...",
-    "loading_memories": "メモリを読み込み中...",
-    "memories_description": "{{total}}件中{{count}}件のメモリーを表示",
-    "memories_reset_success": "{{user}}のすべてのメモリが正常にリセットされました",
-    "memory": "個のメモリ",
-    "memory_content": "メモリー内容",
-    "memory_placeholder": "メモリー内容を入力...",
-    "new_user_id": "新しいユーザーID",
-    "new_user_id_placeholder": "一意のユーザーIDを入力",
-    "no_matching_memories": "一致するメモリが見つかりません",
-    "no_memories": "メモリがありません",
-    "no_memories_description": "最初のメモリを追加してください",
-    "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
-    "not_configured_title": "メモリが設定されていません",
-    "pagination_total": "{{total}}件中{{start}}-{{end}}件",
-    "please_enter_memory": "メモリー内容を入力してください",
-    "please_select_embedding_model": "埋め込みモデルを選択してください",
-    "please_select_llm_model": "LLMモデルを選択してください",
-    "reset_filters": "フィルターをリセット",
-    "reset_memories": "メモリをリセット",
-    "reset_memories_confirm_content": "{{user}}のすべてのメモリを完全に削除してもよろしいですか？この操作は元に戻せません。",
-    "reset_memories_confirm_title": "すべてのメモリをリセット",
-    "reset_memories_failed": "メモリのリセットに失敗しました",
-    "reset_user_memories": "ユーザーメモリをリセット",
-    "reset_user_memories_confirm_content": "{{user}}のすべてのメモリをリセットしてもよろしいですか？",
-    "reset_user_memories_confirm_title": "ユーザーメモリをリセット",
-    "reset_user_memories_failed": "ユーザーメモリのリセットに失敗しました",
-    "score": "スコア",
-    "search": "検索",
-    "search_placeholder": "メモリーを検索...",
-    "select_embedding_model_placeholder": "埋め込みモデルを選択",
-    "select_llm_model_placeholder": "LLMモデルを選択",
-    "select_user": "ユーザーを選択",
-    "settings": "設定",
-    "settings_title": "メモリ設定",
-    "start_date": "開始日",
-    "statistics": "統計",
-    "stored_memories": "保存された記憶",
-    "switch_user": "ユーザーを切り替え",
-    "switch_user_confirm": "ユーザーコンテキストを{{user}}に切り替えますか？",
-    "time": "時間",
-    "title": "グローバルメモリ",
-    "total_memories": "個のメモリ",
-    "try_different_filters": "検索条件を調整してください",
-    "update_failed": "メモリーの更新に失敗しました",
-    "update_success": "メモリーが正常に更新されました",
-    "user": "ユーザー",
-    "user_created": "ユーザー{{user}}が作成され、切り替えが成功しました",
-    "user_deleted": "ユーザー{{user}}が正常に削除されました",
-    "user_id": "ユーザーID",
-    "user_id_exists": "このユーザーIDはすでに存在します",
-    "user_id_invalid_chars": "ユーザーIDには文字、数字、ハイフン、アンダースコアのみ使用できます",
-    "user_id_placeholder": "ユーザーIDを入力（オプション）",
-    "user_id_required": "ユーザーIDは必須です",
-    "user_id_reserved": "'default-user'は予約済みです。別のIDを使用してください",
-    "user_id_rules": "ユーザーIDは一意であり、文字、数字、ハイフン(-)、アンダースコア(_)のみ含む必要があります",
-    "user_id_too_long": "ユーザーIDは50文字を超えられません",
-    "user_management": "ユーザー管理",
-    "user_memories_reset": "{{user}}のすべてのメモリがリセットされました",
-    "user_switch_failed": "ユーザーの切り替えに失敗しました",
-    "user_switched": "ユーザーコンテキストが{{user}}に切り替わりました",
-    "users": "ユーザー"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
-    },
-    "clipboard": {
-      "empty": "クリップボードが空です"
-    },
-    "feature": {
-      "chat": "この質問に回答",
-      "explanation": "説明",
-      "summary": "内容要約",
-      "translate": "テキスト翻訳"
-    },
-    "footer": {
-      "backspace_clear": "バックスペースを押してクリアします",
-      "copy_last_message": "C キーを押してコピー",
-      "esc": "ESC キーを押して{{action}}",
-      "esc_back": "戻る",
-      "esc_close": "ウィンドウを閉じる",
-      "esc_pause": "一時停止"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "{{model}} に質問してください...",
-        "title": "下のテキストに対して何をしますか？"
-      }
-    },
-    "tooltip": {
-      "pin": "上部ウィンドウ"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "パラメータを追加",
     "all": "すべて",
     "custom_parameters": "カスタムパラメータ",
@@ -2688,6 +2575,9 @@
     "function_calling": "関数呼び出し",
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360智脳",
     "zhipu": "BigModel"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "ヒント：Googleログイン時に「信頼できないブラウザ」というメッセージが表示された場合は、先にミニアプリリストのGoogleミニアプリでアカウントログインを完了してから、他のミニアプリでGoogleログインを使用してください"
+    },
+    "clipboard": {
+      "empty": "クリップボードが空です"
+    },
+    "feature": {
+      "chat": "この質問に回答",
+      "explanation": "説明",
+      "summary": "内容要約",
+      "translate": "テキスト翻訳"
+    },
+    "footer": {
+      "backspace_clear": "バックスペースを押してクリアします",
+      "copy_last_message": "C キーを押してコピー",
+      "esc": "ESC キーを押して{{action}}",
+      "esc_back": "戻る",
+      "esc_close": "ウィンドウを閉じる",
+      "esc_pause": "一時停止"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "{{model}} に質問してください...",
+        "title": "下のテキストに対して何をしますか？"
+      }
+    },
+    "tooltip": {
+      "pin": "上部ウィンドウ"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "バックアップファイルを選択",
@@ -3775,7 +3696,7 @@
         "title": "アプリケーションフィルターリスト",
         "user_tips": {
           "mac": "アプリケーションのBundle IDを1行ずつ入力してください。大文字小文字は区別しません。例: com.google.Chrome, com.apple.mail, など。",
-          "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+          "windows": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, CherryStudio.exe, など。"
         }
       },
       "linux": {
@@ -3961,6 +3882,47 @@
     "channels": {
       "description": "エージェントをTelegram、Feishu、Discordなどのメッセージングプラットフォームに接続します。",
       "title": "チャンネル"
+    },
+    "componentLab": {
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5516,29 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
+      "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
-      "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
+      "occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",
       "press_shortcut": "ショートカットを押す",
+      "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
+      "reset_defaults_failed": "ショートカットをデフォルトにリセットできませんでした",
       "reset_to_default": "デフォルトにリセット",
+      "save_failed": "ショートカットの保存に失敗しました",
+      "save_failed_with_name": "ショートカットの保存に失敗しました: {{name}}",
       "search_message": "メッセージを検索",
       "search_message_in_chat": "現在のチャットでメッセージを検索",
+      "search_placeholder": "検索のショートカット...",
       "select_model": "Select Model",
       "selection_assistant_select_text": "選択アシスタント：テキストを選択",
       "selection_assistant_toggle": "選択アシスタントを切り替え",
@@ -5577,8 +5546,8 @@
       "show_settings": "設定を開く",
       "title": "ショートカット",
       "toggle_new_context": "コンテキストをクリア",
-      "toggle_show_assistants": "アシスタントの表示を切り替え",
       "toggle_show_topics": "トピックの表示を切り替え",
+      "toggle_sidebar": "サイドバーを切り替える",
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
@@ -5608,7 +5577,7 @@
       "noInstalled": "スキルがインストールされていません",
       "noResults": "スキルが見つかりません",
       "noSkillFile": "SKILL.mdが見つかりません",
-      "searchPlaceholder": "レジストリ全体でスキルを検索...",
+      "searchPlaceholder": "さらにスキルを見つける...",
       "searchRegistryTitle": "オンラインでスキルレジストリを検索してください",
       "searchTitle": "検索スキル",
       "selectFile": "ファイルを選択して表示",
@@ -5847,7 +5816,11 @@
     }
   },
   "tab": {
-    "new": "[to be translated]:New Tab"
+    "close": "タブを閉じる",
+    "moveToFirst": "先頭へ移動",
+    "new": "新しいタブ",
+    "pin": "タブをピン留め",
+    "unpin": "タブを固定解除"
   },
   "title": {
     "apps": "アプリ",
@@ -5857,7 +5830,6 @@
     "knowledge": "ナレッジベース",
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
-    "memories": "メモリ",
     "notes": "ノート",
     "openclaw": "オープンクロー",
     "paintings": "ペインティング",
@@ -6015,7 +5987,7 @@
   },
   "tray": {
     "quit": "終了",
-    "show_mini_window": "クイックアシスタント",
+    "show_quick_assistant": "クイックアシスタント",
     "show_window": "ウィンドウを表示"
   },
   "update": {

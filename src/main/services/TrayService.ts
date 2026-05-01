@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
@@ -64,9 +64,9 @@ export class TrayService extends BaseService implements Activatable {
       const clickTrayToShowQuickAssistant = preferenceService.get('feature.quick_assistant.click_tray_to_show')
 
       if (quickAssistantEnabled && clickTrayToShowQuickAssistant) {
-        application.get('WindowService').showMiniWindow()
+        application.get('QuickAssistantService').showQuickAssistant()
       } else {
-        application.get('WindowService').showMainWindow()
+        application.get('MainWindowService').showMainWindow()
       }
     })
   }
@@ -90,11 +90,11 @@ export class TrayService extends BaseService implements Activatable {
     const template = [
       {
         label: trayLocale.show_window,
-        click: () => application.get('WindowService').showMainWindow()
+        click: () => application.get('MainWindowService').showMainWindow()
       },
       quickAssistantEnabled && {
-        label: trayLocale.show_mini_window,
-        click: () => application.get('WindowService').showMiniWindow()
+        label: trayLocale.show_quick_assistant,
+        click: () => application.get('QuickAssistantService').showQuickAssistant()
       },
       (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),

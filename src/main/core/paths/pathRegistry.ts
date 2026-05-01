@@ -68,11 +68,11 @@ export function buildPathRegistry() {
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
+    'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
     'app.userdata.data': appUserDataData,
-    'app.userdata.cache': path.join(appUserData, 'Cache'),
     'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged
@@ -83,14 +83,14 @@ export function buildPathRegistry() {
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
-      ? path.join(appExtraResources, 'packages/provider-registry/data')
+      ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
-    // MCP memory server's knowledge-graph JSON — unrelated to feature.memory.db_file
+    // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
 
     // Anthropic OAuth / Copilot token
@@ -116,12 +116,10 @@ export function buildPathRegistry() {
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
-    // Files / Notes / Knowledgebase / Memory
+    // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
-    'feature.memory.data': path.join(appUserDataData, 'Memory'),
-    'feature.memory.db_file': path.join(appUserDataData, 'Memory', 'memories.db'), // unrelated to feature.mcp.memory_file
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),

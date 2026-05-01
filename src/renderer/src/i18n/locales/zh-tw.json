@@ -490,6 +490,7 @@
       },
       "prompt": "提示設定",
       "skills": {
+        "addMore": "添加更多技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
@@ -1502,11 +1503,23 @@
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "count_one": "{{count}} 個",
+    "count_other": "{{count}} 個",
     "custom_path": "自訂路徑",
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "empty": {
+      "no_match": {
+        "description": "嘗試調整搜尋關鍵字",
+        "title": "未找到符合的工具"
+      },
+      "no_tool": {
+        "description": "新增 CLI 工具或程式碼助理以開始使用",
+        "title": "尚無程式碼工具"
+      }
+    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
@@ -1516,21 +1529,28 @@
       "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
       "error": "啟動失敗，請重試",
       "label": "啟動",
+      "launched": "已啟動",
       "success": "啟動成功",
       "validation_error": "請完成所有必填欄位：CLI 工具、模型和工作目錄"
     },
     "launching": "啟動中...",
     "model": "模型",
+    "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
+    "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
     "update_options": "更新選項",
-    "working_directory": "工作目錄"
+    "working_directory": "工作目錄",
+    "working_directory_hint": "CLI 工具啟動時的工作目錄"
   },
   "code_block": {
     "collapse": "收合",
@@ -2130,112 +2150,6 @@
     },
     "title": "LM Studio"
   },
-  "memory": {
-    "actions": "操作",
-    "add_failed": "新增記憶失敗",
-    "add_first_memory": "新增您的第一個記憶",
-    "add_memory": "新增記憶",
-    "add_new_user": "新增新使用者",
-    "add_success": "記憶新增成功",
-    "add_user": "新增使用者",
-    "add_user_failed": "新增使用者失敗",
-    "all_users": "所有使用者",
-    "cannot_delete_default_user": "不能刪除預設使用者",
-    "configure_memory_first": "請先設定記憶設定",
-    "content": "內容",
-    "current_user": "目前使用者",
-    "custom": "自訂",
-    "default": "預設",
-    "default_user": "預設使用者",
-    "delete_confirm": "確定要刪除這條記憶嗎？",
-    "delete_confirm_content": "確定要刪除 {{count}} 條記憶嗎？",
-    "delete_confirm_single": "確定要刪除這個記憶嗎？",
-    "delete_confirm_title": "刪除記憶",
-    "delete_failed": "刪除記憶失敗",
-    "delete_selected": "刪除選取",
-    "delete_success": "記憶刪除成功",
-    "delete_user": "刪除使用者",
-    "delete_user_confirm_content": "確定要刪除使用者 {{user}} 及其所有記憶嗎？",
-    "delete_user_confirm_title": "刪除使用者",
-    "delete_user_failed": "刪除使用者失敗",
-    "description": "記憶功能讓您儲存和管理與助手互動的資訊。您可以新增、編輯和刪除記憶，也可以對它們進行篩選和搜尋。",
-    "edit_memory": "編輯記憶",
-    "embedding_dimensions": "嵌入維度",
-    "embedding_model": "嵌入模型",
-    "enable_global_memory_first": "請先啟用全域記憶",
-    "end_date": "結束日期",
-    "global_memory": "全域記憶",
-    "global_memory_description": "需要開啟助手設定中的全域記憶才能使用",
-    "global_memory_disabled_desc": "要使用記憶功能，請先在助手設定中啟用全域記憶。",
-    "global_memory_disabled_title": "全域記憶已停用",
-    "global_memory_enabled": "全域記憶已啟用",
-    "go_to_memory_page": "前往記憶頁面",
-    "initial_memory_content": "歡迎！這是你的第一個記憶。",
-    "llm_model": "LLM 模型",
-    "load_failed": "載入記憶失敗",
-    "loading": "載入記憶中...",
-    "loading_memories": "正在載入記憶...",
-    "memories_description": "顯示 {{count}} / {{total}} 條記憶",
-    "memories_reset_success": "{{user}} 的所有記憶已成功重設",
-    "memory": "個記憶",
-    "memory_content": "記憶內容",
-    "memory_placeholder": "輸入記憶內容...",
-    "new_user_id": "新使用者 ID",
-    "new_user_id_placeholder": "輸入唯一的使用者 ID",
-    "no_matching_memories": "未找到符合的記憶",
-    "no_memories": "暫無記憶",
-    "no_memories_description": "開始新增您的第一個記憶吧",
-    "not_configured_desc": "請在記憶設定中設定嵌入和 LLM 模型以啟用記憶功能。",
-    "not_configured_title": "記憶未設定",
-    "pagination_total": "第 {{start}}-{{end}} 項，共 {{total}} 項",
-    "please_enter_memory": "請輸入記憶內容",
-    "please_select_embedding_model": "請選擇一個嵌入模型",
-    "please_select_llm_model": "請選擇一個 LLM 模型",
-    "reset_filters": "重設篩選",
-    "reset_memories": "重設記憶",
-    "reset_memories_confirm_content": "確定要永久刪除 {{user}} 的所有記憶嗎？此操作無法復原。",
-    "reset_memories_confirm_title": "重設所有記憶",
-    "reset_memories_failed": "重設記憶失敗",
-    "reset_user_memories": "重設使用者記憶",
-    "reset_user_memories_confirm_content": "確定要重設 {{user}} 的所有記憶嗎？",
-    "reset_user_memories_confirm_title": "重設使用者記憶",
-    "reset_user_memories_failed": "重設使用者記憶失敗",
-    "score": "分數",
-    "search": "搜尋",
-    "search_placeholder": "搜尋記憶...",
-    "select_embedding_model_placeholder": "選擇嵌入模型",
-    "select_llm_model_placeholder": "選擇 LLM 模型",
-    "select_user": "選擇使用者",
-    "settings": "設定",
-    "settings_title": "記憶體設定",
-    "start_date": "開始日期",
-    "statistics": "統計",
-    "stored_memories": "儲存的記憶",
-    "switch_user": "切換使用者",
-    "switch_user_confirm": "將使用者內容切換至 {{user}}？",
-    "time": "時間",
-    "title": "全域記憶",
-    "total_memories": "個記憶",
-    "try_different_filters": "嘗試調整搜尋條件",
-    "update_failed": "更新記憶失敗",
-    "update_success": "記憶更新成功",
-    "user": "使用者",
-    "user_created": "使用者 {{user}} 建立並切換成功",
-    "user_deleted": "使用者 {{user}} 刪除成功",
-    "user_id": "使用者 ID",
-    "user_id_exists": "此使用者 ID 已存在",
-    "user_id_invalid_chars": "使用者 ID 只能包含英文字母、數字、連字號與底線",
-    "user_id_placeholder": "輸入使用者 ID（可選）",
-    "user_id_required": "使用者 ID 為必填欄位",
-    "user_id_reserved": "'default-user' 為保留字，請使用其他 ID",
-    "user_id_rules": "使用者 ID 必須唯一，只能包含英文字母、數字、連字號（-）與底線（_）",
-    "user_id_too_long": "使用者 ID 不能超過 50 個字元",
-    "user_management": "使用者管理",
-    "user_memories_reset": "{{user}} 的所有記憶已重設",
-    "user_switch_failed": "切換使用者失敗",
-    "user_switched": "使用者內容已切換至 {{user}}",
-    "users": "使用者"
-  },
   "message": {
     "agents": {
       "import": {
@@ -2639,38 +2553,11 @@
     "xiaoyi": "小藝",
     "zhihu": "知乎直答"
   },
-  "miniwindow": {
-    "alert": {
-      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
-    },
-    "clipboard": {
-      "empty": "剪貼簿為空"
-    },
-    "feature": {
-      "chat": "回答此問題",
-      "explanation": "解釋說明",
-      "summary": "內容總結",
-      "translate": "文字翻譯"
-    },
-    "footer": {
-      "backspace_clear": "按 Backspace 清空",
-      "copy_last_message": "按 C 鍵複製",
-      "esc": "按 ESC {{action}}",
-      "esc_back": "回傳",
-      "esc_close": "關閉視窗",
-      "esc_pause": "暫停"
-    },
-    "input": {
-      "placeholder": {
-        "empty": "詢問 {{model}} 取得幫助...",
-        "title": "你想對下方文字做什麼"
-      }
-    },
-    "tooltip": {
-      "pin": "視窗置頂"
-    }
-  },
   "models": {
+    "action": {
+      "pin": "置頂此模型",
+      "unpin": "取消置頂"
+    },
     "add_parameter": "新增參數",
     "all": "全部",
     "custom_parameters": "自訂參數",
@@ -2688,6 +2575,9 @@
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
+    "multi_select": {
+      "label": "多模型並行（與多助理互斥）"
+    },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -3456,6 +3346,37 @@
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
   },
+  "quickAssistant": {
+    "alert": {
+      "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
+    },
+    "clipboard": {
+      "empty": "剪貼簿為空"
+    },
+    "feature": {
+      "chat": "回答此問題",
+      "explanation": "解釋說明",
+      "summary": "內容總結",
+      "translate": "文字翻譯"
+    },
+    "footer": {
+      "backspace_clear": "按 Backspace 清空",
+      "copy_last_message": "按 C 鍵複製",
+      "esc": "按 ESC {{action}}",
+      "esc_back": "回傳",
+      "esc_close": "關閉視窗",
+      "esc_pause": "暫停"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "詢問 {{model}} 取得幫助...",
+        "title": "你想對下方文字做什麼"
+      }
+    },
+    "tooltip": {
+      "pin": "視窗置頂"
+    }
+  },
   "restore": {
     "confirm": {
       "button": "選擇備份檔案",
@@ -3775,7 +3696,7 @@
         "title": "應用篩選名單",
         "user_tips": {
           "mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
-          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等"
         }
       },
       "linux": {
@@ -3896,6 +3817,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能體",
+      "empty_text": "暫無智能體",
+      "search_placeholder": "搜尋智能體…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暫無助手",
+      "multi_hint": "（與多模型互斥）",
+      "multi_label": "多助手並行",
+      "search_placeholder": "搜尋助手…"
+    },
+    "common": {
+      "edit": "編輯",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3961,6 +3907,75 @@
     "channels": {
       "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
+        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "智能體選擇器",
+        "triggerPlaceholder": "選擇智能體",
+        "valueProp": "目前 value"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "助手選擇器",
+        "triggerPlaceholder": "選擇助手",
+        "triggerSelectedCount": "已選 {{count}} 個助手",
+        "valueProp": "目前 value"
+      },
+      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "label": "元件測試",
+      "modelSelector": {
+        "behaviorConfig": "互動與顯示設定",
+        "callbackEmpty": "尚未收到元件回呼",
+        "clearSelection": "清空選擇",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "目前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
+        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在載入模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "正規化選中 ID",
+        "outputEmpty": "目前沒有可顯示的資料",
+        "provider": "服務商",
+        "resetOutputs": "重設輸出",
+        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
+        "resultsTitle": "返回資料與狀態",
+        "selected": "目前選擇",
+        "selectedEmpty": "尚未選擇模型",
+        "selectionConfig": "選擇值設定",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型物件",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型選擇元件",
+        "triggerPlaceholder": "選擇一個模型",
+        "triggerSelectedCount": "已選 {{count}} 個模型",
+        "valueProp": "目前傳入 value"
+      },
+      "title": "開發環境元件測試"
     },
     "data": {
       "app_data": {
@@ -5554,22 +5569,29 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
+      "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
+      "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "複製上一則訊息",
       "edit_last_user_message": "編輯最後一則使用者訊息",
       "enabled": "啟用",
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
-      "mini_window": "快捷助手",
       "new_topic": "新增話題",
+      "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "press_shortcut": "按下快捷鍵",
+      "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
+      "reset_defaults_failed": "重設快捷鍵失敗",
       "reset_to_default": "重設為預設",
+      "save_failed": "儲存快捷鍵失敗",
+      "save_failed_with_name": "儲存快捷鍵失敗：{{name}}",
       "search_message": "搜尋訊息",
       "search_message_in_chat": "在目前對話中搜尋訊息",
+      "search_placeholder": "搜尋捷徑...",
       "select_model": "選擇模型",
       "selection_assistant_select_text": "劃詞助手：取詞",
       "selection_assistant_toggle": "開關劃詞助手",
@@ -5577,8 +5599,8 @@
       "show_settings": "開啟設定",
       "title": "快捷鍵",
       "toggle_new_context": "清除上下文",
-      "toggle_show_assistants": "切換助手顯示",
       "toggle_show_topics": "切換話題顯示",
+      "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"
@@ -5608,7 +5630,7 @@
       "noInstalled": "暫無已安裝的技能",
       "noResults": "未找到技能",
       "noSkillFile": "未找到 SKILL.md 檔案",
-      "searchPlaceholder": "跨登錄檔搜尋技能...",
+      "searchPlaceholder": "發現更多技能...",
       "searchRegistryTitle": "在線搜尋技能登錄檔",
       "searchTitle": "搜尋技能",
       "selectFile": "選擇一個檔案查看",
@@ -5847,7 +5869,11 @@
     }
   },
   "tab": {
-    "new": "新標籤頁"
+    "close": "關閉分頁",
+    "moveToFirst": "移至第一個",
+    "new": "新標籤頁",
+    "pin": "釘選分頁",
+    "unpin": "取消固定分頁"
   },
   "title": {
     "apps": "小程式",
@@ -5857,7 +5883,6 @@
     "knowledge": "知識庫",
     "launchpad": "啟動台",
     "mcp-servers": "MCP 伺服器",
-    "memories": "記憶",
     "notes": "筆記",
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
@@ -6015,7 +6040,7 @@
   },
   "tray": {
     "quit": "結束",
-    "show_mini_window": "快捷助手",
+    "show_quick_assistant": "快捷助手",
     "show_window": "顯示視窗"
   },
   "update": {

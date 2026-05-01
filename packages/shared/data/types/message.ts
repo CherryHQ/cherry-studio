@@ -1,23 +1,25 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import * as z from 'zod'
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
  */
-export interface MessageStats {
+export const MessageStatsSchema = z.strictObject({
   // Token consumption (from API response)
-  promptTokens?: number
-  completionTokens?: number
-  totalTokens?: number
-  thoughtsTokens?: number
+  promptTokens: z.number().optional(),
+  completionTokens: z.number().optional(),
+  totalTokens: z.number().optional(),
+  thoughtsTokens: z.number().optional(),
 
   // Cost (calculated at message completion time)
-  cost?: number
+  cost: z.number().optional(),
 
   // Performance metrics (measured locally)
-  timeFirstTokenMs?: number
-  timeCompletionMs?: number
-  timeThinkingMs?: number
-}
+  timeFirstTokenMs: z.number().optional(),
+  timeCompletionMs: z.number().optional(),
+  timeThinkingMs: z.number().optional()
+})
+export type MessageStats = z.infer<typeof MessageStatsSchema>
 
 // ============================================================================
 // Message Data
@@ -345,16 +347,43 @@ export type MessageDataBlock =
   | ErrorBlock
   | CompactBlock
 
+/**
+ * Runtime schema for `MessageData`. The discriminated-union block types are
+ * runtime-opaque for now — the JSON blob is trusted because it only flows
+ * `main → renderer` after being validated at the create-time block-factory
+ * layer. A future pass can tighten this with a discriminated union per block.
+ */
+export const MessageDataSchema = z.custom<MessageData>(
+  (value) => typeof value === 'object' && value !== null && Array.isArray((value as MessageData).blocks)
+)
+
+// ============================================================================
+// Snapshot Types (immutable records captured at message creation time)
+// ============================================================================
+
+/**
+ * Model snapshot captured at message creation time.
+ * Preserves model identity and metadata even if the model is later removed from provider.
+ *
+ * TODO: Replace with Pick/Omit from v2 Model type once stabilized.
+ */
+export const ModelSnapshotSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  group: z.string().optional()
+})
+export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
+
 // ============================================================================
 // Message Entity Types
 // ============================================================================
 
-import type { AssistantMeta, ModelMeta } from './meta'
-
 /**
  * Message role - user, assistant, or system
  */
-export type MessageRole = 'user' | 'assistant' | 'system'
+export const MessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+export type MessageRole = z.infer<typeof MessageRoleSchema>
 
 /**
  * Message status
@@ -363,45 +392,47 @@ export type MessageRole = 'user' | 'assistant' | 'system'
  * - error: Failed with error
  * - paused: User stopped generation
  */
-export type MessageStatus = 'pending' | 'success' | 'error' | 'paused'
+export const MessageStatusSchema = z.enum(['pending', 'success', 'error', 'paused'])
+export type MessageStatus = z.infer<typeof MessageStatusSchema>
 
 /**
- * Complete message entity as stored in database
+ * Complete message entity as stored in database.
+ *
+ * JSON blob columns (`data`, `modelSnapshot`, `stats`) are typed via
+ * {@link MessageDataSchema} / {@link ModelSnapshotSchema} / {@link MessageStatsSchema}.
  */
-export interface Message {
+export const MessageSchema = z.strictObject({
   /** Message ID (UUIDv7) */
-  id: string
+  id: z.string(),
   /** Topic ID this message belongs to */
-  topicId: string
+  topicId: z.string(),
   /** Parent message ID (null for root) */
-  parentId: string | null
+  parentId: z.string().nullable(),
   /** Message role */
-  role: MessageRole
-  /** Message content (blocks, mentions, etc.) */
-  data: MessageData
-  /** Searchable text extracted from data.blocks */
-  searchableText?: string | null
+  role: MessageRoleSchema,
+  /** Message content (blocks with inline references) */
+  data: MessageDataSchema,
+  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  searchableText: z.string(),
   /** Message status */
-  status: MessageStatus
+  status: MessageStatusSchema,
   /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
-  siblingsGroupId: number
-  /** Assistant ID */
-  assistantId?: string | null
-  /** Preserved assistant info for display */
-  assistantMeta?: AssistantMeta | null
+  siblingsGroupId: z.number(),
+  // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
-  modelId?: string | null
-  /** Preserved model info (provider, name) */
-  modelMeta?: ModelMeta | null
+  modelId: z.string().nullable().optional(),
+  /** Snapshot of model at message creation time */
+  modelSnapshot: ModelSnapshotSchema.nullable().optional(),
   /** Trace ID for tracking */
-  traceId?: string | null
+  traceId: z.string().nullable().optional(),
   /** Statistics: token usage, performance metrics */
-  stats?: MessageStats | null
+  stats: MessageStatsSchema.nullable().optional(),
   /** Creation timestamp (ISO string) */
-  createdAt: string
+  createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
-  updatedAt: string
-}
+  updatedAt: z.iso.datetime()
+})
+export type Message = z.infer<typeof MessageSchema>
 
 // ============================================================================
 // Tree Structure Types
@@ -422,8 +453,6 @@ export interface TreeNode {
   preview: string
   /** Model identifier */
   modelId?: string | null
-  /** Model display info */
-  modelMeta?: ModelMeta | null
   /** Message status */
   status: MessageStatus
   /** Creation timestamp (ISO string) */

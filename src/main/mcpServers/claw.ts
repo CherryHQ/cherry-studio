@@ -1,18 +1,13 @@
-import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
-import path from 'node:path'
-
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/database/schema'
-import { agentService } from '@main/services/agents/services/AgentService'
+import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
-import { channelService } from '@main/services/agents/services/ChannelService'
-import { taskService } from '@main/services/agents/services/TaskService'
-import { skillService } from '@main/services/agents/skills'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { CherryClawConfiguration, TaskScheduleType } from '@types'
-import { net } from 'electron'
+import type { AgentConfiguration, TaskScheduleType } from '@types'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('MCPServer:Claw')
@@ -35,39 +30,6 @@ function parseDurationToMinutes(duration: string): number {
   }
 
   return totalMinutes
-}
-
-type SkillSearchResult = {
-  name: string
-  namespace?: string
-  description?: string | null
-  author?: string | null
-  installs?: number
-  metadata?: {
-    repoOwner?: string
-    repoName?: string
-  }
-}
-
-function buildSkillIdentifier(skill: SkillSearchResult): string {
-  const { name, namespace, metadata } = skill
-  const repoOwner = metadata?.repoOwner
-  const repoName = metadata?.repoName
-
-  if (repoOwner && repoName) {
-    return `${repoOwner}/${repoName}/${name}`
-  }
-
-  if (namespace) {
-    const cleanNamespace = namespace.replace(/^@/, '')
-    const parts = cleanNamespace.split('/').filter(Boolean)
-    if (parts.length >= 2) {
-      return `${parts[0]}/${parts[1]}/${name}`
-    }
-    return `${cleanNamespace}/${name}`
-  }
-
-  return name
 }
 
 const CRON_TOOL: Tool = {
@@ -136,67 +98,6 @@ const NOTIFY_TOOL: Tool = {
     },
     required: ['message']
   }
-}
-
-const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
-
-const SKILLS_TOOL: Tool = {
-  name: 'skills',
-  description:
-    "Manage Claude skills in the agent's workspace. Use action 'search' to find skills from the marketplace, 'install' to install a skill, 'remove' to uninstall a skill, or 'list' to see installed skills.",
-  inputSchema: {
-    type: 'object',
-    properties: {
-      action: {
-        type: 'string',
-        enum: ['search', 'install', 'remove', 'list'],
-        description: 'The action to perform'
-      },
-      query: {
-        type: 'string',
-        description: "Search query for finding skills in the marketplace (required for 'search')"
-      },
-      identifier: {
-        type: 'string',
-        description:
-          "Marketplace skill identifier in 'owner/repo/skill-name' format (required for 'install'). Get this from the search results."
-      },
-      name: {
-        type: 'string',
-        description: "Skill folder name to remove (required for 'remove'). Get this from the list results."
-      }
-    },
-    required: ['action']
-  }
-}
-
-/**
- * Resolve a filename within a directory using case-insensitive matching.
- * Returns the full path if found (preferring exact match), or the canonical path as fallback.
- */
-async function resolveFileCI(dir: string, name: string): Promise<string> {
-  const exact = path.join(dir, name)
-  try {
-    await stat(exact)
-    return exact
-  } catch {
-    // exact match not found, try case-insensitive
-  }
-
-  try {
-    const entries = await readdir(dir)
-    const target = name.toLowerCase()
-    const match = entries.find((e) => e.toLowerCase() === target)
-    return match ? path.join(dir, match) : exact
-  } catch {
-    return exact
-  }
-}
-
-type JournalEntry = {
-  ts: string
-  tags: string[]
-  text: string
 }
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
@@ -301,49 +202,6 @@ const CONFIG_TOOL: Tool = {
   }
 }
 
-const MEMORY_TOOL: Tool = {
-  name: 'memory',
-  description:
-    "Manage persistent memory across sessions. Actions: 'update' overwrites memory/FACT.md (only durable project knowledge and decisions — not user preferences or personality, those belong in user.md and soul.md). 'append' logs to memory/JOURNAL.jsonl (one-time events, completed tasks, session notes). 'search' queries the journal. Before writing to FACT.md, ask: will this still matter in 6 months? If not, use append instead.",
-  inputSchema: {
-    type: 'object',
-    properties: {
-      action: {
-        type: 'string',
-        enum: ['update', 'append', 'search'],
-        description:
-          "Action to perform: 'update' overwrites FACT.md (durable project knowledge only), 'append' adds a JOURNAL entry, 'search' queries the journal"
-      },
-      content: {
-        type: 'string',
-        description: 'Full markdown content for FACT.md (required for update)'
-      },
-      text: {
-        type: 'string',
-        description: 'Journal entry text (required for append)'
-      },
-      tags: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Tags for the journal entry (optional, for append)'
-      },
-      query: {
-        type: 'string',
-        description: 'Search query — case-insensitive substring match (for search)'
-      },
-      tag: {
-        type: 'string',
-        description: 'Filter by tag (optional, for search)'
-      },
-      limit: {
-        type: 'integer',
-        description: 'Max results to return (default 20, for search)'
-      }
-    },
-    required: ['action']
-  }
-}
-
 class ClawServer {
   public mcpServer: McpServer
   private agentId: string
@@ -368,7 +226,7 @@ class ClawServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [CRON_TOOL, NOTIFY_TOOL, SKILLS_TOOL, MEMORY_TOOL, CONFIG_TOOL]
+      tools: [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -392,37 +250,6 @@ class ClawServer {
           }
           case 'notify':
             return await this.sendNotification(args)
-          case 'skills': {
-            const action = args.action
-            switch (action) {
-              case 'search':
-                return await this.searchSkills(args)
-              case 'install':
-                return await this.installSkill(args)
-              case 'remove':
-                return await this.removeSkill(args)
-              case 'list':
-                return await this.listSkills()
-              default:
-                throw new McpError(
-                  ErrorCode.InvalidParams,
-                  `Unknown action "${action}", expected search/install/remove/list`
-                )
-            }
-          }
-          case 'memory': {
-            const action = args.action
-            switch (action) {
-              case 'update':
-                return await this.memoryUpdate(args)
-              case 'append':
-                return await this.memoryAppend(args)
-              case 'search':
-                return await this.memorySearch(args)
-              default:
-                throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected update/append/search`)
-            }
-          }
           case 'config': {
             const action = args.action
             switch (action) {
@@ -506,9 +333,9 @@ class ClawServer {
     const task = await taskService.createTask(this.agentId, {
       name,
       prompt: message,
-      schedule_type: scheduleType,
-      schedule_value: scheduleValue,
-      channel_ids: channelIds && channelIds.length > 0 ? channelIds : undefined
+      scheduleType,
+      scheduleValue,
+      channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
     logger.info('Cron job created via tool', { agentId: this.agentId, taskId: task.id })
@@ -583,210 +410,6 @@ class ClawServer {
     }
   }
 
-  private async searchSkills(args: Record<string, string | undefined>) {
-    const query = args.query
-    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required for search")
-
-    const url = new URL(`${MARKETPLACE_BASE_URL}/api/skills`)
-    url.searchParams.set('q', query.replace(/[-_]+/g, ' ').trim())
-    url.searchParams.set('limit', '20')
-    url.searchParams.set('offset', '0')
-
-    const response = await net.fetch(url.toString(), { method: 'GET' })
-    if (!response.ok) {
-      throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
-    }
-
-    const json = (await response.json()) as { skills?: SkillSearchResult[]; total?: number }
-    const skills = json.skills ?? []
-
-    if (skills.length === 0) {
-      return { content: [{ type: 'text' as const, text: `No skills found for "${query}".` }] }
-    }
-
-    const results = skills.map((s) => ({
-      name: s.name,
-      description: s.description ?? null,
-      author: s.author ?? null,
-      identifier: buildSkillIdentifier(s),
-      installs: s.installs ?? 0
-    }))
-
-    logger.info('Skills search via tool', { agentId: this.agentId, query, resultCount: results.length })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Found ${results.length} skill(s) for "${query}":\n${JSON.stringify(results, null, 2)}\n\nUse the 'identifier' field with action 'install' to install a skill.`
-        }
-      ]
-    }
-  }
-
-  private async installSkill(args: Record<string, string | undefined>) {
-    const identifier = args.identifier
-    if (!identifier) {
-      throw new McpError(
-        ErrorCode.InvalidParams,
-        "'identifier' is required for install (format: 'owner/repo/skill-name')"
-      )
-    }
-
-    const installed = await skillService.install({
-      installSource: `claude-plugins:${identifier}`
-    })
-
-    logger.info('Skill installed via tool', { agentId: this.agentId, identifier, name: installed.name })
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Skill installed:\n  Name: ${installed.name}\n  Description: ${installed.description ?? 'N/A'}\n  Folder: ${installed.folderName}`
-        }
-      ]
-    }
-  }
-
-  private async removeSkill(args: Record<string, string | undefined>) {
-    const name = args.name
-    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for remove (skill folder name)")
-
-    await skillService.uninstallByFolderName(name)
-
-    logger.info('Skill removed via tool', { agentId: this.agentId, name })
-    return {
-      content: [{ type: 'text' as const, text: `Skill "${name}" removed.` }]
-    }
-  }
-
-  private async listSkills() {
-    const skills = await skillService.list()
-
-    if (skills.length === 0) {
-      return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
-    }
-
-    const results = skills.map((s) => ({
-      name: s.name,
-      folder: s.folderName,
-      description: s.description ?? null,
-      enabled: s.isEnabled
-    }))
-
-    logger.info('Skills list via tool', { agentId: this.agentId, count: results.length })
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }]
-    }
-  }
-
-  private async getWorkspacePath(): Promise<string> {
-    const agent = await agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    const workspace = agent.accessible_paths?.[0]
-    if (!workspace) throw new McpError(ErrorCode.InternalError, 'Agent has no workspace path configured')
-    return workspace
-  }
-
-  private async memoryUpdate(args: Record<string, string | undefined>) {
-    const content = args.content
-    if (!content) throw new McpError(ErrorCode.InvalidParams, "'content' is required for update action")
-
-    const workspace = await this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
-    const factPath = await resolveFileCI(memoryDir, 'FACT.md')
-
-    await mkdir(memoryDir, { recursive: true })
-
-    // Atomic write via temp file + rename
-    const tmpPath = `${factPath}.${Date.now()}.tmp`
-    await writeFile(tmpPath, content, 'utf-8')
-    await rename(tmpPath, factPath)
-
-    logger.info('Memory FACT.md updated via tool', { agentId: this.agentId, length: content.length })
-    return {
-      content: [{ type: 'text' as const, text: 'Memory updated.' }]
-    }
-  }
-
-  private async memoryAppend(args: Record<string, string | undefined>) {
-    const text = args.text
-    if (!text) throw new McpError(ErrorCode.InvalidParams, "'text' is required for append action")
-
-    const tags: string[] = []
-    const rawTags = (args as Record<string, unknown>).tags
-    if (Array.isArray(rawTags)) {
-      for (const item of rawTags) {
-        if (typeof item === 'string') tags.push(item)
-      }
-    }
-
-    const workspace = await this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
-
-    await mkdir(memoryDir, { recursive: true })
-
-    const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
-
-    const entry: JournalEntry = {
-      ts: new Date().toISOString(),
-      tags,
-      text
-    }
-
-    await appendFile(journalPath, JSON.stringify(entry) + '\n', 'utf-8')
-
-    logger.info('Journal entry appended via tool', { agentId: this.agentId, tags })
-    return {
-      content: [{ type: 'text' as const, text: `Journal entry added at ${entry.ts}.` }]
-    }
-  }
-
-  private async memorySearch(args: Record<string, string | undefined>) {
-    const query = args.query ?? ''
-    const tagFilter = args.tag ?? ''
-    const limit = Math.max(1, parseInt(args.limit ?? '20', 10) || 20)
-
-    const workspace = await this.getWorkspacePath()
-    const memoryDir = path.join(workspace, 'memory')
-    const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
-
-    let fileContent: string
-    try {
-      fileContent = await readFile(journalPath, 'utf-8')
-    } catch {
-      return { content: [{ type: 'text' as const, text: 'No journal entries found.' }] }
-    }
-
-    const queryLower = query.toLowerCase()
-    const tagLower = tagFilter.toLowerCase()
-    const matches: JournalEntry[] = []
-
-    for (const line of fileContent.split('\n')) {
-      if (!line.trim()) continue
-      let entry: JournalEntry
-      try {
-        entry = JSON.parse(line)
-      } catch {
-        continue
-      }
-      if (tagFilter && !entry.tags?.some((t) => t.toLowerCase() === tagLower)) continue
-      if (query && !entry.text.toLowerCase().includes(queryLower)) continue
-      matches.push(entry)
-    }
-
-    // Return last N entries in reverse-chronological order
-    const result = matches.slice(-limit).reverse()
-
-    if (result.length === 0) {
-      return { content: [{ type: 'text' as const, text: 'No matching journal entries found.' }] }
-    }
-
-    logger.info('Journal search via tool', { agentId: this.agentId, query, tag: tagFilter, resultCount: result.length })
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
-    }
-  }
-
   // ── Config tool handlers ──────────────────────────────────────────
 
   private async configStatus() {
@@ -808,7 +431,7 @@ class ClawServer {
     }))
 
     const result = {
-      agent_id: agent.id,
+      agentId: agent.id,
       name: agent.name,
       model: agent.model,
       supported_channel_types: Object.entries(CHANNEL_CONFIG_SCHEMAS).map(([type, schema]) => ({
@@ -988,8 +611,7 @@ class ClawServer {
     const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const needsQr =
-      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
+    const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
     if (!needsQr) {
       await channelManager.syncChannel(channelId)
@@ -1060,7 +682,7 @@ class ClawServer {
 
     const existingConfig = agent.configuration
     await agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: true } as CherryClawConfiguration
+      configuration: { ...existingConfig, bootstrap_completed: true } as AgentConfiguration
     })
 
     logger.info('Bootstrap marked as completed', { agentId: this.agentId })
@@ -1077,7 +699,7 @@ class ClawServer {
 
     const existingConfig = agent.configuration
     await agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: false } as CherryClawConfiguration
+      configuration: { ...existingConfig, bootstrap_completed: false } as AgentConfiguration
     })
 
     logger.info('Bootstrap reset', { agentId: this.agentId })

@@ -35,7 +35,7 @@ export const miniAppTable = sqliteTable(
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
 
     // Sort order within the same status group
-    sortOrder: integer('sort_order').default(0),
+    sortOrder: integer('sort_order').notNull().default(0),
 
     // Whether the app shows a border
     bordered: integer({ mode: 'boolean' }).default(true),

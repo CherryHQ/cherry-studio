@@ -34,16 +34,18 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
+        '@application': resolve('src/main/core/application'),
         '@types': resolve('src/renderer/src/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),
-        '@logger': resolve('src/main/services/LoggerService'),
+        '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
         '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
-        '@test-mocks': resolve('tests/__mocks__')
+        '@test-mocks': resolve('tests/__mocks__'),
+        '@test-helpers': resolve('tests/helpers')
       }
     },
     build: {
@@ -144,12 +146,12 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
+          quickAssistant: resolve(__dirname, 'src/renderer/quickAssistant.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
           migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html'),
-          detachedWindow: resolve(__dirname, 'src/renderer/detachedWindow.html')
+          subWindow: resolve(__dirname, 'src/renderer/subWindow.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

@@ -12,16 +12,19 @@
  * definitions with DB preference rows to produce a unified MiniApp view.
  */
 
-import { type MiniAppInsert, type MiniAppRegion, type MiniAppSelect } from '@data/db/schemas/miniapp'
+import { application } from '@application'
+import { type MiniAppInsert, type MiniAppSelect } from '@data/db/schemas/miniapp'
 import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniapp'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
-import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+
+import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -32,30 +35,6 @@ const builtinMiniAppDefaultSortOrder = new Map<string, number>(
   ORIGIN_DEFAULT_MIN_APPS.map((app, index) => [app.id, index])
 )
 
-/**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
-
-const VALID_REGIONS = new Set<string>(['CN', 'Global'])
-
-/**
- * Validate and parse supportedRegions from a DB row.
- * Mirrors the write-side validation in MiniAppMappings.toNullableRegions.
- */
-function parseRegions(raw: unknown): ('CN' | 'Global')[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  const regions = raw.filter((r): r is MiniAppRegion => typeof r === 'string' && VALID_REGIONS.has(r))
-  return regions.length > 0 ? regions : undefined
-}
-
 /** Brand a raw DB/app-def string as a MiniAppId. Safe because DB enforces non-empty app_id. */
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
@@ -65,16 +44,16 @@ function brandId(raw: string): MiniAppId {
  * Convert database row to MiniApp entity
  */
 function rowToMiniApp(row: MiniAppSelect): MiniApp {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     appId: brandId(clean.appId),
     type: clean.type,
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
-    supportedRegions: parseRegions(clean.supportedRegions),
-    createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
-    updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
+    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
+    createdAt: timestampToISO(clean.createdAt),
+    updatedAt: timestampToISO(clean.updatedAt)
   }
 }
 
@@ -96,8 +75,8 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect):
     supportedRegions: def.supportedRegions,
     configuration: undefined,
     nameKey: def.nameKey,
-    createdAt: dbRow?.createdAt ? new Date(dbRow.createdAt).toISOString() : undefined,
-    updatedAt: dbRow?.updatedAt ? new Date(dbRow.updatedAt).toISOString() : undefined
+    createdAt: timestampToISOOrUndefined(dbRow?.createdAt),
+    updatedAt: timestampToISOOrUndefined(dbRow?.updatedAt)
   }
 }
 
@@ -206,53 +185,46 @@ export class MiniAppService {
   }
 
   /**
-   * Create a new custom miniapp
+   * Create a new custom miniapp.
+   *
+   * The builtin-conflict check is application-level (SQLite has no knowledge
+   * of builtin app IDs), so it must stay in code. DB-level uniqueness of
+   * custom appIds is enforced by the UNIQUE PRIMARY KEY on miniappTable.appId
+   * and translated to a 409 CONFLICT via withSqliteErrors — no select-then-
+   * insert pre-check is used, so two concurrent creates with the same appId
+   * yield one 201 and one 409 instead of one 201 and one 500.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
-    // Check if appId already exists (both in DB and builtin)
     if (builtinMiniAppMap.has(dto.appId)) {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a builtin app and cannot be recreated`)
     }
 
-    const existing = await this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, dto.appId)).limit(1)
-
-    if (existing.length > 0) {
-      throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" already exists`)
-    }
-
-    // Calculate next sortOrder: max of builtin apps count and existing DB apps max sortOrder
-    const builtinCount = builtinMiniAppMap.size
-    const maxSortOrderResult = await this.db
-      .select({ maxSortOrder: miniAppTable.sortOrder })
-      .from(miniAppTable)
-      .orderBy(desc(miniAppTable.sortOrder))
-      .limit(1)
-
-    const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? 0
-    const nextSortOrder = Math.max(builtinCount, maxDbSortOrder + 1)
-
-    const [row] = await this.db
-      .insert(miniAppTable)
-      .values({
-        appId: dto.appId,
-        name: dto.name,
-        url: dto.url,
-        logo: dto.logo,
-        type: 'custom',
-        status: 'enabled',
-        sortOrder: nextSortOrder,
-        bordered: dto.bordered,
-        background: dto.background,
-        supportedRegions: dto.supportedRegions,
-        configuration: dto.configuration
-      })
-      .returning()
+    const [row] = await withSqliteErrors(
+      () =>
+        this.db
+          .insert(miniAppTable)
+          .values({
+            appId: dto.appId,
+            name: dto.name,
+            url: dto.url,
+            logo: dto.logo,
+            type: 'custom',
+            status: 'enabled',
+            sortOrder: 0,
+            bordered: dto.bordered,
+            background: dto.background,
+            supportedRegions: dto.supportedRegions,
+            configuration: dto.configuration
+          })
+          .returning(),
+      defaultHandlersFor('MiniApp', dto.appId)
+    )
 
     if (!row) {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
     }
 
-    logger.info('Created miniapp', { appId: row.appId, name: row.name, sortOrder: nextSortOrder })
+    logger.info('Created miniapp', { appId: row.appId, name: row.name, sortOrder: row.sortOrder })
 
     return rowToMiniApp(row)
   }

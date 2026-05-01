@@ -3,8 +3,11 @@
  * Uses the unified mock system per CLAUDE.md testing guidelines.
  */
 
+import { DataApiErrorFactory } from '@shared/data/api'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chainable DB mock (Drizzle queries are thenable)
@@ -30,7 +33,7 @@ function createChainableMockDb() {
 // Mocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
@@ -120,6 +123,14 @@ vi.mock('../ModelService', () => ({
   modelService: { batchUpsert: vi.fn() }
 }))
 
+const mockGetByProviderId = vi.fn()
+
+vi.mock('../ProviderService', () => ({
+  providerService: {
+    getByProviderId: mockGetByProviderId
+  }
+}))
+
 import {
   readModelRegistry,
   readProviderModelRegistry,
@@ -187,6 +198,7 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(createChainableMockDb())
+    mockGetByProviderId.mockRejectedValue(DataApiErrorFactory.notFound('Provider', 'openai'))
   })
 
   describe('registry load failure', () => {
@@ -269,6 +281,27 @@ describe('ProviderRegistryService', () => {
       const models = await providerRegistryService.resolveModels('openai', ['gpt-4o', 'gpt-4o'])
 
       expect(models).toHaveLength(1)
+    })
+
+    it('should fall back to registry defaults when provider is not found in the DB', async () => {
+      setupRegistryData()
+      mockGetByProviderId.mockRejectedValueOnce(DataApiErrorFactory.notFound('Provider', 'openai'))
+
+      const result = await providerRegistryService.lookupModel('openai', 'gpt-4o')
+
+      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.presetModel?.id).toBe('gpt-4o')
+    })
+
+    it('should rethrow provider lookup errors instead of silently using registry defaults', async () => {
+      setupRegistryData()
+      const error = new Error('database offline')
+      const loggerSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
+      mockGetByProviderId.mockRejectedValueOnce(error)
+
+      await expect(providerRegistryService.resolveModels('openai', ['gpt-4o'])).rejects.toThrow('database offline')
+
+      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
     })
 
     // ── Regression: normalize fallback ────────────────────────────────────────

@@ -32,7 +32,7 @@ function IconDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0.5 border-border/30 border-t px-1.5 pt-1">
+    <div className="mt-1 flex flex-col items-center gap-0.5 border-border/30 border-t px-1.5 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -78,7 +78,7 @@ function VerticalCardDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0 border-border/30 border-t px-1 pt-1">
+    <div className="mt-1 flex flex-col items-center gap-0 border-border/30 border-t px-1 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -125,7 +125,7 @@ function FullDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1">
+    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 

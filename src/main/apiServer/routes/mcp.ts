@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import type { Request, Response } from 'express'
 import express from 'express'
 
-import { loggerService } from '../../services/LoggerService'
 import { getMcpApiService } from '../services/mcp'
 
 const logger = loggerService.withContext('ApiServerMCPRoutes')

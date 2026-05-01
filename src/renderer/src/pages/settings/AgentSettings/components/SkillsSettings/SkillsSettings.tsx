@@ -1,11 +1,13 @@
 import { Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { TopView } from '@renderer/components/TopView'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { useNavigate } from '@tanstack/react-router'
 import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
-import { Card, Empty, Spin, Tag } from 'antd'
-import { Puzzle } from 'lucide-react'
-import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { Button, Card, Empty, Spin, Tag } from 'antd'
+import { Plus, Puzzle } from 'lucide-react'
+import { type FC, memo, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../../shared'
@@ -35,7 +37,7 @@ const SkillCard = memo<{
   onToggle: (skill: InstalledSkill, checked: boolean) => void
 }>(({ skill, toggling, onToggle }) => {
   const { t } = useTranslation()
-  const handleChange = useCallback((checked: boolean) => onToggle(skill, checked), [skill, onToggle])
+  const handleChange = useEffectEvent((checked: boolean) => onToggle(skill, checked))
 
   return (
     <Card
@@ -87,17 +89,28 @@ const LocalSkillCard = memo<{ plugin: LocalSkill }>(({ plugin }) => (
 LocalSkillCard.displayName = 'LocalSkillCard'
 
 /**
- * Agent Skills Settings - shows globally installed skills with enable/disable toggle
- * and local skills from .claude/skills/.
+ * Agent Skills Settings - shows the global skill library with a per-agent
+ * enable/disable toggle, plus local skills from the agent workspace
+ * `.claude/skills/` directory.
+ *
+ * The `isEnabled` field in each skill reflects the state from `agent_skills`
+ * for the current agent — toggling only affects this agent's workspace.
  */
 export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase }) => {
+  const navigate = useNavigate()
   const { t } = useTranslation()
-  const { skills, loading, error, toggle } = useInstalledSkills()
+  // Skills are enabled per-agent, not per-session. When the settings popup is
+  // opened from a session, `agentBase` is a session object and its parent
+  // agent id lives on `agent_id`. When opened from an agent, `agentBase.id`
+  // is the agent id.
+  const agentId =
+    agentBase && 'agentId' in agentBase && typeof agentBase.agentId === 'string' ? agentBase.agentId : agentBase?.id
+  const { skills, loading, error, toggle } = useInstalledSkills(agentId)
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])
 
-  const workdir = agentBase?.accessible_paths?.[0]
+  const workdir = agentBase?.accessiblePaths?.[0]
 
   useEffect(() => {
     if (!workdir) return
@@ -144,12 +157,23 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
       <SettingsItem divider={false}>
         <SettingsTitle
           contentAfter={
-            <CollapsibleSearchBar
-              onSearch={setFilter}
-              placeholder={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
-              tooltip={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
-              style={searchBarStyle}
-            />
+            <>
+              <CollapsibleSearchBar
+                onSearch={setFilter}
+                placeholder={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
+                tooltip={t('agent.settings.skills.searchPlaceholder', 'Search skills...')}
+                style={searchBarStyle}
+              />
+              <Button
+                icon={<Plus size={18} />}
+                style={{ marginLeft: 'auto' }}
+                onClick={() => {
+                  TopView.hide('AgentSettingsPopup')
+                  void navigate({ to: '/settings/skills' })
+                }}>
+                {t('agent.settings.skills.addMore', 'Add More Skills')}
+              </Button>
+            </>
           }>
           {t('agent.settings.skills.title', 'Installed Skills')}
         </SettingsTitle>

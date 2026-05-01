@@ -7,118 +7,157 @@
  * deletable.
  */
 
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-function createSelectMockReturning(rows: unknown[]) {
-  const chain: Record<string, unknown> = {}
-  const terminal = { then: (resolve: (v: unknown) => void) => resolve(rows) }
-
-  chain.select = vi.fn(() => chain)
-  chain.from = vi.fn(() => chain)
-  chain.where = vi.fn(() => chain)
-  chain.limit = vi.fn(() => terminal)
-
-  return chain
-}
-
-function createDeleteMock() {
-  const chain: Record<string, unknown> = {}
-  chain.delete = vi.fn(() => chain)
-  chain.where = vi.fn(() => Promise.resolve())
-  return chain
-}
-
-function createMockDbForProvider(providerRow: unknown) {
-  const selectChain = createSelectMockReturning([providerRow])
-  const deleteChain = createDeleteMock()
-
-  return {
-    select: selectChain.select,
-    from: selectChain.from,
-    where: selectChain.where,
-    limit: selectChain.limit,
-    delete: deleteChain.delete
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Mocks
-// ─────────────────────────────────────────────────────────────────────────────
-
-vi.mock('@main/core/application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-// ProviderService is a singleton — import after mocks are registered
-const { providerService } = await import('../ProviderService')
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Minimal valid UserProvider DB row shape */
-function makeProviderRow(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
-  return {
-    providerId: 'openai',
-    presetProviderId: null,
-    name: 'OpenAI',
-    endpointConfigs: null,
-    defaultChatEndpoint: null,
-    apiKeys: [],
-    authConfig: null,
-    apiFeatures: null,
-    providerSettings: null,
-    isEnabled: true,
-    sortOrder: 0,
-    createdAt: null,
-    updatedAt: null,
-    ...overrides
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────
+import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { pinService } from '@data/services/PinService'
+import { providerService } from '@data/services/ProviderService'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { Pin } from '@shared/data/types/pin'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('ProviderService.delete — preset protection boundary', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    MockMainDbServiceUtils.resetMocks()
+  const dbh = setupTestDatabase()
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('should throw when deleting a canonical preset provider (providerId === presetProviderId)', async () => {
-    // 'openai' row where both fields are identical — this IS the canonical preset
-    const row = makeProviderRow({ providerId: 'openai', presetProviderId: 'openai' })
-    MockMainDbServiceUtils.setDb(createMockDbForProvider(row))
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'openai',
+      presetProviderId: 'openai',
+      name: 'OpenAI'
+    })
 
     await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
+
+    // Verify row is still present
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
+    expect(rows).toHaveLength(1)
   })
 
   it('should NOT throw when deleting a user-created provider that inherits from a preset', async () => {
-    // 'openai-work' row: user copy of the openai preset — presetProviderId differs from providerId
-    const row = makeProviderRow({
+    await dbh.db.insert(userProviderTable).values({
       providerId: 'openai-work',
       presetProviderId: 'openai',
       name: 'OpenAI Work'
     })
-    const mockDb = createMockDbForProvider(row)
-    MockMainDbServiceUtils.setDb(mockDb)
 
-    // Should resolve without throwing
     await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
+
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai-work'))
+    expect(rows).toHaveLength(0)
   })
 
   it('should NOT throw when deleting a fully custom provider with no presetProviderId', async () => {
-    // A provider the user created from scratch — no preset linkage
-    const row = makeProviderRow({
+    await dbh.db.insert(userProviderTable).values({
       providerId: 'my-local-llm',
       presetProviderId: null,
       name: 'My Local LLM'
     })
-    MockMainDbServiceUtils.setDb(createMockDbForProvider(row))
 
     await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()
+
+    const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'my-local-llm'))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('should bulk purge pins for models owned by the deleted provider', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'openai-work',
+        presetProviderId: 'openai',
+        name: 'OpenAI Work'
+      },
+      {
+        providerId: 'anthropic-work',
+        presetProviderId: 'anthropic',
+        name: 'Anthropic Work'
+      }
+    ])
+    const targetModelIds = [createUniqueModelId('openai-work', 'gpt-4o'), createUniqueModelId('openai-work', 'o3')]
+    const siblingModelId = createUniqueModelId('anthropic-work', 'claude-3')
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: targetModelIds[0],
+        providerId: 'openai-work',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o'
+      },
+      {
+        id: targetModelIds[1],
+        providerId: 'openai-work',
+        modelId: 'o3',
+        name: 'o3'
+      },
+      {
+        id: siblingModelId,
+        providerId: 'anthropic-work',
+        modelId: 'claude-3',
+        name: 'Claude 3'
+      }
+    ])
+    const targetPins: Pin[] = []
+    for (const entityId of targetModelIds) {
+      targetPins.push(await pinService.pin({ entityType: 'model', entityId }))
+    }
+    const siblingPin = await pinService.pin({ entityType: 'model', entityId: siblingModelId })
+
+    await providerService.delete('openai-work')
+
+    const pins = await dbh.db.select().from(pinTable)
+    for (const pin of targetPins) {
+      expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
+    }
+    expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
+  })
+
+  it('purges pins for every model under the provider as part of the delete transaction', async () => {
+    const purgeForEntitySpy = vi.spyOn(pinService, 'purgeForEntity')
+    const purgeForEntitiesSpy = vi.spyOn(pinService, 'purgeForEntities')
+    const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
+    const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
+    const claude = createUniqueModelId('anthropic', 'claude-3')
+
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work' },
+      { providerId: 'anthropic', presetProviderId: null, name: 'Anthropic' }
+    ])
+    await dbh.db.insert(userModelTable).values([
+      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4' },
+      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5' },
+      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3' }
+    ])
+    await dbh.db.insert(pinTable).values([
+      { entityType: 'model', entityId: gpt4, orderKey: 'a0' },
+      { entityType: 'model', entityId: gpt35, orderKey: 'a1' },
+      { entityType: 'model', entityId: claude, orderKey: 'a2' }
+    ])
+
+    await providerService.delete('openai-work')
+
+    expect(purgeForEntitiesSpy).toHaveBeenCalledTimes(1)
+    const [, entityType, entityIds] = purgeForEntitiesSpy.mock.calls[0]
+    expect(entityType).toBe('model')
+    expect(entityIds).toHaveLength(2)
+    expect(new Set(entityIds)).toEqual(new Set([gpt4, gpt35]))
+    expect(purgeForEntitySpy).not.toHaveBeenCalled()
+
+    // Pins for the deleted provider's models are gone.
+    const deletedProviderPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, gpt4))
+    expect(deletedProviderPins).toHaveLength(0)
+    const gpt35Pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, gpt35))
+    expect(gpt35Pins).toHaveLength(0)
+
+    // Other providers' pins are untouched.
+    const survivingPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, claude))
+    expect(survivingPins).toHaveLength(1)
+  })
+
+  it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {
+    await expect(providerService.delete('does-not-exist')).rejects.toThrow(/not found/i)
   })
 })

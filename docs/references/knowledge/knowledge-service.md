@@ -104,6 +104,25 @@ Current `KnowledgeSearchResult` includes:
 
 `chunkId` is the vector row identity used for result-level attribution. `itemId` is populated from stored metadata when available.
 
+### Current Retrieval Cost Assumption
+
+The current v2 implementation intentionally does **not** create a libSQL vector index and does **not** use `vector_top_k`.
+Similarity search currently queries the base table directly and sorts by `vector_distance_cos(...)`.
+
+This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
+That tradeoff is currently accepted because it keeps the runtime path simpler and performs well enough for the expected near-term corpus sizes.
+
+A local benchmark run on April 15, 2026 with 1536-dimension embeddings and `topK=10` measured approximately:
+
+- `20k` rows: `~78ms` warm vector search
+- `50k` rows: `~195ms` warm vector search
+
+Current guidance:
+
+1. Treat the no-index design as the default for now, not as an unlimited scaling guarantee.
+2. Re-evaluate indexed search if real single-base corpora grow toward `100k+` rows or retrieval latency budgets can no longer tolerate a few hundred milliseconds per query.
+3. If future product requirements change, adding a vector index remains a valid follow-up optimization rather than a blocked prerequisite for the current design.
+
 ## Deletion
 
 Deletion still requires two concerns to be handled:

@@ -54,10 +54,10 @@ const WindowControls: React.FC = () => {
 
   useEffect(() => {
     // Check initial maximized state
-    void window.api.windowControls.isMaximized().then(setIsMaximized)
+    void window.api.windowManager.isMaximized().then(setIsMaximized)
 
     // Listen for maximized state changes
-    const unsubscribe = window.api.windowControls.onMaximizedChange(setIsMaximized)
+    const unsubscribe = window.api.windowManager.onMaximizedChange(setIsMaximized)
 
     return () => {
       unsubscribe()
@@ -75,19 +75,19 @@ const WindowControls: React.FC = () => {
   }
 
   const handleMinimize = () => {
-    void window.api.windowControls.minimize()
+    void window.api.windowManager.minimize()
   }
 
   const handleMaximize = () => {
     if (isMaximized) {
-      void window.api.windowControls.unmaximize()
+      void window.api.windowManager.unmaximize()
     } else {
-      void window.api.windowControls.maximize()
+      void window.api.windowManager.maximize()
     }
   }
 
   const handleClose = () => {
-    void window.api.windowControls.close()
+    void window.api.windowManager.close()
   }
 
   const tooltipTriggerWrap = { placeholder: 'relative z-10 flex h-full min-h-0' } as const

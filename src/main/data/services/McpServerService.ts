@@ -6,39 +6,29 @@
  * - Listing with optional filters (isActive, type)
  */
 
+import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 
-const logger = loggerService.withContext('DataApi:MCPServerService')
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
-/**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
+const logger = loggerService.withContext('DataApi:MCPServerService')
 
 /**
  * Convert database row to MCPServer entity
  */
 function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: clean.type as MCPServer['type'],
     installSource: clean.installSource as MCPServer['installSource'],
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

@@ -15,9 +15,10 @@ For lifecycle internals (phases, hooks, states, decorators, events), see [Lifecy
 
 ## Quick Start
 
+Both `application` and `serviceList` are barrel-exported from the `@application` path alias (configured in `tsconfig.node.json` and `electron.vite.config.ts`):
+
 ```typescript
-import { application } from '@main/core/application'
-import { serviceList } from '@main/core/application'
+import { application, serviceList } from '@application'
 
 // 1. Register all services
 application.registerAll(serviceList)
@@ -164,7 +165,7 @@ Always use `application.relaunch()` instead of calling `app.relaunch()` directly
 - **Platform fixes**: Linux AppImage `execPath` rewrite, Windows Portable executable path
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 // Simple relaunch
 application.relaunch()
@@ -178,7 +179,7 @@ application.relaunch({ args: ['--safe-mode'] })
 Always use `application.quit()` or `application.forceExit()` instead of calling `app.quit()` / `app.exit()` directly. An ESLint rule (`no-restricted-properties`) will warn if `app.quit()` or `app.exit()` is used in `src/main/` outside of `Application.ts`.
 
 ```typescript
-import { application } from '@main/core/application'
+import { application } from '@application'
 
 // Graceful quit — triggers the Electron before-quit / will-quit event chain
 application.quit()
@@ -242,7 +243,7 @@ The exported `application` constant is a lazy proxy — safe to import at module
 
 ```typescript
 // Safe to import anywhere, even at module scope
-import { application } from '@main/core/application'
+import { application } from '@application'
 ```
 
 ## File Structure

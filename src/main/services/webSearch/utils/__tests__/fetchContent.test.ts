@@ -55,7 +55,7 @@ describe('fetchWebSearchContent', () => {
   it('normalizes empty readability output to an empty string', async () => {
     fetchMock.mockResolvedValue(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
 
-    const result = await fetchWebSearchContent('https://example.com/article', false)
+    const result = await fetchWebSearchContent('https://example.com/article')
 
     expect(result).toEqual({
       title: 'https://example.com/article',
@@ -68,7 +68,7 @@ describe('fetchWebSearchContent', () => {
     const html = '<html><body><article><p>hello</p></article></body></html>'
     fetchMock.mockResolvedValue(createTextResponse(html, 'text/html'))
 
-    await fetchWebSearchContent('https://example.com/article', false)
+    await fetchWebSearchContent('https://example.com/article')
 
     expect(jsdomConstructorMock).toHaveBeenCalledWith(html, { url: 'http://localhost/' })
   })
@@ -76,6 +76,6 @@ describe('fetchWebSearchContent', () => {
   it('throws when fetching content fails', async () => {
     fetchMock.mockResolvedValue(createTextResponse('server error', 'text/plain', 500))
 
-    await expect(fetchWebSearchContent('https://example.com/article', false)).rejects.toThrow('HTTP error: 500')
+    await expect(fetchWebSearchContent('https://example.com/article')).rejects.toThrow('HTTP error: 500')
   })
 })

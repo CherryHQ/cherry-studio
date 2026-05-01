@@ -1,7 +1,7 @@
+import { application } from '@application'
 import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { sql } from 'drizzle-orm'
@@ -28,7 +28,7 @@ const logger = loggerService.withContext('DbService')
  *
  * @example
  * ```typescript
- * import { application } from '@main/core/application'
+ * import { application } from '@application'
  *
  * const db = application.get('DbService').getDb()
  * ```

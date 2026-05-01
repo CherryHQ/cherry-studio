@@ -39,7 +39,6 @@ import {
   getQuickModel
 } from './AssistantService'
 import { ConversationService } from './ConversationService'
-import FileManager from './FileManager'
 import { injectUserMessageWithKnowledgeSearchPrompt } from './KnowledgeService'
 import type { BlockManager } from './messageStreaming'
 import type { StreamProcessorCallbacks } from './StreamProcessingService'
@@ -55,6 +54,7 @@ import type { StreamProcessorCallbacks } from './StreamProcessingService'
 // FIXME: 这里太多重复逻辑，需要重构
 
 const logger = loggerService.withContext('ApiService')
+const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
 
 /**
  * Fetch active MCP servers from the Data API.
@@ -318,12 +318,18 @@ async function collectImagesFromMessages(userMessage: Message, assistantMessage?
   const images: string[] = []
 
   // 收集用户消息中的图像
+  // NOTE: Use `block.file.name` (always the on-disk filename) rather than
+  // `block.file.id + block.file.ext` — some save paths (saveBase64Image,
+  // savePastedImage) store `ext` without the leading dot, so concatenation
+  // produces broken paths like `<uuid>jpg` → ENOENT.
+  // Also note: `block.file.type` is a FileType enum (e.g. "image"), NOT a MIME
+  // type. `base64Image` derives the real MIME from the extension internally
+  // (and normalizes jpg → image/jpeg).
   const userImageBlocks = findImageBlocks(userMessage)
   for (const block of userImageBlocks) {
     if (block.file) {
-      const base64 = await FileManager.readBase64File(block.file)
-      const mimeType = block.file.type || 'image/png'
-      images.push(`data:${mimeType};base64,${base64}`)
+      const { data } = await window.api.file.base64Image(block.file.name)
+      images.push(data)
     }
   }
 
@@ -407,17 +413,20 @@ export async function fetchImageGeneration({
       image: { type: imageType, images }
     })
 
-    onChunkReceived({
-      type: ChunkType.LLM_RESPONSE_COMPLETE,
-      response: {
-        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-        metrics: {
-          completion_tokens: 0,
-          time_first_token_millsec: 0,
-          time_completion_millsec: Date.now() - startTime
-        }
+    // Emit BLOCK_COMPLETE so the stream processor's onComplete runs and the
+    // assistant message transitions out of "processing". Without this, the
+    // trailing PlaceholderBlock in Blocks/index.tsx stays visible next to the
+    // finished image because `isMessageProcessing(message)` remains true.
+    const imageResponse = {
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      metrics: {
+        completion_tokens: 0,
+        time_first_token_millsec: 0,
+        time_completion_millsec: Date.now() - startTime
       }
-    })
+    }
+    onChunkReceived({ type: ChunkType.BLOCK_COMPLETE, response: imageResponse })
+    onChunkReceived({ type: ChunkType.LLM_RESPONSE_COMPLETE, response: imageResponse })
   } catch (error) {
     onChunkReceived({ type: ChunkType.ERROR, error: error as Error })
     throw error
@@ -500,7 +509,9 @@ export async function fetchMessagesSummary({
     system: prompt,
     prompt: conversation,
     providerOptions,
-    ...standardParams
+    ...standardParams,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -582,7 +593,9 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
 
   const llmMessages = {
     system: prompt,
-    prompt: purifiedContent
+    prompt: purifiedContent,
+    abortSignal: AbortSignal.timeout(SUMMARY_REQUEST_TIMEOUT_MS),
+    maxRetries: 0
   }
 
   const middlewareConfig: AiSdkMiddlewareConfig = {
@@ -721,7 +734,7 @@ export function hasApiKey(provider: Provider) {
  * Get rotated API key for providers that support multiple keys
  * Returns empty string for providers that don't require API keys
  */
-function getRotatedApiKey(provider: Provider): string {
+export function getRotatedApiKey(provider: Provider): string {
   // Handle providers that don't require API keys
   if (!provider.apiKey || provider.apiKey.trim() === '') {
     return ''
@@ -783,7 +796,7 @@ export async function fetchModels(provider: Provider): Promise<Model[]> {
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,
       providerName: provider.name,
-      error: error as Error
+      error: error instanceof Error ? error.message : String(error)
     })
     return []
   }

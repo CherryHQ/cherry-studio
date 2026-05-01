@@ -20,7 +20,11 @@ export default defineConfig({
           name: 'main',
           environment: 'node',
           setupFiles: ['tests/main.setup.ts'],
-          include: ['src/main/**/*.{test,spec}.{ts,tsx}', 'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
+          include: [
+            'src/main/**/*.{test,spec}.{ts,tsx}',
+            'src/main/**/__tests__/**/*.{test,spec}.{ts,tsx}',
+            'tests/helpers/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ],
           benchmark: {
             include: ['src/main/**/*.bench.{ts,tsx}', 'src/main/**/__tests__/**/*.bench.{ts,tsx}']
           }
@@ -105,6 +109,11 @@ export default defineConfig({
       // packages/ui 单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+          }
+        },
         test: {
           name: 'ui',
           environment: 'node',

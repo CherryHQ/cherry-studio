@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 
-vi.mock('../../../../../WindowService', () => ({
+vi.mock('../../../../../MainWindowService', () => ({
   windowService: {
     getMainWindow: () => null
   }
@@ -28,12 +28,16 @@ const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'ca
 const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
+const mockMessageResourceGet = vi.fn()
 
 const mockClient = {
   im: {
     message: {
       create: mockImCreate,
       update: mockImUpdate
+    },
+    messageResource: {
+      get: mockMessageResourceGet
     }
   },
   cardkit: {
@@ -80,6 +84,7 @@ describe('FeishuAdapter', () => {
     mockCardSettings.mockClear().mockResolvedValue({ code: 0 })
     mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockElementContent.mockClear().mockResolvedValue({ code: 0 })
+    mockMessageResourceGet.mockReset()
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
   })
@@ -355,7 +360,56 @@ describe('FeishuAdapter', () => {
     expect(messageSpy).toHaveBeenCalledWith(expect.objectContaining({ text: 'Hello agent' }))
   })
 
-  it('ignores non-text message types', async () => {
+  it('handles incoming image messages and emits message event with attachment', async () => {
+    const adapter = createAdapter({ allowed_chat_ids: [] })
+    await adapter.connect()
+
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+
+    const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01, 0x02, 0x03])
+    mockMessageResourceGet.mockResolvedValue({
+      getReadableStream: () => {
+        const { Readable } = require('node:stream')
+        return Readable.from([pngBuffer])
+      },
+      headers: { 'content-type': 'image/png' }
+    })
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-image',
+        chat_id: 'oc_123',
+        chat_type: 'p2p',
+        message_type: 'image',
+        content: JSON.stringify({ image_key: 'img_abc' })
+      }
+    })
+
+    // Downloader is fire-and-forget — flush microtasks
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mockMessageResourceGet).toHaveBeenCalledWith({
+      params: { type: 'image' },
+      path: { message_id: 'msg-image', file_key: 'img_abc' }
+    })
+    expect(messageSpy).toHaveBeenCalledWith({
+      chatId: 'oc_123',
+      userId: 'ou_user1',
+      userName: '',
+      text: '',
+      images: [
+        {
+          data: pngBuffer.toString('base64'),
+          media_type: 'image/png'
+        }
+      ]
+    })
+  })
+
+  it('emits fallback message when image content has no image_key', async () => {
     const adapter = createAdapter({ allowed_chat_ids: [] })
     await adapter.connect()
 
@@ -366,10 +420,33 @@ describe('FeishuAdapter', () => {
     await handler({
       sender: { sender_id: { open_id: 'ou_user1' } },
       message: {
-        message_id: 'msg-image',
+        message_id: 'msg-image-bad',
         chat_id: 'oc_123',
         chat_type: 'p2p',
         message_type: 'image',
+        content: '{}'
+      }
+    })
+
+    expect(mockMessageResourceGet).not.toHaveBeenCalled()
+    expect(messageSpy).not.toHaveBeenCalled()
+  })
+
+  it('ignores unsupported message types (e.g. sticker)', async () => {
+    const adapter = createAdapter({ allowed_chat_ids: [] })
+    await adapter.connect()
+
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-sticker',
+        chat_id: 'oc_123',
+        chat_type: 'p2p',
+        message_type: 'sticker',
         content: '{}'
       }
     })

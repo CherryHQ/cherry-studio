@@ -5,22 +5,56 @@ import { Socket } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
 import type { OperationResult } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
+import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
-import { parseCurrentVersion, parseUpdateStatus } from './utils/openClawParsers'
 import { vertexAIService } from './VertexAIService'
 
 const logger = loggerService.withContext('OpenClawService')
+
+/**
+ * Parse the current version from `openclaw --version` output.
+ * Example input: "OpenClaw 2026.3.9 (fe96034)"
+ */
+export function parseCurrentVersion(versionOutput: string): string | null {
+  const match = versionOutput.match(/OpenClaw\s+([\d.]+)/i)
+  return match?.[1] ?? null
+}
+
+/**
+ * Parse the update status from `openclaw update status` output.
+ * Returns the latest version string if a **binary** update is available, otherwise null.
+ *
+ * Cherry Studio installs OpenClaw as a standalone binary, so we only care about
+ * binary-channel updates. npm/pkg-channel updates are ignored because they
+ * require a different upgrade path (`npm update -g`).
+ *
+ * The table output contains a row like:
+ *   │ Update   │ available · binary · 2026.3.12 │
+ * And a summary line like:
+ *   Update available (binary 2026.3.12). Run: openclaw update
+ */
+export function parseUpdateStatus(statusOutput: string): string | null {
+  // Match binary-channel update from table row: "available · binary · <version>"
+  const tableMatch = statusOutput.match(/available\s*·\s*binary\s*·?\s*([\d.]+)/i)
+  if (tableMatch) return tableMatch[1]
+
+  // Match binary-channel update from summary line: "Update available (binary <version>)"
+  const summaryMatch = statusOutput.match(/Update available\s*\(binary\s+([\d.]+)\)/i)
+  if (summaryMatch) return summaryMatch[1]
+
+  return null
+}
 
 const OPENCLAW_CONFIG_DIR = path.join(os.homedir(), '.openclaw')
 const OPENCLAW_CONFIG_PATH = path.join(OPENCLAW_CONFIG_DIR, 'openclaw.json')
@@ -127,7 +161,7 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -195,8 +229,9 @@ export class OpenClawService extends BaseService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = application.get('WindowService').getMainWindow()
-    win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
+    application
+      .get('WindowManager')
+      .broadcastToType(WindowType.Main, IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 
   /**
@@ -715,7 +750,9 @@ export class OpenClawService extends BaseService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+      // Use query string (not URL fragment) so dashboard app state can persist correctly.
+      // Fragment (#...) is often used by SPAs for transient client-side state.
+      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
@@ -1055,6 +1092,14 @@ export class OpenClawService extends BaseService {
    * - Others: {host}/v1
    */
   private formatOpenAIUrl(provider: Provider): string {
+    // Special-case built-in GitHub / Copilot providers: these hosts should
+    // not have a `/v1` suffix appended by default (renderer applies
+    // `formatApiHost(..., false)` for these). Mirror that behavior here
+    // to avoid constructing incorrect endpoints that return 404.
+    if (provider.id === 'copilot' || provider.id === 'github') {
+      return formatApiHost(provider.apiHost, false)
+    }
+
     const url = withoutTrailingSlash(provider.apiHost)
     const providerType = provider.type
 

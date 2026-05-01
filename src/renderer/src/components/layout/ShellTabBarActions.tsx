@@ -60,7 +60,7 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
     <div className="absolute top-0 right-0 flex h-full items-stretch">
       {!isDetached && (
         <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
-          <div className="flex items-center gap-1 rounded-[10px] border border-border/60 bg-background/70 px-1 py-1">
+          <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
             <Tooltip placement="bottom" content={getThemeModeLabel(settedTheme)} delay={800}>
               <button
                 type="button"

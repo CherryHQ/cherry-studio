@@ -40,7 +40,7 @@
    - Every migrated vector row gets a new UUID v4 `id`.
 
 5. Schema bootstrap
-   - Creates `external_id`, `collection`, vector index, and FTS schema needed by `@vectorstores/libsql`.
+   - Creates `external_id`, `collection`, and FTS schema needed by `@vectorstores/libsql`.
    - Migrated rows use `collection = base.id` so runtime reads and deletes match the same per-base store contract.
 
 ## File-Safety Contract

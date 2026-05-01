@@ -10,12 +10,42 @@ import * as z from 'zod'
 import { type MCPServer, MCPServerSchema, MCPServerTypeSchema } from '../../types/mcpServer'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
-// ============================================================================
-// DTO Derivation
-// ============================================================================
-
-/** Fields auto-managed by the database layer, excluded from DTOs */
-const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
+/**
+ * Mutable MCP server fields — explicit whitelist of everything a client may write.
+ * Anything not listed here (id, createdAt, updatedAt, future auto-managed columns)
+ * is rejected at the API boundary by default.
+ */
+const MCP_SERVER_MUTABLE_FIELDS = {
+  name: true,
+  type: true,
+  description: true,
+  baseUrl: true,
+  command: true,
+  registryUrl: true,
+  args: true,
+  env: true,
+  headers: true,
+  provider: true,
+  providerUrl: true,
+  logoUrl: true,
+  tags: true,
+  longRunning: true,
+  timeout: true,
+  dxtVersion: true,
+  dxtPath: true,
+  reference: true,
+  searchKey: true,
+  configSample: true,
+  disabledTools: true,
+  disabledAutoApproveTools: true,
+  shouldConfig: true,
+  sortOrder: true,
+  isActive: true,
+  installSource: true,
+  isTrusted: true,
+  trustedAt: true,
+  installedAt: true
+} as const
 
 /**
  * DTO for creating a new MCP server.
@@ -23,14 +53,13 @@ const AutoFields = { id: true, createdAt: true, updatedAt: true } as const
  * - `id` is excluded (auto-generated UUID by database)
  * - All other fields are optional
  */
-export const CreateMCPServerSchema = MCPServerSchema.omit(AutoFields).partial().required({ name: true })
+export const CreateMCPServerSchema = MCPServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
 
 /**
- * DTO for updating an existing MCP server.
- * All fields optional, `id` excluded (comes from URL path).
+ * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
  */
-export const UpdateMCPServerSchema = MCPServerSchema.omit(AutoFields).partial()
+export const UpdateMCPServerSchema = CreateMCPServerSchema.partial()
 export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
 
 /**
@@ -61,7 +90,7 @@ export type ReorderMCPServersBody = z.infer<typeof ReorderMCPServersSchema>
 /**
  * MCP Server API Schema definitions
  */
-export interface MCPServerSchemas {
+export type MCPServerSchemas = {
   /**
    * MCP servers collection endpoint
    * @example GET /mcp-servers?isActive=true

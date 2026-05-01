@@ -9,7 +9,7 @@
  */
 
 import { miniAppService } from '@data/services/MiniAppService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { MiniAppSchemas } from '@shared/data/api/schemas/miniapps'
 import {
   CreateMiniAppSchema,
@@ -18,19 +18,7 @@ import {
   UpdateMiniAppSchema
 } from '@shared/data/api/schemas/miniapps'
 
-/**
- * Handler type for a specific miniapp endpoint
- */
-type MiniAppHandler<Path extends keyof MiniAppSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * MiniApp API handlers implementation
- */
-export const miniAppHandlers: {
-  [Path in keyof MiniAppSchemas]: {
-    [Method in keyof MiniAppSchemas[Path]]: MiniAppHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
   '/miniapps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
@@ -46,23 +34,19 @@ export const miniAppHandlers: {
       return undefined
     }
   },
-
   '/miniapps/:appId': {
     GET: async ({ params }) => {
       return await miniAppService.getByAppId(params.appId)
     },
-
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMiniAppSchema.parse(body)
       return await miniAppService.update(params.appId, parsed)
     },
-
     DELETE: async ({ params }) => {
       await miniAppService.delete(params.appId)
       return undefined
     }
   },
-
   '/miniapps/_actions/reset-defaults': {
     DELETE: async () => {
       await miniAppService.resetDefaults()

@@ -67,7 +67,6 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
-  enableMemory?: boolean
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
@@ -136,9 +135,11 @@ const ThinkModelTypes = [
   'zhipu',
   'perplexity',
   'deepseek_hybrid',
+  'deepseek_v4',
   'kimi_k2_5',
   'claude',
-  'claude46'
+  'claude46',
+  'mistral'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.
@@ -192,12 +193,6 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort: ReasoningEffortOption
-  /**
-   * Preserve the effective reasoning effort (not 'default') from the last use of a thinking model which supports thinking control,
-   * and restore it when switching back from a non-thinking or fixed reasoning model.
-   * FIXME: It should be managed by external cache service instead of being stored in the assistant
-   */
-  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
@@ -538,6 +533,7 @@ export enum ThemeMode {
 //   | 'pt-PT'
 //   | 'ro-RO'
 //   | 'ru-RU'
+//   | 'vi-VN'
 
 export type CodeStyleVarious = 'auto' | string
 

@@ -4,9 +4,9 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
+import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import {
@@ -16,6 +16,8 @@ import {
 } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase, KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
+
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
@@ -97,22 +99,13 @@ export function validateKnowledgeBaseConfig(config: KnowledgeBaseConfigInput): R
 }
 
 function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description ?? undefined,
-    dimensions: row.dimensions,
+    ...clean,
+    // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
     embeddingModelId: row.embeddingModelId,
-    rerankModelId: row.rerankModelId ?? undefined,
-    fileProcessorId: row.fileProcessorId ?? undefined,
-    chunkSize: row.chunkSize ?? undefined,
-    chunkOverlap: row.chunkOverlap ?? undefined,
-    threshold: row.threshold ?? undefined,
-    documentCount: row.documentCount ?? undefined,
-    searchMode: row.searchMode ?? undefined,
-    hybridAlpha: row.hybridAlpha ?? undefined,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -157,7 +150,7 @@ export class KnowledgeBaseService {
       description: dto.description,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
-      rerankModelId: dto.rerankModelId,
+      rerankModelId: dto.rerankModelId ?? null,
       fileProcessorId: dto.fileProcessorId,
       chunkSize: dto.chunkSize,
       chunkOverlap: dto.chunkOverlap,
@@ -185,7 +178,16 @@ export class KnowledgeBaseService {
     const updates: Partial<typeof knowledgeBaseTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name.trim()
     if (dto.description !== undefined) updates.description = dto.description
-    if (dto.rerankModelId !== undefined) updates.rerankModelId = dto.rerankModelId
+
+    if (dto.embeddingModelId !== undefined) {
+      const nextEmbeddingModelId = dto.embeddingModelId.trim()
+      if (nextEmbeddingModelId !== (existing.embeddingModelId ?? null)) {
+        updates.embeddingModelId = nextEmbeddingModelId
+      }
+    }
+    if (dto.rerankModelId !== undefined) {
+      updates.rerankModelId = dto.rerankModelId ?? null
+    }
     if (dto.fileProcessorId !== undefined) updates.fileProcessorId = dto.fileProcessorId
     if (dto.chunkSize !== undefined) updates.chunkSize = dto.chunkSize
     if (dto.chunkOverlap !== undefined) updates.chunkOverlap = dto.chunkOverlap

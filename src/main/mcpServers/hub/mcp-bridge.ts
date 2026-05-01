@@ -1,12 +1,12 @@
 /**
- * Bridge module for Hub server to access MCPService.
+ * Bridge module for Hub server to access McpService.
  */
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
 
-export const listAllTools = () => application.get('MCPService').listAllActiveServerTools()
+export const listAllTools = () => application.get('McpService').listAllActiveServerTools()
 
 let toolNameMapping: ToolNameMapping | null = null
 
@@ -109,13 +109,13 @@ export const callMcpTool = async (nameOrId: string, params: unknown, callId?: st
     throw new Error(`Tool not found: ${nameOrId}`)
   }
 
-  const result = await application.get('MCPService').callToolById(toolId, params, callId)
+  const result = await application.get('McpService').callToolById(toolId, params, callId)
   throwIfToolError(result)
   return extractToolResult(result)
 }
 
 export const abortMcpTool = async (callId: string): Promise<boolean> => {
-  return application.get('MCPService').abortTool(callId)
+  return application.get('McpService').abortTool(callId)
 }
 
 function extractToolResult(result: MCPCallToolResponse): unknown {

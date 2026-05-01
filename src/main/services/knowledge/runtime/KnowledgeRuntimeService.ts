@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { MetadataMode } from '@vectorstores/core'

@@ -11,7 +11,6 @@
 | [i18n Guide](./guides/i18n.md) | Internationalization guide |
 | [Logging Guide](./guides/logging.md) | How to use the logger service |
 | [Middleware](./guides/middleware.md) | How to write AI Provider middleware |
-| [Memory Feature](./guides/memory.md) | Memory feature usage guide |
 
 ## References
 
@@ -34,8 +33,9 @@
 | [Data System Overview](./references/data/README.md) | System selection, architecture, and patterns |
 | [Boot Config Overview](./references/data/boot-config-overview.md) | Early boot configuration system |
 | [Boot Config Schema Guide](./references/data/boot-config-schema-guide.md) | Adding new boot config keys |
-| [Cache Overview](./references/data/cache-overview.md) | Three-tier caching architecture |
-| [Cache Usage](./references/data/cache-usage.md) | useCache hooks, CacheService examples |
+| [Cache Overview](./references/data/cache-overview.md) | Three-tier caching architecture and design invariants |
+| [Cache Usage](./references/data/cache-usage.md) | useCache hooks, direct API, Main-process subscriptions |
+| [Cache Schema Guide](./references/data/cache-schema-guide.md) | Adding new cache keys (fixed and template) |
 | [Preference Overview](./references/data/preference-overview.md) | User settings management |
 | [Preference Usage](./references/data/preference-usage.md) | usePreference hook examples |
 | [Preference Schema Guide](./references/data/preference-schema-guide.md) | Adding new preference keys |

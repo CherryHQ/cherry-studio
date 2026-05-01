@@ -4,13 +4,16 @@
  * langCode is the primary key (immutable after creation).
  */
 
+import { application } from '@application'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { asc, eq } from 'drizzle-orm'
+
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TranslateLanguageService')
 
@@ -19,8 +22,8 @@ function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect)
     langCode: row.langCode,
     value: row.value,
     emoji: row.emoji,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -50,28 +53,25 @@ export class TranslateLanguageService {
     const db = application.get('DbService').getDb()
     const langCode = dto.langCode.toLowerCase()
 
-    try {
-      const [row] = await db
-        .insert(translateLanguageTable)
-        .values({
-          langCode,
-          value: dto.value,
-          emoji: dto.emoji
-        })
-        .returning()
+    const [row] = await withSqliteErrors(
+      () =>
+        db
+          .insert(translateLanguageTable)
+          .values({
+            langCode,
+            value: dto.value,
+            emoji: dto.emoji
+          })
+          .returning(),
+      defaultHandlersFor('TranslateLanguage', langCode)
+    )
 
-      if (!row) {
-        throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create translate language')
-      }
-
-      logger.info('Created translate language', { langCode })
-      return rowToTranslateLanguage(row)
-    } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('UNIQUE constraint failed')) {
-        throw DataApiErrorFactory.conflict(`Language with code '${langCode}' already exists`, 'TranslateLanguage')
-      }
-      throw e
+    if (!row) {
+      throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create translate language')
     }
+
+    logger.info('Created translate language', { langCode })
+    return rowToTranslateLanguage(row)
   }
 
   async update(langCode: string, dto: UpdateTranslateLanguageDto): Promise<TranslateLanguage> {

@@ -7,18 +7,13 @@
  * provider IDs and only inserts genuinely new rows.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it, vi } from 'vitest'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mocks — must be declared before dynamic imports
-// ─────────────────────────────────────────────────────────────────────────────
-
-vi.mock('@main/core/application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-// Fake registry providers — two preset providers: 'openai' and 'anthropic'
+// Fake registry providers — two preset providers: 'openai' and 'anthropic'.
+// The seeder always also adds 'cherryai' as a built-in.
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
     loadProviders() {
@@ -48,99 +43,48 @@ vi.mock('@cherrystudio/provider-registry', async () => {
   }
 })
 
-// Import AFTER mocks
-const { PresetProviderSeeder } = await import('../presetProviderSeeder')
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Build a minimal mock db.
- * @param existingProviderIds - provider IDs already present in the DB
- */
-function createMockDb(existingProviderIds: string[]) {
-  const insertedValues: unknown[] = []
-
-  const existingRows = existingProviderIds.map((id) => ({ providerId: id }))
-
-  const insertChain = {
-    values: vi.fn((rows: unknown) => {
-      insertedValues.push(rows)
-      return Promise.resolve()
-    })
-  }
-
-  const mockInsert = vi.fn(() => insertChain)
-
-  const selectChain = {
-    from: vi.fn(() => Promise.resolve(existingRows))
-  }
-
-  const mockSelect = vi.fn(() => selectChain)
-
-  return {
-    db: { select: mockSelect, insert: mockInsert },
-    insertedValues,
-    insertChain,
-    mockInsert
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────
-
 describe('PresetProviderSeeder.run — insert-only behavior', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  const dbh = setupTestDatabase()
 
   it('should insert all preset providers (plus cherryai) when DB is empty', async () => {
-    const { db, insertedValues, mockInsert } = createMockDb([])
-
     const seed = new PresetProviderSeeder()
-    await seed.run(db as any)
+    await seed.run(dbh.db)
 
-    // insert must be called exactly once with all new rows
-    expect(mockInsert).toHaveBeenCalledTimes(1)
-
-    const rows = insertedValues[0] as Array<{ providerId: string }>
-    const insertedIds = rows.map((r) => r.providerId)
-
-    expect(insertedIds).toContain('openai')
-    expect(insertedIds).toContain('anthropic')
-    // cherryai is always seeded if absent
-    expect(insertedIds).toContain('cherryai')
+    const rows = await dbh.db.select().from(userProviderTable)
+    const ids = rows.map((r) => r.providerId)
+    expect(ids).toContain('openai')
+    expect(ids).toContain('anthropic')
+    expect(ids).toContain('cherryai')
   })
 
   it('should NOT re-insert openai when it already exists in DB', async () => {
-    // 'openai' is already present — only 'anthropic' and 'cherryai' are new
-    const { db, insertedValues, mockInsert } = createMockDb(['openai'])
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'User-renamed OpenAI' })
 
     const seed = new PresetProviderSeeder()
-    await seed.run(db as any)
+    await seed.run(dbh.db)
 
-    expect(mockInsert).toHaveBeenCalledTimes(1)
+    const rows = await dbh.db.select().from(userProviderTable)
+    const openai = rows.find((r) => r.providerId === 'openai')
+    // User customization must be preserved
+    expect(openai?.name).toBe('User-renamed OpenAI')
 
-    const rows = insertedValues[0] as Array<{ providerId: string }>
-    const insertedIds = rows.map((r) => r.providerId)
-
-    // openai must NOT appear in the insert payload
-    expect(insertedIds).not.toContain('openai')
-    // The remaining new providers should be present
-    expect(insertedIds).toContain('anthropic')
-    expect(insertedIds).toContain('cherryai')
+    const ids = rows.map((r) => r.providerId)
+    expect(ids).toContain('anthropic')
+    expect(ids).toContain('cherryai')
   })
 
-  it('should not call insert at all when all providers (including cherryai) already exist', async () => {
-    // Every provider the seed would add is already present
-    const { db, mockInsert } = createMockDb(['openai', 'anthropic', 'cherryai'])
+  it('should not insert anything when all providers (including cherryai) already exist', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', name: 'OpenAI' },
+      { providerId: 'anthropic', name: 'Anthropic' },
+      { providerId: 'cherryai', name: 'CherryAI' }
+    ])
+    const before = await dbh.db.select().from(userProviderTable)
 
     const seed = new PresetProviderSeeder()
-    await seed.run(db as any)
+    await seed.run(dbh.db)
 
-    // Nothing new to insert — insert must never be called
-    expect(mockInsert).not.toHaveBeenCalled()
+    const after = await dbh.db.select().from(userProviderTable)
+    expect(after).toHaveLength(before.length)
   })
 })

@@ -108,29 +108,29 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>
 
 export const ScheduledTaskEntitySchema = z.object({
   id: z.string(),
-  agent_id: z.string(),
+  agentId: z.string(),
   name: z.string(),
   prompt: z.string(),
-  schedule_type: TaskScheduleTypeSchema,
-  schedule_value: z.string(),
-  timeout_minutes: z.number(),
-  channel_ids: z.array(z.string()).optional(), // populated from channel_task_subscriptions
-  next_run: z.string().nullable().optional(),
-  last_run: z.string().nullable().optional(),
-  last_result: z.string().nullable().optional(),
+  scheduleType: TaskScheduleTypeSchema,
+  scheduleValue: z.string(),
+  timeoutMinutes: z.number(),
+  channelIds: z.array(z.string()).optional(),
+  nextRun: z.string().nullable().optional(),
+  lastRun: z.string().nullable().optional(),
+  lastResult: z.string().nullable().optional(),
   status: TaskStatusSchema,
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.object({
   id: z.number(),
-  task_id: z.string(),
-  session_id: z.string().nullable().optional(),
-  run_at: z.string(),
-  duration_ms: z.number(),
+  taskId: z.string(),
+  sessionId: z.string().nullable().optional(),
+  runAt: z.string(),
+  durationMs: z.number(),
   status: z.enum(['running', 'success', 'error']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
@@ -140,26 +140,16 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
-  // Basic info
   name: z.string().optional(),
   description: z.string().optional(),
-  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access (empty = use default workspace)
-
-  // Instructions for the agent
-  instructions: z.string().optional(), // System prompt
-
-  // Models
-  model: z.string(), // Main Model ID (required)
-  plan_model: z.string().optional(), // Optional plan/thinking model ID
-  small_model: z.string().optional(), // Optional small/fast model ID
-
-  // Tools
-  mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
-  allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
-  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
-
-  // Configuration
-  configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
+  accessiblePaths: z.array(z.string()),
+  instructions: z.string().optional(),
+  model: z.string(),
+  planModel: z.string().optional(),
+  smallModel: z.string().optional(),
+  mcps: z.array(z.string()).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  configuration: AgentConfigurationSchema.optional()
 })
 
 export type AgentBase = z.infer<typeof AgentBaseSchema>
@@ -184,8 +174,8 @@ export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime()
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
@@ -197,19 +187,18 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
-  sortBy?: 'created_at' | 'updated_at' | 'name' | 'sort_order'
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
   orderBy?: 'asc' | 'desc'
 }
 
 // AgentSession entity representing a conversation session with one or more agents
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  agent_id: z.string(), // Primary agent ID for the session
-  agent_type: AgentTypeSchema,
-  // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
-
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime()
+  agentId: z.string(),
+  agentType: AgentTypeSchema,
+  slashCommands: z.array(SlashCommandSchema).optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
@@ -220,15 +209,14 @@ export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntit
 
 // AgentSessionMessageEntity representing a message within a session
 export const AgentSessionMessageEntitySchema = z.object({
-  id: z.number(), // Auto-increment primary key
-  session_id: z.string(), // Reference to session
-  // manual defined. may not synced with ai sdk definition
+  id: z.number(),
+  sessionId: z.string(),
   role: SessionMessageRoleSchema,
   content: z.unknown(),
-  agent_session_id: z.string(), // agent session id, use to resume agent session
-  metadata: z.record(z.string(), z.any()).optional(), // Additional metadata (optional)
-  created_at: z.iso.datetime(), // ISO timestamp
-  updated_at: z.iso.datetime() // ISO timestamp
+  agentSessionId: z.string().nullable(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
@@ -272,13 +260,12 @@ export interface AgentMessagePersistExchangeResult {
 export type BaseAgentForm = {
   id?: string
   type: AgentType
-  // These fields should be editable by user.
   name: string
   description?: string
   instructions?: string
   model: string
-  accessible_paths: string[]
-  allowed_tools: string[]
+  accessiblePaths: string[]
+  allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
 }
@@ -355,7 +342,9 @@ export type UpdateAgentResponse = GetAgentResponse
 
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 
-export interface UpdateSessionRequest extends Partial<AgentBase> {}
+export interface UpdateSessionRequest extends Partial<AgentBase> {
+  slashCommands?: SlashCommand[]
+}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
@@ -404,10 +393,10 @@ export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
 export const CreateTaskRequestSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   prompt: z.string().min(1, 'Prompt is required'),
-  schedule_type: TaskScheduleTypeSchema,
-  schedule_value: z.string().min(1, 'Schedule value is required'),
-  timeout_minutes: z.number().min(1).nullable().optional(),
-  channel_ids: z.array(z.string()).optional()
+  scheduleType: TaskScheduleTypeSchema,
+  scheduleValue: z.string().min(1, 'Schedule value is required'),
+  timeoutMinutes: z.number().min(1).nullable().optional(),
+  channelIds: z.array(z.string()).optional()
 })
 
 export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
@@ -415,11 +404,11 @@ export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
 export const UpdateTaskRequestSchema = z.object({
   name: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
-  agent_id: z.string().min(1).optional(),
-  schedule_type: TaskScheduleTypeSchema.optional(),
-  schedule_value: z.string().min(1).optional(),
-  timeout_minutes: z.number().min(1).nullable().optional(),
-  channel_ids: z.array(z.string()).optional(),
+  agentId: z.string().min(1).optional(),
+  scheduleType: TaskScheduleTypeSchema.optional(),
+  scheduleValue: z.string().min(1).optional(),
+  timeoutMinutes: z.number().min(1).nullable().optional(),
+  channelIds: z.array(z.string()).optional(),
   status: TaskStatusSchema.optional()
 })
 
@@ -484,7 +473,8 @@ export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
 export const ReplaceAgentRequestSchema = AgentBaseSchema
 
 const sessionCreatableSchema = AgentBaseSchema.extend({
-  model: z.string().min(1, 'Model is required')
+  model: z.string().min(1, 'Model is required'),
+  slashCommands: z.array(SlashCommandSchema).optional()
 })
 
 export const CreateSessionRequestSchema = sessionCreatableSchema

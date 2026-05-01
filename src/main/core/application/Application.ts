@@ -209,8 +209,15 @@ export class Application {
 
       this.isBootstrapped = true
 
-      // 4. Wait for Background to finish, then notify all services
+      // 4. Wait for Background to finish, then notify all services.
+      // ServiceInitError = fail-fast service failure → must propagate to
+      // handleFatalServiceError() via the outer catch block.
+      // Non-ServiceInitError = graceful/unexpected failure in a background
+      // service — log and continue, as background services are non-critical.
       await backgroundPromise.catch((err) => {
+        if (err instanceof ServiceInitError) {
+          throw err
+        }
         logger.error('Background phase failed:', err)
       })
       await this.lifecycleManager.allReady()
@@ -557,7 +564,11 @@ export class Application {
    */
   public quit(): void {
     if (this._isQuitting) {
-      logger.warn('Already quitting')
+      // Re-kick app.quit(): if a prior quit stalled (e.g. a BrowserWindow close
+      // handler preventDefault'd and broke the chain), this gives the user a
+      // second chance to exit via the menu without resorting to `kill -9`.
+      logger.warn('Already quitting — re-triggering app.quit() in case a previous attempt stalled')
+      app.quit()
       return
     }
     logger.info('Quitting application...')
