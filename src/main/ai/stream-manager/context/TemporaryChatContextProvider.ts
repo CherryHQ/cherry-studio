@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../AiService'
+import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TemporaryChatBackend } from '../persistence/backends/TemporaryChatBackend'
 import type { CherryUIMessage, StreamListener } from '../types'

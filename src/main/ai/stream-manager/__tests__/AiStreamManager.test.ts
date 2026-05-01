@@ -3,7 +3,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AiStreamRequest } from '../../AiService'
+import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
   StreamDoneResult,

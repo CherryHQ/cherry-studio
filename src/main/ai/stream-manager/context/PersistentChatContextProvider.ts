@@ -19,7 +19,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../AiService'
+import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'

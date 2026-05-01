@@ -11,26 +11,23 @@ import { downloadImageAsBase64 } from '@main/services/agents/services/channels/C
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { serializeError } from '@shared/types/error'
 import { isEmbeddingModel } from '@shared/utils/model'
 import {
-  type ChatTransport,
   type EmbeddingModelUsage,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
   stepCountIs,
   type ToolSet,
-  type UIMessage,
   type UIMessageChunk
 } from 'ai'
 
 import { type AgentLoopHooks, type AgentOptions, runAgentLoop } from './agentLoop'
 import { resolveCapabilities } from './capabilities'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
-import type { PendingMessageQueue } from './PendingMessageQueue'
 import { buildPlugins } from './plugins/PluginBuilder'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { extractAgentSessionId, isAgentSessionTopic } from './provider/claudeCodeSettingsBuilder'
@@ -43,6 +40,7 @@ import { registerMcpTools } from './tools/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/resolveAssistantMcpTools'
 import { ToolRegistry } from './tools/ToolRegistry'
 import type { AppProviderSettingsMap } from './types'
+import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
 import {
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
@@ -52,32 +50,12 @@ import { getCustomParameters } from './utils/reasoning'
 
 const logger = loggerService.withContext('AiService')
 
-/**
- * Merge caller-supplied extra tools into the Cherry-resolved ToolSet.
- * Cherry's resolved entries (MCP + assistant config) win on name conflict
- * so callers can fill in gaps without shadowing managed tools. Returns
- * `undefined` when neither side has any tools, which is the shape the
- * AI SDK expects for "no tools" — passing an empty object can trip some
- * provider plugins that check `tools != null`.
- */
 function mergeTools(base: ToolSet | undefined, extra: ToolSet | undefined): ToolSet | undefined {
   if (!extra) return base
   if (!base) return extra
   return { ...extra, ...base }
 }
 
-/**
- * Resolve the `stopWhen` condition for the inner tool-call loop.
- *
- * Always returns a `stepCountIs(N)` — never `undefined`. The AI SDK's own
- * default is `stepCountIs(1)`, which would cut native tool-use flows off
- * after the first tool execution (the follow-up model request for the
- * tool result would never fire — upstream #14478).
- *
- *   - `enableMaxToolCalls` = false → use the schema default cap
- *   - `enableMaxToolCalls` = true  → clamp the user value to [MIN, MAX],
- *     fall back to the schema default on invalid / missing input
- */
 function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> {
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
   if (!enableMaxToolCalls) {
@@ -90,49 +68,14 @@ function resolveStopWhen(assistant: Assistant): ReturnType<typeof stepCountIs> {
   return stepCountIs(count)
 }
 
-type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
-
 // ── Request types ──────────────────────────────────────────────────
-
-/**
- * IPC-safe per-request transport config.
- *
- * Every field here can survive Electron's structured-clone (strings,
- * numbers, plain records). Use this type on **preload bridge / IPC
- * handler** signatures so renderer-supplied payloads cannot smuggle in
- * non-serialisable fields like `AbortSignal`.
- */
-export interface AiTransportOptions {
-  /**
-   * Extra request headers layered on top of provider-level defaults
-   * (`defaultAppHeaders()` + `provider.settings.extraHeaders`).
-   *
-   * Standard spread semantics — caller values win on key conflict; no
-   * User-Agent concatenation, no key lowercasing. If you need the latter,
-   * do it at the call site before handing the object in.
-   */
-  headers?: Record<string, string | undefined>
-
-  /**
-   * Idle-chunk timeout in milliseconds for streaming requests. The timer
-   * resets on every chunk received from the provider; the request aborts
-   * when the stream is silent for `timeout` ms. Falls back to
-   * `DEFAULT_TIMEOUT` (30 min).
-   *
-   * Only honoured by streaming flows that go through `AiStreamManager`.
-   * Non-streaming flows rely on `signal` for cancellation.
-   */
-  timeout?: number
-
-  /**
-   * Override AI SDK transparent-retry count. Defaults to `0` because
-   * transparent retries can duplicate stream state inside the
-   * multi-iteration tool loop. Safe to raise for non-streaming flows
-   * (`generateText`, `embedMany`) when the caller tolerates idempotent
-   * retries.
-   */
-  maxRetries?: number
-}
+//
+// Shared request shapes (`AiTransportOptions`, `AiBaseRequest`,
+// `AiStreamRequest`, `ChatTrigger`) live in `./types/requests` so that
+// `stream-manager` can import them without depending on `AiService`. The
+// types below — `AiRequestOptions`, `AsInProcess`, the non-streaming
+// request shapes, the `*Extensions` and `*Result` types — are only used
+// by `AiService` itself, so they stay here.
 
 /**
  * In-process per-request transport config. Extends `AiTransportOptions`
@@ -154,21 +97,6 @@ export interface AiRequestOptions extends AiTransportOptions {
   signal?: AbortSignal
 }
 
-/** Base fields shared by all AI requests. */
-export interface AiBaseRequest {
-  assistantId?: string
-  /** Model identifier in "providerId::modelId" format. */
-  uniqueModelId?: UniqueModelId
-  mcpToolIds?: string[]
-  /**
-   * Per-request transport options. IPC-safe shape by default — preload
-   * bridges and IPC handler signatures that take renderer input should
-   * keep this type as-is. In-process callers who need to pass an
-   * `AbortSignal` widen via `AsInProcess<T>` (see below).
-   */
-  requestOptions?: AiTransportOptions
-}
-
 /**
  * Widen a request type so its `requestOptions` field accepts the full
  * in-process shape (`AiRequestOptions`, which adds `signal`). Use this on
@@ -177,23 +105,6 @@ export interface AiBaseRequest {
  */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
-}
-
-/** Streaming chat request — pure transport data. Serialisable across IPC. */
-export interface AiStreamRequest extends AiBaseRequest {
-  /** Used by AiService for chunk routing. In AiStreamManager path this is set to topicId. */
-  chatId: string
-  trigger: ChatTrigger
-  messageId?: string
-  messages?: UIMessage[]
-  knowledgeBaseIds?: string[]
-  /**
-   * Session-isolated queue of follow-up messages injected mid-stream.
-   * Set by `AiStreamManager` (one per execution); consumed by either
-   * `agentLoop` (between iterations via `drain()`) or the Claude Code
-   * provider (as `injectedMessageSource`).
-   */
-  pendingMessages?: PendingMessageQueue
 }
 
 /** Non-streaming text generation request — pure transport data. */
