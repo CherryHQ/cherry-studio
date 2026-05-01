@@ -590,6 +590,11 @@ export class ChatMigrator extends BaseMigrator {
       return null
     }
 
+    if ((oldTopic.messages?.length ?? 0) === 0 && !this.topicMetaLookup.has(oldTopic.id)) {
+      logger.info(`Skipping orphan empty topic ${oldTopic.id}`)
+      return null
+    }
+
     // Merge topic metadata from Redux (name, pinned, etc.)
     // Dexie topics may have stale or missing metadata; Redux is authoritative for these fields
     const topicMeta = this.topicMetaLookup.get(oldTopic.id)
