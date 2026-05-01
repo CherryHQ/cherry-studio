@@ -87,6 +87,20 @@ describe('AgentService', () => {
       expect(path.basename(workspace)).toMatch(uuidV4Pattern)
       expect(path.basename(workspace)).not.toBe(agent.id.slice(-9))
     })
+
+    it('places newly created agents at the top of asc(sortOrder) listings', async () => {
+      await insertAgent({ id: 'agent_existing_a', sortOrder: 0 })
+      await insertAgent({ id: 'agent_existing_b', sortOrder: 1 })
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Newest',
+        model: 'claude-3-5-sonnet'
+      })
+
+      const { agents } = await agentService.listAgents()
+      expect(agents[0]?.id).toBe(created.id)
+    })
   })
 
   describe('deleteAgent', () => {

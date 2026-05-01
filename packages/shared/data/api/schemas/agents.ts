@@ -33,8 +33,67 @@ export const AgentToolSchema = z.strictObject({
 })
 export type AgentTool = z.infer<typeof AgentToolSchema>
 
-export const AgentConfigurationSchema = z.record(z.string(), z.unknown())
+export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+
+export const AgentConfigurationSchema = z
+  .object({
+    avatar: z.string().optional(),
+    slash_commands: z.array(z.string()).optional(),
+    permission_mode: AgentPermissionModeSchema.optional(),
+    max_turns: z.number().optional(),
+    env_vars: z.record(z.string(), z.string()).optional(),
+    soul_enabled: z.boolean().optional(),
+    bootstrap_completed: z.boolean().optional(),
+    scheduler_enabled: z.boolean().optional(),
+    scheduler_type: AgentSchedulerTypeSchema.optional(),
+    scheduler_cron: z.string().optional(),
+    scheduler_interval: z.number().optional(),
+    scheduler_one_time_delay: z.number().optional(),
+    scheduler_last_run: z.string().optional(),
+    heartbeat_enabled: z.boolean().optional(),
+    heartbeat_interval: z.number().optional()
+  })
+  // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
+  // and may contain keys written by older or newer versions of the app. Unknown fields must
+  // survive a round-trip through parse() so they are not silently dropped on the next save.
+  .loose()
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
+
+/**
+ * Read-side sanitizer for stored configuration JSON.
+ *
+ * `safeParse` failure on `.loose()` schemas means a *known* key has the wrong
+ * type — not unknown extras. Returning the raw blob as-is would launder a
+ * type mismatch (e.g. `max_turns: "5"`) into the response, defeating downstream
+ * `?? DEFAULT` fallbacks. Instead, drop only the offending top-level keys so
+ * those branches can fire normally; well-typed fields and unknown extras are
+ * preserved.
+ */
+export function sanitizeAgentConfiguration(raw: unknown): {
+  data: AgentConfiguration | undefined
+  invalidKeys: string[]
+} {
+  if (raw == null) return { data: undefined, invalidKeys: [] }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return { data: undefined, invalidKeys: ['<root>'] }
+  }
+  const parsed = AgentConfigurationSchema.safeParse(raw)
+  if (parsed.success) return { data: parsed.data, invalidKeys: [] }
+
+  const invalidKeys = Array.from(
+    new Set(parsed.error.issues.map((i) => i.path[0]).filter((p): p is string => typeof p === 'string'))
+  )
+  const filtered: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!invalidKeys.includes(key)) filtered[key] = value
+  }
+  const reparsed = AgentConfigurationSchema.safeParse(filtered)
+  return {
+    data: reparsed.success ? reparsed.data : ({} as AgentConfiguration),
+    invalidKeys
+  }
+}
 
 // ============================================================================
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
@@ -143,7 +202,6 @@ export const ScheduledTaskEntitySchema = z.strictObject({
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
-/** Reserved for a future task-run-log endpoint; not yet exposed in AgentSchemas. */
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
   taskId: z.string(),
@@ -352,6 +410,15 @@ export type AgentSchemas = {
     GET: {
       params: { skillId: string }
       response: InstalledSkill
+    }
+  }
+
+  /** List run logs for a specific task (paginated) */
+  '/agents/:agentId/tasks/:taskId/logs': {
+    GET: {
+      params: { agentId: string; taskId: string }
+      query?: ListQuery
+      response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
 }

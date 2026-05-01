@@ -9,8 +9,10 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
+  type AgentConfiguration,
   type AgentEntity,
   type CreateAgentDto,
+  sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
@@ -19,12 +21,21 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
+function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
+  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+  if (invalidKeys.length > 0) {
+    logger.warn('Agent configuration drift detected; dropping invalid keys', { invalidKeys })
+  }
+  return data
+}
+
 function rowToAgent(row: AgentRow): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     accessiblePaths: row.accessiblePaths,
+    configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -47,7 +58,7 @@ export class AgentService {
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: InsertAgentRow = {
+    const insertData: Omit<InsertAgentRow, 'sortOrder'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -59,16 +70,21 @@ export class AgentService {
       mcps: req.mcps,
       allowedTools: req.allowedTools,
       configuration: req.configuration,
-      accessiblePaths: resolvedPaths,
-      sortOrder: 0
+      accessiblePaths: resolvedPaths
     }
 
     const database = application.get('DbService').getDb()
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
-          await tx.insert(agentsTable).values(insertData)
+          // Prepend: place new agent ahead of existing rows under asc(sortOrder).
+          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
+          // preserving the user-visible "newest at top" ordering.
+          const [minRow] = await tx
+            .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
+            .from(agentsTable)
+          const sortOrder = (minRow?.min ?? 0) - 1
+          await tx.insert(agentsTable).values({ ...insertData, sortOrder })
         }),
       defaultHandlersFor('Agent', id)
     )
