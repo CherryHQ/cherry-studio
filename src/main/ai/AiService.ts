@@ -36,8 +36,9 @@ import { getAiSdkProviderId } from './provider/factory'
 import { listModels as listModelsFromProvider } from './services/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
-import { resolveMcpTools } from './tools/mcp/mcpTools'
+import { syncMcpToolsToRegistry } from './tools/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from './tools/mcp/resolveAssistantMcpTools'
+import { registry } from './tools/registry'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
 import {
@@ -650,9 +651,17 @@ export class AiService extends BaseService {
     if (!mcpToolIds && request.assistantId) {
       mcpToolIds = await resolveAssistantMcpToolIds(request.assistantId)
     }
-    // Resolve MCP tools per request — never cache across requests. See
-    // `resolveMcpTools` for the rationale (server uninstall + schema drift).
-    const tools = mcpToolIds?.length ? await resolveMcpTools(mcpToolIds) : undefined
+
+    let tools: ToolSet | undefined
+    if (mcpToolIds?.length) {
+      await syncMcpToolsToRegistry()
+      const resolved: ToolSet = {}
+      for (const id of mcpToolIds) {
+        const entry = registry.getByName(id)
+        if (entry) resolved[id] = entry.tool
+      }
+      tools = Object.keys(resolved).length > 0 ? resolved : undefined
+    }
 
     const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
     const plugins =
