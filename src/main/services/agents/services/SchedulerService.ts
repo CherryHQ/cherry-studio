@@ -4,7 +4,7 @@ import { agentSessionService as sessionService } from '@data/services/AgentSessi
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
-import type { CherryClawConfiguration, GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
+import type { GetAgentSessionResponse, ScheduledTaskEntity } from '@types'
 
 import type { ChannelAdapter } from './channels'
 import { channelManager } from './channels/ChannelManager'
@@ -61,13 +61,15 @@ class SchedulerService {
     logger.info('Scheduler poll loop stopped')
   }
 
-  /** Ensure the poll loop is running after agent config changes. */
+  /** Ensure the poll loop is running iff active tasks exist. */
   async syncScheduler(): Promise<void> {
     const hasActive = await taskService.hasActiveTasks()
     if (hasActive) {
       this.startLoop()
+    } else if (this.running) {
+      this.stopLoop()
     } else {
-      logger.debug('No active tasks, skipping scheduler start')
+      logger.debug('No active tasks, scheduler not running')
     }
   }
 
@@ -208,7 +210,7 @@ class SchedulerService {
         throw new Error(`Agent not found: ${task.agentId}`)
       }
 
-      const config = (agent.configuration ?? {}) as CherryClawConfiguration
+      const config = agent.configuration ?? {}
       const workspacePath = agent.accessiblePaths?.[0]
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
@@ -364,7 +366,9 @@ class SchedulerService {
               const fullText = completedText + currentBlockText
               // Stream to all channel adapters
               for (const { adapter, chatId } of adapterChats) {
-                adapter.onTextUpdate(chatId, fullText).catch(() => {})
+                adapter
+                  .onTextUpdate(chatId, fullText)
+                  .catch((err) => logger.debug('Adapter onTextUpdate error', { channelId: adapter.channelId, err }))
               }
             }
             break
@@ -399,7 +403,9 @@ class SchedulerService {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       for (const { adapter, chatId } of adapterChats) {
-        adapter.onStreamError(chatId, errorMsg).catch(() => {})
+        adapter
+          .onStreamError(chatId, errorMsg)
+          .catch((err) => logger.debug('Adapter onStreamError error', { channelId: adapter.channelId, err }))
       }
       throw error
     }

@@ -24,7 +24,7 @@ export interface UsePinsResult {
   /** Pinned entity ids for this entityType, in API order. */
   pinnedIds: readonly string[]
   /** Force-refresh the pin list. */
-  refetch: () => void
+  refetch: () => Promise<unknown>
   /** Toggle pin state for a given entity id. Gated no-ops resolve (logged at debug); real write errors reject. */
   togglePin: (entityId: string) => Promise<void>
 }

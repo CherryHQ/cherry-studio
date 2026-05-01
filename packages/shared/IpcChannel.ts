@@ -475,7 +475,11 @@ export enum IpcChannel {
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused'
+  WindowManager_Reused = 'window-manager:reused',
+
+  // Agent operations
+  Agent_RunTask = 'agent:run-task',
+  Agent_GetModels = 'agent:get-models'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

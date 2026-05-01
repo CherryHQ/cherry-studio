@@ -90,7 +90,7 @@ export const mockUseQuery = vi.fn(
     isLoading: boolean
     isRefreshing: boolean
     error?: Error
-    refetch: () => void
+    refetch: () => Promise<unknown>
     mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
   } => {
     // Check if query is disabled
@@ -100,7 +100,7 @@ export const mockUseQuery = vi.fn(
         isLoading: false,
         isRefreshing: false,
         error: undefined,
-        refetch: vi.fn(),
+        refetch: vi.fn().mockResolvedValue(undefined),
         mutate: vi.fn().mockResolvedValue(undefined) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
       }
     }
@@ -112,7 +112,7 @@ export const mockUseQuery = vi.fn(
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(mockData),
       mutate: vi.fn().mockResolvedValue(mockData) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>
     }
   }
@@ -185,7 +185,7 @@ export const mockUsePaginatedQuery = vi.fn(
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void
-        refresh: () => void
+        refresh: () => Promise<unknown>
         reset: () => void
       }
     : never => {
@@ -208,7 +208,7 @@ export const mockUsePaginatedQuery = vi.fn(
       hasPrev: false,
       prevPage: vi.fn(),
       nextPage: vi.fn(),
-      refresh: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn()
     } as unknown as ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
       ? {
@@ -222,7 +222,7 @@ export const mockUsePaginatedQuery = vi.fn(
           hasPrev: boolean
           prevPage: () => void
           nextPage: () => void
-          refresh: () => void
+          refresh: () => Promise<unknown>
           reset: () => void
         }
       : never
@@ -381,7 +381,7 @@ export const MockUseDataApiUtils = {
           isLoading: false,
           isRefreshing: false,
           error: undefined,
-          refetch: vi.fn(),
+          refetch: vi.fn().mockResolvedValue(undefined),
           mutate: vi.fn().mockResolvedValue(data)
         }
       }
@@ -392,7 +392,7 @@ export const MockUseDataApiUtils = {
         isLoading: false,
         isRefreshing: false,
         error: undefined,
-        refetch: vi.fn(),
+        refetch: vi.fn().mockResolvedValue(undefined),
         mutate: vi.fn().mockResolvedValue(defaultData)
       }
     })
@@ -409,7 +409,7 @@ export const MockUseDataApiUtils = {
           isLoading: true,
           isRefreshing: false,
           error: undefined,
-          refetch: vi.fn(),
+          refetch: vi.fn().mockResolvedValue(undefined),
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
@@ -419,7 +419,46 @@ export const MockUseDataApiUtils = {
         isLoading: false,
         isRefreshing: false,
         error: undefined,
-        refetch: vi.fn(),
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(defaultData)
+      }
+    })
+  },
+
+  /**
+   * Set up useQuery to return an explicit result object for one path
+   */
+  mockQueryResult: <TPath extends ApiPath>(
+    path: TPath,
+    result: {
+      data?: ResponseForPath<TPath, 'GET'>
+      isLoading?: boolean
+      isRefreshing?: boolean
+      error?: Error
+      refetch?: () => Promise<unknown>
+      mutate?: KeyedMutator<ResponseForPath<TPath, 'GET'>>
+    }
+  ) => {
+    mockUseQuery.mockImplementation((queryPath, _options) => {
+      if (queryPath === path) {
+        return {
+          data: result.data,
+          isLoading: result.isLoading ?? false,
+          isRefreshing: result.isRefreshing ?? false,
+          error: result.error,
+          refetch: result.refetch ?? vi.fn().mockResolvedValue(result.data),
+          mutate:
+            result.mutate ??
+            (vi.fn().mockResolvedValue(result.data) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>>)
+        }
+      }
+      const defaultData = createMockDataForPath(queryPath as string)
+      return {
+        data: defaultData,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
         mutate: vi.fn().mockResolvedValue(defaultData)
       }
     })
@@ -436,7 +475,7 @@ export const MockUseDataApiUtils = {
           isLoading: false,
           isRefreshing: false,
           error,
-          refetch: vi.fn(),
+          refetch: vi.fn().mockResolvedValue(undefined),
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
@@ -446,7 +485,7 @@ export const MockUseDataApiUtils = {
         isLoading: false,
         isRefreshing: false,
         error: undefined,
-        refetch: vi.fn(),
+        refetch: vi.fn().mockResolvedValue(undefined),
         mutate: vi.fn().mockResolvedValue(defaultData)
       }
     })
@@ -515,6 +554,41 @@ export const MockUseDataApiUtils = {
         }
       }
       // Default behavior
+      return {
+        trigger: vi.fn().mockResolvedValue({ success: true }),
+        isLoading: false,
+        error: undefined
+      }
+    })
+  },
+
+  /**
+   * Set up useMutation to use a caller-provided trigger function.
+   *
+   * Unlike `mockMutationSuccess`/`mockMutationError` (which create an internal
+   * trigger), this variant lets the test supply its own `vi.fn()` so it can
+   * assert on call arguments and control resolve/reject behavior.
+   *
+   * @example
+   * const mockTrigger = vi.fn().mockResolvedValue({ id: '1', name: 'New' })
+   * MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
+   * // ...render hook, exercise mutation...
+   * expect(mockTrigger).toHaveBeenCalledWith({ body: { name: 'New' } })
+   */
+  mockMutationWithTrigger: <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
+    method: TMethod,
+    path: TPath,
+    trigger: ReturnType<typeof vi.fn>,
+    options?: { isLoading?: boolean; error?: Error }
+  ) => {
+    mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {
+      if (mutationPath === path && mutationMethod === method) {
+        return {
+          trigger,
+          isLoading: options?.isLoading ?? false,
+          error: options?.error
+        }
+      }
       return {
         trigger: vi.fn().mockResolvedValue({ success: true }),
         isLoading: false,
