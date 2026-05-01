@@ -2526,7 +2526,8 @@
         "title": "Eliminar aplicación personalizada"
       }
     },
-    "title": "Mini programa"
+    "title": "Mini programa",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniapps": {
     "ant-ling": "Ant Ling",

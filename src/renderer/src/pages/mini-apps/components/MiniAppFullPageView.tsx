@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -22,7 +22,7 @@ const MiniAppFullPageView: FC<Props> = ({ app }) => {
   const webviewRef = useRef<WebviewTag | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [currentUrl, setCurrentUrl] = useState<string | null>(null)
-  const [openLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
   // Debug: log isReady state changes
   useEffect(() => {

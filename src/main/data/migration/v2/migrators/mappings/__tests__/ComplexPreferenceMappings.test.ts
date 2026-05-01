@@ -104,14 +104,14 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('chat.web_search.provider_overrides')
       expect(keys).toContain('feature.code_cli.overrides')
       expect(keys).toContain('feature.file_processing.overrides')
-      expect(keys).toContain('ui.sidebar.icons.visible')
-      expect(keys).toContain('ui.sidebar.icons.invisible')
       expect(keys).toContain('chat.default_model_id')
       expect(keys).toContain('topic.naming.model_id')
       expect(keys).toContain('feature.quick_assistant.model_id')
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('shortcut.general.zoom_in')
-      expect(keys.length).toBe(34) // Update this number to include all keys
+      expect(keys).toContain('ui.sidebar.icons.visible')
+      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys.length).toBe(36) // 7 websearch compression + 1 provider overrides + 1 code_cli + 20 shortcuts + 2 sidebar icons + 1 file processing + 4 llm model ids
     })
 
     it('should flatten target keys from all mappings', () => {

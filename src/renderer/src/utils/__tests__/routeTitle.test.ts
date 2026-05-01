@@ -40,7 +40,7 @@ describe('routeTitle', () => {
         ['/app/assistant', '助手库'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
-        ['/app/miniapp', '小程序'],
+        ['/app/mini-app', '小程序'],
         ['/app/knowledge', '知识库'],
         ['/app/files', '文件'],
         ['/app/code', 'Code'],

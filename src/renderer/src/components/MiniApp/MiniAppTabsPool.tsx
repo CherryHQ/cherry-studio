@@ -31,9 +31,9 @@ const MiniAppTabsPool: React.FC = () => {
   // Use centralized utility for more robust route detection
   const isAppDetail = (() => {
     const pathname = location.pathname
-    if (pathname === '/app/miniapp') return false
-    if (!pathname.startsWith('/app/miniapp/')) return false
-    const parts = pathname.split('/').filter(Boolean) // ['app', 'miniapp', '<id>', ...]
+    if (pathname === '/app/mini-app') return false
+    if (!pathname.startsWith('/app/mini-app/')) return false
+    const parts = pathname.split('/').filter(Boolean) // ['app', 'mini-app', '<id>', ...]
     return parts.length >= 3
   })()
   const shouldShow = isTopNavbar && isAppDetail

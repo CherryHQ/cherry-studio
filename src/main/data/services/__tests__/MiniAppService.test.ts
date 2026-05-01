@@ -1,8 +1,8 @@
 import { miniAppTable } from '@data/db/schemas/miniapp'
 import { MiniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
-import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniapps'
-import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ describe('MiniAppService', () => {
       name: 'Custom App',
       url: 'https://custom.app',
       logo: 'application',
-      type: 'custom',
+      kind: 'custom',
       status: 'enabled',
       sortOrder: 0,
       bordered: false,
@@ -36,7 +36,7 @@ describe('MiniAppService', () => {
       appId,
       name: 'PlaceholderName',
       url: 'https://placeholder.test',
-      type: 'default',
+      kind: 'default',
       status: 'enabled',
       sortOrder: 0,
       ...overrides
@@ -56,7 +56,7 @@ describe('MiniAppService', () => {
       expect(result.url).toBe('https://chatgpt.com/')
       expect(result.status).toBe('disabled')
       expect(result.sortOrder).toBe(10)
-      expect(result.type).toBe('default')
+      expect(result.kind).toBe('default')
     })
 
     it('should return builtin with defaults when no DB row exists', async () => {
@@ -65,7 +65,7 @@ describe('MiniAppService', () => {
       expect(result.appId).toBe('gemini')
       expect(result.name).toBe('Gemini')
       expect(result.status).toBe('enabled')
-      expect(result.type).toBe('default')
+      expect(result.kind).toBe('default')
     })
 
     it('should return a custom miniapp from DB', async () => {
@@ -75,7 +75,7 @@ describe('MiniAppService', () => {
 
       expect(result.appId).toBe('custom-app')
       expect(result.name).toBe('Custom App')
-      expect(result.type).toBe('custom')
+      expect(result.kind).toBe('custom')
     })
 
     it('should throw NotFound for nonexistent custom app', async () => {
@@ -93,9 +93,7 @@ describe('MiniAppService', () => {
       const result = await service.list({})
 
       // Should include all builtin apps + the one custom app
-      expect(result.items.length).toBeGreaterThan(ORIGIN_DEFAULT_MIN_APPS.length)
-      expect(result.total).toBe(result.items.length)
-      expect(result.page).toBe(1)
+      expect(result.length).toBeGreaterThan(ORIGIN_DEFAULT_MINI_APPS.length)
     })
 
     it('should filter by type=custom', async () => {
@@ -103,16 +101,16 @@ describe('MiniAppService', () => {
 
       const result = await service.list({ type: 'custom' })
 
-      expect(result.items).toHaveLength(1)
-      expect(result.items[0].type).toBe('custom')
-      expect(result.items[0].appId).toBe('custom-app')
+      expect(result).toHaveLength(1)
+      expect(result[0].kind).toBe('custom')
+      expect(result[0].appId).toBe('custom-app')
     })
 
     it('should filter by type=default', async () => {
       const result = await service.list({ type: 'default' })
 
-      expect(result.items.length).toBe(ORIGIN_DEFAULT_MIN_APPS.length)
-      expect(result.items.every((item) => item.type === 'default')).toBe(true)
+      expect(result.length).toBe(ORIGIN_DEFAULT_MINI_APPS.length)
+      expect(result.every((item) => item.kind === 'default')).toBe(true)
     })
 
     it('should filter by status', async () => {
@@ -120,7 +118,7 @@ describe('MiniAppService', () => {
 
       const result = await service.list({ status: 'disabled' })
 
-      expect(result.items.every((item) => item.status === 'disabled')).toBe(true)
+      expect(result.every((item) => item.status === 'disabled')).toBe(true)
     })
 
     it('should sort items by status priority then sortOrder', async () => {
@@ -129,8 +127,8 @@ describe('MiniAppService', () => {
 
       const result = await service.list({})
 
-      const pinnedIndex = result.items.findIndex((item) => item.status === 'pinned')
-      const enabledIndex = result.items.findIndex((item) => item.status === 'enabled')
+      const pinnedIndex = result.findIndex((item) => item.status === 'pinned')
+      const enabledIndex = result.findIndex((item) => item.status === 'enabled')
       expect(pinnedIndex).toBeLessThan(enabledIndex)
     })
   })
@@ -150,7 +148,7 @@ describe('MiniAppService', () => {
 
       expect(result.appId).toBe('new-app')
       expect(result.name).toBe('New App')
-      expect(result.type).toBe('custom')
+      expect(result.kind).toBe('custom')
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
       expect(row.name).toBe('New App')
@@ -221,7 +219,7 @@ describe('MiniAppService', () => {
       // A default-app pref row should have been upserted
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row.status).toBe('pinned')
-      expect(row.type).toBe('default')
+      expect(row.kind).toBe('default')
     })
 
     it('should reject non-preference field updates for default apps', async () => {
@@ -285,11 +283,12 @@ describe('MiniAppService', () => {
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row).toBeDefined()
       expect(row.sortOrder).toBe(3)
-      expect(row.type).toBe('default')
+      expect(row.kind).toBe('default')
     })
 
     it('should not throw for non-existent app IDs', async () => {
-      await expect(service.reorder([{ appId: 'nonexistent', sortOrder: 0 }])).resolves.toBeUndefined()
+      const result = await service.reorder([{ appId: 'nonexistent', sortOrder: 0 }])
+      expect(result.skipped).toContain('nonexistent')
     })
   })
 
@@ -302,7 +301,7 @@ describe('MiniAppService', () => {
       await service.resetDefaults()
 
       const rows = await dbh.db.select().from(miniAppTable)
-      expect(rows.some((r) => r.type === 'default')).toBe(false)
+      expect(rows.some((r) => r.kind === 'default')).toBe(false)
       expect(rows.some((r) => r.appId === 'custom-app')).toBe(true)
     })
   })

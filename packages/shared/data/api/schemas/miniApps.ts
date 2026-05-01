@@ -5,24 +5,15 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
+import { MiniAppKindSchema, MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
-
-import type { OffsetPaginationResponse } from '../apiTypes'
-
-// ============================================================================
-// Zod Schemas for runtime validation
-// ============================================================================
-
-const MiniAppStatusSchema = z.enum(['enabled', 'disabled', 'pinned'])
-const MiniAppTypeSchema = z.enum(['default', 'custom'])
-const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 
 /**
  * Zod schema for creating a new custom miniapp
  */
 export const CreateMiniAppSchema = z.object({
-  appId: z.string().min(1),
+  appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: z.string().min(1),
   logo: z.string().min(1),
@@ -54,7 +45,7 @@ export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 export const ReorderMiniAppsSchema = z.object({
   items: z.array(
     z.object({
-      appId: z.string().min(1),
+      appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
       sortOrder: z.number().int()
     })
   )
@@ -66,7 +57,7 @@ export type ReorderMiniAppsDto = z.infer<typeof ReorderMiniAppsSchema>
  */
 export const ListMiniAppsQuerySchema = z.object({
   status: MiniAppStatusSchema.optional(),
-  type: MiniAppTypeSchema.optional()
+  type: MiniAppKindSchema.optional()
 })
 export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 
@@ -81,15 +72,20 @@ export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 export interface MiniAppSchemas {
   /**
    * MiniApps collection endpoint
-   * @example GET /miniapps?status=enabled
-   * @example POST /miniapps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
-   * @example PATCH /miniapps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
+   * @example GET /mini-apps?status=enabled
+   * @example POST /mini-apps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
+   * @example PATCH /mini-apps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
+   *
+   * TODO(I1): PATCH /mini-apps for batch reorder conflicts with the convention
+   * "PATCH = partial update of one resource". Per the api-design-guidelines
+   * decision tree, this should become PUT /mini-apps/order with body { items: [...] }.
+   * Hold until a unified reorder spec is finalized.
    */
   '/miniapps': {
     /** Get all miniapps (optionally filtered by status/type) */
     GET: {
       query?: ListMiniAppsQuery
-      response: OffsetPaginationResponse<MiniApp>
+      response: MiniApp[]
     }
     /** Create a new miniapp (for custom apps or default app preference rows) */
     POST: {
@@ -105,9 +101,9 @@ export interface MiniAppSchemas {
 
   /**
    * Individual miniapp endpoint
-   * @example GET /miniapps/qwen
-   * @example PATCH /miniapps/qwen { "status": "disabled" }
-   * @example DELETE /miniapps/qwen
+   * @example GET /mini-apps/qwen
+   * @example PATCH /mini-apps/qwen { "status": "disabled" }
+   * @example DELETE /mini-apps/qwen
    */
   '/miniapps/:appId': {
     /** Get a miniapp by appId */
@@ -131,7 +127,12 @@ export interface MiniAppSchemas {
   /**
    * Reset all builtin (default) app preferences to factory defaults.
    * Removes all DB preference rows for type='default', restoring original status/sortOrder.
-   * @example DELETE /miniapps/_actions/reset-defaults
+   *
+   * TODO(I1): DELETE is semantically a resource deletion, but this endpoint is
+   * really a reset action. Consider POST /mini-apps/defaults/reset instead.
+   * Hold until a unified reorder spec is finalized.
+   *
+   * @example DELETE /mini-apps/_actions/reset-defaults
    */
   '/miniapps/_actions/reset-defaults': {
     /** Reset all default app preferences to builtin defaults */

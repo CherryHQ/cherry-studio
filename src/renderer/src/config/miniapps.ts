@@ -65,22 +65,40 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import type { MiniAppType } from '@renderer/store/miniapps'
-import { ORIGIN_DEFAULT_MIN_APPS as SHARED_PRESETS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/mini-apps'
+
+/**
+ * Legacy mini-app entity type used by the deprecated Redux slice and config layer.
+ * The v2 MiniApp entity lives in @shared/data/types/miniApp.
+ */
+export type MiniAppType = {
+  id: string
+  name: string
+  nameKey?: string
+  supportedRegions?: string[]
+  logo?: string
+  url: string
+  bordered?: boolean
+  background?: string
+  style?: Record<string, unknown>
+  addTime?: string
+  type?: 'Custom' | 'Default'
+}
 
 const logger = loggerService.withContext('Config:miniapps')
 
 // Load custom miniapps
-const loadCustomMiniApp = async (): Promise<MiniAppType[]> => {
+const loadCustomMiniApps = async (): Promise<MiniAppType[]> => {
+  const FILENAME = 'custom-miniapps.json'
   try {
     let content: string
     try {
-      content = await window.api.file.read('custom-miniapps.json')
+      content = await window.api.file.read(FILENAME)
     } catch (error: any) {
-      // I6: Only create empty file on ENOENT; for other errors, log and return empty
+      // I6: Only create empty file on ENOENT; for other errors, quarantine and return empty
       if (error?.code === 'ENOENT' || error?.message?.includes('no such file')) {
         content = '[]'
-        await window.api.file.writeWithId('custom-miniapps.json', content)
+        await window.api.file.writeWithId(FILENAME, content)
       } else {
         logger.error('Failed to read custom mini apps file:', error as Error)
         return []
@@ -103,13 +121,29 @@ const loadCustomMiniApp = async (): Promise<MiniAppType[]> => {
         supportedRegions: ['CN', 'Global'] as const
       }))
   } catch (error) {
-    logger.error('Failed to load custom mini apps:', error as Error)
+    // JSON parse or other unexpected error — quarantine the broken file so the
+    // user can recover their data instead of silently losing all custom apps.
+    logger.error('Failed to load custom mini apps, quarantining broken file:', error as Error)
+    try {
+      const ts = Date.now()
+      const brokenName = `${FILENAME}.broken-${ts}`
+      // Preserve the corrupt content under the .broken name for user recovery
+      const rawContent = await window.api.file.read(FILENAME).catch(() => '')
+      if (rawContent) {
+        await window.api.file.writeWithId(brokenName, rawContent)
+        logger.info(`Quarantined ${FILENAME} as ${brokenName}`)
+      }
+      // Reset the original file so next load succeeds
+      await window.api.file.writeWithId(FILENAME, '[]')
+    } catch (quarantineErr) {
+      logger.warn('Could not quarantine broken custom miniapps file', quarantineErr as Error)
+    }
     return []
   }
 }
 
 // I13: Derive renderer preset list from the shared single source of truth
-const ORIGIN_DEFAULT_MIN_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
+const ORIGIN_DEFAULT_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   id: app.id,
   name: app.name,
   nameKey: app.nameKey,
@@ -122,9 +156,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
 }))
 
 // All mini apps: built-in defaults + custom apps loaded from user config
-const allMiniApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+const allMiniApps = [...ORIGIN_DEFAULT_MINI_APPS, ...(await loadCustomMiniApps())]
 
-export { allMiniApps, ORIGIN_DEFAULT_MIN_APPS }
+export { allMiniApps, ORIGIN_DEFAULT_MINI_APPS }
 
 export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
   if (!LogoId) {

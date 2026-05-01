@@ -10,15 +10,15 @@
 
 import { miniAppService } from '@data/services/MiniAppService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
-import type { MiniAppSchemas } from '@shared/data/api/schemas/miniapps'
+import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
 import {
   CreateMiniAppSchema,
   ListMiniAppsQuerySchema,
   ReorderMiniAppsSchema,
   UpdateMiniAppSchema
-} from '@shared/data/api/schemas/miniapps'
+} from '@shared/data/api/schemas/miniApps'
 
-export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
+export const miniappHandlers: HandlersFor<MiniAppSchemas> = {
   '/miniapps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
@@ -34,19 +34,23 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
       return undefined
     }
   },
+
   '/miniapps/:appId': {
     GET: async ({ params }) => {
       return await miniAppService.getByAppId(params.appId)
     },
+
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMiniAppSchema.parse(body)
       return await miniAppService.update(params.appId, parsed)
     },
+
     DELETE: async ({ params }) => {
       await miniAppService.delete(params.appId)
       return undefined
     }
   },
+
   '/miniapps/_actions/reset-defaults': {
     DELETE: async () => {
       await miniAppService.resetDefaults()

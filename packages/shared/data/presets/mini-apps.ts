@@ -17,7 +17,7 @@ export interface BuiltinMiniAppDefinition {
   style?: { padding?: number }
 }
 
-export const ORIGIN_DEFAULT_MIN_APPS: BuiltinMiniAppDefinition[] = [
+export const ORIGIN_DEFAULT_MINI_APPS: BuiltinMiniAppDefinition[] = [
   {
     id: 'openai',
     name: 'ChatGPT',

@@ -5,7 +5,8 @@ import MarqueeText from '@renderer/components/MarqueeText'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import { ErrorCode, isDataApiError } from '@shared/data/api'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
@@ -53,7 +54,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const handleClick = () => {
     if (isTopNavbar) {
       // Top navbar: navigate to the miniapp page
-      void navigate({ to: '/app/miniapp/$appId', params: { appId: app.appId } })
+      void navigate({ to: '/app/mini-app/$appId', params: { appId: app.appId } })
     } else {
       // Side navbar: keep the original popup behavior
       openMiniAppKeepAlive(app)
@@ -73,7 +74,13 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           : t('miniapp.add_to_sidebar'),
       onClick: () => {
         const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
-        void updatePinnedMiniApps(newPinned)
+        void updatePinnedMiniApps(newPinned).catch((error: unknown) => {
+          if (isDataApiError(error)) {
+            logger.error('Failed to update pinned apps', { code: error.code, message: error.message })
+          } else {
+            logger.error('Failed to update pinned apps', error as Error)
+          }
+        })
       }
     },
     ...(!isPinned
@@ -83,9 +90,21 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             label: t('miniapp.sidebar.hide.title'),
             onClick: () => {
               const newMiniApps = miniapps.filter((item) => item.appId !== app.appId)
-              void updateMiniApps(newMiniApps)
+              void updateMiniApps(newMiniApps).catch((error: unknown) => {
+                if (isDataApiError(error)) {
+                  logger.error('Failed to update mini apps', { code: error.code, message: error.message })
+                } else {
+                  logger.error('Failed to update mini apps', error as Error)
+                }
+              })
               const newDisabled = [...(disabled || []), app]
-              void updateDisabledMiniApps(newDisabled)
+              void updateDisabledMiniApps(newDisabled).catch((error: unknown) => {
+                if (isDataApiError(error)) {
+                  logger.error('Failed to update disabled apps', { code: error.code, message: error.message })
+                } else {
+                  logger.error('Failed to update disabled apps', error as Error)
+                }
+              })
               // Update openedKeepAliveMiniApps
               const newOpenedKeepAliveMiniApps = openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId)
               setOpenedKeepAliveMiniApps(newOpenedKeepAliveMiniApps)
@@ -93,7 +112,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           }
         ]
       : []),
-    ...(app.type === 'custom'
+    ...(app.kind === 'custom'
       ? [
           {
             key: 'removeCustom',
@@ -104,7 +123,17 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 await removeCustomMiniApp(app.appId)
                 window.toast.success(t('settings.miniapps.custom.remove_success'))
               } catch (error) {
-                window.toast.error(t('settings.miniapps.custom.remove_error'))
+                if (isDataApiError(error)) {
+                  if (error.code === ErrorCode.NOT_FOUND) {
+                    window.toast.warning(t('miniapp.not_found'))
+                  } else if (!error.isRetryable) {
+                    window.toast.error(t('settings.miniapps.custom.remove_error'))
+                  } else {
+                    window.toast.error(t('settings.miniapps.custom.remove_error'))
+                  }
+                } else {
+                  window.toast.error(t('settings.miniapps.custom.remove_error'))
+                }
                 logger.error('Failed to remove custom mini app:', error as Error)
               }
             }

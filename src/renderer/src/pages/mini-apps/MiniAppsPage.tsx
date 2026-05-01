@@ -4,11 +4,13 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { isDataApiError } from '@shared/data/api'
 import { Input } from 'antd'
 import { Search, SettingsIcon } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import MiniAppSettingsPopup from './MiniAppSettings/MiniAppSettingsPopup'
@@ -17,8 +19,31 @@ import NewAppButton from './NewAppButton'
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const { miniapps } = useMiniApps()
+  const { miniapps, isLoading, error } = useMiniApps()
   const { isTopNavbar } = useNavbarPosition()
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Container>
+        <LoadingWrapper>
+          <BeatLoader color="var(--color-text-2)" size={8} />
+        </LoadingWrapper>
+      </Container>
+    )
+  }
+
+  // Error state
+  if (error) {
+    const message = isDataApiError(error) ? error.message : t('common.error')
+    return (
+      <Container>
+        <LoadingWrapper>
+          <ErrorText>{message}</ErrorText>
+        </LoadingWrapper>
+      </Container>
+    )
+  }
 
   const filteredApps = search
     ? miniapps.filter(
@@ -65,12 +90,11 @@ const AppsPage: FC = () => {
         <MainContainer>
           <RightContainer>
             {isTopNavbar && (
-              <HeaderContainer>
+              <div className="flex h-15 w-full flex-row items-center justify-center gap-2.5">
                 <Input
                   placeholder={t('common.search')}
-                  className="nodrag"
+                  className="nodrag border-none bg-muted"
                   style={{ width: '30%', borderRadius: 15 }}
-                  variant="filled"
                   suffix={<Search size={18} />}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -78,7 +102,7 @@ const AppsPage: FC = () => {
                 <Button variant="ghost" className="nodrag" onClick={() => MiniAppSettingsPopup.show()}>
                   <SettingsIcon size={18} color="var(--color-text-2)" />
                 </Button>
-              </HeaderContainer>
+              </div>
             )}
             <AppsContainerWrapper>
               <AppsContainer style={{ height: containerHeight }}>
@@ -103,6 +127,19 @@ const Container = styled.div`
   overflow: hidden;
 `
 
+const LoadingWrapper = styled.div`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+`
+
+const ErrorText = styled.div`
+  color: var(--color-text-2);
+  font-size: 14px;
+`
+
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
@@ -111,15 +148,15 @@ const ContentContainer = styled.div`
   height: 100%;
 `
 
-const HeaderContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  height: 60px;
-  width: 100%;
-  gap: 10px;
-`
+// const HeaderContainer = styled.div`
+//   display: flex;
+//   flex-direction: row;
+//   justify-content: center;
+//   align-items: center;
+//   height: 60px;
+//   width: 100%;
+//   gap: 10px;
+// `
 
 const MainContainer = styled.div`
   display: flex;

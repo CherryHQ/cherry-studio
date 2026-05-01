@@ -3,7 +3,7 @@
  */
 
 import type { MiniAppInsert, MiniAppRegion, MiniAppStatus } from '@data/db/schemas/miniapp'
-import { ORIGIN_DEFAULT_MIN_APPS } from '@shared/data/presets/miniapps'
+import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 
 function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
@@ -28,11 +28,11 @@ function normalizeType(raw: unknown): 'default' | 'custom' {
 
 /**
  * [v2] Built-in app ID to logo key mapping.
- * Derived from the shared preset data (ORIGIN_DEFAULT_MIN_APPS) to stay in sync.
+ * Derived from the shared preset data (ORIGIN_DEFAULT_MINI_APPS) to stay in sync.
  * Custom apps with URL logos are not included here - their logos are preserved as-is.
  */
 const BUILTIN_APP_LOGO_MAP: Record<string, string> = Object.fromEntries(
-  ORIGIN_DEFAULT_MIN_APPS.filter((app) => app.logo).map((app) => [app.id, app.logo!])
+  ORIGIN_DEFAULT_MINI_APPS.filter((app) => app.logo).map((app) => [app.id, app.logo!])
 )
 
 const DEFAULT_LOGO_KEY = 'application'
@@ -78,11 +78,12 @@ export function transformMiniApp(
     name: toRequired<string>(source.name, ''),
     url: toRequired<string>(source.url, ''),
     logo,
-    type: normalizeType(source.type),
+    kind: normalizeType(source.type),
     status,
     sortOrder,
     // v2 fix: Handle typo 'bodered' → 'bordered' during migration
-    bordered: toRequired(source.bodered ?? source.bordered, true),
+    // Prefer the correctly spelled 'bordered' field; fall back to the typo field
+    bordered: toRequired(source.bordered ?? source.bodered, true),
     background: toNullable<string>(source.background),
     supportedRegions: toNullableRegions(source.supportedRegions),
     nameKey: toNullable<string>(source.nameKey)

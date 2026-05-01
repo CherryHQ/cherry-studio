@@ -2526,7 +2526,8 @@
         "title": "刪除自訂小工具"
       }
     },
-    "title": "小工具"
+    "title": "小工具",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniapps": {
     "ant-ling": "Ant Ling",

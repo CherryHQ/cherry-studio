@@ -22,15 +22,18 @@ export class MiniAppMigrator extends BaseMigrator {
 
   private preparedRows: MiniAppInsert[] = []
   private skippedCount = 0
+  private originalSourceCount = 0
 
   override reset(): void {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedRows = []
     this.skippedCount = 0
+    this.originalSourceCount = 0
 
     try {
       const warnings: string[] = []
@@ -51,6 +54,9 @@ export class MiniAppMigrator extends BaseMigrator {
         { data: state.disabled ?? [], status: 'disabled' },
         { data: state.pinned ?? [], status: 'pinned' }
       ]
+
+      // Calculate original source count (total apps before filtering/deduplication)
+      this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
@@ -207,7 +213,7 @@ export class MiniAppMigrator extends BaseMigrator {
         success: errors.length === 0,
         errors,
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: appCount,
           skippedCount: this.skippedCount
         }
@@ -218,7 +224,7 @@ export class MiniAppMigrator extends BaseMigrator {
         success: false,
         errors: [{ key: 'validation', message: error instanceof Error ? error.message : String(error) }],
         stats: {
-          sourceCount: this.preparedRows.length,
+          sourceCount: this.originalSourceCount,
           targetCount: 0,
           skippedCount: this.skippedCount
         }

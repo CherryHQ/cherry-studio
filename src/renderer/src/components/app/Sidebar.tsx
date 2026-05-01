@@ -41,7 +41,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
   store: '/app/assistant',
   paintings: '/app/paintings',
   translate: '/app/translate',
-  miniapp: '/app/miniapp',
+  mini_app: '/app/mini-app',
   knowledge: '/app/knowledge',
   files: '/app/files',
   code_tools: '/app/code',
@@ -55,7 +55,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  miniapp: LayoutGrid,
+  mini_app: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,
@@ -81,7 +81,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const [showOpenedInSidebar] = usePreference('feature.miniapp.show_opened_in_sidebar')
+  const [showOpenedInSidebar] = usePreference('feature.mini_app.show_opened_in_sidebar')
   const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
@@ -155,7 +155,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
             id: icon,
             label: getSidebarIconLabel(icon),
             icon: Icon,
-            ...(icon === 'miniapp' ? { miniAppTabs: activeMiniAppTabs } : {})
+            ...(icon === 'mini_app' ? { miniAppTabs: activeMiniAppTabs } : {})
           }
         ]
       }),

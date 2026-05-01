@@ -24,7 +24,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { Alert } from 'antd'
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -291,7 +291,7 @@ const TitleBar = ({
 
 /** The main container for MiniApp popup */
 const MiniAppPopupContainer: React.FC = () => {
-  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const { closeMiniApp, hideMiniAppPopup } = useMiniAppPopup()
   const {
     pinned,

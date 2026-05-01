@@ -1,5 +1,5 @@
 import { getMiniAppsLogo } from '@renderer/config/miniapps'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
 interface Props {

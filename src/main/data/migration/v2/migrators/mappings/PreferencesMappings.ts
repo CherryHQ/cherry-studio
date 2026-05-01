@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-01T02:55:56.907Z
+ * Generated at: 2026-05-01T03:45:42.823Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -468,19 +468,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.miniapp.max_keep_alive'
+      targetKey: 'feature.mini_app.max_keep_alive'
     },
     {
       originalKey: 'showOpenedMinappsInSidebar',
-      targetKey: 'feature.miniapp.show_opened_in_sidebar'
+      targetKey: 'feature.mini_app.show_opened_in_sidebar'
     },
     {
       originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.miniapp.open_link_external'
+      targetKey: 'feature.mini_app.open_link_external'
     },
     {
       originalKey: 'minAppRegion',
-      targetKey: 'feature.miniapp.region'
+      targetKey: 'feature.mini_app.region'
     },
     {
       originalKey: 'enableSpellCheck',

@@ -1,4 +1,4 @@
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -40,8 +40,8 @@ import { _resetMiniAppsCache, useMiniAppPopup } from '../useMiniAppPopup'
 import { useMiniApps } from '../useMiniApps'
 import { createMiniApp } from './fixtures/miniapp'
 
-/** Helper: create a paginated response matching OffsetPaginationResponse<MiniApp> */
-const paginated = (items: MiniApp[]) => ({ items, total: items.length, page: 1 })
+/** Helper: create a plain array response matching MiniApp[] */
+const miniAppList = (items: MiniApp[]) => items
 
 /**
  * Combined hook for testing - useMiniAppPopup uses useMiniApps internally,
@@ -65,7 +65,7 @@ describe('useMiniAppPopup', () => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
-    MockUseDataApiUtils.mockQueryData('/miniapps', paginated([]))
+    MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
     mockNavigate!.mockClear()
     mockGetTabs.mockClear().mockReturnValue([])
@@ -91,13 +91,13 @@ describe('useMiniAppPopup', () => {
     })
 
     it('should return a cache instance with default max of 10', () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', undefined)
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', undefined)
       const { result } = renderHook(() => useMiniAppPopup())
       expect(result.current.miniAppsCache.max).toBe(10)
     })
 
     it('should return a cache instance with configured max', () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 5)
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 5)
       const { result } = renderHook(() => useMiniAppPopup())
       expect(result.current.miniAppsCache.max).toBe(5)
     })
@@ -108,8 +108,8 @@ describe('useMiniAppPopup', () => {
   describe('openMiniApp', () => {
     it('should open a one-off miniapp when keepAlive is false (default)', async () => {
       const app = createMiniApp('test-app')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', null)
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -117,15 +117,15 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')).toEqual(app)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('test-app')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(app)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('test-app')
     })
 
     it('should open a keep-alive miniapp and add to cache', async () => {
       const app = createMiniApp('keep-alive-app')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -134,14 +134,14 @@ describe('useMiniAppPopup', () => {
 
       expect(result.current.miniAppsCache.has('keep-alive-app')).toBe(true)
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('keep-alive-app')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('keep-alive-app')
     })
 
     it('should not re-add an already cached app, just switch to it', async () => {
       const app = createMiniApp('existing-app')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [app])
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [app])
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       // Pre-populate cache
@@ -155,16 +155,16 @@ describe('useMiniAppPopup', () => {
 
       expect(result.current.miniAppsCache.size).toBe(1)
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('existing-app')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('existing-app')
     })
 
     it('should clear one-off miniapp when opening a keep-alive app', async () => {
       const oneOffApp = createMiniApp('one-off')
       const keepAliveApp = createMiniApp('keep-alive')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', oneOffApp)
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -172,13 +172,13 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
     })
 
     it('should switch to already-opened keep-alive app without re-adding', async () => {
       const app = createMiniApp('already-open')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [app])
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [app])
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -192,8 +192,8 @@ describe('useMiniAppPopup', () => {
       // Should switch, not duplicate
       expect(result.current.miniAppsCache.size).toBe(1)
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('already-open')
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('already-open')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
     })
   })
 
@@ -202,8 +202,8 @@ describe('useMiniAppPopup', () => {
   describe('openMiniAppKeepAlive', () => {
     it('should be a wrapper for openMiniApp(app, true)', async () => {
       const app = createMiniApp('wrapper-test')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -212,7 +212,7 @@ describe('useMiniAppPopup', () => {
 
       expect(result.current.miniAppsCache.has('wrapper-test')).toBe(true)
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
     })
   })
 
@@ -221,9 +221,9 @@ describe('useMiniAppPopup', () => {
   describe('openMiniAppById', () => {
     it('should find and open an app by its appId as one-off', async () => {
       const apps = [createMiniApp('app1'), createMiniApp('app2'), createMiniApp('app3')]
-      MockUseDataApiUtils.mockQueryData('/miniapps', paginated(apps))
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', null)
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -231,28 +231,26 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      const oneOffMiniApp = MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')
+      const oneOffMiniApp = MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')
       expect(oneOffMiniApp).not.toBeNull()
       expect(oneOffMiniApp?.appId).toBe('app2')
     })
 
-    it('should do nothing if app id is not found', async () => {
+    it('should throw DataApiError when app id is not found', async () => {
       const apps = [createMiniApp('app1')]
-      MockUseDataApiUtils.mockQueryData('/miniapps', paginated(apps))
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', null)
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
-        result.current.openMiniAppById('nonexistent')
+        expect(() => result.current.openMiniAppById('nonexistent')).toThrow()
       })
-
-      expect(result.current.openedOneOffMiniApp).toBeNull()
     })
 
     it('should open as keep-alive when keepAlive=true', async () => {
       const apps = [createMiniApp('app1')]
-      MockUseDataApiUtils.mockQueryData('/miniapps', paginated(apps))
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList(apps))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -268,8 +266,8 @@ describe('useMiniAppPopup', () => {
   describe('closeMiniApp', () => {
     it('should remove a keep-alive app from cache', async () => {
       const app = createMiniApp('to-close')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [app])
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [app])
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -285,9 +283,9 @@ describe('useMiniAppPopup', () => {
 
     it('should clear one-off miniapp when closing it', async () => {
       const app = createMiniApp('one-off-close')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', app)
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -295,15 +293,15 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
     })
 
     it('should hide the miniapp popup after closing', async () => {
       const app = createMiniApp('to-hide')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', app)
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
-      MockUseCacheUtils.setCacheValue('miniapp.current_id', 'to-hide')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'to-hide')
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -311,8 +309,8 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(false)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
     })
   })
 
@@ -322,10 +320,10 @@ describe('useMiniAppPopup', () => {
     it('should clear the cache and reset all state', async () => {
       const app1 = createMiniApp('app1')
       const app2 = createMiniApp('app2')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [app1])
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', app2)
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
-      MockUseCacheUtils.setCacheValue('miniapp.current_id', 'app1')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [app1])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app2)
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'app1')
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -345,10 +343,10 @@ describe('useMiniAppPopup', () => {
       // still has items, but the new cache is empty. We verify the state was reset
       // by checking the cache values.
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_keep_alive')).toEqual([])
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')).toBeNull()
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(false)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
     })
   })
 
@@ -357,9 +355,9 @@ describe('useMiniAppPopup', () => {
   describe('hideMiniAppPopup', () => {
     it('should hide the popup and clear one-off miniapp', async () => {
       const app = createMiniApp('to-hide-popup')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', app)
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
-      MockUseCacheUtils.setCacheValue('miniapp.current_id', 'to-hide-popup')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', app)
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'to-hide-popup')
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -367,13 +365,13 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(false)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')).toBeNull()
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
     })
 
     it('should do nothing if popup is not showing', async () => {
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -381,14 +379,14 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(false)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
     })
 
     it('should not affect keep-alive apps when hiding popup', async () => {
       const keepAliveApp = createMiniApp('keep-alive-visible')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [keepAliveApp])
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', null)
-      MockUseCacheUtils.setCacheValue('miniapp.show', true)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [keepAliveApp])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -408,8 +406,8 @@ describe('useMiniAppPopup', () => {
   describe('openSmartMiniApp', () => {
     it('should use traditional popup system for side navbar mode', async () => {
       MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'left')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_oneoff', null)
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', null)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -422,7 +420,7 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      const oneOffMiniApp = MockUseCacheUtils.getCacheValue('miniapp.opened_oneoff')
+      const oneOffMiniApp = MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')
       expect(oneOffMiniApp).not.toBeNull()
       expect(oneOffMiniApp?.appId).toBe('smart-app')
       expect(mockNavigate).not.toHaveBeenCalled()
@@ -430,7 +428,7 @@ describe('useMiniAppPopup', () => {
 
     it('should use cache + navigation for top navbar mode', async () => {
       MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'top')
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       mockNavigate!.mockResolvedValue(undefined)
       const { result } = renderHook(() => useTestMiniAppPopup())
 
@@ -445,14 +443,14 @@ describe('useMiniAppPopup', () => {
 
       expect(result.current.miniAppsCache.has('top-nav-app')).toBe(true)
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('top-nav-app')
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/miniapp/top-nav-app' })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('top-nav-app')
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/app/mini-app/top-nav-app' })
     })
 
     it('should not navigate again if app is already in cache (top navbar)', async () => {
       MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'top')
-      MockUseCacheUtils.setCacheValue('miniapp.show', false)
+      MockUseCacheUtils.setCacheValue('mini_app.show', false)
       mockNavigate!.mockResolvedValue(undefined)
       mockClearWebviewState.mockResolvedValue(undefined)
       const { result } = renderHook(() => useTestMiniAppPopup())
@@ -474,13 +472,13 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      expect(MockUseCacheUtils.getCacheValue('miniapp.show')).toBe(true)
-      expect(MockUseCacheUtils.getCacheValue('miniapp.current_id')).toBe('cached-app')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
     })
 
     it('should respect keepAlive in side navbar mode', async () => {
       MockUsePreferenceUtils.setPreferenceValue('ui.navbar.position', 'left')
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       await act(async () => {
@@ -495,8 +493,8 @@ describe('useMiniAppPopup', () => {
 
   describe('cache integration', () => {
     it('should call clearWebviewState when app is evicted from cache', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 1)
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       const app1 = createMiniApp('evict-app1')
@@ -513,7 +511,7 @@ describe('useMiniAppPopup', () => {
     })
 
     it('should update openedKeepAliveMiniApps when cache changes', async () => {
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       const app = createMiniApp('state-sync-app')
@@ -522,14 +520,14 @@ describe('useMiniAppPopup', () => {
       })
 
       // Check cache values directly since mock useCache doesn't trigger re-renders
-      const openedKeepAlive = MockUseCacheUtils.getCacheValue('miniapp.opened_keep_alive')
+      const openedKeepAlive = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')
       expect(openedKeepAlive).toHaveLength(1)
       expect(openedKeepAlive?.[0]?.appId).toBe('state-sync-app')
     })
 
     it('should rebuild cache when max keep alive size decreases', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 3)
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 3)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       const { result } = renderHook(() => useTestMiniAppPopup())
 
       const app1 = createMiniApp('resize-app1')
@@ -542,7 +540,7 @@ describe('useMiniAppPopup', () => {
       expect(result.current.miniAppsCache.size).toBe(2)
 
       // Change preference to smaller size
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 1)
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
 
       // Reset the module-level cache so the next hook instance creates a fresh cache
       act(() => {
@@ -561,9 +559,9 @@ describe('useMiniAppPopup', () => {
 
   describe('disposeAfter callback', () => {
     it('should close corresponding tab when app is evicted', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 1)
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
-      mockGetTabs.mockReturnValue([{ id: 'tab-1', path: '/app/miniapp/evict-app1' }])
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
+      mockGetTabs.mockReturnValue([{ id: 'tab-1', path: '/app/mini-app/evict-app1' }])
 
       const { result } = renderHook(() => useTestMiniAppPopup())
 
@@ -581,8 +579,8 @@ describe('useMiniAppPopup', () => {
     })
 
     it('should not call closeTab if no matching tab exists', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.miniapp.max_keep_alive', 1)
-      MockUseCacheUtils.setCacheValue('miniapp.opened_keep_alive', [])
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [])
       mockGetTabs.mockReturnValue([{ id: 'tab-other', path: '/app/settings' }])
 
       const { result } = renderHook(() => useTestMiniAppPopup())

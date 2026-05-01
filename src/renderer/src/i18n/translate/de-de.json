@@ -2526,7 +2526,8 @@
         "title": "Benutzerdefinierte App entfernen"
       }
     },
-    "title": "Mini-Apps"
+    "title": "Mini-Apps",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniapps": {
     "ant-ling": "Ant Ling",

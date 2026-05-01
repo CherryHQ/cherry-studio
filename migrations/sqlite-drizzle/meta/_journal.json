@@ -109,22 +109,8 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1777461460041,
-      "tag": "0015_groovy_tiger_shark",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1777474576049,
-      "tag": "0016_late_stryfe",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1777474700000,
-      "tag": "0017_giant_vermin",
+      "when": 1777607575321,
+      "tag": "0015_melted_malcolm_colcord",
       "breakpoints": true
     }
   ],

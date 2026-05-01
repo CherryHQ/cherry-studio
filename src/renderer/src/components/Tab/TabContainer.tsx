@@ -17,7 +17,7 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {
@@ -136,8 +136,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
-    // Handle miniapp paths: /app/miniapp/appId -> miniapp:appId
-    if (segments[1] === 'app' && segments[2] === 'miniapp' && segments[3]) {
+    // Handle miniapp paths: /app/mini-app/appId -> miniapp:appId
+    if (segments[1] === 'app' && segments[2] === 'mini-app' && segments[3]) {
       return `miniapp:${segments[3]}`
     }
     return segments[1] // 获取第一个路径段作为 id

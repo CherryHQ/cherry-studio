@@ -4,7 +4,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import type { FC } from 'react'
@@ -19,7 +19,7 @@ import MiniAppIcon from '../Icons/MiniAppIcon'
 export const SidebarOpenedMiniAppTabs: FC = () => {
   const { miniAppShow, openedKeepAliveMiniApps, currentMiniAppId } = useMiniApps()
   const { openMiniAppKeepAlive, hideMiniAppPopup, closeMiniApp, closeAllMiniApps } = useMiniAppPopup()
-  const [showOpenedMiniAppsInSidebar] = usePreference('feature.miniapp.show_opened_in_sidebar')
+  const [showOpenedMiniAppsInSidebar] = usePreference('feature.mini_app.show_opened_in_sidebar')
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()

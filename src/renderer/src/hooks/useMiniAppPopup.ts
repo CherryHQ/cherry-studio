@@ -1,20 +1,24 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import NavigationService from '@renderer/services/NavigationService'
 import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import type { MiniApp, MiniAppId } from '@shared/data/types/miniapp'
+import { DataApiErrorFactory } from '@shared/data/api'
+import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useNavbarPosition } from './useNavbar'
+
+const logger = loggerService.withContext('useMiniAppPopup')
 
 /** Brand a raw string as MiniAppId. Safe — caller controls the string. */
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
-type MiniAppInput = Omit<MiniApp, 'appId' | 'type' | 'status' | 'sortOrder'> & {
+type MiniAppInput = Omit<MiniApp, 'appId' | 'kind' | 'status' | 'sortOrder'> & {
   appId: string
 }
 
@@ -22,25 +26,22 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    type: 'default',
+    kind: 'default',
     status: 'enabled',
     sortOrder: 0
   }
 }
 
-let miniAppsCache: LRUCache<string, MiniApp>
-
 /**
- * Refs to hold callback functions that need to be updated on each render.
- * This allows the LRU cache callbacks to always use the latest setters.
+ * Singleton LRU cache shared across all hook consumers.
+ * Unlike module-level `let`, this is managed via a stable reference so that
+ * multi-instance consumers always observe the same cache object after resize.
  */
-let cacheCallbacksRef: {
-  setOpenedKeepAliveMiniApps: (apps: MiniApp[]) => void
-} | null = null
+let sharedCache: LRUCache<string, MiniApp> | undefined
 
 /**
  * Cache version counter for tracking cache resets.
- * Used to force re-initialization when the cache is reset externally.
+ * Incremented when the cache is discarded and recreated.
  */
 let cacheVersion = 0
 
@@ -49,8 +50,7 @@ let cacheVersion = 0
  * @internal
  */
 export const _resetMiniAppsCache = () => {
-  miniAppsCache = undefined as unknown as LRUCache<string, MiniApp>
-  cacheCallbacksRef = null
+  sharedCache = undefined
   cacheVersion++
 }
 
@@ -79,37 +79,51 @@ export const useMiniAppPopup = () => {
     setCurrentMiniAppId,
     setMiniAppShow
   } = useMiniApps()
-  const [maxKeepAliveMiniApps] = usePreference('feature.miniapp.max_keep_alive')
+  const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const { isTopNavbar } = useNavbarPosition()
 
-  // Update the ref on every render so callbacks always have latest setters
-  cacheCallbacksRef = {
+  // Ref to hold callback so LRU disposeAfter/onInsert always calls the latest setter.
+  // This replaces the old module-level `cacheCallbacksRef` which was overwritten on every
+  // render — only the most recently mounted consumer's setter was called, silently
+  // desyncing other consumers. A useRef per hook instance is safe because the ref is
+  // read inside the cache callbacks which are closures over this specific ref.
+  const callbacksRef = useRef({
     setOpenedKeepAliveMiniApps
-  }
+  })
+  // Keep the ref current on every render
+  callbacksRef.current = { setOpenedKeepAliveMiniApps }
 
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MiniApp>({
       max: maxKeepAliveMiniApps ?? 10,
       disposeAfter: (_value, key) => {
-        // Clean up WebView state when app is disposed from cache
-        clearWebviewState(key)
+        try {
+          // Clean up WebView state when app is disposed from cache
+          clearWebviewState(key)
 
-        // Close corresponding tab if it exists
-        const tabs = tabsService.getTabs()
-        const tabToClose = tabs.find((tab) => tab.path === `/app/miniapp/${key}`)
-        if (tabToClose) {
-          tabsService.closeTab(tabToClose.id)
-        }
+          // Close corresponding tab if it exists
+          const tabs = tabsService.getTabs()
+          const tabToClose = tabs.find((tab) => tab.path === `/app/mini-app/${key}`)
+          if (tabToClose) {
+            tabsService.closeTab(tabToClose.id)
+          }
 
-        // Update cache state using ref (always has latest setter)
-        if (cacheCallbacksRef && miniAppsCache) {
-          cacheCallbacksRef.setOpenedKeepAliveMiniApps(Array.from(miniAppsCache.values()))
+          // Update cache state using ref (always has latest setter)
+          if (callbacksRef.current && sharedCache) {
+            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+          }
+        } catch (error) {
+          logger.error('Error in LRU disposeAfter callback', error as Error)
         }
       },
       onInsert: () => {
-        // Update cache state using ref (always has latest setter)
-        if (cacheCallbacksRef && miniAppsCache) {
-          cacheCallbacksRef.setOpenedKeepAliveMiniApps(Array.from(miniAppsCache.values()))
+        try {
+          // Update cache state using ref (always has latest setter)
+          if (callbacksRef.current && sharedCache) {
+            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
+          }
+        } catch (error) {
+          logger.error('Error in LRU onInsert callback', error as Error)
         }
       },
       updateAgeOnGet: true,
@@ -123,8 +137,8 @@ export const useMiniAppPopup = () => {
   const prevCacheVersion = useRef(cacheVersion)
 
   // Initialize cache synchronously if not already initialized
-  if (!miniAppsCache) {
-    miniAppsCache = createLRUCache()
+  if (!sharedCache) {
+    sharedCache = createLRUCache()
     prevMaxKeepAlive.current = maxKeepAliveMiniApps
     prevCacheVersion.current = cacheVersion
   }
@@ -139,7 +153,7 @@ export const useMiniAppPopup = () => {
 
     // Handle external reset
     if (wasReset) {
-      miniAppsCache = createLRUCache()
+      sharedCache = createLRUCache()
       prevMaxKeepAlive.current = current
       prevCacheVersion.current = cacheVersion
       return
@@ -151,21 +165,21 @@ export const useMiniAppPopup = () => {
 
     // Always rebuild cache when max changes
     // LRU cache mechanism: entries set later are placed first, so reverse
-    const oldEntries = Array.from(miniAppsCache.entries()).reverse()
-    miniAppsCache = createLRUCache()
+    const oldEntries = Array.from(sharedCache!.entries()).reverse()
+    sharedCache = createLRUCache()
     // Add entries up to the new max (LRU cache will evict excess automatically)
     oldEntries.forEach(([key, value]) => {
-      miniAppsCache.set(key, value)
+      sharedCache!.set(key, value)
     })
   }, [maxKeepAliveMiniApps, createLRUCache])
 
   /** Open a miniapp (popup shows and miniapp loaded) */
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
-      if (keepAlive && miniAppsCache) {
+      if (keepAlive && sharedCache) {
         // Update cache via get/set to avoid duplicate entries
-        const cacheApp = miniAppsCache.get(app.appId)
-        if (!cacheApp) miniAppsCache.set(app.appId, app)
+        const cacheApp = sharedCache.get(app.appId)
+        if (!cacheApp) sharedCache.set(app.appId, app)
 
         // If the miniapp is already open, just switch the display
         if (openedKeepAliveMiniApps.some((item) => item.appId === app.appId)) {
@@ -200,9 +214,11 @@ export const useMiniAppPopup = () => {
   const openMiniAppById = useCallback(
     (id: string, keepAlive: boolean = false) => {
       const appDef = allApps.find((app) => app.appId === id)
-      if (appDef) {
-        openMiniApp(appDef, keepAlive)
+      if (!appDef) {
+        logger.warn(`MiniApp not found: ${id}`)
+        throw DataApiErrorFactory.notFound('MiniApp', id)
       }
+      openMiniApp(appDef, keepAlive)
     },
     [allApps, openMiniApp]
   )
@@ -210,8 +226,8 @@ export const useMiniAppPopup = () => {
   /** Close a miniapp immediately (popup hides and miniapp unloaded) */
   const closeMiniApp = useCallback(
     (appid: string) => {
-      if (openedKeepAliveMiniApps.some((item) => item.appId === appid) && miniAppsCache) {
-        miniAppsCache.delete(appid)
+      if (openedKeepAliveMiniApps.some((item) => item.appId === appid) && sharedCache) {
+        sharedCache.delete(appid)
       } else if (openedOneOffMiniApp?.appId === appid) {
         setOpenedOneOffMiniApp(null)
       }
@@ -225,9 +241,9 @@ export const useMiniAppPopup = () => {
 
   /** Close all miniapps (popup hides and all miniapps unloaded) */
   const closeAllMiniApps = useCallback(() => {
-    // miniAppsCache.clear would invoke dispose multiple times,
+    // sharedCache.clear would invoke dispose multiple times,
     // so recreate the LRU cache to replace it
-    miniAppsCache = createLRUCache()
+    sharedCache = createLRUCache()
     setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
@@ -249,12 +265,12 @@ export const useMiniAppPopup = () => {
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput, keepAlive: boolean = false) => {
       const app = toMiniApp(config)
-      if (isTopNavbar && miniAppsCache) {
+      if (isTopNavbar && sharedCache) {
         // For top navbar mode, need to add to cache first for temporary apps
-        const cacheApp = miniAppsCache.get(app.appId)
+        const cacheApp = sharedCache.get(app.appId)
         if (!cacheApp) {
           // Add temporary app to cache so MiniAppPage can find it
-          miniAppsCache.set(app.appId, app)
+          sharedCache.set(app.appId, app)
         }
 
         // Set current miniapp and show state
@@ -263,7 +279,7 @@ export const useMiniAppPopup = () => {
 
         // Then navigate to the app tab using NavigationService
         if (NavigationService.navigate) {
-          void NavigationService.navigate({ to: `/app/miniapp/${app.appId}` })
+          void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
         }
       } else {
         // For side navbar, use the traditional popup system
@@ -282,6 +298,6 @@ export const useMiniAppPopup = () => {
     closeAllMiniApps,
     openSmartMiniApp,
     // Expose cache instance for TabsService integration
-    miniAppsCache
+    miniAppsCache: sharedCache
   }
 }

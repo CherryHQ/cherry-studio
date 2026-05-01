@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { removeTab, setActiveTab } from '@renderer/store/tabs'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import type { LRUCache } from 'lru-cache'
 
 import NavigationService from './NavigationService'
@@ -56,12 +56,12 @@ export class TabsService {
       if (NavigationService.navigate) {
         void NavigationService.navigate({ to: lastTab.path })
       } else {
-        logger.warn('Navigation service not ready, will navigate on next render')
-        setTimeout(() => {
+        logger.warn('Navigation service not ready, will navigate when ready')
+        NavigationService.ready.onResolved(() => {
           if (NavigationService.navigate) {
             void NavigationService.navigate({ to: lastTab.path })
           }
-        }, 100)
+        })
       }
     }
 
@@ -80,12 +80,12 @@ export class TabsService {
    * @param tabId The tab ID to clean up
    */
   private cleanupMiniAppCache(tabId: string) {
-    // Check if this is a mini-app tab (format: /app/miniapp/{appId})
+    // Check if this is a mini-app tab (format: /app/mini-app/{appId})
     const tabs = store.getState().tabs.tabs
     const tab = tabs.find((t) => t.id === tabId)
 
-    if (tab && tab.path.startsWith('/app/miniapp/')) {
-      const appId = tab.path.replace('/app/miniapp/', '')
+    if (tab && tab.path.startsWith('/app/mini-app/')) {
+      const appId = tab.path.replace('/app/mini-app/', '')
 
       if (this.miniAppsCache && this.miniAppsCache.has(appId)) {
         logger.debug(`Cleaning up mini-app cache for app: ${appId}`)

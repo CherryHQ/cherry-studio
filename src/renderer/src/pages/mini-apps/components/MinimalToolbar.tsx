@@ -13,7 +13,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import type { MiniApp } from '@shared/data/types/miniapp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -42,7 +42,7 @@ interface Props {
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
   const { pinned, updatePinnedMiniApps, allApps } = useMiniApps()
-  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.miniapp.open_link_external')
+  const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -212,7 +212,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
-    void navigate({ to: '/app/miniapp' })
+    void navigate({ to: '/app/mini-app' })
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {

@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { WebviewTag } from 'electron'
-import { memo, useEffect, useRef } from 'react'
+import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
+import { memo, useCallback, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('WebviewContainer')
 
@@ -26,20 +26,18 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
-    const [openLinkExternal] = usePreference('feature.miniapp.open_link_external')
-
-    const setRef = (appid: string) => {
-      onSetRefCallback(appid, null)
-
-      return (element: WebviewTag | null) => {
+    const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
+    const handleRef = useCallback(
+      (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
         if (element) {
           webviewRef.current = element
         } else {
           webviewRef.current = null
         }
-      }
-    }
+      },
+      [appid, onSetRefCallback]
+    )
 
     useEffect(() => {
       if (!webviewRef.current) return
@@ -69,7 +67,7 @@ const WebviewContainer = memo(
         }
       }
 
-      const handleNavigate = (event: any) => {
+      const handleNavigate = (event: DidNavigateInPageEvent) => {
         onNavigateCallback(appid, event.url)
       }
 
@@ -178,10 +176,10 @@ const WebviewContainer = memo(
     return (
       <webview
         key={appid}
-        ref={setRef(appid)}
+        ref={handleRef}
         data-miniapp-id={appid}
         style={WebviewStyle}
-        allowpopups={'true' as any}
+        allowpopups={true}
         partition="persist:webview"
         useragent={
           appid === 'google'
