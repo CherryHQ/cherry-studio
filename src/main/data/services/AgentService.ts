@@ -33,7 +33,8 @@ function rowToAgent(row: AgentRow): AgentEntity {
 /** Compute the default workspace paths for an agent without creating any directories. */
 function computeWorkspacePaths(paths: string[] | undefined): string[] {
   if (paths && paths.length > 0) return paths
-  // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+  // Workspace dir uses its own uuid, decoupled from agent.id, so id-format
+  // changes never require moving on-disk workspaces.
   return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
 }
 

@@ -296,7 +296,7 @@ export const deleteMessage = async (req: Request, res: Response): Promise<Respon
       error,
       agentId: req.params.agentId,
       sessionId: req.params.sessionId,
-      messageId: Number(req.params.messageId)
+      messageId: req.params.messageId
     })
     return res.status(500).json({
       error: {
