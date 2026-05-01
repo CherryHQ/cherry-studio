@@ -209,9 +209,10 @@ export class AgentsMigrator extends BaseMigrator {
         )
         const tableTargetCount = Number(targetResult?.count ?? 0)
         const tableSourceCount = this.sourceCounts[spec.sourceTable]
+        const validateWhere = spec.validateWhereClause ?? spec.whereClause
         const expectedResult = await ctx.db.get<{ count: number }>(
           sql.raw(
-            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${spec.whereClause ? ` WHERE ${spec.whereClause}` : ''}`
+            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
           )
         )
         const tableExpectedCount = Number(expectedResult?.count ?? 0)
