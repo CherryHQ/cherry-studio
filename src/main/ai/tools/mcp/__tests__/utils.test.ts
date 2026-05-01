@@ -1,7 +1,7 @@
 import type { MCPCallToolResponse } from '@types'
 import { describe, expect, it } from 'vitest'
 
-import { hasMultimodalContent, mcpResultToTextSummary } from '../mcp'
+import { hasMultimodalContent, mcpResultToTextSummary } from '../utils'
 
 describe('mcpResultToTextSummary', () => {
   it('returns JSON string for null / invalid shapes', () => {

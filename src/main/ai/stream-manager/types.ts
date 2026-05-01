@@ -4,7 +4,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { PendingMessageQueue } from '../PendingMessageQueue'
+import type { PendingMessageQueue } from '../agentLoop/PendingMessageQueue'
 // Note: `StreamTarget` was removed after AiStreamManager took over the
 // per-execution loop directly from AiService. Chunk forwarding is now
 // internal to the manager; external consumers subscribe via the

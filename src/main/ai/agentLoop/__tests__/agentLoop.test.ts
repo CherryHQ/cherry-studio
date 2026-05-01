@@ -50,7 +50,7 @@ describe('runAgentLoop', () => {
     process.on('unhandledRejection', onUnhandled)
 
     try {
-      const { runAgentLoop } = await import('../agentLoop')
+      const { runAgentLoop } = await import('..')
 
       const stream = runAgentLoop(
         {

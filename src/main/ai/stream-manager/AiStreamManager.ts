@@ -17,7 +17,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 
-import { PendingMessageQueue } from '../PendingMessageQueue'
+import { PendingMessageQueue } from '../agentLoop/PendingMessageQueue'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'

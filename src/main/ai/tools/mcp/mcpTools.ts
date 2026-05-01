@@ -17,8 +17,8 @@ import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
 import type { JSONSchema7, Tool } from 'ai'
 import { jsonSchema } from 'ai'
 
-import { mcpResultToTextSummary } from '../utils/mcp'
-import type { RegisteredTool, ToolRegistry } from './ToolRegistry'
+import type { RegisteredTool, ToolRegistry } from '../registry'
+import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 

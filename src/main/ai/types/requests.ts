@@ -4,7 +4,7 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatTransport, UIMessage } from 'ai'
 
-import type { PendingMessageQueue } from '../PendingMessageQueue'
+import type { PendingMessageQueue } from '../agentLoop/PendingMessageQueue'
 
 /**
  * IPC-safe per-request transport config.

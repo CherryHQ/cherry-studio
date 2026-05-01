@@ -27,7 +27,7 @@ import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
-import type { KnowledgeExtractResults } from '../utils/extract'
+import type { KnowledgeExtractResults } from '../../utils/extract'
 
 const logger = loggerService.withContext('KnowledgeSearchTool')
 

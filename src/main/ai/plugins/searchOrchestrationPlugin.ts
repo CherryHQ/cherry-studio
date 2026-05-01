@@ -35,8 +35,8 @@ import type { WebSearchProviderId } from '@shared/data/preference/preferenceType
 import type { Assistant } from '@shared/data/types/assistant'
 import { generateText, type LanguageModel, type ModelMessage } from 'ai'
 
-import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
-import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
+import { knowledgeSearchTool } from '../tools/builtin/KnowledgeSearchTool'
+import { BUILTIN_WEB_SEARCH_TOOL_NAME, webSearchToolWithPreExtractedKeywords } from '../tools/builtin/WebSearchTool'
 import { extractInfoFromXML, type ExtractResults } from '../utils/extract'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')

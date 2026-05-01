@@ -29,7 +29,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 
 import { getHubModeSystemPrompt } from '../prompts/hubMode'
-import { getEffectiveMcpMode } from '../tools/resolveAssistantMcpTools'
+import { getEffectiveMcpMode } from '../tools/mcp/resolveAssistantMcpTools'
 
 const logger = loggerService.withContext('systemPromptPlugin')
 

@@ -19,8 +19,8 @@ import type {
 } from 'ai'
 import { convertToModelMessages } from 'ai'
 
+import type { AppProviderSettingsMap } from '../types'
 import type { PendingMessageQueue } from './PendingMessageQueue'
-import type { AppProviderSettingsMap } from './types'
 
 const logger = loggerService.withContext('agentLoop')
 
