@@ -1358,6 +1358,80 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreDeleteMock).toHaveBeenCalledWith(item.id)
   })
 
+  it('lists chunks for leaf descendants when the requested item is a container', async () => {
+    const service = new KnowledgeRuntimeService()
+    const root = createDirectoryItem('dir-1', 'completed')
+    const fileChild = createNoteItem('file-child', 'completed')
+    const urlChild = createNoteItem('url-child', 'completed')
+    const fileChunk = {
+      id_: 'chunk-file-1',
+      metadata: {
+        itemId: fileChild.id,
+        itemType: 'note',
+        source: 'file child',
+        chunkIndex: 0,
+        tokenCount: 3
+      },
+      getContent: vi.fn(() => 'file child chunk')
+    }
+    const urlChunk = {
+      id_: 'chunk-url-1',
+      metadata: {
+        itemId: urlChild.id,
+        itemType: 'note',
+        source: 'url child',
+        chunkIndex: 0,
+        tokenCount: 4
+      },
+      getContent: vi.fn(() => 'url child chunk')
+    }
+
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValueOnce([fileChild, urlChild])
+    vectorStoreListByExternalIdMock.mockImplementation(async (itemId: string) => {
+      if (itemId === fileChild.id) {
+        return [fileChunk]
+      }
+      if (itemId === urlChild.id) {
+        return [urlChunk]
+      }
+
+      return []
+    })
+
+    await expect(service.listItemChunks('kb-1', root.id)).resolves.toEqual([
+      {
+        id: 'chunk-file-1',
+        itemId: fileChild.id,
+        content: 'file child chunk',
+        metadata: fileChunk.metadata
+      },
+      {
+        id: 'chunk-url-1',
+        itemId: urlChild.id,
+        content: 'url child chunk',
+        metadata: urlChunk.metadata
+      }
+    ])
+
+    expect(knowledgeItemGetLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', [root.id])
+    expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith(fileChild.id)
+    expect(vectorStoreListByExternalIdMock).toHaveBeenCalledWith(urlChild.id)
+    expect(vectorStoreListByExternalIdMock).not.toHaveBeenCalledWith(root.id)
+  })
+
+  it('returns no chunks without creating a vector store when a container has no leaf descendants', async () => {
+    const service = new KnowledgeRuntimeService()
+    const root = createDirectoryItem('dir-empty', 'completed')
+
+    knowledgeItemGetLeafDescendantItemsMock.mockResolvedValueOnce([])
+
+    await expect(service.listItemChunks('kb-1', root.id)).resolves.toEqual([])
+
+    expect(knowledgeItemGetLeafDescendantItemsMock).toHaveBeenCalledWith('kb-1', [root.id])
+    expect(createVectorStoreMock).not.toHaveBeenCalled()
+    expect(vectorStoreListByExternalIdMock).not.toHaveBeenCalled()
+  })
+
   it('throws when search query embedding is empty', async () => {
     const service = new KnowledgeRuntimeService()
     embedManyMock.mockResolvedValueOnce({ embeddings: [] })

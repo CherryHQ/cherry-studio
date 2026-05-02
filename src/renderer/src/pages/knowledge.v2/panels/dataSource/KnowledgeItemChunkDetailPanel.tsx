@@ -185,7 +185,7 @@ const KnowledgeItemChunkDetailPanel = ({
     setError(null)
 
     try {
-      await window.api.knowledgeRuntime.deleteItemChunk(baseId, itemId, chunk.id)
+      await window.api.knowledgeRuntime.deleteItemChunk(baseId, chunk.itemId, chunk.id)
       setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
       setPendingDeleteChunk(null)
     } catch (chunkError) {

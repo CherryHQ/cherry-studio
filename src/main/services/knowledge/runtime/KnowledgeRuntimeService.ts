@@ -272,11 +272,16 @@ export class KnowledgeRuntimeService extends BaseService {
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     const base = await knowledgeBaseService.getById(baseId)
+    const leafItems = await knowledgeItemService.getLeafDescendantItems(baseId, [itemId])
+    if (leafItems.length === 0) {
+      return []
+    }
+
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const vectorStore = await vectorStoreService.createStore(base)
-    const chunks = await vectorStore.listByExternalId(itemId)
+    const chunkGroups = await Promise.all(leafItems.map((item) => vectorStore.listByExternalId(item.id)))
 
-    return chunks.map(mapChunkDocument)
+    return chunkGroups.flat().map(mapChunkDocument)
   }
 
   async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {

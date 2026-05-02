@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import KnowledgeItemChunkDetailPanel from '../KnowledgeItemChunkDetailPanel'
-import { createFileItem } from './testUtils'
+import { createDirectoryItem, createFileItem } from './testUtils'
 
 const listItemChunksMock = vi.fn()
 const deleteItemChunkMock = vi.fn()
@@ -215,6 +215,42 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.getByText('1 chunks')).toBeInTheDocument()
     expect(screen.queryByText('真实 chunk 内容一')).not.toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
+  })
+
+  it('deletes a descendant chunk by the chunk owner item id when viewing a directory', async () => {
+    mockUseQuery.mockReturnValueOnce({
+      data: createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/docs' }),
+      isLoading: false,
+      error: undefined
+    })
+    listItemChunksMock.mockResolvedValueOnce([
+      {
+        id: 'chunk-child-1',
+        itemId: 'file-child-1',
+        content: '子文件 chunk 内容',
+        metadata: {
+          itemId: 'file-child-1',
+          itemType: 'file',
+          source: '/Users/eeee/docs/a.pdf',
+          chunkIndex: 0,
+          tokenCount: 64
+        }
+      }
+    ])
+
+    render(<KnowledgeItemChunkDetailPanel baseId="base-1" itemId="directory-1" onBack={() => undefined} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('子文件 chunk 内容')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(deleteItemChunkMock).toHaveBeenCalledWith('base-1', 'file-child-1', 'chunk-child-1')
+    })
+    expect(deleteItemChunkMock).not.toHaveBeenCalledWith('base-1', 'directory-1', 'chunk-child-1')
   })
 
   it('keeps existing chunks and shows an error when chunk deletion fails', async () => {
