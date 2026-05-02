@@ -129,25 +129,27 @@ export class KnowledgeRuntimeService extends BaseService {
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
 
-    try {
-      for (const input of inputs) {
-        const createdItem = await knowledgeItemService.create(base.id, input)
-        acceptedItems.push(createdItem)
-        acceptedItems[acceptedItems.length - 1] =
-          createdItem.type === 'directory' || createdItem.type === 'sitemap'
-            ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
-            : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+    await this.queue.runWithBaseWriteLockForBase(base.id, async () => {
+      try {
+        for (const input of inputs) {
+          const createdItem = await knowledgeItemService.create(base.id, input)
+          acceptedItems.push(createdItem)
+          acceptedItems[acceptedItems.length - 1] =
+            createdItem.type === 'directory' || createdItem.type === 'sitemap'
+              ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+              : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
+        }
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to add knowledge items', normalizedError, {
+          baseId: base.id,
+          accepted: acceptedItems.length,
+          total: inputs.length
+        })
+        await this.deleteAcceptedItemsBestEffort(acceptedItems, normalizedError, base.id)
+        throw error
       }
-    } catch (error) {
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Failed to add knowledge items', normalizedError, {
-        baseId: base.id,
-        accepted: acceptedItems.length,
-        total: inputs.length
-      })
-      await this.deleteAcceptedItemsBestEffort(acceptedItems, normalizedError, base.id)
-      throw error
-    }
+    })
 
     for (const item of acceptedItems) {
       await this.submitRuntimeItem(base, item)
@@ -514,23 +516,21 @@ export class KnowledgeRuntimeService extends BaseService {
   ): Promise<void> {
     const uniqueItems = [...new Map(items.map((item) => [item.id, item])).values()]
 
-    await Promise.all(
-      uniqueItems.map(async (item) => {
-        try {
-          await knowledgeItemService.delete(item.id)
-        } catch (cleanupError) {
-          logger.error(
-            'Failed to rollback accepted knowledge item after addItems failure',
-            cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-            {
-              baseId,
-              itemId: item.id,
-              addError: originalError.message
-            }
-          )
-        }
-      })
-    )
+    for (const item of uniqueItems) {
+      try {
+        await knowledgeItemService.delete(item.id)
+      } catch (cleanupError) {
+        logger.error(
+          'Failed to rollback accepted knowledge item after addItems failure',
+          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          {
+            baseId,
+            itemId: item.id,
+            addError: originalError.message
+          }
+        )
+      }
+    }
   }
 
   private async failItemsAndRethrow(

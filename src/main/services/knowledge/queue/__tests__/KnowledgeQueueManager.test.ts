@@ -433,6 +433,65 @@ describe('KnowledgeQueueManager', () => {
     expect(events).toEqual(['lock:first', 'unlock:first', 'lock:second'])
   })
 
+  it('serializes external writes with queued writes for the same base', async () => {
+    const manager = new KnowledgeQueueManager()
+    const releaseQueuedWrite = createDeferred()
+    const queuedInWriteLock = createDeferred()
+    const events: string[] = []
+
+    const queuedPromise = manager.enqueue(
+      createIndexTask('queued', async (context) => {
+        await context.runWithBaseWriteLock(async () => {
+          events.push('lock:queued')
+          queuedInWriteLock.resolve()
+          await releaseQueuedWrite.promise
+          events.push('unlock:queued')
+        })
+      })
+    )
+
+    await queuedInWriteLock.promise
+    const externalPromise = manager.runWithBaseWriteLockForBase(BASE_ID, async () => {
+      events.push('lock:external')
+    })
+    await flushPromises()
+
+    expect(events).toEqual(['lock:queued'])
+
+    releaseQueuedWrite.resolve()
+    await expect(Promise.all([queuedPromise, externalPromise])).resolves.toEqual([undefined, undefined])
+    expect(events).toEqual(['lock:queued', 'unlock:queued', 'lock:external'])
+  })
+
+  it('does not block different-base external writes', async () => {
+    const manager = new KnowledgeQueueManager()
+    const releaseFirstBaseWrite = createDeferred()
+    const firstBaseInWriteLock = createDeferred()
+    const events: string[] = []
+
+    const queuedPromise = manager.enqueue(
+      createIndexTask('queued', async (context) => {
+        await context.runWithBaseWriteLock(async () => {
+          events.push('lock:base-1')
+          firstBaseInWriteLock.resolve()
+          await releaseFirstBaseWrite.promise
+          events.push('unlock:base-1')
+        })
+      })
+    )
+
+    await firstBaseInWriteLock.promise
+    await manager.runWithBaseWriteLockForBase('base-2', async () => {
+      events.push('lock:base-2')
+    })
+
+    expect(events).toEqual(['lock:base-1', 'lock:base-2'])
+
+    releaseFirstBaseWrite.resolve()
+    await expect(queuedPromise).resolves.toBeUndefined()
+    expect(events).toEqual(['lock:base-1', 'lock:base-2', 'unlock:base-1'])
+  })
+
   it('does not enter the base write lock body after being interrupted while waiting', async () => {
     const manager = new KnowledgeQueueManager()
     const releaseFirstWrite = createDeferred()

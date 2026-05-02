@@ -49,8 +49,8 @@ export class KnowledgeRuntimeAddItemsPartialError extends Error {
 function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
   // The new vector store is shaped from dto.dimensions. Callers must resolve it
   // against dto.embeddingModelId before restore; mismatches surface during reindex.
-  return {
-    name: sourceBase.name,
+  const createDto: CreateKnowledgeBaseDto = {
+    name: dto.name?.trim() ?? sourceBase.name,
     emoji: sourceBase.emoji,
     dimensions: dto.dimensions,
     embeddingModelId: dto.embeddingModelId,
@@ -63,6 +63,12 @@ function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBa
     searchMode: sourceBase.searchMode,
     hybridAlpha: sourceBase.hybridAlpha
   }
+
+  if (sourceBase.groupId) {
+    createDto.groupId = sourceBase.groupId
+  }
+
+  return createDto
 }
 
 function assertRestoreBaseCanRebuild(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): void {
@@ -158,6 +164,7 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     try {
       const failures: KnowledgeRuntimeAddItemsPartialFailure[] = []
+      const inputs: KnowledgeRuntimeAddItemInput[] = []
 
       for (const item of rootItems) {
         try {
@@ -165,13 +172,28 @@ export class KnowledgeOrchestrationService extends BaseService {
             type: item.type,
             data: item.data
           })
-          await this.addItems(restoredBase.id, [input])
+          inputs.push(input)
         } catch (error) {
           failures.push({
             sourceItemId: item.id,
             sourceItemType: item.type,
             message: normalizeFailureMessage(error)
           })
+        }
+      }
+
+      if (inputs.length > 0 && failures.length === 0) {
+        try {
+          await this.addItems(restoredBase.id, inputs)
+        } catch (error) {
+          const message = normalizeFailureMessage(error)
+          failures.push(
+            ...rootItems.map((item) => ({
+              sourceItemId: item.id,
+              sourceItemType: item.type,
+              message
+            }))
+          )
         }
       }
 

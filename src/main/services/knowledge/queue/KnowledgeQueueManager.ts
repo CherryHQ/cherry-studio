@@ -143,6 +143,28 @@ export class KnowledgeQueueManager {
     return snapshot
   }
 
+  async runWithBaseWriteLockForBase<T>(baseId: string, task: () => Promise<T>): Promise<T> {
+    const previousLock = this.baseWriteLocks.get(baseId) ?? Promise.resolve()
+    let releaseCurrentLock!: () => void
+    const currentLock = new Promise<void>((resolve) => {
+      releaseCurrentLock = resolve
+    })
+    const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
+
+    this.baseWriteLocks.set(baseId, nextLock)
+
+    try {
+      await previousLock.catch(() => undefined)
+      return await task()
+    } finally {
+      releaseCurrentLock()
+
+      if (this.baseWriteLocks.get(baseId) === nextLock) {
+        this.baseWriteLocks.delete(baseId)
+      }
+    }
+  }
+
   private createQueue(): PQueue {
     return new PQueue({ concurrency: DEFAULT_CONCURRENCY })
   }
@@ -235,30 +257,13 @@ export class KnowledgeQueueManager {
   private async runWithBaseWriteLock<T>(entry: QueueEntry, task: () => Promise<T>): Promise<T> {
     this.throwIfInterrupted(entry)
 
-    const baseId = entry.base.id
-    const previousLock = this.baseWriteLocks.get(baseId) ?? Promise.resolve()
-    let releaseCurrentLock!: () => void
-    const currentLock = new Promise<void>((resolve) => {
-      releaseCurrentLock = resolve
-    })
-    const nextLock = previousLock.catch(() => undefined).then(() => currentLock)
-
-    this.baseWriteLocks.set(baseId, nextLock)
-
-    try {
-      await previousLock.catch(() => undefined)
+    return await this.runWithBaseWriteLockForBase(entry.base.id, async () => {
       this.throwIfInterrupted(entry)
 
       const result = await task()
       this.throwIfInterrupted(entry)
       return result
-    } finally {
-      releaseCurrentLock()
-
-      if (this.baseWriteLocks.get(baseId) === nextLock) {
-        this.baseWriteLocks.delete(baseId)
-      }
-    }
+    })
   }
 
   private getEntriesByIds(itemIds: string[]): QueueEntry[] {

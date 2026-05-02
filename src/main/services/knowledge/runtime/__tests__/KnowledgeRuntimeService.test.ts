@@ -11,6 +11,8 @@ import {
 } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { KnowledgeQueueManager } from '../../queue/KnowledgeQueueManager'
+
 const {
   chunkDocumentsMock,
   createVectorStoreMock,
@@ -416,6 +418,51 @@ describe('KnowledgeRuntimeService', () => {
     })
   })
 
+  it('serializes addItems acceptance with same-base queue writes before enqueueing runtime work', async () => {
+    const service = new KnowledgeRuntimeService()
+    const releaseActiveWrite = createDeferred()
+    const activeWriteStarted = createDeferred()
+    const events: string[] = []
+
+    const queue = (service as unknown as { queue: KnowledgeQueueManager }).queue
+    const activeWritePromise = queue.runWithBaseWriteLockForBase('kb-1', async () => {
+      events.push('lock:active')
+      activeWriteStarted.resolve()
+      await releaseActiveWrite.promise
+      events.push('unlock:active')
+    })
+
+    await activeWriteStarted.promise
+    const addPromise = service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
+    await flushPromises()
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(loadKnowledgeItemDocumentsMock).not.toHaveBeenCalled()
+    expect(events).toEqual(['lock:active'])
+
+    releaseActiveWrite.resolve()
+    await addPromise
+    await activeWritePromise
+
+    expect(knowledgeItemCreateMock).toHaveBeenCalledWith('kb-1', {
+      groupId: undefined,
+      type: 'note',
+      data: { source: 'note-1', content: 'hello note-1' }
+    })
+    expect(events).toEqual(['lock:active', 'unlock:active'])
+    await vi.waitFor(() => {
+      expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
+        createNoteItem('note-1', 'processing'),
+        expect.any(AbortSignal)
+      )
+    })
+    expect(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[
+        knowledgeItemUpdateStatusMock.mock.calls.findIndex((call) => call[0] === 'note-1' && call[1] === 'processing')
+      ]
+    ).toBeLessThan(loadKnowledgeItemDocumentsMock.mock.invocationCallOrder[0])
+  })
+
   it('cleans up accepted roots when batch acceptance fails', async () => {
     const service = new KnowledgeRuntimeService()
     const acceptError = new Error('create failed')
@@ -469,10 +516,20 @@ describe('KnowledgeRuntimeService', () => {
     const enqueueError = new Error('queue resetting')
     const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
     const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
 
-    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
       enqueue: enqueueMock,
-      getSnapshot: getSnapshotMock
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
     }
 
     await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello note-1' } }])
@@ -497,10 +554,20 @@ describe('KnowledgeRuntimeService', () => {
     const enqueueError = new Error('queue resetting')
     const enqueueMock = vi.fn().mockRejectedValue(enqueueError)
     const getSnapshotMock = vi.fn().mockReturnValue({ pending: [], running: [] })
+    const runWithBaseWriteLockForBaseMock = vi.fn(async (_baseId: string, task: () => Promise<unknown>) => task())
 
-    ;(service as unknown as { queue: { enqueue: typeof enqueueMock; getSnapshot: typeof getSnapshotMock } }).queue = {
+    ;(
+      service as unknown as {
+        queue: {
+          enqueue: typeof enqueueMock
+          getSnapshot: typeof getSnapshotMock
+          runWithBaseWriteLockForBase: typeof runWithBaseWriteLockForBaseMock
+        }
+      }
+    ).queue = {
       enqueue: enqueueMock,
-      getSnapshot: getSnapshotMock
+      getSnapshot: getSnapshotMock,
+      runWithBaseWriteLockForBase: runWithBaseWriteLockForBaseMock
     }
 
     await service.addItems('kb-1', [{ type: 'directory', data: { source: '/docs/dir-1', path: '/docs/dir-1' } }])

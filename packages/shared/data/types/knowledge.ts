@@ -421,6 +421,7 @@ export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
   sourceBaseId: z.string().trim().min(1),
+  name: z.string().trim().min(1).optional(),
   // Dimensions must be the resolved embedding vector size for embeddingModelId.
   // Automatic callers should fill this from AI Core dimension detection; manual
   // callers are responsible for confirming the value matches the selected model.

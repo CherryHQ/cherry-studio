@@ -114,11 +114,15 @@ describe('Knowledge base schemas', () => {
   it('validates restore-base DTOs', () => {
     const result = RestoreKnowledgeBaseSchema.safeParse({
       sourceBaseId: 'base-1',
+      name: '  Base 1_bak  ',
       dimensions: 3072,
       embeddingModelId: 'openai::text-embedding-3-large'
     })
 
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.name).toBe('Base 1_bak')
+    }
   })
 
   it('rejects extra fields in restore-base DTOs', () => {
