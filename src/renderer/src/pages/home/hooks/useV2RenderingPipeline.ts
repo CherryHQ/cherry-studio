@@ -87,9 +87,9 @@ export function useV2RenderingPipeline(
     const next = { ...basePartsMap }
     for (const execMessages of Object.values(executionMessagesById)) {
       for (const uiMessage of execMessages) {
-        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
-          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-        }
+        if (uiMessage.role !== 'assistant' || !uiMessage.parts?.length) continue
+        if (!(uiMessage.id in basePartsMap)) continue
+        next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
       }
     }
     return next
