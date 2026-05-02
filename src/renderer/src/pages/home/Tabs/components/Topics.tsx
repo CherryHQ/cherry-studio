@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AddButton from '@renderer/components/AddButton'
@@ -16,10 +17,12 @@ import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic, mapLegacyTopicToDto } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { cloneMessagesToNewTopicThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
@@ -40,6 +43,7 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   CheckSquare,
+  CopyPlus,
   FolderOpen,
   HelpCircle,
   ListChecks,
@@ -56,7 +60,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
@@ -113,7 +117,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const isPending = useCallback((topicId: string) => topicLoadingQuery[topicId], [topicLoadingQuery])
   const isFulfilled = useCallback((topicId: string) => topicFulfilledQuery[topicId], [topicFulfilledQuery])
-  const dispatch = useDispatch()
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     dispatch(newMessagesActions.setTopicFulfilled({ topicId: activeTopic.id, fulfilled: false }))
@@ -233,6 +237,46 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       moveTopic(topic, toAssistant)
     },
     [assistant.topics, moveTopic, setActiveTopic]
+  )
+
+  const onDuplicateTopic = useCallback(
+    async (topic: Topic) => {
+      await modelGenerating()
+
+      let topicWithPrompt: Topic | null = null
+      try {
+        const newTopic = getDefaultTopic(assistant.id)
+        newTopic.name = `${topic.name} (Copy)`
+
+        const createdTopic = await dataApiService.post('/topics', {
+          body: mapLegacyTopicToDto(newTopic)
+        })
+
+        topicWithPrompt = { ...createdTopic, prompt: topic.prompt, messages: [], assistantId: assistant.id }
+
+        await db.topics.add({ id: topicWithPrompt.id, messages: [] })
+        addTopic(topicWithPrompt)
+
+        const messages = await TopicManager.getTopicMessages(topic.id)
+        if (messages.length > 0) {
+          const success = await dispatch(cloneMessagesToNewTopicThunk(topic.id, messages.length, topicWithPrompt))
+          if (!success) {
+            window.toast.error(t('chat.topics.duplicate_error'))
+            removeTopic(topicWithPrompt)
+            return
+          }
+        }
+
+        setActiveTopic(topicWithPrompt)
+        window.toast.success(t('chat.topics.duplicate_success'))
+      } catch {
+        window.toast.error(t('chat.topics.duplicate_error'))
+        if (topicWithPrompt) {
+          removeTopic(topicWithPrompt)
+        }
+      }
+    },
+    [assistant.id, addTopic, removeTopic, dispatch, setActiveTopic, t]
   )
 
   const onSwitchTopic = useCallback(
@@ -484,6 +528,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             }
           }
         ].filter(Boolean) as ItemType<MenuItemType>[]
+      },
+      {
+        label: t('chat.topics.duplicate'),
+        key: 'duplicate',
+        icon: <CopyPlus size={14} />,
+        onClick: () => onDuplicateTopic(topic)
       }
     ]
 
@@ -539,6 +589,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     onClearMessages,
     setTopicPosition,
     onMoveTopic,
+    onDuplicateTopic,
     onDeleteTopic
   ])
 
