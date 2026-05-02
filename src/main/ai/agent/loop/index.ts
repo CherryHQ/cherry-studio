@@ -10,13 +10,10 @@ import type {
   TelemetrySettings,
   ToolCallRepairFunction,
   ToolChoice,
-  ToolSet,
-  UIMessage,
-  UIMessageChunk
+  ToolSet
 } from 'ai'
 
 import type { AppProviderSettingsMap } from '../../types'
-import { Agent } from '../Agent'
 import type { PendingMessageQueue } from './PendingMessageQueue'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
@@ -155,14 +152,4 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
    * provider to avoid double-consumption.
    */
   pendingMessages?: PendingMessageQueue
-}
-
-// ── Runner ──
-
-export function runAgentLoop<T extends AppProviderKey>(
-  params: AgentLoopParams<T>,
-  initialMessages: UIMessage[],
-  signal: AbortSignal
-): ReadableStream<UIMessageChunk> {
-  return new Agent(params).stream(initialMessages, signal)
 }

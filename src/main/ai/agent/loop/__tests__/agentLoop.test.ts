@@ -7,7 +7,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
 }))
 
-describe('runAgentLoop', () => {
+describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -50,24 +50,21 @@ describe('runAgentLoop', () => {
     process.on('unhandledRejection', onUnhandled)
 
     try {
-      const { runAgentLoop } = await import('..')
+      const { Agent } = await import('../../Agent')
 
-      const stream = runAgentLoop(
-        {
-          providerId: 'openai' as never,
-          providerSettings: {} as never,
-          modelId: 'test-model',
-          hookParts: [
-            {
-              onError: () => {
-                throw new Error('hook bug — must not escape')
-              }
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [
+          {
+            onError: () => {
+              throw new Error('hook bug — must not escape')
             }
-          ]
-        },
-        [],
-        new AbortController().signal
-      )
+          }
+        ]
+      })
+      const stream = agent.stream([], new AbortController().signal)
 
       // The stream still aborts with the original error; the hook's throw
       // should be swallowed inside `invokeOnError`.

@@ -23,7 +23,7 @@
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import type { ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages } from 'ai'
 
 import type { AppProviderSettingsMap } from '../types'
@@ -93,13 +93,87 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     return composeHooks(parts)
   }
 
+  /**
+   * Build the AI SDK agent. Shared by `stream()` and `generate()` —
+   * config is identical, only the underlying call (`agent.stream` vs
+   * `agent.generate`) differs.
+   */
+  private async buildAiSdkAgent(hooks: AgentLoopHooks) {
+    const params = this.params
+    const opts = params.options ?? {}
+    const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
+    return createAgent<AppProviderSettingsMap, T, ToolSet>({
+      providerId: params.providerId,
+      providerSettings: params.providerSettings,
+      modelId: params.modelId,
+      plugins: params.plugins,
+      agentSettings: {
+        // Tools
+        tools: toolsWithHooks as ToolSet,
+        toolChoice: opts.toolChoice,
+        activeTools: opts.activeTools as Array<keyof ToolSet>,
+        // System
+        instructions: params.system,
+        // CallSettings (model parameters)
+        maxOutputTokens: opts.maxOutputTokens,
+        temperature: opts.temperature,
+        topP: opts.topP,
+        topK: opts.topK,
+        presencePenalty: opts.presencePenalty,
+        frequencyPenalty: opts.frequencyPenalty,
+        stopSequences: opts.stopSequences,
+        seed: opts.seed,
+        maxRetries: opts.maxRetries,
+        timeout: opts.timeout,
+        headers: opts.headers,
+        // Provider-specific
+        providerOptions: opts.providerOptions,
+        // Loop control
+        stopWhen: opts.stopWhen,
+        // Experimental
+        experimental_telemetry: opts.telemetry,
+        experimental_context: opts.context,
+        experimental_repairToolCall: opts.repairToolCall,
+        experimental_download: opts.download,
+        prepareStep: wrapForwardedHook('prepareStep', hooks.prepareStep),
+        onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
+      }
+    })
+  }
+
+  async generate(
+    input: { prompt: string } | { messages: ModelMessage[] },
+    signal?: AbortSignal
+  ): Promise<{ text: string; usage: LanguageModelUsage }> {
+    const hooks = this.composedHooks()
+    try {
+      await callHook('onStart', () => hooks.onStart?.())
+      const aiAgent = await this.buildAiSdkAgent(hooks)
+      const generateInput =
+        'prompt' in input
+          ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
+          : { messages: input.messages, ...(signal && { abortSignal: signal }) }
+      const result = await aiAgent.generate(generateInput)
+      await callHook('onFinish', () => hooks.onFinish?.())
+      return { text: result.text, usage: result.usage }
+    } catch (err) {
+      if (hooks.onError) {
+        try {
+          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+        } catch (hookErr) {
+          logger.error('hooks.onError threw; rethrowing original', hookErr as Error)
+        }
+      }
+      throw err
+    }
+  }
+
   stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
     const params = this.params
     const { readable, writable } = new TransformStream<UIMessageChunk>()
     const writer = writable.getWriter()
     this.currentWriter = writer
     const hooks = this.composedHooks()
-    const opts = params.options ?? {}
 
     let writerSettled = false
     const settleWriter = async (err?: unknown): Promise<void> => {
@@ -140,48 +214,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // ★ onStart — usage observer resets `cumulativeUsage` here.
       await callHook('onStart', () => hooks.onStart?.())
 
-      const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
-
       // ◆ AI SDK: build ONCE — config doesn't change across tail-recheck
       // rounds. Steering folds into prepareStep, which sees the live messages
       // array on every step.
-      const aiAgent = await createAgent<AppProviderSettingsMap, T, ToolSet>({
-        providerId: params.providerId,
-        providerSettings: params.providerSettings,
-        modelId: params.modelId,
-        plugins: params.plugins,
-        agentSettings: {
-          // Tools
-          tools: toolsWithHooks as ToolSet,
-          toolChoice: opts.toolChoice,
-          activeTools: opts.activeTools as Array<keyof ToolSet>,
-          // System
-          instructions: params.system,
-          // CallSettings (model parameters)
-          maxOutputTokens: opts.maxOutputTokens,
-          temperature: opts.temperature,
-          topP: opts.topP,
-          topK: opts.topK,
-          presencePenalty: opts.presencePenalty,
-          frequencyPenalty: opts.frequencyPenalty,
-          stopSequences: opts.stopSequences,
-          seed: opts.seed,
-          maxRetries: opts.maxRetries,
-          timeout: opts.timeout,
-          headers: opts.headers,
-          // Provider-specific
-          providerOptions: opts.providerOptions,
-          // Loop control
-          stopWhen: opts.stopWhen,
-          // Experimental
-          experimental_telemetry: opts.telemetry,
-          experimental_context: opts.context,
-          experimental_repairToolCall: opts.repairToolCall,
-          experimental_download: opts.download,
-          prepareStep: wrapForwardedHook('prepareStep', hooks.prepareStep),
-          onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
-        }
-      })
+      const aiAgent = await this.buildAiSdkAgent(hooks)
 
       let messages = initialMessages
       let modelMessages = await convertToModelMessages(initialMessages)
