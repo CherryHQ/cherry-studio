@@ -334,4 +334,115 @@ describe('Agent', () => {
       { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: undefined }
     ])
   })
+
+  describe('toTool', () => {
+    /**
+     * Builds a mock AI SDK agent whose `stream()` emits a sequence of
+     * text-delta UIMessageChunks (`text-start` → deltas → `text-end` →
+     * `finish`). Returned via `mockCreateAgent.mockResolvedValue` so
+     * the child Agent's `stream()` works during a test.
+     */
+    function mockChildStream(textDeltas: string[]) {
+      const chunks: Array<Record<string, unknown>> = [
+        { type: 'start' },
+        { type: 'start-step' },
+        { type: 'text-start', id: 't1' },
+        ...textDeltas.map((delta) => ({ type: 'text-delta', id: 't1', delta })),
+        { type: 'text-end', id: 't1' },
+        { type: 'finish-step' },
+        { type: 'finish' }
+      ]
+      mockCreateAgent.mockResolvedValue({
+        stream: vi.fn().mockResolvedValue({
+          toUIMessageStream: () =>
+            new ReadableStream({
+              start(controller) {
+                for (const c of chunks) controller.enqueue(c)
+                controller.close()
+              }
+            }),
+          totalUsage: Promise.resolve({
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            inputTokenDetails: {},
+            outputTokenDetails: {}
+          }),
+          steps: Promise.resolve([]),
+          finishReason: Promise.resolve('stop'),
+          response: Promise.resolve({ id: 'r', modelId: 'p::m', timestamp: new Date(), messages: [] }),
+          sources: Promise.resolve([])
+        })
+      })
+    }
+
+    it('streams child text deltas as preliminary tool results, final yield is the full text', async () => {
+      mockChildStream(['Hel', 'lo, ', 'world!'])
+
+      const { Agent } = await import('../../Agent')
+      const child = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model'
+      })
+
+      const childTool = child.toTool<{ topic: string }>({
+        description: 'Research a topic',
+        inputSchema: { type: 'object', properties: { topic: { type: 'string' } } } as never,
+        toPrompt: ({ topic }) => `Research: ${topic}`
+      })
+
+      const execute = (childTool as { execute: (input: unknown, opts: unknown) => AsyncGenerator<string> }).execute
+      const iter = execute(
+        { topic: 'cats' },
+        { abortSignal: new AbortController().signal, toolCallId: 'tc-1', messages: [] }
+      )
+
+      const yields: string[] = []
+      let returnValue: string | undefined
+      while (true) {
+        const { value, done } = await iter.next()
+        if (done) {
+          returnValue = value as string | undefined
+          break
+        }
+        yields.push(value)
+      }
+
+      // Cumulative deltas — each yield is the assembled text up to that point.
+      expect(yields).toEqual(['Hel', 'Hello, ', 'Hello, world!'])
+      expect(returnValue).toBe('Hello, world!')
+    })
+
+    it('falls back to JSON.stringify when toPrompt is not provided', async () => {
+      mockChildStream(['ok'])
+
+      const { Agent } = await import('../../Agent')
+      const child = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model'
+      })
+
+      const childTool = child.toTool({
+        description: 'X',
+        inputSchema: { type: 'object' } as never
+      })
+
+      const execute = (childTool as { execute: (input: unknown, opts: unknown) => AsyncGenerator<string> }).execute
+      const iter = execute({ a: 1 }, { abortSignal: new AbortController().signal, toolCallId: 'tc-1', messages: [] })
+      while (true) {
+        const { done } = await iter.next()
+        if (done) break
+      }
+
+      // Verify the prompt landed via `userMessage.parts[0].text`.
+      const aiAgent = await mockCreateAgent.mock.results[0].value
+      const streamCall = aiAgent.stream.mock.calls[0][0]
+      const userTextPart = (streamCall.messages[0].content as Array<{ type: string; text: string }>).find(
+        (p) => p.type === 'text'
+      )
+      expect(userTextPart?.text).toBe('{"a":1}')
+    })
+  })
 })

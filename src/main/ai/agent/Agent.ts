@@ -23,8 +23,8 @@
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
-import { convertToModelMessages } from 'ai'
+import type { LanguageModelUsage, ModelMessage, Tool, ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import { convertToModelMessages, isTextUIPart, readUIMessageStream, tool } from 'ai'
 
 import type { AppProviderSettingsMap } from '../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
@@ -141,6 +141,48 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     })
   }
 
+  toTool<TInput = unknown>(opts: {
+    description: string
+    inputSchema: Tool['inputSchema']
+    /** Map structured tool input → child agent prompt. Default: `JSON.stringify(input)`. */
+    toPrompt?: (input: TInput) => string
+  }): Tool {
+    return tool({
+      description: opts.description,
+      inputSchema: opts.inputSchema,
+      execute: (input: unknown, options) =>
+        this.runAsToolExecution(
+          opts.toPrompt ? opts.toPrompt(input as TInput) : JSON.stringify(input),
+          options.abortSignal
+        )
+    })
+  }
+
+  private async *runAsToolExecution(
+    prompt: string,
+    abortSignal: AbortSignal | undefined
+  ): AsyncGenerator<string, string> {
+    const userMessage: UIMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      parts: [{ type: 'text', text: prompt }]
+    }
+    const stream = this.stream([userMessage], abortSignal)
+
+    let last = ''
+    for await (const message of readUIMessageStream({ stream })) {
+      const text = message.parts
+        .filter(isTextUIPart)
+        .map((p) => p.text)
+        .join('')
+      if (text !== last) {
+        last = text
+        yield text
+      }
+    }
+    return last
+  }
+
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal
@@ -168,7 +210,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
   }
 
-  stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
+  stream(initialMessages: UIMessage[], signal?: AbortSignal): ReadableStream<UIMessageChunk> {
     const params = this.params
     const { readable, writable } = new TransformStream<UIMessageChunk>()
     const writer = writable.getWriter()
@@ -227,10 +269,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // round only happens if the user injected a follow-up after AI SDK's
       // last `prepareStep` fired — the steering observer can't catch that
       // race, but a post-stream drain does.
-      while (!signal.aborted) {
+      while (!signal?.aborted) {
         const result = await aiAgent.stream({
           messages: modelMessages,
-          abortSignal: signal
+          ...(signal && { abortSignal: signal })
         })
 
         const uiStream = result.toUIMessageStream({
@@ -248,7 +290,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         try {
           while (true) {
             const { done, value } = await reader.read()
-            if (done || signal.aborted) break
+            if (done || signal?.aborted) break
             await writer.write(value)
           }
         } catch (error) {
@@ -288,7 +330,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     })()
       .then(() => settleWriter())
       .catch(async (err) => {
-        if (!signal.aborted) {
+        if (!signal?.aborted) {
           const action = await invokeOnError(err)
           if (action !== 'retry') {
             logger.error('agentLoop error', err)
