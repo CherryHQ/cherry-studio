@@ -13,8 +13,9 @@ import { loggerService } from '@logger'
 import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import store from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
-import { SystemProviderIds } from '@renderer/types'
+import { isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
+import { getDefaultGroupName } from '@renderer/utils/naming'
 import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider, isVertexProvider } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
@@ -121,7 +122,14 @@ function defaultHeaders(provider: Provider): Record<string, string> {
 
 function defaultGroup(modelId: string, providerId: string): string {
   const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  if (parts.length > 1) return parts[0]
+  // For user-defined ("custom") providers, the provider.id is a UUID and makes
+  // a poor group name. Fall back to a model-ID-derived group so e.g.
+  // "gpt-4.1-mini" lands under "gpt-4.1" instead of the raw UUID.
+  if (!isSystemProviderId(providerId)) {
+    return getDefaultGroupName(modelId, providerId)
+  }
+  return providerId
 }
 
 function toModel(id: string, provider: Provider, extra?: Partial<Model>): Model {
