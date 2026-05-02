@@ -2,13 +2,13 @@ import type { Tool } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { ToolRegistry } from '../registry'
-import type { ToolApplyScope, ToolEntry } from '../types'
+import type { ToolApplyScope, ToolEntry, ToolNamespace } from '../types'
 
 const EMPTY_SCOPE: ToolApplyScope = { mcpToolIds: new Set() }
 
 function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name'>): ToolEntry {
   return {
-    namespace: 'test',
+    namespace: 'test' as ToolNamespace,
     description: `${overrides.name} description`,
     defer: 'never',
     tool: { description: '' } as unknown as Tool,

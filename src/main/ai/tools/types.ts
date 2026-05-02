@@ -14,21 +14,54 @@ export interface ToolApplyScope {
 
 /**
  * Whether a tool is exposed inline to the LLM or hidden behind tool_search.
- *
- *   'never'  – always inline. For high-frequency, high-utility tools where the
- *              extra search round-trip would just waste tokens.
- *   'always' – always deferred. For experimental tools, tools with very large
- *              schemas, or tools the user doesn't want surfaced unless asked.
+ *   'never'  – always inline.
+ *   'always' – always deferred.
  *   'auto'   – inline when the total tokens of all 'auto' tools fit under the
  *              defer threshold (~10% of context window); otherwise deferred.
- *              Default for MCP tools.
  */
-export type ToolDefer = 'never' | 'always' | 'auto'
+export const ToolDefer = {
+  Never: 'never',
+  Always: 'always',
+  Auto: 'auto'
+} as const
+export type ToolDefer = (typeof ToolDefer)[keyof typeof ToolDefer]
+
+/**
+ * Side-effect classification used by {@link ToolProfile} to gate tools for
+ * sub-agents / plan mode / etc. Built-in tools self-declare; MCP tools default
+ * to 'unknown' since Cherry can't introspect MCP server semantics.
+ */
+export const ToolCapability = {
+  Read: 'read',
+  Write: 'write',
+  Compute: 'compute',
+  Unknown: 'unknown'
+} as const
+export type ToolCapability = (typeof ToolCapability)[keyof typeof ToolCapability]
+
+export const BuiltinToolNamespace = {
+  Web: 'web',
+  Kb: 'kb',
+  Meta: 'meta'
+} as const
+export type BuiltinToolNamespace = (typeof BuiltinToolNamespace)[keyof typeof BuiltinToolNamespace]
+
+export type McpToolNamespace = `mcp:${string}`
+export type ToolNamespace = BuiltinToolNamespace | McpToolNamespace
+
+export const MetaToolName = {
+  Search: 'tool_search',
+  Inspect: 'tool_inspect',
+  Invoke: 'tool_invoke',
+  Exec: 'tool_exec',
+  Agent: 'agent'
+} as const
+export type MetaToolName = (typeof MetaToolName)[keyof typeof MetaToolName]
 
 /**
  * Single entry in the ToolRegistry. Combines AI SDK's `Tool` (schema +
  * execute + needsApproval + toModelOutput) with Cherry-side metadata
- * (namespace, defer policy, availability check).
+ * (namespace, defer policy, capability, availability check).
  *
  * Registered declaratively at module-import time (builtin tools) or via
  * event sync (MCP tools); never per-request.
@@ -42,28 +75,11 @@ export interface ToolEntry {
    * Double underscore is the segment separator so internal `_` stays unambiguous.
    */
   name: string
-
-  /**
-   * Logical grouping used by `tool_search` to aggregate results. Not part of
-   * the wire-name. Conventions:
-   *   builtin: 'web', 'kb'
-   *   mcp:     'mcp:{serverId}'
-   *   meta:    'meta'  (excluded from search results)
-   */
-  namespace: string
-
-  /**
-   * One-line summary surfaced by `tool_search` when the model browses the
-   * catalog. The full schema description lives on `tool.description` and is
-   * what the LLM sees once the tool is loaded into context.
-   */
+  namespace: ToolNamespace
+  /** One-line summary surfaced by `tool_search` when the model browses the catalog. */
   description: string
-
-  /** Defer policy. See {@link ToolDefer}. */
   defer: ToolDefer
-
-  /** AI SDK Tool (schema + execute + needsApproval + toModelOutput). */
+  capability?: ToolCapability
   tool: Tool
-
   applies?(scope: ToolApplyScope): boolean
 }

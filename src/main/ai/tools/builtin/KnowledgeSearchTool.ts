@@ -23,7 +23,7 @@ import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { getToolCallContext } from '../context'
-import type { ToolEntry } from '../types'
+import { BuiltinToolNamespace, ToolCapability, ToolDefer, type ToolEntry } from '../types'
 
 const logger = loggerService.withContext('KnowledgeSearchTool')
 
@@ -87,9 +87,10 @@ You may call this multiple times with refined queries if the first results are i
 export function createKbSearchToolEntry(): ToolEntry {
   return {
     name: KB_SEARCH_TOOL_NAME,
-    namespace: 'kb',
+    namespace: BuiltinToolNamespace.Kb,
     description: "Search the user's private knowledge base",
-    defer: 'auto',
+    defer: ToolDefer.Auto,
+    capability: ToolCapability.Read,
     tool: kbSearchTool,
     applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }

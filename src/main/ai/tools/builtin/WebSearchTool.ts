@@ -26,7 +26,7 @@ import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { getToolCallContext } from '../context'
-import type { ToolEntry } from '../types'
+import { BuiltinToolNamespace, ToolCapability, ToolDefer, type ToolEntry } from '../types'
 
 const logger = loggerService.withContext('WebSearchTool')
 
@@ -103,9 +103,10 @@ async function pickFirstUsableProvider(): Promise<ResolvedWebSearchProvider | un
 export function createWebSearchToolEntry(): ToolEntry {
   return {
     name: WEB_SEARCH_TOOL_NAME,
-    namespace: 'web',
+    namespace: BuiltinToolNamespace.Web,
     description: 'Search the web for current information',
-    defer: 'auto',
+    defer: ToolDefer.Auto,
+    capability: ToolCapability.Read,
     tool: webSearchTool,
     applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
   }

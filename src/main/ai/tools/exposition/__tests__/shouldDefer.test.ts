@@ -1,12 +1,12 @@
 import type { Tool } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import type { ToolEntry } from '../../types'
+import type { ToolEntry, ToolNamespace } from '../../types'
 import { shouldDefer } from '../shouldDefer'
 
 function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name' | 'defer'>): ToolEntry {
   return {
-    namespace: 'test',
+    namespace: 'test' as ToolNamespace,
     description: `${overrides.name} description`,
     tool: { description: 'tool desc', inputSchema: { type: 'object' } } as unknown as Tool,
     ...overrides

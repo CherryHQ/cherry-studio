@@ -1,7 +1,7 @@
 import type { Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ToolEntry } from '../../../tools/types'
+import type { ToolEntry, ToolNamespace } from '../../../tools/types'
 import { collectFromFeatures } from '../collectFromFeatures'
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -24,7 +24,7 @@ function makeScope(): RequestScope {
 function makeEntry(name: string): ToolEntry {
   return {
     name,
-    namespace: 'test',
+    namespace: 'test' as ToolNamespace,
     description: `${name} description`,
     defer: 'never',
     tool: { description: '' } as unknown as Tool
