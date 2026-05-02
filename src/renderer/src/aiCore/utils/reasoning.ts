@@ -18,6 +18,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
+  isHostedGemma4ThinkingModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -837,6 +838,18 @@ export function getGeminiReasoningParams(
 
   let thinkingLevel: GoogleThinkingLevel | null = null
   const includeThoughts = reasoningEffort !== 'none'
+
+  if (isHostedGemma4ThinkingModel(model)) {
+    const isHighThinking = reasoningEffort === 'high' || reasoningEffort === 'xhigh'
+    thinkingLevel = isHighThinking ? 'high' : 'minimal'
+
+    return {
+      thinkingConfig: {
+        includeThoughts: isHighThinking,
+        thinkingLevel
+      }
+    }
+  }
 
   // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
   if (isGemini3ThinkingTokenModel(model)) {
