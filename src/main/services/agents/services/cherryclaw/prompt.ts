@@ -68,7 +68,7 @@ You have exclusive access to these tools for interacting with CherryStudio's aut
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__claw__cron\` | Schedule recurring or one-time tasks | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
 | \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
 | \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
