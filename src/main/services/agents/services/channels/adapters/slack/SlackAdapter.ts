@@ -11,7 +11,7 @@ import {
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
-import { FlushController } from '../../FlushController'
+import { type StreamingControllerLogger, StreamingMessageController } from '../../StreamingMessageController'
 import { splitMessage } from '../../utils'
 import { toSlackMarkdown } from './slackMarkdown'
 
@@ -62,131 +62,27 @@ type SlackSocketEnvelope = {
 
 // ─── Streaming Controller ─────────────────────────────────────
 
-/**
- * Manages a single streaming response by creating a message, then
- * editing it in-place with throttled updates via FlushController.
- */
-class SlackStreamingController {
-  private messageTs: string | null = null
-  private currentText = ''
-  private readonly flush: FlushController
-  private messageCreationPromise: Promise<void> | null = null
-  private _completed = false
-
-  constructor(
-    private readonly channelId: string,
-    private readonly apiRequest: SlackAdapter['apiRequest'],
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
-  ) {
-    this.flush = new FlushController(() => this.performFlush())
-  }
-
-  get completed(): boolean {
-    return this._completed
-  }
-
-  async onText(text: string): Promise<void> {
-    if (this._completed) return
-    this.currentText = text
-    await this.ensureMessageCreated()
-    if (this.messageTs) {
-      await this.flush.throttledUpdate(SLACK_STREAM_THROTTLE_MS)
-    }
-  }
-
-  async complete(finalText: string): Promise<boolean> {
-    if (this._completed) return false
-    this._completed = true
-    this.flush.complete()
-
-    if (this.messageCreationPromise) await this.messageCreationPromise
-    if (!this.messageTs) return false
-
-    await this.flush.waitForFlush()
-
-    try {
-      this.currentText = finalText
-      await this.editMessage(finalText)
-      return true
-    } catch (error) {
-      this.log.warn('Failed to finalize Slack stream', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return false
-    }
-  }
-
-  async error(errorMessage: string): Promise<void> {
-    if (this._completed) return
-    this._completed = true
-    this.flush.complete()
-
-    if (this.messageCreationPromise) await this.messageCreationPromise
-    if (!this.messageTs) return
-
-    await this.flush.waitForFlush()
-
-    try {
-      const displayText = this.currentText
-        ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
-        : `**Error**: ${errorMessage}`
-      await this.editMessage(displayText)
-    } catch {
-      // Best-effort error update
-    }
-  }
-
-  dispose(): void {
-    this._completed = true
-    this.flush.cancelPendingFlush()
-    this.flush.complete()
-  }
-
-  // ---- Internal ----
-
-  private async ensureMessageCreated(): Promise<void> {
-    if (this.messageTs) return
-    if (this.messageCreationPromise) {
-      await this.messageCreationPromise
-      return
-    }
-    this.messageCreationPromise = this.createMessage()
-    await this.messageCreationPromise
-  }
-
-  private async createMessage(): Promise<void> {
-    try {
-      const data = await this.apiRequest('chat.postMessage', {
-        channel: this.channelId,
-        text: toSlackMarkdown(this.currentText) || '...'
-      })
-      this.messageTs = (data as { ts?: string }).ts ?? null
-    } catch (error) {
-      this.log.warn('Failed to create Slack streaming message', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
-
-  private async editMessage(text: string): Promise<void> {
-    if (!this.messageTs) return
-    const converted = toSlackMarkdown(text)
-    const content = converted.length > SLACK_MAX_LENGTH ? converted.slice(0, SLACK_MAX_LENGTH - 3) + '...' : converted
-    await this.apiRequest('chat.update', {
-      channel: this.channelId,
-      ts: this.messageTs,
-      text: content
-    })
-  }
-
-  private async performFlush(): Promise<void> {
-    if (!this.messageTs || !this.currentText) return
-    try {
-      await this.editMessage(this.currentText)
-    } catch {
-      // Swallow flush errors — FlushController will reflush if needed
-    }
-  }
+function createSlackStreamingController(
+  channelId: string,
+  apiRequest: SlackAdapter['apiRequest'],
+  log: StreamingControllerLogger
+): StreamingMessageController<string> {
+  return new StreamingMessageController<string>(
+    {
+      async post(content) {
+        const data = (await apiRequest('chat.postMessage', { channel: channelId, text: content })) as { ts?: string }
+        return data.ts ?? null
+      },
+      async edit(ts, content) {
+        await apiRequest('chat.update', { channel: channelId, ts, text: content })
+      },
+      transformContent(text) {
+        return toSlackMarkdown(text)
+      }
+    },
+    { maxLength: SLACK_MAX_LENGTH, throttleMs: SLACK_STREAM_THROTTLE_MS },
+    log
+  )
 }
 
 // ─── Slack Adapter ────────────────────────────────────────────
@@ -207,7 +103,7 @@ class SlackAdapter extends ChannelAdapter {
 
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 50
-  private readonly streamingControllers = new Map<string, SlackStreamingController>()
+  private readonly streamingControllers = new Map<string, StreamingMessageController<string>>()
   /** Track the latest incoming message ts per chatId for reaction acknowledgment */
   private readonly pendingReactions = new Map<string, string>()
 
@@ -564,7 +460,7 @@ class SlackAdapter extends ChannelAdapter {
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
     let controller = this.streamingControllers.get(chatId)
     if (!controller || controller.completed) {
-      controller = new SlackStreamingController(chatId, this.apiRequest.bind(this), this.log)
+      controller = createSlackStreamingController(chatId, this.apiRequest.bind(this), this.log)
       this.streamingControllers.set(chatId, controller)
     }
     await controller.onText(fullText)
