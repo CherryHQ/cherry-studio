@@ -11,7 +11,7 @@ interface ActionIconButtonProps extends ButtonProps {
 /**
  * A simple action button rendered as an icon
  */
-const ActionIconButton: React.FC<ActionIconButtonProps> = ({ children, active = false, className, ...props }) => {
+const ActionIconButton: React.FC<ActionIconButtonProps> = ({ children, active, className, ...props }) => {
   return (
     <Button
       type="text"

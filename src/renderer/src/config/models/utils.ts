@@ -81,8 +81,8 @@ export function isSupportTemperatureModel(model: Model | undefined | null, assis
     return false
   }
 
-  // Kimi K2.5 doesn't support custom temperature
-  if (isKimi25Model(model)) {
+  // Kimi K2.5 / K2.6 don't support custom temperature
+  if (isKimi25OrNewerModel(model)) {
     return false
   }
 
@@ -117,8 +117,8 @@ export function isSupportTopPModel(model: Model | undefined | null, assistant?: 
     return false
   }
 
-  // Kimi K2.5 only accepts top_p=0.95
-  if (isKimi25Model(model)) {
+  // Kimi K2.5 / K2.6 only accepts top_p=0.95
+  if (isKimi25OrNewerModel(model)) {
     return false
   }
 
@@ -142,7 +142,7 @@ export function isGemmaModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemma-') || model.group === 'Gemma'
+  return modelId.includes('gemma-') || modelId.includes('gemma4') || model.group === 'Gemma'
 }
 
 export function isZhipuModel(model: Model): boolean {
@@ -155,12 +155,14 @@ export function isMoonshotModel(model: Model): boolean {
   return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
 }
 
-export function isKimi25Model(model: Model | undefined | null): boolean {
+export function isKimi25OrNewerModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('kimi-k2.5')
+  // Match Kimi K2.5+ (K2.5, K2.6, ..., K2.99) and K3+ (K3, K3.x, K4, ...).
+  // Older K2 variants (kimi-k2, kimi-k2-thinking, kimi-k2-0711-preview, ...) are excluded.
+  return /kimi-k(?:2\.[5-9]\d*|[3-9]\d*)/.test(modelId)
 }
 
 /**
@@ -204,6 +206,16 @@ export const isAnthropicModel = (model?: Model): boolean => {
 
   const modelId = getLowerBaseModelName(model.id)
   return modelId.startsWith('claude')
+}
+
+export const isDeepSeekModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  const modelName = getLowerBaseModelName(model.name)
+  return modelId.includes('deepseek') || modelName.includes('deepseek')
 }
 
 const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')

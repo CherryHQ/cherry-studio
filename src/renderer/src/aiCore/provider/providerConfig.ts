@@ -24,7 +24,6 @@ import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
-  isNewApiProvider,
   isOllamaProvider,
   isPerplexityProvider,
   isSupportStreamOptionsProvider,
@@ -85,7 +84,6 @@ export function formatProviderApiHost(provider: Provider): Provider {
     },
     { match: isCherryAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isPerplexityProvider, format: (p) => formatApiHost(p.apiHost, false) },
-    { match: isNewApiProvider, format: (p) => formatApiHost(p.apiHost, false) },
     { match: isOllamaProvider, format: (p) => formatOllamaApiHost(p.apiHost) },
     { match: isGeminiProvider, format: (p, av) => formatApiHost(p.apiHost, av, 'v1beta') },
     { match: isAzureOpenAIProvider, format: (p) => formatApiHost(p.apiHost, false) },
@@ -211,17 +209,20 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
 
 function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
   const authType = getAwsBedrockAuthType()
-  const region = getAwsBedrockRegion()
+  const region = getAwsBedrockRegion().trim() || undefined
 
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
+  const baseURL = ctx.baseConfig.baseURL || undefined
+
   if (authType === 'apiKey') {
-    return { ...base, providerSettings: { ...ctx.baseConfig, region, apiKey: getAwsBedrockApiKey() } }
+    return { ...base, providerSettings: { ...ctx.baseConfig, baseURL, region, apiKey: getAwsBedrockApiKey() } }
   }
   return {
     ...base,
     providerSettings: {
       ...ctx.baseConfig,
+      baseURL,
       region,
       accessKeyId: getAwsBedrockAccessKeyId(),
       secretAccessKey: getAwsBedrockSecretAccessKey()

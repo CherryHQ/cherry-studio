@@ -73,18 +73,30 @@ export type AiSdkModelReturn<T extends AiSdkModelType> = AiSdkModelReturnMap[T]
 // Provider Extension 类型定义
 // ============================================================================
 
-/** Provider 变体配置 */
-export interface ProviderVariant<TSettings = any, TProvider extends ProviderV3 = ProviderV3> {
+/**
+ * Provider 变体配置
+ *
+ * @typeParam TSettings - Provider 配置类型
+ * @typeParam TProvider - 基础 provider 类型（transform 的输入）
+ * @typeParam TOutput - 变体输出的 provider 类型（transform 的输出），默认与 TProvider 相同
+ *                       当 transform 返回不同类型的 provider 时（如 azure-anthropic），
+ *                       toolFactories 和 resolveModel 将基于 TOutput 类型
+ */
+export interface ProviderVariant<
+  TSettings = any,
+  TProvider extends ProviderV3 = ProviderV3,
+  TOutput extends ProviderV3 = TProvider
+> {
   suffix: string
   name: string
 
   /** 类型安全的模型解析：provider.responses(modelId) / provider.chat(modelId) */
-  resolveModel?: (provider: TProvider, modelId: string) => LanguageModel
+  resolveModel?: (provider: TOutput, modelId: string) => LanguageModel
 
   /** 替换整个 provider（如 azure-anthropic），简单方法切换用 resolveModel */
-  transform?: (baseProvider: TProvider, settings?: TSettings) => ProviderV3
+  transform?: (baseProvider: TProvider, settings?: TSettings) => TOutput
 
-  toolFactories?: ToolFactoryMap<TProvider>
+  toolFactories?: ToolFactoryMap<TOutput>
 }
 
 // ============================================================================
