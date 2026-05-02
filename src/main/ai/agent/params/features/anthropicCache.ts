@@ -85,7 +85,7 @@ function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
 // TODO: use context manager replace middleware
 function createAnthropicCachePlugin(provider: Provider) {
   return definePlugin({
-    name: 'anthropicCache',
+    name: 'anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []

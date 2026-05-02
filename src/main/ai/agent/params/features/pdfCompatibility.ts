@@ -102,7 +102,7 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
 
 const createPdfCompatibilityPlugin = (provider: Provider, model: Model) =>
   definePlugin({
-    name: 'pdfCompatibility',
+    name: 'pdf-compatibility',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []

@@ -63,7 +63,7 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
 
 const createSkipGeminiThoughtSignaturePlugin = () =>
   definePlugin({
-    name: 'skipGeminiThoughtSignature',
+    name: 'skip-gemini-thought-signature',
     enforce: 'pre',
 
     configureContext: (context) => {

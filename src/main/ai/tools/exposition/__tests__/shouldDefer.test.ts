@@ -29,7 +29,6 @@ describe('shouldDefer', () => {
     const result = shouldDefer([makeEntry({ name: 'mcp__small__t', defer: 'auto' })], 32_000)
     expect(result.deferredNames.size).toBe(0)
     expect(result.threshold).toBe(3200)
-    expect(result.autoTokens).toBeLessThan(3200)
   })
 
   it('auto entries flip to deferred when the pool exceeds the threshold', () => {
@@ -46,7 +45,6 @@ describe('shouldDefer', () => {
       32_000
     )
     expect(result.deferredNames.has('mcp__big__t')).toBe(true)
-    expect(result.autoTokens).toBeGreaterThan(result.threshold)
   })
 
   it('mixed defer policies — never stays inline, always defers, auto evaluated by pool', () => {

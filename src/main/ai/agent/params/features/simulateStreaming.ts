@@ -8,7 +8,7 @@ import { simulateStreamingMiddleware } from 'ai'
  */
 const createSimulateStreamingPlugin = () =>
   definePlugin({
-    name: 'simulateStreaming',
+    name: 'simulate-streaming',
     enforce: 'pre',
 
     configureContext: (context) => {

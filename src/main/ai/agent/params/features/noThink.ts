@@ -54,7 +54,7 @@ function createNoThinkMiddleware(): LanguageModelMiddleware {
 
 const createNoThinkPlugin = () =>
   definePlugin({
-    name: 'noThink',
+    name: 'no-think',
     enforce: 'pre',
 
     configureContext: (context) => {

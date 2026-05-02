@@ -28,7 +28,7 @@ import { convertToModelMessages } from 'ai'
 
 import type { AppProviderSettingsMap } from '../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
-import { callHook, logger, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
+import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
 import { attachSteeringObserver } from './observers/steering'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
@@ -147,14 +147,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   ): Promise<{ text: string; usage: LanguageModelUsage }> {
     const hooks = this.composedHooks()
     try {
-      await callHook('onStart', () => hooks.onStart?.())
+      await safeCall('onStart', hooks.onStart)
       const aiAgent = await this.buildAiSdkAgent(hooks)
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
           : { messages: input.messages, ...(signal && { abortSignal: signal }) }
       const result = await aiAgent.generate(generateInput)
-      await callHook('onFinish', () => hooks.onFinish?.())
+      await safeCall('onFinish', hooks.onFinish)
       return { text: result.text, usage: result.usage }
     } catch (err) {
       if (hooks.onError) {
@@ -212,7 +212,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
     ;(async () => {
       // ★ onStart — usage observer resets `cumulativeUsage` here.
-      await callHook('onStart', () => hooks.onStart?.())
+      await safeCall('onStart', hooks.onStart)
 
       // ◆ AI SDK: build ONCE — config doesn't change across tail-recheck
       // rounds. Steering folds into prepareStep, which sees the live messages
@@ -284,7 +284,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       // ★ onFinish (analytics, otel root span). Cleanup is centralised in
       // `settleWriter` below — don't close `pendingMessages` here, the `.then`
       // handler will do it exactly once.
-      await callHook('onFinish', () => hooks.onFinish?.())
+      await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())
       .catch(async (err) => {

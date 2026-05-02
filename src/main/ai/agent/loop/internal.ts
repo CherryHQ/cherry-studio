@@ -1,10 +1,3 @@
-/**
- * Internal helpers for the agent loop.
- *
- * Extracted from `loop/index.ts` so the `Agent` class (`../Agent.ts`) can
- * share them without forcing a circular import via the wrapper.
- */
-
 import { loggerService } from '@logger'
 import type { ToolSet } from 'ai'
 
@@ -13,32 +6,31 @@ import type { AgentLoopHooks, ToolExecutionStartEvent } from './index'
 export const logger = loggerService.withContext('agentLoop')
 
 /**
- * Mirrors AI SDK v7's `notify` shape: await the callback so hook ordering
- * stays deterministic, but never let a thrown hook abort the tool call. v7
- * silently swallows; we log at warn level since we already have a contextual
- * logger.
+ * Invoke a possibly-undefined callback once, swallowing any throw and logging
+ * a warning. Returns the callback's resolved value, or `undefined` if the
+ * callback was missing or threw.
+ *
+ * Single helper covers both the "fire-and-forget side effect" and "compute a
+ * value" call patterns. Names align with AI SDK v7's `notify`/`callHook`
+ * idiom but unified.
  */
-export async function notifyHook<E>(cb: ((event: E) => Promise<void> | void) | undefined, event: E): Promise<void> {
-  if (!cb) return
+export async function safeCall<F extends (...args: never[]) => unknown>(
+  name: string,
+  cb: F | undefined,
+  ...args: Parameters<F>
+): Promise<Awaited<ReturnType<F>> | undefined> {
+  if (!cb) return undefined
   try {
-    await cb(event)
+    return (await cb(...args)) as Awaited<ReturnType<F>>
   } catch (err) {
-    logger.warn('tool-execution hook threw', err as Error)
-  }
-}
-
-export async function callHook<R>(name: string, fn: () => Promise<R> | R): Promise<R | undefined> {
-  try {
-    return await fn()
-  } catch (err) {
-    logger.warn(`hook ${name} threw; ignoring return value`, err as Error)
+    logger.warn(`hook ${name} threw`, err as Error)
     return undefined
   }
 }
 
 /**
  * Wrap a user-supplied hook so it stays isolated when forwarded to a
- * third party (e.g. the AI SDK calls `prepareStep` / `onStepFinish` from
+ * third party (e.g. AI SDK calls `prepareStep` / `onStepFinish` from
  * inside its execution loop). Returns `undefined` if the source hook is
  * absent so we don't pay for an empty wrapper.
  */
@@ -47,16 +39,16 @@ export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
   fn: F | undefined
 ): F | undefined {
   if (!fn) return undefined
-  return ((...args: Parameters<F>) => callHook(name, () => fn(...args))) as F
+  return ((...args: Parameters<F>) => safeCall(name, fn, ...args)) as F
 }
 
 /**
  * Wrap each tool's `execute` so `onToolExecutionStart` / `onToolExecutionEnd`
  * fire around the call. The wrapper measures `durationMs` from immediately
  * after the start hook resolves to immediately before the end hook is
- * dispatched, matching v7's `executeToolCall` (excludes hook latency from the
- * tool's measured duration). Errors propagate after the end hook runs so the
- * SDK still treats tool failures normally.
+ * dispatched, matching AI SDK v7's `executeToolCall` (excludes hook latency
+ * from the tool's measured duration). Errors propagate after the end hook
+ * runs so the SDK still treats tool failures normally.
  */
 export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
   if (!tools) return tools
@@ -78,7 +70,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           input,
           messages: options.messages
         }
-        await notifyHook(hooks.onToolExecutionStart, startEvent)
+        await safeCall('onToolExecutionStart', hooks.onToolExecutionStart, startEvent)
 
         const startTime = performance.now()
         try {
@@ -90,7 +82,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           // in `execute-tool-call.ts` for the reference implementation.
           const output = await originalExecute(input, options)
           const durationMs = performance.now() - startTime
-          await notifyHook(hooks.onToolExecutionEnd, {
+          await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
             ...startEvent,
             durationMs,
             toolOutput: { type: 'tool-result', output }
@@ -98,7 +90,7 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           return output
         } catch (error) {
           const durationMs = performance.now() - startTime
-          await notifyHook(hooks.onToolExecutionEnd, {
+          await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
             ...startEvent,
             durationMs,
             toolOutput: { type: 'tool-error', error }

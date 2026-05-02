@@ -8,7 +8,7 @@ import { extractReasoningMiddleware } from 'ai'
  */
 const createReasoningExtractionPlugin = (options: { tagName?: string } = {}) =>
   definePlugin({
-    name: 'reasoningExtraction',
+    name: 'reasoning-extraction',
     enforce: 'pre',
 
     configureContext: (context) => {
