@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-dev",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
