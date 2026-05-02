@@ -2869,7 +2869,7 @@
       "error": "無法將 {{type}} 加入知識庫：{{error}}",
       "success": "成功將 {{type}} 新增至知識庫"
     },
-    "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
+    "tip": "回答完成時若 Cherry Studio 不在前景或已離開聊天頁，將發送系統通知提醒"
   },
   "ocr": {
     "builtin": {
@@ -5203,6 +5203,7 @@
       "assistant": "助手訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
+      "sound": "播放提示音",
       "title": "通知設定"
     },
     "openai": {

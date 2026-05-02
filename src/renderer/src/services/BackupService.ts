@@ -109,7 +109,6 @@ export async function restore() {
             type: 'success',
             title: i18n.t('common.success'),
             message: i18n.t('message.restore.success'),
-            silent: false,
             timestamp: Date.now(),
             source: 'backup',
             channel: 'system'
@@ -128,7 +127,6 @@ export async function restore() {
         type: 'success',
         title: i18n.t('common.success'),
         message: i18n.t('message.restore.success'),
-        silent: false,
         timestamp: Date.now(),
         source: 'backup',
         channel: 'system'
@@ -242,7 +240,6 @@ export async function backupToWebdav({
         type: 'success',
         title: i18n.t('common.success'),
         message: i18n.t('message.backup.success'),
-        silent: false,
         timestamp: Date.now(),
         source: 'backup',
         channel: 'system'
@@ -312,7 +309,6 @@ export async function backupToWebdav({
       type: 'error',
       title: i18n.t('message.backup.failed'),
       message: error.message,
-      silent: false,
       timestamp: Date.now(),
       source: 'backup',
       channel: 'system'
@@ -421,7 +417,6 @@ export async function backupToS3({
         type: 'success',
         title: i18n.t('common.success'),
         message: i18n.t('message.backup.success'),
-        silent: false,
         timestamp: Date.now(),
         source: 'backup',
         channel: 'system'
@@ -475,7 +470,6 @@ export async function backupToS3({
       type: 'error',
       title: i18n.t('message.backup.failed'),
       message: error.message,
-      silent: false,
       timestamp: Date.now(),
       source: 'backup',
       channel: 'system'
@@ -1037,7 +1031,6 @@ export async function backupToLocal({
           type: 'success',
           title: i18n.t('common.success'),
           message: i18n.t('message.backup.success'),
-          silent: false,
           timestamp: Date.now(),
           source: 'backup',
           channel: 'system'

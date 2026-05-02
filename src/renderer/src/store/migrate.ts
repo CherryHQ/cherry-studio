@@ -3412,6 +3412,18 @@ const migrateConfig = {
       logger.error('migrate 206 error', error as Error)
       return state
     }
+  },
+  '207': (state: RootState) => {
+    try {
+      if (state.settings.notification && typeof state.settings.notification.sound !== 'boolean') {
+        state.settings.notification.sound = false
+      }
+      logger.info('migrate 207 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
+      return state
+    }
   }
 }
 

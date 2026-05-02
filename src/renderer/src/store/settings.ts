@@ -232,6 +232,8 @@ export interface SettingsState {
     assistant: boolean
     backup: boolean
     knowledge: boolean
+    /** Play sound on system notifications. Independent of source toggles. */
+    sound: boolean
   }
   // Local backup settings
   localBackupDir: string
@@ -416,7 +418,8 @@ export const initialState: SettingsState = {
   notification: {
     assistant: false,
     backup: false,
-    knowledge: false
+    knowledge: false,
+    sound: false
   },
   // Local backup settings
   localBackupDir: '',

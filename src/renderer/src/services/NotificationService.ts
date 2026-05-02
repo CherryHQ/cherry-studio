@@ -28,7 +28,10 @@ export class NotificationService {
     const notificationSettings = store.getState().settings.notification || defaultSettings.notification
 
     if (notificationSettings[notification.source]) {
-      void this.queue.add(notification)
+      // Apply user's global sound preference unless the caller forced silent.
+      const enriched: Notification =
+        notification.silent === undefined ? { ...notification, silent: !notificationSettings.sound } : notification
+      void this.queue.add(enriched)
     }
   }
 

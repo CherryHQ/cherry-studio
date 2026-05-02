@@ -160,6 +160,10 @@ const GeneralSettings: FC = () => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
   }
 
+  const handleNotificationSoundChange = (value: boolean) => {
+    dispatch(setNotificationSettings({ ...notificationSettings, sound: value }))
+  }
+
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
     dispatch(setSpellCheckLanguages(selectedLanguages))
     void window.api.setSpellCheckLanguages(selectedLanguages)
@@ -313,6 +317,11 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
           <Switch checked={notificationSettings.knowledge} onChange={(v) => handleNotificationChange('knowledge', v)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.sound')}</SettingRowTitle>
+          <Switch checked={notificationSettings.sound} onChange={handleNotificationSoundChange} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

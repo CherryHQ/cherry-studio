@@ -2869,7 +2869,7 @@
       "error": "{{error}}",
       "success": "成功添加 {{type}} 到知识库"
     },
-    "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+    "tip": "回答完成时若 Cherry Studio 不在前台或不在聊天页，将发送系统通知提醒"
   },
   "ocr": {
     "builtin": {
@@ -5203,6 +5203,7 @@
       "assistant": "助手消息",
       "backup": "备份",
       "knowledge_embed": "知识库",
+      "sound": "播放提示音",
       "title": "通知设置"
     },
     "openai": {

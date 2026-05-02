@@ -126,7 +126,6 @@ class KnowledgeQueue {
       type,
       title: t('common.knowledge_base'),
       message,
-      silent: false,
       timestamp: Date.now(),
       source: 'knowledge'
     })

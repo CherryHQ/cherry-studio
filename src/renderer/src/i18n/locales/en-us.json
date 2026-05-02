@@ -2869,7 +2869,7 @@
       "error": "{{error}}",
       "success": "Successfully added {{type}} to the knowledge base"
     },
-    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+    "tip": "Sends a system notification when a response finishes and the Cherry Studio window is not focused or you have navigated away from the chat."
   },
   "ocr": {
     "builtin": {
@@ -5203,6 +5203,7 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
+      "sound": "Play Sound",
       "title": "Notification Settings"
     },
     "openai": {
