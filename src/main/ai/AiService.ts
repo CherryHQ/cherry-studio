@@ -23,8 +23,8 @@ import {
 } from 'ai'
 
 import { type AgentLoopHooks, runAgentLoop } from './agent/loop'
+import { mergeUsage, ZERO_USAGE } from './agent/observers/usage'
 import { buildAgentParams } from './agent/params/buildAgentParams'
-import { composeHooks } from './agent/params/composeHooks'
 import type { RequestFeature } from './agent/params/feature'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
@@ -316,18 +316,21 @@ export class AiService extends BaseService {
         system,
         options,
         pendingMessages: request.pendingMessages,
-        hooks: this.composeAllHooks(model, hookParts)
+        hookParts: [this.analyticsHookPart(model), ...hookParts]
       },
       preparedMessages,
       signal
     )
   }
 
-  private composeAllHooks(model: Model, builtHookParts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks {
-    const internal: Partial<AgentLoopHooks> = {
-      onFinish: (result) => this.trackUsage(model, result.totalUsage)
+  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = ZERO_USAGE
+    return {
+      onStepFinish: (step) => {
+        if (step.usage) total = mergeUsage(total, step.usage)
+      },
+      onFinish: () => this.trackUsage(model, total)
     }
-    return composeHooks([internal, ...builtHookParts])
   }
 
   // ── Non-streaming text generation (agent.generate) ──
