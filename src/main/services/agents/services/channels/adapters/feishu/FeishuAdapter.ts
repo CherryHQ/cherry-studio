@@ -22,6 +22,18 @@ import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
 const FEISHU_MAX_LENGTH = 4000
 
+/**
+ * Emoji used as a "typing" indicator. Feishu has no native typing API, so we
+ * react to the user's latest message instead. Must be a valid Feishu emoji_type.
+ * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
+ */
+const TYPING_REACTION_EMOJI = 'THUMBSUP'
+
+type TypingReaction = {
+  messageId: string
+  reactionId: string
+}
+
 type FeishuApiResponse<T = unknown> = {
   code?: number
   msg?: string
@@ -454,6 +466,10 @@ class FeishuAdapter extends ChannelAdapter {
   private registrationAbort: AbortController | null = null
   /** Per-chat streaming controller. One stream at a time per chat. */
   private readonly streamingControllers = new Map<string, FeishuStreamingController>()
+  /** Latest user message id per chat — used as the target for typing reactions. */
+  private readonly latestUserMessageByChat = new Map<string, string>()
+  /** Active typing reaction per chat, so we can remove it once we respond. */
+  private readonly typingReactions = new Map<string, TypingReaction>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -597,6 +613,8 @@ class FeishuAdapter extends ChannelAdapter {
       controller.dispose()
     }
     this.streamingControllers.clear()
+    this.typingReactions.clear()
+    this.latestUserMessageByChat.clear()
 
     if (this.wsClient) {
       this.wsClient.close()
@@ -612,6 +630,8 @@ class FeishuAdapter extends ChannelAdapter {
       throw new Error('Client is not connected')
     }
     void _opts
+
+    await this.clearTypingReaction(chatId)
 
     const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
 
@@ -634,10 +654,60 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  async sendTypingIndicator(_chatId: string): Promise<void> {
-    void _chatId
-    // Feishu doesn't have a native typing indicator API.
-    // The streaming card itself serves as a visual indicator.
+  async sendTypingIndicator(chatId: string): Promise<void> {
+    if (!this.client) return
+
+    const messageId = this.latestUserMessageByChat.get(chatId)
+    if (!messageId) return
+
+    const existing = this.typingReactions.get(chatId)
+    if (existing?.messageId === messageId) return
+
+    // A reaction lingered from a previous user message — clear it before the new one.
+    if (existing) {
+      await this.clearTypingReaction(chatId)
+    }
+
+    try {
+      const res = ensureFeishuSuccess<{ reaction_id?: string }>(
+        await this.client.im.messageReaction.create({
+          path: { message_id: messageId },
+          data: { reaction_type: { emoji_type: TYPING_REACTION_EMOJI } }
+        }),
+        'Add typing reaction'
+      )
+      const reactionId = res.data?.reaction_id
+      if (reactionId) {
+        this.typingReactions.set(chatId, { messageId, reactionId })
+      }
+    } catch (error) {
+      this.log.debug('Failed to add typing reaction', {
+        chatId,
+        messageId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  private async clearTypingReaction(chatId: string): Promise<void> {
+    const reaction = this.typingReactions.get(chatId)
+    if (!reaction) return
+    this.typingReactions.delete(chatId)
+    if (!this.client) return
+
+    try {
+      ensureFeishuSuccess(
+        await this.client.im.messageReaction.delete({
+          path: { message_id: reaction.messageId, reaction_id: reaction.reactionId }
+        }),
+        'Remove typing reaction'
+      )
+    } catch (error) {
+      this.log.debug('Failed to remove typing reaction', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
@@ -653,6 +723,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+    await this.clearTypingReaction(chatId)
     const controller = this.streamingControllers.get(chatId)
     if (!controller) return false
 
@@ -661,6 +732,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamError(chatId: string, error: string): Promise<void> {
+    await this.clearTypingReaction(chatId)
     const controller = this.streamingControllers.get(chatId)
     if (!controller) return
 
@@ -675,6 +747,11 @@ class FeishuAdapter extends ChannelAdapter {
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(chatId)) {
       this.log.debug('Dropping message from unauthorized chat', { chatId })
       return
+    }
+
+    // Remember the latest user message so sendTypingIndicator can react to it.
+    if (event.message.message_id) {
+      this.latestUserMessageByChat.set(chatId, event.message.message_id)
     }
 
     const messageType = event.message.message_type

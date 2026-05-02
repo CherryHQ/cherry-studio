@@ -29,6 +29,8 @@ const mockCardSettings = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 const mockMessageResourceGet = vi.fn()
+const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
+const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
 
 const mockClient = {
   im: {
@@ -38,6 +40,10 @@ const mockClient = {
     },
     messageResource: {
       get: mockMessageResourceGet
+    },
+    messageReaction: {
+      create: mockReactionCreate,
+      delete: mockReactionDelete
     }
   },
   cardkit: {
@@ -85,6 +91,8 @@ describe('FeishuAdapter', () => {
     mockCardUpdate.mockClear().mockResolvedValue({ code: 0 })
     mockElementContent.mockClear().mockResolvedValue({ code: 0 })
     mockMessageResourceGet.mockReset()
+    mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
+    mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
   })
@@ -225,10 +233,61 @@ describe('FeishuAdapter', () => {
     })
   })
 
-  it('sendTypingIndicator() is a no-op (Feishu has no native typing API)', async () => {
+  it('sendTypingIndicator() is a no-op when no user message has been seen', async () => {
     const adapter = createAdapter()
     await adapter.connect()
     await adapter.sendTypingIndicator('oc_123')
+    expect(mockReactionCreate).not.toHaveBeenCalled()
+  })
+
+  it('sendTypingIndicator() reacts to the latest user message and is idempotent', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-in-1',
+        chat_id: 'oc_123',
+        chat_type: 'p2p',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'Hello agent' })
+      }
+    })
+
+    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendTypingIndicator('oc_123')
+
+    expect(mockReactionCreate).toHaveBeenCalledTimes(1)
+    expect(mockReactionCreate).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'THUMBSUP' } }
+    })
+  })
+
+  it('sendMessage() removes the typing reaction after responding', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const handler = capturedEventHandlers['im.message.receive_v1']
+    await handler({
+      sender: { sender_id: { open_id: 'ou_user1' } },
+      message: {
+        message_id: 'msg-in-1',
+        chat_id: 'oc_123',
+        chat_type: 'p2p',
+        message_type: 'text',
+        content: JSON.stringify({ text: 'Hello agent' })
+      }
+    })
+
+    await adapter.sendTypingIndicator('oc_123')
+    await adapter.sendMessage('oc_123', 'reply')
+
+    expect(mockReactionDelete).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1', reaction_id: 'rx-1' }
+    })
   })
 
   it('handles incoming text messages and emits message event', async () => {
