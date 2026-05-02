@@ -198,6 +198,15 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
 
 // ── Runner ──
 
+/** Whether a `LanguageModelUsage` carries at least one populated count. */
+function hasUsageNumbers(usage: LanguageModelUsage): boolean {
+  return (
+    typeof usage.totalTokens === 'number' ||
+    typeof usage.inputTokens === 'number' ||
+    typeof usage.outputTokens === 'number'
+  )
+}
+
 function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): LanguageModelUsage {
   return {
     inputTokens: (a.inputTokens ?? 0) + (b.inputTokens ?? 0),
@@ -550,6 +559,30 @@ export function runAgentLoop<T extends AppProviderKey>(
       totalUsage = mergeUsage(totalUsage, iterationUsage)
       totalSteps += steps.length
       lastFinishReason = finishReason
+
+      // Fallback: providers that don't fill `totalUsage` on the `finish`
+      // text-stream-part (observed on Alibaba Qwen via OpenAI-compat
+      // gateway) leave `messageMetadata({part}) → undefined` — so
+      // PersistenceBackend's `statsFromTerminal` reads no token fields
+      // and the DB row lands with timings only.
+      //
+      // `result.totalUsage` is the agent-aggregated counterpart (built
+      // from per-step usage). When it has any value, salvage it by
+      // injecting a synthetic `message-metadata` UIMessageChunk on the
+      // writer; `readUIMessageStream` merges that into the accumulated
+      // message and `finalMessage.metadata` ends up with the same shape
+      // the provider would have produced on a well-behaved finish part.
+      if (iterationUsage && hasUsageNumbers(iterationUsage)) {
+        await writer.write({
+          type: 'message-metadata',
+          messageMetadata: {
+            totalTokens: iterationUsage.totalTokens,
+            promptTokens: iterationUsage.inputTokens,
+            completionTokens: iterationUsage.outputTokens,
+            thoughtsTokens: iterationUsage.outputTokenDetails?.reasoningTokens
+          }
+        })
+      }
 
       // ★ afterIteration (persist, memory, SWR invalidate)
       const shouldContinue = await callHook('afterIteration', () =>
