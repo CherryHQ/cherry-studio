@@ -20,6 +20,7 @@ const KnowledgePageDetailSection = () => {
     closeItemChunks,
     openAddSourceDialog,
     openRenameBaseDialog,
+    openRestoreBaseDialog,
     deleteBase
   } = useKnowledgePage()
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
@@ -35,6 +36,7 @@ const KnowledgePageDetailSection = () => {
         base={selectedBase}
         itemCount={selectedBaseItems.length}
         onRenameBase={openRenameBaseDialog}
+        onRestoreBase={openRestoreBaseDialog}
         onDeleteBase={deleteBase}
       />
       <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
@@ -53,7 +55,7 @@ const KnowledgePageDetailSection = () => {
             onReindex={reindexItem}
           />
         ) : null}
-        {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} /> : null}
+        {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} onRestoreBase={openRestoreBaseDialog} /> : null}
         {activeTab === 'recall' ? <RecallTestPanel baseId={selectedBaseId} /> : null}
       </div>
     </main>

@@ -91,7 +91,7 @@ vi.mock('react-i18next', () => ({
             'knowledge_v2.data_source.status.embedding': '向量化中',
             'knowledge_v2.data_source.status.chunking': '分块中',
             'knowledge_v2.data_source.status.pending': '等待中',
-            'knowledge_v2.status_processing': '处理中',
+            'knowledge_v2.status.processing': '处理中',
             'knowledge_v2.rag.file_processing': '文件处理'
           } as Record<string, string>
         )[key] ?? key

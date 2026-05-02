@@ -2215,8 +2215,10 @@
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
     "error": {
+      "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
       "failed_to_create": "Failed to create knowledge base",
-      "failed_to_edit": "Failed to edit knowledge base"
+      "failed_to_edit": "Failed to edit knowledge base",
+      "missing_embedding_model": "The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model."
     },
     "groups": {
       "add": "New Group",
@@ -2297,6 +2299,13 @@
       "top_score": "Top: {{score}}"
     },
     "rename_title": "Rename Knowledge Base",
+    "restore": {
+      "action": "Rebuild knowledge base",
+      "default_name": "{{name}}_bak",
+      "failed_to_restore": "Failed to rebuild knowledge base",
+      "submit": "Rebuild",
+      "title": "Rebuild Knowledge Base"
+    },
     "search": "Search Knowledge Base",
     "status": {
       "completed": "Ready",

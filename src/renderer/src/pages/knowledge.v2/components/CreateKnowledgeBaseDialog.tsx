@@ -35,7 +35,7 @@ interface CreateKnowledgeBaseDialogProps {
 }
 
 const DEFAULT_EMOJI = '📁'
-const DEFAULT_DIMENSIONS = 1024
+export const KNOWLEDGE_BASE_DEFAULT_DIMENSIONS = 1024
 const KNOWLEDGE_BASE_EMOJIS = ['📁', '📚', '🧠', '💡', '📝', '🔖', '🧪', '🌐', '⭐'] as const
 
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'> & {
@@ -52,7 +52,7 @@ const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => 
   embeddingModelId: null
 })
 
-const formatModelOptionLabel = (uniqueModelId: string) => {
+export const formatKnowledgeModelOptionLabel = (uniqueModelId: string) => {
   if (!isUniqueModelId(uniqueModelId)) {
     return uniqueModelId
   }
@@ -187,7 +187,7 @@ const CreateKnowledgeBaseDialogRoot = ({
 
   const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
     value: model.id,
-    label: formatModelOptionLabel(model.id)
+    label: formatKnowledgeModelOptionLabel(model.id)
   }))
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -199,12 +199,11 @@ const CreateKnowledgeBaseDialogRoot = ({
       return
     }
 
-    // TODO: Resolve dimensions from the selected embedding model before creating the knowledge base.
     const createInput: CreateKnowledgeBaseInput = {
       name: values.name,
       emoji: values.emoji,
       embeddingModelId: values.embeddingModelId,
-      dimensions: DEFAULT_DIMENSIONS
+      dimensions: KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
     }
 
     if (values.groupId && groupIds.has(values.groupId)) {

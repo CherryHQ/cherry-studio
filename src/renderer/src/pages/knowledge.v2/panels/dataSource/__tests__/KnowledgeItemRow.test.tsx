@@ -33,6 +33,12 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+      <span>
+        {children}
+        {content ? <span role="tooltip">{content}</span> : null}
+      </span>
+    ),
     Popover: ({
       children,
       open,
@@ -149,6 +155,7 @@ describe('KnowledgeItemRow', () => {
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
   })
 
   it('renders the processing status label for in-flight items', () => {

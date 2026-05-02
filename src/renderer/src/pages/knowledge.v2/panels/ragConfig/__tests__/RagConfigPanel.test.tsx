@@ -8,49 +8,84 @@ import RagConfigPanel from '../RagConfigPanel'
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-    <button {...props}>{loading ? 'loading' : children}</button>
-  ),
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Input: (props: Record<string, unknown>) => <input {...props} />,
-  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-    <span>
-      {children}
-      {content ? <span role="tooltip">{content}</span> : null}
-    </span>
-  ),
-  Slider: ({
-    value,
-    onValueChange,
-    min,
-    max,
-    step,
-    disabled
-  }: {
-    value: number[]
-    onValueChange?: (value: number[]) => void
-    min?: number
-    max?: number
-    step?: number
-    disabled?: boolean
-  }) => (
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      disabled={disabled}
-      value={value[0]}
-      onChange={(event) => onValueChange?.([Number(event.target.value)])}
-    />
-  )
-}))
+const renderRagConfigPanel = (onRestoreBase = vi.fn()) => {
+  return render(<RagConfigPanel base={createKnowledgeBase({})} onRestoreBase={onRestoreBase} />)
+}
+
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
+
+  return {
+    Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
+      <button {...props}>{loading ? 'loading' : children}</button>
+    ),
+    FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div role="alert" {...props}>
+        {children}
+      </div>
+    ),
+    Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <label {...props}>{children}</label>
+    ),
+    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Input: (props: Record<string, unknown>) => <input {...props} />,
+    Select: ({
+      children,
+      onValueChange
+    }: {
+      children: ReactNode
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => <SelectContext value={{ onValueChange }}>{children}</SelectContext>,
+    SelectTrigger: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+    SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    SelectItem: ({ children, value }: { children: ReactNode; value: string }) => {
+      const { onValueChange } = React.use(SelectContext)
+      return (
+        <button type="button" onClick={() => onValueChange?.(value)}>
+          {children}
+        </button>
+      )
+    },
+    NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+      <span>
+        {children}
+        {content ? <span role="tooltip">{content}</span> : null}
+      </span>
+    ),
+    Slider: ({
+      value,
+      onValueChange,
+      min,
+      max,
+      step,
+      disabled
+    }: {
+      value: number[]
+      onValueChange?: (value: number[]) => void
+      min?: number
+      max?: number
+      step?: number
+      disabled?: boolean
+    }) => (
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        value={value[0]}
+        onChange={(event) => onValueChange?.([Number(event.target.value)])}
+      />
+    )
+  }
+})
 
 vi.mock('../../../hooks', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
@@ -68,6 +103,8 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.not_set': '未设置',
           'knowledge_v2.embedding_model': 'Embedding 模型',
           'knowledge_v2.dimensions': '向量维度',
+          'knowledge_v2.restore.submit': '重建',
+          'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'models.rerank_model': 'Rerank 模型',
           'knowledge_v2.rag.document_count': '文档数量',
           'knowledge_v2.rag.file_processing': '文件处理',
@@ -144,14 +181,17 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        dimensions: 1536,
+        dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
         searchMode: 'default',
         hybridAlpha: null
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      embeddingModelOptions: [
+        { value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' },
+        { value: 'voyage::voyage-3-large', label: 'voyage-3-large · voyage' }
+      ],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
@@ -165,14 +205,14 @@ describe('RagConfigPanel', () => {
   })
 
   it('renders current chunk values, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {
-    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+    renderRagConfigPanel()
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
-    expect(screen.getByDisplayValue('text-embedding-3-small · openai')).toHaveAttribute('readonly')
-    expect(screen.getByDisplayValue('1536')).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
+    expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
     expect(screen.queryByText('Hybrid Alpha')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByDisplayValue('512'), { target: { value: '1024' } })
@@ -190,7 +230,7 @@ describe('RagConfigPanel', () => {
   })
 
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {
-    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+    renderRagConfigPanel()
 
     const chunkSizeInput = screen.getByDisplayValue('512')
     const saveButton = screen.getByRole('button', { name: '保存' })
@@ -209,7 +249,7 @@ describe('RagConfigPanel', () => {
   })
 
   it('blocks save when chunk overlap is not smaller than chunk size', () => {
-    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+    renderRagConfigPanel()
 
     const saveButton = screen.getByRole('button', { name: '保存' })
 
@@ -222,8 +262,40 @@ describe('RagConfigPanel', () => {
     expect(mockSave).not.toHaveBeenCalled()
   })
 
+  it('opens rebuild dialog instead of patching when embedding config changes', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase)
+
+    fireEvent.click(screen.getByRole('button', { name: 'voyage-3-large · voyage' }))
+    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'voyage::voyage-3-large',
+      dimensions: 1536
+    })
+  })
+
+  it('opens rebuild dialog and changes the action label when dimensions change', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase)
+
+    fireEvent.change(screen.getByDisplayValue('1536'), { target: { value: '4096' } })
+    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 4096
+    })
+  })
+
   it('renders hover hint tooltip content for RAG field labels', () => {
-    render(<RagConfigPanel base={createKnowledgeBase({})} />)
+    renderRagConfigPanel()
 
     expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
@@ -241,7 +313,7 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        dimensions: 1536,
+        dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
         searchMode: 'hybrid',
@@ -260,7 +332,9 @@ describe('RagConfigPanel', () => {
       error: undefined
     })
 
-    render(<RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} />)
+    render(
+      <RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} onRestoreBase={vi.fn()} />
+    )
 
     expect(screen.getByText('Hybrid Alpha')).toBeInTheDocument()
   })

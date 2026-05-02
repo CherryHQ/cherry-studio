@@ -3,6 +3,7 @@ import CreateKnowledgeBaseDialog from '../components/CreateKnowledgeBaseDialog'
 import CreateKnowledgeGroupDialog from '../components/CreateKnowledgeGroupDialog'
 import KnowledgeBaseNameDialog from '../components/KnowledgeBaseNameDialog'
 import RenameKnowledgeGroupDialog from '../components/RenameKnowledgeGroupDialog'
+import RestoreKnowledgeBaseDialog from '../components/RestoreKnowledgeBaseDialog'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 
 const KnowledgePageDialogSection = () => {
@@ -10,6 +11,8 @@ const KnowledgePageDialogSection = () => {
     groups,
     editingBase,
     editingGroup,
+    restoringBase,
+    restoreBaseInitialValues,
     isAddSourceDialogOpen,
     isCreateBaseDialogOpen,
     isCreateGroupDialogOpen,
@@ -18,13 +21,17 @@ const KnowledgePageDialogSection = () => {
     isCreatingGroup,
     isUpdatingBase,
     isUpdatingGroup,
+    isRestoringBase,
     createBase,
+    restoreBase,
     handleAddSourceDialogOpenChange,
     handleCreateBaseCreated,
     handleCreateBaseDialogOpenChange,
     handleCreateGroupDialogOpenChange,
     handleRenameBaseDialogOpenChange,
     handleRenameGroupDialogOpenChange,
+    handleRestoreBaseDialogOpenChange,
+    handleRestoreBaseRestored,
     submitCreateGroup,
     submitRenameBase,
     submitRenameGroup
@@ -62,6 +69,19 @@ const KnowledgePageDialogSection = () => {
           isSubmitting={isUpdatingBase}
           onSubmit={submitRenameBase}
           onOpenChange={handleRenameBaseDialogOpenChange}
+        />
+      ) : null}
+
+      {restoringBase ? (
+        <RestoreKnowledgeBaseDialog
+          open
+          base={restoringBase}
+          initialEmbeddingModelId={restoreBaseInitialValues?.embeddingModelId}
+          initialDimensions={restoreBaseInitialValues?.dimensions}
+          isRestoring={isRestoringBase}
+          restoreBase={restoreBase}
+          onOpenChange={handleRestoreBaseDialogOpenChange}
+          onRestored={handleRestoreBaseRestored}
         />
       ) : null}
 

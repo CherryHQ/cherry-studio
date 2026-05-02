@@ -2,7 +2,7 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { loggerService } from '@logger'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
-import type { CreateKnowledgeBaseDto } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
 import { useCallback, useMemo, useState } from 'react'
 
 const KNOWLEDGE_V2_BASES_QUERY = {
@@ -26,6 +26,10 @@ export type CreateKnowledgeBaseInput = Pick<
 > & {
   emoji: string
 }
+export type RestoreKnowledgeBaseInput = Pick<
+  RestoreKnowledgeBaseDto,
+  'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
+>
 
 export const useKnowledgeBases = () => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
@@ -121,6 +125,81 @@ export const useCreateKnowledgeBase = () => {
     createBase,
     isCreating,
     createError
+  }
+}
+
+export const useRestoreKnowledgeBase = () => {
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [restoreError, setRestoreError] = useState<Error | undefined>()
+  const invalidateCache = useInvalidateCache()
+
+  const restoreBase = useCallback(
+    async (input: RestoreKnowledgeBaseInput) => {
+      setRestoreError(undefined)
+
+      const sourceBaseId = input.sourceBaseId.trim()
+      const name = input.name?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim()
+      const dimensions = input.dimensions
+
+      if (!sourceBaseId) {
+        throw new Error('Source knowledge base id is required')
+      }
+
+      if (!name) {
+        throw new Error('Knowledge base name is required')
+      }
+
+      if (!embeddingModelId) {
+        throw new Error('Knowledge base embedding model is required')
+      }
+
+      if (!Number.isInteger(dimensions) || dimensions <= 0) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      }
+
+      setIsRestoring(true)
+
+      try {
+        const restoredBase = await window.api.knowledgeRuntime.restoreBase({
+          sourceBaseId,
+          name,
+          embeddingModelId,
+          dimensions
+        })
+
+        try {
+          await invalidateCache('/knowledge-bases')
+        } catch (invalidateError) {
+          logger.error('Failed to refresh knowledge base list after restore', {
+            sourceBaseId,
+            restoredBaseId: restoredBase.id,
+            error: normalizeError(invalidateError)
+          })
+        }
+
+        setIsRestoring(false)
+        return restoredBase
+      } catch (error) {
+        const normalizedError = normalizeError(error)
+        logger.error('Failed to restore knowledge base', {
+          sourceBaseId,
+          name,
+          embeddingModelId,
+          error: normalizedError
+        })
+        setRestoreError(normalizedError)
+        setIsRestoring(false)
+        throw normalizedError
+      }
+    },
+    [invalidateCache]
+  )
+
+  return {
+    restoreBase,
+    isRestoring,
+    restoreError
   }
 }
 

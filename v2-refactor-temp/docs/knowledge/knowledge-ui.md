@@ -39,9 +39,9 @@
   - 向量检索和重排后的score是映射到 [0-1] 可以通过百分比显示
   - 全文检索和混合检索后的score无法进行归一化，结果是按照顺序排列的，如果归一化就会出现第一位是100%，最后一个是0%的结果
 
-### 当前暂留问题：创建知识库时的 `dimensions`
+### 当前暂留问题：创建 / 重建知识库时的 `dimensions`
 
-- 当前 renderer 创建知识库时仍暂时硬编码 `dimensions`。
+- 当前 renderer 创建知识库、重建迁移失败知识库时仍暂时硬编码 `dimensions`。
 - 后续应改为从选中的 embedding model 或上游模型能力解析出维度，避免 renderer 侧继续维护固定值。
 - 在该上游能力明确前，RAG 配置面板中的 embedding model 与 dimensions 只做只读展示，不允许在 renderer 中直接修改。
 

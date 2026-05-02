@@ -104,7 +104,7 @@ export const resolveDataSourceStatusViewModel = (
   if (item.status === 'processing' && item.phase === null) {
     return {
       kind: 'processing',
-      labelKey: 'knowledge_v2.status_processing',
+      labelKey: 'knowledge_v2.status.processing',
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     }

@@ -45,19 +45,19 @@ describe('dataSourcePanel.selectors', () => {
     })
     expect(getItemStatus(createFileItem({ id: 'file-5', status: 'processing' }))).toEqual({
       kind: 'processing',
-      labelKey: 'knowledge_v2.status_processing',
+      labelKey: 'knowledge_v2.status.processing',
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toEqual({
       kind: 'processing',
-      labelKey: 'knowledge_v2.status_processing',
+      labelKey: 'knowledge_v2.status.processing',
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     })
     expect(getItemStatus(createSitemapItem({ id: 'sitemap-1', status: 'processing' }))).toEqual({
       kind: 'processing',
-      labelKey: 'knowledge_v2.status_processing',
+      labelKey: 'knowledge_v2.status.processing',
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     })

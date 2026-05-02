@@ -157,7 +157,7 @@ describe('useKnowledgeConfig', () => {
         chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
-        dimensions: 4096,
+        dimensions: '4096',
         documentCount: 10,
         threshold: 0.25,
         searchMode: 'default',

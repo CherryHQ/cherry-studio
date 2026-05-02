@@ -4,13 +4,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useKnowledgeRagConfig } from '../../hooks'
-import { getKnowledgeRagConfigFormState } from '../../utils'
+import { getKnowledgeRagConfigFormState, parseRequiredInteger } from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
 import RetrievalSection from './RetrievalSection'
 
-const RagConfigPanel = ({ base }: { base: KnowledgeBase }) => {
+export interface KnowledgeRestoreBaseInitialValues {
+  embeddingModelId?: string | null
+  dimensions?: number | null
+}
+
+interface RagConfigPanelProps {
+  base: KnowledgeBase
+  onRestoreBase: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
+}
+
+const RagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
   const {
     initialValues,
@@ -29,9 +39,19 @@ const RagConfigPanel = ({ base }: { base: KnowledgeBase }) => {
 
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
+  const embeddingConfigChanged =
+    values.embeddingModelId !== initialValues.embeddingModelId || values.dimensions !== initialValues.dimensions
 
   const handleSave = async () => {
     if (!canSave) {
+      return
+    }
+
+    if (embeddingConfigChanged) {
+      onRestoreBase(base, {
+        embeddingModelId: values.embeddingModelId,
+        dimensions: parseRequiredInteger(values.dimensions)
+      })
       return
     }
 
@@ -71,6 +91,13 @@ const RagConfigPanel = ({ base }: { base: KnowledgeBase }) => {
           embeddingModelId={values.embeddingModelId}
           embeddingModelOptions={embeddingModelOptions}
           dimensions={values.dimensions}
+          dimensionsErrorCode={validationErrorCodes.dimensions}
+          onEmbeddingModelChange={(embeddingModelId) =>
+            setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+          }
+          onDimensionsChange={(dimensions) =>
+            setValues((currentValues) => ({ ...currentValues, dimensions: dimensions.replace(/\D/g, '') }))
+          }
         />
 
         <RetrievalSection
@@ -103,7 +130,7 @@ const RagConfigPanel = ({ base }: { base: KnowledgeBase }) => {
             disabled={!canSave}
             className="h-6 min-h-6 rounded-md bg-emerald-400 px-3 text-[0.6875rem] text-white leading-4.125 shadow-none hover:bg-emerald-500"
             onClick={handleSave}>
-            {t('common.save')}
+            {embeddingConfigChanged ? t('knowledge_v2.restore.submit') : t('common.save')}
           </Button>
         </div>
       </div>

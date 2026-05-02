@@ -11,7 +11,7 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   chunkOverlap: String(base.chunkOverlap),
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
-  dimensions: base.dimensions ?? 0,
+  dimensions: base.dimensions == null ? '' : String(base.dimensions),
   documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
   threshold: base.threshold ?? DEFAULT_KNOWLEDGE_THRESHOLD,
   searchMode: base.searchMode,

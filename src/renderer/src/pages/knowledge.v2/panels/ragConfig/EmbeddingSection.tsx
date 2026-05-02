@@ -1,42 +1,56 @@
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge.v2/types'
 import { DatabaseZap } from 'lucide-react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { RagReadonlyField, RagSectionTitle } from './panelPrimitives'
+import type { KnowledgeSelectOption } from '../../types'
+import { RagFieldLabel, RagNumericField, RagSectionTitle, RagSelectField } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
   embeddingModelId: string | null
   embeddingModelOptions: KnowledgeSelectOption[]
-  dimensions: number
+  dimensions: string
+  dimensionsErrorCode?: 'dimensionsInvalid'
+  onEmbeddingModelChange: (embeddingModelId: string) => void
+  onDimensionsChange: (dimensions: string) => void
 }
 
-const EmbeddingSection = ({ embeddingModelId, embeddingModelOptions, dimensions }: EmbeddingSectionProps) => {
+const EmbeddingSection = ({
+  embeddingModelId,
+  embeddingModelOptions,
+  dimensions,
+  dimensionsErrorCode,
+  onEmbeddingModelChange,
+  onDimensionsChange
+}: EmbeddingSectionProps) => {
   const { t } = useTranslation()
-  const embeddingModelLabel = useMemo(() => {
-    if (!embeddingModelId) {
-      return t('knowledge_v2.not_set')
-    }
-
-    return embeddingModelOptions.find((option) => option.value === embeddingModelId)?.label ?? embeddingModelId
-  }, [embeddingModelId, embeddingModelOptions, t])
 
   return (
     <section className="space-y-2.5">
       <RagSectionTitle title={t('knowledge_v2.embedding_model')} icon={DatabaseZap} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_8.75rem] gap-2">
-        <RagReadonlyField
-          label={t('knowledge_v2.embedding_model')}
-          value={embeddingModelLabel}
-          hint={t('knowledge_v2.rag.hints.embedding_model')}
-        />
+        <div>
+          <RagFieldLabel label={t('knowledge_v2.embedding_model')} hint={t('knowledge_v2.rag.hints.embedding_model')} />
+          <RagSelectField
+            value={embeddingModelId ?? undefined}
+            options={embeddingModelOptions}
+            placeholder={t('knowledge_v2.not_set')}
+            onValueChange={onEmbeddingModelChange}
+          />
+        </div>
 
-        <RagReadonlyField
-          label={t('knowledge_v2.dimensions')}
-          value={String(dimensions)}
-          hint={t('knowledge_v2.rag.hints.dimensions')}
-        />
+        <div>
+          <RagNumericField
+            label={t('knowledge_v2.dimensions')}
+            value={dimensions}
+            hint={t('knowledge_v2.rag.hints.dimensions')}
+            onChange={onDimensionsChange}
+          />
+          {dimensionsErrorCode === 'dimensionsInvalid' ? (
+            <div className="mt-1 text-[0.625rem] text-destructive leading-3.5">
+              {t('knowledge.dimensions_error_invalid')}
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   )

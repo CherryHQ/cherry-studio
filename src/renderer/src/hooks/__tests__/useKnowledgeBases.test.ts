@@ -8,6 +8,7 @@ import {
   useCreateKnowledgeBase,
   useDeleteKnowledgeBase,
   useKnowledgeBases,
+  useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '../useKnowledgeBases'
 
@@ -20,6 +21,7 @@ const mockUseMutation = vi.fn()
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()
 const mockRuntimeCreateBase = vi.fn()
+const mockRuntimeRestoreBase = vi.fn()
 const mockRuntimeDeleteBase = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -212,6 +214,83 @@ describe('useCreateKnowledgeBase', () => {
       groupId: undefined,
       embeddingModelId: 'openai::text-embedding-3-small',
       error: createError
+    })
+  })
+})
+
+describe('useRestoreKnowledgeBase', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
+    mockInvalidateCache.mockResolvedValue(undefined)
+    mockRuntimeRestoreBase.mockResolvedValue(createKnowledgeBase())
+    ;(window as any).api = {
+      knowledgeRuntime: {
+        restoreBase: mockRuntimeRestoreBase
+      }
+    }
+  })
+
+  it('restores a knowledge base through runtime IPC and refreshes the list', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB_bak',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1024
+    })
+    mockRuntimeRestoreBase.mockResolvedValueOnce(restoredBase)
+
+    const { result } = renderHook(() => useRestoreKnowledgeBase())
+    let restored: KnowledgeBase | undefined
+
+    await act(async () => {
+      restored = await result.current.restoreBase({
+        sourceBaseId: '  source-base  ',
+        name: '  Legacy KB_bak  ',
+        embeddingModelId: '  openai::text-embedding-3-small  ',
+        dimensions: 1024
+      })
+    })
+
+    expect(mockRuntimeRestoreBase).toHaveBeenCalledWith({
+      sourceBaseId: 'source-base',
+      name: 'Legacy KB_bak',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1024
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(restored).toEqual(restoredBase)
+    expect(result.current.isRestoring).toBe(false)
+    expect(result.current.restoreError).toBeUndefined()
+  })
+
+  it('keeps restore rejected when runtime IPC fails without refreshing the list', async () => {
+    const restoreError = new Error('restore failed')
+    mockRuntimeRestoreBase.mockRejectedValueOnce(restoreError)
+    const { result } = renderHook(() => useRestoreKnowledgeBase())
+
+    await act(async () => {
+      await expect(
+        result.current.restoreBase({
+          sourceBaseId: 'source-base',
+          name: 'Legacy KB_bak',
+          embeddingModelId: 'openai::text-embedding-3-small',
+          dimensions: 1024
+        })
+      ).rejects.toBe(restoreError)
+    })
+
+    expect(mockInvalidateCache).not.toHaveBeenCalled()
+    expect(result.current.isRestoring).toBe(false)
+    expect(result.current.restoreError).toBe(restoreError)
+    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to restore knowledge base', {
+      sourceBaseId: 'source-base',
+      name: 'Legacy KB_bak',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      error: restoreError
     })
   })
 })

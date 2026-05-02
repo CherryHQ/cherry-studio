@@ -2215,8 +2215,10 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "failed_base_unknown": "該知識庫遷移失敗，請重建知識庫並選擇新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
-      "failed_to_edit": "知识库编辑失败"
+      "failed_to_edit": "知识库编辑失败",
+      "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。"
     },
     "groups": {
       "add": "新建分组",
@@ -2297,6 +2299,13 @@
       "top_score": "最高: {{score}}"
     },
     "rename_title": "重命名知识库",
+    "restore": {
+      "action": "重建知識庫",
+      "default_name": "{{name}}_副本",
+      "failed_to_restore": "知識庫重建失敗",
+      "submit": "重建",
+      "title": "重建知識庫"
+    },
     "search": "搜索知识库",
     "status": {
       "completed": "就绪",

@@ -14,7 +14,7 @@ export interface KnowledgeRagConfigFormValues {
   chunkOverlap: string
   embeddingModelId: string | null
   rerankModelId: string | null
-  dimensions: number
+  dimensions: string
   documentCount: number
   threshold: number
   searchMode: KnowledgeSearchMode

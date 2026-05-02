@@ -2,6 +2,7 @@ import {
   useCreateKnowledgeBase,
   useDeleteKnowledgeBase,
   useKnowledgeBases,
+  useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBases'
 import type { Group } from '@shared/data/types/group'
@@ -26,6 +27,7 @@ import {
   useKnowledgeItems,
   useUpdateKnowledgeGroup
 } from './hooks'
+import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 
 const NAVIGATOR_DEFAULT_WIDTH = 180
@@ -36,6 +38,7 @@ type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
 type KnowledgeBaseItems = ReturnType<typeof useKnowledgeItems>['items']
 type CreateKnowledgeBase = ReturnType<typeof useCreateKnowledgeBase>['createBase']
+type RestoreKnowledgeBase = ReturnType<typeof useRestoreKnowledgeBase>['restoreBase']
 
 interface KnowledgePageContextValue {
   bases: KnowledgeBase[]
@@ -51,6 +54,8 @@ interface KnowledgePageContextValue {
   contentRef: RefObject<HTMLDivElement | null>
   editingBase: EditableKnowledgeBase | null
   editingGroup: EditableKnowledgeGroup | null
+  restoringBase: KnowledgeBase | null
+  restoreBaseInitialValues: KnowledgeRestoreBaseInitialValues | undefined
   isAddSourceDialogOpen: boolean
   isCreateBaseDialogOpen: boolean
   isCreateGroupDialogOpen: boolean
@@ -59,7 +64,9 @@ interface KnowledgePageContextValue {
   isCreatingGroup: boolean
   isUpdatingBase: boolean
   isUpdatingGroup: boolean
+  isRestoringBase: boolean
   createBase: CreateKnowledgeBase
+  restoreBase: RestoreKnowledgeBase
   selectBase: (baseId: string) => void
   setActiveTab: (tab: KnowledgeTabKey) => void
   openItemChunks: (itemId: string) => void
@@ -69,12 +76,15 @@ interface KnowledgePageContextValue {
   openCreateGroupDialog: () => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
   openRenameGroupDialog: (group: EditableKnowledgeGroup) => void
+  openRestoreBaseDialog: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
   handleAddSourceDialogOpenChange: (open: boolean) => void
   handleCreateBaseDialogOpenChange: (open: boolean) => void
   handleCreateGroupDialogOpenChange: (open: boolean) => void
   handleRenameBaseDialogOpenChange: (open: boolean) => void
   handleRenameGroupDialogOpenChange: (open: boolean) => void
+  handleRestoreBaseDialogOpenChange: (open: boolean) => void
   handleCreateBaseCreated: (createdBase: { id: string }) => void
+  handleRestoreBaseRestored: (restoredBase: { id: string }) => void
   submitCreateGroup: (name: string) => Promise<void>
   submitRenameBase: (name: string) => Promise<void>
   submitRenameGroup: (name: string) => Promise<void>
@@ -91,6 +101,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating: isCreatingBase } = useCreateKnowledgeBase()
+  const { restoreBase, isRestoring: isRestoringBase } = useRestoreKnowledgeBase()
   const { updateBase, isUpdating: isUpdatingBase } = useUpdateKnowledgeBase()
   const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
   const { deleteBase } = useDeleteKnowledgeBase()
@@ -103,6 +114,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
   const [editingGroup, setEditingGroup] = useState<EditableKnowledgeGroup | null>(null)
+  const [restoringBase, setRestoringBase] = useState<KnowledgeBase | null>(null)
+  const [restoreBaseInitialValues, setRestoreBaseInitialValues] = useState<
+    KnowledgeRestoreBaseInitialValues | undefined
+  >()
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
@@ -184,6 +199,14 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setEditingGroup(group)
   }, [])
 
+  const openRestoreBaseDialog = useCallback(
+    (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => {
+      setRestoringBase(base)
+      setRestoreBaseInitialValues(initialValues)
+    },
+    []
+  )
+
   const handleCreateBaseDialogOpenChange = useCallback((open: boolean) => {
     setIsCreateBaseDialogOpen(open)
 
@@ -212,9 +235,24 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     }
   }, [])
 
+  const handleRestoreBaseDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setRestoringBase(null)
+      setRestoreBaseInitialValues(undefined)
+    }
+  }, [])
+
   const handleCreateBaseCreated = useCallback((createdBase: { id: string }) => {
     setPendingSelectedBaseId(createdBase.id)
     setSelectedBaseId(createdBase.id)
+    setSelectedItemId(null)
+  }, [])
+
+  const handleRestoreBaseRestored = useCallback((restoredBase: { id: string }) => {
+    setRestoringBase(null)
+    setRestoreBaseInitialValues(undefined)
+    setPendingSelectedBaseId(restoredBase.id)
+    setSelectedBaseId(restoredBase.id)
     setSelectedItemId(null)
   }, [])
 
@@ -329,6 +367,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       contentRef,
       editingBase,
       editingGroup,
+      restoringBase,
+      restoreBaseInitialValues,
       isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
@@ -337,7 +377,9 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isCreatingGroup,
       isUpdatingBase,
       isUpdatingGroup,
+      isRestoringBase,
       createBase,
+      restoreBase,
       selectBase,
       setActiveTab: handleSetActiveTab,
       openItemChunks,
@@ -347,12 +389,15 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       openCreateGroupDialog,
       openRenameBaseDialog,
       openRenameGroupDialog,
+      openRestoreBaseDialog,
       handleAddSourceDialogOpenChange,
       handleCreateBaseDialogOpenChange,
       handleCreateGroupDialogOpenChange,
       handleRenameBaseDialogOpenChange,
       handleRenameGroupDialogOpenChange,
+      handleRestoreBaseDialogOpenChange,
       handleCreateBaseCreated,
+      handleRestoreBaseRestored,
       submitCreateGroup,
       submitRenameBase,
       submitRenameGroup,
@@ -367,6 +412,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       createBase,
       editingBase,
       editingGroup,
+      restoringBase,
+      restoreBaseInitialValues,
       groups,
       handleAddSourceDialogOpenChange,
       handleCreateBaseCreated,
@@ -377,6 +424,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleSetActiveTab,
       handleRenameBaseDialogOpenChange,
       handleRenameGroupDialogOpenChange,
+      handleRestoreBaseDialogOpenChange,
       isAddSourceDialogOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
@@ -387,6 +435,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isLoading,
       isUpdatingBase,
       isUpdatingGroup,
+      isRestoringBase,
       moveBase,
       navigatorWidth,
       openAddSourceDialog,
@@ -396,6 +445,8 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       openCreateGroupDialog,
       openRenameBaseDialog,
       openRenameGroupDialog,
+      openRestoreBaseDialog,
+      restoreBase,
       selectBase,
       selectedBase,
       selectedBaseId,

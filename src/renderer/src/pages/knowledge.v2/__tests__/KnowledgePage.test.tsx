@@ -10,6 +10,7 @@ const mockUseKnowledgeBases = vi.fn()
 const mockUseKnowledgeGroups = vi.fn()
 const mockUseCreateKnowledgeGroup = vi.fn()
 const mockUseCreateKnowledgeBase = vi.fn()
+const mockUseRestoreKnowledgeBase = vi.fn()
 const mockUseUpdateKnowledgeBase = vi.fn()
 const mockUseUpdateKnowledgeGroup = vi.fn()
 const mockUseDeleteKnowledgeGroup = vi.fn()
@@ -21,6 +22,7 @@ const mockUseReindexKnowledgeItem = vi.fn()
 vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
+  useRestoreKnowledgeBase: () => mockUseRestoreKnowledgeBase(),
   useUpdateKnowledgeBase: () => mockUseUpdateKnowledgeBase(),
   useDeleteKnowledgeBase: () => mockUseDeleteKnowledgeBase()
 }))
@@ -114,11 +116,13 @@ vi.mock('../components/DetailHeader', () => ({
     base,
     itemCount,
     onRenameBase,
+    onRestoreBase,
     onDeleteBase
   }: {
-    base: { id: string; name: string }
+    base: KnowledgeBase
     itemCount: number
     onRenameBase: (base: { id: string; name: string }) => void
+    onRestoreBase: (base: KnowledgeBase) => void
     onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
@@ -126,6 +130,9 @@ vi.mock('../components/DetailHeader', () => ({
       <div data-testid="detail-header-item-count">{itemCount}</div>
       <button type="button" onClick={() => onRenameBase(base)}>
         HeaderRename {base.name}
+      </button>
+      <button type="button" onClick={() => onRestoreBase(base)}>
+        HeaderRestore {base.name}
       </button>
       <button type="button" onClick={() => void onDeleteBase(base.id)}>
         HeaderDelete {base.name}
@@ -271,6 +278,49 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
           Cancel Create
+        </button>
+      </div>
+    ) : null
+}))
+
+vi.mock('../components/RestoreKnowledgeBaseDialog', () => ({
+  default: ({
+    open,
+    base,
+    restoreBase,
+    onOpenChange,
+    onRestored
+  }: {
+    open: boolean
+    base: KnowledgeBase
+    restoreBase: (input: {
+      sourceBaseId: string
+      name: string
+      embeddingModelId: string | null
+      dimensions: number
+    }) => Promise<KnowledgeBase>
+    onOpenChange: (open: boolean) => void
+    onRestored: (base: KnowledgeBase) => void
+  }) =>
+    open ? (
+      <div data-testid="restore-dialog">
+        <div data-testid="restore-dialog-source-name">{base.name}</div>
+        <button
+          type="button"
+          onClick={async () => {
+            const restoredBase = await restoreBase({
+              sourceBaseId: base.id,
+              name: `${base.name}_副本`,
+              embeddingModelId: 'openai::text-embedding-3-small',
+              dimensions: 1024
+            })
+            onRestored(restoredBase)
+            onOpenChange(false)
+          }}>
+          Submit Restore
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Cancel Restore
         </button>
       </div>
     ) : null
@@ -424,6 +474,11 @@ describe('KnowledgePage', () => {
       createBase: vi.fn(),
       isCreating: false,
       createError: undefined
+    })
+    mockUseRestoreKnowledgeBase.mockReturnValue({
+      restoreBase: vi.fn(),
+      isRestoring: false,
+      restoreError: undefined
     })
     mockUseKnowledgeGroups.mockReturnValue({
       groups: [createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })],
@@ -1003,6 +1058,82 @@ describe('KnowledgePage', () => {
     await waitFor(() => {
       expect(createBase).toHaveBeenCalledWith(expect.objectContaining({ groupId: 'group-2' }))
     })
+  })
+
+  it('opens the restore dialog from the detail header and selects the restored knowledge base after success', async () => {
+    const failedBase = createKnowledgeBase({
+      id: 'failed-base',
+      name: 'Legacy KB',
+      groupId: 'group-1',
+      status: 'failed',
+      error: 'missing_embedding_model',
+      dimensions: null,
+      embeddingModelId: null
+    })
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB_副本',
+      groupId: 'group-1',
+      status: 'completed',
+      error: null,
+      dimensions: 1024,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    let bases = [failedBase]
+    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+
+    mockUseKnowledgeBases.mockImplementation(() => ({
+      bases,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+    mockUseRestoreKnowledgeBase.mockReturnValue({
+      restoreBase,
+      isRestoring: false,
+      restoreError: undefined
+    })
+    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
+      items:
+        baseId === 'restored-base'
+          ? [createKnowledgeItem({ id: 'restored-item' })]
+          : [createKnowledgeItem({ id: 'failed-item' })],
+      total: 1,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { rerender } = render(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'HeaderRestore Legacy KB' }))
+    expect(screen.getByTestId('restore-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('restore-dialog-source-name')).toHaveTextContent('Legacy KB')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Restore' }))
+
+    await waitFor(() =>
+      expect(restoreBase).toHaveBeenCalledWith({
+        sourceBaseId: 'failed-base',
+        name: 'Legacy KB_副本',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1024
+      })
+    )
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base')
+
+    bases = [failedBase, restoredBase]
+    rerender(<KnowledgePage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB_副本')
+    })
+    expect(screen.queryByTestId('restore-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('restored-base')
   })
 
   it('clears the initial group id after closing a grouped create dialog', async () => {

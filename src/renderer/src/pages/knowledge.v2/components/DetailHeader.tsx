@@ -1,8 +1,17 @@
-import { Button, ConfirmDialog, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  MenuItem,
+  MenuList,
+  NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { formatRelativeTime } from '@renderer/pages/knowledge.v2/utils'
+import { formatRelativeTime, getKnowledgeBaseFailureReason } from '@renderer/pages/knowledge.v2/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { Clock3, FileText, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
+import { Clock3, FileText, Info, MoreHorizontal, PencilLine, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,10 +21,11 @@ interface DetailHeaderProps {
   base: KnowledgeBase
   itemCount: number
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
+  onRestoreBase: (base: KnowledgeBase) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
 
-const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHeaderProps) => {
+const DetailHeader = ({ base, itemCount, onRenameBase, onRestoreBase, onDeleteBase }: DetailHeaderProps) => {
   const { t, i18n } = useTranslation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -25,6 +35,7 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     [base.updatedAt, i18n.language]
   )
   const statusLabel = t(`knowledge_v2.status.${base.status}`)
+  const failureReason = base.status === 'failed' ? getKnowledgeBaseFailureReason(base, t) : null
 
   const handleRenameBase = useCallback(() => {
     setIsMenuOpen(false)
@@ -38,6 +49,10 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     await onDeleteBase(base.id)
     setIsDeleteDialogOpen(false)
   }, [base.id, onDeleteBase])
+
+  const handleRestoreBase = useCallback(() => {
+    onRestoreBase(base)
+  }, [base, onRestoreBase])
 
   return (
     <>
@@ -58,6 +73,32 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
                 title={statusLabel}
               />
               <span className="text-[9px] text-muted-foreground/35">{statusLabel}</span>
+              {failureReason ? (
+                <NormalTooltip
+                  content={failureReason}
+                  side="bottom"
+                  contentProps={{
+                    className: 'max-w-64 rounded-md px-2.5 py-1.5 text-[0.6875rem] leading-4 text-foreground/75'
+                  }}>
+                  <span
+                    tabIndex={0}
+                    className="inline-flex cursor-help items-center text-muted-foreground/35 hover:text-muted-foreground/60"
+                    aria-label={failureReason}>
+                    <Info className="size-2.5" />
+                  </span>
+                </NormalTooltip>
+              ) : null}
+              {base.status === 'failed' ? (
+                <Button
+                  type="button"
+                  className="h-5 min-h-5 rounded bg-primary px-2 text-[0.625rem] text-primary-foreground leading-3.75 shadow-none hover:bg-primary/90"
+                  aria-label={t('knowledge_v2.restore.action')}
+                  title={t('knowledge_v2.restore.action')}
+                  onClick={handleRestoreBase}>
+                  <RefreshCw className="size-2.5" />
+                  {t('knowledge_v2.restore.action')}
+                </Button>
+              ) : null}
             </h1>
           </div>
         </div>

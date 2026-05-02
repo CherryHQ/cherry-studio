@@ -1,4 +1,4 @@
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, MenuItem, MenuList, NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
@@ -54,7 +54,13 @@ const KnowledgeItemRowContent = ({
   </div>
 )
 
-const KnowledgeItemRowStatus = ({ status }: { status: DataSourceStatusViewModel }) => {
+const KnowledgeItemRowStatus = ({
+  failureReason,
+  status
+}: {
+  failureReason: string | null
+  status: DataSourceStatusViewModel
+}) => {
   const { t } = useTranslation()
   const icon =
     status.icon === 'loader' ? (
@@ -65,12 +71,34 @@ const KnowledgeItemRowStatus = ({ status }: { status: DataSourceStatusViewModel 
       <CircleAlert className="size-2" />
     )
 
+  const content = (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 text-[0.5625rem] leading-3.375',
+        failureReason ? 'cursor-help' : '',
+        status.textClassName
+      )}
+      tabIndex={failureReason ? 0 : undefined}
+      aria-label={failureReason ?? undefined}>
+      {icon}
+      <span>{t(status.labelKey)}</span>
+    </span>
+  )
+
   return (
     <div className="flex shrink-0 items-center">
-      <span className={cn('inline-flex items-center gap-0.5 text-[0.5625rem] leading-3.375', status.textClassName)}>
-        {icon}
-        <span>{t(status.labelKey)}</span>
-      </span>
+      {failureReason ? (
+        <NormalTooltip
+          content={failureReason}
+          side="bottom"
+          contentProps={{
+            className: 'max-w-72 rounded-md px-2.5 py-1.5 text-[0.6875rem] leading-4 text-foreground/75'
+          }}>
+          {content}
+        </NormalTooltip>
+      ) : (
+        content
+      )}
     </div>
   )
 }
@@ -243,6 +271,7 @@ const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex, onViewChunks }: 
     i18n: { language }
   } = useTranslation()
   const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
+  const failureReason = item.status === 'failed' ? item.error : null
 
   return (
     <div
@@ -250,7 +279,7 @@ const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex, onViewChunks }: 
       onClick={onClick}>
       <KnowledgeItemRowIcon {...icon} />
       <KnowledgeItemRowContent id={item.id} title={title} suffix={suffix} metaParts={metaParts} />
-      <KnowledgeItemRowStatus status={status} />
+      <KnowledgeItemRowStatus status={status} failureReason={failureReason} />
       <KnowledgeItemRowMoreMenu onDelete={onDelete} onReindex={onReindex} onViewChunks={onViewChunks} />
     </div>
   )

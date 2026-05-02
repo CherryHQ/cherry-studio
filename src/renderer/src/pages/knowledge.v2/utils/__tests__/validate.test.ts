@@ -14,7 +14,7 @@ const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {})
   chunkOverlap: '64',
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: null,
-  dimensions: 1536,
+  dimensions: '1536',
   documentCount: 6,
   threshold: 0.1,
   searchMode: 'default',
@@ -98,17 +98,37 @@ describe('knowledge rag form state helpers', () => {
     })
   })
 
-  it('does not mark read-only embedding fields as dirty', () => {
+  it('marks embedding model and dimensions as dirty because changing them requires rebuild', () => {
     expect(
       getKnowledgeRagConfigFormState(
         createFormValues(),
-        createFormValues({ embeddingModelId: 'voyage::voyage-3-large', dimensions: 4096 })
+        createFormValues({ embeddingModelId: 'voyage::voyage-3-large', dimensions: '4096' })
       )
     ).toEqual({
       validationErrorCodes: {},
       hasEmptyChunkFields: false,
       hasValidationErrors: false,
-      isDirty: false,
+      isDirty: true,
+      canSave: true
+    })
+  })
+
+  it('blocks save when dimensions are empty or invalid', () => {
+    expect(getKnowledgeRagConfigFormState(createFormValues(), createFormValues({ dimensions: '' }))).toEqual({
+      validationErrorCodes: {},
+      hasEmptyChunkFields: true,
+      hasValidationErrors: false,
+      isDirty: true,
+      canSave: false
+    })
+
+    expect(getKnowledgeRagConfigFormState(createFormValues(), createFormValues({ dimensions: '0' }))).toEqual({
+      validationErrorCodes: {
+        dimensions: 'dimensionsInvalid'
+      },
+      hasEmptyChunkFields: false,
+      hasValidationErrors: true,
+      isDirty: true,
       canSave: false
     })
   })
