@@ -2498,8 +2498,7 @@
         "topic_group_id_order_key_idx": {
           "name": "topic_group_id_order_key_idx",
           "columns": ["group_id", "order_key"],
-          "isUnique": false,
-          "where": null
+          "isUnique": false
         }
       },
       "foreignKeys": {

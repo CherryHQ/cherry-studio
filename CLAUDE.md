@@ -159,13 +159,21 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ### Data Layer
 
-- **Removing**: Redux, Dexie
+- **Removing**: Redux, Dexie, ElectronStore
 - **Adopting**: Cache / Preference / DataApi architecture (see [Data](#data))
 
 ### UI Layer
 
 - **Prohibited**: antd, HeroUI, styled-components
 - **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
+
+### Coexistence Mindset
+
+Two things on this branch are throwaway — do not defend them.
+
+**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Redux, Dexie, ElectronStore) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work; leave mixed-branch v1 code alone unless it blocks v2.
+
+**Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
 ### Data Classification Toolchain
 

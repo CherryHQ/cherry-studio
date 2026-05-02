@@ -1,4 +1,9 @@
 import type * as LifecycleModule from '@main/core/lifecycle'
+import {
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+  DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  type KnowledgeBase
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerDebugMock, loggerErrorMock, loggerInfoMock, providerCreateMock, providerDeleteMock, providerExistsMock } =
@@ -59,12 +64,19 @@ vi.mock('../providers/LibSqlVectorStoreProvider', () => ({
 const { KnowledgeVectorStoreService } = await import('../KnowledgeVectorStoreService')
 const { LibSQLVectorStore } = await import('@vectorstores/libsql')
 
-function createBase(id = 'kb-1') {
+function createBase(id = 'kb-1'): KnowledgeBase {
   return {
     id,
     name: 'KB',
+    groupId: null,
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    status: 'completed',
+    error: null,
+    chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -182,6 +194,23 @@ describe('KnowledgeVectorStoreService', () => {
     expect(providerExistsMock).toHaveBeenCalledWith(base.id)
     expect(providerCreateMock).toHaveBeenCalledWith(base)
     expect(loggerInfoMock).toHaveBeenCalledWith('Opening existing vector store from disk', { baseId: base.id })
+  })
+
+  it('rejects failed bases with null dimensions before touching the provider', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = {
+      ...createBase(),
+      dimensions: null,
+      embeddingModelId: null,
+      status: 'failed',
+      error: 'missing_embedding_model'
+    } satisfies KnowledgeBase
+
+    await expect(service.createStore(base)).rejects.toThrow('not ready for vector store operations')
+    await expect(service.getStoreIfExists(base)).rejects.toThrow('not ready for vector store operations')
+
+    expect(providerCreateMock).not.toHaveBeenCalled()
+    expect(providerExistsMock).not.toHaveBeenCalled()
   })
 
   it('returns the cached store from getStoreIfExists without probing the provider', async () => {

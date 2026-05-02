@@ -93,6 +93,27 @@ describe('LibSQLVectorStore', () => {
       expect(ids[1]).toBeDefined()
     })
 
+    it('should preserve caller metadata without injecting create_date', async () => {
+      const metadata: Metadata = { category: 'test', score: 1.0 }
+      const node = new TextNode({
+        id_: 'chunk-metadata-preserved',
+        text: 'Document chunk',
+        embedding: [0.1, 0.2],
+        metadata
+      })
+
+      await store.add([node])
+
+      expect(metadata).toEqual({ category: 'test', score: 1.0 })
+
+      const rows = await client.execute("SELECT metadata FROM test_embeddings WHERE id = 'chunk-metadata-preserved'")
+      expect(rows.rows).toHaveLength(1)
+      expect(JSON.parse(String(rows.rows[0]?.metadata))).toEqual({
+        category: 'test',
+        score: 1.0
+      })
+    })
+
     it('should reject nodes with missing embeddings instead of writing zero vectors', async () => {
       const node = new TextNode({
         id_: 'chunk-missing-embedding',
@@ -923,6 +944,54 @@ describe('LibSQLVectorStore', () => {
       })
     })
 
+    it('should query bm25 mode with non-consecutive multi-word user text', async () => {
+      const result = await store.query({
+        queryStr: 'artificial technology',
+        similarityTopK: 2,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      const nodes = result.nodes ?? []
+
+      expect(nodes.length).toBeGreaterThan(0)
+      expect(nodes.some((node) => node.getContent(MetadataMode.NONE).includes('artificial intelligence'))).toBe(true)
+    })
+
+    it('should query bm25 mode with punctuation as ordinary user text', async () => {
+      await store.add([
+        new TextNode({
+          text: 'DeepSeek-V3.2 release notes mention node.js, README.md, and C++ usage examples',
+          embedding: [0.7, 0.3],
+          metadata: { category: 'release' }
+        })
+      ])
+
+      const queries = ['DeepSeek-V3.2', 'README.md', 'node.js', 'C++', 'DeepSeek "V3.2"']
+
+      for (const queryStr of queries) {
+        const result = await store.query({
+          queryStr,
+          similarityTopK: 3,
+          mode: 'bm25' as VectorStoreQueryMode
+        })
+
+        expect(result.nodes?.length ?? 0).toBeGreaterThan(0)
+      }
+    })
+
+    it('should return empty bm25 results for punctuation-only user text', async () => {
+      const result = await store.query({
+        queryStr: '...',
+        similarityTopK: 3,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+
+      expect(result).toEqual({
+        nodes: [],
+        similarities: [],
+        ids: []
+      })
+    })
+
     it('should throw error for bm25 mode without queryStr', async () => {
       const query: VectorStoreQuery = {
         queryEmbedding: [0.5, 0.5],
@@ -952,6 +1021,38 @@ describe('LibSQLVectorStore', () => {
         const text = node.getContent(MetadataMode.NONE).toLowerCase()
         expect(text.includes('artificial') || text.includes('intelligence') || text.includes('learning')).toBe(true)
       })
+    })
+
+    it('should query hybrid mode with non-consecutive multi-word user text', async () => {
+      const result = await store.query({
+        queryEmbedding: [0.9, 0.1],
+        queryStr: 'artificial technology',
+        similarityTopK: 2,
+        mode: 'hybrid' as VectorStoreQueryMode
+      })
+      const nodes = result.nodes ?? []
+
+      expect(nodes.length).toBeGreaterThan(0)
+      expect(nodes.some((node) => node.getContent(MetadataMode.NONE).includes('artificial intelligence'))).toBe(true)
+    })
+
+    it('should query hybrid mode with punctuation as ordinary user text', async () => {
+      await store.add([
+        new TextNode({
+          text: 'DeepSeek-V3.2 release notes for hybrid retrieval',
+          embedding: [0.9, 0.1],
+          metadata: { category: 'release' }
+        })
+      ])
+
+      const result = await store.query({
+        queryEmbedding: [0.9, 0.1],
+        queryStr: 'DeepSeek-V3.2',
+        similarityTopK: 2,
+        mode: 'hybrid' as VectorStoreQueryMode
+      })
+
+      expect(result.nodes?.length ?? 0).toBeGreaterThan(0)
     })
 
     it('should throw error for hybrid mode without queryEmbedding', async () => {
@@ -1115,6 +1216,221 @@ describe('LibSQLVectorStore', () => {
       // Should not find in different collection
       store.setCollection('collection-b')
       expect(await store.exists('item-collection')).toBe(false)
+    })
+  })
+
+  describe('chunk deletion', () => {
+    it('should delete one chunk by id, external_id, and collection only', async () => {
+      store.setCollection('collection-a')
+      await store.add([
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'first chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 2 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        }),
+        new TextNode({
+          id_: 'chunk-2',
+          text: 'second chunk',
+          embedding: [0.2, 0.3],
+          metadata: { itemId: 'item-1', chunkIndex: 1, tokenCount: 2 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      const otherCollectionStore = new LibSQLVectorStore({
+        client,
+        tableName: 'test_embeddings',
+        dimensions: 2,
+        collection: 'collection-b'
+      })
+      await otherCollectionStore.add([
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'other collection chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+        })
+      ])
+
+      await store.deleteByIdAndExternalId('chunk-1', 'item-1')
+
+      const rows = await client.execute(
+        'SELECT id, external_id, collection FROM test_embeddings ORDER BY collection, id'
+      )
+      expect(rows.rows).toHaveLength(2)
+      expect(rows.rows[0]).toMatchObject({ id: 'chunk-2', external_id: 'item-1', collection: 'collection-a' })
+      expect(rows.rows[1]).toMatchObject({ id: 'chunk-1', external_id: 'item-1', collection: 'collection-b' })
+    })
+
+    it('should remove a deleted chunk from bm25 search', async () => {
+      const node = new TextNode({
+        id_: 'chunk-bm25-delete',
+        text: 'delete this exact chunk',
+        embedding: [0.5, 0.6],
+        metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 4 },
+        relationships: { [NodeRelationship.SOURCE]: { nodeId: 'item-1', metadata: {} } }
+      })
+
+      await store.add([node])
+      await store.deleteByIdAndExternalId('chunk-bm25-delete', 'item-1')
+
+      const result = await store.query({
+        queryStr: 'delete exact',
+        similarityTopK: 5,
+        mode: 'bm25' as VectorStoreQueryMode
+      })
+      expect(result.ids).not.toContain('chunk-bm25-delete')
+    })
+  })
+
+  describe('listByExternalId', () => {
+    it('should list documents by external_id in chunk order without embeddings', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-2',
+          text: 'second chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 1, tokenCount: 2 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        }),
+        new TextNode({
+          id_: 'chunk-1',
+          text: 'first chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 2 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        }),
+        new TextNode({
+          id_: 'other-chunk',
+          text: 'other item chunk',
+          embedding: [0.5, 0.6],
+          metadata: { itemId: 'item-2', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-2',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks.map((chunk) => chunk.id_)).toEqual(['chunk-1', 'chunk-2'])
+      expect(chunks.map((chunk) => chunk.getContent(MetadataMode.NONE))).toEqual(['first chunk', 'second chunk'])
+      expect(chunks.map((chunk) => chunk.metadata.chunkIndex)).toEqual([0, 1])
+      expect(() => chunks[0]?.getEmbedding()).toThrow('Embedding not set')
+    })
+
+    it('should fall back to external_id when listed metadata has no itemId', async () => {
+      await store.add([
+        new TextNode({
+          id_: 'chunk-without-item-id',
+          text: 'chunk without item id',
+          embedding: [0.1, 0.2],
+          metadata: { chunkIndex: 0, tokenCount: 4 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.metadata).toMatchObject({
+        itemId: 'item-1',
+        chunkIndex: 0,
+        tokenCount: 4
+      })
+    })
+
+    it('should tolerate invalid metadata JSON when listing documents', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      await store.add([
+        new TextNode({
+          id_: 'chunk-invalid-list-metadata',
+          text: 'chunk with invalid list metadata',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 5 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+      await client.execute({
+        sql: 'UPDATE test_embeddings SET metadata = ? WHERE id = ?',
+        args: ['{"itemId":', 'chunk-invalid-list-metadata']
+      })
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]?.id_).toBe('chunk-invalid-list-metadata')
+      expect(chunks[0]?.metadata).toEqual({ itemId: 'item-1' })
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Failed to parse metadata JSON for row chunk-invalid-list-metadata',
+        expect.any(Error)
+      )
+
+      warnSpy.mockRestore()
+    })
+
+    it('should respect collection when listing documents', async () => {
+      store.setCollection('collection-a')
+      await store.add([
+        new TextNode({
+          id_: 'collection-a-chunk',
+          text: 'collection a chunk',
+          embedding: [0.1, 0.2],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      store.setCollection('collection-b')
+      await store.add([
+        new TextNode({
+          id_: 'collection-b-chunk',
+          text: 'collection b chunk',
+          embedding: [0.3, 0.4],
+          metadata: { itemId: 'item-1', chunkIndex: 0, tokenCount: 3 },
+          relationships: {
+            [NodeRelationship.SOURCE]: {
+              nodeId: 'item-1',
+              metadata: {}
+            }
+          }
+        })
+      ])
+
+      const chunks = await store.listByExternalId('item-1')
+
+      expect(chunks.map((chunk) => chunk.id_)).toEqual(['collection-b-chunk'])
     })
   })
 })
