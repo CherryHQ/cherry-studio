@@ -27,10 +27,13 @@
 import { spawn } from 'node:child_process'
 import { isAbsolute } from 'node:path'
 
+import { checkPermission, matcherRegistry } from '@main/services/toolApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import { BuiltinToolNamespace, ToolCapability, ToolDefer, type ToolEntry } from '../../types'
+import { checkShellExecPermissions } from './bash/checkPermissions'
+import { matchBashRule } from './bash/ruleMatcher'
 import { selectShell } from './shellSelection'
 
 export const SHELL_EXEC_TOOL_NAME = 'shell__exec'
@@ -104,8 +107,14 @@ const shellExecTool = tool({
 
 Use for:
 - Running build / test / lint commands
-- Inspecting environment or git state
-- Listing or counting files via standard tools (\`find\`, \`ls\`, \`wc\`, etc.)
+- Inspecting environment or git state (\`git status\`, \`git log\`, \`pwd\`, \`whoami\`, ...)
+- Listing or counting files (\`ls\`, \`wc\`, \`stat\`)
+
+DO NOT use this tool for file search or content search:
+- For finding files by name / glob / path → use the \`fs__find\` tool, NOT \`find\` / \`fd\` / \`ls -R\` / \`glob\` in bash.
+- For searching file contents → use the \`fs__grep\` tool, NOT \`grep\` / \`rg\` / \`ag\` / \`ack\` in bash.
+- For reading a file's contents → use the \`fs__read\` tool, NOT \`cat\` / \`head\` / \`tail\` for the primary read.
+The dedicated tools are faster, return structured results, and respect cherry's path scoping. Reach for shell only when those tools genuinely don't cover the task.
 
 Behavior:
 - Unix: invoked via \`$SHELL -c\` (fallback /bin/bash).
@@ -118,6 +127,20 @@ The command runs in cherry's environment. Avoid commands that require interactiv
   inputSchema,
   outputSchema,
   toModelOutput: shellExecToModelOutput,
+  needsApproval: async (input, { toolCallId, experimental_context }) => {
+    const ctx = {
+      toolKind: 'builtin' as const,
+      sessionId: toolCallId,
+      toolCallId,
+      cwd: typeof (input as { cwd?: unknown })?.cwd === 'string' ? (input as { cwd: string }).cwd : undefined,
+      ...(experimental_context as { topicId?: string; anchorId?: string } | undefined)
+    }
+    const decision = await checkPermission(SHELL_EXEC_TOOL_NAME, input, ctx)
+    if (decision.behavior === 'deny') {
+      throw new Error(decision.reason ?? `${SHELL_EXEC_TOOL_NAME} denied by permission policy.`)
+    }
+    return decision.behavior === 'ask'
+  },
   execute: async ({ command, cwd, timeout }, { abortSignal }): Promise<ShellExecOutput> => {
     if (cwd !== undefined && !isAbsolute(cwd)) {
       return { kind: 'error', code: 'relative-cwd', message: `cwd must be absolute. Got: ${cwd}` }
@@ -203,12 +226,14 @@ The command runs in cherry's environment. Avoid commands that require interactiv
 }) as Tool
 
 export function createShellExecToolEntry(): ToolEntry {
+  matcherRegistry.register(SHELL_EXEC_TOOL_NAME, matchBashRule)
   return {
     name: SHELL_EXEC_TOOL_NAME,
     namespace: BuiltinToolNamespace.Shell,
     description: 'Run a shell command (bash on Unix, pwsh on Windows). Returns stdout, stderr, exit code.',
     defer: ToolDefer.Auto,
     capability: ToolCapability.Compute,
-    tool: shellExecTool
+    tool: shellExecTool,
+    checkPermissions: checkShellExecPermissions
   }
 }

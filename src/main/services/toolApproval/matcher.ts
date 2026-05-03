@@ -32,6 +32,14 @@ export function createMatcherRegistry(): MatcherRegistry {
   }
 }
 
+/**
+ * Process-wide singleton consumed by the central pipeline. Tools register
+ * their content matcher here at boot (alongside their `ToolEntry`).
+ * Tests construct fresh registries via `createMatcherRegistry()` and
+ * inject them via `checkToolPermission`'s `deps`.
+ */
+export const matcherRegistry: MatcherRegistry = createMatcherRegistry()
+
 export function toolMatchesRule(
   toolName: string,
   input: unknown,

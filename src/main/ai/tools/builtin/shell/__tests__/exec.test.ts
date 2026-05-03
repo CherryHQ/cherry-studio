@@ -1,3 +1,5 @@
+import '@test-helpers/setupBashWasm'
+
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { describe, expect, it } from 'vitest'
 

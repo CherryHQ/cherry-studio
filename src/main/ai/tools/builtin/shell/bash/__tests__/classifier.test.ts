@@ -12,7 +12,7 @@
  * Worst-of for pipelines: `ls && rm -rf /` → 'deny'.
  */
 
-import './setupBashWasm'
+import '@test-helpers/setupBashWasm'
 
 import { describe, expect, it } from 'vitest'
 

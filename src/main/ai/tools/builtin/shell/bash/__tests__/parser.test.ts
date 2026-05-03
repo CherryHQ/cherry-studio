@@ -9,7 +9,7 @@
  * downstream refuses to allow.
  */
 
-import './setupBashWasm'
+import '@test-helpers/setupBashWasm'
 
 import { describe, expect, it } from 'vitest'
 

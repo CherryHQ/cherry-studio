@@ -1,3 +1,4 @@
+import type { ToolCheckPermissions } from '@main/services/toolApproval/checkPermission'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tool } from 'ai'
 
@@ -83,4 +84,11 @@ export interface ToolEntry {
   capability?: ToolCapability
   tool: Tool
   applies?(scope: ToolApplyScope): boolean
+  /**
+   * Tool-specific Layer-3 permission gate. Runs as part of the unified
+   * approval pipeline (`services/toolApproval/checkPermission.ts`) and
+   * may short-circuit with `'allow'` / `'deny'` / `'ask'`, or return
+   * `'passthrough'` to defer to user-configured rules.
+   */
+  checkPermissions?: ToolCheckPermissions
 }

@@ -5,7 +5,7 @@
  * pipeline's L3 contract.
  */
 
-import './setupBashWasm'
+import '@test-helpers/setupBashWasm'
 
 import { describe, expect, it } from 'vitest'
 
