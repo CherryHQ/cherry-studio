@@ -416,6 +416,6 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-](?:[6-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-](?:[6-9]|\d{2})(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
