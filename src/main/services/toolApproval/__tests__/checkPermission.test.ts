@@ -15,26 +15,17 @@
  */
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { checkToolPermission } from '../checkPermission'
 import { createMatcherRegistry } from '../matcher'
 import type { PermissionRule } from '../types'
 import { makeContext, makeRule, mockToolEntry } from './testUtils'
 
-const ENV_KEY = 'CHERRY_AUTO_ALLOW_TOOLS'
 const RULES_KEY = 'tools.permission_rules'
-let originalEnv: string | undefined
 
 beforeEach(() => {
-  originalEnv = process.env[ENV_KEY]
-  delete process.env[ENV_KEY]
   MockMainPreferenceServiceUtils.resetMocks()
-})
-
-afterEach(() => {
-  if (originalEnv !== undefined) process.env[ENV_KEY] = originalEnv
-  else delete process.env[ENV_KEY]
 })
 
 function makeDeps(opts: { rules?: PermissionRule[]; entries?: ReturnType<typeof mockToolEntry>[] } = {}) {
@@ -47,16 +38,6 @@ function makeDeps(opts: { rules?: PermissionRule[]; entries?: ReturnType<typeof 
 }
 
 describe('checkToolPermission — Layer 1 (auto-approve)', () => {
-  it('env override → allow', async () => {
-    process.env[ENV_KEY] = '1'
-    const { matcherRegistry, toolRegistry } = makeDeps()
-    const decision = await checkToolPermission('shell__exec', {}, makeContext(), {
-      matcherRegistry,
-      toolRegistry: toolRegistry as never
-    })
-    expect(decision.behavior).toBe('allow')
-  })
-
   it('Read tool default-allowed → allow even without rules', async () => {
     const { matcherRegistry, toolRegistry } = makeDeps()
     const decision = await checkToolPermission('Read', {}, makeContext({ toolKind: 'claude-agent' }), {

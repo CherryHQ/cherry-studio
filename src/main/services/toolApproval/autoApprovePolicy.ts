@@ -10,28 +10,21 @@ export type AutoApproveDecision = {
   toolName: string
   agentAllowedTools?: readonly string[]
   permissionMode?: PermissionMode
-  /** MCP server's explicit opt-out list. A name in here must be prompted. */
-  serverDisabledAutoApprove?: readonly string[]
 }
-
-const envOverride = (): boolean => process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 
 const normalizeName = (name: string): string => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
 
 /**
- * Single source of truth shared by MCP `needsApproval` and Claude-Agent
- * `canUseTool`. MCP defaults to allow (opt-out only); Claude-Agent defaults
- * to deny with a built-in + agent-configured allowlist.
+ * Layer 1 of the unified pipeline — `bypassPermissions` mode + the
+ * Claude-Agent built-in allowlist. Returning true here short-circuits
+ * the entire pipeline (deny rules included).
  */
 export function shouldAutoApprove(decision: AutoApproveDecision): boolean {
-  const { toolName, toolKind, agentAllowedTools, permissionMode, serverDisabledAutoApprove } = decision
+  const { toolName, toolKind, agentAllowedTools, permissionMode } = decision
 
-  if (envOverride()) return true
   if (permissionMode === 'bypassPermissions') return true
 
-  if (toolKind === 'mcp') {
-    return !(serverDisabledAutoApprove?.includes(toolName) ?? false)
-  }
+  if (toolKind === 'mcp') return false
 
   const normalized = normalizeName(toolName)
   if (agentAllowedTools?.includes(toolName) || agentAllowedTools?.includes(normalized)) return true

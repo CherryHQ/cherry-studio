@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
@@ -17,17 +17,12 @@ import { mcpResultToTextSummary } from './utils'
 const logger = loggerService.withContext('mcpTools')
 
 /** Build the AI SDK Tool wrapper around a single MCPTool. */
-function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly string[]): Tool {
+function createMcpTool(mcpTool: MCPTool): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
-    needsApproval: async () =>
-      !shouldAutoApprove({
-        toolKind: 'mcp',
-        toolName: mcpTool.name,
-        serverDisabledAutoApprove: disabledAutoApproveTools
-      }),
+    needsApproval: makeNeedsApproval(mcpTool.id, { toolKind: 'mcp' }),
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
       const server = await resolveServerById(mcpTool.serverId)
       if (!server) {
@@ -67,13 +62,15 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
 }
 
 function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
+  const disabled = server.disabledAutoApproveTools ?? []
   return {
     name: mcpTool.id,
     namespace: `mcp:${server.id}`,
     description: mcpTool.description || mcpTool.name,
     defer: 'auto',
-    tool: createMcpTool(mcpTool, server.disabledAutoApproveTools),
-    applies: (scope) => scope.mcpToolIds.has(mcpTool.id)
+    tool: createMcpTool(mcpTool),
+    applies: (scope) => scope.mcpToolIds.has(mcpTool.id),
+    checkPermissions: () => (disabled.includes(mcpTool.name) ? { behavior: 'passthrough' } : { behavior: 'allow' })
   }
 }
 
