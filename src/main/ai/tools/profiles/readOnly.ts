@@ -1,3 +1,4 @@
+import { AGENT_TOOL_NAME } from '../agent/agentTool'
 import type { ToolProfile } from '../profile'
 import { BuiltinToolNamespace, MetaToolName, ToolCapability } from '../types'
 
@@ -9,5 +10,5 @@ export const READ_ONLY_PROFILE: ToolProfile = {
   allowNamespaces: [BuiltinToolNamespace.Web, BuiltinToolNamespace.Kb, BuiltinToolNamespace.Meta],
   allowCapabilities: [ToolCapability.Read],
   allowMcpServers: [],
-  blockNames: [MetaToolName.Agent, MetaToolName.Exec, MetaToolName.Invoke]
+  blockNames: [AGENT_TOOL_NAME, MetaToolName.Exec, MetaToolName.Invoke]
 }

@@ -1,6 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { Message } from '@shared/data/types/message'
 import type {
   Experimental_DownloadFunction as DownloadFunction,
   ModelMessage,
@@ -152,4 +153,12 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
    * provider to avoid double-consumption.
    */
   pendingMessages?: PendingMessageQueue
+  /**
+   * Channel for synthetic messages produced during the run (sub-agent
+   * results, compaction summaries, system reminders). Wired by the agent's
+   * caller to whatever delivery mechanism applies — typically
+   * `(msg) => streamManager.injectMessage(topicId, msg)`. Optional — when
+   * omitted, `Agent.injectReminder` is a no-op (returns false).
+   */
+  inject?: (message: Message) => boolean
 }

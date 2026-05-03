@@ -53,8 +53,7 @@ export const MetaToolName = {
   Search: 'tool_search',
   Inspect: 'tool_inspect',
   Invoke: 'tool_invoke',
-  Exec: 'tool_exec',
-  Agent: 'agent'
+  Exec: 'tool_exec'
 } as const
 export type MetaToolName = (typeof MetaToolName)[keyof typeof MetaToolName]
 

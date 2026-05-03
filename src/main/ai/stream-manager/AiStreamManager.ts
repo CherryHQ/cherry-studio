@@ -36,8 +36,7 @@ import type {
 
 const logger = loggerService.withContext('AiStreamManager')
 
-/** A single model's request inside a `send()` call. */
-export interface SendModelSpec {
+interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
 }

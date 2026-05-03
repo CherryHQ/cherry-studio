@@ -1,5 +1,6 @@
 import type { ToolSet } from 'ai'
 
+import { AGENT_TOOL_NAME } from './agent/agentTool'
 import type { ToolRegistry } from './registry'
 import {
   BuiltinToolNamespace,
@@ -19,16 +20,16 @@ export interface ToolProfile {
 }
 
 /**
- * Meta-tools are constructed per-request and not in the long-lived registry,
- * so {@link applyToolProfile} can't look them up there. This table is the
- * fallback — extend when adding new meta-tools.
+ * Per-request tools (meta-tools + the agent tool) aren't in the long-lived
+ * registry, so {@link applyToolProfile} can't look them up there. This table
+ * is the fallback — extend when adding new per-request tools.
  */
-const META_TOOL_CAPABILITY: Record<string, ToolCapability> = {
+const PER_REQUEST_TOOL_CAPABILITY: Record<string, ToolCapability> = {
   [MetaToolName.Search]: ToolCapabilityEnum.Read,
   [MetaToolName.Inspect]: ToolCapabilityEnum.Read,
   [MetaToolName.Invoke]: ToolCapabilityEnum.Compute,
   [MetaToolName.Exec]: ToolCapabilityEnum.Compute,
-  [MetaToolName.Agent]: ToolCapabilityEnum.Compute
+  [AGENT_TOOL_NAME]: ToolCapabilityEnum.Compute
 }
 
 interface ResolvedClassification {
@@ -39,8 +40,8 @@ interface ResolvedClassification {
 function classify(name: string, registry: ToolRegistry): ResolvedClassification | undefined {
   const entry = registry.getByName(name)
   if (entry) return { namespace: entry.namespace, capability: entry.capability }
-  if (name in META_TOOL_CAPABILITY) {
-    return { namespace: BuiltinToolNamespace.Meta, capability: META_TOOL_CAPABILITY[name] }
+  if (name in PER_REQUEST_TOOL_CAPABILITY) {
+    return { namespace: BuiltinToolNamespace.Meta, capability: PER_REQUEST_TOOL_CAPABILITY[name] }
   }
   return undefined
 }

@@ -23,6 +23,7 @@
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { Message } from '@shared/data/types/message'
 import type { LanguageModelUsage, ModelMessage, Tool, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages, isTextUIPart, readUIMessageStream, tool } from 'ai'
 
@@ -72,6 +73,17 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     void this.currentWriter?.write(chunk).catch(() => {
       // Writer may already be closing from a peer cancel — swallow.
     })
+  }
+
+  /**
+   * Deliver a synthetic message into the parent's pending-message channel.
+   * Used by both in-loop observers (token-budget, compaction trigger) firing
+   * via `Agent.on(hookKey, fn)`, and out-of-loop producers (async sub-agent
+   * drainer) that take an explicit `inject` callback. Returns false when
+   * the channel is unwired or the parent stream is already dead.
+   */
+  injectReminder(message: Message): boolean {
+    return this.params.inject?.(message) ?? false
   }
 
   /**
@@ -151,17 +163,17 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       description: opts.description,
       inputSchema: opts.inputSchema,
       execute: (input: unknown, options) =>
-        this.runAsToolExecution(
-          opts.toPrompt ? opts.toPrompt(input as TInput) : JSON.stringify(input),
-          options.abortSignal
-        )
+        this.executeAsTool(opts.toPrompt ? opts.toPrompt(input as TInput) : JSON.stringify(input), options.abortSignal)
     })
   }
 
-  private async *runAsToolExecution(
-    prompt: string,
-    abortSignal: AbortSignal | undefined
-  ): AsyncGenerator<string, string> {
+  /**
+   * Run this agent as a sub-agent tool: yield cumulative text deltas,
+   * return the final text. Used by `toTool()` (static binding) and the
+   * `agent` meta-tool (dynamic spawn). Reasoning / tool-call parts are
+   * NOT relayed.
+   */
+  async *executeAsTool(prompt: string, abortSignal: AbortSignal | undefined): AsyncGenerator<string, string> {
     const userMessage: UIMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -170,7 +182,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const stream = this.stream([userMessage], abortSignal)
 
     let last = ''
-    for await (const message of readUIMessageStream({ stream })) {
+    // terminateOnError: surface child stream errors to the caller (Agent.toTool
+    // / agent meta-tool's async drainer). Default `false` would silently
+    // truncate, leaving callers to think the run "completed" with empty text.
+    for await (const message of readUIMessageStream({ stream, terminateOnError: true })) {
       const text = message.parts
         .filter(isTextUIPart)
         .map((p) => p.text)

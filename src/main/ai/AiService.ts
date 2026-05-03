@@ -315,7 +315,8 @@ export class AiService extends BaseService {
       system,
       options,
       pendingMessages: request.pendingMessages,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      inject: (msg) => request.pendingMessages?.push(msg) ?? false
     })
 
     return agent.stream(preparedMessages, signal)

@@ -1,6 +1,7 @@
 import type { Tool, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { AGENT_TOOL_NAME } from '../agent/agentTool'
 import { applyToolProfile, type ToolProfile } from '../profile'
 import { READ_ONLY_PROFILE } from '../profiles/readOnly'
 import { ToolRegistry } from '../registry'
@@ -116,7 +117,7 @@ describe('applyToolProfile', () => {
         'mcp__blender__render',
         MetaToolName.Search,
         MetaToolName.Inspect,
-        MetaToolName.Agent,
+        AGENT_TOOL_NAME,
         MetaToolName.Exec,
         MetaToolName.Invoke
       ])

@@ -15,9 +15,8 @@ export class PendingMessageQueue {
   private closed = false
 
   // ── Push ──
-
-  push(message: Message): void {
-    if (this.closed) return
+  push(message: Message): boolean {
+    if (this.closed) return false
     if (this.waitResolve) {
       // Someone is awaiting next() — deliver immediately
       this.waitResolve(message)
@@ -25,6 +24,7 @@ export class PendingMessageQueue {
     } else {
       this.messages.push(message)
     }
+    return true
   }
 
   // ── Batch drain (for agentLoop outer loop) ──
