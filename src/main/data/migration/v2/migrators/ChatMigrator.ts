@@ -56,7 +56,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -131,6 +130,8 @@ export class ChatMigrator extends BaseMigrator {
   private orphanedAssistantTopics = 0
   // Valid assistant IDs from AssistantMigrator (for FK validation)
   private validAssistantIds: Set<string> | null = null
+  // v1 → v2 id remap (e.g. legacy 'default' → UUID) from AssistantMigrator
+  private legacyAssistantIdRemap: Map<string, string> = new Map()
   // Valid model IDs from ProviderModelMigrator/SQLite for FK validation
   private validModelIds: Set<string> | null = null
   // Track seen message IDs to handle duplicates across topics
@@ -154,6 +155,7 @@ export class ChatMigrator extends BaseMigrator {
     this.blockStats = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     this.promotedToRootCount = 0
     this.validAssistantIds = null
+    this.legacyAssistantIdRemap = new Map()
     this.validModelIds = null
   }
 
@@ -228,9 +230,17 @@ export class ChatMigrator extends BaseMigrator {
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
 
+      // AssistantMigrator remapped legacy 'default' to a UUID; replay the same
+      // remap on every reference we read out of v1 so topicAssistantLookup
+      // points at the new id (else the FK whitelist check below would orphan
+      // every default-assistant topic).
+      this.legacyAssistantIdRemap = (ctx.sharedData.get('legacyAssistantIdRemap') as Map<string, string>) ?? new Map()
+      const remapAssistantId = (raw: string): string => this.legacyAssistantIdRemap.get(raw) ?? raw
+
       if (allAssistants.length > 0) {
         for (const assistant of allAssistants) {
-          this.assistantLookup.set(assistant.id, assistant)
+          const remappedId = remapAssistantId(assistant.id)
+          this.assistantLookup.set(remappedId, assistant)
 
           // Extract topic metadata from this assistant's topics array
           // Redux stores topic metadata (name, pinned, etc.) but with messages: []
@@ -242,7 +252,7 @@ export class ChatMigrator extends BaseMigrator {
             for (const topic of assistant.topics) {
               if (topic.id && !this.topicMetaLookup.has(topic.id)) {
                 this.topicMetaLookup.set(topic.id, topic)
-                this.topicAssistantLookup.set(topic.id, assistant.id)
+                this.topicAssistantLookup.set(topic.id, remappedId)
               }
             }
           }
@@ -332,9 +342,10 @@ export class ChatMigrator extends BaseMigrator {
       if (!sharedAssistantIds) {
         throw new Error('validAssistantIds not set in sharedData. AssistantMigrator must run before ChatMigrator.')
       }
-      // Defensive clone + ensure DEFAULT_ASSISTANT_ID even if upstream invariant regresses.
+      // Defensive clone — v2 has no system-reserved 'default' row, so the set
+      // is exactly the migrated user assistants (legacy 'default' appears here
+      // under its remapped UUID, not under the literal 'default').
       this.validAssistantIds = new Set(sharedAssistantIds)
-      this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       this.validModelIds = ctx.db?.select
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
@@ -570,10 +581,10 @@ export class ChatMigrator extends BaseMigrator {
 
       // Strong signal that AssistantMigrator dropped most of its rows or that
       // source data has shifted underfoot — surfaces before user notices every
-      // topic clustered under "default".
+      // topic stranded with NULL assistantId.
       if (this.topicCount > 0 && this.orphanedAssistantTopics / this.topicCount > 0.5) {
         logger.warn(
-          `High orphan-assistant ratio: ${this.orphanedAssistantTopics}/${this.topicCount} topics fell back to ${DEFAULT_ASSISTANT_ID}`
+          `High orphan-assistant ratio: ${this.orphanedAssistantTopics}/${this.topicCount} topics had no resolvable assistant (assistantId=NULL)`
         )
       }
 
@@ -681,26 +692,30 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // Fall back to default — null/'' would drive PATCH /assistants/ 400 loops in renderer.
-    // Both branches (no source id, dangling FK) bump the orphan counter so the
-    // >50% diagnostic warning catches default-only users too.
-    const sourceAssistantId = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
-    let resolvedAssistantId: string
+    // Resolve topic.assistantId. v2 has no system-reserved 'default' row;
+    // any unresolved reference becomes NULL and the renderer composes a
+    // runtime default from Preference. Both orphan branches (no source id /
+    // dangling FK) bump the counter so the >50% diagnostic catches users with
+    // mass-orphaned topics. Legacy 'default' from Dexie is replayed through
+    // the AssistantMigrator id remap before the FK whitelist check, so a
+    // migrated v1 default still resolves under its new UUID.
+    const lookupHit = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
+    const sourceAssistantId = lookupHit ? (this.legacyAssistantIdRemap.get(lookupHit) ?? lookupHit) : lookupHit
+    let resolvedAssistantId: string | null
     if (!sourceAssistantId) {
-      resolvedAssistantId = DEFAULT_ASSISTANT_ID
+      resolvedAssistantId = null
       this.orphanedAssistantTopics++
     } else if (this.validAssistantIds && !this.validAssistantIds.has(sourceAssistantId)) {
-      logger.warn(
-        `Topic ${oldTopic.id}: assistant ${sourceAssistantId} not in assistant table, falling back to default`
-      )
-      resolvedAssistantId = DEFAULT_ASSISTANT_ID
+      logger.warn(`Topic ${oldTopic.id}: assistant ${sourceAssistantId} not in assistant table, setting NULL`)
+      resolvedAssistantId = null
       this.orphanedAssistantTopics++
     } else {
       resolvedAssistantId = sourceAssistantId
     }
 
-    // Write resolved value back for transformTopic consumption (avoids mutating original beyond this point)
-    oldTopic.assistantId = resolvedAssistantId
+    // Write resolved value back for transformTopic consumption. transformTopic
+    // converts falsy to NULL, so empty string here yields the desired NULL FK.
+    oldTopic.assistantId = resolvedAssistantId ?? ''
 
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []

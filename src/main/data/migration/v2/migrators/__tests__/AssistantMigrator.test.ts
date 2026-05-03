@@ -253,9 +253,16 @@ describe('AssistantMigrator', () => {
       const result = await migrator.prepare(ctx as any)
       expect(result).toStrictEqual({ success: true, itemCount: 1, warnings: undefined })
 
-      const internal = migrator as unknown as { preparedResults: { assistant: Record<string, unknown> }[] }
+      const internal = migrator as unknown as {
+        preparedResults: { assistant: Record<string, unknown> }[]
+        legacyAssistantIdRemap: Map<string, string>
+      }
       const merged = internal.preparedResults[0].assistant
-      expect(merged.id).toBe('default')
+      // v1 'default' is remapped to a fresh UUID — v2 has no 'default' sentinel.
+      const remappedDefault = internal.legacyAssistantIdRemap.get('default')
+      expect(remappedDefault).toBeDefined()
+      expect(merged.id).toBe(remappedDefault)
+      expect(merged.id).not.toBe('default')
       expect(merged.name).toBe('My Default') // assistants[] wins on populated field
       expect(merged.prompt).toBe('You are helpful') // defaultAssistant fills empty gap
       expect(merged.emoji).toBe('😀') // defaultAssistant fills missing field
@@ -430,7 +437,7 @@ describe('AssistantMigrator', () => {
       expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
-    it('should store assistantIds in sharedData', async () => {
+    it('should store assistantIds in sharedData (only migrated user assistants — no synthetic default)', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
       ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
       await migrator.prepare(ctx as any)
@@ -439,55 +446,15 @@ describe('AssistantMigrator', () => {
       expect(ids).toBeInstanceOf(Set)
       expect(ids.has('ast-1')).toBe(true)
       expect(ids.has('ast-2')).toBe(true)
-      // Backstop guarantee: DEFAULT_ASSISTANT_ID is always in the FK whitelist
-      // even when no v1 source produced an id='default' row.
-      expect(ids.has('default')).toBe(true)
+      // v2 has no system-reserved 'default' row.
+      expect(ids.has('default')).toBe(false)
     })
 
-    it('inserts the default-assistant backstop row when no v1 source has id=default', async () => {
-      // Captures the values handed to tx.insert to verify the canonical
-      // payload was inserted. Failing this lets verifyForeignKeys() abort
-      // the migration when ChatMigrator emits topics with assistantId='default'.
-      const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
-      ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
-
-      const inserted: unknown[][] = []
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
-        const tx = {
-          insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockImplementation((vals: unknown) => {
-              inserted.push(Array.isArray(vals) ? vals : [vals])
-              return {
-                onConflictDoNothing: vi.fn().mockReturnValue({
-                  returning: vi.fn().mockResolvedValue([]),
-                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-                }),
-                returning: vi.fn().mockResolvedValue([]),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-              }
-            })
-          }),
-          select: vi.fn().mockReturnValue({
-            from: vi
-              .fn()
-              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
-          })
-        }
-        await fn(tx)
-      }) as any
-
-      await migrator.prepare(ctx as any)
-      const result = await migrator.execute(ctx as any)
-      expect(result.success).toBe(true)
-
-      // The flat list of every inserted row across all batches.
-      const allRows = inserted.flat() as { id?: string; name?: string }[]
-      const defaultRow = allRows.find((r) => r && typeof r === 'object' && r.id === 'default')
-      expect(defaultRow).toBeDefined()
-      expect(defaultRow?.name).toBe('Default Assistant')
-    })
-
-    it('does not double-insert the default-assistant row when v1 already provides id=default', async () => {
+    it('remaps v1 id=default to a UUID instead of inserting a sentinel row', async () => {
+      // Legacy 'default' is no longer a v2 entity id — v2 has no sentinel row.
+      // The user's customizations migrate as a normal user assistant under a
+      // generated UUID; the remap is exposed via sharedData so ChatMigrator can
+      // rewrite topic.assistantId='default' to the same UUID.
       const ctx = createMockContext({
         assistants: {
           assistants: [{ id: 'default', name: 'User Customized Default', prompt: 'Custom' }],
@@ -524,16 +491,19 @@ describe('AssistantMigrator', () => {
       await migrator.execute(ctx as any)
 
       const allRows = inserted.flat() as { id?: string; name?: string }[]
-      const defaultRows = allRows.filter((r) => r && typeof r === 'object' && r.id === 'default')
-      // Exactly one — the v1 user-customized row, no backstop on top.
-      expect(defaultRows).toHaveLength(1)
-      expect(defaultRows[0]?.name).toBe('User Customized Default')
+      const defaultLiteralRows = allRows.filter((r) => r && typeof r === 'object' && r.id === 'default')
+      expect(defaultLiteralRows).toHaveLength(0)
+      const remap = ctx.sharedData.get('legacyAssistantIdRemap') as Map<string, string>
+      const remappedId = remap.get('default')
+      expect(remappedId).toBeDefined()
+      const remappedRow = allRows.find((r) => r && typeof r === 'object' && r.id === remappedId)
+      expect(remappedRow?.name).toBe('User Customized Default')
     })
 
-    it('handles empty v1 assistants by inserting only the backstop default row', async () => {
-      // No v1 sources at all — the migrator must still ensure the default
-      // row exists so ChatMigrator's FK fallback resolves and
-      // verifyForeignKeys() succeeds.
+    it('handles empty v1 assistants by writing zero rows and an empty FK whitelist', async () => {
+      // No v1 sources at all — v2 leaves `assistant` empty and the renderer
+      // composes a runtime default from Preference. ChatMigrator's orphan
+      // fallback then writes NULL for any topic that lacks a real assistant.
       const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
 
       const inserted: unknown[][] = []
@@ -563,16 +533,12 @@ describe('AssistantMigrator', () => {
 
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
-      // processedCount counts user rows; the backstop is not counted.
       expect(result).toStrictEqual({ success: true, processedCount: 0 })
 
       const allRows = inserted.flat() as { id?: string; name?: string }[]
-      const defaultRows = allRows.filter((r) => r && typeof r === 'object' && r.id === 'default')
-      expect(defaultRows).toHaveLength(1)
-
-      // Shared FK whitelist still includes the default id.
+      expect(allRows).toHaveLength(0)
       const ids = ctx.sharedData.get('assistantIds') as Set<string>
-      expect(ids.has('default')).toBe(true)
+      expect(ids.size).toBe(0)
     })
 
     it('should return failure when transaction throws', async () => {
@@ -847,18 +813,15 @@ describe('AssistantMigrator', () => {
       expect(result.errors[0].message).toContain('DB_CORRUPT')
     })
 
-    it('passes prepare → execute → validate when only the backstop default row was inserted', async () => {
-      // Empty v1 sources → execute() inserts the backstop row but doesn't push
-      // it onto preparedResults. validate() must account for it so the count
-      // check succeeds (otherwise count_mismatch aborts the whole migration).
+    it('passes prepare → execute → validate when v1 sources were empty (zero rows expected)', async () => {
+      // Empty v1 sources → preparedResults is empty and no synthetic backstop
+      // is inserted. validate() must accept zero rows in the assistant table.
       const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
 
       await migrator.prepare(ctx as any)
       await migrator.execute(ctx as any)
 
-      // Swap select after execute so validate sees count=1 (the backstop row)
-      // without breaking execute()'s userModel lookup which uses the same handle.
-      mockValidateDb(ctx, 1, [{ id: 'default', name: 'Default Assistant' }])
+      mockValidateDb(ctx, 0, [])
 
       const result = await migrator.validate(ctx as any)
       expect(result.success).toBe(true)

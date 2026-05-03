@@ -9,8 +9,9 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_PAYLOAD } from '@shared/data/types/assistant'
+import { LEGACY_DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -105,18 +106,23 @@ export class AssistantMigrator extends BaseMigrator {
   private preparedResults: AssistantTransformResult[] = []
   private skippedCount = 0
   private validAssistantIds = new Set<string>()
-  private didInsertBackstop = false
+  // v1 → v2 id remap. Currently only used for the legacy 'default' sentinel,
+  // which v2 doesn't preserve as an id — the row is migrated as a normal user
+  // assistant under a generated UUID. ChatMigrator reads this map to remap
+  // any topic.assistantId === 'default' to the new UUID.
+  private legacyAssistantIdRemap = new Map<string, string>()
 
   override reset(): void {
     this.preparedResults = []
     this.skippedCount = 0
     this.validAssistantIds.clear()
-    this.didInsertBackstop = false
+    this.legacyAssistantIdRemap.clear()
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     this.preparedResults = []
     this.skippedCount = 0
+    this.legacyAssistantIdRemap.clear()
 
     try {
       const warnings: string[] = []
@@ -133,15 +139,29 @@ export class AssistantMigrator extends BaseMigrator {
       let totalRawSources = 0
       const recordSource = (source: OldAssistant): void => {
         totalRawSources++
-        const { id } = source
-        if (!id || typeof id !== 'string') {
+        const rawId = source.id
+        if (!rawId || typeof rawId !== 'string') {
           this.skippedCount++
           warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
           return
         }
+        // v1 'default' is a sentinel, not an entity id. Remap to a fresh UUID
+        // so the row migrates as a normal user assistant — both sources for
+        // this id (assistants[0] and defaultAssistant) collide on the same UUID
+        // and merge per the standard primary-wins contract.
+        let id = rawId
+        if (rawId === LEGACY_DEFAULT_ASSISTANT_ID) {
+          let mapped = this.legacyAssistantIdRemap.get(rawId)
+          if (!mapped) {
+            mapped = uuidv4()
+            this.legacyAssistantIdRemap.set(rawId, mapped)
+          }
+          id = mapped
+          source = { ...source, id }
+        }
         const existing = sourceById.get(id)
         if (existing) {
-          // Silent: id='default' duplicate fires on every real-user migration.
+          // Silent: legacy 'default' duplicate fires on every real-user migration.
           sourceById.set(id, mergeOldAssistants(existing, source))
           logger.info('Merged duplicate assistant id from secondary slot', { id })
         } else {
@@ -219,21 +239,11 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
-      const hasDefaultFromSources = sanitizedAssistantRows.some((row) => row.id === DEFAULT_ASSISTANT_ID)
-
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
           const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
           await tx.insert(assistantTable).values(batch)
           processed += batch.length
-        }
-
-        // Backstop FK target for ChatMigrator's orphan fallback —
-        // verifyForeignKeys() runs before DefaultAssistantSeeder fires.
-        if (!hasDefaultFromSources) {
-          await tx.insert(assistantTable).values(DEFAULT_ASSISTANT_PAYLOAD).onConflictDoNothing()
-          this.didInsertBackstop = true
-          logger.info('Inserted default assistant backstop row (no v1 source produced one)')
         }
 
         // Remap mcpServer junction rows using oldId → newId mapping from McpServerMigrator.
@@ -330,10 +340,12 @@ export class AssistantMigrator extends BaseMigrator {
         }
       })
 
-      // FK whitelist for ChatMigrator. Always includes DEFAULT_ASSISTANT_ID (backstopped above).
+      // FK whitelist for ChatMigrator. v2 has no system-reserved 'default' row,
+      // so the set contains only the migrated user assistants (including the
+      // legacy 'default' under its remapped UUID).
       this.validAssistantIds = new Set(this.preparedResults.map((r) => r.assistant.id as string))
-      this.validAssistantIds.add(DEFAULT_ASSISTANT_ID)
       ctx.sharedData.set('assistantIds', this.validAssistantIds)
+      ctx.sharedData.set('legacyAssistantIdRemap', this.legacyAssistantIdRemap)
 
       this.reportProgress(100, `Migrated ${processed} assistants`, {
         key: 'migration.progress.migrated_assistants',
@@ -359,12 +371,10 @@ export class AssistantMigrator extends BaseMigrator {
       const count = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
-      // execute() may have inserted a backstop default row not in preparedResults.
-      const expectedCount = this.preparedResults.length + (this.didInsertBackstop ? 1 : 0)
-      if (count !== expectedCount) {
+      if (count !== this.preparedResults.length) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${expectedCount} assistants but found ${count}`
+          message: `Expected ${this.preparedResults.length} assistants but found ${count}`
         })
       }
 

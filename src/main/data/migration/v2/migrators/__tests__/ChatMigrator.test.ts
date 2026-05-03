@@ -377,11 +377,10 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(prepareTopic(oldTopic, [])).toBeNull()
   })
 
-  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId is empty', () => {
-    // Without this fallback, a topic with no assistantId becomes
-    // `assistantId: null`, and the renderer's `useAssistant('')` then
-    // dispatches `PATCH /assistants/` (empty id) on every reasoning-effort
-    // sync — server 400s, SWR retries, infinite loop.
+  it('sets assistantId to NULL when topic.assistantId is empty', () => {
+    // v2 has no system-reserved 'default' row; the renderer composes a runtime
+    // default from Preference. Empty assistantId becomes NULL on insert
+    // (FK is nullable; transformTopic converts falsy → null).
     const b1 = block('b1', 'u1')
     const oldTopic: OldTopic = {
       id: 't1',
@@ -394,13 +393,12 @@ describe('ChatMigrator.prepareTopicData', () => {
 
     const result = prepareTopic(oldTopic, [b1])
     expect(result).not.toBeNull()
-    expect(result?.topic.assistantId).toBe('default')
+    expect(result?.topic.assistantId).toBeNull()
   })
 
-  it('falls back to DEFAULT_ASSISTANT_ID when topic.assistantId points to missing FK', () => {
-    // validAssistantIds set up to *not* include 'orphaned-id', so the FK check
-    // fires and falls the topic back onto DEFAULT_ASSISTANT_ID instead of
-    // leaving it dangling.
+  it('sets assistantId to NULL when topic.assistantId points to missing FK', () => {
+    // validAssistantIds set up to NOT include 'orphaned-id', so the FK check
+    // fires and the topic gets NULL instead of a dangling reference.
     const oldTopic: OldTopic = {
       id: 't1',
       assistantId: 'orphaned-id',
@@ -420,12 +418,46 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['orphanedAssistantTopics'] = 0
     m['seenMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
-    // FK validation set: only 'default' valid, orphan must fall back
-    m['validAssistantIds'] = new Set(['default'])
+    // FK validation set with at least one valid id — proves the orphan branch
+    // (not "no validAssistantIds at all") is what falls 'orphaned-id' to NULL.
+    m['validAssistantIds'] = new Set(['some-valid-uuid'])
+    m['legacyAssistantIdRemap'] = new Map()
 
     const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
     const result = fn.call(migrator, oldTopic)
-    expect(result?.topic.assistantId).toBe('default')
+    expect(result?.topic.assistantId).toBeNull()
+  })
+
+  it('remaps legacy "default" assistantId to the migrated UUID via sharedData', () => {
+    // AssistantMigrator inserts the v1 default row under a fresh UUID and
+    // exposes the remap; ChatMigrator must rewrite topic.assistantId='default'
+    // to the new UUID instead of orphaning the topic.
+    const remappedDefaultId = '22222222-2222-4222-8222-222222222222'
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'default',
+      name: 'Legacy Default Topic',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])]
+    }
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', block('b1', 'u1')]])
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['orphanedAssistantTopics'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+    m['validAssistantIds'] = new Set([remappedDefaultId])
+    m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+    expect(result?.topic.assistantId).toBe(remappedDefaultId)
   })
 })
 
@@ -434,11 +466,15 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     vi.clearAllMocks()
   })
 
-  it('extracts topic metadata from state.defaultAssistant.topics[]', async () => {
+  it('extracts topic metadata from state.defaultAssistant.topics[] and applies legacy id remap', async () => {
     // Topics under state.defaultAssistant.topics[] (a slot separate from
     // state.assistants[].topics[]) used to be silently dropped — they showed
-    // up as "Unnamed Topic" with no timestamps post-migration.
+    // up as "Unnamed Topic" with no timestamps post-migration. With v2's
+    // runtime-default architecture, AssistantMigrator remaps legacy 'default'
+    // to a UUID; ChatMigrator must replay that remap so the topic →
+    // assistantId lookup points at the new UUID, not the dead literal.
     const migrator = new ChatMigrator()
+    const remappedDefaultId = '11111111-1111-4111-8111-111111111111'
     const ctx = {
       sources: {
         dexieExport: {
@@ -459,7 +495,8 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
             }
           })
         }
-      }
+      },
+      sharedData: new Map([['legacyAssistantIdRemap', new Map([['default', remappedDefaultId]])]])
     }
     await migrator.prepare(ctx as any)
 
@@ -472,8 +509,8 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
     expect(internal.topicMetaLookup.has('topic-X')).toBe(true)
     expect(internal.topicMetaLookup.get('topic-X')?.name).toBe('X')
     expect(internal.topicMetaLookup.get('topic-X')?.pinned).toBe(true)
-    // defaultAssistant's topic maps to the default-assistant id
-    expect(internal.topicAssistantLookup.get('topic-X')).toBe('default')
+    // defaultAssistant's topic resolves through the remap, not the dead 'default' literal.
+    expect(internal.topicAssistantLookup.get('topic-X')).toBe(remappedDefaultId)
     expect(internal.topicAssistantLookup.get('topic-A')).toBe('ast-1')
   })
 })
