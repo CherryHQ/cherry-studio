@@ -57,8 +57,8 @@ export class KnowledgeQueueManager {
       const interruptedEntries = this.interruptAll(reason)
       this.queue.clear()
       await this.waitForRunning(interruptedEntries.map((entry) => entry.itemId))
+      await this.waitForBaseWriteLocks()
       this.queue = this.createQueue()
-      this.baseWriteLocks.clear()
 
       return interruptedEntries
     } finally {
@@ -144,6 +144,10 @@ export class KnowledgeQueueManager {
   }
 
   async runWithBaseWriteLockForBase<T>(baseId: string, task: () => Promise<T>): Promise<T> {
+    if (this.isResetting) {
+      throw this.createResetError()
+    }
+
     const previousLock = this.baseWriteLocks.get(baseId) ?? Promise.resolve()
     let releaseCurrentLock!: () => void
     const currentLock = new Promise<void>((resolve) => {
@@ -163,6 +167,16 @@ export class KnowledgeQueueManager {
         this.baseWriteLocks.delete(baseId)
       }
     }
+  }
+
+  private async waitForBaseWriteLocks(): Promise<void> {
+    const activeLocks = [...this.baseWriteLocks.values()]
+
+    if (activeLocks.length === 0) {
+      return
+    }
+
+    await Promise.allSettled(activeLocks)
   }
 
   private createQueue(): PQueue {

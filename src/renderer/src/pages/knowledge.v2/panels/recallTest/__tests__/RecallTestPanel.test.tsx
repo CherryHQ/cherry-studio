@@ -264,6 +264,49 @@ describe('RecallTestPanel', () => {
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
   })
 
+  it('does not apply pending search results after switching selected bases', async () => {
+    let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
+    mockKnowledgeRuntimeSearch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSearch = resolve
+      })
+    )
+
+    const { rerender } = render(<RecallTestPanel baseId="base-1" />)
+
+    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
+      target: { value: 'RAG 检索增强生成原理' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    expect(screen.getByText('正在检索...')).toBeInTheDocument()
+
+    rerender(<RecallTestPanel baseId="base-2" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('输入查询语句开始检索测试')).toBeInTheDocument()
+    })
+    expect(screen.getByPlaceholderText('输入测试 Query...')).toHaveValue('')
+
+    fireEvent.focus(screen.getByPlaceholderText('输入测试 Query...'))
+    expect(screen.getByText('其他知识库查询')).toBeInTheDocument()
+    expect(screen.queryByText('RAG 检索增强生成原理')).not.toBeInTheDocument()
+
+    mockPerformanceNow.mockReturnValue(223)
+    resolveSearch(realSearchResults)
+
+    await waitFor(() => {
+      expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
+        baseId: 'base-1',
+        query: 'RAG 检索增强生成原理',
+        results: realSearchResults
+      })
+    })
+    expect(screen.queryByText('2 个结果')).not.toBeInTheDocument()
+    expect(screen.queryByText('real result from file name')).not.toBeInTheDocument()
+    expect(screen.queryByText('real result from file path')).not.toBeInTheDocument()
+  })
+
   it('removes one cached query from the selected base history', () => {
     render(<RecallTestPanel baseId="base-1" />)
 

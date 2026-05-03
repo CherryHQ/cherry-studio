@@ -8,7 +8,7 @@ interface RecallTestPanelProps {
 
 const RecallTestPanel = ({ baseId }: RecallTestPanelProps) => {
   return (
-    <RecallTestProvider baseId={baseId}>
+    <RecallTestProvider key={baseId} baseId={baseId}>
       <div className="flex h-full min-h-0 flex-col">
         <RecallSearchBar />
         <RecallTestBody />

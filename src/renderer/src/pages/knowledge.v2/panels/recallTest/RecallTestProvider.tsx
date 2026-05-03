@@ -1,7 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import type { ReactNode } from 'react'
-import { createContext, use, useState } from 'react'
+import { createContext, use, useEffect, useRef, useState } from 'react'
 
 import type { RecallResultItem, RecallTestContextValue } from './types'
 import { mapRecallResult, prependHistoryQuery } from './utils'
@@ -26,6 +26,7 @@ interface RecallTestProviderProps {
 }
 
 const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
+  const latestSearchIdRef = useRef(0)
   const [query, setQuery] = useState('')
   const [historyQueriesByBaseId, setHistoryQueriesByBaseId] = useCache('knowledge.recall.search_queries')
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -33,6 +34,20 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
   const [results, setResults] = useState<RecallResultItem[]>([])
   const [duration, setDuration] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+
+  useEffect(() => {
+    latestSearchIdRef.current += 1
+    setQuery('')
+    setIsHistoryOpen(false)
+    setHasSearched(false)
+    setResults([])
+    setDuration(0)
+    setIsSearching(false)
+
+    return () => {
+      latestSearchIdRef.current += 1
+    }
+  }, [baseId])
 
   const historyQueries = historyQueriesByBaseId[baseId] ?? []
   const historyItems = historyQueries.map((query) => ({ id: query, query }))
@@ -51,18 +66,37 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       [baseId]: prependHistoryQuery(currentHistoryQueries, trimmedQuery)
     })
 
+    const searchId = latestSearchIdRef.current + 1
+    latestSearchIdRef.current = searchId
+    const searchBaseId = baseId
+    const isCurrentSearch = () => latestSearchIdRef.current === searchId
+
     setIsSearching(true)
     setResults([])
     const startTime = performance.now()
 
     try {
-      const searchResults = await window.api.knowledgeRuntime.search(baseId, trimmedQuery)
-      logger.info('Knowledge recall search IPC result', { baseId, query: trimmedQuery, results: searchResults })
+      const searchResults = await window.api.knowledgeRuntime.search(searchBaseId, trimmedQuery)
+      logger.info('Knowledge recall search IPC result', {
+        baseId: searchBaseId,
+        query: trimmedQuery,
+        results: searchResults
+      })
+      if (!isCurrentSearch()) {
+        return
+      }
       setResults(searchResults.map(mapRecallResult))
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('Knowledge recall search IPC failed', normalizedError, { baseId, query: trimmedQuery })
+      logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
+      if (!isCurrentSearch()) {
+        return
+      }
       setResults([])
+    }
+
+    if (!isCurrentSearch()) {
+      return
     }
 
     setDuration(Math.round(performance.now() - startTime))

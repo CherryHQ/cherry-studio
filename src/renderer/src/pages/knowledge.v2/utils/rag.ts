@@ -24,7 +24,7 @@ export const buildKnowledgeRagConfigPatch = (
 ): UpdateKnowledgeBaseDto => {
   const patch: UpdateKnowledgeBaseDto = {}
 
-  if (currentValues.fileProcessorId !== initialValues.fileProcessorId && currentValues.fileProcessorId != null) {
+  if (currentValues.fileProcessorId !== initialValues.fileProcessorId) {
     patch.fileProcessorId = currentValues.fileProcessorId
   }
 
@@ -36,7 +36,7 @@ export const buildKnowledgeRagConfigPatch = (
     patch.chunkOverlap = parseRequiredInteger(currentValues.chunkOverlap)
   }
 
-  if (currentValues.rerankModelId !== initialValues.rerankModelId && currentValues.rerankModelId != null) {
+  if (currentValues.rerankModelId !== initialValues.rerankModelId) {
     patch.rerankModelId = currentValues.rerankModelId
   }
 

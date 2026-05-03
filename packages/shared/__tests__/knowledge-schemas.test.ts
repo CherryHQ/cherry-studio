@@ -613,12 +613,25 @@ it('rejects embedding model changes in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
 })
 
-it('rejects optional config null clears in patch schema', () => {
+it('accepts nullable model and processor clears in patch schema', () => {
+  const result = UpdateKnowledgeBaseSchema.safeParse({
+    rerankModelId: null,
+    fileProcessorId: null
+  })
+
+  expect(result.success).toBe(true)
+  if (result.success) {
+    expect(result.data).toEqual({
+      rerankModelId: null,
+      fileProcessorId: null
+    })
+  }
+})
+
+it('rejects non-nullable optional config null clears in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkOverlap: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ searchMode: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ rerankModelId: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ fileProcessorId: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ documentCount: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ hybridAlpha: null }).success).toBe(false)

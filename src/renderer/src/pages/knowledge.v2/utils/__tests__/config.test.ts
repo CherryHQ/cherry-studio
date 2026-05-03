@@ -85,10 +85,31 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       fileProcessorId: 'mineru',
       chunkSize: 1024,
       chunkOverlap: 128,
+      rerankModelId: null,
       documentCount: 10,
       threshold: 0.35,
       searchMode: 'hybrid',
       hybridAlpha: 0.7
+    })
+  })
+
+  it('builds null clears for nullable RAG config fields', () => {
+    const initialValues = createKnowledgeRagConfigFormValues(
+      createKnowledgeBase({
+        fileProcessorId: 'doc2x',
+        rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
+      })
+    )
+
+    expect(
+      buildKnowledgeRagConfigPatch(initialValues, {
+        ...initialValues,
+        fileProcessorId: null,
+        rerankModelId: null
+      })
+    ).toEqual({
+      fileProcessorId: null,
+      rerankModelId: null
     })
   })
 
