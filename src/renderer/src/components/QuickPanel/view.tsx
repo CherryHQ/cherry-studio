@@ -444,12 +444,20 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       const target = e.target as HTMLTextAreaElement
       const cursorPosition = target.selectionStart
       const textBeforeCursor = target.value.slice(0, cursorPosition)
-      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-      const lastSymbolIndex = Math.max(lastSlashIndex, lastAtIndex)
 
-      if (lastSymbolIndex !== -1) {
-        const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
+      // Anchor on the symbol that *opened* this panel rather than the
+      // latest `/`/`@` in the buffer. Without this, a path like
+      // `@packages/anthropic/` makes `lastIndexOf('/')` jump to the
+      // trailing `/` and the search payload collapses — onSearchChange
+      // short-circuits and the resource panel never re-queries fff.
+      const trigger = ctx.triggerInfo
+      const anchorIndex =
+        trigger?.type === 'input' && typeof trigger.position === 'number'
+          ? trigger.position
+          : Math.max(textBeforeCursor.lastIndexOf('/'), textBeforeCursor.lastIndexOf('@'))
+
+      if (anchorIndex !== -1) {
+        const newSearchText = textBeforeCursor.slice(anchorIndex)
         setSearchTextDebounced(newSearchText)
         // Trigger server-side search callback immediately (with its own debounce)
         triggerSearchChange(newSearchText)
@@ -477,7 +485,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
     }
-  }, [ctx.isVisible, ctx.symbol, handleClose, setSearchTextDebounced, triggerSearchChange])
+  }, [ctx.isVisible, ctx.symbol, ctx.triggerInfo, handleClose, setSearchTextDebounced, triggerSearchChange])
 
   useEffect(() => {
     if (ctx.isVisible) return

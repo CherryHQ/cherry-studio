@@ -57,6 +57,8 @@ export interface FinderSearchResult {
 
 const DEFAULT_PAGE_SIZE = 50
 const MAX_PAGE_SIZE = 500
+const DIR_SLOT_RATIO = 0.2
+const MIN_DIR_SLOTS = 5
 const EMPTY_RESULT: FinderSearchResult = {
   items: [],
   totalMatched: 0,
@@ -64,49 +66,108 @@ const EMPTY_RESULT: FinderSearchResult = {
   totalDirs: 0
 }
 
+function splitPathQuery(query: string): { prefix: string; term: string } {
+  const stripped = query.replace(/^\/+/, '')
+  const lastSlash = stripped.lastIndexOf('/')
+  if (lastSlash === -1) return { prefix: '', term: stripped }
+  return { prefix: stripped.slice(0, lastSlash + 1), term: stripped.slice(lastSlash + 1) }
+}
+
+/**
+ * Match `prefix` as a path *segment* — at the start of the path or
+ * after any `/`. Smart-case: case-insensitive when the prefix is all
+ * lowercase (mirrors fff's `smartCase` default).
+ *
+ * Strict `startsWith` is wrong here: a user typing `@anthropic/src` is
+ * looking for any `anthropic/src` segment, but the real directory is
+ * `packages/anthropic/src`, which doesn't start with `anthropic/`.
+ * `startsWith` would silently drop it. Path-segment containment
+ * matches what users in other pickers (VS Code / Cursor) expect.
+ */
+function smartCaseSegmentMatch(relativePath: string, prefix: string): boolean {
+  if (!prefix) return true
+  const [haystack, needle] =
+    prefix.toLowerCase() === prefix ? [relativePath.toLowerCase(), prefix] : [relativePath, prefix]
+  return haystack.startsWith(needle) || haystack.includes('/' + needle)
+}
+
 export const search = async (args: FinderSearchArgs): Promise<FinderSearchResult> => {
   const { basePath } = args
   if (!basePath) return EMPTY_RESULT
 
-  const query = args.query?.trim() || '.'
+  const rawQuery = args.query?.trim() || '.'
   const pageSize = clamp(args.pageSize ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE)
   const pageIndex = Math.max(0, args.pageIndex ?? 0)
+  const dirSlots = Math.min(pageSize, Math.max(MIN_DIR_SLOTS, Math.floor(pageSize * DIR_SLOT_RATIO)))
+  const fileSlots = pageSize - dirSlots
+
+  const { prefix, term } = splitPathQuery(rawQuery)
+  const fffQuery = term || prefix || '.'
+  const fetchMultiplier = prefix ? 20 : 1
 
   try {
     const finder = await getFinder(basePath)
-    const result = finder.mixedSearch(query, {
-      pageIndex,
-      pageSize,
-      currentFile: args.currentFile
-    })
-    if (!result.ok) {
-      logger.warn('mixedSearch failed', { basePath, query, error: result.error })
+    const [dirRes, fileRes] = await Promise.all([
+      Promise.resolve(
+        finder.directorySearch(fffQuery, {
+          pageIndex,
+          pageSize: dirSlots * fetchMultiplier,
+          currentFile: args.currentFile
+        })
+      ),
+      Promise.resolve(
+        finder.fileSearch(fffQuery, {
+          pageIndex,
+          pageSize: fileSlots * fetchMultiplier,
+          currentFile: args.currentFile
+        })
+      )
+    ])
+
+    if (!dirRes.ok && !fileRes.ok) {
+      logger.warn('search failed', {
+        basePath,
+        rawQuery,
+        dirErr: dirRes.ok ? null : dirRes.error,
+        fileErr: fileRes.ok ? null : fileRes.error
+      })
       return EMPTY_RESULT
     }
 
-    const { items: rawItems, scores, totalMatched, totalFiles, totalDirs } = result.value
-    const items: FinderItem[] = rawItems.map((entry, i) => {
-      const score = scores[i]?.total
-      if (entry.type === 'file') {
-        return {
-          type: 'file',
-          relativePath: entry.item.relativePath,
-          name: entry.item.fileName,
-          score,
-          gitStatus: entry.item.gitStatus
-        }
-      }
-      return {
-        type: 'directory',
-        relativePath: entry.item.relativePath,
-        name: entry.item.dirName,
-        score
-      }
-    })
+    const passesPrefix = (relativePath: string) => smartCaseSegmentMatch(relativePath, prefix)
 
-    return { items, totalMatched, totalFiles, totalDirs }
+    const dirs: FinderItem[] = dirRes.ok
+      ? dirRes.value.items
+          .map((d, i) => ({
+            type: 'directory' as const,
+            relativePath: d.relativePath,
+            name: d.dirName,
+            score: dirRes.value.scores[i]?.total
+          }))
+          .filter((d) => passesPrefix(d.relativePath))
+          .slice(0, dirSlots)
+      : []
+    const files: FinderItem[] = fileRes.ok
+      ? fileRes.value.items
+          .map((f, i) => ({
+            type: 'file' as const,
+            relativePath: f.relativePath,
+            name: f.fileName,
+            score: fileRes.value.scores[i]?.total,
+            gitStatus: f.gitStatus
+          }))
+          .filter((f) => passesPrefix(f.relativePath))
+          .slice(0, fileSlots)
+      : []
+
+    return {
+      items: [...dirs, ...files],
+      totalMatched: dirs.length + files.length,
+      totalFiles: fileRes.ok ? fileRes.value.totalFiles : 0,
+      totalDirs: dirRes.ok ? dirRes.value.totalDirs : 0
+    }
   } catch (err) {
-    logger.warn('search failed', { basePath, query, error: String(err) })
+    logger.warn('search threw', { basePath, rawQuery, error: String(err) })
     return EMPTY_RESULT
   }
 }

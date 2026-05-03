@@ -60,13 +60,10 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
   const [entryList, setEntryList] = useState<ResourceEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const triggerInfoRef = useRef<ResourcePanelTriggerInfo | undefined>(undefined)
   const hasAttemptedLoadRef = useRef(false)
   const entryListRef = useRef<ResourceEntry[]>([])
-  /** Set while `handleSearchChange` owns `updateList`; the auto-sync
-   *  effect must skip during that window or it'll race-overwrite the
-   *  filtered result with the prior, broader list. */
-  const searchInFlightRef = useRef(false)
 
   const updateEntryListState = useCallback((nextEntries: ResourceEntry[]) => {
     if (areEntryListsEqual(entryListRef.current, nextEntries)) {
@@ -305,20 +302,18 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Build QuickPanel items for an entry list. Files get a per-extension
-   * icon; directories get the open-folder icon. `gitStatus` rides into
-   * the description so users can spot dirty files at a glance.
+   * Build QuickPanel items for an entry list. Display style mirrors
+   * common pickers (Cursor / VS Code): the entry name renders prominent
+   * and the parent directory follows in dimmed, smaller text. We drop
+   * the `/` directory indicator on the right — it carried no real
+   * information beyond what the folder icon already conveys.
    */
   const createEntryItems = useCallback(
     (entries: ResourceEntry[]): QuickPanelListItem[] => {
       return entries.map((entry) => {
         const filterText = `${entry.name} ${entry.relativePath} ${entry.absolutePath}`
-        const description =
-          entry.gitStatus && entry.gitStatus !== 'clean'
-            ? entry.gitStatus
-            : entry.type === 'directory'
-              ? '/'
-              : undefined
+        const lastSlash = entry.relativePath.lastIndexOf('/')
+        const parentPath = lastSlash >= 0 ? entry.relativePath.slice(0, lastSlash + 1) : ''
         const icon =
           entry.type === 'directory' ? (
             <FolderOpen size={16} />
@@ -326,9 +321,27 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
             <Icon icon={`material-icon-theme:${getFileIconName(entry.absolutePath)}`} style={{ fontSize: 16 }} />
           )
 
+        const label = (
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.name}</span>
+            {parentPath && (
+              <span
+                style={{
+                  color: 'var(--color-text-3, #8c8c8c)',
+                  fontSize: '0.85em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                {parentPath}
+              </span>
+            )}
+          </span>
+        )
+
         return {
-          label: entry.relativePath || entry.name,
-          description,
+          label,
+          description: entry.gitStatus && entry.gitStatus !== 'clean' ? entry.gitStatus : undefined,
           icon,
           filterText,
           action: () => onSelectEntry(entry),
@@ -429,33 +442,31 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     [createEntryItems, createSkillItems, t]
   )
 
+  const filteredSkills = useMemo(
+    () => filterSkills(enabledSkills, searchQuery),
+    [enabledSkills, filterSkills, searchQuery]
+  )
+
   const categorizedItems = useMemo<QuickPanelListItem[]>(
-    () => buildCategorizedList(entryList, enabledSkills, isLoading || skillsLoading),
-    [buildCategorizedList, entryList, enabledSkills, isLoading, skillsLoading]
+    () => buildCategorizedList(entryList, filteredSkills, isLoading || skillsLoading),
+    [buildCategorizedList, entryList, filteredSkills, isLoading, skillsLoading]
   )
 
   /**
-   * Handle search text change — re-query fff and refresh list. We mark
-   * `searchInFlightRef` for the duration so the auto-sync effect (which
-   * also calls `updateList`) can't race-overwrite the filtered result
-   * with stale state during the awaits.
+   * Handle search text change — push the query into state (skills filter
+   * is derived from it) and re-query fff. The auto-sync effect picks up
+   * the resulting `categorizedItems` and pushes it into the panel, so we
+   * don't call `updateList` here — doing both would race.
    */
   const handleSearchChange = useCallback(
     async (searchText: string) => {
       logger.debug('Search text changed', { searchText })
-      searchInFlightRef.current = true
-      try {
-        const query = searchText.trim() || '.'
-        const newEntries = await loadEntries(query)
-        updateEntryListState(newEntries)
-        const filteredSkills = filterSkills(enabledSkills, searchText)
-        const newItems = buildCategorizedList(newEntries, filteredSkills, false)
-        updateList(newItems)
-      } finally {
-        searchInFlightRef.current = false
-      }
+      setSearchQuery(searchText)
+      const query = searchText.trim() || '.'
+      const newEntries = await loadEntries(query)
+      updateEntryListState(newEntries)
     },
-    [loadEntries, enabledSkills, filterSkills, buildCategorizedList, updateList, updateEntryListState]
+    [loadEntries, updateEntryListState]
   )
 
   /**
@@ -513,6 +524,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
           }
           // Clear entry list and reset state when panel closes
           updateEntryListState([])
+          setSearchQuery('')
           hasAttemptedLoadRef.current = false
           triggerInfoRef.current = undefined
         },
@@ -549,23 +561,20 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   }, [close, isMentionPanelActive, openQuickPanel])
 
   /**
-   * Sync the panel list when async data lands *outside* a search call —
-   * for example, skills finishing their async load after the panel
-   * already opened. While `handleSearchChange` is running we skip,
-   * otherwise its in-flight `setEntryList` / `setIsLoading` would
-   * cause this effect to fire mid-call and clobber the filtered list
-   * with the prior, broader one.
+   * Push the latest categorized list into the panel whenever its inputs
+   * (entries, filtered skills, loading flags) change. `categorizedItems`
+   * already reflects the active `searchQuery`, so this is the single
+   * writer for the panel list.
    */
   useEffect(() => {
     if (role !== 'manager') return
-    if (searchInFlightRef.current) return
     if (!hasAttemptedLoadRef.current && entryList.length === 0 && !isLoading) {
       return
     }
     if (isVisible && symbol === QuickPanelReservedSymbol.File) {
       updateList(categorizedItems)
     }
-  }, [categorizedItems, entryList.length, enabledSkills.length, isLoading, isVisible, role, symbol, updateList])
+  }, [categorizedItems, entryList.length, isLoading, isVisible, role, symbol, updateList])
 
   /**
    * Register trigger and root menu (manager only)
