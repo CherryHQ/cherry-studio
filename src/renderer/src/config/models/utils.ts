@@ -405,23 +405,17 @@ export const isGemini31ProModel = (model: Model | undefined | null): boolean => 
 }
 
 /**
- * Check if the model is Claude Opus 4.6
- * Supports various formats including:
- * - Direct API: claude-opus-4-6
- * - AWS Bedrock: anthropic.claude-opus-4-6-v1
- * - GCP Vertex AI: claude-opus-4-6
+ * Check if the model is Claude 4.6+ (uses adaptive thinking + effort)
+ * Claude 4.6 supports both extended thinking and adaptive thinking.
+ * Claude 4.7+ only supports adaptive thinking (enabled returns 400).
  * @param model - The model to check
- * @returns true if the model is Claude 4.6 series model
+ * @returns true if the model is Claude 4.6+ series model
  */
 export function isClaude46SeriesModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  // Supports various formats:
-  // - Direct API: claude-opus-4-6, claude-opus-4.6
-  // - AWS Bedrock: anthropic.claude-opus-4-6-v1
-  // - GCP Vertex AI: claude-opus-4-6
-  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-](?:[6-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
