@@ -890,6 +890,16 @@ const api = {
         updatedInput?: Record<string, unknown>
         topicId?: string
         anchorId?: string
+        toolCallId?: string
+        persistRule?: {
+          id: string
+          toolName: string
+          ruleContent?: string
+          behavior: 'allow' | 'deny' | 'ask'
+          source: 'userPreference' | 'session'
+          scope?: { cwd: string }
+          createdAt: number
+        }
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     }
   },

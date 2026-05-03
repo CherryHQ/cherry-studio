@@ -261,6 +261,9 @@ export type SharedCacheSchema = {
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
+  // Per-call "Allow always: <pattern>" suggestion stashed by main when a
+  // tool's L3 hook returns 'ask'. Cleared on Ai_ToolApproval_Respond.
+  'tool_approval.suggested_rule.${toolCallId}': CacheValueTypes.ToolApprovalSuggestedRule | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -269,7 +272,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'topic.cache_version': 0,
   'agent_session.cache_version': 0,
   'web_search.provider.last_used_key.${providerId}': '',
-  'ocr.provider.last_used_key.${providerId}': ''
+  'ocr.provider.last_used_key.${providerId}': '',
+  'tool_approval.suggested_rule.${toolCallId}': null
 }
 
 /**

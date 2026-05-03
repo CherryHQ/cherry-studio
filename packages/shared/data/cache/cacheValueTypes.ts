@@ -66,3 +66,17 @@ export type TranslatingState =
       isTranslating: false
       abortKey: null
     }
+
+/**
+ * Suggested rule attached to an in-flight tool-approval request. Set by
+ * `services/toolApproval/needsApproval.ts` when a tool's L3 hook returns
+ * `{ behavior: 'ask', suggestedRule }`. Renderer's approval card reads it
+ * to populate the "Allow always: <pattern>" affordance. `null` means no
+ * rule was suggested (the user gets only allow / deny buttons).
+ */
+export type ToolApprovalSuggestedRule = {
+  /** Registry tool name (`shell__exec`, `fs__patch`, `mcp__server__tool`, …). */
+  toolName: string
+  /** Tool-specific match pattern (`'git push:*'`, `'/etc/**'`). Omitted = whole-tool rule. */
+  ruleContent?: string
+}

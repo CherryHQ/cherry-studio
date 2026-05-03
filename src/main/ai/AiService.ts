@@ -8,6 +8,8 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import { saveRule } from '@main/services/toolApproval/rules'
+import type { PermissionRule } from '@main/services/toolApproval/types'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -219,8 +221,24 @@ export class AiService extends BaseService {
           updatedInput?: Record<string, unknown>
           topicId?: string
           anchorId?: string
+          /** AI-SDK toolCallId — used to clear the per-call shared-cache suggestedRule entry. */
+          toolCallId?: string
+          persistRule?: PermissionRule
         }
       ): Promise<{ ok: boolean }> => {
+        if (payload.persistRule) {
+          try {
+            await saveRule(payload.persistRule)
+          } catch (err) {
+            logger.error('Failed to persist tool-approval rule', err as Error)
+          }
+        }
+
+        if (payload.toolCallId) {
+          const cacheService = application.get('CacheService')
+          cacheService.deleteShared(`tool_approval.suggested_rule.${payload.toolCallId}`)
+        }
+
         // 1. Claude-Agent path — registry still has the pending approval,
         // dispatching unblocks `canUseTool` so the in-flight stream resumes.
         const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {

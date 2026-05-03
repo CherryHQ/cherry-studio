@@ -35,7 +35,7 @@ export function useToolApprovalBridge(
   })
 
   return useCallback(
-    async ({ match, approved, reason, updatedInput }) => {
+    async ({ match, approved, reason, updatedInput, persistRule }) => {
       const approvalId = match.approvalId
       if (!approvalId) return
 
@@ -71,7 +71,9 @@ export function useToolApprovalBridge(
           reason,
           updatedInput,
           topicId: chat.id,
-          anchorId: match.messageId
+          anchorId: match.messageId,
+          toolCallId: match.toolCallId,
+          persistRule
         })
       } catch (error) {
         logger.error('Failed to deliver tool-approval decision to main', {
