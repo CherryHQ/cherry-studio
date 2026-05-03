@@ -1,11 +1,14 @@
 import { Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
-import type { FC, KeyboardEventHandler } from 'react'
+import type { FC, KeyboardEventHandler, ReactNode } from 'react'
 
 interface PaintingPromptBarProps {
   prompt: string
   disabled: boolean
   placeholder: string
+  leadingActions?: ReactNode
+  modelSelector?: ReactNode
   onPromptChange: (value: string) => void
   onGenerate: () => void
   onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>
@@ -15,24 +18,33 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   prompt,
   disabled,
   placeholder,
+  leadingActions,
+  modelSelector,
   onPromptChange,
   onGenerate,
   onKeyDown
 }) => {
   return (
-    <div className="flex shrink-0 justify-center px-6 pt-2 pb-4">
-      <div className="relative flex max-h-[120px] min-h-[88px] w-full max-w-[680px] flex-col rounded-[0.75rem] border border-border/50 bg-background shadow-black/5 shadow-lg">
+    <div className="flex w-full min-w-0 shrink-0 px-2 pt-2 pb-4">
+      <div className="relative flex max-h-[132px] min-h-[94px] w-full min-w-0 flex-col rounded-[1.25rem] border border-border/60 bg-white dark:bg-background">
         <Textarea.Input
           disabled={disabled}
           value={prompt}
           spellCheck={false}
-          className="flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-[11px] text-foreground/80 shadow-none placeholder:text-muted-foreground/40 focus-visible:ring-0"
+          className={cn(
+            'flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',
+            'placeholder:text-muted-foreground/55 focus-visible:ring-0'
+          )}
           placeholder={placeholder}
           onValueChange={onPromptChange}
           onKeyDown={onKeyDown}
         />
-        <div className="flex h-10 flex-row items-center justify-end px-3 pb-2.5">
-          <SendMessageButton sendMessage={onGenerate} disabled={disabled} />
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3.5 pt-2 pb-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{leadingActions}</div>
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {modelSelector}
+            <SendMessageButton sendMessage={onGenerate} disabled={disabled} />
+          </div>
         </div>
       </div>
     </div>

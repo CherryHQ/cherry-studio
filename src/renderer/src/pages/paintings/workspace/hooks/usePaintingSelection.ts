@@ -21,6 +21,7 @@ export function usePaintingSelection<T extends PaintingData>({
   createDefaultPaintingData
 }: UsePaintingSelectionOptions<T>) {
   const fallbackPainting = useMemo(() => createDefaultPaintingData(), [createDefaultPaintingData])
+  const [draftPainting, setDraftPainting] = useState(fallbackPainting)
   const selectionScope = useMemo(() => `${providerId}_${mode ?? 'default'}`, [providerId, mode])
   const [cachedSelectedPaintingId, setCachedSelectedPaintingId] = useCache(
     getPaintingSelectionCacheKey(selectionScope),
@@ -40,7 +41,11 @@ export function usePaintingSelection<T extends PaintingData>({
     () => (selectedPaintingId ? paintings.find((item) => item.id === selectedPaintingId) : undefined),
     [paintings, selectedPaintingId]
   )
-  const painting = selectedPainting ?? paintings[0] ?? fallbackPainting
+  const painting = selectedPainting ?? paintings[0] ?? draftPainting
+
+  const patchDraftPainting = useCallback((updates: Partial<T>) => {
+    setDraftPainting((current) => ({ ...current, ...updates }) as T)
+  }, [])
 
   const onSelectPainting = useCallback(
     (nextPainting: T) => {
@@ -60,7 +65,8 @@ export function usePaintingSelection<T extends PaintingData>({
 
   useEffect(() => {
     setCurrentImageIndex(0)
-  }, [providerId, mode])
+    setDraftPainting(fallbackPainting)
+  }, [fallbackPainting, mode, providerId])
 
   useEffect(() => {
     if (!isReady) return
@@ -81,6 +87,7 @@ export function usePaintingSelection<T extends PaintingData>({
     currentImageIndex,
     setCurrentImageIndex,
     onSelectPainting,
+    patchDraftPainting,
     prevImage,
     nextImage
   }

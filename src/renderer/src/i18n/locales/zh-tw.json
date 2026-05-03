@@ -1673,6 +1673,7 @@
     "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
+    "parameter": "參數",
     "paste": "貼上",
     "placeholders": {
       "select": {

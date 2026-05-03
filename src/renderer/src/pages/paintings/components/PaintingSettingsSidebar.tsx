@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 import PaintingsSectionTitle from './PaintingsSectionTitle'
-import ProviderSelect from './ProviderSelect'
 
 type ModelOption = {
   label: string
@@ -34,11 +33,13 @@ type ModelSelectConfig = {
 }
 
 export interface PaintingSettingsSidebarProps {
-  provider: Provider
-  options: string[]
-  onProviderChange: (id: string) => void
+  provider?: Provider
+  options?: string[]
+  onProviderChange?: (id: string) => void
   providerHeaderExtra?: ReactNode
-  modelSelect: ModelSelectConfig | ReactNode
+  modelSelect?: ModelSelectConfig | ReactNode | null
+  showProviderSection?: boolean
+  showModelSection?: boolean
   configItems: BaseConfigItem[]
   painting: Record<string, unknown>
   onConfigChange: (updates: Record<string, unknown>) => void
@@ -74,7 +75,7 @@ function ModelSelectFromConfig({ config }: { config: ModelSelectConfig }) {
     <>
       <PaintingsSectionTitle>
         {t('common.model')}
-        {config.extra}
+        {config.extra ? <span className="ml-auto">{config.extra}</span> : null}
       </PaintingsSectionTitle>
       <Select value={config.value} onValueChange={config.onChange}>
         <SelectTrigger className="mb-4 h-10 min-h-10 w-full border-transparent bg-muted/40 transition-all hover:bg-muted/60">
@@ -104,11 +105,8 @@ function ModelSelectFromConfig({ config }: { config: ModelSelectConfig }) {
 }
 
 const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
-  provider,
-  options,
-  onProviderChange,
-  providerHeaderExtra,
   modelSelect,
+  showModelSection = true,
   configItems,
   painting,
   onConfigChange,
@@ -122,13 +120,9 @@ const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
 
   return (
     <>
-      <PaintingsSectionTitle className="mt-0">
-        {t('common.provider')}
-        {providerHeaderExtra}
-      </PaintingsSectionTitle>
-      <ProviderSelect provider={provider} options={options} onChange={onProviderChange} className="mb-4" />
-
-      {isReactNode(modelSelect) ? modelSelect : <ModelSelectFromConfig config={modelSelect} />}
+      {showModelSection &&
+        modelSelect &&
+        (isReactNode(modelSelect) ? modelSelect : <ModelSelectFromConfig config={modelSelect} />)}
 
       {configItems
         .filter((item) => !item.condition || item.condition(painting))

@@ -5,6 +5,7 @@ export interface PaintingDataBase {
   id: string
   files: FileMetadata[]
   providerId?: string
+  runtimeProviderId?: string
 }
 
 export interface SiliconPaintingData extends PaintingDataBase {

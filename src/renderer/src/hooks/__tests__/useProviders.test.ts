@@ -104,6 +104,21 @@ describe('useProviders', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', undefined)
   })
 
+  it('should disable SWR request when fetchEnabled is false', () => {
+    renderHook(() => useProviders(undefined, { fetchEnabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
+  })
+
+  it('should pass query params AND control SWR independently', () => {
+    renderHook(() => useProviders({ enabled: false }, { fetchEnabled: true }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', {
+      query: { enabled: false },
+      enabled: true
+    })
+  })
+
   it('should call useMutation for POST /providers', () => {
     renderHook(() => useProviders())
 

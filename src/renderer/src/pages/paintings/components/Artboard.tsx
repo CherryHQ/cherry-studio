@@ -110,33 +110,27 @@ const Artboard: FC<ArtboardProps> = ({
               {currentImageIndex + 1} / {painting.files.length}
             </div>
           </div>
-        ) : (
-          <div className="flex h-[var(--artboard-max)] w-[var(--artboard-max)] items-center justify-center rounded-[18px] border border-border/40 bg-muted/20 p-6 text-center">
-            {fallbackUrls.length > 0 && !isLoading ? (
-              <div className="space-y-3">
-                <ul className="select-text list-none break-all p-0 text-left">
-                  {fallbackUrls.map((url, index) => (
-                    <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
-                      {url}
-                    </li>
-                  ))}
-                </ul>
-                <div>
-                  {t('paintings.proxy_required')}
-                  {retry && (
-                    <Button variant="ghost" onClick={() => retry?.(painting)}>
-                      {t('paintings.image_retry')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ) : imageCover ? (
-              imageCover
-            ) : loadText && isLoading ? null : (
-              <div className="text-muted-foreground">{t('paintings.image_placeholder')}</div>
-            )}
+        ) : fallbackUrls.length > 0 && !isLoading ? (
+          <div className="max-w-[var(--artboard-max)] space-y-3 p-6">
+            <ul className="select-text list-none break-all p-0 text-left">
+              {fallbackUrls.map((url, index) => (
+                <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
+                  {url}
+                </li>
+              ))}
+            </ul>
+            <div>
+              {t('paintings.proxy_required')}
+              {retry && (
+                <Button variant="ghost" onClick={() => retry?.(painting)}>
+                  {t('paintings.image_retry')}
+                </Button>
+              )}
+            </div>
           </div>
-        )}
+        ) : imageCover ? (
+          imageCover
+        ) : null}
 
         {isLoading && (
           <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-30">

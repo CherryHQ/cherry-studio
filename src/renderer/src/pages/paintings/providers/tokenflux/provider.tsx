@@ -7,6 +7,7 @@ import { createSingleModeProvider, type GenerateContext, type PaintingProviderDe
 import { DEFAULT_TOKENFLUX_PAINTING } from './config'
 import { tokenFluxFields } from './fields'
 import { generateWithTokenFlux } from './generate'
+import TokenFluxService from './service'
 import { TokenFluxCenterContent, TokenFluxSidebarWrapper } from './slots'
 
 export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> =
@@ -14,8 +15,18 @@ export const tokenFluxProvider: PaintingProviderDefinition<TokenFluxPainting> =
     id: 'tokenflux',
     dbMode: 'generate',
     models: {
-      type: 'dynamic',
-      resolver: () => []
+      type: 'async',
+      loader: async (provider) => {
+        const service = new TokenFluxService(provider?.apiHost ?? '', provider?.apiKey ?? '')
+        const models = await service.fetchModels()
+
+        return models.map((model) => ({
+          label: model.name,
+          value: model.id,
+          group: model.model_provider,
+          _raw: model
+        }))
+      }
     },
     createPaintingData: () => ({
       ...DEFAULT_TOKENFLUX_PAINTING,

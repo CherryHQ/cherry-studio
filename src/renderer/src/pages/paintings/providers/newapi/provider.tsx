@@ -11,10 +11,19 @@ import { generateWithNewApi } from './generate'
 import { renderNewApiSidebarExtra } from './sidebar'
 
 function getModelOptions(provider: {
-  models: Array<{ id: string; name: string; endpoint_type?: string; group?: string }>
+  models: Array<{
+    id: string
+    name: string
+    endpoint_type?: string
+    supported_endpoint_types?: string[]
+    group?: string
+  }>
 }) {
   return provider.models
-    .filter((model) => model.endpoint_type === 'image-generation')
+    .filter(
+      (model) =>
+        model.endpoint_type === 'image-generation' || model.supported_endpoint_types?.includes('image-generation')
+    )
     .map((model) => ({
       label: model.name,
       value: model.id,

@@ -1,18 +1,7 @@
-import {
-  InfoTooltip,
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-  Tooltip
-} from '@cherrystudio/ui'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { InfoTooltip } from '@cherrystudio/ui'
 import type { TFunction } from 'i18next'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Artboard from '../../components/Artboard'
@@ -21,7 +10,6 @@ import { SchemaValueField } from '../../form/fields/SchemaField'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { CenterSlotState, SidebarSlotState } from '../types'
 import type { TokenFluxModel } from './config'
-import TokenFluxService from './service'
 
 function readI18nContext(property: Record<string, any>, key: string, lang: string): string {
   return property[`${key}_${lang}`] || property[key]
@@ -60,48 +48,12 @@ const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, patchPainting, 
       <PaintingsSectionTitle>
         {t('paintings.model_and_pricing')}
         {selectedModel?.pricing && (
-          <div className="rounded border border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] px-0 py-1 font-medium text-[11px] text-[var(--color-primary)]">
+          <div className="ml-auto rounded border border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] px-0 py-1 font-medium text-[11px] text-[var(--color-primary)]">
             {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
             {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
           </div>
         )}
       </PaintingsSectionTitle>
-
-      <Select
-        value={painting.model || ''}
-        onValueChange={(modelId: string) => {
-          patchPainting({ model: modelId, inputParams: {} })
-        }}>
-        <SelectTrigger className="mb-3 w-full">
-          <SelectValue placeholder={t('paintings.select_model')} />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(
-            models.reduce(
-              (acc, model) => {
-                const provider = model.model_provider || 'Other'
-                if (!acc[provider]) acc[provider] = []
-                acc[provider].push(model)
-                return acc
-              },
-              {} as Record<string, TokenFluxModel[]>
-            )
-          ).map(([provider, providerModels]) => (
-            <SelectGroup key={provider}>
-              <SelectLabel>{provider}</SelectLabel>
-              {providerModels.map((model) => (
-                <SelectItem key={model.id} value={model.id}>
-                  <Tooltip content={model.description}>
-                    <div className="flex flex-col">
-                      <div className="text-[var(--color-text)]">{model.name}</div>
-                    </div>
-                  </Tooltip>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          ))}
-        </SelectContent>
-      </Select>
 
       {selectedModel?.input_schema && (
         <>
@@ -138,29 +90,7 @@ const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, patchPainting, 
 }
 
 export const TokenFluxSidebarWrapper: FC<{ state: SidebarSlotState<TokenFluxPainting> }> = ({ state }) => {
-  const { painting, isLoading, patchPainting, t } = state
-  const [models, setModels] = useState<TokenFluxModel[]>([])
-  const providers = useAllProviders()
-  const provider = providers.find((item) => item.id === 'tokenflux')
-
-  useEffect(() => {
-    const service = new TokenFluxService(provider?.apiHost ?? '', provider?.apiKey ?? '')
-    void service
-      .fetchModels()
-      .then(setModels)
-      .catch(() => setModels([]))
-  }, [provider?.apiHost, provider?.apiKey])
-
-  const modelOptions = useMemo(
-    () =>
-      models.map((model) => ({
-        label: model.name,
-        value: model.id,
-        group: model.model_provider,
-        _raw: model
-      })),
-    [models]
-  )
+  const { painting, isLoading, patchPainting, modelOptions, t } = state
 
   return (
     <TokenFluxSidebar

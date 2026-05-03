@@ -105,6 +105,28 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(3)
   })
 
+  it('prefers caller-provided provider and model overrides over shared hook data', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+
+    const { result } = renderHook(() =>
+      useModelSelectorData({
+        searchText: '',
+        providersOverride: [makeProvider('painting-provider', { isEnabled: false })],
+        modelsOverride: [makeModel('image-model', 'painting-provider')],
+        isDataLoadingOverride: true
+      })
+    )
+
+    expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['painting-provider'])
+    expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['painting-provider::image-model'])
+    expect(result.current.isLoading).toBe(true)
+    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true }, { fetchEnabled: false })
+    expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true }, { fetchEnabled: false })
+  })
+
   it('drops orphan models whose providerId is not in the providers list', () => {
     // Cross-filter invariant: a model whose provider is disabled/missing must not appear
     wireDeps({

@@ -1673,6 +1673,7 @@
     "on": "Ligado",
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
+    "parameter": "[to be translated]:Parameter",
     "paste": "Colar",
     "placeholders": {
       "select": {

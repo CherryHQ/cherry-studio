@@ -1673,6 +1673,7 @@
     "on": "On",
     "open": "Abierto",
     "open_in": "Mở trong {{name}}",
+    "parameter": "[to be translated]:Parameter",
     "paste": "Pasta",
     "placeholders": {
       "select": {

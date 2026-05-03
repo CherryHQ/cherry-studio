@@ -76,14 +76,24 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 export function useModelSelectorData({
   selectedModelIds = [],
   maxSelectedCount,
+  providersOverride,
+  modelsOverride,
+  isDataLoadingOverride,
   searchText,
   filter,
   showTagFilter = true,
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
+  const hasCompleteDataOverride = providersOverride !== undefined && modelsOverride !== undefined
+  const { providers, isLoading: isProvidersLoading } = useProviders(
+    { enabled: true },
+    { fetchEnabled: !hasCompleteDataOverride }
+  )
+  const { models, isLoading: isModelsLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: !hasCompleteDataOverride }
+  )
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -95,12 +105,14 @@ export function useModelSelectorData({
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
+  const availableProviders = providersOverride ?? providers
+  const availableModels = modelsOverride ?? models
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(providers, prioritizedProviderIds),
-    [prioritizedProviderIds, providers]
+    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
+    [availableProviders, prioritizedProviderIds]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
@@ -109,7 +121,7 @@ export function useModelSelectorData({
     const enabledProviderIds = new Set(sortedProviders.map((provider) => provider.id))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of models) {
+    for (const model of availableModels) {
       if (!enabledProviderIds.has(model.providerId) || !baseModelFilter(model)) {
         continue
       }
@@ -123,7 +135,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [baseModelFilter, models, sortedProviders])
+  }, [availableModels, baseModelFilter, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()
@@ -281,7 +293,7 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
+    isLoading: (isDataLoadingOverride ?? (isProvidersLoading || isModelsLoading)) || isPinsLoading,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
     modelItems,

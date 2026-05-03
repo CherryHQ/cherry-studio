@@ -30,9 +30,18 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery) {
+export function useProviders(query?: ListProvidersQuery, options?: { fetchEnabled?: boolean }) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
-  const queryOptions = filtered && Object.keys(filtered).length > 0 ? { query: filtered } : undefined
+  const hasQuery = filtered && Object.keys(filtered).length > 0
+  const fetchEnabledFlag = options?.fetchEnabled
+  const hasEnabled = fetchEnabledFlag !== undefined
+  const queryOptions =
+    hasQuery || hasEnabled
+      ? {
+          ...(hasQuery && { query: filtered }),
+          ...(hasEnabled && { enabled: fetchEnabledFlag })
+        }
+      : undefined
 
   const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
 

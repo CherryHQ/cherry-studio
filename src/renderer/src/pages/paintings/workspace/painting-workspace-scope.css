@@ -1,0 +1,11 @@
+.painting-workspace-scope,
+.painting-workspace-scope-portal {
+  --painting-surface-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  --painting-floating-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+.dark .painting-workspace-scope,
+.dark .painting-workspace-scope-portal {
+  --painting-surface-shadow: 0 22px 52px rgba(0, 0, 0, 0.26);
+  --painting-floating-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+}

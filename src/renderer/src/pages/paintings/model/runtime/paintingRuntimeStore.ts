@@ -1,12 +1,21 @@
 import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import type { PaintingRuntimeState } from '@shared/data/cache/cacheValueTypes'
+import type { PaintingMode } from '@shared/data/types/painting'
 
 import type { PaintingData } from '../types/paintingData'
 
 const DEFAULT_PAINTING_RUNTIME_STATE: PaintingRuntimeState = {
   isLoading: false,
   fallbackUrls: []
+}
+const PENDING_MODEL_SELECTION_KEY = 'painting.pending_model_selection'
+
+export interface PaintingPendingModelSelection {
+  providerId: string
+  mode: PaintingMode
+  modelId: string
+  prompt: string
 }
 
 export function getPaintingRuntimeCacheKey(paintingId: string): `painting.runtime.${string}` {
@@ -19,6 +28,18 @@ export function getPaintingSelectionCacheKey(scope: string): `painting.selection
 
 export function getPaintingModeCacheKey(providerId: string): `painting.mode.${string}` {
   return `painting.mode.${providerId}`
+}
+
+export function getPendingPaintingModelSelection(): PaintingPendingModelSelection | undefined {
+  return cacheService.getCasual<PaintingPendingModelSelection>(PENDING_MODEL_SELECTION_KEY)
+}
+
+export function setPendingPaintingModelSelection(selection: PaintingPendingModelSelection): void {
+  cacheService.setCasual(PENDING_MODEL_SELECTION_KEY, selection)
+}
+
+export function clearPendingPaintingModelSelection(): void {
+  cacheService.deleteCasual(PENDING_MODEL_SELECTION_KEY)
 }
 
 export function usePaintingRuntime(paintingId: string) {

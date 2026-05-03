@@ -1673,6 +1673,7 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "parameter": "Parameter",
     "paste": "Paste",
     "placeholders": {
       "select": {

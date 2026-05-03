@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
+import md5 from 'md5'
 
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { TokenFluxModel } from './config'
@@ -64,7 +65,7 @@ export class TokenFluxService {
   }
 
   async fetchModels(): Promise<TokenFluxModel[]> {
-    const cacheKey = `tokenflux_models_${this.apiHost}`
+    const cacheKey = `tokenflux_models_${this.apiHost}_${md5(this.apiKey || 'anonymous')}`
     const cachedModels = cacheService.getCasual<TokenFluxModel[]>(cacheKey)
     if (cachedModels) {
       return cachedModels

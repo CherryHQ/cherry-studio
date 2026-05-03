@@ -34,6 +34,7 @@ export interface UsePaintingWorkspaceReturn<T extends PaintingData = PaintingDat
   setFallbackUrlsForPainting: (paintingId: string, urls: string[]) => void
   setIsLoadingForPainting: (paintingId: string, value: boolean) => void
   patchPainting: (updates: Partial<T>) => void
+  patchDraftPainting: (updates: Partial<T>) => void
   patchPaintingById: (paintingId: string, updates: Partial<T>) => void
   onSelectPainting: (p: T) => void
   onDeletePainting: (p: T) => void
@@ -186,6 +187,7 @@ export function usePaintingWorkspace<T extends PaintingData = PaintingData>({
     setFallbackUrlsForPainting: generation.setFallbackUrlsForPainting,
     setIsLoadingForPainting: generation.setIsLoadingForPainting,
     patchPainting,
+    patchDraftPainting: selection.patchDraftPainting,
     patchPaintingById,
     onSelectPainting: selection.onSelectPainting,
     onDeletePainting,

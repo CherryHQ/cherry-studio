@@ -1,4 +1,4 @@
-import { useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import FileManager from '@renderer/services/FileManager'
 import type { ListPaintingsQueryParams } from '@shared/data/api/schemas/paintings'
@@ -80,6 +80,7 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
   const { data, isLoading, refetch } = useQuery('/paintings', {
     query: filter
   })
+  const invalidate = useInvalidateCache()
 
   const [items, setItems] = useState<PaintingData[]>([])
   const [isReady, setIsReady] = useState(false)
@@ -123,11 +124,13 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
       void createPaintingRecord(painting, {
         providerId: filter.providerId,
         mode: createMode ?? filter.mode ?? 'generate'
-      }).catch((error) => logger.error('Failed to create painting', error as Error))
+      })
+        .then(() => invalidate('/paintings'))
+        .catch((error) => logger.error('Failed to create painting', error as Error))
 
       return painting
     },
-    [filter.mode, filter.providerId]
+    [filter.mode, filter.providerId, invalidate]
   )
 
   const deletePainting = useCallback(
@@ -144,12 +147,13 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
 
       try {
         await deletePaintingRecord(painting.id)
+        await invalidate('/paintings')
       } catch (error) {
         logger.error('Failed to delete painting', error as Error)
         setItems(snapshot)
       }
     },
-    [patchQueue]
+    [invalidate, patchQueue]
   )
 
   const updatePainting = useCallback(
@@ -160,18 +164,23 @@ export function usePaintings(filter: PaintingFilter): UsePaintingsResult {
     [patchQueue]
   )
 
-  const reorderPaintings = useCallback((paintings: PaintingData[]) => {
-    let previousOrder: PaintingData[] = []
-    setItems((current) => {
-      previousOrder = current
-      return paintings
-    })
+  const reorderPaintings = useCallback(
+    (paintings: PaintingData[]) => {
+      let previousOrder: PaintingData[] = []
+      setItems((current) => {
+        previousOrder = current
+        return paintings
+      })
 
-    void reorderPaintingRecords(paintings.map((p) => p.id)).catch((error) => {
-      logger.error('Failed to reorder paintings', error as Error)
-      setItems(previousOrder)
-    })
-  }, [])
+      void reorderPaintingRecords(paintings.map((p) => p.id))
+        .then(() => invalidate('/paintings'))
+        .catch((error) => {
+          logger.error('Failed to reorder paintings', error as Error)
+          setItems(previousOrder)
+        })
+    },
+    [invalidate]
+  )
 
   return useMemo(
     () => ({ items, isLoading, isReady, createPainting, deletePainting, updatePainting, reorderPaintings }),
