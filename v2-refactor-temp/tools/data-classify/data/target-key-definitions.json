@@ -144,6 +144,13 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Translate model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
+    },
+    {
+      "targetKey": "tools.permission_rules",
+      "type": "PreferenceTypes.PermissionRule[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Per-tool allow/deny rules for the unified tool permission pipeline (v2 new, non-migration)"
     }
   ]
 }

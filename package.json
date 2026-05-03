@@ -113,7 +113,9 @@
     "sharp": "0.34.5",
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
+    "tree-sitter-bash": "^0.25.1",
     "turndown": "7.2.0",
+    "web-tree-sitter": "^0.26.8",
     "write-file-atomic": "^7.0.1",
     "ws": "^8.18.2"
   },

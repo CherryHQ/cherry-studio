@@ -256,4 +256,30 @@ export type FileProcessorOverride = {
   options?: FileProcessorOptions
 }
 
+// ============================================================================
+// Tool Approval Types
+// ============================================================================
+
+export type PermissionBehavior = 'allow' | 'deny' | 'ask'
+
+/**
+ * Storage shape for a single tool-permission rule. Persisted as
+ * `PermissionRule[]` under `tools.permission_rules`. Mirrors Claude Code's
+ * rule model with cherry-specific `scope.cwd`.
+ */
+export type PermissionRule = {
+  /** Stable id for update / delete. */
+  id: string
+  /** Registry-style tool name: `shell__exec`, `fs__patch`, `mcp__server__tool`. */
+  toolName: string
+  /** Tool-specific match content; `undefined` = whole-tool match. */
+  ruleContent?: string
+  behavior: PermissionBehavior
+  source: 'userPreference' | 'session'
+  /** Restrict the rule to a specific working directory. */
+  scope?: { cwd: string }
+  /** Unix ms. */
+  createdAt: number
+}
+
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>

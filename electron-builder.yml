@@ -67,6 +67,8 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  # tree-sitter-bash: WASM is emitted into out/main/ via `?asset`; node bindings + grammar source are dev-only
+  - "!node_modules/tree-sitter-bash/{tree-sitter-bash.wasm,grammar.js,tree-sitter.json,binding.gyp,bindings,prebuilds,src,queries,node_modules}"
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
 asarUnpack:
