@@ -47,7 +47,8 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     updatedAt: t.updatedAt,
     messages: [],
     pinned: false,
-    isNameManuallyEdited: t.isNameManuallyEdited
+    isNameManuallyEdited: t.isNameManuallyEdited,
+    workspaceRoot: t.workspaceRoot
   }
 }
 

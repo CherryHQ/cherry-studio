@@ -11,12 +11,12 @@
 import { isAbsolute, resolve } from 'node:path'
 
 import type { FileFinder, GrepMatch } from '@ff-labs/fff-node'
+import { getFinder } from '@main/services/fileFinder/finderPool'
 import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import { BuiltinToolNamespace, ToolCapability, ToolDefer, type ToolEntry } from '../../types'
-import { getFinder } from './finderPool'
 
 export const FS_GREP_TOOL_NAME = 'fs__grep'
 

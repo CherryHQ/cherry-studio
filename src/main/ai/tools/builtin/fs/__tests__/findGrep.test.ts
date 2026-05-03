@@ -47,7 +47,13 @@ vi.mock('@ff-labs/fff-node', () => ({
   }
 }))
 
-import { destroyAllFinders } from '../finderPool'
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import { createFindGrepToolEntry, FS_GREP_TOOL_NAME } from '../findGrep'
 
 const entry = createFindGrepToolEntry()
@@ -93,8 +99,8 @@ beforeEach(() => {
   grep.mockClear()
 })
 
-afterEach(async () => {
-  await destroyAllFinders()
+afterEach(() => {
+  MockMainCacheServiceUtils.resetMocks()
 })
 
 describe('fs__grep entry', () => {

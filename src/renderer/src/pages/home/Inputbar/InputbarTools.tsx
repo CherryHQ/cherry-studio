@@ -37,6 +37,7 @@ export interface InputbarToolsNewProps {
   scope: InputbarScope
   assistant: Assistant
   model: Model
+  topic?: ToolContext['topic']
   session?: ToolContext['session']
 }
 
@@ -51,7 +52,7 @@ const DraggablePortal = ({ children, isDragging }: { children: React.ReactNode; 
   return isDragging ? createPortal(children, document.body) : children
 }
 
-const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewProps) => {
+const InputbarTools = ({ scope, assistant, model, topic, session }: InputbarToolsNewProps) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const toolsContext = useInputbarTools()
@@ -82,8 +83,8 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
 
   // Get tools for current scope
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session })
-  }, [scope, assistant, model, session])
+    return getToolsForScope(scope, { assistant, model, topic, session })
+  }, [scope, assistant, model, topic, session])
 
   // Get tool order for current scope
   const toolOrder = useMemo(() => {
@@ -122,6 +123,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
         scope,
         assistant,
         model,
+        topic,
         session,
         state,
         actions,
@@ -130,7 +132,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, model, quickPanelContext, scope, session, t, toolsContext, getQuickPanelApiForTool]
+    [assistant, model, topic, quickPanelContext, scope, session, t, toolsContext, getQuickPanelApiForTool]
   )
 
   // Build tool metadata (without rendering)
@@ -448,14 +450,20 @@ const HiddenTools = styled.div`
 `
 
 const ToolWrapper = styled.div`
-  width: 30px;
+  /* Each tool reserves 30×30 by default (matches the 18px lucide icons +
+   * ActionIconButton padding). Tools that need a wider hit area — e.g. an
+   * icon + label pill — can grow naturally; siblings flex around them. */
+  min-width: 30px;
+  width: max-content;
   margin-right: 6px;
   transition:
+    min-width 0.2s,
     width 0.2s,
     margin-right 0.2s,
     opacity 0.2s;
 
   &.is-collapsed {
+    min-width: 0;
     width: 0;
     margin-right: 0;
     overflow: hidden;

@@ -16,7 +16,7 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
-const bundledMainDependencies = new Set(['@vectorstores/libsql'])
+const bundledMainDependencies = new Set(['@vectorstores/libsql', '@ff-labs/fff-node'])
 const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
   (dependency) => !bundledMainDependencies.has(dependency)
 )

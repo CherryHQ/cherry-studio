@@ -79,6 +79,7 @@ export class TemporaryChatService {
       isNameManuallyEdited: false,
       assistantId: dto.assistantId ?? null,
       activeNodeId: null,
+      workspaceRoot: null,
       groupId: dto.groupId ?? null,
       // In-memory store has no real ordering — temp topics are scoped per
       // session and never reordered or paginated like persistent ones.
@@ -89,6 +90,25 @@ export class TemporaryChatService {
     this.topics.set(row.id, row)
     this.messages.set(row.id, [])
     logger.info('Created temporary topic', { id: row.id })
+    return rowToTopic(row)
+  }
+
+  /**
+   * Narrowly-scoped PATCH for temp topics. Currently only `workspaceRoot`
+   * is mutable — name / assistantId / groupId stay frozen at create time
+   * (the temporary chat docs spell out why). When the topic later gets
+   * promoted via {@link persist}, the workspaceRoot rides along into the
+   * SQLite row.
+   */
+  async updateTopic(id: string, dto: { workspaceRoot?: string | null }): Promise<Topic> {
+    const row = this.topics.get(id)
+    if (!row) {
+      throw DataApiErrorFactory.notFound('TemporaryTopic', id)
+    }
+    if (dto.workspaceRoot !== undefined) {
+      row.workspaceRoot = dto.workspaceRoot
+    }
+    row.updatedAt = Date.now()
     return rowToTopic(row)
   }
 
@@ -196,7 +216,8 @@ export class TemporaryChatService {
             id: topic.id,
             name: topic.name ?? undefined,
             assistantId: topic.assistantId ?? undefined,
-            groupId: topic.groupId ?? undefined
+            groupId: topic.groupId ?? undefined,
+            workspaceRoot: topic.workspaceRoot ?? undefined
           },
           {
             pkColumn: topicTable.id,

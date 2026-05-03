@@ -32,6 +32,7 @@ function rowToTopic(row: TopicRow): Topic {
     isNameManuallyEdited: row.isNameManuallyEdited,
     assistantId: row.assistantId,
     activeNodeId: row.activeNodeId,
+    workspaceRoot: row.workspaceRoot,
     groupId: row.groupId,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
@@ -102,6 +103,23 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
 }
 
 export class TopicService {
+  /**
+   * Lightweight read of `topic.workspaceRoot` for path-aware tools.
+   * Returns `undefined` for both unknown topics and topics with NULL
+   * workspaceRoot — callers fall back to the cherry process cwd. Avoids
+   * the full row hydration cost of `getById` because tool callbacks hit
+   * this on every invocation.
+   */
+  async getWorkspaceRoot(id: string): Promise<string | undefined> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .select({ workspaceRoot: topicTable.workspaceRoot })
+      .from(topicTable)
+      .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
+      .limit(1)
+    return row?.workspaceRoot ?? undefined
+  }
+
   async getById(id: string): Promise<Topic> {
     const db = application.get('DbService').getDb()
 
@@ -176,6 +194,7 @@ export class TopicService {
       if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
+      if (dto.workspaceRoot !== undefined) updates.workspaceRoot = dto.workspaceRoot
 
       const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)

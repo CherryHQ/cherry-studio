@@ -31,6 +31,18 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
+/**
+ * DTO for PATCH /temporary/topics/:id.
+ *
+ * Narrowly scoped — only `workspaceRoot` is mutable on a temporary topic.
+ * Name / assistantId / groupId are frozen at create time per the
+ * temporary-chat invariants in {@link TemporaryChatSchemas}'s doc.
+ */
+export interface UpdateTemporaryTopicDto {
+  /** Absolute filesystem path the topic is bound to. Empty / null = unbind. */
+  workspaceRoot?: string | null
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -68,8 +80,19 @@ export type TemporaryChatSchemas = {
   /**
    * Individual temporary topic endpoint
    * @example DELETE /temporary/topics/abc123
+   * @example PATCH  /temporary/topics/abc123 { "workspaceRoot": "/Users/me/proj" }
    */
   '/temporary/topics/:id': {
+    /**
+     * Narrow PATCH — only `workspaceRoot` is mutable. See
+     * {@link UpdateTemporaryTopicDto}. Persisting the topic later
+     * (`/persist`) carries the value over to SQLite.
+     */
+    PATCH: {
+      params: { id: string }
+      body: UpdateTemporaryTopicDto
+      response: Topic
+    }
     /** Destroy a temporary topic and all its messages. Returns 404 when id is unknown. */
     DELETE: {
       params: { id: string }

@@ -98,16 +98,6 @@ interface OpenClawChannelInfo {
   status: 'connected' | 'disconnected' | 'error'
 }
 
-type DirectoryListOptions = {
-  recursive?: boolean
-  maxDepth?: number
-  includeHidden?: boolean
-  includeFiles?: boolean
-  includeDirectories?: boolean
-  maxEntries?: number
-  searchPattern?: string
-}
-
 type ShortcutRegistrationConflictPayload = {
   key: ShortcutPreferenceKey
   accelerator?: string
@@ -274,8 +264,32 @@ const api = {
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
-    listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
-      ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
+    /**
+     * Fuzzy file + directory search via fff (mixed, interleaved by score).
+     * Empty / `.` query returns top-frecency entries. Use for `@`-mention
+     * pickers and similar UX where the model isn't involved.
+     */
+    findPath: (args: {
+      basePath: string
+      query?: string
+      currentFile?: string
+      pageIndex?: number
+      pageSize?: number
+    }): Promise<{
+      items: Array<{
+        type: 'file' | 'directory'
+        relativePath: string
+        name: string
+        score?: number
+        gitStatus?: string
+      }>
+      totalMatched: number
+      totalFiles: number
+      totalDirs: number
+    }> => ipcRenderer.invoke(IpcChannel.File_FindPath, args),
+    /** Tell fff that the user picked a result — improves future ranking. */
+    trackFindPathSelection: (args: { basePath: string; query: string; selectedFilePath: string }): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.File_FindPathTrackSelection, args),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),

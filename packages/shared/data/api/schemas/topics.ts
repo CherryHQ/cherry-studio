@@ -35,6 +35,24 @@ export const CreateTopicSchema = TopicSchema.pick({
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
+ * Absolute path validator for `workspaceRoot`. Accepts POSIX (`/foo`) and
+ * Windows (`C:\foo` / `C:/foo`). Empty string and `null` are treated as
+ * "unbind" — the service nulls the column.
+ */
+const AbsolutePathOrNull = z
+  .union([
+    z
+      .string()
+      .min(1)
+      .refine((s) => s.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(s), {
+        message: 'workspaceRoot must be an absolute path (e.g. /Users/me/proj or C:\\proj)'
+      }),
+    z.literal('').transform(() => null),
+    z.null()
+  ])
+  .optional()
+
+/**
  * DTO for updating an existing topic.
  *
  * Pin state and ordering are NOT updated through this DTO:
@@ -46,7 +64,11 @@ export const UpdateTopicSchema = TopicSchema.pick({
   isNameManuallyEdited: true,
   assistantId: true,
   groupId: true
-}).partial()
+})
+  .partial()
+  .extend({
+    workspaceRoot: AbsolutePathOrNull
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**

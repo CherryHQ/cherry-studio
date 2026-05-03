@@ -41,7 +41,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     files,
     setText
   } = params
-  const { registerRootMenu, registerTrigger } = quickPanel
+  const { registerRootMenu } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
   const { t } = useTranslation()
@@ -293,6 +293,8 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
   useEffect(() => {
     if (role !== 'manager') return
+    // `@` is owned by the resource panel; model picker is still reachable
+    // via the root menu and the toolbar button.
     const disposeRootMenu = registerRootMenu([
       {
         label: t('assistants.presets.edit.model.select.title'),
@@ -303,16 +305,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       }
     ])
 
-    const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
-      const trigger = (payload || {}) as MentionTriggerInfo
-      openQuickPanel(trigger)
-    })
-
     return () => {
       disposeRootMenu()
-      disposeTrigger()
     }
-  }, [openQuickPanel, registerRootMenu, registerTrigger, role, t])
+  }, [openQuickPanel, registerRootMenu, role, t])
 
   return {
     handleOpenQuickPanel,

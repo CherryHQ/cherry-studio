@@ -140,6 +140,13 @@
       "when": 1777636561235,
       "tag": "0019_parallel_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1778000000000,
+      "tag": "0020_topic_workspace_root",
+      "breakpoints": true
     }
   ],
   "version": "7"

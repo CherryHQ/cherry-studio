@@ -23,6 +23,9 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   },
 
   '/temporary/topics/:id': {
+    PATCH: async ({ params, body }) => {
+      return await temporaryChatService.updateTopic(params.id, body)
+    },
     DELETE: async ({ params }) => {
       await temporaryChatService.deleteTopic(params.id)
       return undefined

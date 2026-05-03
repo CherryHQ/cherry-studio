@@ -384,7 +384,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   // leftToolbar: 左侧工具栏
   const leftToolbar =
     config.showTools && assistant && v1Model ? (
-      <InputbarTools scope={scope} assistant={assistant} model={v1Model} />
+      <InputbarTools
+        scope={scope}
+        assistant={assistant}
+        model={v1Model}
+        topic={{ id: topic.id, workspaceRoot: topic.workspaceRoot }}
+      />
     ) : null
 
   return (

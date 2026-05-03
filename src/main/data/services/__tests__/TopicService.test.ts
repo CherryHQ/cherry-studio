@@ -637,4 +637,74 @@ describe('TopicService', () => {
       })
     })
   })
+
+  describe('workspaceRoot', () => {
+    it('getWorkspaceRoot returns the stored value', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-ws',
+        name: 'T',
+        orderKey: 'a0',
+        workspaceRoot: '/Users/me/proj',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      expect(await topicService.getWorkspaceRoot('t-ws')).toBe('/Users/me/proj')
+    })
+
+    it('getWorkspaceRoot returns undefined for null column', async () => {
+      await dbh.db.insert(topicTable).values({ id: 't-no', name: 'T', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      expect(await topicService.getWorkspaceRoot('t-no')).toBeUndefined()
+    })
+
+    it('getWorkspaceRoot returns undefined for unknown topic (no throw)', async () => {
+      expect(await topicService.getWorkspaceRoot('does-not-exist')).toBeUndefined()
+    })
+
+    it('getWorkspaceRoot returns undefined for soft-deleted topic', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-dead',
+        name: 'T',
+        orderKey: 'a0',
+        workspaceRoot: '/never/served',
+        deletedAt: 999,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      expect(await topicService.getWorkspaceRoot('t-dead')).toBeUndefined()
+    })
+
+    it('update writes workspaceRoot through to the row', async () => {
+      await dbh.db.insert(topicTable).values({ id: 't-up', name: 'T', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      const updated = await topicService.update('t-up', { workspaceRoot: '/abs/path' })
+      expect(updated.workspaceRoot).toBe('/abs/path')
+      expect(await topicService.getWorkspaceRoot('t-up')).toBe('/abs/path')
+    })
+
+    it('update with workspaceRoot=null clears the column', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-clear',
+        name: 'T',
+        orderKey: 'a0',
+        workspaceRoot: '/old/path',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      const updated = await topicService.update('t-clear', { workspaceRoot: null })
+      expect(updated.workspaceRoot).toBeNull()
+      expect(await topicService.getWorkspaceRoot('t-clear')).toBeUndefined()
+    })
+
+    it('update without workspaceRoot leaves the column untouched', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-keep',
+        name: 'T',
+        orderKey: 'a0',
+        workspaceRoot: '/keep/me',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await topicService.update('t-keep', { name: 'renamed' })
+      expect(await topicService.getWorkspaceRoot('t-keep')).toBe('/keep/me')
+    })
+  })
 })

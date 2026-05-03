@@ -22,6 +22,10 @@ export const topicTable = sqliteTable(
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
     // Active node ID in the message tree
     activeNodeId: text(),
+    /**
+     * Absolute filesystem path the topic is bound to.
+     */
+    workspaceRoot: text(),
 
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted

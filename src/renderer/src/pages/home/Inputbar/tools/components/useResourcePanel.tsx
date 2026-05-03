@@ -6,20 +6,31 @@ import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { InstalledSkill } from '@types'
-import { Folder, Zap } from 'lucide-react'
+import { Folder, FolderOpen, Zap } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useResourcePanel')
 const MAX_FILE_RESULTS = 500
-const MAX_SEARCH_RESULTS = 20
+const MAX_SEARCH_RESULTS = 50
 
-const areFileListsEqual = (prev: string[], next: string[]) => {
+/** A single hit from fff — file or directory. Carries enough metadata
+ *  to render rich list items and tell entries apart on click. */
+interface ResourceEntry {
+  type: 'file' | 'directory'
+  absolutePath: string
+  /** Path relative to the matching `accessiblePaths[i]`. */
+  relativePath: string
+  name: string
+  gitStatus?: string
+}
+
+const areEntryListsEqual = (prev: ResourceEntry[], next: ResourceEntry[]) => {
   if (prev === next) return true
   if (prev.length !== next.length) return false
-  for (let index = 0; index < prev.length; index++) {
-    if (prev[index] !== next[index]) return false
+  for (let i = 0; i < prev.length; i++) {
+    if (prev[i].absolutePath !== next[i].absolutePath || prev[i].type !== next[i].type) return false
   }
   return true
 }
@@ -47,23 +58,24 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
   const { skills: enabledSkills, loading: skillsLoading } = useInstalledSkills(agentId)
 
-  const [fileList, setFileList] = useState<string[]>([])
+  const [entryList, setEntryList] = useState<ResourceEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const triggerInfoRef = useRef<ResourcePanelTriggerInfo | undefined>(undefined)
   const hasAttemptedLoadRef = useRef(false)
-  const fileListRef = useRef<string[]>([])
+  const entryListRef = useRef<ResourceEntry[]>([])
+  /** Set while `handleSearchChange` owns `updateList`; the auto-sync
+   *  effect must skip during that window or it'll race-overwrite the
+   *  filtered result with the prior, broader list. */
+  const searchInFlightRef = useRef(false)
 
-  const updateFileListState = useCallback(
-    (nextFiles: string[]) => {
-      if (areFileListsEqual(fileListRef.current, nextFiles)) {
-        return false
-      }
-      fileListRef.current = nextFiles
-      setFileList(nextFiles)
-      return true
-    },
-    [setFileList]
-  )
+  const updateEntryListState = useCallback((nextEntries: ResourceEntry[]) => {
+    if (areEntryListsEqual(entryListRef.current, nextEntries)) {
+      return false
+    }
+    entryListRef.current = nextEntries
+    setEntryList(nextEntries)
+    return true
+  }, [])
 
   /**
    * Convert absolute file path to relative path based on accessible directories
@@ -178,10 +190,18 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Load files from accessible directories
+   * Query fff for files + directories under each accessible path.
+   *
+   * Uses `window.api.file.findPath` (fff `mixedSearch`) — same engine
+   * the AI's `fs__find` tool runs on. Empty / `.` query returns
+   * top-frecency entries (browse mode); a real query gets fuzzy +
+   * frecency-weighted matches.
+   *
+   * Multi-root (Session scope): one fff finder per `basePath`. We loop,
+   * dedupe by absolute path, and cap at `MAX_FILE_RESULTS`.
    */
-  const loadFiles = useCallback(
-    async (searchPattern: string = '.') => {
+  const loadEntries = useCallback(
+    async (query: string = '.'): Promise<ResourceEntry[]> => {
       if (accessiblePaths.length === 0) {
         logger.warn('No accessible paths configured')
         return []
@@ -190,42 +210,40 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
       hasAttemptedLoadRef.current = true
       setIsLoading(true)
       const deduped = new Set<string>()
-      const collected: string[] = []
+      const collected: ResourceEntry[] = []
 
       try {
-        for (const dirPath of accessiblePaths) {
-          if (collected.length >= MAX_FILE_RESULTS) {
-            break
-          }
-          if (!dirPath) continue
+        for (const basePath of accessiblePaths) {
+          if (collected.length >= MAX_FILE_RESULTS) break
+          if (!basePath) continue
           try {
-            const files = await window.api.file.listDirectory(dirPath, {
-              recursive: true,
-              maxDepth: 10,
-              includeHidden: false,
-              includeFiles: true,
-              includeDirectories: true,
-              maxEntries: MAX_SEARCH_RESULTS,
-              searchPattern: searchPattern || '.'
+            const result = await window.api.file.findPath({
+              basePath,
+              query: query || '.',
+              pageSize: MAX_SEARCH_RESULTS
             })
-
-            for (const filePath of files) {
-              const normalizedPath = filePath.replace(/\\/g, '/')
-              if (deduped.has(normalizedPath)) continue
-              deduped.add(normalizedPath)
-              collected.push(normalizedPath)
-              if (collected.length >= MAX_FILE_RESULTS) {
-                break
-              }
+            const normalizedBase = basePath.replace(/\\/g, '/').replace(/\/+$/, '')
+            for (const item of result.items) {
+              const normalizedRel = item.relativePath.replace(/\\/g, '/').replace(/\/+$/, '')
+              const absolutePath = `${normalizedBase}/${normalizedRel}`
+              if (deduped.has(absolutePath)) continue
+              deduped.add(absolutePath)
+              collected.push({
+                type: item.type,
+                absolutePath,
+                relativePath: normalizedRel,
+                name: item.name,
+                gitStatus: item.gitStatus
+              })
+              if (collected.length >= MAX_FILE_RESULTS) break
             }
           } catch (error) {
-            logger.warn(`Failed to list directory: ${dirPath}`, error as Error)
+            logger.warn(`Failed to search ${basePath}`, error as Error)
           }
         }
-
         return collected
       } catch (error) {
-        logger.error('Failed to load files', error as Error)
+        logger.error('Failed to load entries', error as Error)
         return []
       } finally {
         setIsLoading(false)
@@ -235,12 +253,13 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Handle file selection
+   * Selecting an entry inserts its base-relative path at the trigger
+   * position. Files and directories share the same insertion path —
+   * the AI sees a path token either way.
    */
-  const onSelectFile = useCallback(
-    (filePath: string) => {
-      const trigger = triggerInfoRef.current
-      insertFilePath(filePath, trigger)
+  const onSelectEntry = useCallback(
+    (entry: ResourceEntry) => {
+      insertFilePath(entry.absolutePath, triggerInfoRef.current)
       close()
     },
     [close, insertFilePath]
@@ -286,27 +305,38 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   )
 
   /**
-   * Create file list items for QuickPanel
+   * Build QuickPanel items for an entry list. Files get a per-extension
+   * icon; directories get the open-folder icon. `gitStatus` rides into
+   * the description so users can spot dirty files at a glance.
    */
-  const createFileItems = useCallback(
-    (files: string[]): QuickPanelListItem[] => {
-      return files.map((filePath) => {
-        const relativePath = getRelativePath(filePath)
-        const fileName = relativePath.split('/').pop() || relativePath
-
-        // Include both absolute path and relative path in filterText to improve matching
-        const filterText = `${fileName} ${relativePath} ${filePath}`
+  const createEntryItems = useCallback(
+    (entries: ResourceEntry[]): QuickPanelListItem[] => {
+      return entries.map((entry) => {
+        const filterText = `${entry.name} ${entry.relativePath} ${entry.absolutePath}`
+        const description =
+          entry.gitStatus && entry.gitStatus !== 'clean'
+            ? entry.gitStatus
+            : entry.type === 'directory'
+              ? '/'
+              : undefined
+        const icon =
+          entry.type === 'directory' ? (
+            <FolderOpen size={16} />
+          ) : (
+            <Icon icon={`material-icon-theme:${getFileIconName(entry.absolutePath)}`} style={{ fontSize: 16 }} />
+          )
 
         return {
-          label: relativePath,
-          icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} style={{ fontSize: 16 }} />,
-          filterText: filterText,
-          action: () => onSelectFile(filePath),
+          label: entry.relativePath || entry.name,
+          description,
+          icon,
+          filterText,
+          action: () => onSelectEntry(entry),
           isSelected: false
         }
       })
     },
-    [getRelativePath, onSelectFile]
+    [onSelectEntry]
   )
 
   /**
@@ -340,11 +370,11 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   }, [])
 
   /**
-   * Build categorized list with files and skills
+   * Build categorized list with entries (files+dirs) and skills.
    */
   const buildCategorizedList = useCallback(
-    (files: string[], skillList: InstalledSkill[], loading: boolean): QuickPanelListItem[] => {
-      if (loading && files.length === 0 && skillList.length === 0) {
+    (entries: ResourceEntry[], skillList: InstalledSkill[], loading: boolean): QuickPanelListItem[] => {
+      if (loading && entries.length === 0 && skillList.length === 0) {
         return [
           {
             label: t('common.loading'),
@@ -359,19 +389,17 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
       const items: QuickPanelListItem[] = []
 
-      // Add Files
-      if (files.length > 0) {
+      if (entries.length > 0) {
         items.push({
           label: t('chat.input.resource_panel.categories.files'),
-          description: `(${files.length})`,
+          description: `(${entries.length})`,
           icon: <Folder size={16} />,
           disabled: true,
           action: () => {}
         })
-        items.push(...createFileItems(files))
+        items.push(...createEntryItems(entries))
       }
 
-      // Add Skills
       if (skillList.length > 0) {
         items.push({
           label: t('chat.input.resource_panel.categories.skills'),
@@ -398,34 +426,36 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
 
       return items
     },
-    [createFileItems, createSkillItems, t]
+    [createEntryItems, createSkillItems, t]
   )
 
-  /**
-   * Current list items for QuickPanel
-   */
   const categorizedItems = useMemo<QuickPanelListItem[]>(
-    () => buildCategorizedList(fileList, enabledSkills, isLoading || skillsLoading),
-    [buildCategorizedList, fileList, enabledSkills, isLoading, skillsLoading]
+    () => buildCategorizedList(entryList, enabledSkills, isLoading || skillsLoading),
+    [buildCategorizedList, entryList, enabledSkills, isLoading, skillsLoading]
   )
 
   /**
-   * Handle search text change - load files and update list
+   * Handle search text change — re-query fff and refresh list. We mark
+   * `searchInFlightRef` for the duration so the auto-sync effect (which
+   * also calls `updateList`) can't race-overwrite the filtered result
+   * with stale state during the awaits.
    */
   const handleSearchChange = useCallback(
     async (searchText: string) => {
       logger.debug('Search text changed', { searchText })
-
-      const searchPattern = searchText.trim() || '.'
-      const newFiles = await loadFiles(searchPattern)
-
-      updateFileListState(newFiles)
-
-      const filteredSkills = filterSkills(enabledSkills, searchText)
-      const newItems = buildCategorizedList(newFiles, filteredSkills, false)
-      updateList(newItems)
+      searchInFlightRef.current = true
+      try {
+        const query = searchText.trim() || '.'
+        const newEntries = await loadEntries(query)
+        updateEntryListState(newEntries)
+        const filteredSkills = filterSkills(enabledSkills, searchText)
+        const newItems = buildCategorizedList(newEntries, filteredSkills, false)
+        updateList(newItems)
+      } finally {
+        searchInFlightRef.current = false
+      }
     },
-    [loadFiles, enabledSkills, filterSkills, buildCategorizedList, updateList, updateFileListState]
+    [loadEntries, enabledSkills, filterSkills, buildCategorizedList, updateList, updateEntryListState]
   )
 
   /**
@@ -442,16 +472,19 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
           : triggerInfo
       triggerInfoRef.current = normalizedTriggerInfo
 
-      // Always load fresh files when opening the panel
-      const files = await loadFiles()
-      updateFileListState(files)
+      // Always load fresh entries when opening the panel
+      const entries = await loadEntries()
+      updateEntryListState(entries)
 
-      const items = buildCategorizedList(files, enabledSkills, skillsLoading)
+      const items = buildCategorizedList(entries, enabledSkills, skillsLoading)
 
       open({
         title: t('chat.input.resource_panel.description'),
         list: items,
-        symbol: QuickPanelReservedSymbol.MentionModels,
+        // Use a dedicated panel symbol — Chat scope also has the
+        // MentionModels manager mounted, which would race to overwrite
+        // our list if we shared `@` as the panel identifier.
+        symbol: QuickPanelReservedSymbol.File,
         manageListExternally: true,
         triggerInfo: normalizedTriggerInfo
           ? {
@@ -478,8 +511,8 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
               })
             }
           }
-          // Clear file list and reset state when panel closes
-          updateFileListState([])
+          // Clear entry list and reset state when panel closes
+          updateEntryListState([])
           hasAttemptedLoadRef.current = false
           triggerInfoRef.current = undefined
         },
@@ -487,7 +520,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
       })
     },
     [
-      loadFiles,
+      loadEntries,
       open,
       removeTriggerSymbolAndText,
       setText,
@@ -496,7 +529,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
       buildCategorizedList,
       enabledSkills,
       skillsLoading,
-      updateFileListState
+      updateEntryListState
     ]
   )
 
@@ -504,7 +537,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    * Handle button click - toggle panel open/close
    */
   const isMentionPanelActive = useCallback(() => {
-    return quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.MentionModels
+    return quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.File
   }, [quickPanelController])
 
   const handleOpenQuickPanel = useCallback(() => {
@@ -516,17 +549,23 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   }, [close, isMentionPanelActive, openQuickPanel])
 
   /**
-   * Update list when data changes
+   * Sync the panel list when async data lands *outside* a search call —
+   * for example, skills finishing their async load after the panel
+   * already opened. While `handleSearchChange` is running we skip,
+   * otherwise its in-flight `setEntryList` / `setIsLoading` would
+   * cause this effect to fire mid-call and clobber the filtered list
+   * with the prior, broader one.
    */
   useEffect(() => {
     if (role !== 'manager') return
-    if (!hasAttemptedLoadRef.current && fileList.length === 0 && !isLoading) {
+    if (searchInFlightRef.current) return
+    if (!hasAttemptedLoadRef.current && entryList.length === 0 && !isLoading) {
       return
     }
-    if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
+    if (isVisible && symbol === QuickPanelReservedSymbol.File) {
       updateList(categorizedItems)
     }
-  }, [categorizedItems, fileList.length, enabledSkills.length, isLoading, isVisible, role, symbol, updateList])
+  }, [categorizedItems, entryList.length, enabledSkills.length, isLoading, isVisible, role, symbol, updateList])
 
   /**
    * Register trigger and root menu (manager only)
@@ -571,7 +610,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   return {
     handleOpenQuickPanel,
     openQuickPanel,
-    fileList,
+    entryList,
     isLoading
   }
 }

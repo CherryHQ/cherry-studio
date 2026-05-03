@@ -36,7 +36,13 @@ vi.mock('@ff-labs/fff-node', () => ({
   }
 }))
 
-import { destroyAllFinders } from '../finderPool'
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import { createFindPathToolEntry, FS_FIND_TOOL_NAME } from '../findPath'
 
 const entry = createFindPathToolEntry()
@@ -72,8 +78,8 @@ beforeEach(() => {
   waitForScan.mockClear()
 })
 
-afterEach(async () => {
-  await destroyAllFinders()
+afterEach(() => {
+  MockMainCacheServiceUtils.resetMocks()
 })
 
 describe('fs__find entry', () => {

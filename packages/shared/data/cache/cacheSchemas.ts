@@ -264,6 +264,7 @@ export type SharedCacheSchema = {
   // Per-call "Allow always: <pattern>" suggestion stashed by main when a
   // tool's L3 hook returns 'ask'. Cleared on Ai_ToolApproval_Respond.
   'tool_approval.suggested_rule.${toolCallId}': CacheValueTypes.ToolApprovalSuggestedRule | null
+  'topic.workspace_root_override.${topicId}': { root: string | null } | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -273,7 +274,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent_session.cache_version': 0,
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
-  'tool_approval.suggested_rule.${toolCallId}': null
+  'tool_approval.suggested_rule.${toolCallId}': null,
+  'topic.workspace_root_override.${topicId}': null
 }
 
 /**

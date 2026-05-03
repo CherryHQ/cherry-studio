@@ -265,6 +265,8 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  /** Absolute filesystem path the topic is bound to. NULL = unbound. */
+  workspaceRoot?: string | null
 }
 
 export type User = {

@@ -31,6 +31,8 @@ export const TopicSchema = z.strictObject({
   assistantId: z.string().nullable().optional(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().nullable().optional(),
+  /** Absolute filesystem path the topic is bound to (cwd for tools). NULL = unbound. */
+  workspaceRoot: z.string().nullable().optional(),
   /** Group ID for organization */
   groupId: z.string().nullable().optional(),
   /** Fractional-indexing order key, partitioned by groupId. */
