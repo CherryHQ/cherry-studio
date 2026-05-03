@@ -79,6 +79,11 @@ export function useToolApproval(target: ToolApprovalTarget): ToolApprovalState &
     isSubmitting: false,
     input: match.input as Record<string, unknown> | undefined,
     confirm: () => void respond(true),
-    cancel: () => void respond(false)
+    cancel: () => void respond(false),
+    // Auto-approve: same dispatch as `confirm` for now — the dropdown UX
+    // is restored while persistence (per-tool / per-rule auto-approve)
+    // is handled through the existing McpSettings page. When the unified
+    // rule system lands on this branch, swap in the rule-saving path.
+    autoApprove: () => void respond(true)
   }
 }
