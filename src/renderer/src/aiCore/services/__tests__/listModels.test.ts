@@ -47,7 +47,6 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/provider', () => ({
-  isAIGatewayProvider: (p: Provider) => p.id === 'gateway',
   isGeminiProvider: (p: Provider) => p.id === 'gemini' || p.type === 'gemini',
   isOllamaProvider: (p: Provider) => p.id === 'ollama' || p.type === 'ollama',
   isVertexProvider: (p: Provider) => p.id === 'vertexai' || p.type === 'vertexai'
@@ -176,6 +175,45 @@ const REAL_PPIO_CHAT = {
     { id: 'qwen/qwen3.5-27b', object: 'model', owned_by: 'unknown' },
     { id: 'qwen/qwen3.5-122b-a10b', object: 'model', owned_by: 'unknown' },
     { id: 'qwen/qwen3.5-35b-a3b', object: 'model', owned_by: 'unknown' }
+  ]
+}
+
+// From https://ai-gateway.vercel.sh/v3/ai/config (Vercel AI Gateway model registry)
+const REAL_VERCEL_GATEWAY = {
+  models: [
+    {
+      id: 'alibaba/qwen3-max',
+      name: 'Qwen3 Max',
+      description: 'The Qwen 3 series Max model.',
+      modelType: 'language',
+      tags: ['tool-use', 'implicit-caching'],
+      specification: {
+        specificationVersion: 'v3',
+        provider: 'alibaba',
+        modelId: 'alibaba/qwen3-max',
+        type: 'language'
+      },
+      pricing: { input: '0.0000012', output: '0.000006' }
+    },
+    {
+      id: 'openai/gpt-4o',
+      name: 'GPT-4o',
+      modelType: 'language',
+      specification: {
+        specificationVersion: 'v3',
+        provider: 'openai',
+        modelId: 'openai/gpt-4o'
+      }
+    },
+    {
+      id: 'openai/text-embedding-3-large',
+      modelType: 'embedding',
+      specification: {
+        specificationVersion: 'v3',
+        provider: 'openai',
+        modelId: 'openai/text-embedding-3-large'
+      }
+    }
   ]
 }
 
@@ -742,9 +780,59 @@ describe('listModels', () => {
     })
   })
 
+  describe('Vercel AI Gateway', () => {
+    it('should hit /v3/ai/config and normalize entries', async () => {
+      mockGetFromApi.mockResolvedValue({ value: REAL_VERCEL_GATEWAY })
+      const models = await listModels(
+        makeProvider({
+          id: 'gateway',
+          type: 'gateway' as any,
+          apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
+          apiKey: 'sk-gw'
+        })
+      )
+
+      expect(mockGetFromApi).toHaveBeenCalledTimes(1)
+      const [request] = mockGetFromApi.mock.calls[0]
+      expect(request).toMatchObject({
+        url: 'https://ai-gateway.vercel.sh/v3/ai/config',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer sk-gw',
+          'ai-gateway-protocol-version': '0.0.1'
+        })
+      })
+      assertValidModels(models)
+      expect(models).toHaveLength(3)
+      expect(models[0]).toMatchObject({
+        id: 'alibaba/qwen3-max',
+        name: 'Qwen3 Max',
+        provider: 'gateway',
+        group: 'alibaba',
+        owned_by: 'alibaba',
+        description: 'The Qwen 3 series Max model.'
+      })
+      expect(models[2].name).toBe('openai/text-embedding-3-large')
+    })
+
+    it('should fall back to id when name is missing and deduplicate', async () => {
+      mockGetFromApi.mockResolvedValue({
+        value: {
+          models: [
+            { id: 'openai/gpt-4o', specification: { provider: 'openai' } },
+            { id: 'openai/gpt-4o', specification: { provider: 'openai' } }
+          ]
+        }
+      })
+      const models = await listModels(
+        makeProvider({ id: 'gateway', type: 'gateway' as any, apiHost: 'https://ai-gateway.vercel.sh/v1/ai' })
+      )
+      expect(models).toHaveLength(1)
+      expect(models[0].name).toBe('openai/gpt-4o')
+    })
+  })
+
   describe('Unsupported providers', () => {
     it.each([
-      ['gateway', { id: 'gateway' }],
       ['aws-bedrock', { id: 'aws-bedrock' }],
       ['anthropic', { id: 'anthropic' }],
       ['vertex-anthropic', { id: 'vertex-anthro', type: 'vertex-anthropic' as any }]
