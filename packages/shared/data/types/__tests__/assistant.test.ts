@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AssistantIdSchema, LEGACY_DEFAULT_ASSISTANT_ID } from '../assistant'
+import { AssistantIdSchema } from '../assistant'
 
 describe('AssistantIdSchema', () => {
   it.each([
@@ -11,7 +11,7 @@ describe('AssistantIdSchema', () => {
   })
 
   it.each([
-    LEGACY_DEFAULT_ASSISTANT_ID, // v2 has no system-reserved row; the legacy literal is rejected at the schema level
+    'default',
     '',
     'arbitrary-text',
     '00000000-0000-0000-0000-000000000000', // nil UUID

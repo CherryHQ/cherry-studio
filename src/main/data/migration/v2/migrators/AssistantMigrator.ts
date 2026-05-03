@@ -9,7 +9,6 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { LEGACY_DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -145,12 +144,10 @@ export class AssistantMigrator extends BaseMigrator {
           warnings.push(`Skipped assistant without valid id: ${source.name ?? 'unknown'}`)
           return
         }
-        // v1 'default' is a sentinel, not an entity id. Remap to a fresh UUID
-        // so the row migrates as a normal user assistant — both sources for
-        // this id (assistants[0] and defaultAssistant) collide on the same UUID
-        // and merge per the standard primary-wins contract.
+        // v1 'default' is a sentinel, not an entity id — remap to a UUID so it
+        // migrates as a normal user assistant.
         let id = rawId
-        if (rawId === LEGACY_DEFAULT_ASSISTANT_ID) {
+        if (rawId === 'default') {
           let mapped = this.legacyAssistantIdRemap.get(rawId)
           if (!mapped) {
             mapped = uuidv4()

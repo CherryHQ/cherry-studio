@@ -76,16 +76,6 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
-/**
- * Legacy v1 sentinel id for the system-pre-seeded "default assistant".
- *
- * v2 has no built-in default assistant row: new installs leave `assistant`
- * empty and the renderer composes a runtime default from `Preference.defaultModelId`.
- * `AssistantMigrator` only references this constant to detect v1 sources with
- * this historical id and remap them to a fresh UUID before insert.
- */
-export const LEGACY_DEFAULT_ASSISTANT_ID = 'default' as const
-
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,
