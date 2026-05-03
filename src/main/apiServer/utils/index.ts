@@ -299,6 +299,9 @@ export function validateProvider(provider: Provider): boolean {
 export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
   switch (providerId) {
     case 'cherryin':
+      // CherryIN is a first-party aggregator that serves both Anthropic and OpenAI models;
+      // allow all models so gpt-* entries appear alongside claude-* in the Agent picker.
+      return () => true
     case 'new-api':
       return (m: Model) => m.endpoint_type === 'anthropic'
     case 'silicon':
