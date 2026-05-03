@@ -13,9 +13,21 @@
  * uses path globs) registers its matcher at startup.
  */
 
-import type { PermissionContext, PermissionRule } from './types'
+import type { PermissionBehavior, PermissionContext, PermissionRule } from './types'
 
-export type ContentMatcher = (input: unknown, ruleContent: string, ctx: PermissionContext) => boolean
+/**
+ * `behavior` is the rule's effect (`'allow'` / `'deny'` / `'ask'`). Tools
+ * can use it to apply different match semantics for deny vs allow rules
+ * — e.g. a multi-path patch should match a deny rule if *any* affected
+ * path is in the denied glob, but match an allow rule only if *every*
+ * affected path is in the allowed glob.
+ */
+export type ContentMatcher = (
+  input: unknown,
+  ruleContent: string,
+  ctx: PermissionContext,
+  behavior: PermissionBehavior
+) => boolean
 
 export interface MatcherRegistry {
   register(toolName: string, matcher: ContentMatcher): void
@@ -57,7 +69,7 @@ export function toolMatchesRule(
 
   const matcher = registry.get(toolName)
   if (!matcher) return false
-  return matcher(input, rule.ruleContent, ctx)
+  return matcher(input, rule.ruleContent, ctx, rule.behavior)
 }
 
 function toolNameMatches(actual: string, ruleName: string): boolean {

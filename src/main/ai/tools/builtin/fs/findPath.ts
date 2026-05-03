@@ -13,6 +13,7 @@
 import { isAbsolute, resolve } from 'node:path'
 
 import type { FileFinder } from '@ff-labs/fff-node'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
@@ -81,6 +82,7 @@ basePath must be absolute. Results are paths relative to basePath.`,
   inputSchema,
   outputSchema,
   toModelOutput: findPathToModelOutput,
+  needsApproval: makeNeedsApproval(FS_FIND_TOOL_NAME),
   execute: async ({ basePath, query, limit }): Promise<FindPathOutput> => {
     if (!isAbsolute(basePath)) {
       return { kind: 'error', code: 'relative-path', message: `basePath must be absolute. Got: ${basePath}` }
@@ -121,6 +123,7 @@ export function createFindPathToolEntry(): ToolEntry {
     description: 'Fuzzy filename / path search via fff. Frecency-ranked, typo-tolerant.',
     defer: ToolDefer.Auto,
     capability: ToolCapability.Read,
-    tool: findPathTool
+    tool: findPathTool,
+    checkPermissions: () => ({ behavior: 'allow' })
   }
 }

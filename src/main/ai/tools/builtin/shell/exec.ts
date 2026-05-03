@@ -27,7 +27,8 @@
 import { spawn } from 'node:child_process'
 import { isAbsolute } from 'node:path'
 
-import { checkPermission, matcherRegistry } from '@main/services/toolApproval'
+import { matcherRegistry } from '@main/services/toolApproval'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
@@ -127,20 +128,7 @@ The command runs in cherry's environment. Avoid commands that require interactiv
   inputSchema,
   outputSchema,
   toModelOutput: shellExecToModelOutput,
-  needsApproval: async (input, { toolCallId, experimental_context }) => {
-    const ctx = {
-      toolKind: 'builtin' as const,
-      sessionId: toolCallId,
-      toolCallId,
-      cwd: typeof (input as { cwd?: unknown })?.cwd === 'string' ? (input as { cwd: string }).cwd : undefined,
-      ...(experimental_context as { topicId?: string; anchorId?: string } | undefined)
-    }
-    const decision = await checkPermission(SHELL_EXEC_TOOL_NAME, input, ctx)
-    if (decision.behavior === 'deny') {
-      throw new Error(decision.reason ?? `${SHELL_EXEC_TOOL_NAME} denied by permission policy.`)
-    }
-    return decision.behavior === 'ask'
-  },
+  needsApproval: makeNeedsApproval(SHELL_EXEC_TOOL_NAME),
   execute: async ({ command, cwd, timeout }, { abortSignal }): Promise<ShellExecOutput> => {
     if (cwd !== undefined && !isAbsolute(cwd)) {
       return { kind: 'error', code: 'relative-cwd', message: `cwd must be absolute. Got: ${cwd}` }

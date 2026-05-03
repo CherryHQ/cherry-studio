@@ -13,6 +13,7 @@
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import {
   KB_SEARCH_TOOL_NAME,
   kbSearchInputSchema,
@@ -41,6 +42,7 @@ You may call this multiple times with refined queries if the first results are i
   inputSchema: kbSearchInputSchema,
   outputSchema: kbSearchOutputSchema,
   strict: true,
+  needsApproval: makeNeedsApproval(KB_SEARCH_TOOL_NAME),
   execute: async ({ query }, options): Promise<KbSearchOutput> => {
     const { request } = getToolCallContext(options)
     const knowledgeBaseIds = request.assistant?.knowledgeBaseIds ?? []
@@ -92,7 +94,8 @@ export function createKbSearchToolEntry(): ToolEntry {
     defer: ToolDefer.Auto,
     capability: ToolCapability.Read,
     tool: kbSearchTool,
-    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0,
+    checkPermissions: () => ({ behavior: 'allow' })
   }
 }
 

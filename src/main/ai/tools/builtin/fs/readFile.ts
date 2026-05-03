@@ -24,6 +24,7 @@
 import fs from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { isBinary, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
@@ -122,6 +123,7 @@ Phase 1A scope: text and code files (binary detection refuses images / PDFs / ar
   inputSchema,
   outputSchema,
   toModelOutput: fsReadToModelOutput,
+  needsApproval: makeNeedsApproval(FS_READ_TOOL_NAME),
   execute: async ({ path: requestedPath, offset, limit }) => {
     if (!isAbsolute(requestedPath)) {
       return {
@@ -192,6 +194,9 @@ export function createReadFileToolEntry(): ToolEntry {
     description: 'Read a text/code file by absolute path with line-numbered pagination',
     defer: ToolDefer.Never,
     capability: ToolCapability.Read,
-    tool: fsReadTool
+    tool: fsReadTool,
+    // Read-only tool — L3 always-allow. User can still add an explicit
+    // deny rule at L2 (e.g. to forbid reading paths under `/etc`).
+    checkPermissions: () => ({ behavior: 'allow' })
   }
 }

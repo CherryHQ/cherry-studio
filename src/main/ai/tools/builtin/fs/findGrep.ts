@@ -11,6 +11,7 @@
 import { isAbsolute, resolve } from 'node:path'
 
 import type { FileFinder, GrepMatch } from '@ff-labs/fff-node'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
@@ -115,6 +116,7 @@ basePath must be absolute. Use \`beforeContext\` / \`afterContext\` to widen the
   inputSchema,
   outputSchema,
   toModelOutput: findGrepToModelOutput,
+  needsApproval: makeNeedsApproval(FS_GREP_TOOL_NAME),
   execute: async ({
     basePath,
     pattern,
@@ -172,6 +174,7 @@ export function createFindGrepToolEntry(): ToolEntry {
     description: 'Content search via fff (plain / regex / fuzzy modes; smart-case; context lines).',
     defer: ToolDefer.Auto,
     capability: ToolCapability.Read,
-    tool: findGrepTool
+    tool: findGrepTool,
+    checkPermissions: () => ({ behavior: 'allow' })
   }
 }

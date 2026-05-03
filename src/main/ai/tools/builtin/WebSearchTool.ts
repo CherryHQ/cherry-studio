@@ -14,6 +14,7 @@
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { getResolvedConfig } from '@main/services/webSearch/utils/config'
 import { webSearchService } from '@main/services/webSearch/WebSearchService'
 import {
@@ -57,6 +58,7 @@ Cite sources by [id] in your final answer.`,
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
+  needsApproval: makeNeedsApproval(WEB_SEARCH_TOOL_NAME),
   execute: async ({ query }, options): Promise<WebSearchOutput> => {
     const { request } = getToolCallContext(options)
 
@@ -108,7 +110,8 @@ export function createWebSearchToolEntry(): ToolEntry {
     defer: ToolDefer.Auto,
     capability: ToolCapability.Read,
     tool: webSearchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch)
+    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch),
+    checkPermissions: () => ({ behavior: 'allow' })
   }
 }
 

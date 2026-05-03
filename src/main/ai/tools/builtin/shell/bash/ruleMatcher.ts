@@ -11,6 +11,9 @@
  * Sync by design — `ContentMatcher` runs in the L4 hot path; the
  * structural / safety analysis happens in L3 (`classifier.ts`) where
  * we can afford async parsing. This matcher is text-only.
+ *
+ * `behavior` (allow/deny/ask) is ignored — match semantics for shell
+ * commands are inherently single-input (no aggregation needed).
  */
 
 import type { ContentMatcher } from '@main/services/toolApproval/matcher'

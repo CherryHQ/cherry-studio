@@ -86,7 +86,7 @@ describe('toolMatchesRule — ruleContent delegation', () => {
     reg.register('shell__exec', matcher)
     const rule = makeRule({ ruleContent: 'git status' })
     expect(toolMatchesRule('shell__exec', { command: 'git status' }, rule, makeContext(), reg)).toBe(true)
-    expect(matcher).toHaveBeenCalledWith({ command: 'git status' }, 'git status', expect.anything())
+    expect(matcher).toHaveBeenCalledWith({ command: 'git status' }, 'git status', expect.anything(), 'allow')
   })
 
   it('ruleContent set + matcher returns false → no match', () => {

@@ -17,12 +17,15 @@
  * can re-issue a corrected patch.
  */
 
+import { matcherRegistry } from '@main/services/toolApproval'
+import { makeNeedsApproval } from '@main/services/toolApproval/needsApproval'
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import { BuiltinToolNamespace, ToolCapability, ToolDefer, type ToolEntry } from '../../types'
 import { type ApplyError, applyPatch as applyPatchCore } from './patch/applier'
 import { parsePatch } from './patch/parser'
+import { matchFsPatchRule } from './patch/ruleMatcher'
 
 export const FS_PATCH_TOOL_NAME = 'fs__patch'
 
@@ -136,6 +139,7 @@ All paths must be absolute.`,
   inputSchema,
   outputSchema,
   toModelOutput: fsPatchToModelOutput,
+  needsApproval: makeNeedsApproval(FS_PATCH_TOOL_NAME),
   execute: async ({ patch }): Promise<FsPatchOutput> => {
     const parsed = parsePatch(patch)
     if (!parsed.ok) {
@@ -164,6 +168,9 @@ function toApplyErrorOutput(error: ApplyError): FsPatchOutput {
 }
 
 export function createApplyPatchToolEntry(): ToolEntry {
+  // Side-effect: register the path-glob content matcher so `Edit(...)` rules
+  // are evaluable at L2 / L4. Idempotent — `register` overwrites.
+  matcherRegistry.register(FS_PATCH_TOOL_NAME, matchFsPatchRule)
   return {
     name: FS_PATCH_TOOL_NAME,
     namespace: BuiltinToolNamespace.Fs,
@@ -171,6 +178,10 @@ export function createApplyPatchToolEntry(): ToolEntry {
       'Apply a multi-file patch (add / update / delete) in one call. Codex envelope format. Atomic across files.',
     defer: ToolDefer.Never,
     capability: ToolCapability.Write,
-    tool: fsPatchTool
+    tool: fsPatchTool,
+    // Write tool — defer to user rules (L4). With no rule the central
+    // pipeline falls through to L5 default ('ask'), so the user is always
+    // prompted unless they've added an `Edit(...)` allow rule.
+    checkPermissions: () => ({ behavior: 'passthrough' })
   }
 }
