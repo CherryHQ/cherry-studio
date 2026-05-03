@@ -53,23 +53,29 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 |-------|-----------|----------|
 | Missing/invalid id | `!id` or `typeof id !== 'string'` | Skip source, log warning |
 | Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
+| Legacy id `'default'` | `id === LEGACY_DEFAULT_ASSISTANT_ID` | Remap to a fresh UUID before merge / insert (see "Legacy default-assistant remap" below) |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |
 | All sources skipped | `totalRawSources > 0 && skippedCount > 0 && preparedResults.length === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
 | Dangling MCP server ref | `mcpServerIdMapping` lookup miss | Drop the junction row, log warning |
 | Missing `mcpServerIdMapping` while assistants reference MCP servers | `sharedData.get('mcpServerIdMapping') === undefined` | Throw — `McpServerMigrator` must run before this one |
 
-## Default Assistant Backstop
+## Legacy default-assistant remap
 
-`AssistantMigrator.execute()` always inserts `DEFAULT_ASSISTANT_PAYLOAD` (canonical row defined in `@shared/data/types/assistant`) when no v1 source produced an `id='default'` row. This is wrapped in `ON CONFLICT DO NOTHING` so it's idempotent against the post-migration `DefaultAssistantSeeder`.
+v2 has **no system-reserved `'default'` assistant row**. The renderer composes a runtime default from `Preference.defaultModelId` (and other UI-level defaults), so `assistant` is empty for new installs and contains only user-created/migrated rows for upgraders.
 
-**Why** — `ChatMigrator` falls back orphan/empty `topic.assistantId` to `'default'`. `MigrationEngine.run()` ends with `verifyForeignKeys()`, which checks the schema-level FK constraint regardless of `PRAGMA foreign_keys` mode. The post-migration seeder runs in `DbService.onInit()`, which fires **after** the migration gate completes — too late for FK validation. The backstop guarantees the FK target exists by the time the transaction commits.
+To preserve user customizations made to v1's default assistant, `recordSource()` rewrites the legacy literal `'default'` to a freshly generated UUID before inserting into `sourceById`. Both v1 sources for that id (`assistants[0]` and the standalone `defaultAssistant` slot) collide on the same UUID and merge under the standard primary-wins contract. The remap (`'default' → UUID`) is held on the migrator instance for the duration of `prepare`/`execute` and exposed through `ctx.sharedData` so `ChatMigrator` can rewrite any `topic.assistantId === 'default'` to the same UUID rather than orphaning the topic.
 
-The shared payload also means seeder + backstop never drift; edit `DEFAULT_ASSISTANT_PAYLOAD` to update both consumers.
+If v1 had no `'default'` source at all (no `assistants[0]/defaultAssistant`), no remap entry is created and any topic that referenced the legacy literal becomes a true orphan in `ChatMigrator` — written as `assistantId = NULL`.
 
 ## Downstream Hand-off
 
-`AssistantMigrator.execute()` writes the set of migrated assistant IDs to `ctx.sharedData.set('assistantIds', validAssistantIds)` — always including `DEFAULT_ASSISTANT_ID`. `ChatMigrator.execute()` reads this set, defensively clones it, and uses it as the FK whitelist when validating `topic.assistantId`.
+`AssistantMigrator.execute()` writes two entries to `ctx.sharedData`:
+
+- `'assistantIds'` — `Set<string>` of migrated assistant IDs (FK whitelist for `ChatMigrator`). Contains exactly the `assistant.id` values inserted into the table; v2 has no synthetic 'default' so the literal is absent.
+- `'legacyAssistantIdRemap'` — `Map<string, string>` of v1 → v2 id rewrites. Currently only used for `'default' → UUID` (see above), but the map shape is generic for future legacy-id translations.
+
+`ChatMigrator.prepare()` and `prepareTopicData()` consume both: the remap rewrites `topic.assistantId` references, then the FK whitelist validates the result.
 
 ## Implementation Files
 
