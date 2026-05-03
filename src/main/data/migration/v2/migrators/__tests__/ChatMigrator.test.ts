@@ -325,6 +325,8 @@ describe('ChatMigrator.prepareTopicData', () => {
   it('keeps empty topic when user pinned it (user-intent signal)', () => {
     // A pinned empty topic is "user touched this" — the user explicitly
     // pinned a placeholder. Dropping it would lose intentional state.
+    // The pin flag lives on PreparedTopicData (not topic) since v2 stores
+    // pin state in a polymorphic pin table, not as a topic column.
     const oldTopic: OldTopic = {
       id: 't-pinned-empty',
       assistantId: 'ast-1',
@@ -336,7 +338,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     }
     const result = prepareTopic(oldTopic, [])
     expect(result).not.toBeNull()
-    expect(result?.topic.isPinned).toBe(true)
+    expect(result?.pinned).toBe(true)
   })
 
   it('keeps empty topic when user manually renamed it', () => {
