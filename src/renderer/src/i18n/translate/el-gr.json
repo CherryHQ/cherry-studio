@@ -36,7 +36,9 @@
         "comingSoon": "Σύντομα διαθέσιμο",
         "connected": "Συνδεδεμένος",
         "connecting": "Σύνδεση",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
         "disconnected": "Αποσυνδέθηκε",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Κανάλια",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Προσθέστε λογαριασμό WeChat",
           "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
@@ -211,6 +214,9 @@
         },
         "edit": "Επεξεργασία",
         "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Διάστημα σε λεπτά",
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
@@ -220,6 +226,7 @@
           "error": "Σφάλμα",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Αποτέλεσμα",
           "runAt": "Εκτελέστηκε στις",
           "running": "Τρέχει...",
@@ -3817,6 +3824,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3884,6 +3916,34 @@
       "title": "Κανάλια"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -5444,7 +5504,8 @@
         "documentation": "Δείτε την επίσημη τεκμηρίωση για περισσότερες λεπτομέρειες ρύθμισης:",
         "learn_more": "Μάθετε περισσότερα",
         "location": "Περιοχή",
-        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1",
+        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1. Αυτό το πεδίο δεν διαβάζεται από το JSON του Service Account και πρέπει να συμπληρωθεί χειροκίνητα.",
+        "location_placeholder": "Επιλέξτε περιοχή Vertex AI",
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5455,6 +5516,11 @@
           "client_email_placeholder": "Παρακαλώ εισάγετε το email πελάτη του λογαριασμού υπηρεσίας",
           "description": "Επαλήθευση με λογαριασμό υπηρεσίας, κατάλληλο για περιβάλλοντα όπου δεν είναι διαθέσιμο το ADC",
           "incomplete_config": "Παρακαλώ συμπληρώστε πρώτα πλήρως τις πληροφορίες του λογαριασμού υπηρεσίας",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON. Μετά την ανάλυση αποθηκεύονται μόνο τα project_id, client_email και private_key και το αρχικό JSON διαγράφεται.",
+          "json_input_placeholder": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON του Service Account",
+          "json_parse_error": "Αποτυχία ανάλυσης Service Account JSON. Παρακαλώ επιβεβαιώστε ότι η μορφή είναι σωστή.",
+          "json_parse_success": "Το Service Account JSON αναλύθηκε",
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",

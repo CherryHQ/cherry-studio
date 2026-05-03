@@ -10,6 +10,7 @@ import {
   groupQwenModels,
   isAnthropicModel,
   isClaude46SeriesModel,
+  isDeepSeekModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31ProModel,
@@ -548,6 +549,25 @@ describe('model utils', () => {
     describe('isAnthropicModel', () => {
       it('detects Anthropic models', () => {
         expect(isAnthropicModel(createModel({ id: 'claude-3.5' }))).toBe(true)
+      })
+    })
+
+    describe('isDeepSeekModel', () => {
+      it('detects DeepSeek models by id', () => {
+        expect(isDeepSeekModel(createModel({ id: 'deepseek-chat' }))).toBe(true)
+        expect(isDeepSeekModel(createModel({ id: 'DeepSeek-V3' }))).toBe(true)
+      })
+
+      it('detects DeepSeek models by name', () => {
+        expect(isDeepSeekModel(createModel({ id: 'custom-id', name: 'DeepSeek V3' }))).toBe(true)
+      })
+
+      it('returns false for non-DeepSeek models', () => {
+        expect(isDeepSeekModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      })
+
+      it('returns false for missing model', () => {
+        expect(isDeepSeekModel(undefined)).toBe(false)
       })
     })
 

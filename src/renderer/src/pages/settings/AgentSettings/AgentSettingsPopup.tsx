@@ -66,7 +66,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   return (
     <BaseSettingsPopup
       isLoading={isLoading}
-      error={error}
+      error={error ?? null}
       initialTab={tab}
       onClose={resolve}
       titleContent={<AgentLabel agent={agent} />}
