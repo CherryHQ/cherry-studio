@@ -193,6 +193,67 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   return iconv.decode(data, 'UTF-8')
 }
 
+const BINARY_DETECT_SAMPLE_SIZE = 8192
+const BINARY_DETECT_CONTROL_RATIO = 0.3
+
+/**
+ * Heuristic: is `buf` likely a binary blob? Used by file readers (e.g.
+ * the `fs__read` AI tool) to refuse non-text content with a clear error
+ * rather than returning corrupted bytes.
+ *
+ * Rules in order:
+ *  1. Empty buffer → not binary.
+ *  2. UTF-16 LE/BE BOM at start → not binary (multi-byte text encoding).
+ *  3. Any null byte (0x00) → binary. UTF-8 / ASCII text never contains 0x00;
+ *     if we see one outside a UTF-16 BOM context the file is binary.
+ *  4. >30% C0 control characters (excluding tab / LF / CR) or DEL → binary.
+ *  5. Otherwise → not binary.
+ *
+ * False positives (text classified as binary) are rare in practice — most
+ * commonly badly-encoded source files with stray control bytes. False
+ * negatives (binary classified as text): text-mode binary serializations
+ * like base64 / hex dumps, but reading those AS text is fine since they
+ * are printable.
+ */
+export function isBinaryBuffer(buf: Buffer): boolean {
+  if (buf.length === 0) return false
+
+  if (buf.length >= 2) {
+    const b0 = buf[0]
+    const b1 = buf[1]
+    // UTF-16 LE BOM (FF FE) / BE BOM (FE FF).
+    if ((b0 === 0xff && b1 === 0xfe) || (b0 === 0xfe && b1 === 0xff)) return false
+  }
+
+  let controlBytes = 0
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i]
+    if (b === 0) return true
+    if (b === 0x09 || b === 0x0a || b === 0x0d) continue
+    if (b < 0x20 || b === 0x7f) controlBytes++
+  }
+  return controlBytes / buf.length > BINARY_DETECT_CONTROL_RATIO
+}
+
+/**
+ * Sample the first 8KB of `absolutePath` and run {@link isBinaryBuffer}.
+ * Reads via `fs.open` so a multi-GB file doesn't get pulled into memory.
+ */
+export async function isBinary(absolutePath: string): Promise<boolean> {
+  const handle = await fs.promises.open(absolutePath, 'r')
+  try {
+    const buf = Buffer.alloc(BINARY_DETECT_SAMPLE_SIZE)
+    const { bytesRead } = await handle.read(buf, 0, BINARY_DETECT_SAMPLE_SIZE, 0)
+    return isBinaryBuffer(buf.subarray(0, bytesRead))
+  } finally {
+    await handle.close()
+  }
+}
+
+export async function isText(absolutePath: string): Promise<boolean> {
+  return !(await isBinary(absolutePath))
+}
+
 export async function writeWithLock(
   filePath: string,
   data: string | NodeJS.ArrayBufferView,

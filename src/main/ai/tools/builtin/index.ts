@@ -10,10 +10,20 @@
  */
 
 import { registry, type ToolRegistry } from '../registry'
+import { createApplyPatchToolEntry } from './fs/applyPatch'
+import { createFindGrepToolEntry } from './fs/findGrep'
+import { createFindPathToolEntry } from './fs/findPath'
+import { createReadFileToolEntry } from './fs/readFile'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
+import { createShellExecToolEntry } from './shell/exec'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createKbSearchToolEntry())
   reg.register(createWebSearchToolEntry())
+  reg.register(createReadFileToolEntry())
+  reg.register(createApplyPatchToolEntry())
+  reg.register(createFindPathToolEntry())
+  reg.register(createFindGrepToolEntry())
+  reg.register(createShellExecToolEntry())
 }

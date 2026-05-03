@@ -42,7 +42,9 @@ export type ToolCapability = (typeof ToolCapability)[keyof typeof ToolCapability
 export const BuiltinToolNamespace = {
   Web: 'web',
   Kb: 'kb',
-  Meta: 'meta'
+  Meta: 'meta',
+  Fs: 'fs',
+  Shell: 'shell'
 } as const
 export type BuiltinToolNamespace = (typeof BuiltinToolNamespace)[keyof typeof BuiltinToolNamespace]
 

@@ -89,6 +89,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@expo/sudo-prompt": "^9.3.2",
+    "@ff-labs/fff-node": "^0.6.4",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "^0.15.15",
     "@napi-rs/canvas": "0.1.80",
@@ -113,6 +114,7 @@
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
+    "write-file-atomic": "^7.0.1",
     "ws": "^8.18.2"
   },
   "devDependencies": {
@@ -278,6 +280,7 @@
     "@types/unist": "3.0.3",
     "@types/uuid": "^10.0.0",
     "@types/word-extractor": "^1",
+    "@types/write-file-atomic": "^4.0.3",
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
     "@uiw/codemirror-extensions-langs": "4.25.7",

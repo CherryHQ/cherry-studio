@@ -105,6 +105,9 @@ importers:
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
+      '@ff-labs/fff-node':
+        specifier: ^0.6.4
+        version: 0.6.4
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.60.0
@@ -177,6 +180,9 @@ importers:
       turndown:
         specifier: 7.2.0
         version: 7.2.0
+      write-file-atomic:
+        specifier: ^7.0.1
+        version: 7.0.1
       ws:
         specifier: ^8.18.2
         version: 8.20.0
@@ -667,6 +673,9 @@ importers:
       '@types/word-extractor':
         specifier: ^1
         version: 1.0.6
+      '@types/write-file-atomic':
+        specifier: ^4.0.3
+        version: 4.0.3
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -2933,6 +2942,52 @@ packages:
 
   '@expo/sudo-prompt@9.3.2':
     resolution: {integrity: sha512-HHQigo3rQWKMDzYDLkubN5WQOYXJJE2eNqIQC2axC2iO3mHdwnIR7FgZVvHWtBwAdzBgAP0ECp8KqS8TiMKvgw==}
+
+  '@ff-labs/fff-bin-darwin-arm64@0.6.4':
+    resolution: {integrity: sha512-IiLrUeVL+6oeHlzyBGp6ACrb4j7vl66/GXtkoSASVtXJGt5J3IH9m9OvQTwwBxrQtPSgb0tI7TvdYPX0RGH9Qg==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@ff-labs/fff-bin-darwin-x64@0.6.4':
+    resolution: {integrity: sha512-COd27jhKVKIsLT3krQ2DrOkgMYJ5jPSnRLrbarwtYe5jVbayKR6N4wUhtGF3VXWnNoYTNstq2uBYcHphOp5AkQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@ff-labs/fff-bin-linux-arm64-gnu@0.6.4':
+    resolution: {integrity: sha512-E2UWCgpBwCPWaupHnn7RAmHjyCyEmKwruaMyigTjI2tg6gXYvoAIjNR+TGsKkTqGl0B1BmP0sD8Uh65K5koxTQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@ff-labs/fff-bin-linux-arm64-musl@0.6.4':
+    resolution: {integrity: sha512-t9K3NzYkBxK2UYp6Xy7Lac/RAL+cWa+78HcRNI693k0U9c6G65J2/cVn5SVOiJ1EcnEnC3MCuPsCEmj/9d3Pqw==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@ff-labs/fff-bin-linux-x64-gnu@0.6.4':
+    resolution: {integrity: sha512-tNSYpZok9HpXZoAlTEWbJF0ZQtZKZNmpyU2WfVRa3WhsPZ/ej+YUuPEPI83OYRqxy4F0OVtGYCqj7dos/AVSLg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@ff-labs/fff-bin-linux-x64-musl@0.6.4':
+    resolution: {integrity: sha512-GHJhJ3P7cGth4F0VTyoe3maFQT0cW+RbMm7R5XKkNZZW2rNtR+4jo+neAU4gchYH6jv7ajCB5HQdNBcou8zxKA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@ff-labs/fff-bin-win32-arm64@0.6.4':
+    resolution: {integrity: sha512-+wmwbeoAvkce2ZduY1FSjzMnmE4LNJDpXa1q++mTz+/LsUvjPBl1dSchvXxuyLzKAqhigHpJ1k9Xull0iIDUjQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@ff-labs/fff-bin-win32-x64@0.6.4':
+    resolution: {integrity: sha512-OOEXudgFtkXS5iF+6JoawCMpK76xg0NodUhsc2bhTKXJP8DjfQhU/ARpxoPFiX7uwAy1/xaPjbaT5dfP16TaCg==}
+    cpu: [x64]
+    os: [win32]
+
+  '@ff-labs/fff-node@0.6.4':
+    resolution: {integrity: sha512-iC9H2cTxxEhOpGkx9sZaAo4ADX/m+gU+RzvpgB89KNOeDhjtJ6AxedT3YkgV1ZAWHHvBAVDALXwNKI81Ygk7Xg==}
+    engines: {node: '>=18.0.0'}
+    cpu: [x64, arm64]
+    os: [darwin, linux, win32]
 
   '@floating-ui/core@1.7.3':
     resolution: {integrity: sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==}
@@ -6874,6 +6929,9 @@ packages:
   '@types/word-extractor@1.0.6':
     resolution: {integrity: sha512-NDrvZXGJi7cTKXGr8GTP08HiqiueggR1wfHZvBj1sfL8e52qecBSlvl1rBWrvOY0LLkk1DISkKVlFqMTfipLbQ==}
 
+  '@types/write-file-atomic@4.0.3':
+    resolution: {integrity: sha512-qdo+vZRchyJIHNeuI1nrpsLw+hnkgqP/8mlaN6Wle/NKhydHmUN9l4p3ZE8yP90AJNJW4uB8HQhedb4f1vNayQ==}
+
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -7315,6 +7373,72 @@ packages:
 
   '@xyflow/system@0.0.74':
     resolution: {integrity: sha512-7v7B/PkiVrkdZzSbL+inGAo6tkR/WQHHG0/jhSvLQToCsfa8YubOGmBYd1s08tpKpihdHDZFwzQZeR69QSBb4Q==}
+
+  '@yuuang/ffi-rs-android-arm64@1.3.2':
+    resolution: {integrity: sha512-eDYLT0kVBkp7e2BwdRDmt6N1rkeDPUHDefk3ZX0/nok+GLsqfy1WBoSL3Yg7HVXN1EyW8OBVc2uK8Zq8HbmaSA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [android]
+
+  '@yuuang/ffi-rs-darwin-arm64@1.3.2':
+    resolution: {integrity: sha512-kRdgPaOM6TfuC5wHUwstlatk4HNie2lwSLJWQL2LiAUIJ7+96CoiWUNVhwBcFrhdfxhnWenYS6F668CV0vit8Q==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@yuuang/ffi-rs-darwin-x64@1.3.2':
+    resolution: {integrity: sha512-O3AlVgre8FQcZRJe44Xs7A6iDLumoPXqbw40+eJCa2gyXaXyLPdHoWrS1W9rBCa1QZRRnG7zRulPVFw8C5uo8g==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@yuuang/ffi-rs-linux-arm-gnueabihf@1.3.2':
+    resolution: {integrity: sha512-IXiNdTbIcTCPny5eeElijFWYeKSJjQWSjt9ZyJNdLHYiB1Np+XD6K7wNZS6EOMgMelhW1kQE62T654skGkVDIA==}
+    engines: {node: '>= 12'}
+    cpu: [arm]
+    os: [linux]
+
+  '@yuuang/ffi-rs-linux-arm64-gnu@1.3.2':
+    resolution: {integrity: sha512-gWFO6xufUK9lPYUqDvKa6IR243dPqdetgl9Q7HrZWaDu7wLo06QQrosw8QTzndafQnOcBKm6LoLujmGCfTgJOA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@yuuang/ffi-rs-linux-arm64-musl@1.3.2':
+    resolution: {integrity: sha512-lejvOSqypPziQH5rzfkDlJ6e92qhWbDutE9ttOO6z5I2k83zoh9iZhZWhaXSU5VqgQpcshRkrbtXb9gy1ft5dA==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@yuuang/ffi-rs-linux-x64-gnu@1.3.2':
+    resolution: {integrity: sha512-s8VCFazaJKmgY2hgMTpWk4TtBY/zy5ovbaGgwyY0FvBD0YvyhcET4IrMsDJpHhFVTPCYfKZ1dN45clD/YiFp6g==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [linux]
+
+  '@yuuang/ffi-rs-linux-x64-musl@1.3.2':
+    resolution: {integrity: sha512-Ahr5chfKZKWUik20bEZRug+be57LZ2yYrtolyjSRoo7A4ZniBUHBZUNWm6TD6i0CJayqyxWeVk/XiaABD8bY0w==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [linux]
+
+  '@yuuang/ffi-rs-win32-arm64-msvc@1.3.2':
+    resolution: {integrity: sha512-yhpLcj0qel5VNlpzxPZfNmi7+rEX8444QHjUP6WWLxdRfqPllROu/Cp3OpkBpw3BLdxfcDhWkjWMD5QsJN0Pvg==}
+    engines: {node: '>= 12'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@yuuang/ffi-rs-win32-ia32-msvc@1.3.2':
+    resolution: {integrity: sha512-BFVSbdtg/7mJBw5kQFOPKFiA+SF7z3240HpzHN81Umm4Bp4dWkyx0msYn8+Q7/BBJiLQ4F6bi3Nftk58YA9r9w==}
+    engines: {node: '>= 12'}
+    cpu: [x64, ia32]
+    os: [win32]
+
+  '@yuuang/ffi-rs-win32-x64-msvc@1.3.2':
+    resolution: {integrity: sha512-ZL5MJ76n2rjwGo26kCWW7wK6QT/cee00Rx8pfW79pz6vM6jqfhoE7zTnwFiw4aOQUes9+HUc5DeeJ3z+Vb9oLg==}
+    engines: {node: '>= 12'}
+    cpu: [x64]
+    os: [win32]
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -9418,6 +9542,9 @@ packages:
 
   fetch-socks@1.3.2:
     resolution: {integrity: sha512-vkH5+Zgj2yEbU57Cei0iyLgTZ4OkEKJj56Xu3ViB5dpsl599JgEooQ3x6NVagIFRHWnWJ+7K0MO0aIV1TMgvnw==}
+
+  ffi-rs@1.3.2:
+    resolution: {integrity: sha512-4s8dX9VbBw/jd5NOuE3EJRqXaIVdjMyiumeeDzrOhtjQRwp6Bz2za7iksWXTnvTQKV/tTdm1s1w7mObe92zPjQ==}
 
   fflate@0.8.1:
     resolution: {integrity: sha512-/exOvEuc+/iaUm105QIiOt4LpBdMTWsXxqR0HDF35vx3fmaKzw7354gTilCh5rkzEt8WYyG//ku3h3nRmd7CHQ==}
@@ -14534,6 +14661,10 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  write-file-atomic@7.0.1:
+    resolution: {integrity: sha512-OTIk8iR8/aCRWBqvxrzxR0hgxWpnYBblY1S5hDWBQfk/VFmJwzmJgQFN3WsoUKHISv2eAwe+PpbUzyL1CKTLXg==}
+    engines: {node: ^20.17.0 || >=22.9.0}
+
   ws@8.20.0:
     resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
     engines: {node: '>=10.0.0'}
@@ -16921,6 +17052,43 @@ snapshots:
       levn: 0.4.1
 
   '@expo/sudo-prompt@9.3.2': {}
+
+  '@ff-labs/fff-bin-darwin-arm64@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-darwin-x64@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-arm64-gnu@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-arm64-musl@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-x64-gnu@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-linux-x64-musl@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-win32-arm64@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-bin-win32-x64@0.6.4':
+    optional: true
+
+  '@ff-labs/fff-node@0.6.4':
+    dependencies:
+      ffi-rs: 1.3.2
+    optionalDependencies:
+      '@ff-labs/fff-bin-darwin-arm64': 0.6.4
+      '@ff-labs/fff-bin-darwin-x64': 0.6.4
+      '@ff-labs/fff-bin-linux-arm64-gnu': 0.6.4
+      '@ff-labs/fff-bin-linux-arm64-musl': 0.6.4
+      '@ff-labs/fff-bin-linux-x64-gnu': 0.6.4
+      '@ff-labs/fff-bin-linux-x64-musl': 0.6.4
+      '@ff-labs/fff-bin-win32-arm64': 0.6.4
+      '@ff-labs/fff-bin-win32-x64': 0.6.4
 
   '@floating-ui/core@1.7.3':
     dependencies:
@@ -20573,6 +20741,10 @@ snapshots:
     dependencies:
       '@types/node': 24.10.4
 
+  '@types/write-file-atomic@4.0.3':
+    dependencies:
+      '@types/node': 24.10.4
+
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 24.10.4
@@ -21470,6 +21642,39 @@ snapshots:
       d3-interpolate: 3.0.1
       d3-selection: 3.0.0
       d3-zoom: 3.0.0
+
+  '@yuuang/ffi-rs-android-arm64@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-darwin-arm64@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-darwin-x64@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm-gnueabihf@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm64-gnu@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-arm64-musl@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-x64-gnu@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-linux-x64-musl@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-arm64-msvc@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-ia32-msvc@1.3.2':
+    optional: true
+
+  '@yuuang/ffi-rs-win32-x64-msvc@1.3.2':
+    optional: true
 
   abbrev@1.1.1:
     optional: true
@@ -23931,6 +24136,20 @@ snapshots:
     dependencies:
       socks: 2.8.7
       undici: 6.23.0
+
+  ffi-rs@1.3.2:
+    optionalDependencies:
+      '@yuuang/ffi-rs-android-arm64': 1.3.2
+      '@yuuang/ffi-rs-darwin-arm64': 1.3.2
+      '@yuuang/ffi-rs-darwin-x64': 1.3.2
+      '@yuuang/ffi-rs-linux-arm-gnueabihf': 1.3.2
+      '@yuuang/ffi-rs-linux-arm64-gnu': 1.3.2
+      '@yuuang/ffi-rs-linux-arm64-musl': 1.3.2
+      '@yuuang/ffi-rs-linux-x64-gnu': 1.3.2
+      '@yuuang/ffi-rs-linux-x64-musl': 1.3.2
+      '@yuuang/ffi-rs-win32-arm64-msvc': 1.3.2
+      '@yuuang/ffi-rs-win32-ia32-msvc': 1.3.2
+      '@yuuang/ffi-rs-win32-x64-msvc': 1.3.2
 
   fflate@0.8.1: {}
 
@@ -30144,6 +30363,10 @@ snapshots:
       strip-ansi: 7.1.2
 
   wrappy@1.0.2: {}
+
+  write-file-atomic@7.0.1:
+    dependencies:
+      signal-exit: 4.1.0
 
   ws@8.20.0: {}
 

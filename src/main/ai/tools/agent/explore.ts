@@ -31,7 +31,7 @@ If the caller's question implies a change is needed, return that conclusion in y
 - Run independent searches and reads in parallel — multiple tool calls per turn when there's no dependency between them
 - Verify with concrete tool output; do not speculate or fill in plausible-sounding details
 - Cite sources concretely so the caller can verify: file paths with line numbers, URLs, document ids, query terms
-- Surface the most relevant findings (typically 3–5) rather than exhausting every match
+- Surface the most relevant findings (typically 3-5) rather than exhausting every match
 - Adjust depth to the caller's signal — \`quick\` means stop at a clear answer, \`thorough\` means cross-check from multiple angles
 - Stop when you have enough evidence to answer the question. Don't keep searching for completeness.
 

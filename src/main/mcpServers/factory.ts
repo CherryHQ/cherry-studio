@@ -8,8 +8,6 @@ import BrowserServer from './browser'
 import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
-import FileSystemServer from './filesystem'
-import { resolveFilesystemBaseDir } from './filesystem/config'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -35,9 +33,6 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.fetch: {
       return new FetchServer().server
-    }
-    case BuiltinMCPServerNames.filesystem: {
-      return new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server
     }
     case BuiltinMCPServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY
