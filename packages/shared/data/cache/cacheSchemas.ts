@@ -126,6 +126,9 @@ export type UseCacheSchema = {
   'painting.selection.${scope}': string | null
   'painting.mode.${providerId}': string
 
+  // Knowledge recall test query history (session-only)
+  'knowledge.recall.search_queries': Record<string, string[]>
+
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
   'minapp.current_id': string
@@ -201,6 +204,7 @@ export const DefaultUseCache: UseCacheSchema = {
   },
   'painting.selection.${scope}': null,
   'painting.mode.${providerId}': 'generate',
+  'knowledge.recall.search_queries': {},
 
   // Minapp management
   'minapp.opened_keep_alive': [],

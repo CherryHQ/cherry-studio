@@ -81,6 +81,7 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
     isSupportedThinkingTokenMiMoModel: vi.fn(() => false),
     isSupportedReasoningEffortModel: vi.fn(() => false),
     isDeepSeekHybridInferenceModel: vi.fn(() => false),
+    isDeepSeekV4PlusModel: vi.fn(() => false),
     isSupportedReasoningEffortGrokModel: vi.fn(() => false),
     getThinkModelType: vi.fn(() => 'default'),
     isDoubaoSeedAfter251015: vi.fn(() => false),
@@ -430,6 +431,54 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should use enable_thinking:false for SiliconFlow + DeepSeek-V4-Flash when reasoning_effort is none', async () => {
+      const { isReasoningModel, isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'deepseek-ai/DeepSeek-V4-Flash',
+        name: 'DeepSeek V4 Flash',
+        provider: SystemProviderIds.silicon
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ enable_thinking: false })
+    })
+
+    it('should use enable_thinking:false for SiliconFlow + Zhipu model when reasoning_effort is none', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenZhipuModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenZhipuModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'THUDM/glm-4.5-thinking',
+        name: 'GLM-4.5 Thinking',
+        provider: SystemProviderIds.silicon
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ enable_thinking: false })
+    })
+
     it('should return medium effort for deep research models', async () => {
       const { isReasoningModel, isOpenAIDeepResearchModel } = await import('@renderer/config/models')
 
@@ -521,6 +570,159 @@ describe('reasoning utils', () => {
 
       const result = getReasoningEffort(assistant, model)
       expect(result).toEqual({})
+    })
+
+    // Mistral models use reasoningEffort with only 'none' | 'high' support
+    describe('Mistral models (mistral-small-2603 and magistral-*)', () => {
+      // Helper: Create a Mistral model
+      const createMistralModel = (id: string): Model => ({
+        id,
+        name: id,
+        provider: 'mistral',
+        group: 'Mistral'
+      })
+
+      // Helper: Create an assistant with specific reasoning_effort setting
+      const createAssistantWithReasoning = (effort: string | undefined): Assistant =>
+        ({
+          id: 'test',
+          name: 'Test',
+          settings: {
+            reasoning_effort: effort as any
+          }
+        }) as Assistant
+
+      describe('mistral-small-2603', () => {
+        const mistralModel = createMistralModel('mistral-small-2603')
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "high"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return { reasoningEffort: "none" } when reasoning_effort is "none"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('none')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'none' })
+        })
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "low" (mapping)', async () => {
+          // Mistral models only support 'none' and 'high', so other values map to 'high'
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('low')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return { reasoningEffort: "high" } when reasoning_effort is "medium" (mapping)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('medium')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+
+        it('should return {} when reasoning_effort is "default"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('default')
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} when reasoning_effort is undefined', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = {
+            id: 'test',
+            name: 'Test',
+            settings: {
+              reasoning_effort: undefined
+            }
+          } as Assistant
+          const result = getReasoningEffort(assistant, mistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('magistral-small-latest', () => {
+        // Magistral models reason natively — they do NOT accept reasoning_effort parameter
+        const magistralModel = createMistralModel('magistral-small-latest')
+
+        it('should return {} for magistral (native reasoning, no parameter)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} for magistral when reasoning_effort is "none"', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('none')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('magistral-medium-latest', () => {
+        // Magistral models reason natively — no reasoning_effort parameter accepted
+        const magistralModel = createMistralModel('magistral-medium-latest')
+
+        it('should return {} for magistral-medium (native reasoning)', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('xhigh')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+
+        it('should return {} for magistral-medium with auto effort', async () => {
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const assistant = createAssistantWithReasoning('auto')
+          const result = getReasoningEffort(assistant, magistralModel)
+          expect(result).toEqual({})
+        })
+      })
+
+      describe('edge cases', () => {
+        it('should return {} for non-reasoning Mistral models', async () => {
+          // isReasoningModel returns false by default in the top-level mock
+          const nonReasoningModel = createMistralModel('mistral-large-2407')
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, nonReasoningModel)
+          expect(result).toEqual({})
+        })
+
+        it('should handle model ID with different case', async () => {
+          // getLowerBaseModelName converts to lowercase, so case shouldn't matter
+          const { isReasoningModel } = await import('@renderer/config/models')
+          vi.mocked(isReasoningModel).mockReturnValue(true)
+
+          const upperCaseModel = createMistralModel('MISTRAL-SMALL-2603')
+          const assistant = createAssistantWithReasoning('high')
+          const result = getReasoningEffort(assistant, upperCaseModel)
+          expect(result).toEqual({ reasoningEffort: 'high' })
+        })
+      })
     })
   })
 
@@ -828,7 +1030,8 @@ describe('reasoning utils', () => {
         thinking: {
           type: 'enabled',
           budgetTokens: expect.any(Number)
-        }
+        },
+        sendReasoning: true
       })
       const thinking = result.thinking as { type: 'enabled'; budgetTokens?: number }
       expect(thinking.budgetTokens).toBeGreaterThanOrEqual(1024)
@@ -868,6 +1071,125 @@ describe('reasoning utils', () => {
       const lowThinking = lowResult.thinking as { type: 'enabled'; budgetTokens?: number }
       const highThinking = highResult.thinking as { type: 'enabled'; budgetTokens?: number }
       expect(highThinking.budgetTokens).toBeGreaterThanOrEqual(lowThinking.budgetTokens!)
+    })
+
+    it('should map DeepSeek V4+ xhigh effort to max on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true,
+        effort: 'max'
+      })
+    })
+
+    it('should map DeepSeek V4+ high effort to high on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4',
+        name: 'DeepSeek V4',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true,
+        effort: 'high'
+      })
+    })
+
+    it('should not add effort for DeepSeek V4+ when effort is outside the documented set', async () => {
+      // Guard against silent downgrade: if MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4 ever gains
+      // new levels (low/medium/auto), the explicit effortMap must be extended — otherwise effort
+      // is omitted here rather than being silently mapped to 'high'.
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(true)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'deepseek-v4',
+        name: 'DeepSeek V4',
+        provider: 'deepseek'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'medium', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true
+      })
+      expect(result).not.toHaveProperty('effort')
+    })
+
+    it('should not add effort for non-DeepSeek models on the Claude endpoint', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
+        await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekV4PlusModel).mockReturnValue(false)
+      vi.mocked(findTokenLimit).mockReturnValue(undefined)
+
+      const model: Model = {
+        id: 'kimi-k2-reasoning',
+        name: 'Kimi K2 Reasoning',
+        provider: 'custom-provider'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'xhigh', maxTokens: 4096 }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'enabled', budgetTokens: expect.any(Number) },
+        sendReasoning: true
+      })
+      expect(result).not.toHaveProperty('effort')
     })
   })
 

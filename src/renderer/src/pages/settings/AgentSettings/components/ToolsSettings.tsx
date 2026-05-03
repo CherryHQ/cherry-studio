@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
-  defaultConfiguration,
+  DEFAULT_PERMISSION_MODE,
   isSoulModeEnabled,
   SettingsContainer,
   SettingsItem,
@@ -68,7 +68,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
   const selectedMode = useMemo(
-    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    () => agentBase?.configuration?.permission_mode ?? DEFAULT_PERMISSION_MODE,
     [agentBase?.configuration?.permission_mode]
   )
   const selectedModeCard = useMemo(() => permissionModeCards.find((card) => card.mode === selectedMode), [selectedMode])
@@ -82,8 +82,6 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   }, [agentBase?.allowedTools, autoToolIds, availableTools])
   const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
   const isSoulEnabled = isSoulModeEnabled(agentBase?.configuration)
-
-  const availableServers = useMemo(() => (allServers ?? []).filter((s) => s.name !== '@cherry/browser'), [allServers])
 
   const filteredTools = useMemo(() => {
     const hiddenTools = [
@@ -247,13 +245,13 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
               'Connect MCP servers to unlock additional tools you can approve above.'
             )}
           </span>
-          {availableServers.length === 0 ? (
+          {allServers.length === 0 ? (
             <div className="rounded-medium border border-default-200 border-dashed px-4 py-6 text-center text-foreground-500 text-sm">
               {t('agent.settings.tooling.mcp.empty', 'No MCP servers detected. Add one from the MCP settings page.')}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {availableServers.map((server) => {
+              {allServers.map((server) => {
                 const isSelected = selectedMcpIds.includes(server.id)
                 return (
                   <Card

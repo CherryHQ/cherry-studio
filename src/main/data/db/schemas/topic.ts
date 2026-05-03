@@ -1,6 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyColumns, scopedOrderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { assistantTable } from './assistant'
 import { groupTable } from './group'
 
@@ -14,9 +14,9 @@ export const topicTable = sqliteTable(
   'topic',
   {
     id: uuidPrimaryKey(),
-    name: text(),
+    name: text().notNull().default(''),
     // Whether the name was manually edited by user
-    isNameManuallyEdited: integer({ mode: 'boolean' }).default(false),
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
     // FK to assistant table - "last used assistant"
     // SET NULL: preserve topic when assistant is deleted
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
@@ -26,19 +26,16 @@ export const topicTable = sqliteTable(
     // FK to group table for organization
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-    // Sort order within group
-    sortOrder: integer().default(0),
-    // Pinning state and order
-    isPinned: integer({ mode: 'boolean' }).default(false),
-    pinnedOrder: integer().default(0),
+
+    // Fractional-indexing order key, partitioned by groupId.
+    ...orderKeyColumns,
 
     ...createUpdateDeleteTimestamps
   },
   (t) => [
     index('topic_group_updated_idx').on(t.groupId, t.updatedAt),
-    index('topic_group_sort_idx').on(t.groupId, t.sortOrder),
     index('topic_updated_at_idx').on(t.updatedAt),
-    index('topic_is_pinned_idx').on(t.isPinned, t.pinnedOrder),
+    scopedOrderKeyIndex('topic', 'groupId')(t),
     index('topic_assistant_id_idx').on(t.assistantId)
   ]
 )

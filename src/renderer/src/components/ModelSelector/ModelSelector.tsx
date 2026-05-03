@@ -538,7 +538,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   useEffect(() => {
     if (open && showPinnedModels) {
-      refetchPinnedModels()
+      void refetchPinnedModels()
     }
   }, [open, refetchPinnedModels, showPinnedModels])
 

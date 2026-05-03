@@ -154,7 +154,7 @@ export interface UseQueryResult<TPath extends ApiPath> {
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  refetch: () => void
+  refetch: () => Promise<unknown>
   mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
 }
 
@@ -232,7 +232,7 @@ export interface UseInfiniteQueryResult<TResponse> {
   error?: Error
   hasNext: boolean
   loadNext: () => void
-  refresh: () => void
+  refresh: () => Promise<unknown>
   reset: () => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
@@ -263,7 +263,7 @@ export interface UsePaginatedQueryResult<T> {
   hasPrev: boolean
   prevPage: () => void
   nextPage: () => void
-  refresh: () => void
+  refresh: () => Promise<unknown>
   reset: () => void
 }
 
@@ -314,9 +314,12 @@ export function useQuery<TPath extends ApiPath>(
     swrOptions?: SWRConfiguration
   }
 ): UseQueryResult<TPath> {
-  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const isEnabled = options?.enabled !== false
+  const resolvedPath = isEnabled
+    ? resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+    : null
   const key =
-    options?.enabled !== false ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
+    isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(key, getFetcher, {
     ...DEFAULT_SWR_OPTIONS,

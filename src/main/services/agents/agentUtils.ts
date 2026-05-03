@@ -6,6 +6,7 @@ import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, SlashCommand, SystemProviderId, Tool } from '@types'
 import fs from 'fs'
 import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
 
 import { type AgentModelField, AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
@@ -83,10 +84,10 @@ export function ensurePathsExist(paths?: string[]): string[] {
   return sanitizedPaths
 }
 
-export function resolveAccessiblePaths(paths: string[] | undefined, id: string): string[] {
+export function resolveAccessiblePaths(paths?: string[]): string[] {
   if (!paths || paths.length === 0) {
-    const shortId = id.substring(id.length - 9)
-    paths = [path.join(application.getPath('feature.agents.workspaces'), shortId)]
+    // Keep workspace layout independent from agent id formats (`agent_*` today, UUID after migration).
+    paths = [path.join(application.getPath('feature.agents.workspaces'), uuidv4())]
   }
   return ensurePathsExist(paths)
 }

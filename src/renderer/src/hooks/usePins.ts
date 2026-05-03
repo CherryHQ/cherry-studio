@@ -24,8 +24,8 @@ export interface UsePinsResult {
   /** Pinned entity ids for this entityType, in API order. */
   pinnedIds: readonly string[]
   /** Force-refresh the pin list. */
-  refetch: () => void
-  /** Toggle pin state for a given entity id. Gated no-ops resolve; real write errors reject. */
+  refetch: () => Promise<unknown>
+  /** Toggle pin state for a given entity id. Gated no-ops resolve (logged at debug); real write errors reject. */
   togglePin: (entityId: string) => Promise<void>
 }
 
@@ -74,6 +74,14 @@ export function usePins(entityType: EntityType): UsePinsResult {
     async (entityId: string) => {
       const state = stateRef.current
       if (state.isLoading || state.isRefreshing || state.isMutating || toggleInFlightRef.current) {
+        logger.debug('togglePin gated', {
+          entityType,
+          entityId,
+          isLoading: state.isLoading,
+          isRefreshing: state.isRefreshing,
+          isMutating: state.isMutating,
+          inFlight: toggleInFlightRef.current
+        })
         return
       }
 

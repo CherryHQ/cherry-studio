@@ -36,7 +36,9 @@
         "comingSoon": "Sắp ra mắt",
         "connected": "Đã kết nối",
         "connecting": "Kết nối",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Xóa kênh \"{{name}}\"?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
         "disconnected": "Ngắt kết nối",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kênh",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Thêm Tài khoản WeChat",
           "chatIds": "ID Người Dùng Được Phép",
@@ -211,6 +214,9 @@
         },
         "edit": "Chỉnh sửa",
         "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
@@ -220,6 +226,7 @@
           "error": "Lỗi",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Kết quả",
           "runAt": "Chạy tại",
           "running": "Đang chạy...",
@@ -3697,7 +3704,7 @@
         "title": "Danh sách Bộ lọc Ứng dụng",
         "user_tips": {
           "mac": "Vui lòng nhập Bundle ID của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: com.google.Chrome, com.apple.mail, v.v.",
-          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, Cherry Studio.exe, v.v."
+          "windows": "Vui lòng nhập tên tệp thực thi của ứng dụng, mỗi dòng một cái, không phân biệt chữ hoa chữ thường, có thể khớp mờ. Ví dụ: chrome.exe, weixin.exe, CherryStudio.exe, v.v."
         }
       },
       "linux": {
@@ -3818,6 +3825,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3885,6 +3917,34 @@
       "title": "Kênh"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -5445,7 +5505,8 @@
         "documentation": "Xem tài liệu chính thức để biết thêm chi tiết cấu hình:",
         "learn_more": "Tìm hiểu thêm",
         "location": "Vị trí",
-        "location_help": "Vị trí dịch vụ Vertex AI, ví dụ: us-central1",
+        "location_help": "Vị trí dịch vụ Vertex AI, ví dụ: us-central1. Trường này không được đọc từ JSON của Service Account và phải nhập thủ công.",
+        "location_placeholder": "Chọn vị trí Vertex AI",
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
@@ -5456,6 +5517,11 @@
           "client_email_placeholder": "Nhập email khách hàng của Tài khoản Dịch vụ",
           "description": "Sử dụng Tài khoản Dịch vụ để xác thực, phù hợp cho các môi trường không có ADC",
           "incomplete_config": "Vui lòng hoàn tất cấu hình Tài khoản Dịch vụ trước",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Dán toàn bộ nội dung khóa JSON. Sau khi phân tích, chỉ project_id, client_email và private_key được lưu, JSON gốc sẽ được xóa.",
+          "json_input_placeholder": "Dán toàn bộ nội dung khóa JSON của Service Account",
+          "json_parse_error": "Không thể phân tích Service Account JSON. Vui lòng xác nhận định dạng là chính xác.",
+          "json_parse_success": "Đã phân tích Service Account JSON",
           "private_key": "Khóa riêng",
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",

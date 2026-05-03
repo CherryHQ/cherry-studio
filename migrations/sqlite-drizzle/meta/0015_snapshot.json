@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cc96d838-51ec-41ef-8d98-f8ea568c0fb5",
+  "id": "c2b044ef-19ea-45cc-9cb6-523e117a7cd8",
   "prevId": "5ed1efb9-bd34-437e-8762-2adfdc9b6816",
   "tables": {
     "agent": {
@@ -1077,7 +1077,7 @@
           "name": "prompt",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1085,14 +1085,14 @@
           "name": "emoji",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
@@ -1107,7 +1107,7 @@
           "name": "settings",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {
@@ -2159,113 +2159,6 @@
           "value": "\"miniapp\".\"type\" IN ('default', 'custom')"
         }
       }
-    },
-    "painting": {
-      "name": "painting",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "params": {
-          "name": "params",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
-        },
-        "files": {
-          "name": "files",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{\"output\":[],\"input\":[]}'"
-        },
-        "parent_id": {
-          "name": "parent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "painting_provider_mode_sort_idx": {
-          "name": "painting_provider_mode_sort_idx",
-          "columns": ["provider_id", "mode", "sort_order"],
-          "isUnique": false
-        },
-        "painting_provider_mode_created_idx": {
-          "name": "painting_provider_mode_created_idx",
-          "columns": ["provider_id", "mode", "created_at"],
-          "isUnique": false
-        },
-        "painting_parent_id_idx": {
-          "name": "painting_parent_id_idx",
-          "columns": ["parent_id"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "pin": {
       "name": "pin",
