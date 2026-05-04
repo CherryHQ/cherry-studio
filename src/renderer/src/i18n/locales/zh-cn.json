@@ -1192,6 +1192,21 @@
           "label": "不使用网络"
         },
         "settings": "网络搜索设置"
+      },
+      "workspace": {
+        "clear": "清除工作区",
+        "clear_hint": "解除当前话题与文件夹的绑定",
+        "error": "设置工作区文件夹失败",
+        "label": "工作区文件夹",
+        "pick": "选择文件夹…",
+        "pick_hint": "将当前话题绑定到本地文件夹",
+        "picker_title": "选择工作区文件夹",
+        "replace_hint": "替换当前工作区",
+        "title_set": "工作区：{{path}}",
+        "title_unset": "工作区文件夹（未设置）",
+        "tooltip_locked": "{{path}} — 首条消息后已锁定",
+        "tooltip_set": "工作区：{{path}}",
+        "tooltip_unset": "绑定工作区文件夹"
       }
     },
     "mcp": {

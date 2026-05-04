@@ -1192,6 +1192,21 @@
           "label": "Disable Web Search"
         },
         "settings": "Web Search Settings"
+      },
+      "workspace": {
+        "clear": "Clear workspace",
+        "clear_hint": "Unbind this topic from any folder",
+        "error": "Failed to set workspace folder",
+        "label": "Workspace folder",
+        "pick": "Pick folder…",
+        "pick_hint": "Bind this topic to a folder on disk",
+        "picker_title": "Choose workspace folder",
+        "replace_hint": "Replace the current workspace",
+        "title_set": "Workspace: {{path}}",
+        "title_unset": "Workspace folder (none)",
+        "tooltip_locked": "{{path}} — locked after first message",
+        "tooltip_set": "Workspace: {{path}}",
+        "tooltip_unset": "Bind a workspace folder"
       }
     },
     "mcp": {

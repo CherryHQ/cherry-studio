@@ -1192,6 +1192,21 @@
           "label": "Keine Websuche"
         },
         "settings": "Websuch-Einstellungen"
+      },
+      "workspace": {
+        "clear": "[to be translated]:Clear workspace",
+        "clear_hint": "[to be translated]:Unbind this topic from any folder",
+        "error": "[to be translated]:Failed to set workspace folder",
+        "label": "[to be translated]:Workspace folder",
+        "pick": "[to be translated]:Pick folder…",
+        "pick_hint": "[to be translated]:Bind this topic to a folder on disk",
+        "picker_title": "[to be translated]:Choose workspace folder",
+        "replace_hint": "[to be translated]:Replace the current workspace",
+        "title_set": "[to be translated]:Workspace: {{path}}",
+        "title_unset": "[to be translated]:Workspace folder (none)",
+        "tooltip_locked": "[to be translated]:{{path}} — locked after first message",
+        "tooltip_set": "[to be translated]:Workspace: {{path}}",
+        "tooltip_unset": "[to be translated]:Bind a workspace folder"
       }
     },
     "mcp": {

@@ -1192,6 +1192,21 @@
           "label": "關閉網路搜尋"
         },
         "settings": "網路搜尋設定"
+      },
+      "workspace": {
+        "clear": "清除工作區",
+        "clear_hint": "解除目前主題與資料夾的繫結",
+        "error": "設定工作區資料夾失敗",
+        "label": "工作區資料夾",
+        "pick": "選擇資料夾…",
+        "pick_hint": "將目前主題繫結到本機資料夾",
+        "picker_title": "選擇工作區資料夾",
+        "replace_hint": "取代目前工作區",
+        "title_set": "工作區：{{path}}",
+        "title_unset": "工作區資料夾（未設定）",
+        "tooltip_locked": "{{path}} — 首則訊息後已鎖定",
+        "tooltip_set": "工作區：{{path}}",
+        "tooltip_unset": "繫結工作區資料夾"
       }
     },
     "mcp": {
