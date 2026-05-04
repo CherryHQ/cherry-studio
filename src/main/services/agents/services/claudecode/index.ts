@@ -61,6 +61,7 @@ import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+import { loadUserHooks, mergeHooks } from './user-hooks'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -317,6 +318,18 @@ class ClaudeCodeService implements AgentServiceInterface {
         return { behavior: 'allow', updatedInput: input }
       }
 
+      // Auto-allow operations on planning files (task_plan.md, findings.md, progress.md)
+      // so that skills like planning-with-files can work without constant approval prompts.
+      const toolInput = input as Record<string, unknown> | undefined
+      const filePath = toolInput?.file_path
+      if (typeof filePath === 'string') {
+        const basename = path.basename(filePath)
+        if (basename === 'task_plan.md' || basename === 'findings.md' || basename === 'progress.md') {
+          logger.debug('Auto-allowing planning file operation', { toolName, filePath: basename })
+          return { behavior: 'allow', updatedInput: input }
+        }
+      }
+
       return promptForToolApproval(toolName, input, {
         ...options,
         toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
@@ -469,6 +482,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     }
 
+    // Load user-defined hooks from settings.json (project + user + Cherry Studio isolated)
+    const userHooks = await loadUserHooks(cwd)
+
     // Build SDK options from session configuration
     const options: Options = {
       abortController,
@@ -532,13 +548,16 @@ class ClaudeCodeService implements AgentServiceInterface {
       allowedTools: session.allowed_tools,
       plugins,
       canUseTool,
-      hooks: {
-        PreToolUse: [
-          {
-            hooks: [rtkRewriteHook, preToolUseHook]
-          }
-        ]
-      },
+      hooks: mergeHooks(
+        {
+          PreToolUse: [
+            {
+              hooks: [rtkRewriteHook, preToolUseHook]
+            }
+          ]
+        },
+        userHooks
+      ),
       disallowedTools: [
         ...GLOBALLY_DISALLOWED_TOOLS,
         ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
