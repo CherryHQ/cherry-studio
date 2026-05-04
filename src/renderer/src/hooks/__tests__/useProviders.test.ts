@@ -41,7 +41,7 @@ describe('useProviders', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -57,7 +57,7 @@ describe('useProviders', () => {
       isLoading: true,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -73,7 +73,7 @@ describe('useProviders', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -102,21 +102,6 @@ describe('useProviders', () => {
 
     // undefined values stripped — no query object passed
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', undefined)
-  })
-
-  it('should disable SWR request when fetchEnabled is false', () => {
-    renderHook(() => useProviders(undefined, { fetchEnabled: false }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers', { enabled: false })
-  })
-
-  it('should pass query params AND control SWR independently', () => {
-    renderHook(() => useProviders({ enabled: false }, { fetchEnabled: true }))
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers', {
-      query: { enabled: false },
-      enabled: true
-    })
   })
 
   it('should call useMutation for POST /providers', () => {
@@ -164,7 +149,7 @@ describe('useProviders', () => {
   })
 
   it('should expose refetch from useQuery', () => {
-    const mockRefetch = vi.fn().mockResolvedValue(undefined)
+    const mockRefetch = vi.fn()
     mockUseQuery.mockImplementation(() => ({
       data: mockProviderList,
       isLoading: false,
@@ -205,7 +190,7 @@ describe('useProvider', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -224,7 +209,7 @@ describe('useProvider', () => {
 
   it('should expose error and refetch from useQuery', () => {
     const mockError = new Error('Load failed')
-    const mockRefetch = vi.fn().mockResolvedValue(undefined)
+    const mockRefetch = vi.fn()
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: false,
@@ -647,7 +632,7 @@ describe('useProviderAuthConfig', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -681,7 +666,7 @@ describe('useProviderApiKeys', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 
@@ -713,7 +698,7 @@ describe('useProviderRegistryModels', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
+      refetch: vi.fn(),
       mutate: vi.fn()
     }))
 

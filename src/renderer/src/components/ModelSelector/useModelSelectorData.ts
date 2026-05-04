@@ -86,10 +86,7 @@ export function useModelSelectorData({
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
   const hasCompleteDataOverride = providersOverride !== undefined && modelsOverride !== undefined
-  const { providers, isLoading: isProvidersLoading } = useProviders(
-    { enabled: true },
-    { fetchEnabled: !hasCompleteDataOverride }
-  )
+  const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
   const { models, isLoading: isModelsLoading } = useModels(
     { enabled: true },
     { fetchEnabled: !hasCompleteDataOverride }
