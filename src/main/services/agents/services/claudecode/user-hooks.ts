@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+
 import type { HookCallback, HookCallbackMatcher, HookEvent, HookInput } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { app } from 'electron'
@@ -100,7 +101,7 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
 
         // Command hook stdout is treated as additional context for the AI.
         // Map it to hookSpecificOutput.additionalContext so the SDK appends it.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const hookSpecificOutput: any = {
           hookEventName: input.hook_event_name,
           additionalContext: trimmed

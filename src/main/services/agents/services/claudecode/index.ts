@@ -318,18 +318,6 @@ class ClaudeCodeService implements AgentServiceInterface {
         return { behavior: 'allow', updatedInput: input }
       }
 
-      // Auto-allow operations on planning files (task_plan.md, findings.md, progress.md)
-      // so that skills like planning-with-files can work without constant approval prompts.
-      const toolInput = input as Record<string, unknown> | undefined
-      const filePath = toolInput?.file_path
-      if (typeof filePath === 'string') {
-        const basename = path.basename(filePath)
-        if (basename === 'task_plan.md' || basename === 'findings.md' || basename === 'progress.md') {
-          logger.debug('Auto-allowing planning file operation', { toolName, filePath: basename })
-          return { behavior: 'allow', updatedInput: input }
-        }
-      }
-
       return promptForToolApproval(toolName, input, {
         ...options,
         toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
