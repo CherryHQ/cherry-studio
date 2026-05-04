@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-04-29T17:47:14.948063+00:00",
-  "date": "2026-04-29",
+  "generated_at": "2026-05-04T16:00:00.000000+00:00",
+  "date": "2026-05-04",
   "note": "GitHub Discussions data requires GraphQL API not available via current MCP tools. Placeholder for future integration.",
   "data_source": "discussions GraphQL endpoint not available",
   "manual_check_url": "https://github.com/CherryHQ/cherry-studio/discussions"
