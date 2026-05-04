@@ -1680,7 +1680,7 @@
     "on": "Marche",
     "open": "Ouvrir",
     "open_in": "Ouvrir dans {{name}}",
-    "parameter": "[to be translated]:Parameter",
+    "parameter": "Paramètre",
     "paste": "Coller",
     "placeholders": {
       "select": {

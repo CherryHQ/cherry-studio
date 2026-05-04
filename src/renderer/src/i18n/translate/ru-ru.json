@@ -1680,7 +1680,7 @@
     "on": "Вкл",
     "open": "Открыть",
     "open_in": "Открыть в {{name}}",
-    "parameter": "[to be translated]:Parameter",
+    "parameter": "Параметр",
     "paste": "Вставить",
     "placeholders": {
       "select": {
