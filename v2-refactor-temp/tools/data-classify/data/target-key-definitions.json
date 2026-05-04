@@ -151,6 +151,13 @@
       "defaultValue": [],
       "status": "classified",
       "description": "Per-tool allow/deny rules for the unified tool permission pipeline (v2 new, non-migration)"
+    },
+    {
+      "targetKey": "feature.system_prompt.output_style",
+      "type": "PreferenceTypes.OutputStyle",
+      "defaultValue": "default",
+      "status": "classified",
+      "description": "Tone preset (default / concise / pragmatic / enthusiastic) injected as the output_style section of the AI's system prompt"
     }
   ]
 }

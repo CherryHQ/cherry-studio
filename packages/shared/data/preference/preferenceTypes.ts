@@ -216,6 +216,17 @@ export type WebSearchCompressionMethod = 'none' | 'cutoff' | 'rag'
  */
 export type WebSearchCompressionCutoffUnit = 'char' | 'token'
 
+/**
+ * Tone preset injected into the AI's system prompt as a frozen
+ * `output_style` section. Stored in feature.system_prompt.output_style.
+ *
+ * - `default`     — neutral, balanced; no overriding directive
+ * - `concise`     — terse, get to the point, minimal preamble
+ * - `pragmatic`   — direct, no flattery, hedge less
+ * - `enthusiastic`— warm, encouraging, positive framing
+ */
+export type OutputStyle = 'default' | 'concise' | 'pragmatic' | 'enthusiastic'
+
 // ============================================================================
 // File Processor Types
 // ============================================================================

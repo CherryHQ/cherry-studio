@@ -1,4 +1,6 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { topicService } from '@main/data/services/TopicService'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -84,7 +86,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
+  const workspaceRoot = await resolveTopicWorkspaceRoot(request.chatId)
+  const system = await assembleSystemPrompt({ assistant, model, workspaceRoot, tools, deferredEntries })
   const options = buildAgentOptions(scope)
 
   return {
@@ -182,6 +185,20 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
       modelId: sdkConfig.modelId
     })
   }
+}
+
+/**
+ * Resolve the workspace root bound to a topic, checking the in-memory
+ * temporary-chat store first (covers brand-new topics where the user
+ * picked a folder before the first message persisted) and falling back
+ * to the SQLite topic row.
+ */
+async function resolveTopicWorkspaceRoot(topicId: string | undefined): Promise<string | null> {
+  if (!topicId) return null
+  const temp = temporaryChatService.getTopic(topicId)
+  if (temp) return temp.workspaceRoot ?? null
+  const persisted = await topicService.getWorkspaceRoot(topicId)
+  return persisted ?? null
 }
 
 function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {

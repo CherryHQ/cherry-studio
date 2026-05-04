@@ -7,6 +7,11 @@ vi.mock('@main/utils/prompt', () => ({
   replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
@@ -37,21 +42,24 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 
 const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name: 'GPT-4' } as Model
 
+// Identity prose is always emitted as the first section. Tests that
+// previously did `toBe('base')` now have to allow for that prefix; we
+// assert containment + structure rather than exact equality.
+const IDENTITY_MARKER = 'You are an AI assistant running inside Cherry Studio'
+
 describe('assembleSystemPrompt', () => {
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  it('returns undefined when no section contributes text', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: '' }),
-      model
-    })
-    expect(out).toBeUndefined()
+  it('always emits the identity section even when no assistant is supplied', async () => {
+    const out = await assembleSystemPrompt({ model })
+    expect(out).toContain(IDENTITY_MARKER)
   })
 
-  it('returns undefined when no assistant is supplied and tools are absent', async () => {
-    expect(await assembleSystemPrompt({ model })).toBeUndefined()
+  it('emits identity even when assistant.prompt is empty', async () => {
+    const out = await assembleSystemPrompt({ assistant: makeAssistant({ prompt: '' }), model })
+    expect(out).toContain(IDENTITY_MARKER)
   })
 
   it('resolves template variables in assistant.prompt', async () => {
@@ -59,15 +67,17 @@ describe('assembleSystemPrompt', () => {
       assistant: makeAssistant({ prompt: 'Today is {{date}}' }),
       model
     })
-    expect(out).toBe('Today is 2026-04-20')
+    expect(out).toContain('Today is 2026-04-20')
   })
 
-  it('returns just the assistant prompt when no tool_search is present, regardless of mcpMode', async () => {
+  it('places assistant_prompt after identity', async () => {
     const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, mcpMode: 'auto' } }),
+      assistant: makeAssistant({ prompt: 'base' }),
       model
     })
-    expect(out).toBe('base')
+    expect(out).toBeDefined()
+    const text = out as string
+    expect(text.indexOf(IDENTITY_MARKER)).toBeLessThan(text.indexOf('base'))
   })
 
   it('appends deferred-tools workflow guidance when tools includes tool_search', async () => {
@@ -104,6 +114,7 @@ describe('assembleSystemPrompt', () => {
       model,
       tools: { other_tool: {} } as unknown as ToolSet
     })
-    expect(out).toBe('base')
+    expect(out).toContain('base')
+    expect(out).not.toContain('<deferred-tools>')
   })
 })
