@@ -3057,6 +3057,7 @@
     },
     "generate_failed": "Échec de la génération de l'image",
     "generated_image": "Image générée",
+    "generating": "[to be translated]:Generating...",
     "go_to_settings": "Aller aux paramètres",
     "guidance_scale": "Échelle de guidance",
     "guidance_scale_tip": "Aucune guidance du classificateur. Contrôle le niveau d'obéissance du modèle aux mots-clés lors de la recherche d'images pertinentes",
@@ -3100,6 +3101,7 @@
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
     "operation_failed": "L'opération a échoué, veuillez réessayer plus tard",
     "paint_course": "Tutoriel",
+    "parameters": "[to be translated]:Parameters",
     "per_image": "Par image",
     "per_images": "Par image",
     "person_generation_options": {

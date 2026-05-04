@@ -167,10 +167,10 @@ export function PaintingFieldRenderer({
             <label
               key={String(option.value)}
               htmlFor={`${fieldKey}-${option.value}`}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-[0.75rem] border px-2 py-1.5 text-[11px] transition-all ${
+              className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--painting-radius-control)] px-2 py-1.5 text-[11px] transition-all ${
                 value === String(option.value)
-                  ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  ? 'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]'
+                  : 'bg-[var(--painting-choice-bg)] text-muted-foreground/60 hover:bg-[var(--painting-choice-bg-hover)] hover:text-foreground'
               }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />
               {option.icon && (
@@ -182,7 +182,7 @@ export function PaintingFieldRenderer({
                   />
                 </div>
               )}
-              <span className="mt-0.5 font-medium tracking-tight">{option.label}</span>
+              <span className="font-medium tracking-tight">{option.label}</span>
             </label>
           ))}
         </RadioGroup>

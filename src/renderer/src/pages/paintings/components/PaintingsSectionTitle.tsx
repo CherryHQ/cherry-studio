@@ -9,8 +9,8 @@ interface Props {
 const PaintingsSectionTitle: FC<Props> = ({ children, className }) => (
   <section
     className={cn(
-      'mt-5 mb-2 flex select-none items-center justify-start gap-1',
-      'font-medium text-muted-foreground text-xs uppercase tracking-wider',
+      'mb-1.5 flex select-none items-center justify-start gap-1',
+      'text-muted-foreground text-xs uppercase tracking-wider',
       className
     )}>
     {children}

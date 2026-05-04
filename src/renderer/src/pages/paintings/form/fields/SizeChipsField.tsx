@@ -38,7 +38,7 @@ function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
   return (
     <span
       className={`inline-block shrink-0 rounded-[2px] border transition-all ${
-        selected ? 'border-primary' : 'border-current opacity-50'
+        selected ? 'border-primary' : 'border-current opacity-40'
       }`}
       style={{ width: w, height: h }}
     />
@@ -69,10 +69,10 @@ export default function SizeChipsField({
             type="button"
             key={optionValue}
             disabled={disabled}
-            className={`flex cursor-pointer flex-col items-center justify-center rounded-[0.75rem] border px-2 py-1.5 text-[11px] transition-all ${
+            className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--painting-radius-control)] px-2 py-1.5 text-[11px] transition-all ${
               isSelected
-                ? 'border-primary bg-primary/5 text-primary'
-                : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                ? 'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]'
+                : 'bg-[var(--painting-choice-bg)] text-muted-foreground/60 hover:bg-[var(--painting-choice-bg-hover)] hover:text-foreground'
             } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
             onClick={() => onChange({ [fieldKey]: optionValue })}>
             <RatioThumb value={optionValue} selected={isSelected} />

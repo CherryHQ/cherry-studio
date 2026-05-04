@@ -3057,6 +3057,7 @@
     },
     "generate_failed": "Не удалось сгенерировать изображение",
     "generated_image": "Сгенерированное изображение",
+    "generating": "[to be translated]:Generating...",
     "go_to_settings": "Перейти в настройки",
     "guidance_scale": "Масштаб руководства",
     "guidance_scale_tip": "Без классификатора руководства. Насколько близко вы хотите, чтобы модель придерживалась вашего промпта при поиске связанного изображения для показа вам",
@@ -3100,6 +3101,7 @@
     "number_images_tip": "Количество изображений для генерации (1-4)",
     "operation_failed": "Операция не удалась, повторите попытку позже",
     "paint_course": "Руководство / Учебник",
+    "parameters": "[to be translated]:Parameters",
     "per_image": "за изображение",
     "per_images": "за изображения",
     "person_generation_options": {

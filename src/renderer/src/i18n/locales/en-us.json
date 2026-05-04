@@ -3057,6 +3057,7 @@
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
+    "generating": "Generating...",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
@@ -3100,6 +3101,7 @@
     "number_images_tip": "Number of images to generate (1-4)",
     "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
+    "parameters": "Parameters",
     "per_image": "per image",
     "per_images": "per images",
     "person_generation_options": {

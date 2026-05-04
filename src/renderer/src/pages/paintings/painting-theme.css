@@ -1,11 +1,33 @@
 .painting-theme,
 .painting-theme-portal {
+  --painting-panel-width: 230px;
+  --painting-panel-inset: 12px;
+  --painting-radius-surface: 0px;
+  --painting-radius-panel: 16px;
+  --painting-radius-control: 10px;
+  --painting-radius-track: 8px;
+  --painting-radius-item: 12px;
+  --painting-panel-bg: hsl(var(--background) / 0.95);
+  --painting-panel-shadow: none;
+  --painting-control-bg: hsl(var(--muted) / 0.35);
+  --painting-control-bg-hover: hsl(var(--muted) / 0.5);
+  --painting-choice-bg: hsl(var(--muted) / 0.25);
+  --painting-choice-bg-hover: hsl(var(--muted) / 0.4);
+  --painting-choice-active-bg: #6b728014;
+  --painting-choice-active-fg: #4b5563;
+  --painting-choice-active-ring: #6b728080;
   --painting-surface-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
-  --painting-floating-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --painting-floating-shadow: 0 24px 60px -20px rgba(15, 23, 42, 0.18);
 }
 
 .dark .painting-theme,
 .dark .painting-theme-portal {
+  --painting-panel-bg: hsl(var(--background) / 0.95);
+  --painting-control-bg: hsl(var(--muted) / 0.35);
+  --painting-control-bg-hover: hsl(var(--muted) / 0.5);
+  --painting-choice-bg: hsl(var(--muted) / 0.25);
+  --painting-choice-bg-hover: hsl(var(--muted) / 0.4);
+  --painting-panel-shadow: none;
   --painting-surface-shadow: 0 22px 52px rgba(0, 0, 0, 0.26);
-  --painting-floating-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+  --painting-floating-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.38);
 }
