@@ -96,19 +96,13 @@ const MessageErrorInfo: React.FC<{
     message.model?.provider ?? ((error as Record<string, unknown> | undefined)?.providerId as string | undefined)
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
 
-  // AI fallback: when rule-based classification returns 'unknown', ask AI for a one-line summary
-  const errorForAI = error
+  const errorMessage = error?.message
   useEffect(() => {
-    if (classification.category !== 'unknown' || !errorForAI?.message) return
+    if (classification.category !== 'unknown' || !errorMessage || !error) return
     let cancelled = false
-    const cacheKey = `${errorForAI.message}:${i18n.language}`
+    const cacheKey = `${errorMessage}:${i18n.language}`
     const cached = aiClassifyCache.get(cacheKey)
-    const promise =
-      cached ??
-      classifyErrorByAI(errorForAI, i18n.language).then((summary) => {
-        if (!summary) aiClassifyCache.delete(cacheKey)
-        return summary
-      })
+    const promise = cached ?? classifyErrorByAI(error, i18n.language)
     if (!cached) aiClassifyCache.set(cacheKey, promise)
     promise
       .then((summary) => {
@@ -118,7 +112,11 @@ const MessageErrorInfo: React.FC<{
     return () => {
       cancelled = true
     }
-  }, [classification.category, errorForAI, i18n.language])
+    // Intentionally exclude `error` from deps — its identity changes per render but we only
+    // care about the message string for both the cache key and dispatch. The captured `error`
+    // is fine because its message is stable across renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classification.category, errorMessage, i18n.language])
 
   const diagnosisContext = useMemo(
     () => ({

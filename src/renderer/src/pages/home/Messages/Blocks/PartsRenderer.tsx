@@ -179,6 +179,36 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
 }
 
 /**
+ * Memoized adapter from `ErrorPartData` (with optional name/message/stack) to
+ * the normalized `SerializedError` shape `ErrorBlock` consumes. Lives here —
+ * not inline in the switch — so the normalized object's identity is tied to
+ * `rawData`, not to whichever render of the parent triggered it. Keeping
+ * identity stable lets `React.memo(ErrorBlock)` and the downstream `useMemo`s
+ * actually do their job; an inline spread would mint a fresh object every
+ * render and silently break memoization.
+ */
+const ErrorPartView = React.memo(function ErrorPartView({
+  partId,
+  rawData,
+  message
+}: {
+  partId: string
+  rawData: ErrorPartData
+  message: Message
+}) {
+  const error = useMemo(
+    () => ({
+      ...rawData,
+      name: rawData.name ?? null,
+      message: rawData.message ?? null,
+      stack: rawData.stack ?? null
+    }),
+    [rawData]
+  )
+  return <ErrorBlock partId={partId} error={error} message={message} />
+})
+
+/**
  * Render a single part directly from CherryMessagePart — no MessageBlock conversion.
  *
  * Data extraction happens HERE — leaf components receive pure view props only.
@@ -258,19 +288,7 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     case 'data-error': {
       const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
       if (!rawData) return null
-      return (
-        <ErrorBlock
-          key={partId}
-          partId={partId}
-          error={{
-            ...rawData,
-            name: rawData.name ?? null,
-            message: rawData.message ?? null,
-            stack: rawData.stack ?? null
-          }}
-          message={message}
-        />
-      )
+      return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
     }
 
     case 'data-video': {
