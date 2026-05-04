@@ -10,6 +10,7 @@ export interface KnowledgeItemListProps {
   isLoading: boolean
   onItemClick: (itemId: string) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
+  onPreviewSource: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
   onViewChunks: (itemId: string) => void
 }
@@ -19,6 +20,7 @@ const KnowledgeItemList = ({
   isLoading,
   onItemClick,
   onDelete,
+  onPreviewSource,
   onReindex,
   onViewChunks
 }: KnowledgeItemListProps) => {
@@ -46,6 +48,7 @@ const KnowledgeItemList = ({
               item={item}
               onClick={() => onItemClick(item.id)}
               onDelete={() => onDelete(item)}
+              onPreviewSource={() => onPreviewSource(item)}
               onReindex={() => onReindex(item)}
               onViewChunks={() => onViewChunks(item.id)}
             />

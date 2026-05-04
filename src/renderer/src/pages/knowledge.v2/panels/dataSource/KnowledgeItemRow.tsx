@@ -13,6 +13,7 @@ export interface KnowledgeItemRowProps {
   item: KnowledgeItem
   onClick: () => void
   onDelete: () => void | Promise<unknown>
+  onPreviewSource: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
   onViewChunks: () => void
 }
@@ -209,10 +210,12 @@ const KnowledgeItemRowMenuItems = ({
 
 const KnowledgeItemRowMoreMenu = ({
   onDelete,
+  onPreviewSource,
   onReindex,
   onViewChunks
 }: {
   onDelete: () => void | Promise<unknown>
+  onPreviewSource: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
   onViewChunks: () => void
 }) => {
@@ -221,6 +224,7 @@ const KnowledgeItemRowMoreMenu = ({
   const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
+    void onPreviewSource()
   }
 
   const handleViewChunks = (event: MouseEvent<HTMLButtonElement>) => {
@@ -266,7 +270,14 @@ const KnowledgeItemRowMoreMenu = ({
   )
 }
 
-const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex, onViewChunks }: KnowledgeItemRowProps) => {
+const KnowledgeItemRow = ({
+  item,
+  onClick,
+  onDelete,
+  onPreviewSource,
+  onReindex,
+  onViewChunks
+}: KnowledgeItemRowProps) => {
   const {
     i18n: { language }
   } = useTranslation()
@@ -280,7 +291,12 @@ const KnowledgeItemRow = ({ item, onClick, onDelete, onReindex, onViewChunks }: 
       <KnowledgeItemRowIcon {...icon} />
       <KnowledgeItemRowContent id={item.id} title={title} suffix={suffix} metaParts={metaParts} />
       <KnowledgeItemRowStatus status={status} failureReason={failureReason} />
-      <KnowledgeItemRowMoreMenu onDelete={onDelete} onReindex={onReindex} onViewChunks={onViewChunks} />
+      <KnowledgeItemRowMoreMenu
+        onDelete={onDelete}
+        onPreviewSource={onPreviewSource}
+        onReindex={onReindex}
+        onViewChunks={onViewChunks}
+      />
     </div>
   )
 }

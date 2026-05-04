@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { formatFileSize } from '@renderer/utils'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
-import { ArrowLeft, ChevronDown, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -81,18 +81,12 @@ const KnowledgeItemChunkCard = ({
           {chunk.metadata.tokenCount} {t('knowledge_v2.rag.tokens_unit')}
         </span>
         <div className="flex items-center gap-0.5 opacity-0 transition-all group-hover/ck:opacity-100">
-          <KnowledgeItemChunkActionButton label={t('common.edit')}>
-            <Pencil className="size-2" />
-          </KnowledgeItemChunkActionButton>
           <KnowledgeItemChunkActionButton
             label={t('common.delete')}
             className="hover:bg-red-500/10 hover:text-red-500"
             disabled={isDeleting}
             onClick={() => onDelete(chunk)}>
             <Trash2 className="size-2" />
-          </KnowledgeItemChunkActionButton>
-          <KnowledgeItemChunkActionButton label={t('common.expand')}>
-            <ChevronDown className="size-2.25" />
           </KnowledgeItemChunkActionButton>
         </div>
       </div>

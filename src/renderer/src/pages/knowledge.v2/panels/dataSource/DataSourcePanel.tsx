@@ -3,6 +3,7 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import type { DataSourceFilter } from './utils/models'
@@ -19,6 +20,7 @@ export interface DataSourcePanelProps {
 
 const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onReindex }: DataSourcePanelProps) => {
   const { t } = useTranslation()
+  const { previewSource } = usePreviewKnowledgeSource()
   const [activeFilter, setActiveFilter] = useState<DataSourceFilter>('all')
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const readyCount = getReadyCount(items)
@@ -48,6 +50,7 @@ const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onRei
         isLoading={isLoading}
         onItemClick={handleItemClick}
         onDelete={setPendingDeleteItem}
+        onPreviewSource={previewSource}
         onReindex={onReindex}
         onViewChunks={handleItemClick}
       />

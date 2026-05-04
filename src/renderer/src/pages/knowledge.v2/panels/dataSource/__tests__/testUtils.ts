@@ -72,11 +72,13 @@ const createContainerLifecycle = (
 export const createNoteItem = ({
   id,
   content = '会议纪要',
+  source = id,
   status = 'completed',
   phase = null
 }: {
   id: string
   content?: string
+  source?: string
   status?: KnowledgeItemOf<'note'>['status']
   phase?: LeafKnowledgeItemPhase
 }): KnowledgeItemOf<'note'> => ({
@@ -85,7 +87,7 @@ export const createNoteItem = ({
   id,
   type: 'note',
   data: {
-    source: id,
+    source,
     content
   }
 })
@@ -93,6 +95,7 @@ export const createNoteItem = ({
 export const createFileItem = ({
   id,
   originName = 'internal.pdf',
+  source = `/tmp/${originName}`,
   status = 'completed',
   phase = null,
   ext = 'PDF',
@@ -100,6 +103,7 @@ export const createFileItem = ({
 }: {
   id: string
   originName?: string
+  source?: string
   status?: KnowledgeItemOf<'file'>['status']
   phase?: LeafKnowledgeItemPhase
   ext?: string
@@ -110,12 +114,12 @@ export const createFileItem = ({
   id,
   type: 'file',
   data: {
-    source: `/tmp/${originName}`,
+    source,
     file: {
       id: `file-${id}`,
       name: `internal-${id}.pdf`,
       origin_name: originName,
-      path: `/tmp/${originName}`,
+      path: source,
       size,
       ext,
       type: 'document',

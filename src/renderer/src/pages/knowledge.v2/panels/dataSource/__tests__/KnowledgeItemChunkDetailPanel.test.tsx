@@ -108,8 +108,6 @@ vi.mock('react-i18next', () => ({
           {
             'common.back': '返回',
             'common.delete': '删除',
-            'common.edit': '编辑',
-            'common.expand': '展开',
             'common.loading': '加载中',
             'common.cancel': '取消',
             'knowledge_v2.data_source.empty_description': '暂无数据源',
@@ -179,14 +177,14 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
   })
 
-  it('renders placeholder chunk action buttons with zh-CN labels', async () => {
+  it('renders only implemented chunk action buttons', async () => {
     renderPanel()
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: '编辑' })).toHaveLength(chunks.length)
+      expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(chunks.length)
     })
-    expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(chunks.length)
-    expect(screen.getAllByRole('button', { name: '展开' })).toHaveLength(chunks.length)
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '展开' })).not.toBeInTheDocument()
   })
 
   it('opens a confirmation dialog before deleting a chunk', async () => {

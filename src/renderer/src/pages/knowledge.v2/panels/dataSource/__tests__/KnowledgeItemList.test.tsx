@@ -14,12 +14,14 @@ vi.mock('../KnowledgeItemRow', () => ({
     item,
     onClick,
     onDelete,
+    onPreviewSource,
     onReindex,
     onViewChunks
   }: {
-    item: { id: string }
+    item: { id: string; type?: string }
     onClick?: () => void
     onDelete?: () => void
+    onPreviewSource?: () => void
     onReindex?: () => void
     onViewChunks?: () => void
   }) => (
@@ -32,6 +34,9 @@ vi.mock('../KnowledgeItemRow', () => ({
       </button>
       <button type="button" onClick={onReindex}>
         reindex-{item.id}
+      </button>
+      <button type="button" onClick={onPreviewSource}>
+        preview-{item.id}
       </button>
       <button type="button" onClick={onViewChunks}>
         chunks-{item.id}
@@ -60,6 +65,7 @@ describe('KnowledgeItemList', () => {
         isLoading
         onItemClick={() => undefined}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={() => undefined}
       />
@@ -75,6 +81,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={() => undefined}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={() => undefined}
       />
@@ -90,6 +97,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={() => undefined}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={() => undefined}
       />
@@ -109,6 +117,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={handleItemClick}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={() => undefined}
       />
@@ -129,6 +138,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={() => undefined}
         onDelete={handleDelete}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={() => undefined}
       />
@@ -149,6 +159,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={() => undefined}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={handleReindex}
         onViewChunks={() => undefined}
       />
@@ -157,6 +168,27 @@ describe('KnowledgeItemList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
 
     expect(handleReindex).toHaveBeenCalledWith(item)
+  })
+
+  it('passes onPreviewSource through to the row preview handler', () => {
+    const handlePreviewSource = vi.fn()
+    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
+
+    render(
+      <KnowledgeItemList
+        items={[item]}
+        isLoading={false}
+        onItemClick={() => undefined}
+        onDelete={() => undefined}
+        onPreviewSource={handlePreviewSource}
+        onReindex={() => undefined}
+        onViewChunks={() => undefined}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview-note-1' }))
+
+    expect(handlePreviewSource).toHaveBeenCalledWith(item)
   })
 
   it('passes onViewChunks through to the row view chunks handler', () => {
@@ -169,6 +201,7 @@ describe('KnowledgeItemList', () => {
         isLoading={false}
         onItemClick={() => undefined}
         onDelete={() => undefined}
+        onPreviewSource={() => undefined}
         onReindex={() => undefined}
         onViewChunks={handleViewChunks}
       />

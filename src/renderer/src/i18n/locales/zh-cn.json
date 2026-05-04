@@ -2201,6 +2201,10 @@
         "sitemap": "网站",
         "url": "网址"
       },
+      "preview": {
+        "failed": "预览原文失败",
+        "unavailable": "当前数据源没有可预览的原文"
+      },
       "ready_summary": "{{ready}}/{{total}} 就绪",
       "status": {
         "chunking": "分块中",

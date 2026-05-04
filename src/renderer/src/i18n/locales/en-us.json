@@ -2201,6 +2201,10 @@
         "sitemap": "Websites",
         "url": "URLs"
       },
+      "preview": {
+        "failed": "Failed to preview source",
+        "unavailable": "This data source has no source to preview"
+      },
       "ready_summary": "{{ready}}/{{total}} ready",
       "status": {
         "chunking": "Chunking",

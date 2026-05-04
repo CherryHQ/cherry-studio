@@ -111,15 +111,20 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+const defaultHandlers = {
+  onClick: () => undefined,
+  onDelete: () => undefined,
+  onPreviewSource: () => undefined,
+  onReindex: () => undefined,
+  onViewChunks: () => undefined
+}
+
 describe('KnowledgeItemRow', () => {
   it('renders the file suffix and meta parts from the row view model', () => {
     render(
       <KnowledgeItemRow
         item={createFileItem({ id: 'file-1', originName: '季度报告.pdf', ext: 'PDF' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
+        {...defaultHandlers}
       />
     )
 
@@ -130,29 +135,13 @@ describe('KnowledgeItemRow', () => {
   })
 
   it('renders the completed status label for ready items', () => {
-    render(
-      <KnowledgeItemRow
-        item={createFileItem({ id: 'file-1', status: 'completed' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
-      />
-    )
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'completed' })} {...defaultHandlers} />)
 
     expect(screen.getByText('就绪')).toBeInTheDocument()
   })
 
   it('renders the failed status label for failed items', () => {
-    render(
-      <KnowledgeItemRow
-        item={createFileItem({ id: 'file-1', status: 'failed' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
-      />
-    )
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'failed' })} {...defaultHandlers} />)
 
     expect(screen.getByText('失败')).toBeInTheDocument()
     expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
@@ -162,10 +151,7 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createFileItem({ id: 'file-1', status: 'processing', phase: 'reading' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
+        {...defaultHandlers}
       />
     )
 
@@ -178,10 +164,8 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
@@ -194,10 +178,7 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
+        {...defaultHandlers}
       />
     )
 
@@ -210,10 +191,8 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
@@ -226,10 +205,7 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
-        onClick={() => undefined}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
+        {...defaultHandlers}
       />
     )
 
@@ -247,16 +223,34 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('calls onPreviewSource without calling onClick when the preview source action is clicked', () => {
+    const handleClick = vi.fn()
+    const handlePreviewSource = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+        onPreviewSource={handlePreviewSource}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
+
+    expect(handlePreviewSource).toHaveBeenCalledTimes(1)
     expect(handleClick).not.toHaveBeenCalled()
   })
 
@@ -267,9 +261,8 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
-        onDelete={() => undefined}
-        onReindex={() => undefined}
         onViewChunks={handleViewChunks}
       />
     )
@@ -288,10 +281,9 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
         onDelete={handleDelete}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
@@ -309,10 +301,9 @@ describe('KnowledgeItemRow', () => {
     render(
       <KnowledgeItemRow
         item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
         onClick={handleClick}
-        onDelete={() => undefined}
         onReindex={handleReindex}
-        onViewChunks={() => undefined}
       />
     )
 
