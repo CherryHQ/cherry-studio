@@ -123,7 +123,7 @@ describe('useModelSelectorData', () => {
     expect(result.current.sortedProviders.map((provider) => provider.id)).toEqual(['painting-provider'])
     expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['painting-provider::image-model'])
     expect(result.current.isLoading).toBe(true)
-    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true }, { fetchEnabled: false })
+    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true })
     expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true }, { fetchEnabled: false })
   })
 
