@@ -148,11 +148,11 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   }, [actionWindowOpacity])
 
   const handleMinimize = () => {
-    void window.api.selection.minimizeActionWindow()
+    void window.api.windowManager.minimize()
   }
 
   const handleClose = () => {
-    void window.api.selection.closeActionWindow()
+    void window.api.windowManager.close()
   }
 
   /**

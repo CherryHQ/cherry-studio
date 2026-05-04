@@ -47,13 +47,14 @@ import type {
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import {
   type CursorPaginationResponse,
+  type InferPaginationMode,
   type OffsetPaginationResponse,
   type PaginationResponse
 } from '@shared/data/api/apiTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyedMutator, SWRConfiguration } from 'swr'
+import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
-import type { SWRInfiniteConfiguration } from 'swr/infinite'
+import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
@@ -61,21 +62,25 @@ import useSWRMutation from 'swr/mutation'
 const logger = loggerService.withContext('useDataApi')
 
 /**
- * Default SWR configuration shared across all hooks.
+ * Default SWR options. DataApi runs over IPC (not HTTP) and DataApiService
+ * already retries via `DataApiError.isRetryable` with exponential backoff, so
+ * SWR's HTTP-flavored focus/reconnect revalidation and naive retry are
+ * disabled — retry stays single-layered through DataApiService.
  *
  * @remarks
- * - `revalidateOnFocus: false` - Prevents refetch when window regains focus
- * - `revalidateOnReconnect: true` - Refetch when network reconnects
- * - `dedupingInterval: 5000` - Dedupe requests within 5 seconds
- * - `errorRetryCount: 3` - Retry failed requests up to 3 times
- * - `errorRetryInterval: 1000` - Wait 1 second between retries
+ * - `revalidateOnFocus: false` — focus events don't imply data staleness here
+ * - `revalidateOnReconnect: false` — IPC has no "reconnect" semantics
+ * - `dedupingInterval: 5000` — dedupe duplicate fetches within 5s
+ * - `shouldRetryOnError: false` — DataApiService is the single retry decision point
+ * - `keepPreviousData: true` — show last data while a new key fetches; consumers
+ *   distinguish "stale" from "loading" via `isRefreshing` to avoid search/pagination flicker
  */
 const DEFAULT_SWR_OPTIONS = {
   revalidateOnFocus: false,
-  revalidateOnReconnect: true,
+  revalidateOnReconnect: false,
   dedupingInterval: 5000,
-  errorRetryCount: 3,
-  errorRetryInterval: 1000
+  shouldRetryOnError: false,
+  keepPreviousData: true
 } as const
 
 // ============================================================================
@@ -86,6 +91,36 @@ const DEFAULT_SWR_OPTIONS = {
 type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
   ? T
   : unknown
+
+/**
+ * Path constrained to endpoints whose GET response is a cursor-paginated shape.
+ * Passing an offset-paginated path collapses to `never` and is rejected at the
+ * call site by TypeScript.
+ *
+ * @remarks
+ * Uses {@link InferPaginationMode} for the discrimination. A naive
+ * `extends CursorPaginationResponse<any>` check would also accept
+ * `OffsetPaginationResponse<T>`, because the optional `nextCursor` field is
+ * structurally satisfied by absence — `InferPaginationMode` checks the offset
+ * shape first to break this ambiguity.
+ *
+ * `ResponseForPath<TPath, 'GET'>` falls back to `any` for paths not present in
+ * `ApiSchemas`, in which case `InferPaginationMode<any>` is `never` and this
+ * guard rejects the path. Explicit generic injection (e.g.
+ * `useInfiniteQuery<'/some-path'>(...)`) may still bypass when `TPath` itself
+ * is widened — always let TypeScript infer `TPath` from the path argument.
+ */
+type CursorPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor'
+  ? TPath
+  : never
+
+/**
+ * Path constrained to endpoints whose GET response is an offset-paginated shape.
+ * Same `any`-fallback caveat as {@link CursorPaginatedPath}.
+ */
+type OffsetPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'offset'
+  ? TPath
+  : never
 
 /**
  * Map a path to the shape of its `params` option.
@@ -119,7 +154,7 @@ export interface UseQueryResult<TPath extends ApiPath> {
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  refetch: () => void
+  refetch: () => Promise<unknown>
   mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
 }
 
@@ -170,8 +205,11 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
 }
 
 /**
- * useInfiniteQuery result type (cursor-based pagination)
- * @property items - All loaded items flattened from all pages
+ * useInfiniteQuery result type (cursor-based pagination).
+ *
+ * @property pages - All loaded pages as full response objects. Top-level
+ *   metadata on response subtypes (e.g. `BranchMessagesResponse.activeNodeId`)
+ *   is preserved without casting.
  * @property isLoading - True during initial load
  * @property isRefreshing - True during background revalidation
  * @property error - Error object if the request failed
@@ -179,18 +217,24 @@ export interface UseMutationResult<TPath extends ApiPath, TMethod extends 'POST'
  * @property loadNext - Load the next page of items
  * @property refresh - Revalidate all loaded pages from the server
  * @property reset - Reset to first page only
- * @property mutate - SWR mutator for advanced cache control
+ * @property mutate - SWR-infinite mutator typed against the full response array
+ *
+ * @remarks
+ * To consume `pages` as a flat list of items, pair this with
+ * {@link useInfiniteFlatItems}. It exposes independent `reversePages` /
+ * `reverseItems` switches so consumers explicitly select the order that fits
+ * their endpoint and container layout.
  */
-export interface UseInfiniteQueryResult<T> {
-  items: T[]
+export interface UseInfiniteQueryResult<TResponse> {
+  pages: TResponse[]
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
   hasNext: boolean
   loadNext: () => void
-  refresh: () => void
+  refresh: () => Promise<unknown>
   reset: () => void
-  mutate: KeyedMutator<CursorPaginationResponse<T>[]>
+  mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
 
 /**
@@ -219,7 +263,7 @@ export interface UsePaginatedQueryResult<T> {
   hasPrev: boolean
   prevPage: () => void
   nextPage: () => void
-  refresh: () => void
+  refresh: () => Promise<unknown>
   reset: () => void
 }
 
@@ -270,9 +314,12 @@ export function useQuery<TPath extends ApiPath>(
     swrOptions?: SWRConfiguration
   }
 ): UseQueryResult<TPath> {
-  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const isEnabled = options?.enabled !== false
+  const resolvedPath = isEnabled
+    ? resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+    : null
   const key =
-    options?.enabled !== false ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
+    isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
   const { data, error, isLoading, isValidating, mutate } = useSWR(key, getFetcher, {
     ...DEFAULT_SWR_OPTIONS,
@@ -349,7 +396,9 @@ export function useQuery<TPath extends ApiPath>(
  * @remarks
  * Callback / side-effect ordering after a successful mutation:
  * 1. Server response resolves.
- * 2. `refresh` keys are invalidated via `globalMutate`.
+ * 2. `refresh` keys are invalidated — covers `useQuery`, `usePaginatedQuery`,
+ *    and `useInfiniteQuery` / `useSWRInfinite` (the infinite caches are
+ *    enumerated explicitly since SWR's filter API skips `$inf$` keys).
  * 3. `onSuccess` callback runs. Any `useQuery` the callback touches will be
  *    in "stale, pending revalidation" state — avoid manual optimistic
  *    `mutate(...)` here as it races with the pending revalidation.
@@ -376,7 +425,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     >
   }
 ): UseMutationResult<TPath, TMethod> {
-  const { mutate: globalMutate } = useSWRConfig()
+  const { mutate: globalMutate, cache } = useSWRConfig()
 
   // Use ref to avoid stale closure issues with callbacks
   const optionsRef = useRef(options)
@@ -488,7 +537,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         try {
           const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
           if (keys.length > 0) {
-            await globalMutate(createMultiKeyMatcher(keys))
+            await invalidatePathPatterns(cache, globalMutate, keys)
           }
         } catch (refreshErr) {
           logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
@@ -548,18 +597,23 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
  * // `/*` prefix invalidates all sub-paths of a resource
  * await invalidate('/providers/*')
  * await invalidate(['/providers', '/providers/*'])
+ *
+ * @remarks
+ * Path-based invalidation (string / string[] forms) covers both array-shaped
+ * cache keys and `useSWRInfinite` keys. SWR's filter API skips infinite keys
+ * at the source, so those are enumerated and mutated explicitly.
  */
 export function useInvalidateCache() {
-  const { mutate } = useSWRConfig()
+  const { mutate, cache } = useSWRConfig()
 
   const invalidate = async (keys?: string | string[] | boolean): Promise<void> => {
     if (keys === true || keys === undefined) {
       await mutate(() => true)
-    } else if (typeof keys === 'string') {
-      await mutate(createKeyMatcher(keys))
-    } else if (Array.isArray(keys)) {
-      await mutate(createMultiKeyMatcher(keys))
+      return
     }
+    if (keys === false) return
+    const patterns = typeof keys === 'string' ? [keys] : keys
+    await invalidatePathPatterns(cache, mutate, patterns)
   }
 
   return invalidate
@@ -701,43 +755,51 @@ export function useWriteCache() {
 /**
  * Infinite scrolling hook with cursor-based pagination.
  *
- * Automatically loads pages using cursor tokens. Items from all loaded pages
- * are flattened into a single array for easy rendering.
+ * Loads pages on demand using cursor tokens and exposes the full response
+ * objects via `pages`. Top-level response metadata (e.g.
+ * `BranchMessagesResponse.activeNodeId`) is preserved at full precision —
+ * no casting required. Use {@link useInfiniteFlatItems} to derive a flattened
+ * item list from `pages` with explicit ordering.
  *
- * @param path - API endpoint path (must return CursorPaginationResponse)
+ * @param path - API endpoint path (must return a `CursorPaginationResponse`
+ *   shape per its schema; offset-paginated paths are rejected at compile time)
  * @param options - Infinite query options
  * @param options.query - Additional query parameters (cursor/limit are managed internally)
  * @param options.limit - Items per page (default: 10)
  * @param options.enabled - Set to false to disable fetching (default: true)
  * @param options.swrOptions - Override SWR infinite configuration
- * @returns Infinite query result with items, pagination controls, and loading states
+ * @returns Infinite query result with full pages, pagination controls, and loading states
+ *
+ * @remarks
+ * Path generic inference is what makes the cursor-vs-offset guard fire. Always
+ * pass the path as a literal argument and let TypeScript infer `TPath`. An
+ * explicit generic injection like `useInfiniteQuery<'/some-path'>(...)` may
+ * bypass the guard if `ResponseForPath` collapses to `any` for the path.
  *
  * @example
- * // Basic infinite scroll
- * const { items, hasNext, loadNext, isLoading } = useInfiniteQuery('/messages')
+ * // Simple feed (page0 newest, within-page descending) — items in display order
+ * const { pages, hasNext, loadNext, isLoading } = useInfiniteQuery('/feed')
+ * const items = useInfiniteFlatItems(pages)
  *
- * return (
- *   <div>
- *     {items.map(item => <Item key={item.id} {...item} />)}
- *     {hasNext && <button onClick={loadNext}>Load More</button>}
- *   </div>
- * )
+ * @example
+ * // Branch-walk in `column-reverse` chat container (page0 newest, within-page
+ * // ascending). `reverseItems: true` flips each page so the flat output is
+ * // newest-first and feeds straight into the reversed container.
+ * const { pages, hasNext, loadNext } = useInfiniteQuery('/topics/:topicId/messages', {
+ *   params: { topicId }
+ * })
+ * const messages = useInfiniteFlatItems(pages, { reverseItems: true })
+ * const activeNodeId = pages[0]?.activeNodeId ?? null  // top-level metadata, no cast
  *
  * @example
  * // With filters and custom limit
- * const { items, loadNext } = useInfiniteQuery('/messages', {
+ * const { pages, loadNext } = useInfiniteQuery('/messages', {
  *   query: { topicId: 'abc' },
  *   limit: 50
  * })
- *
- * @example
- * // Template path: list messages of a specific topic
- * const { items } = useInfiniteQuery('/topics/:topicId/messages', {
- *   params: { topicId }
- * })
  */
 export function useInfiniteQuery<TPath extends ApiPath>(
-  path: TPath,
+  path: CursorPaginatedPath<TPath>,
   options?: ParamsOption<TPath, 'GET'> & {
     /** Additional query parameters (cursor/limit are managed internally) */
     query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
@@ -748,13 +810,13 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     /** Override SWR infinite configuration */
     swrOptions?: SWRInfiniteConfiguration
   }
-): UseInfiniteQueryResult<InferPaginatedItem<TPath>> {
+): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
-  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
 
   const getKey = useCallback(
     (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
@@ -778,7 +840,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
     return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
-      CursorPaginationResponse<InferPaginatedItem<TPath>>
+      ResponseForPath<TPath, 'GET'>
     >
   }
 
@@ -788,26 +850,31 @@ export function useInfiniteQuery<TPath extends ApiPath>(
   })
 
   const { error, isLoading, isValidating, mutate, setSize } = swrResult
-  const data = swrResult.data as CursorPaginationResponse<InferPaginatedItem<TPath>>[] | undefined
 
-  const items = useMemo(() => data?.flatMap((p) => p.items) ?? [], [data])
+  // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
+  // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
+  // and other downstream `useMemo`s to skip recomputation.
+  const pages = useMemo<ResponseForPath<TPath, 'GET'>[]>(
+    () => (swrResult.data as ResponseForPath<TPath, 'GET'>[] | undefined) ?? [],
+    [swrResult.data]
+  )
 
   const hasNext = useMemo(() => {
-    if (!data?.length) return false
-    const last = data[data.length - 1]
+    if (!pages.length) return false
+    const last = pages[pages.length - 1] as CursorPaginationResponse<unknown>
     return !!last.nextCursor
-  }, [data])
+  }, [pages])
 
+  // Rapid double-clicks are deduped by SWR's `dedupingInterval` — no callback-level guard needed.
   const loadNext = useCallback(() => {
-    if (!hasNext || isValidating) return
-    void setSize((s) => s + 1)
-  }, [hasNext, isValidating, setSize])
+    if (hasNext) void setSize((s) => s + 1)
+  }, [hasNext, setSize])
 
   const refresh = useCallback(() => mutate(), [mutate])
   const reset = useCallback(() => setSize(1), [setSize])
 
   return {
-    items,
+    pages,
     isLoading,
     isRefreshing: isValidating,
     error: error as Error | undefined,
@@ -815,8 +882,60 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     loadNext,
     refresh,
     reset,
-    mutate
+    mutate: mutate as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>
   }
+}
+
+/**
+ * Derive a flat list of items from {@link useInfiniteQuery}'s `pages`.
+ *
+ * `useInfiniteQuery` deliberately exposes the raw `pages` array — flattening
+ * is left to the consumer because the right order depends on both the
+ * endpoint's pagination shape (does the server return newest-first or
+ * oldest-first per page?) and the container layout (is it `column-reverse`?).
+ *
+ * Two independent reverse switches cover the realistic cases:
+ *
+ * - `reversePages` flips the order of pages before flattening
+ * - `reverseItems` flips items within each page before flattening
+ *
+ * @example
+ * // Simple feed: page0 newest, within-page descending — display order matches load order
+ * useInfiniteFlatItems(pages)
+ *
+ * @example
+ * // Branch-walk in `column-reverse` chat container: page0 newest, within-page
+ * // ascending. `reverseItems: true` flips each page so output is newest-first
+ * // and feeds straight into the reversed layout.
+ * useInfiniteFlatItems(pages, { reverseItems: true })
+ *
+ * @example
+ * // Plain time-ascending render (non-`column-reverse` container): pages newest
+ * // first, within-page descending — flip pages to read oldest first.
+ * useInfiniteFlatItems(pages, { reversePages: true })
+ *
+ * @remarks
+ * The output reference is stable when `pages` and the option flags are stable
+ * — pair this with the stabilized `pages` returned by {@link useInfiniteQuery}
+ * to avoid downstream rerenders.
+ */
+export function useInfiniteFlatItems<P extends CursorPaginationResponse<any>>(
+  pages: P[] | undefined,
+  options?: {
+    /** Reverse the order of pages before flattening. */
+    reversePages?: boolean
+    /** Reverse the items within each page before flattening. */
+    reverseItems?: boolean
+  }
+): P extends CursorPaginationResponse<infer T> ? T[] : never {
+  const reversePages = options?.reversePages
+  const reverseItems = options?.reverseItems
+  return useMemo(() => {
+    if (!pages) return [] as unknown[]
+    const orderedPages = reversePages ? pages.slice().reverse() : pages
+    const flattenPage = (page: P) => (reverseItems ? [...page.items].reverse() : page.items)
+    return orderedPages.flatMap(flattenPage)
+  }, [pages, reversePages, reverseItems]) as P extends CursorPaginationResponse<infer T> ? T[] : never
 }
 
 // ============================================================================
@@ -865,7 +984,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
  * })
  */
 export function usePaginatedQuery<TPath extends ApiPath>(
-  path: TPath,
+  path: OffsetPaginatedPath<TPath>,
   options?: ParamsOption<TPath, 'GET'> & {
     /** Additional query parameters (page/limit are managed internally) */
     query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'page' | 'limit'>
@@ -880,8 +999,10 @@ export function usePaginatedQuery<TPath extends ApiPath>(
   const [currentPage, setCurrentPage] = useState(1)
   const limit = options?.limit || 10
 
-  // Reset page to 1 when query parameters change
-  const queryKey = JSON.stringify(options?.query)
+  // Reset page to 1 when query content changes. Uses SWR's stableHash (via
+  // unstable_serialize) so key reorders like `{a,b}` vs `{b,a}` don't trigger
+  // false resets, and so the dep aligns with how SWR computes cache keys.
+  const queryKey = unstable_serialize([options?.query ?? {}])
   useEffect(() => {
     setCurrentPage(1)
   }, [queryKey])
@@ -909,8 +1030,11 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     swrOptions?: SWRConfiguration
   })
 
-  // usePaginatedQuery is only for offset pagination
-  const paginatedData = data as OffsetPaginationResponse<any> | undefined
+  // The `OffsetPaginatedPath` guard ensures `ResponseForPath<TPath, 'GET'>` is
+  // an `OffsetPaginationResponse<…>` shape; we still cast through the assigned
+  // alias to recover item-type precision (TS won't unwrap generic constraints
+  // for property access alone).
+  const paginatedData = data as OffsetPaginationResponse<InferPaginatedItem<TPath>> | undefined
   const items = paginatedData?.items || []
   const total = paginatedData?.total || 0
   const totalPages = Math.ceil(total / limit)
@@ -947,7 +1071,7 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     nextPage,
     refresh: refetch,
     reset
-  } as UsePaginatedQueryResult<InferPaginatedItem<TPath>>
+  }
 }
 
 // ============================================================================
@@ -1042,26 +1166,6 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Query
 }
 
 /**
- * Internal utilities exposed for unit testing only.
- *
- * @internal
- */
-export const __testing = {
-  get createKeyMatcher() {
-    return createKeyMatcher
-  },
-  get createMultiKeyMatcher() {
-    return createMultiKeyMatcher
-  },
-  get resolveTemplate() {
-    return resolveTemplate
-  },
-  get buildSWRKey() {
-    return buildSWRKey
-  }
-}
-
-/**
  * Validate a refresh pattern in dev mode.
  *
  * Enforces:
@@ -1129,6 +1233,95 @@ function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
   }
 }
 
+// Mirror of SWR's internal INFINITE_PREFIX. Inlined rather than imported from
+// `swr/_internal` (non-stable subpath). Verified in:
+//   node_modules/swr/dist/_internal/constants.js
+//   node_modules/swr/dist/infinite/index.js (key = INFINITE_PREFIX + stableHash(firstPageKey))
+//
+// stableHash of an array is `'@' + stableHash(elem) + ',' ...`; stableHash of
+// a string is `JSON.stringify(s)`. So an infinite cache key whose first-page
+// key is `[path, query]` looks like `'$inf$@"<path>",<rest>,'`.
+const INFINITE_PREFIX = '$inf$'
+
+/**
+ * Extract the API path from an SWR infinite cache key string.
+ *
+ * The first-page key is `[path, ...]`, stableHash'd to `@"<path>",<rest>`.
+ * We scan until the first unescaped `"` — `JSON.stringify` escapes any inner
+ * `"` as `\"`, so a user-supplied param value containing `"` does not break
+ * extraction (whereas a naive `indexOf('"')` would trip on it). Final slice
+ * is `JSON.parse`d to restore the original unescaped string.
+ *
+ * Returns `undefined` for any unrecognized shape so callers can skip rather
+ * than throw. A `useSWRInfinite` consumer whose `getKey` returns a non-array
+ * first-page key (e.g. a bare string) would fall through here.
+ *
+ * @internal
+ */
+function extractInfinitePath(key: string): string | undefined {
+  if (!key.startsWith(INFINITE_PREFIX)) return undefined
+  const openIdx = key.indexOf('@"', INFINITE_PREFIX.length)
+  if (openIdx !== INFINITE_PREFIX.length) return undefined
+  const pathStart = openIdx + 2
+  let i = pathStart
+  while (i < key.length) {
+    const ch = key.charCodeAt(i)
+    if (ch === 0x5c /* '\' */) {
+      i += 2
+      continue
+    }
+    if (ch === 0x22 /* '"' */) {
+      try {
+        return JSON.parse(key.slice(pathStart - 1, i + 1)) as string
+      } catch {
+        return undefined
+      }
+    }
+    i += 1
+  }
+  return undefined
+}
+
+/**
+ * Find every `$inf$`-prefixed cache key whose embedded path matches one of
+ * the patterns. SWR's `mutate(filterFn)` skips infinite keys at the source
+ * (see `internalMutate` in swr internals — `/^\$(inf|sub)\$/` is tested
+ * before the user filter runs), so we have to iterate ourselves.
+ *
+ * @internal
+ */
+function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
+  const exact = patterns.filter((p) => !p.endsWith('/*'))
+  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  const matched: string[] = []
+  for (const key of cache.keys()) {
+    if (typeof key !== 'string' || !key.startsWith(INFINITE_PREFIX)) continue
+    const path = extractInfinitePath(key)
+    if (path === undefined) continue
+    if (exact.includes(path) || prefixes.some((prefix) => path.startsWith(prefix))) {
+      matched.push(key)
+    }
+  }
+  return matched
+}
+
+/**
+ * Invalidate cache entries whose path matches any pattern, covering both
+ * normal SWR keys and `useSWRInfinite` keys. SWR's filter API skips the
+ * latter, so we fan out: filter-based pass for array keys, explicit per-key
+ * mutate for infinite keys (equivalent to
+ * `mutate(unstable_serialize(getKey))`, SWR's documented pattern).
+ *
+ * @internal
+ */
+async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator, patterns: string[]): Promise<void> {
+  await globalMutate(createMultiKeyMatcher(patterns))
+  const infiniteKeys = findMatchingInfiniteKeys(cache, patterns)
+  if (infiniteKeys.length > 0) {
+    await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
+  }
+}
+
 /**
  * Replace Express-style `:name` and greedy `:name*` placeholders in a path
  * template with values from `params`.
@@ -1154,4 +1347,33 @@ function resolveTemplate(path: string, params?: Record<string, string | number>)
     }
     return String(value)
   })
+}
+
+/**
+ * Internal utilities exposed for unit testing only.
+ *
+ * @internal
+ */
+export const __testing = {
+  get createKeyMatcher() {
+    return createKeyMatcher
+  },
+  get createMultiKeyMatcher() {
+    return createMultiKeyMatcher
+  },
+  get resolveTemplate() {
+    return resolveTemplate
+  },
+  get buildSWRKey() {
+    return buildSWRKey
+  },
+  get extractInfinitePath() {
+    return extractInfinitePath
+  },
+  get findMatchingInfiniteKeys() {
+    return findMatchingInfiniteKeys
+  },
+  get invalidatePathPatterns() {
+    return invalidatePathPatterns
+  }
 }

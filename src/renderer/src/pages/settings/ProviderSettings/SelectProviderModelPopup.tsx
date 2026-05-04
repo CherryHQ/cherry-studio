@@ -1,4 +1,4 @@
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { TopView } from '@renderer/components/TopView'
 import { isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'

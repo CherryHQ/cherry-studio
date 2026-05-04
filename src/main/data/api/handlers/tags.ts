@@ -9,7 +9,7 @@
  */
 
 import { tagService } from '@data/services/TagService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
@@ -20,19 +20,7 @@ import {
 } from '@shared/data/api/schemas/tags'
 import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 
-/**
- * Handler type for a specific tag endpoint
- */
-type TagHandler<Path extends keyof TagSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Tag API handlers implementation
- */
-export const tagHandlers: {
-  [Path in keyof TagSchemas]: {
-    [Method in keyof TagSchemas[Path]]: TagHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const tagHandlers: HandlersFor<TagSchemas> = {
   '/tags': {
     GET: async () => {
       return await tagService.list()

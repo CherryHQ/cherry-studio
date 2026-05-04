@@ -36,7 +36,9 @@
         "comingSoon": "Coming soon",
         "connected": "Connected",
         "connecting": "Connecting",
+        "createError": "Failed to create channel",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
+        "deleteError": "Failed to delete channel",
         "description": "Connect your agent to messaging platforms.",
         "disconnected": "Disconnected",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Channels",
+        "updateError": "Failed to update channel",
         "wechat": {
           "addAccount": "Add WeChat Account",
           "chatIds": "Allowed User IDs",
@@ -211,6 +214,9 @@
         },
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
+        "error": {
+          "loadFailed": "Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
@@ -220,6 +226,7 @@
           "error": "Error",
           "justNow": "just now",
           "label": "Run History",
+          "loadError": "Failed to load run history",
           "result": "Result",
           "runAt": "Run At",
           "running": "Running...",
@@ -2554,6 +2561,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "Pin this model",
+      "unpin": "Unpin model"
+    },
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
@@ -2571,6 +2582,9 @@
     "function_calling": "Function Calling",
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
+    "multi_select": {
+      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {
@@ -3689,7 +3703,7 @@
         "title": "Application Filter List",
         "user_tips": {
           "mac": "Please enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
-          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+          "windows": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, CherryStudio.exe, etc."
         }
       },
       "linux": {
@@ -3810,6 +3824,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "New Agent",
+      "empty_text": "No agents yet",
+      "search_placeholder": "Search agents…"
+    },
+    "assistant": {
+      "create_new": "New Assistant",
+      "empty_text": "No assistants yet",
+      "multi_hint": "(mutually exclusive with multi-model)",
+      "multi_label": "Multi-assistant parallel",
+      "search_placeholder": "Search assistants…"
+    },
+    "common": {
+      "edit": "Edit",
+      "pin": "Pin",
+      "pinned_title": "Pinned",
+      "sort": {
+        "asc": "Oldest",
+        "desc": "Recent"
+      },
+      "sort_label": "Sort",
+      "unpin": "Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3875,6 +3914,75 @@
     "channels": {
       "description": "Connect agents to messaging platforms like Telegram, Feishu, Discord, and more.",
       "title": "Channels"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Agent Selector",
+        "triggerPlaceholder": "Select an agent",
+        "valueProp": "Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "Clear",
+        "configDescription": "Toggle props to preview component behavior",
+        "configTitle": "Config",
+        "currentProps": "Current props",
+        "description": "Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "Latest onChange",
+        "previewDescription": "Click the trigger to open the selector",
+        "previewTitle": "Preview",
+        "title": "Assistant Selector",
+        "triggerPlaceholder": "Select an assistant",
+        "triggerSelectedCount": "{{count}} assistants selected",
+        "valueProp": "Current value"
+      },
+      "description": "Visible only in development for testing new v2 components (selectors and friends) directly inside the app.",
+      "label": "Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "Behavior & Display Config",
+        "callbackEmpty": "No component callback received yet",
+        "clearSelection": "Clear Selection",
+        "configDescription": "Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "Controlled multiSelectMode",
+        "currentProps": "Current Props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "Latest onSelect Return",
+        "loading": "Loading models...",
+        "modelId": "Model ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "Normalized Selected IDs",
+        "outputEmpty": "No data to display yet",
+        "provider": "Provider",
+        "resetOutputs": "Reset Outputs",
+        "resultsDescription": "This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "Outputs & State",
+        "selected": "Current Selection",
+        "selectedEmpty": "No model selected yet",
+        "selectionConfig": "Selection Value Config",
+        "selectionType": "selectionType",
+        "selectionTypeId": "Return Model IDs",
+        "selectionTypeModel": "Return Model Objects",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "Model Selector",
+        "triggerPlaceholder": "Select a model",
+        "triggerSelectedCount": "{{count}} models selected",
+        "valueProp": "Current Value Prop"
+      },
+      "title": "Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5396,7 +5504,8 @@
         "documentation": "View official documentation for more configuration details:",
         "learn_more": "Learn More",
         "location": "Location",
-        "location_help": "Vertex AI service location, e.g., us-central1",
+        "location_help": "Vertex AI service location, e.g., us-central1. This field is not read from the Service Account JSON and must be entered manually.",
+        "location_placeholder": "Select Vertex AI location",
         "project_id": "Project ID",
         "project_id_help": "Your Google Cloud project ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5406,7 +5515,12 @@
           "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
           "client_email_placeholder": "Enter Service Account client email",
           "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
-          "incomplete_config": "Please complete Service Account configuration first",
+          "incomplete_config": "Please complete all required Vertex AI settings first",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Paste the complete JSON key content. After parsing, only project_id, client_email, and private_key are saved, and the raw JSON is cleared.",
+          "json_input_placeholder": "Paste the complete Service Account JSON key content",
+          "json_parse_error": "Failed to parse Service Account JSON. Please confirm the format is correct.",
+          "json_parse_success": "Service Account JSON parsed",
           "private_key": "Private Key",
           "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
           "private_key_placeholder": "Enter Service Account private key",

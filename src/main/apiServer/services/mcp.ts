@@ -4,19 +4,19 @@ import { loggerService } from '@logger'
 import type { Tool } from '@modelcontextprotocol/sdk/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 
-const logger = loggerService.withContext('MCPApiService')
+const logger = loggerService.withContext('McpApiService')
 
 /**
- * MCPApiService - API layer for MCP server management
+ * McpApiService - API layer for MCP server management
  *
  * This service provides a REST API interface for MCP servers:
  * 1. Reads server config from SQLite via McpServerService
- * 2. Leverages MCPService for actual server connections
+ * 2. Leverages McpService for actual server connections
  * 3. Provides session management for API clients
  */
-class MCPApiService {
+class McpApiService {
   constructor() {
-    logger.debug('MCPApiService initialized')
+    logger.debug('McpApiService initialized')
   }
 
   // get all activated servers
@@ -53,7 +53,7 @@ class MCPApiService {
         return null
       }
 
-      const client = await application.get('MCPService').initClient(server)
+      const client = await application.get('McpService').initClient(server)
       const tools = await client.listTools()
       return {
         id: server.id,
@@ -71,12 +71,12 @@ class MCPApiService {
 
 // TODO: The lazy getter below is a timing workaround — without it, the
 // module-level singleton would be constructed during ESM evaluation, before
-// preboot completes. The apiServer subsystem (MCPApiService, routes, app.ts,
+// preboot completes. The apiServer subsystem (McpApiService, routes, app.ts,
 // ApiServer, ApiServerService) has tangled coupling that needs to be untangled
 // as a whole; this getter should be removed as part of that broader refactor.
-let _mcpApiService: MCPApiService | null = null
+let _mcpApiService: McpApiService | null = null
 
-export function getMcpApiService(): MCPApiService {
-  if (!_mcpApiService) _mcpApiService = new MCPApiService()
+export function getMcpApiService(): McpApiService {
+  if (!_mcpApiService) _mcpApiService = new McpApiService()
   return _mcpApiService
 }

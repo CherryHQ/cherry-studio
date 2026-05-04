@@ -104,13 +104,13 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
   // agent id lives on `agent_id`. When opened from an agent, `agentBase.id`
   // is the agent id.
   const agentId =
-    agentBase && 'agent_id' in agentBase && typeof agentBase.agent_id === 'string' ? agentBase.agent_id : agentBase?.id
+    agentBase && 'agentId' in agentBase && typeof agentBase.agentId === 'string' ? agentBase.agentId : agentBase?.id
   const { skills, loading, error, toggle } = useInstalledSkills(agentId)
   const [filter, setFilter] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [localPlugins, setLocalSkills] = useState<LocalSkill[]>([])
 
-  const workdir = agentBase?.accessible_paths?.[0]
+  const workdir = agentBase?.accessiblePaths?.[0]
 
   useEffect(() => {
     if (!workdir) return

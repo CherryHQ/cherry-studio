@@ -2,33 +2,30 @@
  * Topic API Handlers
  *
  * Implements all topic-related API endpoints including:
+ * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
  * - Active node switching for branch navigation
+ * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
 
-/**
- * Handler type for a specific topic endpoint
- */
-type TopicHandler<Path extends keyof TopicSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Topic API handlers implementation
- */
-export const topicHandlers: {
-  [Path in keyof TopicSchemas]: {
-    [Method in keyof TopicSchemas[Path]]: TopicHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
+    GET: async ({ query }) => {
+      const parsed = ListTopicsQuerySchema.parse(query ?? {})
+      return await topicService.listByCursor(parsed)
+    },
+
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
       return await topicService.create(parsed)
@@ -55,6 +52,22 @@ export const topicHandlers: {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/topics/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await topicService.reorder(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/topics/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await topicService.reorderBatch(parsed.moves)
+      return undefined
     }
   }
 }

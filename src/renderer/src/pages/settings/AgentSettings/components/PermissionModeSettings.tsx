@@ -11,6 +11,7 @@ import {
   type AgentConfigurationState,
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
+  DEFAULT_PERMISSION_MODE,
   defaultConfiguration,
   SettingsContainer,
   SettingsItem,
@@ -23,17 +24,17 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
 
   const configuration = useMemo(() => agentBase?.configuration ?? defaultConfiguration, [agentBase?.configuration])
   const selectedMode = useMemo(
-    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    () => agentBase?.configuration?.permission_mode ?? DEFAULT_PERMISSION_MODE,
     [agentBase?.configuration?.permission_mode]
   )
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
-    const allowed = agentBase?.allowed_tools ?? []
+    const allowed = agentBase?.allowedTools ?? []
     const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
     const merged = uniq([...sanitized, ...autoToolIds])
     return merged
-  }, [agentBase?.allowed_tools, autoToolIds, availableTools])
+  }, [agentBase?.allowedTools, autoToolIds, availableTools])
   const userAddedIds = useMemo(() => {
     return approvedToolIds.filter((id) => !autoToolIds.includes(id))
   }, [approvedToolIds, autoToolIds])
@@ -59,7 +60,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
           await update({
             id: agentBase.id,
             configuration: nextConfiguration,
-            allowed_tools: merged
+            allowedTools: merged
           } satisfies UpdateAgentBaseForm)
         } finally {
           setIsUpdatingMode(false)

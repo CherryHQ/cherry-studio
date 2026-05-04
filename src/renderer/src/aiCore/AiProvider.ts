@@ -3,21 +3,12 @@ import type { generateImageResult } from '@cherrystudio/ai-core/core/runtime/typ
 import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { normalizeGatewayModels } from '@renderer/services/models/ModelAdapter'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import {
-  type Assistant,
-  type EditImageParams,
-  type GenerateImageParams,
-  type Model,
-  type Provider,
-  SystemProviderIds
-} from '@renderer/types'
+import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { gateway } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -330,13 +321,6 @@ export default class AiProvider {
    * 使用 ModelListService 统一处理各 Provider 的模型列表获取
    */
   public async models(): Promise<Model[]> {
-    // Gateway provider 使用 AI SDK 的 gateway API
-    if (this.actualProvider.id === SystemProviderIds.gateway) {
-      const gatewayModels = (await gateway.getAvailableModels()).models
-      return normalizeGatewayModels(this.actualProvider, gatewayModels)
-    }
-
-    // 使用新的 ModelListService
     return await listModels(this.actualProvider)
   }
 

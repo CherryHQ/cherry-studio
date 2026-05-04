@@ -7,7 +7,7 @@
 
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { translateLanguageService } from '@data/services/TranslateLanguageService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TranslateSchemas } from '@shared/data/api/schemas/translate'
 import {
   CreateTranslateHistorySchema,
@@ -17,13 +17,7 @@ import {
   UpdateTranslateLanguageSchema
 } from '@shared/data/api/schemas/translate'
 
-type TranslateHandler<Path extends keyof TranslateSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const translateHandlers: {
-  [Path in keyof TranslateSchemas]: {
-    [Method in keyof TranslateSchemas[Path]]: TranslateHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const translateHandlers: HandlersFor<TranslateSchemas> = {
   '/translate/histories': {
     GET: async ({ query }) => {
       const parsed = TranslateHistoryQuerySchema.parse(query ?? {})

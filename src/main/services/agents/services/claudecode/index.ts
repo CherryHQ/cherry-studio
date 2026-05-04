@@ -19,12 +19,14 @@ import type {
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
-import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
@@ -46,9 +48,10 @@ import {
 } from '@shared/agents/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { withoutTrailingApiVersion } from '@shared/utils'
+import type { CherryClawConfiguration, GetAgentSessionResponse } from '@types'
 import { app } from 'electron'
 
-import type { GetAgentSessionResponse } from '../..'
+import { listSlashCommands } from '../../agentUtils'
 import type {
   AgentServiceInterface,
   AgentStream,
@@ -56,11 +59,8 @@ import type {
   AgentThinkingOptions
 } from '../../interfaces/AgentStreamInterface'
 import { skillService } from '../../skills/SkillService'
-import { agentService } from '../AgentService'
 import { isProvisioned, provisionBuiltinAgent } from '../builtin/BuiltinAgentProvisioner'
-import { channelService } from '../ChannelService'
 import { PromptBuilder } from '../cherryclaw/prompt'
-import { sessionService } from '../SessionService'
 import { buildNamespacedToolCallId } from './claude-stream-state'
 import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
@@ -117,7 +117,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     const aiStream = new ClaudeCodeStream()
 
     // Validate session accessible paths and make sure it exists as a directory
-    const cwd = session.accessible_paths[0]
+    const cwd = session.accessiblePaths[0]
     if (!cwd) {
       aiStream.emit('data', {
         type: 'error',
@@ -131,10 +131,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     // edits (user deleted a symlink, workspace was moved, etc.) so Claude
     // Code sees exactly the set of skills the agent should have enabled.
     try {
-      await skillService.reconcileAgentSkills(session.agent_id, cwd)
+      await skillService.reconcileAgentSkills(session.agentId, cwd)
     } catch (error) {
       logger.warn('Failed to reconcile agent skills before session start', {
-        agentId: session.agent_id,
+        agentId: session.agentId,
         error: error instanceof Error ? error.message : String(error)
       })
     }
@@ -263,7 +263,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const errorChunks: string[] = []
 
-    const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
+    const sessionAllowedTools = new Set<string>(session.allowedTools ?? [])
     const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
     const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
 
@@ -287,7 +287,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
     } catch (error) {
       logger.warn('Failed to load plugin packages for Claude Code', {
-        agentId: session.agent_id,
+        agentId: session.agentId,
         error: error instanceof Error ? error.message : String(error)
       })
     }
@@ -415,13 +415,13 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     // Soul Mode: read soul_enabled from agent-level configuration (not session)
-    const agent = await agentService.getAgent(session.agent_id)
+    const agent = await agentService.getAgent(session.agentId)
     const agentConfig = agent?.configuration
     const soulEnabled = agentConfig?.soul_enabled === true
     let soulSystemPrompt: string | undefined
 
     if (soulEnabled && cwd) {
-      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
+      soulSystemPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig as CherryClawConfiguration | undefined)
       logger.info('Built Soul Mode system prompt', { cwd, promptLength: soulSystemPrompt.length })
     }
 
@@ -519,7 +519,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       systemPrompt: assistantSystemPrompt
         ? assistantSystemPrompt
         : soulSystemPrompt
-          ? `${soulSystemPrompt}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
+          ? `${soulSystemPrompt}${session.instructions ? `\n\n${session.instructions}` : ''}${channelSecurityBlock}\n\n${getLanguageInstruction()}`
           : {
               type: 'preset',
               preset: 'claude_code',
@@ -532,7 +532,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
-      allowedTools: session.allowed_tools,
+      allowedTools: session.allowedTools,
       plugins,
       canUseTool,
       hooks: {
@@ -552,8 +552,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       ...(thinkingOptions?.thinking ? { thinking: thinkingOptions.thinking } : {})
     }
 
-    if (session.accessible_paths.length > 1) {
-      options.additionalDirectories = session.accessible_paths.slice(1)
+    if (session.accessiblePaths.length > 1) {
+      options.additionalDirectories = session.accessiblePaths.slice(1)
     }
 
     if (session.mcps && session.mcps.length > 0) {
@@ -573,8 +573,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
     if (!options.mcpServers) options.mcpServers = {}
-    const browserServer = new BrowserServer()
-    options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
 
     // Inject Exa MCP for structured web search (free tier, no API key required)
     options.mcpServers.exa = {
@@ -585,7 +583,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Inject skills MCP for all agents — managing Claude skills (search / install
     // / list / remove / init / register) is a generally useful capability and is
     // not coupled to Soul Mode's autonomous-agent semantics.
-    const skillsServer = new SkillsServer(session.agent_id)
+    const skillsServer = new SkillsServer(session.agentId)
     options.mcpServers.skills = { type: 'sdk', name: 'skills', instance: skillsServer.mcpServer }
     // Auto-approve via Cherry Studio's own permission gate. The SDK whitelist
     // (`options.allowedTools`) takes glob patterns, but `canUseTool` checks
@@ -603,7 +601,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     // JOURNAL.jsonl in the agent's workspace. Distinct from the user-opt-in
     // built-in `memory-server` (knowledge graph). Any agent with a stable
     // workspace benefits from this.
-    const workspaceMemoryServer = new WorkspaceMemoryServer(session.agent_id)
+    const workspaceMemoryServer = new WorkspaceMemoryServer(session.agentId)
     options.mcpServers['agent-memory'] = {
       type: 'sdk',
       name: 'agent-memory',
@@ -618,8 +616,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     if (soulEnabled) {
       // Find the channel that owns this session (if any) for context-aware cron defaults
-      const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
-      const clawServer = new ClawServer(session.agent_id, sourceChannelId)
+      const sourceChannelId = await this.resolveSourceChannel(session.agentId, session.id)
+      const clawServer = new ClawServer(session.agentId, sourceChannelId)
       options.mcpServers.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
       // Auto-approve claw MCP tools at both layers (see skills/memory above
@@ -636,7 +634,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
 
       logger.debug('Soul Mode: injected claw MCP server', {
-        agentId: session.agent_id,
+        agentId: session.agentId,
         totalMcpServers: Object.keys(options.mcpServers).length
       })
     }
@@ -655,12 +653,12 @@ class ClaudeCodeService implements AgentServiceInterface {
           options.allowedTools = [...options.allowedTools, 'mcp__assistant__*']
         }
       } else {
-        // When allowed_tools is empty/undefined, set it so assistant MCP tools are auto-approved
+        // When allowedTools is empty/undefined, set it so assistant MCP tools are auto-approved
         options.allowedTools = ['mcp__assistant__*']
       }
 
       logger.debug('Cherry Assistant: injected assistant MCP server', {
-        agentId: session.agent_id,
+        agentId: session.agentId,
         totalMcpServers: Object.keys(options.mcpServers).length
       })
     }
@@ -695,7 +693,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         options,
         aiStream,
         errorChunks,
-        session.agent_id,
+        session.agentId,
         session.id
       ).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
@@ -713,7 +711,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   private async resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
     try {
-      const { channelService } = await import('../ChannelService')
+      const { agentChannelService: channelService } = await import('@data/services/AgentChannelService')
       const channels = await channelService.listChannels({ agentId })
       return channels.find((ch) => ch.sessionId === sessionId)?.id
     } catch {
@@ -953,8 +951,7 @@ class ClaudeCodeService implements AgentServiceInterface {
           })
 
           try {
-            // Get builtin + local slash commands from BaseService
-            const existingCommands = await sessionService.listSlashCommands('claude-code', agentId)
+            const existingCommands = await listSlashCommands('claude-code')
 
             // Convert SDK slash_commands (string[]) to SlashCommand[] format
             // Ensure all commands start with '/'
@@ -983,7 +980,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
             // Update session in database
             await sessionService.updateSession(agentId, sessionId, {
-              slash_commands: mergedCommands
+              slashCommands: mergedCommands
             })
 
             logger.info('Updated session with merged slash commands', {
@@ -993,7 +990,7 @@ class ClaudeCodeService implements AgentServiceInterface {
               totalCount: mergedCommands.length
             })
           } catch (error) {
-            logger.error('Failed to update session slash_commands', {
+            logger.error('Failed to update session slashCommands', {
               sessionId,
               error: error instanceof Error ? error.message : String(error)
             })

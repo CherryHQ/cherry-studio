@@ -10,8 +10,8 @@ import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
 import type { Response } from 'express'
 import type * as z from 'zod'
 
-import type { ValidationRequest } from '../agents/validators/zodValidator'
 import type { KnowledgeSearchSchema } from './validators/zodSchemas'
+import type { ValidationRequest } from './validators/zodValidator'
 
 const logger = loggerService.withContext('KnowledgeHandlers')
 
@@ -142,8 +142,12 @@ async function getProviderConfig(providerId: string): Promise<{ apiKey: string; 
   baseURL = baseURL.replace(/\/+$/, '')
   baseURL = baseURL.replace(/#$/, '')
 
+  // If multiple API keys are configured (comma-separated), use the first one.
+  // Matches the main-process convention in OpenClawService.
+  const apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
+
   return {
-    apiKey: provider.apiKey || '',
+    apiKey,
     baseURL
   }
 }
