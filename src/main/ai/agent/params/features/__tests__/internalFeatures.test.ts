@@ -73,7 +73,8 @@ function makeScope(overrides: {
       assistant: overrides.assistant as Assistant | undefined,
       abortSignal: new AbortController().signal
     },
-    mcpToolIds: new Set(overrides.mcpToolIds ?? [])
+    mcpToolIds: new Set(overrides.mcpToolIds ?? []),
+    workspaceRoot: null
   }
 }
 
@@ -83,7 +84,13 @@ function activeNames(scope: RequestScope): string[] {
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
   it('produces nothing when there is no assistant and no special provider/model traits', () => {
-    expect(activeNames(makeScope({ provider: { id: 'unknown' }, model: {} }))).toEqual(['pdf-compatibility'])
+    // pdf-compatibility and static-reminders are always-on regardless
+    // of provider/model — the former is a v3-prompt-shape adapter,
+    // the latter no-ops cheaply when there is no AGENTS.md to inject.
+    expect(activeNames(makeScope({ provider: { id: 'unknown' }, model: {} }))).toEqual([
+      'pdf-compatibility',
+      'static-reminders'
+    ])
   })
 
   it('model-params activates whenever an assistant is present', () => {

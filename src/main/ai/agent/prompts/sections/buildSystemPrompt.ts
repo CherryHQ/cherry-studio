@@ -20,6 +20,7 @@ import { codeWorkflowSection } from './codeWorkflowSection'
 import { envSection } from './envSection'
 import { identitySection } from './identitySection'
 import { outputStyleSection } from './outputStyleSection'
+import { skillsCatalogSection } from './skillsCatalogSection'
 import { systemRulesSection } from './systemRulesSection'
 import { toneAndOutputSection } from './toneAndOutputSection'
 import { toolIntrosSection } from './toolIntrosSection'
@@ -36,6 +37,7 @@ const CONTRIBUTORS: SectionContributor[] = [
   codeWorkflowSection, // gated on fs__/shell__ tools — drops out for non-code assistants
   assistantPromptSection,
   toolIntrosSection,
+  skillsCatalogSection, // empty when no skills installed; otherwise stable per-session
 
   // ── Non-cacheable group ──────────────────────────────────────────
   // env date shifts hourly; output_style flips on user preference.

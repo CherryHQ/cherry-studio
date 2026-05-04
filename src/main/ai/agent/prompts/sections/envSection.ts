@@ -4,6 +4,8 @@ import { getWorkspaceInfo } from '@main/services/workspaceContext/WorkspaceConte
 
 import type { SectionContributor } from './types'
 
+type WorkspaceInfo = Awaited<ReturnType<typeof getWorkspaceInfo>>
+
 /**
  * Hour-rounded ISO timestamp — granular enough that the model knows
  * the rough current time, stable enough that the cache for everything
@@ -28,36 +30,55 @@ function formatPlatform(): string {
   }
 }
 
-function formatGit(info: Awaited<ReturnType<typeof getWorkspaceInfo>>): string {
-  if (!info.isGitRepo || !info.git) return 'no'
+function escapeText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
+
+function gitBlock(info: WorkspaceInfo): string {
+  if (!info.isGitRepo || !info.git) {
+    return '  <git initialized="false"/>'
+  }
   const { branch, isClean, ahead, behind } = info.git
-  const parts = [branch ?? '(detached HEAD)', isClean ? 'clean' : 'dirty']
-  if (ahead > 0 || behind > 0) parts.push(`ahead ${ahead}, behind ${behind}`)
-  return `yes — ${parts.join(', ')}`
+  const branchAttr = branch ? ` branch="${escapeAttr(branch)}"` : ' detached="true"'
+  const cleanAttr = ` clean="${isClean}"`
+  const aheadAttr = ahead > 0 ? ` ahead="${ahead}"` : ''
+  const behindAttr = behind > 0 ? ` behind="${behind}"` : ''
+  return `  <git initialized="true"${branchAttr}${cleanAttr}${aheadAttr}${behindAttr}/>`
 }
 
 /**
  * Runtime context: workspace root, hour-rounded date, platform, model,
- * git state. Non-cacheable — date and git state both shift over the
- * lifetime of a session, so we keep them past the cache boundary to
- * avoid invalidating identity / system_rules / actions / etc.
+ * git state. XML-wrapped because every field is structured key-value
+ * data the model needs to address by attribute (not free-form prose).
+ * Mirrors the `<deferred-tools>` / `<available-skills>` convention
+ * used elsewhere in the registry.
+ *
+ * Non-cacheable — date and git state shift over the lifetime of a
+ * session, so we keep them past the cache boundary to avoid
+ * invalidating identity / system_rules / actions / etc.
  */
 export const envSection: SectionContributor = async (ctx) => {
   const info = await getWorkspaceInfo(ctx.workspaceRoot)
+  const workspaceLine = info.workspaceRoot
+    ? `  <workspace path="${escapeAttr(info.workspaceRoot)}"/>`
+    : `  <workspace bound="false"/>`
 
-  const lines = [
-    '# Environment',
-    '',
-    `- Date: ${hourRoundedDate()}`,
-    `- Platform: ${formatPlatform()} (${os.arch()})`,
-    `- Model: ${ctx.model.name}`,
-    `- Workspace: ${info.workspaceRoot ?? '(none — chat is not bound to a folder)'}`,
-    `- Git repository: ${formatGit(info)}`
-  ]
+  const text = `<environment>
+  <date>${hourRoundedDate()}</date>
+  <platform>${escapeText(formatPlatform())}</platform>
+  <arch>${escapeText(os.arch())}</arch>
+  <model>${escapeText(ctx.model.name)}</model>
+${workspaceLine}
+${gitBlock(info)}
+</environment>`
 
   return {
     id: 'env',
-    text: lines.join('\n'),
+    text,
     cacheable: false
   }
 }

@@ -92,6 +92,16 @@ export class SkillService {
   }
 
   /**
+   * Skills enabled at the global level (`agent_global_skill.isEnabled = true`).
+   * Consumed by the agent runtime's skill-catalog loader (Phase F) — returns
+   * the metadata shape callers need without leaking the table schema.
+   */
+  async listEnabledGlobal(): Promise<InstalledSkill[]> {
+    const rows = await this.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.isEnabled, true))
+    return rows.map(this.rowToInstalledSkill).map((s) => ({ ...s, isEnabled: true }))
+  }
+
+  /**
    * Enable or disable a skill for a specific agent.
    *
    * Updates the `agent_skill` join row and creates / removes the

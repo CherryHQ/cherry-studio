@@ -30,6 +30,7 @@ export type SectionId =
   | 'tone_and_output'
   | 'assistant_prompt'
   | 'tool_intros'
+  | 'skills_catalog'
   | 'env'
   | 'output_style'
 

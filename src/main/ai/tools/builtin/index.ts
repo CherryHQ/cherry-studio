@@ -16,6 +16,7 @@ import { createFindPathToolEntry } from './fs/findPath'
 import { createReadFileToolEntry } from './fs/readFile'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
 import { createShellExecToolEntry } from './shell/exec'
+import { createSkillsLoadToolEntry } from './skills/load'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
@@ -26,4 +27,5 @@ export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createFindPathToolEntry())
   reg.register(createFindGrepToolEntry())
   reg.register(createShellExecToolEntry())
+  reg.register(createSkillsLoadToolEntry())
 }

@@ -376,7 +376,6 @@ export class AiService extends BaseService {
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 
-    // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
   }
 

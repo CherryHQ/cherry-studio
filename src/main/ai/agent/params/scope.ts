@@ -39,4 +39,10 @@ export interface RequestScope extends ToolApplyScope {
   readonly capabilities: ResolvedCapabilities | undefined
   readonly sdkConfig: SdkConfig
   readonly requestContext: RequestContext
+  /**
+   * Topic-bound workspace path resolved at request build time. Read by
+   * features that need fs context (e.g. static reminder injection).
+   * `null` for chats not bound to a folder.
+   */
+  readonly workspaceRoot: string | null
 }

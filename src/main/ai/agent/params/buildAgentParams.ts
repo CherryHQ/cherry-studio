@@ -62,6 +62,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const sdkConfig = await resolveSdkConfig(provider, model, request.chatId)
   const { tools, deferredEntries, mcpToolIds } = await resolveTools(request, assistant, model)
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
+  const workspaceRoot = await resolveTopicWorkspaceRoot(request.chatId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
@@ -80,13 +81,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     capabilities,
     sdkConfig,
     requestContext,
-    mcpToolIds
+    mcpToolIds,
+    workspaceRoot
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const workspaceRoot = await resolveTopicWorkspaceRoot(request.chatId)
   const system = await assembleSystemPrompt({ assistant, model, workspaceRoot, tools, deferredEntries })
   const options = buildAgentOptions(scope)
 

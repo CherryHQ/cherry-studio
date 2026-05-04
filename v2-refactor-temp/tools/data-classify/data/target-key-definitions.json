@@ -158,6 +158,27 @@
       "defaultValue": "default",
       "status": "classified",
       "description": "Tone preset (default / concise / pragmatic / enthusiastic) injected as the output_style section of the AI's system prompt"
+    },
+    {
+      "targetKey": "feature.skills.include_claude_global",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Opt-in: scan ~/.claude/skills/*/SKILL.md when building the agent skill catalog"
+    },
+    {
+      "targetKey": "feature.skills.include_codex_global",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Opt-in: scan ~/.codex/skills/*/SKILL.md when building the agent skill catalog"
+    },
+    {
+      "targetKey": "feature.skills.include_agent_global",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Opt-in: scan ~/.agent/skills/*/SKILL.md when building the agent skill catalog"
     }
   ]
 }

@@ -45,7 +45,8 @@ export const BuiltinToolNamespace = {
   Kb: 'kb',
   Meta: 'meta',
   Fs: 'fs',
-  Shell: 'shell'
+  Shell: 'shell',
+  Skills: 'skills'
 } as const
 export type BuiltinToolNamespace = (typeof BuiltinToolNamespace)[keyof typeof BuiltinToolNamespace]
 

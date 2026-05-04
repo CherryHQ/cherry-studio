@@ -22,6 +22,7 @@ import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
+import { staticRemindersFeature } from './staticReminders'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
@@ -30,6 +31,10 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   pdfCompatibilityFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
+  // Reminder injection runs before any provider-specific message
+  // adapter (anthropic-cache, etc.) so the wrapped block becomes part
+  // of the prompt those features see and price for.
+  staticRemindersFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
   openrouterReasoningFeature,
