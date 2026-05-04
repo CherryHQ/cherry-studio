@@ -23,20 +23,26 @@ import BlockErrorFallback from './BlockErrorFallback'
 const Container = styled.div`
   width: fit-content;
   max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-background);
+  overflow: hidden;
 
   /* Only style the direct group collapse, not nested tool collapses */
-  > .ant-collapse {
-    background: transparent;
+  && > .ant-collapse {
+    background: transparent !important;
     border: none;
+    border-radius: 0;
 
     > .ant-collapse-item {
       border: none !important;
+      background: transparent;
 
       > .ant-collapse-header {
         padding: 8px 12px !important;
-        background: var(--color-background);
-        border: 1px solid var(--color-border);
-        border-radius: 0.75rem !important;
+        background: transparent !important;
+        border: none;
+        border-radius: 0 !important;
         display: flex;
         align-items: center;
 
@@ -48,8 +54,9 @@ const Container = styled.div`
       }
 
       > .ant-collapse-content {
-        border: none;
-        background: transparent;
+        border-top: 1px solid var(--color-border) !important;
+        border-radius: 0 !important;
+        background: transparent !important;
 
         > .ant-collapse-content-box {
           padding: 4px 0 0 0 !important;
