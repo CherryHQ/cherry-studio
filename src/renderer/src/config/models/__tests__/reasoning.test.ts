@@ -2616,6 +2616,14 @@ describe('Claude Models', () => {
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
 
+    it('should return claude46 for Claude 4.7+ models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4.7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-sonnet-4-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-7-20260501-v1:0' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-7@20260501' }))).toBe('claude46')
+    })
+
     it('should return default for non-reasoning Claude models', () => {
       expect(getThinkModelType(createModel({ id: 'claude-3-opus' }))).toBe('default')
       expect(getThinkModelType(createModel({ id: 'claude-3-haiku' }))).toBe('default')

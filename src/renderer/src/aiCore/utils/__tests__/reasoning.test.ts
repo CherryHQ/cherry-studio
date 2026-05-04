@@ -1163,6 +1163,33 @@ describe('reasoning utils', () => {
       expect(result).not.toHaveProperty('effort')
     })
 
+    it('should return adaptive thinking for Claude 4.7 model', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'adaptive' },
+        effort: 'high'
+      })
+    })
+
     it('should not add effort for non-DeepSeek models on the Claude endpoint', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel, isDeepSeekV4PlusModel, findTokenLimit } =
         await import('@renderer/config/models')
@@ -1781,6 +1808,35 @@ describe('reasoning utils', () => {
         reasoningConfig: {
           type: 'enabled',
           budgetTokens: 4096
+        }
+      })
+    })
+
+    it('should return adaptive reasoning config for Claude 4.7 on Bedrock', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'anthropic.claude-opus-4-7-20260501-v1:0',
+        name: 'Claude Opus 4.7',
+        provider: 'bedrock'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'high'
+        }
+      } as Assistant
+
+      const result = getBedrockReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningConfig: {
+          type: 'adaptive',
+          maxReasoningEffort: 'high'
         }
       })
     })

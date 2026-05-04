@@ -721,6 +721,14 @@ describe('model utils', () => {
         expect(isClaude46SeriesModel(createModel({ id: 'Anthropic.Claude-Opus-4-6-V1' }))).toBe(true)
       })
 
+      it('detects Claude 4.7+ models', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-7-20260501-v1:0' }))).toBe(true)
+        expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-7@20260501' }))).toBe(true)
+      })
+
       it('returns false for other Claude models', () => {
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4.5' }))).toBe(false)
@@ -729,6 +737,11 @@ describe('model utils', () => {
         expect(isClaude46SeriesModel(createModel({ id: 'claude-opus-4-1' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
         expect(isClaude46SeriesModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(false)
+      })
+
+      it('returns false for Bedrock Claude 4.0 with date stamp', () => {
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe(false)
+        expect(isClaude46SeriesModel(createModel({ id: 'anthropic.claude-opus-4-20250514-v1:0' }))).toBe(false)
       })
 
       it('detects Sonnet 4.6 in direct API format', () => {
