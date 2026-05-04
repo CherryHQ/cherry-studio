@@ -1,81 +1,79 @@
 {
-  "generated_at": "2026-04-29T17:46:56.135915+00:00",
-  "date": "2026-04-29",
+  "generated_at": "2026-05-04T16:00:00.000000+00:00",
+  "date": "2026-05-04",
   "repository": "CherryHQ/cherry-studio",
   "issues": {
-    "open_total": 820,
-    "closed_last_30d": 288,
-    "no_label": 94,
-    "no_label_pct": 11.5,
+    "open_total": 845,
+    "closed_last_30d": 301,
+    "no_label": 120,
+    "no_label_pct": 14.2,
     "p1_count": 3,
     "p1_issues": [
       {
         "number": 12966,
         "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-        "labels": [
-          "BUG",
-          "P1",
-          "inactive"
-        ],
+        "labels": ["BUG", "P1", "inactive"],
         "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
         "created_at": "2026-02-19",
-        "age_days": 69
+        "age_days": 74
       },
       {
         "number": 13193,
         "title": "[Bug]: Azure OpenAI Resource not found (defaults to responses API)",
-        "labels": [
-          "P1",
-          "Models"
-        ],
+        "labels": ["P1", "Models"],
         "assignee": "DeJeune",
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
         "created_at": "2026-03-04",
-        "age_days": 56
+        "age_days": 61
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": [
-          "P1",
-          "Models"
-        ],
+        "labels": ["P1", "Models"],
         "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
         "created_at": "2026-03-18",
-        "age_days": 42
+        "age_days": 47
       }
     ],
-    "inactive_labeled": 80,
+    "inactive_labeled": 167,
     "label_distribution": {
-      "inactive": 80,
-      "Models": 48,
-      "UI/UX": 48,
-      "Assistant": 31,
-      "MCP": 17,
-      "help wanted": 15,
-      "discussion": 14,
-      "needs-repro": 13,
-      "Data": 10,
-      "BUG": 7,
-      "Performance": 7,
-      "Connectivity": 7,
-      "feature": 5,
-      "RAG": 4,
-      "P3": 2,
-      "P2": 2,
-      "Blocked: v2": 1
+      "UI/UX": 218,
+      "Models": 199,
+      "inactive": 167,
+      "Assistant": 120,
+      "MCP": 68,
+      "discussion": 61,
+      "help wanted": 59,
+      "needs-repro": 51,
+      "Data": 47,
+      "Performance": 34,
+      "BUG": 34,
+      "Connectivity": 32,
+      "feature": 19,
+      "RAG": 17,
+      "P3": 13,
+      "v2": 13,
+      "P2": 6,
+      "Planned": 11,
+      "Agent": 9,
+      "Blocked: v2": 2
     }
   },
   "pull_requests": {
-    "open_total_sampled": 100,
-    "open_targeting_main": 48,
-    "open_targeting_v2": 52,
-    "age_median_days": 7,
-    "age_max_days": 231
+    "open_total_main": 226,
+    "open_total_v2": 71,
+    "open_total": 297
   },
   "v2_branch": {
-    "open_prs": 70,
-    "merged_last_30d": 45
+    "open_prs": 71,
+    "merged_last_30d": 41
   },
-  "notes": "Issue age distribution based on 200-sample (newest by update) + 100-sample (oldest by created). Total open issues from API: 820."
+  "delta_from_prev": {
+    "prev_date": "2026-04-29",
+    "open_issues_delta": "+25",
+    "closed_30d_delta": "+13",
+    "v2_merged_30d_delta": "-4",
+    "v2_open_prs_delta": "+1"
+  },
+  "notes": "Open issue total from GitHub search API (exact). Label distribution and no-label count extrapolated from 400-issue sample (most recently updated). Health distribution estimated from proportions. V2 merged PRs from search API (exact)."
 }
