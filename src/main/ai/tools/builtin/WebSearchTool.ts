@@ -55,6 +55,7 @@ You may call this multiple times with different queries to broaden coverage:
 Cite sources by [id] in your final answer.`,
   inputSchema: webSearchInputSchema,
   outputSchema: webSearchOutputSchema,
+  inputExamples: [{ input: { query: 'Anthropic Claude 4 Opus benchmarks 2026' } }],
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,

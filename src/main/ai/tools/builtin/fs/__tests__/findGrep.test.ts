@@ -21,14 +21,44 @@ const finderState: {
   totalFilesSearched: 0
 }
 
-const grep = vi.fn(() => {
+// In multi-pattern + regex/fuzzy modes the tool fans out and calls
+// `grep(p, ...)` once per pattern. The mock returns different items per
+// pattern based on a per-pattern map so tests can drive both branches.
+let perPatternItems: Record<string, typeof finderState.items> | null = null
+
+const grep = vi.fn((query: string) => {
   if (!finderState.searchOk) return { ok: false, error: 'mock grep failure' }
+  const items = perPatternItems?.[query] ?? finderState.items
   return {
     ok: true,
     value: {
-      items: finderState.items,
+      items,
       totalFilesSearched: finderState.totalFilesSearched,
-      totalMatched: finderState.items.length,
+      totalMatched: items.length,
+      totalFiles: 100,
+      filteredFileCount: finderState.totalFilesSearched,
+      nextCursor: null
+    }
+  }
+})
+const multiGrep = vi.fn((opts: { patterns: string[] }) => {
+  if (!finderState.searchOk) return { ok: false, error: 'mock multiGrep failure' }
+  // Default: pretend fff dedups internally and returns the union from
+  // the test's per-pattern map (or the global `items` when no map set).
+  const dedup = new Map<string, (typeof finderState.items)[number]>()
+  for (const p of opts.patterns) {
+    const items = perPatternItems?.[p] ?? finderState.items
+    for (const it of items) {
+      const key = `${it.relativePath}:${it.lineNumber}`
+      if (!dedup.has(key)) dedup.set(key, it)
+    }
+  }
+  return {
+    ok: true,
+    value: {
+      items: Array.from(dedup.values()),
+      totalFilesSearched: finderState.totalFilesSearched,
+      totalMatched: dedup.size,
       totalFiles: 100,
       filteredFileCount: finderState.totalFilesSearched,
       nextCursor: null
@@ -42,7 +72,7 @@ vi.mock('@ff-labs/fff-node', () => ({
   FileFinder: {
     create: vi.fn(() => {
       if (!finderState.createOk) return { ok: false, error: 'mock init failure' }
-      return { ok: true, value: { waitForScan, grep, destroy, isDestroyed: false } }
+      return { ok: true, value: { waitForScan, grep, multiGrep, destroy, isDestroyed: false } }
     })
   }
 }))
@@ -60,7 +90,7 @@ const entry = createFindGrepToolEntry()
 
 interface FindGrepInput {
   basePath: string
-  pattern: string
+  pattern: string | string[]
   mode?: 'plain' | 'fuzzy' | 'regex'
   beforeContext?: number
   afterContext?: number
@@ -75,6 +105,7 @@ type FindGrepOutput =
         lineContent: string
         contextBefore?: string[]
         contextAfter?: string[]
+        matchedPattern?: string
       }>
       filesSearched: number
       truncated: boolean
@@ -96,7 +127,9 @@ beforeEach(() => {
   finderState.searchOk = true
   finderState.items = []
   finderState.totalFilesSearched = 0
+  perPatternItems = null
   grep.mockClear()
+  multiGrep.mockClear()
 })
 
 afterEach(() => {
@@ -196,6 +229,79 @@ describe('fs__grep execute', () => {
     if (out.kind === 'matches') {
       expect(out.items[0].contextBefore).toBeUndefined()
       expect(out.items[0].contextAfter).toBeUndefined()
+    }
+  })
+
+  /**
+   * Single-string pattern stays on the original `grep(query, options)`
+   * path and does NOT touch `multiGrep` — pins that the array branch
+   * doesn't accidentally swallow scalar inputs.
+   */
+  it('routes single string pattern through finder.grep, not multiGrep', async () => {
+    finderState.items = [{ relativePath: 'src/a.ts', lineNumber: 1, lineContent: 'hit' }]
+    const out = await callExecute({ basePath: '/tmp/grep-single', pattern: 'hit' })
+    expect(out.kind).toBe('matches')
+    expect(grep).toHaveBeenCalledTimes(1)
+    expect(multiGrep).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Array pattern + plain (default) mode → native `multiGrep` (one
+   * walk, fff-side dedup). Per-match `matchedPattern` is intentionally
+   * undefined because fff doesn't surface attribution.
+   */
+  it('routes array pattern + plain mode through finder.multiGrep without pattern attribution', async () => {
+    perPatternItems = {
+      foo: [{ relativePath: 'src/a.ts', lineNumber: 5, lineContent: 'foo here' }],
+      bar: [{ relativePath: 'src/b.ts', lineNumber: 9, lineContent: 'bar here' }]
+    }
+    finderState.totalFilesSearched = 20
+    const out = await callExecute({ basePath: '/tmp/grep-multi-plain', pattern: ['foo', 'bar'] })
+    expect(grep).not.toHaveBeenCalled()
+    expect(multiGrep).toHaveBeenCalledTimes(1)
+    expect(multiGrep).toHaveBeenCalledWith(expect.objectContaining({ patterns: ['foo', 'bar'] }))
+    expect(out.kind).toBe('matches')
+    if (out.kind === 'matches') {
+      expect(out.items.map((it) => it.relativePath).sort()).toEqual(['src/a.ts', 'src/b.ts'])
+      // No attribution from native multiGrep.
+      expect(out.items.every((it) => it.matchedPattern === undefined)).toBe(true)
+    }
+  })
+
+  /**
+   * Array pattern + non-plain mode (regex / fuzzy) → manual fan-out
+   * because fff has no native multi for those modes. Each match is
+   * attributed to the pattern that hit, dedup on path:line, sorted by
+   * (path, line) so the order is stable across pattern arrangements.
+   */
+  it('fans out array pattern in regex mode with per-match attribution and dedup', async () => {
+    perPatternItems = {
+      'foo\\d+': [
+        { relativePath: 'src/a.ts', lineNumber: 1, lineContent: 'foo1' },
+        { relativePath: 'src/a.ts', lineNumber: 2, lineContent: 'foo2' }
+      ],
+      'bar\\d+': [
+        // Same line as foo's hit on line 2 — must dedup, attribute to first match.
+        { relativePath: 'src/a.ts', lineNumber: 2, lineContent: 'foo2 bar2' },
+        { relativePath: 'src/c.ts', lineNumber: 7, lineContent: 'bar7' }
+      ]
+    }
+    finderState.totalFilesSearched = 30
+    const out = await callExecute({
+      basePath: '/tmp/grep-multi-regex',
+      pattern: ['foo\\d+', 'bar\\d+'],
+      mode: 'regex'
+    })
+    expect(multiGrep).not.toHaveBeenCalled()
+    expect(grep).toHaveBeenCalledTimes(2)
+    expect(out.kind).toBe('matches')
+    if (out.kind === 'matches') {
+      // 3 unique (path, line) keys: a.ts:1, a.ts:2, c.ts:7
+      expect(out.items).toHaveLength(3)
+      expect(out.items[0]).toMatchObject({ relativePath: 'src/a.ts', lineNumber: 1, matchedPattern: 'foo\\d+' })
+      // a.ts:2 was hit by both; first wins.
+      expect(out.items[1]).toMatchObject({ relativePath: 'src/a.ts', lineNumber: 2, matchedPattern: 'foo\\d+' })
+      expect(out.items[2]).toMatchObject({ relativePath: 'src/c.ts', lineNumber: 7, matchedPattern: 'bar\\d+' })
     }
   })
 })

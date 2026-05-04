@@ -173,6 +173,12 @@ Pagination:
 Supports text/code, images (PNG/JPG/etc.), audio (MP3/WAV/etc., audio-capable models only), video (MP4/MOV/etc., video-capable models only), PDF, Office docs (DOCX/XLSX/PPTX/ODT/ODS/ODP/DOC), and Jupyter notebooks. Files over 5 MB are rejected with \`too-large\`.`,
   inputSchema,
   outputSchema,
+  inputExamples: [
+    // Whole-file read — most common case, no pagination args.
+    { input: { path: '/Users/me/project/src/index.ts' } },
+    // Paginated tail of a long file — use offset/limit when totalLines warrants it.
+    { input: { path: '/Users/me/project/CHANGELOG.md', offset: 2001, limit: 500 } }
+  ],
   toModelOutput: fsReadToModelOutput,
   needsApproval: makeNeedsApproval(FS_READ_TOOL_NAME),
   execute: async ({ path: requestedPath, offset, limit }, options) => {

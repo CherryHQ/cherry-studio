@@ -81,6 +81,7 @@ Backed by fff (frecency-ranked, typo-tolerant). Files the user has touched recen
 basePath must be absolute. Results are paths relative to basePath.`,
   inputSchema,
   outputSchema,
+  inputExamples: [{ input: { basePath: '/Users/me/project', query: 'ReadFile.tsx', limit: 20 } }],
   toModelOutput: findPathToModelOutput,
   needsApproval: makeNeedsApproval(FS_FIND_TOOL_NAME),
   execute: async ({ basePath, query, limit }): Promise<FindPathOutput> => {

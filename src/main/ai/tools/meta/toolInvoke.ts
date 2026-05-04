@@ -16,14 +16,24 @@ import type { ToolRegistry } from '../registry'
 
 export const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
 
+const toolInvokeInputSchema = z.object({
+  name: z.string().describe('Tool name as returned by tool_search'),
+  params: z.record(z.string(), z.unknown()).optional().describe('Tool input arguments')
+})
+
 export function createToolInvokeTool(registry: ToolRegistry): Tool {
   return tool({
     description:
       'Call a tool discovered via `tool_search` by name. Pass arguments under `params` matching the tool input schema.',
-    inputSchema: z.object({
-      name: z.string().describe('Tool name as returned by tool_search'),
-      params: z.record(z.string(), z.unknown()).optional().describe('Tool input arguments')
-    }),
+    inputSchema: toolInvokeInputSchema,
+    inputExamples: [
+      {
+        input: {
+          name: 'fs__read',
+          params: { path: '/Users/me/project/src/index.ts' }
+        } as z.infer<typeof toolInvokeInputSchema>
+      }
+    ],
     execute: async ({ name, params }, options) => {
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)

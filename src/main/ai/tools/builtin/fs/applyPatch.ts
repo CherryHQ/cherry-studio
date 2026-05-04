@@ -138,6 +138,15 @@ On context mismatch, the tool returns the first 5 actual lines of the offending 
 All paths must be absolute.`,
   inputSchema,
   outputSchema,
+  inputExamples: [
+    {
+      input: {
+        patch:
+          '*** Begin Patch\n*** Add File: /abs/path/foo.ts\n+export const foo = 1\n+\n*** Update File: /abs/path/bar.ts\n@@\n export const bar = 1\n-export const baz = 2\n+export const baz = 3\n*** Delete File: /abs/path/old.ts\n*** End Patch'
+      }
+    }
+  ],
+  strict: true,
   toModelOutput: fsPatchToModelOutput,
   needsApproval: makeNeedsApproval(FS_PATCH_TOOL_NAME),
   execute: async ({ patch }): Promise<FsPatchOutput> => {

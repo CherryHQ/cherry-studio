@@ -41,6 +41,7 @@ Use this when:
 You may call this multiple times with refined queries if the first results are insufficient. Cite sources by [id] in your final answer.`,
   inputSchema: kbSearchInputSchema,
   outputSchema: kbSearchOutputSchema,
+  inputExamples: [{ input: { query: 'vector store HNSW configuration' } }],
   strict: true,
   needsApproval: makeNeedsApproval(KB_SEARCH_TOOL_NAME),
   execute: async ({ query }, options): Promise<KbSearchOutput> => {

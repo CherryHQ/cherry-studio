@@ -127,6 +127,14 @@ Behavior:
 The command runs in cherry's environment. Avoid commands that require interactive input — they'll hang until timeout.`,
   inputSchema,
   outputSchema,
+  inputExamples: [
+    // Bare command, runs in cherry's cwd.
+    { input: { command: 'git status' } },
+    // With cwd — typical agent workflow against a project root.
+    { input: { command: 'pnpm test --run', cwd: '/Users/me/project' } },
+    // Long-running command with explicit timeout (override default 30s).
+    { input: { command: 'pnpm build', cwd: '/Users/me/project', timeout: 300_000 } }
+  ],
   toModelOutput: shellExecToModelOutput,
   needsApproval: makeNeedsApproval(SHELL_EXEC_TOOL_NAME),
   execute: async ({ command, cwd, timeout }, { abortSignal }): Promise<ShellExecOutput> => {

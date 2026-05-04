@@ -28,6 +28,7 @@ type Output = { kind: 'loaded'; name: string; body: string } | { kind: 'error'; 
 const skillsLoadTool = tool({
   description: 'Load the full instructions of a named skill from the catalog.',
   inputSchema,
+  inputExamples: [{ input: { name: 'gh-create-pr' } }],
   async execute(input: Input, opts) {
     const ctx = (opts?.experimental_context ?? {}) as { topicId?: string }
     const workspaceRoot = ctx.topicId ? ((await topicService.getWorkspaceRoot(ctx.topicId)) ?? null) : null

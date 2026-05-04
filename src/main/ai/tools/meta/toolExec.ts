@@ -35,6 +35,13 @@ export function createToolExecTool(registry: ToolRegistry): Tool {
           'JavaScript body, runs inside an async wrapper (you can `await` directly). MUST `return` the final value.'
         )
     }),
+    inputExamples: [
+      {
+        input: {
+          code: "const [a, b] = await parallel(tools.invoke('fs__read', { path: '/abs/a.ts' }), tools.invoke('fs__read', { path: '/abs/b.ts' }));\nreturn { a, b }"
+        }
+      }
+    ],
     execute: async ({ code }, options) => {
       const result = await runExec(code, { registry, parentOptions: options })
       return {

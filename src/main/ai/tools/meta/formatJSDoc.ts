@@ -98,9 +98,16 @@ function appendPropertyParams(
 /**
  * Generate a JSDoc function stub from a tool schema.
  *
- * This mirrors mcphub's `inspect` output style.
+ * This mirrors mcphub's `inspect` output style. When `inputExample` is
+ * provided, it's appended as an `@example` block — the model copies
+ * this verbatim into a tool_invoke / tool_exec body.
  */
-export function schemaToJSDoc(toolName: string, description: string | undefined, inputSchema: unknown): string {
+export function schemaToJSDoc(
+  toolName: string,
+  description: string | undefined,
+  inputSchema: unknown,
+  inputExample?: string
+): string {
   const schema =
     (inputSchema as InputSchema | undefined) && typeof inputSchema === 'object'
       ? (inputSchema as InputSchema)
@@ -119,6 +126,14 @@ export function schemaToJSDoc(toolName: string, description: string | undefined,
     lines.push(' *')
     lines.push(' * @param {Object} params - Parameters')
     appendPropertyParams(lines, properties, required, 'params')
+  }
+
+  if (inputExample && inputExample.trim().length > 0) {
+    lines.push(' *')
+    lines.push(' * @example')
+    for (const exLine of inputExample.split('\n')) {
+      lines.push(` * ${exLine}`)
+    }
   }
 
   lines.push(' */')

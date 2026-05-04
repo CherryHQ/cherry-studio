@@ -19,15 +19,21 @@ export const TOOL_INSPECT_TOOL_NAME = 'tool_inspect'
 export function createToolInspectTool(registry: ToolRegistry): Tool {
   return tool({
     description:
-      'Get a JSDoc stub for a registered tool — its description and parameter shapes, ready to consult before `tool_invoke` or `tool_exec`.',
+      'Get a JSDoc stub for a registered tool — its description, parameter shapes, and a worked input example, ready to consult before `tool_invoke` or `tool_exec`.',
     inputSchema: z.object({
       name: z.string().describe('Tool name as returned by tool_search')
     }),
+    inputExamples: [{ input: { name: 'fs__read' } }],
     execute: async ({ name }) => {
       const entry = registry.getByName(name)
       if (!entry) throw new Error(`Tool not found: ${name}`)
       const inputSchema = serializeSchema(entry.tool.inputSchema)
-      return schemaToJSDoc(name, entry.description, inputSchema)
+      // AI SDK's `Tool.inputExamples?: Array<{ input: INPUT }>` is the
+      // canonical place for examples — surface the first one as a
+      // `@example` block in the JSDoc stub.
+      const firstExample = (entry.tool as { inputExamples?: Array<{ input: unknown }> }).inputExamples?.[0]?.input
+      const exampleText = firstExample !== undefined ? JSON.stringify(firstExample, null, 2) : undefined
+      return schemaToJSDoc(name, entry.description, inputSchema, exampleText)
     }
   })
 }
