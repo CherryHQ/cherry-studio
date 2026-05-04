@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
 
 import { createClient } from '@libsql/client'
+import { sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
+import { pathToFileURL } from 'url'
 
 import { type MigrationPaths, resolveMigrationPaths } from '../core/MigrationPaths'
 import {
@@ -34,32 +36,28 @@ export class LegacyAgentsDbReader {
     }
 
     const client = createClient({
-      url: pathToFileURL(dbPath).toString(),
+      url: pathToFileURL(dbPath).href,
       intMode: 'number'
     })
+
+    const db = drizzle(client)
 
     try {
       const schemaInfo = createEmptyAgentsSchemaInfo()
 
       for (const tableName of getAgentsSourceTableNames()) {
-        const table = await client.execute({
-          sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-          args: [tableName]
-        })
+        const table = await db.get<{ name: string }>(
+          sql.raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = '${tableName}'`)
+        )
 
-        if (table.rows.length === 0) {
+        if (!table) {
           continue
         }
 
         schemaInfo[tableName].exists = true
 
-        const columns = await client.execute({
-          sql: `PRAGMA table_info(\`${tableName}\`)`,
-          args: []
-        })
-        schemaInfo[tableName].columns = new Set(
-          columns.rows.map((row) => String((row as { name?: unknown }).name ?? ''))
-        )
+        const columns = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(\`${tableName}\`)`))
+        schemaInfo[tableName].columns = new Set(columns.map((column) => column.name))
       }
 
       return schemaInfo
@@ -76,9 +74,11 @@ export class LegacyAgentsDbReader {
     }
 
     const client = createClient({
-      url: pathToFileURL(dbPath).toString(),
+      url: pathToFileURL(dbPath).href,
       intMode: 'number'
     })
+
+    const db = drizzle(client)
 
     try {
       const counts = this.createEmptyCounts()
@@ -89,12 +89,8 @@ export class LegacyAgentsDbReader {
           continue
         }
 
-        const result = await client.execute({
-          sql: `SELECT COUNT(*) AS count FROM \`${tableName}\``,
-          args: []
-        })
-        const row = result.rows[0] as { count?: unknown } | undefined
-        counts[tableName] = Number(row?.count ?? 0)
+        const result = await db.get<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM \`${tableName}\``))
+        counts[tableName] = Number(result?.count ?? 0)
       }
 
       return counts

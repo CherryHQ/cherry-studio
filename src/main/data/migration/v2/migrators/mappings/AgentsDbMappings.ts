@@ -379,27 +379,6 @@ export function createEmptyAgentsSchemaInfo(): AgentsSchemaInfo {
   ) as AgentsSchemaInfo
 }
 
-/** Matches `agents_legacy.<table>` in validator WHERE clauses (see `validateWhereClause`). */
-const AGENTS_LEGACY_TABLE_REF = /agents_legacy\.(\w+)/g
-
-/**
- * When false, a `SELECT COUNT(*) ... WHERE <validateWhere>` would reference a
- * missing legacy table (SQLite error). The import builder skips missing sources,
- * so the migrated row count for this spec is treated as 0.
- */
-export function canEvaluateAgentsLegacyValidateWhere(
-  validateWhere: string | undefined,
-  schemaInfo: AgentsSchemaInfo
-): boolean {
-  if (!validateWhere) return true
-  for (const match of validateWhere.matchAll(AGENTS_LEGACY_TABLE_REF)) {
-    const table = match[1] as AgentsSourceTableName
-    if (!(table in schemaInfo)) continue
-    if (!schemaInfo[table].exists) return false
-  }
-  return true
-}
-
 export function getTotalAgentsRowCount(counts: Partial<AgentsTableRowCounts>): number {
   return getAgentsSourceTableNames().reduce((total, tableName) => total + (counts[tableName] ?? 0), 0)
 }
