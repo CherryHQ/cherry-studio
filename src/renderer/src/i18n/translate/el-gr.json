@@ -3057,7 +3057,7 @@
     },
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "generated_image": "Δημιουργία εικόνας",
-    "generating": "[to be translated]:Generating...",
+    "generating": "Δημιουργία...",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "guidance_scale": "Κλίμακα προσαρμογής",
     "guidance_scale_tip": "Χωρίς κλάσικο προσαρμογής. Ελέγχει την προσαρμογή του μοντέλου στην αναζήτηση παρόμοιων εικόνων για το σχόλιο.",
@@ -3101,7 +3101,7 @@
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
     "operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
     "paint_course": "Εκπαίδευση",
-    "parameters": "[to be translated]:Parameters",
+    "parameters": "Παράμετροι",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
     "person_generation_options": {

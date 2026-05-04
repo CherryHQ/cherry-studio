@@ -3057,7 +3057,7 @@
     },
     "generate_failed": "Không thể tạo hình ảnh",
     "generated_image": "Hình ảnh được tạo",
-    "generating": "[to be translated]:Generating...",
+    "generating": "Đang tạo...",
     "go_to_settings": "Đi tới Cài đặt",
     "guidance_scale": "Thang đo hướng dẫn",
     "guidance_scale_tip": "Hướng dẫn Không Phân loại. Mức độ bạn muốn mô hình tuân thủ sát prompt của bạn khi tìm kiếm một hình ảnh liên quan để hiển thị cho bạn",
@@ -3101,7 +3101,7 @@
     "number_images_tip": "Số lượng hình ảnh cần tạo (1-4)",
     "operation_failed": "Thao tác thất bại, vui lòng thử lại sau",
     "paint_course": "hướng dẫn",
-    "parameters": "[to be translated]:Parameters",
+    "parameters": "Tham số",
     "per_image": "mỗi hình ảnh",
     "per_images": "per immagini",
     "person_generation_options": {

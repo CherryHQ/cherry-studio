@@ -3057,7 +3057,7 @@
     },
     "generate_failed": "Nu s-a putut genera imaginea",
     "generated_image": "Imagine generată",
-    "generating": "[to be translated]:Generating...",
+    "generating": "Se generează...",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
     "guidance_scale_tip": "Classifier Free Guidance. Cât de fidel vrei să respecte modelul promptul tău când caută o imagine similară să-ți arate",
@@ -3101,7 +3101,7 @@
     "number_images_tip": "Numărul de imagini de generat (1-4)",
     "operation_failed": "Operațiunea a eșuat, vă rugăm să încercați din nou mai târziu",
     "paint_course": "tutorial",
-    "parameters": "[to be translated]:Parameters",
+    "parameters": "Parametri",
     "per_image": "pe imagine",
     "per_images": "pe imagini",
     "person_generation_options": {
