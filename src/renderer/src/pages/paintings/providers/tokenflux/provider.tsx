@@ -33,7 +33,7 @@ export const tokenFluxProvider: PaintingProviderDefinition = createSingleModePro
         label: model.name,
         value: model.id,
         group: model.model_provider,
-        _raw: model
+        raw: model
       }))
     }
   },

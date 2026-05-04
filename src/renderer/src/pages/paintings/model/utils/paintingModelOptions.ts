@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
-import type { ModelOption } from '../../hooks/useModelLoader'
+import type { ModelOption } from '../types/paintingModel'
 
 export function createModelOptionFromModel(model: Model): ModelOption {
   return {
@@ -9,7 +9,7 @@ export function createModelOptionFromModel(model: Model): ModelOption {
     value: model.apiModelId || parseUniqueModelId(model.id).modelId,
     group: model.group,
     isEnabled: model.isEnabled,
-    _raw: model
+    raw: model
   }
 }
 

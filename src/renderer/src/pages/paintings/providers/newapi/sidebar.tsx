@@ -1,21 +1,21 @@
 import { Button } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import type { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 
 import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { addEditImageFile, getEditImageFiles, removeEditImageFile } from './editFiles'
 
-interface NewApiSidebarContentProps {
+interface NewApiSettingProps {
   providerId: string
   painting: PaintingData
   modelOptions: Array<{ value: string; label: string; group?: string; [k: string]: any }>
   patchPainting: (updates: Partial<PaintingData>) => void
   tab: string
-  t: TFunction
 }
 
-function renderEmptyModelState(providerId: string, t: NewApiSidebarContentProps['t']) {
+function renderEmptyModelState(providerId: string, t: TFunction) {
   return (
     <div className="mt-6 rounded-md border border-border border-dashed bg-muted/10 p-6 text-center">
       <div className="mb-3 text-muted-foreground text-sm">
@@ -34,11 +34,7 @@ function renderEmptyModelState(providerId: string, t: NewApiSidebarContentProps[
   )
 }
 
-function renderEditSidebar(
-  paintingId: string,
-  patchPainting: NewApiSidebarContentProps['patchPainting'],
-  t: NewApiSidebarContentProps['t']
-) {
+function renderEditSetting(paintingId: string, patchPainting: NewApiSettingProps['patchPainting'], t: TFunction) {
   const editFiles = getEditImageFiles(paintingId)
 
   return (
@@ -88,14 +84,8 @@ function renderEditSidebar(
   )
 }
 
-export function NewApiSidebarContent({
-  providerId,
-  painting,
-  modelOptions,
-  patchPainting,
-  tab,
-  t
-}: NewApiSidebarContentProps) {
+export function NewApiSetting({ providerId, painting, modelOptions, patchPainting, tab }: NewApiSettingProps) {
+  const { t } = useTranslation()
   const actualProviderId = painting.providerId || providerId
 
   if (modelOptions.length === 0) {
@@ -103,7 +93,7 @@ export function NewApiSidebarContent({
   }
 
   if (tab === 'edit') {
-    return renderEditSidebar(painting.id, patchPainting, t)
+    return renderEditSetting(painting.id, patchPainting, t)
   }
 
   return null

@@ -1,19 +1,20 @@
 import { useTranslation } from 'react-i18next'
 
-import Artboard from '../components/Artboard'
-import type { ModelOption } from '../hooks/useModelLoader'
 import type { PaintingData } from '../model/types/paintingData'
+import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { AihubmixHeaderActions } from './aihubmix/provider'
-import { DmxapiSidebarContent } from './dmxapi/components'
-import { DmxapiHeaderActions } from './dmxapi/provider'
-import { NewApiHeaderActions } from './newapi/provider'
-import { NewApiSidebarContent } from './newapi/sidebar'
-import { OvmsHeaderActions } from './ovms/provider'
-import { TokenFluxCenterContent, TokenFluxSidebarContent } from './tokenflux/components'
-import { TokenFluxHeaderActions } from './tokenflux/provider'
-import { ZhipuHeaderActions } from './zhipu/provider'
+import { AihubmixHeaderActions } from '../providers/aihubmix/provider'
+import { DmxapiSetting } from '../providers/dmxapi/components'
+import { DmxapiHeaderActions } from '../providers/dmxapi/provider'
+import { NewApiHeaderActions } from '../providers/newapi/provider'
+import { NewApiSetting } from '../providers/newapi/sidebar'
+import { OvmsHeaderActions } from '../providers/ovms/provider'
+import { TokenFluxCenterContent, TokenFluxSetting } from '../providers/tokenflux/components'
+import { TokenFluxHeaderActions } from '../providers/tokenflux/provider'
+import { ZhipuHeaderActions } from '../providers/zhipu/provider'
+import Artboard from './Artboard'
 
+/** Provider-specific links/actions in the settings header row (next to close). */
 export function PaintingProviderHeaderActions({ provider }: { provider: PaintingProviderRuntime }) {
   const { t } = useTranslation()
 
@@ -29,36 +30,36 @@ export function PaintingProviderHeaderActions({ provider }: { provider: Painting
   ) {
     return <NewApiHeaderActions provider={provider} t={t} />
   }
+
   return null
 }
 
-export function PaintingProviderSidebarContent({
+export function PaintingSettingsExtras({
   provider,
   painting,
   modelOptions,
+  selectedModelOption,
   patchPainting,
   tab
 }: {
   provider: PaintingProviderRuntime
   painting: PaintingData
   modelOptions: ModelOption[]
+  selectedModelOption?: ModelOption
   isLoading: boolean
   patchPainting: (updates: Partial<PaintingData>) => void
   tab: string
 }) {
-  const { t } = useTranslation()
-
   if (provider.id === 'dmxapi') {
-    return <DmxapiSidebarContent mode={tab} t={t} />
+    return <DmxapiSetting mode={tab} />
   }
 
   if (provider.id === 'tokenflux') {
     return (
-      <TokenFluxSidebarContent
+      <TokenFluxSetting
         painting={painting as any}
         patchPainting={patchPainting as any}
-        modelOptions={modelOptions}
-        t={t}
+        selectedModel={selectedModelOption?.raw as any}
       />
     )
   }
@@ -69,13 +70,12 @@ export function PaintingProviderSidebarContent({
     ['cherryin', 'aionly'].includes(provider.id)
   ) {
     return (
-      <NewApiSidebarContent
+      <NewApiSetting
         providerId={provider.id}
         painting={painting as any}
         modelOptions={modelOptions}
         patchPainting={patchPainting as any}
         tab={tab}
-        t={t}
       />
     )
   }
@@ -84,17 +84,15 @@ export function PaintingProviderSidebarContent({
 }
 
 export function PaintingArtboard({
-  provider,
   painting,
   isLoading,
   onCancel
 }: {
-  provider: PaintingProviderRuntime
   painting: PaintingData
   isLoading: boolean
   onCancel: () => void
 }) {
-  if (provider.id === 'tokenflux') {
+  if (painting.providerId === 'tokenflux') {
     return <TokenFluxCenterContent painting={painting as any} isLoading={isLoading} onCancel={onCancel} />
   }
 

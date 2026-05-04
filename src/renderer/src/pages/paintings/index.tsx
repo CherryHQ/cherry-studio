@@ -12,11 +12,10 @@ import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'reac
 import PaintingModelSelector from './components/PaintingModelSelector'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import { PaintingPromptLeadingActions } from './components/PaintingPromptLeadingActions'
-import PaintingSettings, { PaintingSettingsPanelHeader } from './components/PaintingSettings'
+import { PaintingArtboard, PaintingProviderHeaderActions } from './components/PaintingProviderViews'
+import PaintingSettings, { PaintingSettingsHeader } from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingModelSelectorCatalog } from './components/usePaintingModelSelectorCatalog'
-import type { ModelOption } from './hooks/useModelLoader'
-import { useModelLoader } from './hooks/useModelLoader'
 import { usePaintingGeneration } from './hooks/usePaintingGeneration'
 import { usePaintingGenerationGuard } from './hooks/usePaintingGenerationGuard'
 import { usePaintingPromptPlaceholder } from './hooks/usePaintingPromptPlaceholder'
@@ -25,9 +24,9 @@ import { presentPaintingGenerateError } from './model/errors/paintingGenerateErr
 import { paintingDataToCreateDto } from './model/mappers/paintingDataToCreateDto'
 import { recordToPaintingData } from './model/mappers/recordToPaintingData'
 import type { PaintingData } from './model/types/paintingData'
+import type { ModelOption } from './model/types/paintingModel'
 import { isPaintingNewApiProvider } from './model/types/paintingProviderRuntime'
 import { paintingClasses } from './PaintingPrimitives'
-import { PaintingArtboard } from './providers/rendering'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from './utils/paintingProviderMode'
 import { presentPaintingGenerationGuardFeedback } from './utils/presentPaintingGenerationGuardFeedback'
 import { getValidPaintingOptions, resolvePaintingProvider } from './utils/providerSelection'
@@ -116,22 +115,15 @@ const PaintingPage: FC = () => {
     () => resolvePaintingTabForMode(currentProviderDefinition, currentPainting.mode) ?? tab,
     [currentProviderDefinition, currentPainting.mode, tab]
   )
-  const modelConfig = useMemo(
-    () => currentProviderDefinition.mode.getModels(currentTab),
-    [currentProviderDefinition.mode, currentTab]
-  )
-  const { modelOptions, isLoadingModels } = useModelLoader(modelConfig, currentProvider)
-  modelOptionsRef.current = modelOptions
-
   const modelCatalog = usePaintingModelSelectorCatalog({
     providerOptions: validProviderOptions,
     currentProviderId,
     currentMode: currentPainting.mode,
     currentModelId: currentPainting.model,
-    currentModelOptions: modelOptions,
-    isCurrentLoading: isLoadingModels,
     isOpen: isModelSelectorOpen
   })
+  const modelOptions = modelCatalog.currentModelOptions
+  modelOptionsRef.current = modelOptions
 
   const { validateBeforeGenerate } = usePaintingGenerationGuard({
     providerId: currentProviderId,
@@ -276,11 +268,6 @@ const PaintingPage: FC = () => {
     cancel(currentPainting.id)
   }, [cancel, currentPainting.id])
 
-  const configItems = useMemo(
-    () => currentProviderDefinition.fields.byTab[currentTab] || [],
-    [currentProviderDefinition.fields.byTab, currentTab]
-  )
-
   const modeTabs = useMemo(() => {
     if (currentProviderDefinition.mode.tabs.length <= 1) {
       return undefined
@@ -316,17 +303,19 @@ const PaintingPage: FC = () => {
                   isParametersOpen ? paintingClasses.panelVisible : paintingClasses.panelHidden
                 )}>
                 <div className={paintingClasses.panelHeader}>
-                  <PaintingSettingsPanelHeader onClose={() => setIsParametersOpen(false)} />
+                  <PaintingSettingsHeader
+                    actions={<PaintingProviderHeaderActions provider={currentProvider} />}
+                    onClose={() => setIsParametersOpen(false)}
+                  />
                 </div>
                 <div className={paintingClasses.panelBody}>
                   <Scrollbar className={paintingClasses.panelScroll}>
                     <PaintingSettings
                       provider={currentProvider}
-                      providerDefinition={currentProviderDefinition}
                       modelOptions={modelOptions}
+                      selectedModelOption={modelCatalog.selectedModelOption}
                       isLoading={generating}
                       tab={currentTab}
-                      configItems={configItems}
                       painting={currentPainting}
                       onConfigChange={patchPainting}
                     />
@@ -335,12 +324,7 @@ const PaintingPage: FC = () => {
               </div>
 
               <div className={paintingClasses.centerPane}>
-                <PaintingArtboard
-                  provider={currentProvider}
-                  painting={currentPainting}
-                  isLoading={generating}
-                  onCancel={onCancel}
-                />
+                <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
               </div>
 
               <PaintingStrip

@@ -1,17 +1,17 @@
 import type { FileMetadata } from '@renderer/types'
-import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import ImageUploader from '../../components/ImageUploader'
 import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
 import { generationModeType } from '../../model/types/paintingData'
 import { clearDmxapiFileMap, getDmxapiFileMap, setDmxapiFileMap, subscribeDmxapiFileMap } from './runtime'
 
-export const DmxapiSidebarContent: FC<{
+export const DmxapiSetting: FC<{
   mode: string
-  t: TFunction
-}> = ({ mode, t }) => {
+}> = ({ mode }) => {
+  const { t } = useTranslation()
   const [, setTick] = useState(0)
   const isEditOrMerge = mode === generationModeType.EDIT || mode === generationModeType.MERGE
 

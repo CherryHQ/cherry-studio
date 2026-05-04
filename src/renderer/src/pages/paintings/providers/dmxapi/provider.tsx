@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { SettingHelpLink } from '../../../settings'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
+import type { ModelOption } from '../../model/types/paintingModel'
 import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { COURSE_URL, DEFAULT_PAINTING, GetModelGroup, MODEOPTIONS, TOP_UP_URL } from './config'
 import { buildDmxapiConfigFields } from './fields'
@@ -50,7 +51,7 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
         }
 
         const groups = getDmxapiModelOptionsForMode(tab, getDmxapiModelGroups())
-        const options: Array<{ label: string; value: string; group?: string; [key: string]: any }> = []
+        const options: ModelOption[] = []
 
         for (const [providerName, models] of Object.entries(groups)) {
           for (const model of models) {
@@ -84,9 +85,10 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
           seed: generateRandomSeed(),
           generationMode,
           model: first.value,
-          priceModel: first.price || '',
-          image_size: first.image_sizes?.[0]?.value || '1328x1328',
-          extend_params: first.extend_params || {}
+          priceModel: String(first.price || ''),
+          image_size:
+            (first.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '1328x1328',
+          extend_params: (first.extend_params as Record<string, unknown> | undefined) || {}
         }
       }
 
@@ -114,9 +116,9 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
       if (model) {
         return {
           model: modelId,
-          priceModel: model.price,
-          image_size: model.image_sizes?.[0]?.value || '',
-          extend_params: model.extend_params || {}
+          priceModel: String(model.price || ''),
+          image_size: (model.image_sizes as Array<{ label: string; value: string }> | undefined)?.[0]?.value || '',
+          extend_params: (model.extend_params as Record<string, unknown> | undefined) || {}
         } as Partial<DmxapiPainting>
       }
       return { model: modelId } as Partial<DmxapiPainting>

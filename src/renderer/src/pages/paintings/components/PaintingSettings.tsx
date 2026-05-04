@@ -1,146 +1,71 @@
-import {
-  Button,
-  InfoTooltip,
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue
-} from '@cherrystudio/ui'
+import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
-import type { ModelOption } from '../hooks/useModelLoader'
 import type { PaintingData } from '../model/types/paintingData'
+import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { PaintingProviderSidebarContent } from '../providers/rendering'
-import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
-import type { PaintingProviderDefinition } from '../providers/types'
+import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
+import { PaintingSettingsExtras } from './PaintingProviderViews'
 import PaintingsSectionTitle from './PaintingsSectionTitle'
 
-export function PaintingSettingsPanelHeader({ onClose }: { onClose: () => void }) {
+export function PaintingSettingsHeader({
+  onClose,
+  actions
+}: {
+  onClose: () => void
+  /** Inline with title: e.g. provider “Learn more” before the close button. */
+  actions?: ReactNode
+}) {
   const { t } = useTranslation()
 
   return (
-    <>
-      <div className="flex min-w-0 flex-col">
-        <span className="text-foreground text-xs tracking-wider">{t('common.settings')}</span>
+    <div className="flex w-full min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-foreground text-xs tracking-wider">{t('common.settings')}</span>
+      <div className="flex shrink-0 flex-nowrap items-center gap-x-2">
+        {actions}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-7 shrink-0 rounded-full text-muted-foreground"
+          onClick={onClose}>
+          <X className="size-3.5" />
+        </Button>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="size-7 rounded-full text-muted-foreground"
-        onClick={onClose}>
-        <X className="size-3.5" />
-      </Button>
-    </>
+    </div>
   )
-}
-
-type SidebarModelOption = {
-  label: string
-  value: string
-  group?: string
-}
-
-type ModelSelectConfig = {
-  value: string
-  options: SidebarModelOption[]
-  onChange: (modelId: string) => void
-  loading?: boolean
-  placeholder?: string
-  extra?: ReactNode
 }
 
 export interface PaintingSettingsProps {
   provider: PaintingProviderRuntime
-  providerDefinition: PaintingProviderDefinition
   modelOptions: ModelOption[]
+  selectedModelOption?: ModelOption
   isLoading: boolean
   tab: string
-  modelSelect?: ModelSelectConfig | ReactNode | null
-  showModelSection?: boolean
-  configItems: BaseConfigItem[]
   painting: PaintingData
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
 
-function isReactNode(value: ModelSelectConfig | ReactNode): value is ReactNode {
-  return typeof value !== 'object' || value === null || !('options' in value) || !('onChange' in value)
-}
-
-function ModelSelectFromConfig({ config }: { config: ModelSelectConfig }) {
-  const { t } = useTranslation()
-
-  const grouped = useMemo(() => {
-    const groups = new Map<string, ModelOption[]>()
-    let hasGroups = false
-    for (const option of config.options) {
-      if (option.group) {
-        hasGroups = true
-        const list = groups.get(option.group) || []
-        list.push(option)
-        groups.set(option.group, list)
-      }
-    }
-    return hasGroups ? groups : null
-  }, [config.options])
-
-  return (
-    <>
-      <PaintingsSectionTitle>
-        {t('common.model')}
-        {config.extra ? <span className="ml-auto">{config.extra}</span> : null}
-      </PaintingsSectionTitle>
-      <Select value={config.value} onValueChange={config.onChange}>
-        <SelectTrigger className="mb-4 h-10 min-h-10 w-full border-transparent bg-muted/40 transition-all hover:bg-muted/60">
-          <SelectValue placeholder={config.loading ? t('common.loading') : config.placeholder || t('common.model')} />
-        </SelectTrigger>
-        <SelectContent>
-          {grouped
-            ? Array.from(grouped.entries()).map(([groupName, items]) => (
-                <SelectGroup key={groupName}>
-                  <SelectLabel>{groupName}</SelectLabel>
-                  {items.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))
-            : config.options.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-        </SelectContent>
-      </Select>
-    </>
-  )
-}
-
 const PaintingSettings: FC<PaintingSettingsProps> = ({
   provider,
-  providerDefinition,
   modelOptions,
+  selectedModelOption,
   isLoading,
   tab,
-  modelSelect,
-  showModelSection = true,
-  configItems,
   painting,
   onConfigChange,
   onGenerateRandomSeed
 }) => {
   const { t } = useTranslation()
   const paintingRecord = painting as unknown as Record<string, unknown>
+
+  const providerDefinition = useMemo(() => resolvePaintingProviderDefinition(provider.id), [provider.id])
+  const configItems = useMemo(() => providerDefinition.fields.byTab[tab] || [], [providerDefinition.fields.byTab, tab])
 
   const handleImageUpload = useCallback(
     (key: string, file: File) => {
@@ -168,10 +93,6 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
 
   return (
     <>
-      {showModelSection &&
-        modelSelect &&
-        (isReactNode(modelSelect) ? modelSelect : <ModelSelectFromConfig config={modelSelect} />)}
-
       {configItems
         .filter((item) => !item.condition || item.condition(paintingRecord))
         .map((item, index) => (
@@ -195,10 +116,11 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
           </div>
         ))}
 
-      <PaintingProviderSidebarContent
+      <PaintingSettingsExtras
         provider={provider}
         painting={painting}
         modelOptions={modelOptions}
+        selectedModelOption={selectedModelOption}
         isLoading={isLoading}
         patchPainting={onConfigChange}
         tab={tab}

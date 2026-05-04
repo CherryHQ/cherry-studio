@@ -7,7 +7,7 @@ import type { PaintingMode } from '@shared/data/types/painting'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { ModelOption } from '../hooks/useModelLoader'
+import type { ModelOption } from '../model/types/paintingModel'
 import { createPaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { getPaintingModelOptions } from '../model/utils/paintingModelOptions'
 import { providerRegistry } from '../providers/registry'
@@ -36,13 +36,13 @@ export interface UsePaintingModelSelectorCatalogInput {
   currentProviderId: string
   currentMode: PaintingMode
   currentModelId?: string
-  currentModelOptions: ModelOption[]
-  isCurrentLoading?: boolean
   isOpen: boolean
 }
 
 export interface UsePaintingModelSelectorCatalogResult {
   selectorData: PaintingModelSelectorCatalogData
+  currentModelOptions: ModelOption[]
+  selectedModelOption?: ModelOption
   isLoading: boolean
   currentCatalogError?: Error
   getModelOption: (providerId: string, modelId: string) => ModelOption | undefined
@@ -80,13 +80,19 @@ function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error('Failed to load painting models')
 }
 
+function resolveRuntimeProvider(
+  providerId: string,
+  providerMap: Map<string, Provider>,
+  runtimeProviderMap: Map<string, ReturnType<typeof createPaintingProviderRuntime>>
+) {
+  return runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(providerMap.get(providerId), providerId)
+}
+
 export function usePaintingModelSelectorCatalog({
   providerOptions,
   currentProviderId,
   currentMode,
   currentModelId,
-  currentModelOptions,
-  isCurrentLoading = false,
   isOpen
 }: UsePaintingModelSelectorCatalogInput): UsePaintingModelSelectorCatalogResult {
   const { providers: dataProviders } = useProviders()
@@ -125,13 +131,9 @@ export function usePaintingModelSelectorCatalog({
         return dataModelOptions
       }
 
-      if (providerId === currentProviderId && currentModelOptions.length > 0) {
-        return currentModelOptions
-      }
-
       const definition = resolvePaintingProviderDefinition(providerId)
       const modelConfig = definition.mode.getModels(targetTab)
-      const provider = runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(undefined, providerId)
+      const provider = resolveRuntimeProvider(providerId, providerMap, runtimeProviderMap)
 
       if (modelConfig.type === 'static') {
         return modelConfig.options
@@ -144,7 +146,7 @@ export function usePaintingModelSelectorCatalog({
       const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
       return asyncCatalogCache.get(key)?.options ?? []
     },
-    [currentModelOptions, currentProviderId, dataModels, getTargetTab, providerMap, runtimeProviderMap]
+    [dataModels, getTargetTab, providerMap, runtimeProviderMap]
   )
 
   const loadAsyncOptions = useCallback(
@@ -162,7 +164,7 @@ export function usePaintingModelSelectorCatalog({
         return getSyncOptions(providerId)
       }
 
-      const provider = runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(undefined, providerId)
+      const provider = resolveRuntimeProvider(providerId, providerMap, runtimeProviderMap)
       const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
       const cached = asyncCatalogCache.get(key)
 
@@ -212,6 +214,20 @@ export function usePaintingModelSelectorCatalog({
       }
     }
   }, [currentProviderId, getTargetTab, isOpen, loadAsyncOptions, providerOptions])
+
+  useEffect(() => {
+    const targetTab = getTargetTab(currentProviderId)
+    if (!targetTab) {
+      return
+    }
+
+    const modelConfig = resolvePaintingProviderDefinition(currentProviderId).mode.getModels(targetTab)
+    if (modelConfig.type !== 'async') {
+      return
+    }
+
+    void loadAsyncOptions(currentProviderId).catch(() => undefined)
+  }, [currentProviderId, getTargetTab, loadAsyncOptions])
 
   const { selectorData, modelOptionMap, isAsyncLoading, currentCatalogError } = useMemo(() => {
     void catalogVersion
@@ -352,9 +368,20 @@ export function usePaintingModelSelectorCatalog({
     [currentProviderId, ensureProviderCatalog]
   )
 
+  const currentModelOptions = useMemo(() => getSyncOptions(currentProviderId), [currentProviderId, getSyncOptions])
+  const selectedModelOption = useMemo(() => {
+    if (!currentModelId) {
+      return undefined
+    }
+
+    return getModelOption(currentProviderId, currentModelId)
+  }, [currentModelId, currentProviderId, getModelOption])
+
   return {
     selectorData,
-    isLoading: isModelsLoading || isCurrentLoading || isAsyncLoading,
+    currentModelOptions,
+    selectedModelOption,
+    isLoading: isModelsLoading || isAsyncLoading,
     currentCatalogError,
     getModelOption,
     ensureProviderCatalog,

@@ -10,6 +10,11 @@ describe('resolvePaintingTabForMode', () => {
     expect(resolvePaintingTabForMode(ppioProvider, 'draw')).toBe('ppio_draw')
   })
 
+  it('treats generate and draw as compatible generation modes', () => {
+    expect(resolvePaintingTabForMode(ppioProvider, 'generate')).toBe('ppio_draw')
+    expect(resolvePaintingTabForMode(zhipuProvider, 'draw')).toBe('default')
+  })
+
   it('returns undefined when the provider does not support that db mode', () => {
     expect(resolvePaintingTabForMode(zhipuProvider, 'edit')).toBeUndefined()
   })

@@ -75,7 +75,10 @@ export const SettingHelpText = styled.div`
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
   <a
-    className={cn('mx-1.25 cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)}
+    className={cn(
+      'mx-1.25 inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap text-(--color-primary) text-[11px] hover:underline',
+      className
+    )}
     {...props}
   />
 )

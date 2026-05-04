@@ -7,14 +7,14 @@ interface Props {
 }
 
 const PaintingsSectionTitle: FC<Props> = ({ children, className }) => (
-  <div
+  <section
     className={cn(
       'mt-5 mb-2 flex select-none items-center justify-start gap-1',
       'font-medium text-muted-foreground text-xs uppercase tracking-wider',
       className
     )}>
     {children}
-  </div>
+  </section>
 )
 
 export default PaintingsSectionTitle

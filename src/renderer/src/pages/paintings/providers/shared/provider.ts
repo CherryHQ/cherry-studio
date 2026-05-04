@@ -2,8 +2,8 @@ import type { FileMetadata } from '@renderer/types'
 import type { PaintingMode } from '@shared/data/types/painting'
 import type { ReactNode } from 'react'
 
-import type { ModelConfig, ModelOption } from '../../hooks/useModelLoader'
 import type { PaintingData } from '../../model/types/paintingData'
+import type { ModelConfig, ModelOption } from '../../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
 import type { BaseConfigItem } from './providerFieldSchema'
 

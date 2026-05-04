@@ -3,9 +3,9 @@ import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback } from 'react'
 
 import type { PaintingModelSelectorCatalogData } from '../components/usePaintingModelSelectorCatalog'
+import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
-import type { ModelOption } from './useModelLoader'
 
 export type PaintingGenerationGuardReason =
   | 'provider_disabled'
