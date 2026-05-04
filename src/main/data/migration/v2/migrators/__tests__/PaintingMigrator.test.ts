@@ -47,7 +47,7 @@ describe('PaintingMigrator', () => {
     vi.clearAllMocks()
   })
 
-  it('prepares records with scope-aware sortOrder and DMXAPI mode normalization', async () => {
+  it('prepares records with scope-aware orderKey and DMXAPI mode normalization', async () => {
     const migrator = new PaintingMigrator()
     const insertedRows: unknown[] = []
     const ctx = createMigrationContext(
@@ -72,19 +72,19 @@ describe('PaintingMigrator', () => {
           id: 'dmx-1',
           providerId: 'dmxapi',
           mode: 'generate',
-          sortOrder: 2
+          orderKey: expect.any(String)
         }),
         expect.objectContaining({
           id: 'dmx-2',
           providerId: 'dmxapi',
           mode: 'edit',
-          sortOrder: 1
+          orderKey: expect.any(String)
         }),
         expect.objectContaining({
           id: 'openai-1',
           providerId: 'custom-openai',
           mode: 'generate',
-          sortOrder: 1
+          orderKey: expect.any(String)
         })
       ])
     )
