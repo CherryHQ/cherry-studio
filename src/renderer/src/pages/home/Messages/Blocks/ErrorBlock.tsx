@@ -3,6 +3,7 @@ import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
+import { cacheService } from '@renderer/data/CacheService'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
@@ -22,8 +23,12 @@ const logger = loggerService.withContext('ErrorBlock')
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
-// Module-level cache for AI classification to avoid duplicate API calls
-const aiClassifyCache = new Map<string, Promise<string>>()
+// Cache classified summaries through the canonical CacheService memory tier.
+// Key is dynamic (`${message}:${lang}`), so use the casual API. TTL = 1 hour
+// — long enough to dedupe within a session, short enough that lazy cleanup
+// keeps the table bounded.
+const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
+const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
 
 interface Props {
   partId: string
@@ -92,39 +97,48 @@ const MessageErrorInfo: React.FC<{
   const navigate = useNavigate()
   const [aiSummary, setAiSummary] = useState<string>('')
 
-  const providerId =
-    message.model?.provider ?? ((error as Record<string, unknown> | undefined)?.providerId as string | undefined)
-  const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const errorMessage = error?.message ?? undefined
+  const errorStatus =
+    (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
+  const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
+  const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
 
-  const errorMessage = error?.message
+  const providerId = message.model?.provider ?? errorProviderId
+  const classification = useMemo(
+    () => classifyError(error, providerId),
+
+    // primitives instead of the `error` object reference; `classifyError`
+    // only inspects fields covered by these scalars.
+    [errorMessage, errorStatus, errorProviderId, providerId]
+  )
+
   useEffect(() => {
     if (classification.category !== 'unknown' || !errorMessage || !error) return
     let cancelled = false
-    const cacheKey = `${errorMessage}:${i18n.language}`
-    const cached = aiClassifyCache.get(cacheKey)
-    const promise = cached ?? classifyErrorByAI(error, i18n.language)
-    if (!cached) aiClassifyCache.set(cacheKey, promise)
+    const cacheKey = aiClassifyCacheKey(errorMessage, i18n.language)
+    const cached = cacheService.getCasual<Promise<string>>(cacheKey)
+    const promise: Promise<string> = cached ?? classifyErrorByAI(error, i18n.language)
+    if (!cached) cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
     promise
-      .then((summary) => {
+      .then((summary: string) => {
         if (!cancelled && summary) setAiSummary(summary)
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-    // Intentionally exclude `error` from deps — its identity changes per render but we only
-    // care about the message string for both the cache key and dispatch. The captured `error`
-    // is fine because its message is stable across renders.
+    // Intentionally exclude `error` from deps — its identity changes per render
+    // but the cache key + the captured ref's message are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classification.category, errorMessage, i18n.language])
 
   const diagnosisContext = useMemo(
     () => ({
       errorSource: 'chat' as const,
-      providerName: (error as Record<string, unknown> | undefined)?.providerId as string | undefined,
-      modelId: (error as Record<string, unknown> | undefined)?.modelId as string | undefined
+      providerName: errorProviderId,
+      modelId: errorModelId
     }),
-    [error]
+    [errorProviderId, errorModelId]
   )
 
   const onRemoveErrorPart = useCallback(
