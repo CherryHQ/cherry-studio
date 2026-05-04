@@ -98,19 +98,19 @@ vi.mock('../../Tools/toolResponse', () => ({
 
 vi.mock('../../MessageVideo', () => ({
   __esModule: true,
-  default: ({ block }: any) => (
-    <div data-testid="mock-message-video" data-url={block?.url ?? ''} data-file-path={block?.filePath ?? ''} />
+  default: ({ url, filePath }: any) => (
+    <div data-testid="mock-message-video" data-url={url ?? ''} data-file-path={filePath ?? ''} />
   )
 }))
 
 vi.mock('../ErrorBlock', () => ({
   __esModule: true,
-  default: ({ block }: any) => <div data-testid="mock-error-block" data-error-message={block?.error?.message ?? ''} />
+  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
 }))
 
 vi.mock('../../MessageAttachments', () => ({
   __esModule: true,
-  default: ({ block }: any) => <div data-testid="mock-attachments" data-file-name={block?.file?.name ?? ''} />
+  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
