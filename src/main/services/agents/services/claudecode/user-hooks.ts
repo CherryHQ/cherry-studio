@@ -101,7 +101,6 @@ function createCommandHookCallback(config: UserHookCommandConfig): HookCallback 
 
         // Command hook stdout is treated as additional context for the AI.
         // Map it to hookSpecificOutput.additionalContext so the SDK appends it.
-         
         const hookSpecificOutput: any = {
           hookEventName: input.hook_event_name,
           additionalContext: trimmed
