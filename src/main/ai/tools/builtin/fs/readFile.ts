@@ -14,14 +14,15 @@
  *   10. audio (audio-capable model)    → media kind  (else: unsupported-modality)
  *   11. video (video-capable model)    → media kind  (else: unsupported-modality)
  *   12. pdf (PDF-native provider)      → pdf kind    (else: fall through to text path)
- *   11. mtime dedup hit                → text with [unchanged…] prefix
- *   12. pdf / office / ipynb dispatch  → text kind via formatLines
- *   13. unknown extension              → binary heuristic, then text
+ *   13. mtime dedup hit                → text with [unchanged…] prefix
+ *   14. pdf / office / ipynb dispatch  → text kind via formatLines
+ *   15. unknown extension              → binary heuristic, then text
  *
- * Capability gating (vision / PDF-native) lives in execute, not in
- * `toModelOutput`: the AI SDK signature for `toModelOutput` does not
- * carry the active model/provider, so the only way to reach the
- * RequestContext is here. `toModelOutput` stays a pure kind→chunk mapper.
+ * Capability gating (vision / audio / video / PDF-native) lives in
+ * execute, not in `toModelOutput`: the AI SDK signature for
+ * `toModelOutput` does not carry the active model/provider, so the
+ * only way to reach the RequestContext is here. `toModelOutput` stays
+ * a pure kind→chunk mapper.
  */
 
 import fs from 'node:fs/promises'
@@ -123,7 +124,8 @@ type FsReadOutput = z.infer<typeof outputSchema>
  * Pure mapper from output `kind` to the AI SDK chunk shape:
  *   text  → text part
  *   image → image-data content part (vision-model branch picks this)
- *   pdf   → file-data content part (PDF-native-provider branch picks this)
+ *   pdf   → file-data content part with application/pdf
+ *   media → file-data content part (audio / video raw bytes)
  *   error → error-text part
  *
  * Capability gating happens upstream in `execute` — this function is the
@@ -168,7 +170,7 @@ Pagination:
 - Use \`offset\` (1-indexed line) + \`limit\` to read in chunks for large files
 - Result includes \`totalLines\` so you can decide whether more pages are needed
 
-Supports text/code, images (PNG/JPG/etc.), PDF, Office docs (DOCX/XLSX/PPTX/ODT/ODS/ODP), and Jupyter notebooks. Files over 256 KB are rejected with \`too-large\`.`,
+Supports text/code, images (PNG/JPG/etc.), audio (MP3/WAV/etc., audio-capable models only), video (MP4/MOV/etc., video-capable models only), PDF, Office docs (DOCX/XLSX/PPTX/ODT/ODS/ODP/DOC), and Jupyter notebooks. Files over 5 MB are rejected with \`too-large\`.`,
   inputSchema,
   outputSchema,
   toModelOutput: fsReadToModelOutput,
