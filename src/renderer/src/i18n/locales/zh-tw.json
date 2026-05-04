@@ -2421,6 +2421,10 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "發生錯誤",
+      "fs_patch": {
+        "actual_context": "檔案實際內容（第 {{from}}-{{to}} 行）",
+        "no_changes": "無變更"
+      },
       "groupHeader": "{{count}} 次工具呼叫",
       "invoking": "呼叫中",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} 個項目",
         "line_one": "{{count}} 行",
         "line_other": "{{count}} 行",
+        "op_one": "{{count}} 個操作",
+        "op_other": "{{count}} 個操作",
         "plan_one": "{{count}} 方案",
         "plan_other": "{{count}} 個方案",
         "result_one": "{{count}} 個結果",

@@ -2421,6 +2421,10 @@
       "cancelled": "Ακυρώθηκε",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}} κλήσεις εργαλείων",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} αντικείμενα",
         "line_one": "{{count}} γραμμή",
         "line_other": "{{count}} γραμμές",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} σχέδιο",
         "plan_other": "{{count}} σχέδια",
         "result_one": "{{count}} αποτέλεσμα",

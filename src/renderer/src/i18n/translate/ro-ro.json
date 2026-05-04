@@ -2421,6 +2421,10 @@
       "cancelled": "Anulat",
       "completed": "Finalizat",
       "error": "A apărut o eroare",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}} apeluri de instrumente",
       "invoking": "Se invocă",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} articole",
         "line_one": "{{count}} linie",
         "line_other": "{{count}} linii",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} planuri",
         "result_one": "{{count}} rezultat",

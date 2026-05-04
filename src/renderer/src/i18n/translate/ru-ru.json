@@ -2421,6 +2421,10 @@
       "cancelled": "Отменено",
       "completed": "Завершено",
       "error": "Произошла ошибка",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}} вызовов инструментов",
       "invoking": "Вызов",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} предметов",
         "line_one": "{{count}} строка",
         "line_other": "{{count}} строк",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} план",
         "plan_other": "{{count}} планов",
         "result_one": "{{count}} результат",

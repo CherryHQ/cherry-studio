@@ -2421,6 +2421,10 @@
       "cancelled": "Annulé",
       "completed": "Terminé",
       "error": "Une erreur s'est produite",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}} appels d'outil",
       "invoking": "En cours d'exécution",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} articles",
         "line_one": "{{count}} ligne",
         "line_other": "{{count}} lignes",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} résultat",

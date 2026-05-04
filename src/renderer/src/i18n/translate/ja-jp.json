@@ -2421,6 +2421,10 @@
       "cancelled": "キャンセル",
       "completed": "完了",
       "error": "エラーが発生しました",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}}ツール呼び出し",
       "invoking": "呼び出し中",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}}件のアイテム",
         "line_one": "{{count}}行",
         "line_other": "{{count}}行",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} プラン",
         "plan_other": "{{count}}件のプラン",
         "result_one": "{{count}}件の結果",

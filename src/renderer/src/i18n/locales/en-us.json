@@ -2421,6 +2421,10 @@
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
+      "fs_patch": {
+        "actual_context": "Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "No changes"
+      },
       "groupHeader": "{{count}} tool calls",
       "invoking": "Invoking",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} items",
         "line_one": "{{count}} line",
         "line_other": "{{count}} lines",
+        "op_one": "{{count}} op",
+        "op_other": "{{count}} ops",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} result",

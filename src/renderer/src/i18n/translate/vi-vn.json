@@ -2421,6 +2421,10 @@
       "cancelled": "Đã hủy",
       "completed": "Hoàn thành",
       "error": "Đã xảy ra lỗi",
+      "fs_patch": {
+        "actual_context": "[to be translated]:Actual file content (lines {{from}}-{{to}})",
+        "no_changes": "[to be translated]:No changes"
+      },
       "groupHeader": "{{count}} appels d’outil",
       "invoking": "Invocando",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} mục",
         "line_one": "{{count}} dòng",
         "line_other": "{{count}} dòng",
+        "op_one": "[to be translated]:{{count}} op",
+        "op_other": "[to be translated]:{{count}} ops",
         "plan_one": "{{count}} kế hoạch",
         "plan_other": "{{count}} gói",
         "result_one": "{{count}} kết quả",

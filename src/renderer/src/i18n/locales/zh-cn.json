@@ -2421,6 +2421,10 @@
       "cancelled": "已取消",
       "completed": "已完成",
       "error": "发生错误",
+      "fs_patch": {
+        "actual_context": "文件实际内容（第 {{from}}-{{to}} 行）",
+        "no_changes": "无变更"
+      },
       "groupHeader": "{{count}} 个工具调用",
       "invoking": "调用中",
       "labels": {
@@ -2478,6 +2482,8 @@
         "item_other": "{{count}} 项",
         "line_one": "{{count}} 行",
         "line_other": "{{count}} 行",
+        "op_one": "{{count}} 个操作",
+        "op_other": "{{count}} 个操作",
         "plan_one": "{{count}} 个计划",
         "plan_other": "{{count}} 个计划",
         "result_one": "{{count}} 个结果",
