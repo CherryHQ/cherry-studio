@@ -3,7 +3,7 @@ import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
-import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
+import PaintingSectionTitle from '../../components/PaintingSectionTitle'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { addEditImageFile, getEditImageFiles, removeEditImageFile } from './editFiles'
 
@@ -39,7 +39,7 @@ function renderEditSetting(paintingId: string, patchPainting: NewApiSettingProps
 
   return (
     <div className="mt-1">
-      <PaintingsSectionTitle className="mt-0 mb-3">{t('paintings.input_image')}</PaintingsSectionTitle>
+      <PaintingSectionTitle className="mt-0 mb-3">{t('paintings.input_image')}</PaintingSectionTitle>
       <div className="flex flex-col gap-2">
         <label className="flex min-h-[60px] cursor-pointer items-center justify-center gap-2 rounded-md border border-border border-dashed bg-muted/20 hover:bg-muted/30">
           <input

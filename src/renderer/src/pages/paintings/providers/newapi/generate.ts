@@ -1,9 +1,9 @@
 import i18next from 'i18next'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting as runGeneration } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting as runGeneration } from '../../model/paintingGenerationService'
 import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { getEditImageFiles } from './editFiles'
 

@@ -1,10 +1,10 @@
 import { createUniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
-import type { PaintingModelCatalogData } from '../components/usePaintingModelCatalog'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
+import type { PaintingModelCatalogData } from './usePaintingModelCatalog'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =

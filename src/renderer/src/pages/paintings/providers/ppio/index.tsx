@@ -1,7 +1,7 @@
 import type { PpioPaintingData as PaintingData } from '../../model/types/paintingData'
 import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { getModelsByMode, type PpioMode } from './config'
-import { createDefaultPpioPainting } from './defaults'
+import { createDefaultPpioPainting } from './config'
 import { ppioFields } from './fields'
 import { generateWithPpio } from './generate'
 

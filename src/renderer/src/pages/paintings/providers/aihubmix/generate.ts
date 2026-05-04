@@ -3,12 +3,12 @@ import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
 import i18next from 'i18next'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
 import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
-import { getAihubmixUploadedFile } from './runtime'
+import { getAihubmixUploadedFile } from './imageUpload'
 
 const logger = loggerService.withContext('AihubmixProvider')
 

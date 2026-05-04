@@ -47,3 +47,10 @@ export const IMAGE_SIZES = [
   { label: 'paintings.zhipu.image_sizes.1440x720', value: '1440x720' },
   { label: 'paintings.zhipu.image_sizes.720x1440', value: '720x1440' }
 ]
+
+export function createDefaultZhipuPainting() {
+  return {
+    ...DEFAULT_PAINTING,
+    id: uuid()
+  }
+}

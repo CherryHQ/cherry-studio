@@ -1,3 +1,6 @@
+import { uuid } from '@renderer/utils'
+import type { PaintingMode } from '@shared/data/types/painting'
+
 import type { PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
 
 // PPIO 模式类型
@@ -393,4 +396,15 @@ export const DEFAULT_PPIO_PAINTING: PpioPainting = {
   addWatermark: false,
   resolution: '4k',
   outputFormat: 'jpeg'
+}
+
+export function createDefaultPpioPainting(mode?: string) {
+  const currentMode = (mode || 'ppio_draw') as PpioMode
+  const models = getModelsByMode(currentMode)
+  return {
+    ...DEFAULT_PPIO_PAINTING,
+    id: uuid(),
+    mode: (currentMode === 'ppio_edit' ? 'edit' : 'draw') as PaintingMode,
+    model: models[0]?.id || DEFAULT_PPIO_PAINTING.model
+  }
 }

@@ -3,9 +3,9 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ImageUploader from '../../components/ImageUploader'
-import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
+import PaintingSectionTitle from '../../components/PaintingSectionTitle'
 import { generationModeType } from '../../model/types/paintingData'
+import ImageUploader from './ImageUploader'
 import { clearDmxapiFileMap, getDmxapiFileMap, setDmxapiFileMap, subscribeDmxapiFileMap } from './runtime'
 
 export const DmxapiSetting: FC<{
@@ -52,7 +52,7 @@ export const DmxapiSetting: FC<{
 
   return (
     <>
-      <PaintingsSectionTitle>{t('paintings.remix.image_file')}</PaintingsSectionTitle>
+      <PaintingSectionTitle>{t('paintings.remix.image_file')}</PaintingSectionTitle>
       <ImageUploader
         fileMap={getDmxapiFileMap()}
         maxImages={mode === generationModeType.EDIT ? 1 : 3}

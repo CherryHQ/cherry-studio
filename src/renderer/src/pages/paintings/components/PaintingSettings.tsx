@@ -5,13 +5,13 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
 import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { PaintingSettingsExtras } from './PaintingProviderViews'
-import PaintingsSectionTitle from './PaintingsSectionTitle'
-import { usePaintingModelCatalog } from './usePaintingModelCatalog'
+import PaintingSectionTitle from './PaintingSectionTitle'
 
 export function PaintingSettingsHeader({
   onClose,
@@ -100,10 +100,10 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
         .map((item, index) => (
           <div key={item.key || index}>
             {item.title && (
-              <PaintingsSectionTitle>
+              <PaintingSectionTitle>
                 {t(item.title)}
                 {item.tooltip && <InfoTooltip content={t(item.tooltip)} />}
-              </PaintingsSectionTitle>
+              </PaintingSectionTitle>
             )}
             <PaintingFieldRenderer
               item={item}

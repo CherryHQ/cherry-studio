@@ -1,7 +1,7 @@
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import TokenFluxService from './service'
 

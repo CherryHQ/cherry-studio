@@ -5,8 +5,7 @@ import { SettingHelpLink } from '../../../settings'
 import type { OvmsPaintingData as PaintingData } from '../../model/types/paintingData'
 import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import { createSingleModeProvider, type PaintingProviderDefinition } from '../types'
-import { OVMS_MODELS } from './config'
-import { createDefaultOvmsProviderPainting } from './defaults'
+import { createDefaultOvmsPainting, OVMS_MODELS } from './config'
 import { createOvmsFields } from './fields'
 import { generateWithOvms } from './generate'
 
@@ -27,7 +26,7 @@ export const ovmsProvider: PaintingProviderDefinition = createSingleModeProvider
     type: 'async',
     loader: () => loadPaintingModelOptions('ovms')
   },
-  createPaintingData: ({ modelOptions }) => createDefaultOvmsProviderPainting(modelOptions),
+  createPaintingData: ({ modelOptions }) => createDefaultOvmsPainting(modelOptions),
   fields: createOvmsFields(),
   onModelChange: ({ modelId }) => ({ model: modelId }),
   prompt: {

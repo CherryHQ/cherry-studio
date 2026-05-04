@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
   buildAgentsImportStatements,
+  canEvaluateAgentsLegacyValidateWhere,
   createEmptyAgentsSchemaInfo,
   getAgentsSourceTableNames,
   getTotalAgentsRowCount,
@@ -452,5 +453,17 @@ describe('AgentsDbMappings', () => {
         expect(seen, `missing notNullCol(${col}) on ${table}`).toContain(`${table}.${col}`)
       }
     }
+  })
+
+  it('canEvaluateAgentsLegacyValidateWhere is false when a referenced legacy table is absent', () => {
+    const schemaInfo = createEmptyAgentsSchemaInfo()
+    schemaInfo.agents.exists = true
+    schemaInfo.skills.exists = false
+    const agentSkillsValidate = AGENTS_TABLE_MIGRATION_SPECS.find(
+      (s) => s.sourceTable === 'agent_skills'
+    )?.validateWhereClause
+    expect(agentSkillsValidate).toBeDefined()
+    expect(canEvaluateAgentsLegacyValidateWhere(agentSkillsValidate, schemaInfo)).toBe(false)
+    expect(canEvaluateAgentsLegacyValidateWhere(undefined, schemaInfo)).toBe(true)
   })
 })

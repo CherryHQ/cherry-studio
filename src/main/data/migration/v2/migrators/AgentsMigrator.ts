@@ -10,6 +10,7 @@ import {
   type AgentsSchemaInfo,
   type AgentsTableRowCounts,
   buildAgentsImportStatements,
+  canEvaluateAgentsLegacyValidateWhere,
   createEmptyAgentsSchemaInfo,
   getTotalAgentsRowCount,
   quoteSqlitePath
@@ -204,18 +205,28 @@ export class AgentsMigrator extends BaseMigrator {
 
     try {
       for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
+        const sourceSchema = this.sourceSchemaInfo[spec.sourceTable]
         const targetResult = await ctx.db.get<{ count: number }>(
           sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`)
         )
         const tableTargetCount = Number(targetResult?.count ?? 0)
         const tableSourceCount = this.sourceCounts[spec.sourceTable]
         const validateWhere = spec.validateWhereClause ?? spec.whereClause
-        const expectedResult = await ctx.db.get<{ count: number }>(
-          sql.raw(
-            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
+
+        let tableExpectedCount: number
+        if (!sourceSchema.exists) {
+          tableExpectedCount = 0
+        } else if (validateWhere && !canEvaluateAgentsLegacyValidateWhere(validateWhere, this.sourceSchemaInfo)) {
+          tableExpectedCount = 0
+        } else {
+          const expectedResult = await ctx.db.get<{ count: number }>(
+            sql.raw(
+              `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
+            )
           )
-        )
-        const tableExpectedCount = Number(expectedResult?.count ?? 0)
+          tableExpectedCount = Number(expectedResult?.count ?? 0)
+        }
+
         targetCount += tableTargetCount
 
         const hasWhereClause = !!spec.whereClause

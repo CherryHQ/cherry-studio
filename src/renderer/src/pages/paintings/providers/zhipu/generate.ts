@@ -1,9 +1,9 @@
 import { AiProvider } from '@renderer/aiCore'
 import type { Model } from '@renderer/types'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
-import { checkProviderEnabled } from '../../utils'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { ZHIPU_PAINTING_MODELS } from './config'
 

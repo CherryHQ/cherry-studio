@@ -3,7 +3,6 @@ import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { presentPaintingGenerateError } from '../model/errors/paintingGenerateError'
 import { paintingDataToCreateDto, paintingParamsForPersistence } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
@@ -11,7 +10,8 @@ import {
   abortPaintingGeneration,
   clearPaintingAbortController,
   registerPaintingAbortController
-} from '../model/runtime/paintingAbortControllerStore'
+} from '../model/paintingAbortControllerStore'
+import { presentPaintingGenerateError } from '../model/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 import { cleanRuntime, type PaintingGenerationState, withRuntime } from '../model/utils/paintingGenerationParams'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'

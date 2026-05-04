@@ -8,9 +8,9 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
 import type { PaintingData } from '../model/types/paintingData'
-import { usePaintingModelCatalog } from './usePaintingModelCatalog'
 
 interface PaintingModelSelectorProps {
   className?: string

@@ -12,7 +12,7 @@ const FALLBACK_PROVIDER = 'zhipu'
  * - persist the resolved id back to preference if it differs
  * - return the matching provider definition for seeding the first draft
  */
-export function useInitialPaintingProvider(providerOptions: string[]) {
+export function usePaintingInitialProvider(providerOptions: string[]) {
   const [defaultPaintingProvider, setDefaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   const initialProviderId = useMemo(

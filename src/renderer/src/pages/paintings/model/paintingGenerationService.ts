@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 
-import { downloadImages } from '../../utils/downloadImages'
-import { normalizePaintingGenerateError } from '../errors/paintingGenerateError'
+import { downloadImages } from '../utils/downloadImages'
+import { normalizePaintingGenerateError } from './paintingGenerateError'
 
 const logger = loggerService.withContext('paintings/generation')
 

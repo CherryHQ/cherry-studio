@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Artboard from '../../components/Artboard'
-import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
+import PaintingSectionTitle from '../../components/PaintingSectionTitle'
 import { SchemaValueField } from '../../form/fields/SchemaField'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { TokenFluxModel } from './config'
@@ -28,7 +28,7 @@ export const TokenFluxSetting: FC<{
 
   return (
     <>
-      <PaintingsSectionTitle>
+      <PaintingSectionTitle>
         {t('paintings.model_and_pricing')}
         {selectedModel?.pricing && (
           <div className="ml-auto rounded border border-primary/20 bg-primary/10 px-0 py-1 font-medium text-[11px] text-primary">
@@ -36,7 +36,7 @@ export const TokenFluxSetting: FC<{
             {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
           </div>
         )}
-      </PaintingsSectionTitle>
+      </PaintingSectionTitle>
 
       {selectedModel?.input_schema && (
         <div className="flex flex-col gap-3">

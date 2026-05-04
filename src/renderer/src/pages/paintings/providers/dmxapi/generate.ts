@@ -1,11 +1,11 @@
 import { convertToBase64 } from '@renderer/utils'
 import i18next from 'i18next'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { getDmxapiFileMap } from './runtime'
 

@@ -10,11 +10,11 @@ import { PaintingPromptLeadingActions } from './components/PaintingPromptLeading
 import { PaintingArtboard, PaintingProviderHeaderActions } from './components/PaintingProviderViews'
 import PaintingSettings, { PaintingSettingsHeader } from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
-import { usePaintingModelCatalog } from './components/usePaintingModelCatalog'
-import { useInitialPaintingProvider } from './hooks/useInitialPaintingProvider'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
+import { usePaintingInitialProvider } from './hooks/usePaintingInitialProvider'
 import { usePaintingInitialSelection } from './hooks/usePaintingInitialSelection'
 import { usePaintingList } from './hooks/usePaintingList'
+import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import type { PaintingData } from './model/types/paintingData'
@@ -23,7 +23,7 @@ import { resolvePaintingProviderDefinition } from './utils/paintingProviderMode'
 
 const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()
-  const { initialProviderId, initialProviderDefinition } = useInitialPaintingProvider(providerOptions)
+  const { initialProviderId, initialProviderDefinition } = usePaintingInitialProvider(providerOptions)
 
   const [isParametersOpen, setIsParametersOpen] = useState(true)
   const [currentPainting, setCurrentPainting] = useState<PaintingData>(() =>

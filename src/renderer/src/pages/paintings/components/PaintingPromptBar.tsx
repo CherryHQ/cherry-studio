@@ -2,8 +2,8 @@ import { Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import { type FC, type KeyboardEventHandler, type ReactNode, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { usePaintingPromptPlaceholder } from '../hooks/usePaintingPromptPlaceholder'
 import type { PaintingData } from '../model/types/paintingData'
 import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
 
@@ -26,8 +26,9 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   onGenerate,
   onKeyDown
 }) => {
+  const { t } = useTranslation()
   const definition = useMemo(() => resolvePaintingProviderDefinition(painting.providerId), [painting.providerId])
-  const placeholder = usePaintingPromptPlaceholder(definition, painting)
+  const placeholder = definition.prompt?.placeholder?.({ painting }) ?? t('paintings.prompt_placeholder')
   const disabled = definition.prompt?.disabled?.({ painting, isLoading: generating }) ?? generating
 
   return (

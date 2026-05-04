@@ -1,9 +1,9 @@
 import type { FileMetadata } from '@renderer/types'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
 import type { PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
-import { checkProviderEnabled } from '../../utils'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import type { GenerateInput } from '../types'
 import { getModelsByMode } from './config'
 import PpioService from './service'

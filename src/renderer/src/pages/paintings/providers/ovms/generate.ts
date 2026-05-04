@@ -1,5 +1,5 @@
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { runPainting } from '../../model/services/paintingGenerationService'
+import { createPaintingGenerateError } from '../../model/paintingGenerateError'
+import { runPainting } from '../../model/paintingGenerationService'
 import type { OvmsPaintingData } from '../../model/types/paintingData'
 import type { GenerateInput } from '../types'
 

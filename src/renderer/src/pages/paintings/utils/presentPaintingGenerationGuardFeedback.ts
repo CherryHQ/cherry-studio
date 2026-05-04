@@ -1,7 +1,7 @@
 import i18n from '@renderer/i18n'
 
 import type { PaintingGenerationGuardReason } from '../hooks/usePaintingGenerationGuard'
-import { createPaintingGenerateError, presentPaintingGenerateError } from '../model/errors/paintingGenerateError'
+import { createPaintingGenerateError, presentPaintingGenerateError } from '../model/paintingGenerateError'
 
 export function presentPaintingGenerationGuardFeedback(reason: PaintingGenerationGuardReason, error?: Error) {
   if (reason === 'provider_disabled') {

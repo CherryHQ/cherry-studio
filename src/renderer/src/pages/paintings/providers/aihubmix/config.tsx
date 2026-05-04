@@ -1,3 +1,6 @@
+import { uuid } from '@renderer/utils'
+import type { PaintingMode } from '@shared/data/types/painting'
+
 import {
   ASPECT_RATIOS,
   BACKGROUND_OPTIONS,
@@ -440,4 +443,14 @@ export const DEFAULT_PAINTING: PaintingData = {
   numberOfImages: 4,
   safetyTolerance: 6,
   imageSize: '1K'
+}
+
+export function createDefaultAihubmixPainting(tab?: string) {
+  const mode = (tab ?? 'generate') as PaintingMode
+  return {
+    ...DEFAULT_PAINTING,
+    id: uuid(),
+    mode,
+    model: tab === 'generate' ? 'gemini-3-pro-image-preview' : 'V_3'
+  }
 }
