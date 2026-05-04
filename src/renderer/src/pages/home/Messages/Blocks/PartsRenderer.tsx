@@ -346,14 +346,14 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
   }
 }
 
-/**
- * Render a single tool part by converting directly to ToolResponseLike.
- * Bypasses the partToBlock → ToolMessageBlock → getToolResponseFromBlock roundtrip.
- */
-function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNode {
-  const toolResponse = buildToolResponseFromPart(part, partId)
+const ToolPartView = React.memo(function ToolPartView({ part, partId }: { part: CherryMessagePart; partId: string }) {
+  const toolResponse = useMemo(() => buildToolResponseFromPart(part, partId), [part, partId])
   if (!toolResponse) return null
-  return <MessageTools key={partId} toolResponse={toolResponse} />
+  return <MessageTools toolResponse={toolResponse} />
+})
+
+function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNode {
+  return <ToolPartView key={partId} part={part} partId={partId} />
 }
 
 // ============================================================================

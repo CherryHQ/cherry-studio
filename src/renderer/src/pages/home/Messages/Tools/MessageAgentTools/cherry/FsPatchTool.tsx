@@ -18,7 +18,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ClickableFilePath } from '../ClickableFilePath'
-import { SkeletonValue, ToolHeader, useIsStreaming } from '../GenericTools'
+import { SkeletonValue, ToolHeader } from '../GenericTools'
 import type { FsPatchInput, FsPatchOpSummary, FsPatchOutput } from './types'
 
 const KEY = 'fs__patch'
@@ -65,32 +65,16 @@ export function FsPatchTool({
   output?: FsPatchOutput
 }): NonNullable<CollapseProps['items']>[number] {
   const { t } = useTranslation()
-  const isStreaming = useIsStreaming()
-  // Skip the env-scan during streaming. The model emits the `patch`
-  // string char-by-char; re-running scanPatchOps + reflowing N file
-  // rows on every delta chokes the main thread for big patches
-  // (10+ files, 5-12 KB JSON-encoded). Show a lightweight placeholder
-  // until the input is committed.
-  const previewOps = useMemo(
-    () => (!isStreaming && input?.patch ? scanPatchOps(input.patch) : []),
-    [isStreaming, input?.patch]
-  )
-  const patchByteLength = input?.patch?.length ?? 0
+  const previewOps = useMemo(() => (input?.patch ? scanPatchOps(input.patch) : []), [input?.patch])
 
   let stats: string | undefined
   let body: React.ReactNode
 
-  if (isStreaming && !output) {
-    // During streaming, show only a byte counter — no envelope parse,
-    // no per-file rows, no codeviewer.
-    stats = `streaming · ${patchByteLength}B`
-    body = (
-      <div className="text-muted-foreground text-xs">
-        {t('message.tools.fs_patch.streaming', 'Receiving patch ({{bytes}} bytes)…', { bytes: patchByteLength })}
-      </div>
-    )
-  } else if (!output) {
-    // Pre-execute (likely approval-pending). Show per-op summary.
+  if (!output) {
+    // Pre-execute (streaming OR approval-pending). Show per-op summary
+    // — the upstream `useDeferredValue(partialArguments)` rate-limits
+    // how often this card receives a new `input` during streaming, so
+    // the scan doesn't run on every model delta.
     stats = previewOps.length ? `${previewOps.length} ops` : undefined
     body =
       previewOps.length > 0 ? (

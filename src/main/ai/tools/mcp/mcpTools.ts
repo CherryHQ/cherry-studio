@@ -65,7 +65,7 @@ function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
   const disabled = server.disabledAutoApproveTools ?? []
   return {
     name: mcpTool.id,
-    namespace: `mcp:${server.id}`,
+    namespace: `mcp:${server.name}`,
     description: mcpTool.description || mcpTool.name,
     defer: 'auto',
     tool: createMcpTool(mcpTool),

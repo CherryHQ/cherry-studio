@@ -3,7 +3,7 @@ import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
 import { parse as parsePartialJson } from 'partial-json'
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
 
 import { isToolPartAwaitingApproval } from '../toolResponse'
 
@@ -145,14 +145,15 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
   const partsMap = usePartsMap()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
+  const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
-    if (!partialArguments) return undefined
+    if (!deferredPartialArguments) return undefined
     try {
-      return parsePartialJson(partialArguments)
+      return parsePartialJson(deferredPartialArguments)
     } catch {
       return undefined
     }
-  }, [partialArguments])
+  }, [deferredPartialArguments])
 
   // Navigate tool renders as a simple inline button, not a tool card
   if (tool?.name === 'mcp__assistant__navigate') {
