@@ -18,6 +18,7 @@ export function paintingDataToUpdateDto(painting: PaintingData): UpdatePaintingD
   return {
     providerId: painting.providerId,
     mode: painting.mode,
+    mediaType: painting.mediaType ?? 'image',
     model: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt ?? '',
     params: paintingParamsForPersistence(painting),

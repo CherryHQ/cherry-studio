@@ -5,12 +5,13 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
+import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
-import type { ModelOption } from '../model/types/paintingModel'
-import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
+import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { PaintingSettingsExtras } from './PaintingProviderViews'
 import PaintingsSectionTitle from './PaintingsSectionTitle'
+import { usePaintingModelCatalog } from './usePaintingModelCatalog'
 
 export function PaintingSettingsHeader({
   onClose,
@@ -41,30 +42,31 @@ export function PaintingSettingsHeader({
 }
 
 export interface PaintingSettingsProps {
-  provider: PaintingProviderRuntime
-  modelOptions: ModelOption[]
-  selectedModelOption?: ModelOption
-  isLoading: boolean
-  tab: string
   painting: PaintingData
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
 
-const PaintingSettings: FC<PaintingSettingsProps> = ({
-  provider,
-  modelOptions,
-  selectedModelOption,
-  isLoading,
-  tab,
-  painting,
-  onConfigChange,
-  onGenerateRandomSeed
-}) => {
+const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const paintingRecord = painting as unknown as Record<string, unknown>
 
-  const providerDefinition = useMemo(() => resolvePaintingProviderDefinition(provider.id), [provider.id])
+  const providerOptions = usePaintingProviderOptions()
+  const { provider } = usePaintingProviderRuntime(painting.providerId)
+  const providerDefinition = useMemo(
+    () => resolvePaintingProviderDefinition(painting.providerId),
+    [painting.providerId]
+  )
+  const tab = useMemo(
+    () => resolvePaintingTabForMode(providerDefinition, painting.mode) ?? providerDefinition.mode.defaultTab,
+    [painting.mode, providerDefinition]
+  )
+  const isLoading = painting.generationStatus === 'running'
+  const { currentModelOptions, selectedModelOption } = usePaintingModelCatalog({
+    providerOptions,
+    painting,
+    shouldPrefetch: false
+  })
   const configItems = useMemo(() => providerDefinition.fields.byTab[tab] || [], [providerDefinition.fields.byTab, tab])
 
   const handleImageUpload = useCallback(
@@ -106,7 +108,6 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
             <PaintingFieldRenderer
               item={item}
               painting={paintingRecord}
-              translate={t}
               onChange={(updates) => onConfigChange(updates as Partial<PaintingData>)}
               onGenerateRandomSeed={onGenerateRandomSeed}
               onImageUpload={onImageUpload ? (key, file) => onImageUpload(key, file) : undefined}
@@ -119,7 +120,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
       <PaintingSettingsExtras
         provider={provider}
         painting={painting}
-        modelOptions={modelOptions}
+        modelOptions={currentModelOptions}
         selectedModelOption={selectedModelOption}
         isLoading={isLoading}
         patchPainting={onConfigChange}

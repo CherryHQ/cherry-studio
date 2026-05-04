@@ -1,6 +1,6 @@
 import type { GenerateImagesConfig } from '@google/genai'
 import type { FileMetadata } from '@renderer/types'
-import type { PaintingMode } from '@shared/data/types/painting'
+import type { PaintingMediaType, PaintingMode } from '@shared/data/types/painting'
 
 export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
 
@@ -8,9 +8,11 @@ export interface PaintingDataBase {
   id: string
   providerId: string
   mode: PaintingMode
+  mediaType?: PaintingMediaType
   model?: string
   prompt: string
   files: FileMetadata[]
+  persistedAt?: string
   generationStatus?: PaintingGenerationStatus | null
   generationTaskId?: string | null
   generationError?: string | null

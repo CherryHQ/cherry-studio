@@ -86,3 +86,5 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
     generate: (input) => generateWithNewApi(input)
   })
 }
+
+export { NewApiSetting } from './sidebar'

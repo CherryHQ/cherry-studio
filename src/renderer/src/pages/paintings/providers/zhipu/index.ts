@@ -1,1 +1,0 @@
-export { zhipuProvider } from './provider'

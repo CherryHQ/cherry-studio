@@ -3085,6 +3085,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "media_type": {
+          "name": "media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'image'"
+        },
         "model": {
           "name": "model",
           "type": "text",
@@ -3116,11 +3124,11 @@
           "autoincrement": false,
           "default": "'{\"output\":[],\"input\":[]}'"
         },
-        "parent_id": {
-          "name": "parent_id",
+        "order_key": {
+          "name": "order_key",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "created_at": {
@@ -3136,36 +3144,33 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
         }
       },
       "indexes": {
-        "painting_provider_mode_created_idx": {
-          "name": "painting_provider_mode_created_idx",
-          "columns": ["provider_id", "mode", "created_at"],
-          "isUnique": false
-        },
-        "painting_parent_id_idx": {
-          "name": "painting_parent_id_idx",
-          "columns": ["parent_id"],
-          "isUnique": false
-        },
         "painting_provider_mode_order_key_idx": {
           "name": "painting_provider_mode_order_key_idx",
           "columns": ["provider_id", "mode", "order_key"],
+          "isUnique": false
+        },
+        "painting_provider_mode_created_idx": {
+          "name": "painting_provider_mode_created_idx",
+          "columns": ["provider_id", "mode", "created_at"],
           "isUnique": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "painting_mode_check": {
+          "name": "painting_mode_check",
+          "value": "\"painting\".\"mode\" IN ('generate', 'draw', 'edit', 'remix', 'merge', 'upscale')"
+        },
+        "painting_media_type_check": {
+          "name": "painting_media_type_check",
+          "value": "\"painting\".\"media_type\" IN ('image', 'video')"
+        }
+      }
     }
   },
   "views": {},

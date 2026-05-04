@@ -33,6 +33,7 @@ describe('paintingMappers', () => {
     id: 'painting-1',
     providerId: 'silicon',
     mode: 'generate',
+    mediaType: 'video',
     model: 'model-1',
     prompt: 'draw a cat',
     params: {
@@ -50,7 +51,6 @@ describe('paintingMappers', () => {
       output: ['file-1', 'missing-file'],
       input: []
     },
-    parentId: null,
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -74,9 +74,11 @@ describe('paintingMappers', () => {
       id: 'painting-1',
       providerId: 'silicon',
       mode: 'generate',
+      mediaType: 'video',
       model: 'model-1',
       prompt: 'draw a cat',
       files: [file],
+      persistedAt: '2026-01-01T00:00:00.000Z',
       generationStatus: 'running',
       generationTaskId: 'task-top-level',
       generationError: null,
@@ -102,6 +104,7 @@ describe('paintingMappers', () => {
       id: 'painting-1',
       providerId: 'silicon',
       mode: 'generate',
+      mediaType: 'video',
       model: 'model-1',
       prompt: 'draw a cat',
       params: {
@@ -114,9 +117,12 @@ describe('paintingMappers', () => {
       }
     })
 
+    expect(paintingDataToCreateDto({ ...paintingData, mediaType: undefined }).mediaType).toBe('image')
+
     expect(paintingDataToUpdateDto(paintingData)).toEqual({
       providerId: 'silicon',
       mode: 'generate',
+      mediaType: 'video',
       model: 'model-1',
       prompt: 'draw a cat',
       params: {

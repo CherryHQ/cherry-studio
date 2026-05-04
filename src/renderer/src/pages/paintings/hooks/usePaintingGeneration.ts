@@ -1,20 +1,21 @@
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../model/errors/paintingGenerateError'
 import { paintingDataToCreateDto, paintingParamsForPersistence } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import {
+  abortPaintingGeneration,
   clearPaintingAbortController,
   registerPaintingAbortController
 } from '../model/runtime/paintingAbortControllerStore'
 import type { PaintingData } from '../model/types/paintingData'
-import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { cleanRuntime, type PaintingGenerationState, withRuntime } from '../model/utils/paintingGenerationParams'
-import type { PaintingProviderDefinition } from '../providers/types'
+import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
+import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 function hasOutput(painting: PaintingData) {
   return (painting.files?.length ?? 0) > 0
@@ -22,25 +23,18 @@ function hasOutput(painting: PaintingData) {
 
 interface UsePaintingGenerationInput {
   painting: PaintingData
-  persisted: boolean
-  provider: PaintingProviderRuntime
-  definition: PaintingProviderDefinition
-  tab: string
-  setPainting: Dispatch<SetStateAction<PaintingData>>
-  setPersisted: (value: boolean) => void
+  onPaintingChange: (painting: PaintingData) => void
 }
 
-export function usePaintingGeneration({
-  painting,
-  persisted,
-  provider,
-  definition,
-  tab,
-  setPainting,
-  setPersisted
-}: UsePaintingGenerationInput) {
+export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintingGenerationInput) {
   const { createPainting, updatePainting, refresh } = usePaintings()
-  const abortControllersRef = useRef(new Map<string, AbortController>())
+  const currentProviderId = painting.providerId
+  const { provider } = usePaintingProviderRuntime(currentProviderId)
+  const definition = useMemo(() => resolvePaintingProviderDefinition(currentProviderId), [currentProviderId])
+  const tab = useMemo(
+    () => resolvePaintingTabForMode(definition, painting.mode) ?? definition.mode.defaultTab,
+    [definition, painting.mode]
+  )
   const visibleIdRef = useRef(painting.id)
 
   useEffect(() => {
@@ -54,14 +48,14 @@ export function usePaintingGeneration({
   const applyIfVisible = useCallback(
     (next: PaintingData) => {
       if (visibleIdRef.current === next.id) {
-        setPainting(next)
+        onPaintingChange(next)
       }
     },
-    [setPainting]
+    [onPaintingChange]
   )
 
   const generate = useCallback(async () => {
-    const shouldCreate = hasOutput(painting) || !persisted
+    const shouldCreate = hasOutput(painting) || !painting.persistedAt
     const targetPaintingInput = shouldCreate
       ? ({
           ...painting,
@@ -108,10 +102,8 @@ export function usePaintingGeneration({
         })
     }
 
-    abortControllersRef.current.set(targetPainting.id, controller)
     visibleIdRef.current = targetPainting.id
-    setPainting({ ...targetPainting, ...generationState } as PaintingData)
-    setPersisted(true)
+    onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
     registerPaintingAbortController(targetPainting.id, controller)
     updateGenerationState(generationState)
 
@@ -129,7 +121,6 @@ export function usePaintingGeneration({
         params: cleanRuntime(paintingParamsForPersistence(targetPainting))
       })
       applyIfVisible(await recordToPaintingData(updatedRecord))
-      setPersisted(true)
       await refresh()
     } catch (error) {
       const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
@@ -154,26 +145,11 @@ export function usePaintingGeneration({
       }
     } finally {
       clearPaintingAbortController(targetPainting.id, controller)
-      if (abortControllersRef.current.get(targetPainting.id) === controller) {
-        abortControllersRef.current.delete(targetPainting.id)
-      }
     }
-  }, [
-    applyIfVisible,
-    createPainting,
-    definition,
-    persisted,
-    painting,
-    provider,
-    refresh,
-    setPainting,
-    setPersisted,
-    tab,
-    updatePainting
-  ])
+  }, [applyIfVisible, createPainting, definition, painting, provider, refresh, onPaintingChange, tab, updatePainting])
 
   const cancel = useCallback((paintingId: string) => {
-    abortControllersRef.current.get(paintingId)?.abort()
+    abortPaintingGeneration(paintingId)
   }, [])
 
   return {

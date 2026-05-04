@@ -3,17 +3,17 @@ import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
-import type { PaintingMode } from '@shared/data/types/painting'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { createPaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { getPaintingModelOptions } from '../model/utils/paintingModelOptions'
 import { providerRegistry } from '../providers/registry'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 
-const logger = loggerService.withContext('usePaintingModelSelectorCatalog')
+const logger = loggerService.withContext('usePaintingModelCatalog')
 
 type AsyncCatalogEntry =
   | { status: 'idle'; options: ModelOption[]; error?: undefined; promise?: undefined }
@@ -23,7 +23,7 @@ type AsyncCatalogEntry =
 
 const asyncCatalogCache = new Map<string, AsyncCatalogEntry>()
 
-export interface PaintingModelSelectorCatalogData {
+export interface PaintingModelCatalogData {
   providers: Provider[]
   models: Model[]
   selectedModelId?: UniqueModelId
@@ -31,16 +31,14 @@ export interface PaintingModelSelectorCatalogData {
   selectedProviderName?: string
 }
 
-export interface UsePaintingModelSelectorCatalogInput {
+export interface UsePaintingModelCatalogInput {
   providerOptions: string[]
-  currentProviderId: string
-  currentMode: PaintingMode
-  currentModelId?: string
-  isOpen: boolean
+  painting: Pick<PaintingData, 'providerId' | 'mode' | 'model'>
+  shouldPrefetch: boolean
 }
 
-export interface UsePaintingModelSelectorCatalogResult {
-  selectorData: PaintingModelSelectorCatalogData
+export interface UsePaintingModelCatalogResult {
+  selectorData: PaintingModelCatalogData
   currentModelOptions: ModelOption[]
   selectedModelOption?: ModelOption
   isLoading: boolean
@@ -88,15 +86,16 @@ function resolveRuntimeProvider(
   return runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(providerMap.get(providerId), providerId)
 }
 
-export function usePaintingModelSelectorCatalog({
+export function usePaintingModelCatalog({
   providerOptions,
-  currentProviderId,
-  currentMode,
-  currentModelId,
-  isOpen
-}: UsePaintingModelSelectorCatalogInput): UsePaintingModelSelectorCatalogResult {
+  painting,
+  shouldPrefetch
+}: UsePaintingModelCatalogInput): UsePaintingModelCatalogResult {
+  const currentProviderId = painting.providerId
+  const currentMode = painting.mode
+  const currentModelId = painting.model
   const { providers: dataProviders } = useProviders()
-  const shouldLoadModels = isOpen || shouldUseDataModelCatalog(currentProviderId)
+  const shouldLoadModels = shouldPrefetch || shouldUseDataModelCatalog(currentProviderId)
   const { models: dataModels, isLoading: isModelsLoading } = useModels(undefined, { fetchEnabled: shouldLoadModels })
   const [catalogVersion, setCatalogVersion] = useState(0)
   const openedOnceRef = useRef(false)
@@ -197,7 +196,7 @@ export function usePaintingModelSelectorCatalog({
   )
 
   useEffect(() => {
-    if (!isOpen || openedOnceRef.current) {
+    if (!shouldPrefetch || openedOnceRef.current) {
       return
     }
 
@@ -213,7 +212,7 @@ export function usePaintingModelSelectorCatalog({
         void loadAsyncOptions(providerId).catch(() => undefined)
       }
     }
-  }, [currentProviderId, getTargetTab, isOpen, loadAsyncOptions, providerOptions])
+  }, [currentProviderId, getTargetTab, loadAsyncOptions, providerOptions, shouldPrefetch])
 
   useEffect(() => {
     const targetTab = getTargetTab(currentProviderId)

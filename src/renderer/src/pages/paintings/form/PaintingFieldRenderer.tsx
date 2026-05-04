@@ -1,5 +1,6 @@
 import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
 import { fieldRegistry } from './fieldRegistry'
@@ -9,7 +10,6 @@ export type { BaseConfigItem, OptionItem } from '../providers/shared/providerFie
 export interface PaintingFieldRendererProps {
   item: BaseConfigItem
   painting: Record<string, unknown>
-  translate: (key: string) => string
   onChange: (updates: Record<string, unknown>) => void
   onGenerateRandomSeed?: (key: string) => void
   onImageUpload?: (key: string, file: File) => void
@@ -33,13 +33,13 @@ function mapOptions(
 export function PaintingFieldRenderer({
   item,
   painting,
-  translate,
   onChange,
   onGenerateRandomSeed,
   onImageUpload,
   imagePreviewSrc,
   imagePlaceholder
 }: PaintingFieldRendererProps) {
+  const { t } = useTranslation()
   const fieldKey = item.key
   if (!fieldKey) {
     return null
@@ -55,7 +55,7 @@ export function PaintingFieldRenderer({
         item={item}
         fieldKey={fieldKey}
         painting={painting}
-        translate={translate}
+        translate={t}
         onChange={onChange}
         onGenerateRandomSeed={onGenerateRandomSeed}
         onImageUpload={onImageUpload}
@@ -69,7 +69,7 @@ export function PaintingFieldRenderer({
 
   switch (item.type) {
     case 'radio': {
-      const options = mapOptions(item, painting, translate)
+      const options = mapOptions(item, painting, t)
       const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
 
       return (
@@ -153,7 +153,7 @@ export function PaintingFieldRenderer({
     }
 
     case 'iconRadio': {
-      const options = mapOptions(item, painting, translate)
+      const options = mapOptions(item, painting, t)
       const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
       const columns = item.columns || 3
 
@@ -190,7 +190,7 @@ export function PaintingFieldRenderer({
     }
 
     case 'styleToggle': {
-      const options = mapOptions(item, painting, translate)
+      const options = mapOptions(item, painting, t)
       const { toggleMode = 'single' } = item
 
       return (

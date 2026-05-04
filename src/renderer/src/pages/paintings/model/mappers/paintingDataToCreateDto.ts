@@ -9,7 +9,16 @@ type CreatePaintingData = PaintingData & {
   mode: PaintingMode
 }
 
-const RESERVED_PAINTING_PARAM_KEYS = new Set(['id', 'providerId', 'mode', 'files', 'model', 'prompt'])
+const RESERVED_PAINTING_PARAM_KEYS = new Set([
+  'id',
+  'providerId',
+  'mode',
+  'mediaType',
+  'files',
+  'model',
+  'prompt',
+  'persistedAt'
+])
 
 function getTopLevelFileIds(files: unknown): string[] {
   if (!Array.isArray(files)) return []
@@ -35,6 +44,7 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
     id: painting.id,
     providerId: painting.providerId,
     mode: painting.mode,
+    mediaType: painting.mediaType ?? 'image',
     model: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt ?? '',
     params: paintingParamsForPersistence(painting),

@@ -1,1 +1,0 @@
-export { siliconProvider } from './provider'

@@ -1,20 +1,30 @@
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePaintingGenerationGuard } from '../usePaintingGenerationGuard'
+import { usePaintingProviderRuntime } from '../usePaintingProviderRuntime'
+
+vi.mock('../usePaintingProviderRuntime', () => ({
+  usePaintingProviderRuntime: vi.fn()
+}))
+
+function createRuntimeProvider(isEnabled = true) {
+  return {
+    id: 'zhipu',
+    name: 'Zhipu',
+    apiHost: 'https://example.com',
+    isEnabled,
+    getApiKey: vi.fn(async () => 'token')
+  }
+}
 
 function renderGuard(overrides: Partial<Parameters<typeof usePaintingGenerationGuard>[0]> = {}) {
   return renderHook(() =>
     usePaintingGenerationGuard({
-      providerId: 'zhipu',
-      mode: 'generate',
-      modelId: 'cogview-4',
-      provider: {
-        id: 'zhipu',
-        name: 'Zhipu',
-        apiHost: 'https://example.com',
-        isEnabled: true,
-        getApiKey: vi.fn(async () => 'token')
+      painting: {
+        providerId: 'zhipu',
+        mode: 'generate',
+        model: 'cogview-4'
       },
       selectorData: {
         providers: [],
@@ -39,16 +49,19 @@ function renderGuard(overrides: Partial<Parameters<typeof usePaintingGenerationG
 }
 
 describe('usePaintingGenerationGuard', () => {
-  it('blocks disabled providers before generation', async () => {
-    const { result } = renderGuard({
-      provider: {
-        id: 'zhipu',
-        name: 'Zhipu',
-        apiHost: 'https://example.com',
-        isEnabled: false,
-        getApiKey: vi.fn(async () => 'token')
-      }
+  beforeEach(() => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: createRuntimeProvider(),
+      isLoading: false
     })
+  })
+
+  it('blocks disabled providers before generation', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: createRuntimeProvider(false),
+      isLoading: false
+    })
+    const { result } = renderGuard()
 
     await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
       ok: false,
@@ -57,7 +70,13 @@ describe('usePaintingGenerationGuard', () => {
   })
 
   it('blocks missing models', async () => {
-    const { result } = renderGuard({ modelId: '' })
+    const { result } = renderGuard({
+      painting: {
+        providerId: 'zhipu',
+        mode: 'generate',
+        model: ''
+      }
+    })
 
     await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
       ok: false,
@@ -67,7 +86,11 @@ describe('usePaintingGenerationGuard', () => {
 
   it('blocks unavailable or orphan models', async () => {
     const { result } = renderGuard({
-      modelId: 'stale-model',
+      painting: {
+        providerId: 'zhipu',
+        mode: 'generate',
+        model: 'stale-model'
+      },
       ensureCurrentCatalog: vi.fn(async () => [{ label: 'CogView 4', value: 'cogview-4' }])
     })
 
@@ -79,7 +102,11 @@ describe('usePaintingGenerationGuard', () => {
 
   it('allows a selected model that resolves through the current catalog load', async () => {
     const { result } = renderGuard({
-      modelId: 'async-model',
+      painting: {
+        providerId: 'zhipu',
+        mode: 'generate',
+        model: 'async-model'
+      },
       selectorData: {
         providers: [],
         models: [],

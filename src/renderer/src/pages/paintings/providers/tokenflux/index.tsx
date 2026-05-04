@@ -45,3 +45,5 @@ export const tokenFluxProvider: PaintingProviderDefinition = createSingleModePro
   onModelChange: ({ modelId }) => ({ model: modelId, inputParams: {} }),
   generate: (input) => generateWithTokenFlux(input)
 })
+
+export { TokenFluxCenterContent, TokenFluxSetting } from './components'

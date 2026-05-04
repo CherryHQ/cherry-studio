@@ -61,6 +61,44 @@ describe('PaintingService', () => {
     expect(result.total).toBe(2)
   })
 
+  it('defaults new paintings to image media type', async () => {
+    const painting = await paintingService.create({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      prompt: 'image'
+    })
+
+    expect(painting.mediaType).toBe('image')
+  })
+
+  it('creates, updates, and filters by video media type', async () => {
+    const image = await paintingService.create({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      mediaType: 'image',
+      prompt: 'image'
+    })
+    const video = await paintingService.create({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      mediaType: 'video',
+      prompt: 'video'
+    })
+
+    const videos = await paintingService.list({
+      providerId: 'aihubmix',
+      mediaType: 'video',
+      limit: 20,
+      offset: 0
+    })
+
+    expect(videos.items.map((item) => item.id)).toEqual([video.id])
+    expect(videos.total).toBe(1)
+
+    const updated = await paintingService.update(image.id, { mediaType: 'video' })
+    expect(updated.mediaType).toBe('video')
+  })
+
   it("moves a painting to the first position via { position: 'first' }", async () => {
     const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
     const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })

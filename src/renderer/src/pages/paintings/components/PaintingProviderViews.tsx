@@ -1,22 +1,21 @@
 import { useTranslation } from 'react-i18next'
 
+import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { AihubmixHeaderActions } from '../providers/aihubmix/provider'
-import { DmxapiSetting } from '../providers/dmxapi/components'
-import { DmxapiHeaderActions } from '../providers/dmxapi/provider'
-import { NewApiHeaderActions } from '../providers/newapi/provider'
-import { NewApiSetting } from '../providers/newapi/sidebar'
-import { OvmsHeaderActions } from '../providers/ovms/provider'
-import { TokenFluxCenterContent, TokenFluxSetting } from '../providers/tokenflux/components'
-import { TokenFluxHeaderActions } from '../providers/tokenflux/provider'
-import { ZhipuHeaderActions } from '../providers/zhipu/provider'
+import { AihubmixHeaderActions } from '../providers/aihubmix'
+import { DmxapiHeaderActions, DmxapiSetting } from '../providers/dmxapi'
+import { NewApiHeaderActions, NewApiSetting } from '../providers/newapi'
+import { OvmsHeaderActions } from '../providers/ovms'
+import { TokenFluxCenterContent, TokenFluxHeaderActions, TokenFluxSetting } from '../providers/tokenflux'
+import { ZhipuHeaderActions } from '../providers/zhipu'
 import Artboard from './Artboard'
 
 /** Provider-specific links/actions in the settings header row (next to close). */
-export function PaintingProviderHeaderActions({ provider }: { provider: PaintingProviderRuntime }) {
+export function PaintingProviderHeaderActions({ providerId }: { providerId: string }) {
   const { t } = useTranslation()
+  const { provider } = usePaintingProviderRuntime(providerId)
 
   if (provider.id === 'zhipu') return <ZhipuHeaderActions t={t} />
   if (provider.id === 'aihubmix') return <AihubmixHeaderActions provider={provider} t={t} />

@@ -5,35 +5,34 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PaintingModelSelectorCatalogData } from './usePaintingModelSelectorCatalog'
+import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
+import type { PaintingData } from '../model/types/paintingData'
+import { usePaintingModelCatalog } from './usePaintingModelCatalog'
 
 interface PaintingModelSelectorProps {
   className?: string
-  currentProviderId: string
-  open: boolean
-  isLoading?: boolean
-  selectorData: PaintingModelSelectorCatalogData
-  onOpenChange: (open: boolean) => void
+  painting: PaintingData
   onSelect: (selection: { providerId: string; modelId: string }) => void
 }
 
-const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({
-  className,
-  currentProviderId,
-  open,
-  isLoading = false,
-  selectorData,
-  onOpenChange,
-  onSelect
-}) => {
+const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, painting, onSelect }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const providerOptions = usePaintingProviderOptions()
+  const { selectorData, isLoading } = usePaintingModelCatalog({
+    providerOptions,
+    painting,
+    shouldPrefetch: open
+  })
+  const currentProviderId = painting.providerId
 
   return (
     <ModelSelector
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={setOpen}
       multiple={false}
       selectionType="id"
       value={selectorData.selectedModelId}

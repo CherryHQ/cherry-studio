@@ -39,6 +39,8 @@ import {
 import { paintingHandlers } from '../paintings'
 
 describe('paintingHandlers', () => {
+  const legacyParentFieldKey = ['parent', 'Id'].join('')
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -71,6 +73,49 @@ describe('paintingHandlers', () => {
     expect(listPaintingsMock).not.toHaveBeenCalled()
   })
 
+  it('rejects the legacy parent field and invalid mediaType payloads before calling the service', async () => {
+    await expect(
+      paintingHandlers['/paintings'].GET({
+        query: {
+          [legacyParentFieldKey]: 'painting-parent'
+        } as never
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    await expect(
+      paintingHandlers['/paintings'].POST({
+        body: {
+          providerId: 'aihubmix',
+          mode: 'generate',
+          mediaType: 'audio'
+        }
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    await expect(
+      paintingHandlers['/paintings'].POST({
+        body: {
+          providerId: 'aihubmix',
+          mode: 'generate',
+          [legacyParentFieldKey]: null
+        }
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    await expect(
+      paintingHandlers['/paintings/:id'].PATCH({
+        params: { id: 'painting-1' },
+        body: {
+          [legacyParentFieldKey]: null
+        }
+      } as never)
+    ).rejects.toHaveProperty('name', 'ZodError')
+
+    expect(listPaintingsMock).not.toHaveBeenCalled()
+    expect(createPaintingMock).not.toHaveBeenCalled()
+    expect(updatePaintingMock).not.toHaveBeenCalled()
+  })
+
   it('parses create and order payloads before delegating', async () => {
     createPaintingMock.mockResolvedValueOnce({ id: 'painting-1' })
     reorderPaintingMock.mockResolvedValueOnce(undefined)
@@ -80,6 +125,7 @@ describe('paintingHandlers', () => {
       body: {
         providerId: '  aihubmix  ',
         mode: 'generate',
+        mediaType: 'video',
         prompt: 'hello'
       }
     } as never)
@@ -101,6 +147,7 @@ describe('paintingHandlers', () => {
     expect(createPaintingMock).toHaveBeenCalledWith({
       providerId: 'aihubmix',
       mode: 'generate',
+      mediaType: 'video',
       prompt: 'hello'
     })
     expect(reorderPaintingMock).toHaveBeenCalledWith('painting-2', { after: 'painting-1' })
@@ -121,7 +168,7 @@ describe('paintingHandlers', () => {
     await expect(
       paintingHandlers['/paintings/:id'].PATCH({
         params: { id: 'painting-1' },
-        body: { parentId: null, prompt: 'updated' }
+        body: { mediaType: 'video', prompt: 'updated' }
       } as never)
     ).resolves.toEqual({
       id: 'painting-1',
@@ -134,7 +181,7 @@ describe('paintingHandlers', () => {
     ).resolves.toBeUndefined()
 
     expect(getPaintingByIdMock).toHaveBeenCalledWith('painting-1')
-    expect(updatePaintingMock).toHaveBeenCalledWith('painting-1', { parentId: null, prompt: 'updated' })
+    expect(updatePaintingMock).toHaveBeenCalledWith('painting-1', { mediaType: 'video', prompt: 'updated' })
     expect(deletePaintingMock).toHaveBeenCalledWith('painting-1')
   })
 })

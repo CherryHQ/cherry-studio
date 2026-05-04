@@ -33,11 +33,11 @@ const logger = loggerService.withContext('DataApi:PaintingService')
 export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
   'providerId',
   'mode',
+  'mediaType',
   'model',
   'prompt',
   'params',
-  'files',
-  'parentId'
+  'files'
 ]
 
 function rowToPainting(row: PaintingRow): Painting {
@@ -45,11 +45,11 @@ function rowToPainting(row: PaintingRow): Painting {
     id: row.id,
     providerId: row.providerId,
     mode: row.mode,
+    mediaType: row.mediaType,
     model: row.model ?? null,
     prompt: row.prompt ?? '',
     params: row.params ?? {},
     files: { output: row.files?.output ?? [], input: row.files?.input ?? [] },
-    parentId: row.parentId ?? null,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -69,8 +69,8 @@ class PaintingService {
       conditions.push(eq(paintingTable.mode, query.mode))
     }
 
-    if (query.parentId) {
-      conditions.push(eq(paintingTable.parentId, query.parentId))
+    if (query.mediaType) {
+      conditions.push(eq(paintingTable.mediaType, query.mediaType))
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
@@ -116,11 +116,11 @@ class PaintingService {
           id: dto.id,
           providerId: dto.providerId,
           mode: dto.mode,
+          mediaType: dto.mediaType ?? 'image',
           model: dto.model ?? null,
           prompt: dto.prompt ?? '',
           params: dto.params ?? {},
-          files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] },
-          parentId: dto.parentId ?? null
+          files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] }
         },
         {
           pkColumn: paintingTable.id,

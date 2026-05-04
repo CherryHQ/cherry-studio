@@ -72,6 +72,7 @@ describe('PaintingMigrator', () => {
           id: 'dmx-1',
           providerId: 'dmxapi',
           mode: 'generate',
+          mediaType: 'image',
           orderKey: expect.any(String)
         }),
         expect.objectContaining({

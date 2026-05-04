@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import FileManager from '@renderer/services/FileManager'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type PaintingStripEntry, usePaintingItems } from '../hooks/usePaintingItems'
@@ -12,7 +12,6 @@ import { paintingClasses } from '../PaintingPrimitives'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
-  canSelectInitialPainting: boolean
   onDeletePainting: (painting: PaintingData) => void
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
@@ -64,7 +63,6 @@ const PaintingStripItem: FC<{
 
 const PaintingStrip: FC<PaintingStripProps> = ({
   selectedPaintingId,
-  canSelectInitialPainting,
   onDeletePainting,
   onSelectPainting,
   onAddPainting
@@ -72,16 +70,6 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   const { t } = useTranslation()
   const { items } = usePaintingItems()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
-  const hasSelectedInitialPaintingRef = useRef(false)
-
-  useEffect(() => {
-    if (hasSelectedInitialPaintingRef.current || !canSelectInitialPainting || items.length === 0) {
-      return
-    }
-
-    hasSelectedInitialPaintingRef.current = true
-    onSelectPainting(items[0])
-  }, [canSelectInitialPainting, items, onSelectPainting])
 
   return (
     <>

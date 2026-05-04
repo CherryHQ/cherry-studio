@@ -1,11 +1,11 @@
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback } from 'react'
 
-import type { PaintingModelSelectorCatalogData } from '../components/usePaintingModelSelectorCatalog'
+import type { PaintingModelCatalogData } from '../components/usePaintingModelCatalog'
+import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
+import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =
   | 'provider_disabled'
@@ -19,22 +19,21 @@ export type PaintingGenerationGuardResult =
   | { ok: false; reason: PaintingGenerationGuardReason; error?: Error }
 
 interface UsePaintingGenerationGuardInput {
-  providerId: string
-  mode: PaintingMode
-  modelId?: string
-  provider: PaintingProviderRuntime
-  selectorData: PaintingModelSelectorCatalogData
+  painting: Pick<PaintingData, 'providerId' | 'mode' | 'model'>
+  selectorData: PaintingModelCatalogData
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
 export function usePaintingGenerationGuard({
-  providerId,
-  mode,
-  modelId,
-  provider,
+  painting,
   selectorData,
   ensureCurrentCatalog
 }: UsePaintingGenerationGuardInput) {
+  const providerId = painting.providerId
+  const mode = painting.mode
+  const modelId = painting.model
+  const { provider } = usePaintingProviderRuntime(providerId)
+
   const validateBeforeGenerate = useCallback(async (): Promise<PaintingGenerationGuardResult> => {
     if (!provider.isEnabled) {
       return { ok: false, reason: 'provider_disabled' }

@@ -24,9 +24,11 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     id: record.id,
     providerId: record.providerId,
     mode: record.mode,
+    mediaType: record.mediaType,
     model: record.model ?? undefined,
     prompt: record.prompt,
     files,
+    persistedAt: record.createdAt,
     ...generationFields,
     ...rawParams
   } as PaintingData

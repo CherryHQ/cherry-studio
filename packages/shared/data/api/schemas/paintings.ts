@@ -1,5 +1,10 @@
 import type { Painting } from '@shared/data/types/painting'
-import { PaintingFilesSchema, PaintingModeSchema, PaintingParamsSchema } from '@shared/data/types/painting'
+import {
+  PaintingFilesSchema,
+  PaintingMediaTypeSchema,
+  PaintingModeSchema,
+  PaintingParamsSchema
+} from '@shared/data/types/painting'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -11,13 +16,15 @@ export const PAINTINGS_DEFAULT_OFFSET = 0
 const OptionalTrimmedStringSchema = z.string().trim().min(1)
 const OptionalNullableTrimmedStringSchema = OptionalTrimmedStringSchema.nullable()
 
-export const ListPaintingsQuerySchema = z.object({
-  providerId: OptionalTrimmedStringSchema.optional(),
-  mode: PaintingModeSchema.optional(),
-  parentId: OptionalTrimmedStringSchema.optional(),
-  limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT),
-  offset: z.int().min(PAINTINGS_DEFAULT_OFFSET).default(PAINTINGS_DEFAULT_OFFSET)
-})
+export const ListPaintingsQuerySchema = z
+  .object({
+    providerId: OptionalTrimmedStringSchema.optional(),
+    mode: PaintingModeSchema.optional(),
+    mediaType: PaintingMediaTypeSchema.optional(),
+    limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT),
+    offset: z.int().min(PAINTINGS_DEFAULT_OFFSET).default(PAINTINGS_DEFAULT_OFFSET)
+  })
+  .strict()
 export type ListPaintingsQueryParams = z.input<typeof ListPaintingsQuerySchema>
 export type ListPaintingsQuery = z.output<typeof ListPaintingsQuerySchema>
 
@@ -26,11 +33,11 @@ export const CreatePaintingSchema = z
     id: OptionalTrimmedStringSchema.optional(),
     providerId: OptionalTrimmedStringSchema,
     mode: PaintingModeSchema,
+    mediaType: PaintingMediaTypeSchema.optional(),
     model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
-    files: PaintingFilesSchema.optional(),
-    parentId: OptionalNullableTrimmedStringSchema.optional()
+    files: PaintingFilesSchema.optional()
   })
   .strict()
 export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
@@ -39,11 +46,11 @@ export const UpdatePaintingSchema = z
   .object({
     providerId: OptionalTrimmedStringSchema.optional(),
     mode: PaintingModeSchema.optional(),
+    mediaType: PaintingMediaTypeSchema.optional(),
     model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
-    files: PaintingFilesSchema.optional(),
-    parentId: OptionalNullableTrimmedStringSchema.optional()
+    files: PaintingFilesSchema.optional()
   })
   .strict()
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>

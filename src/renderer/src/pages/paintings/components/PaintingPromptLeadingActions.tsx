@@ -1,23 +1,22 @@
-import { Button, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../PaintingPrimitives'
+import { PaintingModeTabs } from './PaintingModeTabs'
 
-export type PaintingModeTabDef = { labelKey: string; value: string }
+interface PaintingPromptLeadingActionsProps {
+  painting: PaintingData
+  onPaintingChange: (updates: Partial<PaintingData>) => void
+  onToggleParameters: () => void
+}
 
 export function PaintingPromptLeadingActions({
-  onToggleParameters,
-  modeTabs
-}: {
-  onToggleParameters: () => void
-  modeTabs?: {
-    tabs: PaintingModeTabDef[]
-    value: string
-    onValueChange: (value: string) => void
-  }
-}) {
+  painting,
+  onPaintingChange,
+  onToggleParameters
+}: PaintingPromptLeadingActionsProps) {
   const { t } = useTranslation()
 
   return (
@@ -33,17 +32,7 @@ export function PaintingPromptLeadingActions({
           <SlidersHorizontal className="size-3.5" />
         </Button>
       </Tooltip>
-      {modeTabs ? (
-        <Tabs value={modeTabs.value} onValueChange={modeTabs.onValueChange}>
-          <TabsList className={paintingClasses.promptModeTabsList}>
-            {modeTabs.tabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className={cn(paintingClasses.promptModeTabsTrigger)}>
-                {t(tab.labelKey)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      ) : null}
+      <PaintingModeTabs painting={painting} onPaintingChange={onPaintingChange} />
     </>
   )
 }

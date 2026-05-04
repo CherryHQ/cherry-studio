@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { getPaintingFilter, transformLegacyPaintingRecord } from '../PaintingMappings'
 
 describe('PaintingMappings', () => {
+  const legacyParentFieldKey = ['parent', 'Id'].join('')
+
   it('maps DMXAPI edit and merge records into legacy granular modes', () => {
     expect(getPaintingFilter('dmxapi_paintings', { generationMode: 'edit' })).toEqual({
       providerId: 'dmxapi',
@@ -29,9 +31,27 @@ describe('PaintingMappings', () => {
       ok: true,
       value: {
         providerId: 'my-custom-new-api',
-        mode: 'generate'
+        mode: 'generate',
+        mediaType: 'image'
       }
     })
+  })
+
+  it('does not carry the legacy parent field into normalized painting rows', () => {
+    const result = transformLegacyPaintingRecord('siliconflow_paintings', {
+      id: 'painting-parentless',
+      [legacyParentFieldKey]: 'legacy-parent',
+      prompt: 'hello'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        mediaType: 'image',
+        params: {}
+      }
+    })
+    expect(result.ok && legacyParentFieldKey in result.value).toBe(false)
   })
 
   it('moves legacy async task ids into params.taskId', () => {

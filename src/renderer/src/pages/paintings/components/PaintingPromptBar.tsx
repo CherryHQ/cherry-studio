@@ -1,12 +1,15 @@
 import { Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
-import type { FC, KeyboardEventHandler, ReactNode } from 'react'
+import { type FC, type KeyboardEventHandler, type ReactNode, useMemo } from 'react'
+
+import { usePaintingPromptPlaceholder } from '../hooks/usePaintingPromptPlaceholder'
+import type { PaintingData } from '../model/types/paintingData'
+import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
 
 interface PaintingPromptBarProps {
-  prompt: string
-  disabled: boolean
-  placeholder: string
+  painting: PaintingData
+  generating: boolean
   leadingActions?: ReactNode
   modelSelector?: ReactNode
   onPromptChange: (value: string) => void
@@ -15,21 +18,24 @@ interface PaintingPromptBarProps {
 }
 
 const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
-  prompt,
-  disabled,
-  placeholder,
+  painting,
+  generating,
   leadingActions,
   modelSelector,
   onPromptChange,
   onGenerate,
   onKeyDown
 }) => {
+  const definition = useMemo(() => resolvePaintingProviderDefinition(painting.providerId), [painting.providerId])
+  const placeholder = usePaintingPromptPlaceholder(definition, painting)
+  const disabled = definition.prompt?.disabled?.({ painting, isLoading: generating }) ?? generating
+
   return (
     <div className="flex w-full min-w-0 shrink-0 px-2 pt-2 pb-4">
       <div className="relative flex max-h-[132px] min-h-[94px] w-full min-w-0 flex-col rounded-[1.25rem] border border-border/60 bg-white dark:bg-background">
         <Textarea.Input
           disabled={disabled}
-          value={prompt}
+          value={painting.prompt || ''}
           spellCheck={false}
           className={cn(
             'flex-1 resize-none border-0 bg-transparent px-4 pt-3 pb-1.5 text-foreground/85 text-sm shadow-none',

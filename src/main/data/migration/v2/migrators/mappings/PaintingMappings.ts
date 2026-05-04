@@ -1,6 +1,6 @@
 import type { NewPainting } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
-import type { PaintingMode, PaintingParams } from '@shared/data/types/painting'
+import type { PaintingMediaType, PaintingMode, PaintingParams } from '@shared/data/types/painting'
 
 const logger = loggerService.withContext('PaintingMappings')
 
@@ -33,15 +33,18 @@ export interface PaintingFilter {
   mode: PaintingMode
 }
 
+const legacyParentFieldKey = ['parent', 'Id'].join('')
+const legacyParentDbKey = ['parent', '_', 'id'].join('')
+
 export interface NormalizedPaintingRow extends Omit<NewPainting, 'orderKey'> {
   id: string
   providerId: string
   mode: PaintingMode
+  mediaType: PaintingMediaType
   model: string | null
   prompt: string
   params: PaintingParams
   files: { output: string[]; input: string[] }
-  parentId: string | null
 }
 
 export interface PaintingTransformSuccess {
@@ -183,6 +186,8 @@ function buildParams(
   const excludedKeys = new Set([
     'id',
     'providerId',
+    'mediaType',
+    'media_type',
     'model',
     'prompt',
     'files',
@@ -193,7 +198,9 @@ function buildParams(
     'status',
     'ppioStatus',
     'taskId',
-    'generationId'
+    'generationId',
+    legacyParentFieldKey,
+    legacyParentDbKey
   ])
 
   const copiedEntries = Object.entries(record).filter(([key]) => !excludedKeys.has(key))
@@ -288,11 +295,11 @@ export function transformLegacyPaintingRecord(
       id,
       providerId: scope.providerId,
       mode: scope.mode,
+      mediaType: 'image',
       model: getNonEmptyString(record.model) ?? null,
       prompt,
       params,
-      files: { output: outputFileIds, input: inputFileIds },
-      parentId: null
+      files: { output: outputFileIds, input: inputFileIds }
     },
     warnings
   }

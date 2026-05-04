@@ -126,3 +126,5 @@ export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvide
   },
   generate: (input) => generateWithDmxapi(input)
 })
+
+export { DmxapiSetting } from './components'

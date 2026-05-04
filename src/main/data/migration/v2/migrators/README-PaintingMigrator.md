@@ -12,6 +12,7 @@
 ## Key Rules
 
 - Legacy namespaces are normalized into `providerId + mode`
+- All migrated records set `mediaType: image`
 - `mode` is collapsed to `generate | edit | upscale`
 - `sortOrder` preserves the old array order within each `providerId + mode` scope
 - `files: FileMetadata[]` becomes `fileIds: string[]`
@@ -22,6 +23,6 @@
 ## Dropped Fields
 
 - Runtime-only `urls`
+- Legacy painting tree parent field
 - UI status fields such as `status` and `ppioStatus`
 - Any input image reference that cannot be reconstructed from persisted file metadata
-
