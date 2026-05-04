@@ -1,6 +1,6 @@
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
+import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 import { createAihubmixImageUploadHandler, getAihubmixImagePreviewSrc } from './runtime'
 
 export const aihubmixImagePlaceholder = <img src={IcImageUp} className="mt-2" />

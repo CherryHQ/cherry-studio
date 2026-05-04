@@ -37,14 +37,21 @@ describe('paintingMappers', () => {
     prompt: 'draw a cat',
     params: {
       guidanceScale: 4.5,
-      negativePrompt: 'low quality'
+      negativePrompt: 'low quality',
+      runtimeProviderId: 'old-provider',
+      taskId: 'task-1',
+      taskStatus: 'processing',
+      generationStatus: 'running',
+      generationTaskId: 'task-top-level',
+      generationError: null,
+      generationProgress: 32
     },
     files: {
       output: ['file-1', 'missing-file'],
       input: []
     },
     parentId: null,
-    sortOrder: 0,
+    orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   }
@@ -66,9 +73,14 @@ describe('paintingMappers', () => {
     expect(result).toEqual({
       id: 'painting-1',
       providerId: 'silicon',
+      mode: 'generate',
       model: 'model-1',
       prompt: 'draw a cat',
       files: [file],
+      generationStatus: 'running',
+      generationTaskId: 'task-top-level',
+      generationError: null,
+      generationProgress: 32,
       guidanceScale: 4.5,
       negativePrompt: 'low quality'
     })
@@ -103,6 +115,8 @@ describe('paintingMappers', () => {
     })
 
     expect(paintingDataToUpdateDto(paintingData)).toEqual({
+      providerId: 'silicon',
+      mode: 'generate',
       model: 'model-1',
       prompt: 'draw a cat',
       params: {

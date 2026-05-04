@@ -21,6 +21,8 @@ export const ZHIPU_PAINTING_MODELS: Model[] = [
 
 export const DEFAULT_PAINTING = {
   id: uuid(),
+  providerId: 'zhipu' as const,
+  mode: 'generate' as const,
   files: [],
   prompt: '',
   negativePrompt: '',

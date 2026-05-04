@@ -5,6 +5,7 @@ import ImageField from './fields/ImageField'
 import NumberField from './fields/NumberField'
 import SchemaField from './fields/SchemaField'
 import SelectField from './fields/SelectField'
+import SizeChipsField from './fields/SizeChipsField'
 import SizeField from './fields/SizeField'
 
 export interface PaintingFieldComponentProps {
@@ -25,6 +26,7 @@ export type PaintingFieldComponent = ComponentType<PaintingFieldComponentProps>
 
 export const fieldRegistry: Partial<Record<BaseConfigItem['type'], PaintingFieldComponent>> = {
   select: SelectField,
+  sizeChips: SizeChipsField,
   inputNumber: NumberField,
   image: ImageField,
   customSize: SizeField,

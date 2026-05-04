@@ -1,6 +1,6 @@
 import { uuid } from '@renderer/utils'
 
-import type { GeneratePaintingData as GeneratePainting } from '../../model/types/paintingData'
+import type { OpenApiCompatiblePaintingData as GeneratePainting } from '../../model/types/paintingData'
 
 export const SUPPORTED_MODELS = ['gpt-image-1']
 
@@ -20,6 +20,8 @@ export const MODELS = [
 
 export const DEFAULT_PAINTING: GeneratePainting = {
   id: uuid(),
+  providerId: '',
+  mode: 'generate',
   files: [],
   model: '',
   prompt: '',

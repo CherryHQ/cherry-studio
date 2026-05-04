@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
-import type { FC } from 'react'
+import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
@@ -10,12 +10,7 @@ import type { PaintingData } from '../model/types/paintingData'
 export interface ArtboardProps {
   painting: PaintingData
   isLoading: boolean
-  currentImageIndex: number
-  fallbackUrls?: string[]
-  onPrevImage: () => void
-  onNextImage: () => void
   onCancel: () => void
-  retry?: (painting: PaintingData) => void
   imageCover?: React.ReactNode
   loadText?: React.ReactNode
 }
@@ -54,22 +49,32 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   )
 }
 
-const Artboard: FC<ArtboardProps> = ({
-  painting,
-  isLoading,
-  currentImageIndex,
-  fallbackUrls = [],
-  onPrevImage,
-  onNextImage,
-  onCancel,
-  retry,
-  imageCover,
-  loadText
-}) => {
+const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover, loadText }) => {
   const { t } = useTranslation()
-  const currentFile = painting.files[currentImageIndex]
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
+  const currentFile = painting.files[displayedImageIndex]
   const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
   const loadingText = loadText || t('paintings.generating')
+
+  const onPrevImage = useCallback(() => {
+    setCurrentImageIndex((index) => (index > 0 ? index - 1 : Math.max(0, painting.files.length - 1)))
+  }, [painting.files.length])
+
+  const onNextImage = useCallback(() => {
+    setCurrentImageIndex((index) => (painting.files.length > 0 ? (index + 1) % painting.files.length : 0))
+  }, [painting.files.length])
+
+  useEffect(() => {
+    setCurrentImageIndex(0)
+  }, [painting.id])
+
+  useEffect(() => {
+    setCurrentImageIndex((index) => {
+      if (painting.files.length === 0) return 0
+      return Math.min(index, painting.files.length - 1)
+    })
+  }, [painting.files.length])
 
   return (
     <div className="flex flex-1 items-center justify-center [--artboard-max:calc(100vh-256px)]">
@@ -107,25 +112,7 @@ const Artboard: FC<ArtboardProps> = ({
               </Button>
             )}
             <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-black/50 px-2 py-1 text-white text-xs">
-              {currentImageIndex + 1} / {painting.files.length}
-            </div>
-          </div>
-        ) : fallbackUrls.length > 0 && !isLoading ? (
-          <div className="max-w-[var(--artboard-max)] space-y-3 p-6">
-            <ul className="select-text list-none break-all p-0 text-left">
-              {fallbackUrls.map((url, index) => (
-                <li key={url || index} className="mb-2 text-[var(--color-text-secondary)]">
-                  {url}
-                </li>
-              ))}
-            </ul>
-            <div>
-              {t('paintings.proxy_required')}
-              {retry && (
-                <Button variant="ghost" onClick={() => retry?.(painting)}>
-                  {t('paintings.image_retry')}
-                </Button>
-              )}
+              {displayedImageIndex + 1} / {painting.files.length}
             </div>
           </div>
         ) : imageCover ? (

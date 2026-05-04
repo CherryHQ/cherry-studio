@@ -1,4 +1,5 @@
 import type { FileMetadata } from '@renderer/types'
+import type { TFunction } from 'i18next'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 
@@ -7,12 +8,12 @@ import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
 import { generationModeType } from '../../model/types/paintingData'
 import { clearDmxapiFileMap, getDmxapiFileMap, setDmxapiFileMap, subscribeDmxapiFileMap } from './runtime'
 
-export const DmxapiSidebarExtra: FC<{
+export const DmxapiSidebarContent: FC<{
   mode: string
-  isEditOrMerge: boolean
-  t: (key: string) => string
-}> = ({ mode, isEditOrMerge, t }) => {
+  t: TFunction
+}> = ({ mode, t }) => {
   const [, setTick] = useState(0)
+  const isEditOrMerge = mode === generationModeType.EDIT || mode === generationModeType.MERGE
 
   useEffect(() => {
     return subscribeDmxapiFileMap(() => setTick((tick) => tick + 1))

@@ -1,17 +1,17 @@
-export const paintingWorkspaceClasses = {
-  shell: 'painting-workspace-scope flex h-full flex-1 flex-col',
+export const paintingClasses = {
+  page: 'painting-theme flex h-full flex-1 flex-col',
   content: 'flex min-h-0 flex-1 flex-col overflow-hidden !bg-white dark:!bg-background',
   tabsWrap: 'flex justify-center px-6 pt-4 pb-3',
   tabsList:
     'rounded-full border border-border/60 bg-neutral-100 p-1 shadow-[var(--painting-surface-shadow)] backdrop-blur-sm dark:bg-muted/40',
   tabsTrigger:
     'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm dark:data-[state=active]:bg-background',
-  workspaceFrame: 'relative flex min-h-0 flex-1 overflow-hidden p-2',
-  workspaceSurface:
+  frame: 'relative flex min-h-0 flex-1 overflow-hidden p-2',
+  surface:
     'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-[28px] border border-border/60 bg-white dark:bg-background',
   centerPane: 'relative flex min-w-0 flex-1 flex-col overflow-hidden',
   panel:
-    'painting-workspace-scope-portal absolute top-3 bottom-3 left-3 z-30 flex w-[288px] flex-col overflow-hidden rounded-[24px] border border-border/50 bg-white/95 shadow-[var(--painting-floating-shadow)] backdrop-blur-xl transition-all duration-200 dark:bg-background/95',
+    'painting-theme-portal absolute top-3 bottom-3 left-3 z-30 flex w-[288px] flex-col overflow-hidden rounded-[24px] border border-border/50 bg-white/95 shadow-sm backdrop-blur-xl transition-all duration-200 dark:bg-background/95',
   panelHidden: 'pointer-events-none -translate-x-4 opacity-0',
   panelVisible: 'translate-x-0 opacity-100',
   panelHeader: 'flex items-center justify-between px-4 pt-3 pb-2',

@@ -3123,14 +3123,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3144,14 +3136,16 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {
-        "painting_provider_mode_sort_idx": {
-          "name": "painting_provider_mode_sort_idx",
-          "columns": ["provider_id", "mode", "sort_order"],
-          "isUnique": false
-        },
         "painting_provider_mode_created_idx": {
           "name": "painting_provider_mode_created_idx",
           "columns": ["provider_id", "mode", "created_at"],
@@ -3160,6 +3154,11 @@
         "painting_parent_id_idx": {
           "name": "painting_parent_id_idx",
           "columns": ["parent_id"],
+          "isUnique": false
+        },
+        "painting_provider_mode_order_key_idx": {
+          "name": "painting_provider_mode_order_key_idx",
+          "columns": ["provider_id", "mode", "order_key"],
           "isUnique": false
         }
       },

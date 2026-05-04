@@ -3,35 +3,34 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import FileManager from '@renderer/services/FileManager'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isPaintingLoading, usePaintingRuntime } from '../../model/runtime/paintingRuntimeStore'
-import type { PaintingData } from '../../model/types/paintingData'
-import { type PaintingHistoryItem, usePaintingHistoryStrip } from '../hooks/usePaintingHistoryStrip'
-import { paintingWorkspaceClasses } from '../PaintingWorkspacePrimitives'
+import { type PaintingStripEntry, usePaintingItems } from '../hooks/usePaintingItems'
+import type { PaintingData } from '../model/types/paintingData'
+import { paintingClasses } from '../PaintingPrimitives'
 
-interface PaintingHistoryStripProps {
+interface PaintingStripProps {
   selectedPaintingId?: string
+  canSelectInitialPainting: boolean
   onDeletePainting: (painting: PaintingData) => void
-  onSelectPainting: (painting: PaintingHistoryItem) => void
+  onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
 }
 
-const PaintingHistoryStripItem: FC<{
-  painting: PaintingHistoryItem
+const PaintingStripItem: FC<{
+  painting: PaintingStripEntry
   selected: boolean
-  onDelete: (painting: PaintingHistoryItem) => void
-  onSelect: (painting: PaintingHistoryItem) => void
-}> = ({ painting, selected, onDelete, onSelect }) => {
-  const [runtimeState] = usePaintingRuntime(painting.id)
-  const loading = isPaintingLoading(painting, runtimeState)
-  const previewFile = painting.files[0]
+  loading: boolean
+  onDelete: (painting: PaintingStripEntry) => void
+  onSelect: (painting: PaintingStripEntry) => void
+}> = ({ painting, selected, loading, onDelete, onSelect }) => {
+  const previewFile = painting.files?.[0]
 
   return (
     <button
       type="button"
-      className={cn(paintingWorkspaceClasses.historyItem, selected && paintingWorkspaceClasses.historyItemActive)}
+      className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}
       onClick={() => onSelect(painting)}>
       <span className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[16px]">
         {previewFile ? (
@@ -52,7 +51,7 @@ const PaintingHistoryStripItem: FC<{
       )}
 
       <span
-        className={paintingWorkspaceClasses.historyDelete}
+        className={paintingClasses.historyDelete}
         onClick={(event) => {
           event.stopPropagation()
           onDelete(painting)
@@ -63,35 +62,47 @@ const PaintingHistoryStripItem: FC<{
   )
 }
 
-const PaintingHistoryStrip: FC<PaintingHistoryStripProps> = ({
+const PaintingStrip: FC<PaintingStripProps> = ({
   selectedPaintingId,
+  canSelectInitialPainting,
   onDeletePainting,
   onSelectPainting,
   onAddPainting
 }) => {
   const { t } = useTranslation()
-  const { items } = usePaintingHistoryStrip()
-  const [pendingDelete, setPendingDelete] = useState<PaintingHistoryItem | null>(null)
+  const { items } = usePaintingItems()
+  const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
+  const hasSelectedInitialPaintingRef = useRef(false)
+
+  useEffect(() => {
+    if (hasSelectedInitialPaintingRef.current || !canSelectInitialPainting || items.length === 0) {
+      return
+    }
+
+    hasSelectedInitialPaintingRef.current = true
+    onSelectPainting(items[0])
+  }, [canSelectInitialPainting, items, onSelectPainting])
 
   return (
     <>
-      <div className={paintingWorkspaceClasses.historyStrip}>
+      <div className={paintingClasses.historyStrip}>
         <Tooltip content={t('paintings.button.new.image')} placement="left" delay={500}>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className={paintingWorkspaceClasses.historyAddButton}
+            className={paintingClasses.historyAddButton}
             aria-label={t('paintings.button.new.image')}
             onClick={onAddPainting}>
             <Plus className="size-4" />
           </Button>
         </Tooltip>
         {items.map((painting) => (
-          <PaintingHistoryStripItem
+          <PaintingStripItem
             key={painting.id}
             painting={painting}
             selected={painting.id === selectedPaintingId}
+            loading={painting.generationStatus === 'running'}
             onDelete={setPendingDelete}
             onSelect={onSelectPainting}
           />
@@ -127,4 +138,4 @@ const PaintingHistoryStrip: FC<PaintingHistoryStripProps> = ({
   )
 }
 
-export default PaintingHistoryStrip
+export default PaintingStrip

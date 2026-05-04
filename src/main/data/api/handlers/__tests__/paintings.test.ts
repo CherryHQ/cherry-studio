@@ -6,14 +6,16 @@ const {
   getPaintingByIdMock,
   updatePaintingMock,
   deletePaintingMock,
-  reorderPaintingsMock
+  reorderPaintingMock,
+  reorderPaintingBatchMock
 } = vi.hoisted(() => ({
   listPaintingsMock: vi.fn(),
   createPaintingMock: vi.fn(),
   getPaintingByIdMock: vi.fn(),
   updatePaintingMock: vi.fn(),
   deletePaintingMock: vi.fn(),
-  reorderPaintingsMock: vi.fn()
+  reorderPaintingMock: vi.fn(),
+  reorderPaintingBatchMock: vi.fn()
 }))
 
 vi.mock('@data/services/PaintingService', () => ({
@@ -23,7 +25,8 @@ vi.mock('@data/services/PaintingService', () => ({
     getById: getPaintingByIdMock,
     update: updatePaintingMock,
     delete: deletePaintingMock,
-    reorder: reorderPaintingsMock
+    reorder: reorderPaintingMock,
+    reorderBatch: reorderPaintingBatchMock
   }
 }))
 
@@ -68,9 +71,10 @@ describe('paintingHandlers', () => {
     expect(listPaintingsMock).not.toHaveBeenCalled()
   })
 
-  it('parses create and reorder payloads before delegating', async () => {
+  it('parses create and order payloads before delegating', async () => {
     createPaintingMock.mockResolvedValueOnce({ id: 'painting-1' })
-    reorderPaintingsMock.mockResolvedValueOnce({ reorderedCount: 2 })
+    reorderPaintingMock.mockResolvedValueOnce(undefined)
+    reorderPaintingBatchMock.mockResolvedValueOnce(undefined)
 
     await paintingHandlers['/paintings'].POST({
       body: {
@@ -80,9 +84,17 @@ describe('paintingHandlers', () => {
       }
     } as never)
 
-    await paintingHandlers['/paintings/reorder'].POST({
+    await paintingHandlers['/paintings/:id/order'].PATCH({
+      params: { id: 'painting-2' },
+      body: { after: 'painting-1' }
+    } as never)
+
+    await paintingHandlers['/paintings/order:batch'].PATCH({
       body: {
-        orderedIds: ['painting-1', 'painting-2']
+        moves: [
+          { id: 'painting-2', anchor: { position: 'first' } },
+          { id: 'painting-1', anchor: { after: 'painting-2' } }
+        ]
       }
     } as never)
 
@@ -91,9 +103,11 @@ describe('paintingHandlers', () => {
       mode: 'generate',
       prompt: 'hello'
     })
-    expect(reorderPaintingsMock).toHaveBeenCalledWith({
-      orderedIds: ['painting-1', 'painting-2']
-    })
+    expect(reorderPaintingMock).toHaveBeenCalledWith('painting-2', { after: 'painting-1' })
+    expect(reorderPaintingBatchMock).toHaveBeenCalledWith([
+      { id: 'painting-2', anchor: { position: 'first' } },
+      { id: 'painting-1', anchor: { after: 'painting-2' } }
+    ])
   })
 
   it('delegates get, patch, and delete by id', async () => {

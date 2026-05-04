@@ -5,7 +5,7 @@ import { getDmxapiAllModels } from './runtime'
 export function buildDmxapiConfigFields(): any[] {
   return [
     {
-      type: 'select',
+      type: 'sizeChips',
       key: 'image_size',
       title: 'paintings.image.size',
       options: (_config: any, painting: Record<string, unknown>) => {

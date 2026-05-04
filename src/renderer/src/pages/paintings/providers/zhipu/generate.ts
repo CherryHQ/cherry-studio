@@ -1,35 +1,40 @@
 import { AiProvider } from '@renderer/aiCore'
-import FileManager from '@renderer/services/FileManager'
-import i18next from 'i18next'
+import type { Model } from '@renderer/types'
 
 import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
 import { runPainting } from '../../model/services/paintingGenerationService'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
+import { ZHIPU_PAINTING_MODELS } from './config'
 
-export async function generateWithZhipu(ctx: GenerateContext) {
-  const {
-    input: { painting: rawPainting, provider, abortController }
-  } = ctx
+export async function generateWithZhipu(input: GenerateInput) {
+  const { painting: rawPainting, provider, abortController } = input
   const painting = rawPainting as any
 
-  await checkProviderEnabled(provider)
+  const apiKey = await checkProviderEnabled(provider)
 
   if (!painting.prompt?.trim()) {
     throw createPaintingGenerateError('PROMPT_REQUIRED')
   }
 
-  if (painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
+  return runPainting(async () => {
+    const model =
+      ZHIPU_PAINTING_MODELS.find((item) => item.id === painting.model) ||
+      ({
+        id: painting.model,
+        provider: provider.id,
+        name: painting.model,
+        group: ''
+      } as Model)
+    const aiProvider = new AiProvider(model, {
+      id: provider.id,
+      type: 'openai',
+      name: provider.name,
+      apiKey,
+      apiHost: provider.apiHost,
+      models: [model],
+      enabled: provider.isEnabled
     })
-    if (!confirmed) return
-    await FileManager.deleteFiles(painting.files)
-  }
-
-  await runPainting(ctx, async () => {
-    const aiProvider = new AiProvider(provider)
 
     let actualImageSize = painting.imageSize
 

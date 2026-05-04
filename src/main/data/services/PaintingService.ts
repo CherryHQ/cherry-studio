@@ -1,21 +1,46 @@
-import { paintingTable } from '@data/db/schemas/painting'
+/**
+ * Painting Service — painting CRUD, list, and reorder
+ *
+ * Provides business logic for:
+ * - Listing and filtering paintings
+ * - Row to API Painting conversion
+ */
+
+import { application } from '@application'
+import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   CreatePaintingDto,
   ListPaintingsQuery,
   PaintingListResponse,
-  ReorderPaintingsDto,
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
+
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PaintingService')
 
-function rowToPainting(row: typeof paintingTable.$inferSelect): Painting {
+/**
+ * Mapping from UpdatePaintingDto field → DB column for the update path.
+ * Exported for test coverage — ensures no DTO field is silently dropped.
+ */
+export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = [
+  'providerId',
+  'mode',
+  'model',
+  'prompt',
+  'params',
+  'files',
+  'parentId'
+]
+
+function rowToPainting(row: PaintingRow): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
@@ -25,17 +50,13 @@ function rowToPainting(row: typeof paintingTable.$inferSelect): Painting {
     params: row.params ?? {},
     files: { output: row.files?.output ?? [], input: row.files?.input ?? [] },
     parentId: row.parentId ?? null,
-    sortOrder: row.sortOrder ?? 0,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    orderKey: row.orderKey,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
-function hasDuplicateIds(ids: string[]): boolean {
-  return new Set(ids).size !== ids.length
-}
-
-export class PaintingService {
+class PaintingService {
   async list(query: ListPaintingsQuery): Promise<PaintingListResponse> {
     const db = application.get('DbService').getDb()
     const conditions: SQL[] = []
@@ -59,7 +80,7 @@ export class PaintingService {
         .select()
         .from(paintingTable)
         .where(whereClause)
-        .orderBy(desc(paintingTable.sortOrder), desc(paintingTable.createdAt), desc(paintingTable.id))
+        .orderBy(asc(paintingTable.orderKey), desc(paintingTable.createdAt), desc(paintingTable.id))
         .limit(query.limit)
         .offset(query.offset),
       db.select({ count: sql<number>`count(*)` }).from(paintingTable).where(whereClause)
@@ -87,15 +108,11 @@ export class PaintingService {
   async create(dto: CreatePaintingDto): Promise<Painting> {
     const db = application.get('DbService').getDb()
 
-    const row = await db.transaction(async (tx) => {
-      const maxSortRow = await tx
-        .select({ maxSortOrder: sql<number>`coalesce(max(${paintingTable.sortOrder}), 0)` })
-        .from(paintingTable)
-        .get()
-
-      const [created] = await tx
-        .insert(paintingTable)
-        .values({
+    const row = await db.transaction(async (tx) =>
+      insertWithOrderKey(
+        tx,
+        paintingTable,
+        {
           id: dto.id,
           providerId: dto.providerId,
           mode: dto.mode,
@@ -103,13 +120,14 @@ export class PaintingService {
           prompt: dto.prompt ?? '',
           params: dto.params ?? {},
           files: { output: dto.files?.output ?? [], input: dto.files?.input ?? [] },
-          parentId: dto.parentId ?? null,
-          sortOrder: (maxSortRow?.maxSortOrder ?? 0) + 1
-        })
-        .returning()
-
-      return created
-    })
+          parentId: dto.parentId ?? null
+        },
+        {
+          pkColumn: paintingTable.id,
+          position: 'first'
+        }
+      )
+    )
 
     logger.info('Created painting', {
       id: row.id,
@@ -117,19 +135,19 @@ export class PaintingService {
       mode: row.mode
     })
 
-    return rowToPainting(row)
+    return rowToPainting(row as PaintingRow)
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
     const db = application.get('DbService').getDb()
     const existing = await this.getById(id)
 
-    const updates: Partial<typeof paintingTable.$inferInsert> = {}
-    if (dto.model !== undefined) updates.model = dto.model
-    if (dto.prompt !== undefined) updates.prompt = dto.prompt
-    if (dto.params !== undefined) updates.params = dto.params
-    if (dto.files !== undefined) updates.files = dto.files
-    if (dto.parentId !== undefined) updates.parentId = dto.parentId
+    const updates: Partial<NewPainting> = {}
+    for (const key of UPDATE_PAINTING_FIELD_MAP) {
+      if (dto[key] !== undefined) {
+        ;(updates as Record<string, unknown>)[key] = dto[key]
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return existing
@@ -148,45 +166,45 @@ export class PaintingService {
     logger.info('Deleted painting', { id })
   }
 
-  async reorder(dto: ReorderPaintingsDto): Promise<{ reorderedCount: number }> {
-    if (hasDuplicateIds(dto.orderedIds)) {
-      throw DataApiErrorFactory.validation({
-        orderedIds: ['Painting reorder payload contains duplicate ids']
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    const db = application.get('DbService').getDb()
+
+    await db.transaction(async (tx) => {
+      const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
+      if (!target) {
+        throw DataApiErrorFactory.notFound('Painting', id)
+      }
+
+      await applyMoves(tx, paintingTable, [{ id, anchor }], {
+        pkColumn: paintingTable.id
       })
-    }
+
+      logger.info('Reordered paintings', {
+        count: 1
+      })
+    })
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
 
-    return await db.transaction(async (tx) => {
-      const rows = await Promise.all(
-        dto.orderedIds.map(async (id) => {
-          const [row] = await tx
-            .select({ id: paintingTable.id })
-            .from(paintingTable)
-            .where(eq(paintingTable.id, id))
-            .limit(1)
-          return row
-        })
-      )
-
-      if (rows.some((row) => !row)) {
-        throw DataApiErrorFactory.validation({
-          orderedIds: ['Painting reorder payload contains unknown ids']
-        })
+    await db.transaction(async (tx) => {
+      for (const move of moves) {
+        const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, move.id)).limit(1)
+        if (!target) {
+          throw DataApiErrorFactory.notFound('Painting', move.id)
+        }
       }
 
-      for (let index = 0; index < dto.orderedIds.length; index++) {
-        await tx
-          .update(paintingTable)
-          .set({ sortOrder: dto.orderedIds.length - index })
-          .where(eq(paintingTable.id, dto.orderedIds[index]))
-      }
-
-      logger.info('Reordered paintings', {
-        count: dto.orderedIds.length
+      await applyMoves(tx, paintingTable, moves, {
+        pkColumn: paintingTable.id
       })
 
-      return { reorderedCount: dto.orderedIds.length }
+      logger.info('Reordered paintings', {
+        count: moves.length
+      })
     })
   }
 }

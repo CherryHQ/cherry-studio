@@ -1,16 +1,12 @@
 export type {
-  ArtboardSlotState,
-  CenterSlotState,
-  GenerateContext,
+  GenerateInput,
   PaintingProvider,
   PaintingProviderDefinition,
   ProviderFields,
   ProviderGenerate,
   ProviderImage,
   ProviderMode,
-  ProviderPrompt,
-  ProviderSlots,
-  SidebarSlotState
+  ProviderPrompt
 } from './shared/provider'
 export {
   createMultiModeProvider,

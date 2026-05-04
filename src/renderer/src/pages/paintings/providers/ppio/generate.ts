@@ -1,21 +1,17 @@
 import type { FileMetadata } from '@renderer/types'
-import i18next from 'i18next'
 
 import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
 import { runPainting } from '../../model/services/paintingGenerationService'
-import type { PaintingData, PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
+import type { PpioPaintingData as PpioPainting } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
 import { getModelsByMode } from './config'
 import PpioService from './service'
 
-export async function generateWithPpio(ctx: GenerateContext) {
-  const {
-    input: { painting, provider, abortController },
-    writers: { patchPainting, setFallbackUrls }
-  } = ctx
+export async function generateWithPpio(input: GenerateInput<PpioPainting>) {
+  const { painting, provider, abortController } = input
 
-  await checkProviderEnabled(provider)
+  const apiKey = await checkProviderEnabled(provider)
 
   const ppioPainting = painting as PpioPainting
   const isEditMode = getModelsByMode('ppio_edit').some((model) => model.id === ppioPainting.model)
@@ -29,21 +25,9 @@ export async function generateWithPpio(ctx: GenerateContext) {
     throw createPaintingGenerateError('PROMPT_REQUIRED')
   }
 
-  if (!provider.apiKey) {
-    throw createPaintingGenerateError('NO_API_KEY')
-  }
-
-  if (painting.files && painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
-    })
-    if (!confirmed) return
-  }
-
-  await runPainting(ctx, async () => {
+  return runPainting(async () => {
     try {
-      const service = new PpioService(provider.apiKey)
+      const service = new PpioService(apiKey)
       const result = await service.generate(ppioPainting, abortController.signal)
 
       let imageUrls: string[] = []
@@ -51,11 +35,12 @@ export async function generateWithPpio(ctx: GenerateContext) {
       if (result.images) {
         imageUrls = result.images
       } else if (result.taskId) {
-        patchPainting({ taskId: result.taskId, taskStatus: 'processing' } as Partial<PaintingData>)
-
+        input.onGenerationStateChange?.({ generationTaskId: result.taskId })
         const taskResult = await service.pollTaskResult(result.taskId, {
           signal: abortController.signal,
-          onProgress: () => {}
+          onProgress: (progress) => {
+            input.onGenerationStateChange?.({ generationProgress: progress })
+          }
         })
 
         if (taskResult.images && taskResult.images.length > 0) {
@@ -78,19 +63,11 @@ export async function generateWithPpio(ctx: GenerateContext) {
         )
 
         const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
-        patchPainting({ taskStatus: 'succeeded' } as Partial<PaintingData>)
-        setFallbackUrls(imageUrls)
         return { files: validFiles }
       }
 
       return undefined
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        patchPainting({ taskStatus: 'cancelled' } as Partial<PaintingData>)
-        throw error
-      }
-
-      patchPainting({ taskStatus: 'failed' } as Partial<PaintingData>)
       throw error
     }
   })

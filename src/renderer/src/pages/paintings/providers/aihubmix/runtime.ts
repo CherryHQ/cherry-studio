@@ -1,4 +1,4 @@
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
+import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 
 const fileStore = new Map<string, File>()
 

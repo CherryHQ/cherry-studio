@@ -4,10 +4,12 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   LEGACY_PAINTING_NAMESPACES,
   type LegacyPaintingsState,
+  type NormalizedPaintingRow,
   transformLegacyPaintingRecord
 } from './mappings/PaintingMappings'
 
@@ -71,7 +73,7 @@ export class PaintingMigrator extends BaseMigrator {
         }
       }
 
-      const groupedRecords = new Map<string, Array<typeof paintingTable.$inferInsert>>()
+      const groupedRecords = new Map<string, NormalizedPaintingRow[]>()
       const seenIds = new Set<string>()
 
       for (const namespace of LEGACY_PAINTING_NAMESPACES) {
@@ -103,19 +105,13 @@ export class PaintingMigrator extends BaseMigrator {
           this.warnings.push(...result.warnings.map((warning) => `${namespace}[${index}]: ${warning}`))
 
           const namespaceEntries = groupedRecords.get(namespace) ?? []
-          namespaceEntries.push({
-            ...normalized,
-            sortOrder: 0
-          })
+          namespaceEntries.push(normalized)
           groupedRecords.set(namespace, namespaceEntries)
         }
       }
 
       for (const entries of groupedRecords.values()) {
-        entries.forEach((entry, index) => {
-          entry.sortOrder = entries.length - index
-          this.preparedPaintings.push(entry)
-        })
+        this.preparedPaintings.push(...assignOrderKeysByScope(entries, (entry) => `${entry.providerId}:${entry.mode}`))
       }
 
       logger.info('Prepared painting migration records', {

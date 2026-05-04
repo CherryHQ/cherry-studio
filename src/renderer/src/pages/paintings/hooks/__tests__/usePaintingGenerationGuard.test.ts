@@ -12,11 +12,9 @@ function renderGuard(overrides: Partial<Parameters<typeof usePaintingGenerationG
       provider: {
         id: 'zhipu',
         name: 'Zhipu',
-        type: 'openai',
-        apiKey: 'token',
         apiHost: 'https://example.com',
-        models: [],
-        enabled: true
+        isEnabled: true,
+        getApiKey: vi.fn(async () => 'token')
       },
       selectorData: {
         providers: [],
@@ -46,11 +44,9 @@ describe('usePaintingGenerationGuard', () => {
       provider: {
         id: 'zhipu',
         name: 'Zhipu',
-        type: 'openai',
-        apiKey: 'token',
         apiHost: 'https://example.com',
-        models: [],
-        enabled: false
+        isEnabled: false,
+        getApiKey: vi.fn(async () => 'token')
       }
     })
 

@@ -2,6 +2,8 @@ import type { Painting } from '@shared/data/types/painting'
 import { PaintingFilesSchema, PaintingModeSchema, PaintingParamsSchema } from '@shared/data/types/painting'
 import * as z from 'zod'
 
+import type { OrderEndpoints } from './_endpointHelpers'
+
 export const PAINTINGS_DEFAULT_LIMIT = 20
 export const PAINTINGS_MAX_LIMIT = 100
 export const PAINTINGS_DEFAULT_OFFSET = 0
@@ -35,6 +37,8 @@ export type CreatePaintingDto = z.infer<typeof CreatePaintingSchema>
 
 export const UpdatePaintingSchema = z
   .object({
+    providerId: OptionalTrimmedStringSchema.optional(),
+    mode: PaintingModeSchema.optional(),
     model: OptionalNullableTrimmedStringSchema.optional(),
     prompt: z.string().optional(),
     params: PaintingParamsSchema.optional(),
@@ -44,13 +48,6 @@ export const UpdatePaintingSchema = z
   .strict()
 export type UpdatePaintingDto = z.infer<typeof UpdatePaintingSchema>
 
-export const ReorderPaintingsSchema = z
-  .object({
-    orderedIds: z.array(OptionalTrimmedStringSchema).min(1)
-  })
-  .strict()
-export type ReorderPaintingsDto = z.infer<typeof ReorderPaintingsSchema>
-
 export interface PaintingListResponse {
   items: Painting[]
   total: number
@@ -58,7 +55,7 @@ export interface PaintingListResponse {
   offset: number
 }
 
-export interface PaintingsSchemas {
+export type PaintingsSchemas = {
   '/paintings': {
     GET: {
       query?: ListPaintingsQueryParams
@@ -85,11 +82,4 @@ export interface PaintingsSchemas {
       response: void
     }
   }
-
-  '/paintings/reorder': {
-    POST: {
-      body: ReorderPaintingsDto
-      response: { reorderedCount: number }
-    }
-  }
-}
+} & OrderEndpoints<'/paintings'>

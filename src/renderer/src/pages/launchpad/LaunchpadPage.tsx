@@ -1,7 +1,6 @@
 import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useNavigate } from '@tanstack/react-router'
 import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
@@ -12,7 +11,6 @@ import styled from 'styled-components'
 const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { defaultPaintingProvider } = useSettings()
   const { pinned, openedKeepAliveMinapps } = useMinapps()
 
   const appMenuItems = [
@@ -31,7 +29,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <Palette size={32} className="icon" />,
       text: t('title.paintings'),
-      path: `/app/paintings/${defaultPaintingProvider}`,
+      path: '/app/paintings',
       bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
     },
     {

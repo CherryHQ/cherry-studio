@@ -6,7 +6,6 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isPaintingLoading, usePaintingRuntime } from '../model/runtime/paintingRuntimeStore'
 import type { PaintingData } from '../model/types/paintingData'
 
 interface PaintingsListProps {
@@ -21,14 +20,12 @@ interface PaintingsListProps {
 interface PaintingListItemProps {
   painting: PaintingData
   selected: boolean
+  loading?: boolean
   onSelect: (painting: PaintingData) => void
   onDelete: (painting: PaintingData) => void
 }
 
-const PaintingListItem: FC<PaintingListItemProps> = ({ painting, selected, onSelect, onDelete }) => {
-  const [runtimeState] = usePaintingRuntime(painting.id)
-  const loading = isPaintingLoading(painting, runtimeState)
-
+const PaintingListItem: FC<PaintingListItemProps> = ({ painting, selected, loading = false, onSelect, onDelete }) => {
   return (
     <div className="group relative w-[76px] shrink-0">
       <button

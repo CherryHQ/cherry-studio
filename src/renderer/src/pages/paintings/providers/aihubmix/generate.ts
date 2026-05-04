@@ -1,13 +1,13 @@
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
-import FileManager from '@renderer/services/FileManager'
+import type { Model } from '@renderer/types'
 import i18next from 'i18next'
 
 import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { processPaintingResult, runPainting } from '../../model/services/paintingGenerationService'
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
+import { runPainting } from '../../model/services/paintingGenerationService'
+import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
 import { getAihubmixUploadedFile } from './runtime'
 
 const logger = loggerService.withContext('AihubmixProvider')
@@ -20,44 +20,42 @@ const MODE_TO_CONFIG: Record<AihubmixPaintingMode, string> = {
   upscale: 'aihubmix_image_upscale'
 }
 
-export async function generateWithAihubmix(ctx: GenerateContext) {
-  const {
-    input: { painting, provider, tab, abortController },
-    writers: { patchPainting }
-  } = ctx
+export async function generateWithAihubmix(input: GenerateInput) {
+  const { painting: rawPainting, provider, tab, abortController } = input
+  const painting = rawPainting as PaintingData
 
-  await checkProviderEnabled(provider)
-
-  if (painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
-    })
-    if (!confirmed) return
-    await FileManager.deleteFiles(painting.files)
-  }
+  const apiKey = await checkProviderEnabled(provider)
 
   const prompt = painting.prompt || ''
-  patchPainting({ prompt } as Partial<PaintingData>)
 
-  if (!provider.apiKey) {
-    throw createPaintingGenerateError('NO_API_KEY')
-  }
-
-  if (!painting.model || !painting.prompt) return
+  if (!painting.model || !painting.prompt) return []
   const modelId = painting.model
 
-  await runPainting(ctx, async () => {
+  return runPainting(async () => {
     const mode = tab as AihubmixPaintingMode
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
-      'Api-Key': provider.apiKey
+      'Api-Key': apiKey
     }
     let url = provider.apiHost + `/ideogram/` + MODE_TO_CONFIG[mode]
     if (mode === 'generate') {
       if (modelId.startsWith('imagen-')) {
-        const AI = new AiProvider(provider)
+        const model = {
+          id: modelId,
+          provider: provider.id,
+          name: modelId,
+          group: ''
+        } as Model
+        const AI = new AiProvider(model, {
+          id: provider.id,
+          type: 'openai',
+          name: provider.name,
+          apiKey,
+          apiHost: provider.apiHost,
+          models: [model],
+          enabled: provider.isEnabled
+        })
         const base64s = await AI.generateImage({
           prompt,
           model: modelId,
@@ -67,14 +65,14 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
           signal: abortController.signal
         })
         if (base64s?.length > 0) {
-          await processPaintingResult(ctx, { base64s })
+          return { base64s }
         }
         return
       } else if (painting.model === 'gemini-3-pro-image-preview') {
         const geminiUrl = `${provider.apiHost}/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent`
         const geminiHeaders = {
           'Content-Type': 'application/json',
-          'x-goog-api-key': provider.apiKey
+          'x-goog-api-key': apiKey
         }
 
         const requestBody = {
@@ -127,7 +125,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
         })
 
         if (base64s.length > 0) {
-          await processPaintingResult(ctx, { base64s })
+          return { base64s }
         }
         return
       } else if (painting.model === 'V_3') {
@@ -158,7 +156,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
 
         const response = await fetch(`${provider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
           method: 'POST',
-          headers: { 'Api-Key': provider.apiKey },
+          headers: { 'Api-Key': apiKey },
           body: formData,
           signal: abortController.signal
         })
@@ -175,7 +173,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
         const urls = data.data.map((item: any) => item.url)
 
         if (urls.length > 0) {
-          await processPaintingResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
+          return { urls, downloadOptions: { showProxyWarning: true } }
         }
         return
       } else {
@@ -191,7 +189,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
           }
           url = provider.apiHost + `/v1/images/generations`
           headers = {
-            Authorization: `Bearer ${provider.apiKey}`
+            Authorization: `Bearer ${apiKey}`
           }
         } else if (painting.model === 'FLUX.1-Kontext-pro') {
           requestData = {
@@ -201,7 +199,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
           }
           url = provider.apiHost + `/v1/images/generations`
           headers = {
-            Authorization: `Bearer ${provider.apiKey}`
+            Authorization: `Bearer ${apiKey}`
           }
         } else {
           requestData = {
@@ -258,7 +256,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
 
         const response = await fetch(`${provider.apiHost}/ideogram/v1/ideogram-v3/remix`, {
           method: 'POST',
-          headers: { 'Api-Key': provider.apiKey },
+          headers: { 'Api-Key': apiKey },
           body: formData,
           signal: abortController.signal
         })
@@ -275,7 +273,7 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
         const urls = data.data.map((item: any) => item.url)
 
         if (urls.length > 0) {
-          await processPaintingResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
+          return { urls, downloadOptions: { showProxyWarning: true } }
         }
         return
       } else {
@@ -332,18 +330,17 @@ export async function generateWithAihubmix(ctx: GenerateContext) {
       const data = await response.json()
       if (data.output) {
         const base64s = data.output.b64_json.map((item: any) => item.bytesBase64)
-        await processPaintingResult(ctx, { base64s })
-        return
+        return { base64s }
       }
       const urls = data.data.filter((item: any) => item.url).map((item: any) => item.url)
       const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
 
       if (urls.length > 0) {
-        await processPaintingResult(ctx, { urls, downloadOptions: { showProxyWarning: true } })
+        return { urls, downloadOptions: { showProxyWarning: true } }
       }
 
       if (base64s?.length > 0) {
-        await processPaintingResult(ctx, { base64s })
+        return { base64s }
       }
     }
 

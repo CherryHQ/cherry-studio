@@ -23,6 +23,7 @@ export type BaseConfigItem = {
     | 'iconRadio'
     | 'styleToggle'
     | 'dynamicSchema'
+    | 'sizeChips'
   key?: string
   title?: string
   tooltip?: string

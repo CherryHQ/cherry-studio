@@ -1,10 +1,10 @@
 import { paintingService } from '@data/services/PaintingService'
 import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
 import {
   CreatePaintingSchema,
   ListPaintingsQuerySchema,
-  ReorderPaintingsSchema,
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
 
@@ -40,10 +40,19 @@ export const paintingHandlers: {
     }
   },
 
-  '/paintings/reorder': {
-    POST: async ({ body }) => {
-      const parsed = ReorderPaintingsSchema.parse(body)
-      return await paintingService.reorder(parsed)
+  '/paintings/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = OrderRequestSchema.parse(body)
+      await paintingService.reorder(params.id, parsed)
+      return undefined
+    }
+  },
+
+  '/paintings/order:batch': {
+    PATCH: async ({ body }) => {
+      const parsed = OrderBatchRequestSchema.parse(body)
+      await paintingService.reorderBatch(parsed.moves)
+      return undefined
     }
   }
 }

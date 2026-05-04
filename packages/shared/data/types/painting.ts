@@ -21,7 +21,7 @@ export const PaintingSchema = z.object({
   params: PaintingParamsSchema,
   files: PaintingFilesSchema,
   parentId: z.string().nullable().optional(),
-  sortOrder: z.number().int(),
+  orderKey: z.string().min(1),
   createdAt: z.string(),
   updatedAt: z.string()
 })

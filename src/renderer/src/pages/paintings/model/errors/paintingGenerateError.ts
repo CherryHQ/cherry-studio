@@ -1,4 +1,4 @@
-import type { TFunction } from 'i18next'
+import i18n from '@renderer/i18n'
 
 export type PaintingGenerateErrorCode =
   | 'NO_API_KEY'
@@ -60,13 +60,13 @@ export function normalizePaintingGenerateError(error: unknown): Error {
   return createPaintingGenerateError('GENERATE_FAILED')
 }
 
-export function translatePaintingGenerateError(error: Error, t: TFunction): string {
+export function translatePaintingGenerateError(error: Error): string {
   if (!(error instanceof PaintingGenerateError)) {
     return error.message
   }
 
   if (error.code === 'REMOTE_ERROR') {
-    return error.message || t('paintings.generate_failed')
+    return error.message || i18n.t('paintings.generate_failed')
   }
 
   const keyMap: Record<Exclude<PaintingGenerateErrorCode, 'REMOTE_ERROR'>, string> = {
@@ -90,12 +90,12 @@ export function translatePaintingGenerateError(error: Error, t: TFunction): stri
     CUSTOM_SIZE_PIXELS: 'paintings.zhipu.custom_size_pixels'
   }
 
-  return t(keyMap[error.code])
+  return i18n.t(keyMap[error.code])
 }
 
-export function presentPaintingGenerateError(error: unknown, t: TFunction) {
+export function presentPaintingGenerateError(error: unknown) {
   const normalized = normalizePaintingGenerateError(error)
-  const message = translatePaintingGenerateError(normalized, t)
+  const message = translatePaintingGenerateError(normalized)
 
   if (normalized instanceof PaintingGenerateError && normalized.presentation === 'toast') {
     if (normalized.severity === 'warning') {

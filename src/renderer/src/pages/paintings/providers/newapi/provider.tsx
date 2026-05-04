@@ -1,35 +1,31 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { PROVIDER_URLS } from '@renderer/config/providers'
+import i18n from '@renderer/i18n'
 import { uuid } from '@renderer/utils'
+import type { TFunction } from 'i18next'
 
 import { SettingHelpLink } from '../../../settings'
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
+import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
+import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
+import { loadPaintingModelOptions } from '../../model/utils/paintingModelOptions'
 import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from './config'
 import { newApiFields } from './fields'
 import { generateWithNewApi } from './generate'
-import { renderNewApiSidebarExtra } from './sidebar'
 
-function getModelOptions(provider: {
-  models: Array<{
-    id: string
-    name: string
-    endpoint_type?: string
-    supported_endpoint_types?: string[]
-    group?: string
-  }>
-}) {
-  return provider.models
-    .filter(
-      (model) =>
-        model.endpoint_type === 'image-generation' || model.supported_endpoint_types?.includes('image-generation')
-    )
-    .map((model) => ({
-      label: model.name,
-      value: model.id,
-      custom: !SUPPORTED_MODELS.includes(model.id),
-      group: model.group || ''
-    }))
+export function NewApiHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
+  const Icon = resolveProviderIcon(provider.id)
+  return (
+    <SettingHelpLink
+      target="_blank"
+      href={
+        PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS]?.websites?.docs ||
+        'https://docs.newapi.pro/apps/cherry-studio/'
+      }>
+      {t('paintings.learn_more')}
+      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+    </SettingHelpLink>
+  )
 }
 
 function getModelDefaults(modelId: string) {
@@ -62,14 +58,19 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
       defaultTab: 'generate',
       tabToDbMode: (tab: string) => tab as any,
       getModels: () => ({
-        type: 'dynamic',
-        resolver: (provider) => getModelOptions(provider as any)
+        type: 'async',
+        loader: async () =>
+          (await loadPaintingModelOptions(providerId)).map((option) => ({
+            ...option,
+            custom: !SUPPORTED_MODELS.includes(option.value)
+          }))
       }),
-      createPaintingData: ({ modelOptions }) => ({
+      createPaintingData: ({ modelOptions, tab }) => ({
         ...DEFAULT_PAINTING,
         id: uuid(),
-        model: modelOptions?.[0]?.value || '',
-        providerId
+        providerId,
+        mode: tab === 'edit' ? 'edit' : 'generate',
+        model: modelOptions?.[0]?.value || ''
       })
     },
     fields: {
@@ -77,30 +78,11 @@ export function createNewApiProvider(providerId: string): PaintingProviderDefini
       onModelChange: ({ modelId }) => getModelDefaults(modelId)
     },
     prompt: {
-      translateShortcut: true,
-      placeholder: ({ painting, t, isTranslating }) => {
-        if (isTranslating) return t('paintings.translating')
-        if (painting.model?.startsWith('imagen-')) return t('paintings.prompt_placeholder_en')
-        return t('paintings.prompt_placeholder_edit')
+      placeholder: ({ painting }) => {
+        if (painting.model?.startsWith('imagen-')) return i18n.t('paintings.prompt_placeholder_en')
+        return i18n.t('paintings.prompt_placeholder_edit')
       }
     },
-    slots: {
-      headerExtra: (provider, t) => {
-        const Icon = resolveProviderIcon(provider.id)
-        return (
-          <SettingHelpLink
-            target="_blank"
-            href={
-              PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS]?.websites?.docs ||
-              'https://docs.newapi.pro/apps/cherry-studio/'
-            }>
-            {t('paintings.learn_more')}
-            {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
-          </SettingHelpLink>
-        )
-      },
-      sidebarExtra: (state) => renderNewApiSidebarExtra(providerId, state)
-    },
-    generate: (ctx) => generateWithNewApi(ctx)
+    generate: (input) => generateWithNewApi(input)
   })
 }

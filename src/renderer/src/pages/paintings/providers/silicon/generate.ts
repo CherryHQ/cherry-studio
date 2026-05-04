@@ -1,47 +1,39 @@
 import { AiProvider } from '@renderer/aiCore'
-import { getProviderByModel } from '@renderer/services/AssistantService'
-import FileManager from '@renderer/services/FileManager'
-import i18next from 'i18next'
+import type { Model } from '@renderer/types'
 
-import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
 import { runPainting } from '../../model/services/paintingGenerationService'
-import type { SiliconPaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
 import { TEXT_TO_IMAGES_MODELS } from './defaults'
 
-export async function generateWithSilicon(ctx: GenerateContext) {
-  const {
-    input: { painting: rawPainting, provider, abortController },
-    writers: { patchPainting }
-  } = ctx
+export async function generateWithSilicon(input: GenerateInput) {
+  const { painting: rawPainting, provider, abortController } = input
   const painting = rawPainting as any
 
-  await checkProviderEnabled(provider)
-
-  if (painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
-    })
-    if (!confirmed) return
-    await FileManager.deleteFiles(painting.files)
-  }
+  const apiKey = await checkProviderEnabled(provider)
 
   const prompt = painting.prompt || ''
-  patchPainting({ prompt } as Partial<PaintingData>)
 
-  const model = TEXT_TO_IMAGES_MODELS.find((item) => item.id === painting.model)
-  const resolvedProvider = getProviderByModel(model)
+  if (!painting.model) return []
 
-  if (!resolvedProvider.apiKey) {
-    throw createPaintingGenerateError('NO_API_KEY')
-  }
-
-  if (!painting.model) return
-
-  await runPainting(ctx, async () => {
-    const AI = new AiProvider(resolvedProvider)
+  return runPainting(async () => {
+    const model =
+      TEXT_TO_IMAGES_MODELS.find((item) => item.id === painting.model) ||
+      ({
+        id: painting.model,
+        provider: provider.id,
+        name: painting.model,
+        group: ''
+      } as Model)
+    const AI = new AiProvider(model, {
+      id: provider.id,
+      type: 'openai',
+      name: provider.name,
+      apiKey,
+      apiHost: provider.apiHost,
+      models: [model],
+      enabled: provider.isEnabled
+    })
     const numImages = Number(painting.numImages) || 1
 
     const urls = await AI.generateImage({

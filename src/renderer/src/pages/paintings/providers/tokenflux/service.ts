@@ -1,14 +1,15 @@
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
 import md5 from 'md5'
 
-import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
 import type { TokenFluxModel } from './config'
 
 const logger = loggerService.withContext('TokenFluxService')
 
 const TOKENFLUX_IMAGE_API_HOST = 'https://api.tokenflux.ai'
+const TOKENFLUX_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
+
+const modelsCache = new Map<string, { expiresAt: number; models: TokenFluxModel[] }>()
 
 function createAbortError(message: string): Error {
   const error = new Error(message)
@@ -66,9 +67,9 @@ export class TokenFluxService {
 
   async fetchModels(): Promise<TokenFluxModel[]> {
     const cacheKey = `tokenflux_models_${this.apiHost}_${md5(this.apiKey || 'anonymous')}`
-    const cachedModels = cacheService.getCasual<TokenFluxModel[]>(cacheKey)
-    if (cachedModels) {
-      return cachedModels
+    const cachedModels = modelsCache.get(cacheKey)
+    if (cachedModels && cachedModels.expiresAt > Date.now()) {
+      return cachedModels.models
     }
 
     const response = await fetch(`${TOKENFLUX_IMAGE_API_HOST}/v1/images/models`, {
@@ -83,7 +84,11 @@ export class TokenFluxService {
       throw new Error('Failed to fetch models')
     }
 
-    cacheService.setCasual(cacheKey, data.data, 60 * 60 * 1000)
+    modelsCache.set(cacheKey, {
+      expiresAt: Date.now() + TOKENFLUX_MODELS_CACHE_TTL_MS,
+      models: data.data
+    })
+
     return data.data
   }
 
@@ -124,7 +129,7 @@ export class TokenFluxService {
   async pollGenerationResult(
     generationId: string,
     options: {
-      onStatusUpdate?: (updates: Partial<TokenFluxPainting>) => void
+      onStatusUpdate?: (status: string) => void
       signal?: AbortSignal
       maxRetries?: number
       timeoutMs?: number
@@ -187,7 +192,7 @@ export class TokenFluxService {
           retryCount = 0
 
           if (result) {
-            onStatusUpdate?.({ generationStatus: result.status as TokenFluxPainting['generationStatus'] })
+            onStatusUpdate?.(result.status)
 
             if (result.status === 'succeeded') {
               finish(resolve, result)
@@ -225,7 +230,7 @@ export class TokenFluxService {
   async generateAndWait(
     request: TokenFluxGenerationRequest,
     options: {
-      onStatusUpdate?: (updates: Partial<TokenFluxPainting>) => void
+      onStatusUpdate?: (status: string) => void
       signal?: AbortSignal
       maxRetries?: number
       timeoutMs?: number
@@ -234,9 +239,6 @@ export class TokenFluxService {
   ): Promise<TokenFluxGenerationResponse['data']> {
     const { signal, onStatusUpdate, ...pollOptions } = options
     const generationId = await this.createGeneration(request, signal)
-    if (onStatusUpdate) {
-      onStatusUpdate({ generationId })
-    }
     return this.pollGenerationResult(generationId, { ...pollOptions, onStatusUpdate, signal })
   }
 

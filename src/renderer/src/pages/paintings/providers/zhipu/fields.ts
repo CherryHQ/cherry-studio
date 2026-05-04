@@ -10,7 +10,7 @@ export const zhipuFields = [
     condition: (painting) => painting.model === 'cogview-4-250304'
   },
   {
-    type: 'select',
+    type: 'sizeChips',
     key: 'imageSize',
     title: 'paintings.image.size',
     options: [

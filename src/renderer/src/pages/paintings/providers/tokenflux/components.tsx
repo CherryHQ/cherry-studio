@@ -7,23 +7,20 @@ import { useTranslation } from 'react-i18next'
 import Artboard from '../../components/Artboard'
 import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
 import { SchemaValueField } from '../../form/fields/SchemaField'
+import type { ModelOption } from '../../hooks/useModelLoader'
 import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
-import type { CenterSlotState, SidebarSlotState } from '../types'
 import type { TokenFluxModel } from './config'
 
 function readI18nContext(property: Record<string, any>, key: string, lang: string): string {
   return property[`${key}_${lang}`] || property[key]
 }
 
-interface TokenFluxSidebarProps {
+export const TokenFluxSidebarContent: FC<{
   painting: TokenFluxPainting
-  isLoading: boolean
   patchPainting: (updates: Partial<TokenFluxPainting>) => void
-  modelOptions: Array<{ value: string; label: string; group?: string; [k: string]: any }>
+  modelOptions: ModelOption[]
   t: TFunction
-}
-
-const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, patchPainting, modelOptions, t }) => {
+}> = ({ painting, patchPainting, modelOptions, t }) => {
   const { i18n } = useTranslation()
   const lang = i18n.language.split('-')[0]
 
@@ -89,36 +86,17 @@ const TokenFluxSidebar: FC<TokenFluxSidebarProps> = ({ painting, patchPainting, 
   )
 }
 
-export const TokenFluxSidebarWrapper: FC<{ state: SidebarSlotState<TokenFluxPainting> }> = ({ state }) => {
-  const { painting, isLoading, patchPainting, modelOptions, t } = state
-
-  return (
-    <TokenFluxSidebar
-      painting={painting}
-      isLoading={isLoading}
-      patchPainting={patchPainting}
-      modelOptions={modelOptions}
-      t={t}
-    />
-  )
-}
-
-export const TokenFluxCenterContent: FC<{ state: CenterSlotState<TokenFluxPainting> }> = ({ state }) => {
-  const { painting, isLoading, currentImageIndex, prevImage, nextImage, onCancel, t } = state
+export const TokenFluxCenterContent: FC<{
+  painting: TokenFluxPainting
+  isLoading: boolean
+  onCancel: () => void
+}> = ({ painting, isLoading, onCancel }) => {
+  const { t } = useTranslation()
   const formData: Record<string, any> = painting.inputParams || {}
   const hasImageInput = Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key])
 
   if (!hasImageInput) {
-    return (
-      <Artboard
-        painting={painting}
-        isLoading={isLoading}
-        currentImageIndex={currentImageIndex}
-        onPrevImage={prevImage}
-        onNextImage={nextImage}
-        onCancel={onCancel}
-      />
-    )
+    return <Artboard painting={painting} isLoading={isLoading} onCancel={onCancel} />
   }
 
   return (
@@ -153,20 +131,8 @@ export const TokenFluxCenterContent: FC<{ state: CenterSlotState<TokenFluxPainti
         <div className="border-[var(--color-border)] border-b bg-[var(--color-background-soft)] px-5 py-2.5 text-center font-medium text-[14px] text-[var(--color-text-2)]">
           {t('paintings.generated_image')}
         </div>
-        <Artboard
-          painting={painting}
-          isLoading={isLoading}
-          currentImageIndex={currentImageIndex}
-          onPrevImage={prevImage}
-          onNextImage={nextImage}
-          onCancel={onCancel}
-        />
+        <Artboard painting={painting} isLoading={isLoading} onCancel={onCancel} />
       </div>
     </div>
   )
-}
-
-export {
-  TokenFluxCenterContent as renderTokenFluxCenterContent,
-  TokenFluxSidebarWrapper as renderTokenFluxSidebarExtra
 }

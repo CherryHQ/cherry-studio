@@ -1,12 +1,25 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import i18n from '@renderer/i18n'
+import type { TFunction } from 'i18next'
 
 import { SettingHelpLink } from '../../../settings'
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
-import { createMultiModeProvider, type GenerateContext, type PaintingProviderDefinition } from '../types'
+import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
+import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
+import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { createDefaultAihubmixPainting } from './defaults'
 import { aihubmixFields, getStaticModelsForAihubmixMode } from './fields'
 import { generateWithAihubmix } from './generate'
 import { aihubmixImagePlaceholder, getAihubmixPreviewSrc, handleAihubmixImageUpload } from './imageUpload'
+
+export function AihubmixHeaderActions({ provider, t }: { provider: PaintingProviderRuntime; t: TFunction }) {
+  const Icon = resolveProviderIcon('aihubmix')
+  return (
+    <SettingHelpLink target="_blank" href={provider.apiHost}>
+      {t('paintings.learn_more')}
+      {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
+    </SettingHelpLink>
+  )
+}
 
 export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvider<PaintingData>({
   id: 'aihubmix',
@@ -29,13 +42,11 @@ export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvi
     onModelChange: ({ modelId }) => ({ model: modelId })
   },
   prompt: {
-    translateShortcut: true,
-    placeholder: ({ painting, t, isTranslating }) => {
-      if (isTranslating) return t('paintings.translating')
+    placeholder: ({ painting }) => {
       if (painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')) {
-        return t('paintings.prompt_placeholder_en')
+        return i18n.t('paintings.prompt_placeholder_en')
       }
-      return t('paintings.prompt_placeholder_edit')
+      return i18n.t('paintings.prompt_placeholder_edit')
     }
   },
   image: {
@@ -43,16 +54,5 @@ export const aihubmixProvider: PaintingProviderDefinition = createMultiModeProvi
     getPreviewSrc: ({ key, painting }) => getAihubmixPreviewSrc(key, painting),
     placeholder: aihubmixImagePlaceholder
   },
-  slots: {
-    headerExtra: (provider, t) => {
-      const Icon = resolveProviderIcon('aihubmix')
-      return (
-        <SettingHelpLink target="_blank" href={provider.apiHost}>
-          {t('paintings.learn_more')}
-          {Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null}
-        </SettingHelpLink>
-      )
-    }
-  },
-  generate: (ctx: GenerateContext) => generateWithAihubmix(ctx)
+  generate: (input) => generateWithAihubmix(input)
 })

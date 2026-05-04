@@ -1,15 +1,10 @@
-import { AiProvider } from '@renderer/aiCore'
-import FileManager from '@renderer/services/FileManager'
 import i18next from 'i18next'
 
 import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import {
-  processPaintingResult as processResult,
-  runPainting as runGeneration
-} from '../../model/services/paintingGenerationService'
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
+import { runPainting as runGeneration } from '../../model/services/paintingGenerationService'
+import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
 import { getEditImageFiles } from './editFiles'
 
 type ImageResponseItem = {
@@ -17,7 +12,7 @@ type ImageResponseItem = {
   b64_json?: string
 }
 
-function buildRequestUrls(provider: GenerateContext['input']['provider']) {
+function buildRequestUrls(provider: GenerateInput['provider']) {
   const baseUrl = provider.apiHost.replace(/\/v1$/, '')
 
   if (provider.id === 'aionly') {
@@ -71,54 +66,22 @@ function buildEditRequestBody(painting: PaintingData, prompt: string, modelId: s
   return formData
 }
 
-async function ensureCleanOutput(painting: PaintingData) {
-  if (painting.files.length === 0) {
-    return true
-  }
+export async function generateWithNewApi(input: GenerateInput) {
+  const { painting, provider, abortController, tab } = input
 
-  const confirmed = await window.modal.confirm({
-    content: i18next.t('paintings.regenerate.confirm'),
-    centered: true
-  })
-
-  if (!confirmed) {
-    return false
-  }
-
-  await FileManager.deleteFiles(painting.files)
-  return true
-}
-
-export async function generateWithNewApi(ctx: GenerateContext) {
-  const {
-    input: { painting, provider, abortController, tab },
-    writers: { patchPainting }
-  } = ctx
-
-  await checkProviderEnabled(provider)
-
-  const canContinue = await ensureCleanOutput(painting)
-  if (!canContinue) {
-    return
-  }
+  const apiKey = await checkProviderEnabled(provider)
 
   const prompt = painting.prompt || ''
-  patchPainting({ prompt } as Partial<PaintingData>)
-
-  const aiProvider = new AiProvider(provider)
-  const apiKey = aiProvider.getApiKey()
 
   if (!apiKey) {
     throw createPaintingGenerateError('NO_API_KEY')
   }
 
-  if (!painting.model || !painting.prompt) {
-    return
-  }
+  if (!painting.model || !painting.prompt) return []
 
   const modelId = painting.model
 
-  await runGeneration(ctx, async () => {
+  return runGeneration(async () => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`
     }
@@ -164,11 +127,13 @@ export async function generateWithNewApi(ctx: GenerateContext) {
     const base64s = items.filter((item) => item.b64_json).map((item) => item.b64_json as string)
 
     if (urls.length > 0) {
-      await processResult(ctx, { urls })
+      return { urls }
     }
 
     if (base64s.length > 0) {
-      await processResult(ctx, { base64s })
+      return { base64s }
     }
+
+    return undefined
   })
 }

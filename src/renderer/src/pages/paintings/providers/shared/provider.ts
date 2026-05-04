@@ -1,53 +1,22 @@
-import type { Provider } from '@renderer/types/provider'
+import type { FileMetadata } from '@renderer/types'
 import type { PaintingMode } from '@shared/data/types/painting'
-import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 
 import type { ModelConfig, ModelOption } from '../../hooks/useModelLoader'
 import type { PaintingData } from '../../model/types/paintingData'
+import type { PaintingProviderRuntime } from '../../model/types/paintingProviderRuntime'
 import type { BaseConfigItem } from './providerFieldSchema'
 
-export interface GenerateWriters<T extends PaintingData = PaintingData> {
-  patchPainting: (updates: Partial<T>) => void
-  setFallbackUrls: (urls: string[]) => void
-  setIsLoading: (value: boolean) => void
-}
-
-export interface GenerateContext<T extends PaintingData = PaintingData> {
-  input: {
-    painting: T
-    provider: Provider
-    tab: string
-    abortController: AbortController
-  }
-  writers: GenerateWriters<T>
-}
-
-export interface SidebarSlotState<T extends PaintingData = PaintingData> {
-  tab: string
+export interface GenerateInput<T extends PaintingData = PaintingData> {
   painting: T
-  modelOptions: ModelOption[]
-  isLoading: boolean
-  patchPainting: (updates: Partial<T>) => void
-  t: TFunction
-}
-
-export interface CenterSlotState<T extends PaintingData = PaintingData> {
+  provider: PaintingProviderRuntime
   tab: string
-  painting: T
-  modelOptions: ModelOption[]
-  isLoading: boolean
-  currentImageIndex: number
-  prevImage: () => void
-  nextImage: () => void
-  onCancel: () => void
-  t: TFunction
-}
-
-export interface ArtboardSlotState<T extends PaintingData = PaintingData> {
-  tab: string
-  painting: T
-  modelOptions: ModelOption[]
+  abortController: AbortController
+  onGenerationStateChange?: (
+    updates: Partial<
+      Pick<PaintingData, 'generationTaskId' | 'generationError' | 'generationProgress' | 'generationStatus'>
+    >
+  ) => void
 }
 
 export interface ProviderMode<T extends PaintingData = PaintingData> {
@@ -64,25 +33,19 @@ export interface ProviderFields<T extends PaintingData = PaintingData> {
 }
 
 export interface ProviderPrompt<T extends PaintingData = PaintingData> {
-  translateShortcut?: boolean
-  placeholder?: (input: { painting: T; t: TFunction; isTranslating: boolean }) => string
+  placeholder?: (input: { painting: T }) => string
   disabled?: (input: { painting: T; isLoading: boolean }) => boolean
 }
 
 export interface ProviderImage<T extends PaintingData = PaintingData> {
-  onUpload?: (input: { key: string; file: File; patchPainting: (updates: Partial<T>) => void }) => void
+  onUpload?: (input: { key: string; file: File; patchPainting: (updates: Partial<PaintingData>) => void }) => void
   getPreviewSrc?: (input: { key: string; painting: T }) => string | undefined
   placeholder?: ReactNode
 }
 
-export interface ProviderSlots<T extends PaintingData = PaintingData> {
-  headerExtra?: (provider: Provider, t: TFunction) => ReactNode
-  sidebarExtra?: (state: SidebarSlotState<T>) => ReactNode
-  centerContent?: (state: CenterSlotState<T>) => ReactNode
-  artboardOverrides?: (state: ArtboardSlotState<T>) => Record<string, unknown>
-}
-
-export type ProviderGenerate<T extends PaintingData = PaintingData> = (ctx: GenerateContext<T>) => Promise<void>
+export type ProviderGenerate<T extends PaintingData = PaintingData> = (
+  input: GenerateInput<T>
+) => Promise<FileMetadata[]>
 
 export interface PaintingProvider<T extends PaintingData = PaintingData> {
   id: string
@@ -90,7 +53,6 @@ export interface PaintingProvider<T extends PaintingData = PaintingData> {
   fields: ProviderFields<T>
   prompt?: ProviderPrompt<T>
   image?: ProviderImage<T>
-  slots?: ProviderSlots<T>
   generate: ProviderGenerate<T>
 }
 
@@ -103,7 +65,6 @@ interface SingleModeProviderConfig<T extends PaintingData = PaintingData> {
   onModelChange?: (input: { modelId: string; painting: T; modelOptions: ModelOption[] }) => Partial<T>
   prompt?: ProviderPrompt<T>
   image?: ProviderImage<T>
-  slots?: ProviderSlots<T>
   generate: ProviderGenerate<T>
 }
 
@@ -127,7 +88,6 @@ export function createSingleModeProvider<T extends PaintingData = PaintingData>(
     },
     prompt: config.prompt,
     image: config.image,
-    slots: config.slots,
     generate: config.generate
   }
 }
@@ -136,4 +96,4 @@ export function createMultiModeProvider<T extends PaintingData = PaintingData>(p
   return provider
 }
 
-export type PaintingProviderDefinition<T extends PaintingData = PaintingData> = PaintingProvider<T>
+export type PaintingProviderDefinition = PaintingProvider<any>

@@ -30,7 +30,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
   const imageFiles = fileMap.imageFiles || []
 
-  const uploadSlots = useMemo(() => {
+  const uploadItems = useMemo(() => {
     const paths = fileMap.paths || []
     return paths.map((src, index) => ({ src, index }))
   }, [fileMap.paths])
@@ -46,7 +46,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       </div>
 
       <div className="flex flex-wrap">
-        {uploadSlots.map(({ src, index }) => (
+        {uploadItems.map(({ src, index }) => (
           <div key={index} className="relative mr-1 mb-1 h-[45%] w-[45%]">
             <label className="block h-full w-full cursor-pointer">
               <input

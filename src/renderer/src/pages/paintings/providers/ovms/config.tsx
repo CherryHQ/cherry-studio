@@ -4,7 +4,17 @@ import type { OvmsPaintingData as PaintingData } from '../../model/types/paintin
 
 // Configuration item type definition
 export type ConfigItem = {
-  type: 'select' | 'radio' | 'slider' | 'input' | 'switch' | 'inputNumber' | 'textarea' | 'title' | 'description'
+  type:
+    | 'select'
+    | 'radio'
+    | 'slider'
+    | 'input'
+    | 'switch'
+    | 'inputNumber'
+    | 'textarea'
+    | 'title'
+    | 'description'
+    | 'sizeChips'
   key?: keyof PaintingData | 'commonModel'
   title?: string
   tooltip?: string
@@ -82,7 +92,7 @@ export const createOvmsConfig = (models?: Array<{ label: string; value: string }
       initialValue: availableModels[0]?.value || 'Select Model Here'
     },
     {
-      type: 'select',
+      type: 'sizeChips',
       key: 'size',
       title: 'paintings.image.size',
       options: SIZE_OPTIONS,
@@ -110,6 +120,8 @@ export const createOvmsConfig = (models?: Array<{ label: string; value: string }
 // Default painting configuration for OVMS
 export const DEFAULT_OVMS_PAINTING: PaintingData = {
   id: uuid(),
+  providerId: 'ovms',
+  mode: 'generate',
   model: '',
   prompt: '',
   size: '512x512',

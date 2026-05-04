@@ -8,7 +8,7 @@ import {
   STYLE_TYPES,
   V3_STYLE_TYPES
 } from '../../config/constants'
-import type { PaintingData } from '../../model/types/paintingData'
+import type { AihubmixPaintingData as PaintingData } from '../../model/types/paintingData'
 
 // 配置项类型定义
 export type ConfigItem = {
@@ -23,6 +23,7 @@ export type ConfigItem = {
     | 'title'
     | 'description'
     | 'image'
+    | 'sizeChips'
   key?: keyof PaintingData | 'commonModel'
   title?: string
   tooltip?: string
@@ -158,7 +159,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         condition: (painting) => Boolean(painting.model?.startsWith('V_'))
       },
       {
-        type: 'select',
+        type: 'sizeChips',
         key: 'size',
         title: 'paintings.aspect_ratio',
         options: [
@@ -216,7 +217,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           Boolean(painting.model?.startsWith('imagen-') && painting.model !== 'imagen-4.0-ultra-generate-preview-06-06')
       },
       {
-        type: 'select',
+        type: 'sizeChips',
         key: 'aspectRatio',
         title: 'paintings.aspect_ratio',
         options: [
@@ -231,7 +232,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           Boolean(painting.model?.startsWith('imagen-') || painting.model === 'gemini-3-pro-image-preview')
       },
       {
-        type: 'select',
+        type: 'sizeChips',
         key: 'imageSize',
         title: 'paintings.image.size',
         options: [
@@ -414,6 +415,8 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
 // 几种默认的绘画配置
 export const DEFAULT_PAINTING: PaintingData = {
   id: 'aihubmix_1',
+  providerId: 'aihubmix',
+  mode: 'generate',
   model: 'gemini-3-pro-image-preview',
   aspectRatio: 'ASPECT_1_1',
   numImages: 1,

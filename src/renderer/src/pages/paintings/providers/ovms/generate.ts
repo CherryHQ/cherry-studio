@@ -1,32 +1,14 @@
-import FileManager from '@renderer/services/FileManager'
-import i18next from 'i18next'
-
 import { createPaintingGenerateError } from '../../model/errors/paintingGenerateError'
-import { processPaintingResult, runPainting } from '../../model/services/paintingGenerationService'
-import type { OvmsPaintingData as PaintingData } from '../../model/types/paintingData'
-import type { GenerateContext } from '../types'
+import { runPainting } from '../../model/services/paintingGenerationService'
+import type { OvmsPaintingData } from '../../model/types/paintingData'
+import type { GenerateInput } from '../types'
 
-export async function generateWithOvms(ctx: GenerateContext) {
-  const {
-    input: { painting, provider, abortController },
-    writers: { patchPainting }
-  } = ctx
+export async function generateWithOvms(input: GenerateInput<OvmsPaintingData>) {
+  const { painting, provider, abortController } = input
 
-  if (painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
-    })
-    if (!confirmed) return
-    await FileManager.deleteFiles(painting.files)
-  }
+  if (!painting.model || !painting.prompt) return []
 
-  const prompt = painting.prompt || ''
-  patchPainting({ prompt } as Partial<PaintingData>)
-
-  if (!painting.model || !painting.prompt) return
-
-  await runPainting(ctx, async () => {
+  return runPainting(async () => {
     const requestBody = {
       model: painting.model,
       prompt: painting.prompt,
@@ -54,12 +36,12 @@ export async function generateWithOvms(ctx: GenerateContext) {
     if (data.data && data.data.length > 0) {
       const base64s = data.data.filter((item: any) => item.b64_json).map((item: any) => item.b64_json)
       if (base64s.length > 0) {
-        await processPaintingResult(ctx, { base64s })
+        return { base64s }
       }
 
       const urls = data.data.filter((item: any) => item.url).map((item: any) => item.url)
       if (urls.length > 0) {
-        await processPaintingResult(ctx, { urls })
+        return { urls }
       }
     }
 

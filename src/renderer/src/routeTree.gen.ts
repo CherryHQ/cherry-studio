@@ -53,7 +53,6 @@ import { Route as SettingsMcpMcpInstallRouteImport } from './routes/settings/mcp
 import { Route as SettingsMcpMarketplacesRouteImport } from './routes/settings/mcp/marketplaces'
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
-import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
 import { Route as AppMinappAppIdRouteImport } from './routes/app/minapp/$appId'
 import { Route as SettingsWebsearchProviderProviderIdRouteImport } from './routes/settings/websearch/provider.$providerId'
 import { Route as SettingsMcpSettingsServerIdRouteImport } from './routes/settings/mcp/settings.$serverId'
@@ -280,11 +279,6 @@ const SettingsMcpSplatRoute = SettingsMcpSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => SettingsMcpRoute,
 } as any)
-const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
-  id: '/paintings/$',
-  path: '/paintings/$',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppMinappAppIdRoute = AppMinappAppIdRouteImport.update({
   id: '/minapp/$appId',
   path: '/minapp/$appId',
@@ -338,7 +332,6 @@ export interface FileRoutesByFullPath {
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
-  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -385,7 +378,6 @@ export interface FileRoutesByTo {
   '/settings/skills': typeof SettingsSkillsRoute
   '/settings': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
-  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -436,7 +428,6 @@ export interface FileRoutesById {
   '/settings/websearch': typeof SettingsWebsearchRouteWithChildren
   '/settings/': typeof SettingsIndexRoute
   '/app/minapp/$appId': typeof AppMinappAppIdRoute
-  '/app/paintings/$': typeof AppPaintingsSplatRoute
   '/settings/mcp/$': typeof SettingsMcpSplatRoute
   '/settings/mcp/builtin': typeof SettingsMcpBuiltinRoute
   '/settings/mcp/marketplaces': typeof SettingsMcpMarketplacesRoute
@@ -488,7 +479,6 @@ export interface FileRouteTypes {
     | '/settings/websearch'
     | '/settings/'
     | '/app/minapp/$appId'
-    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -535,7 +525,6 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/settings'
     | '/app/minapp/$appId'
-    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -585,7 +574,6 @@ export interface FileRouteTypes {
     | '/settings/websearch'
     | '/settings/'
     | '/app/minapp/$appId'
-    | '/app/paintings/$'
     | '/settings/mcp/$'
     | '/settings/mcp/builtin'
     | '/settings/mcp/marketplaces'
@@ -918,13 +906,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMcpSplatRouteImport
       parentRoute: typeof SettingsMcpRoute
     }
-    '/app/paintings/$': {
-      id: '/app/paintings/$'
-      path: '/paintings/$'
-      fullPath: '/app/paintings/$'
-      preLoaderRoute: typeof AppPaintingsSplatRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/minapp/$appId': {
       id: '/app/minapp/$appId'
       path: '/minapp/$appId'
@@ -960,7 +941,6 @@ interface AppRouteChildren {
   AppOpenclawRoute: typeof AppOpenclawRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMinappAppIdRoute: typeof AppMinappAppIdRoute
-  AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
   AppMinappIndexRoute: typeof AppMinappIndexRoute
   AppPaintingsIndexRoute: typeof AppPaintingsIndexRoute
 }
@@ -976,7 +956,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppOpenclawRoute: AppOpenclawRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMinappAppIdRoute: AppMinappAppIdRoute,
-  AppPaintingsSplatRoute: AppPaintingsSplatRoute,
   AppMinappIndexRoute: AppMinappIndexRoute,
   AppPaintingsIndexRoute: AppPaintingsIndexRoute,
 }

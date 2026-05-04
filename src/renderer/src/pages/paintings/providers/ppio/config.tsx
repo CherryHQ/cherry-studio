@@ -5,7 +5,7 @@ export type PpioMode = 'ppio_draw' | 'ppio_edit'
 
 // 配置项类型定义
 export type PpioConfigItem = {
-  type: 'select' | 'slider' | 'input' | 'switch' | 'image' | 'textarea' | 'resolution'
+  type: 'select' | 'slider' | 'input' | 'switch' | 'image' | 'textarea' | 'resolution' | 'sizeChips'
   key?: keyof PpioPainting
   title?: string
   tooltip?: string
@@ -246,7 +246,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
   },
   // 即梦尺寸选项
   {
-    type: 'select',
+    type: 'sizeChips',
     key: 'size',
     title: 'paintings.image.size',
     options: JIMENG_SIZE_OPTIONS,
@@ -254,7 +254,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
   },
   // 通用尺寸选项 (Hunyuan, Qwen, Z Image)
   {
-    type: 'select',
+    type: 'sizeChips',
     key: 'size',
     title: 'paintings.image.size',
     options: COMMON_SIZE_OPTIONS,
@@ -263,7 +263,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
   },
   // Seedream 尺寸选项
   {
-    type: 'select',
+    type: 'sizeChips',
     key: 'size',
     title: 'paintings.image.size',
     options: SEEDREAM_SIZE_OPTIONS,
@@ -345,7 +345,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
   },
   // size - 只有 seedream 支持
   {
-    type: 'select',
+    type: 'sizeChips',
     key: 'size',
     title: 'paintings.image.size',
     options: SEEDREAM_SIZE_OPTIONS,
@@ -382,6 +382,8 @@ export const createModeConfigs = (): Record<PpioMode, PpioConfigItem[]> => {
 // 默认 painting 配置
 export const DEFAULT_PPIO_PAINTING: PpioPainting = {
   id: '',
+  providerId: 'ppio',
+  mode: 'draw',
   files: [],
   model: 'jimeng-txt2img-v3.1',
   prompt: '',

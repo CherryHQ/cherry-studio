@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import type { Provider } from '@renderer/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
+
+import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 
 const logger = loggerService.withContext('useModelLoader')
 
@@ -13,12 +14,12 @@ export type ModelOption = {
 
 export type ModelConfig =
   | { type: 'static'; options: ModelOption[] }
-  | { type: 'async'; loader: (provider?: Provider) => Promise<ModelOption[]> }
-  | { type: 'dynamic'; resolver: (provider: Provider) => ModelOption[] }
+  | { type: 'async'; loader: (provider?: PaintingProviderRuntime) => Promise<ModelOption[]> }
+  | { type: 'dynamic'; resolver: (provider: PaintingProviderRuntime) => ModelOption[] }
 
 export function useModelLoader(
   config: ModelConfig,
-  provider: Provider
+  provider: PaintingProviderRuntime
 ): {
   modelOptions: ModelOption[]
   isLoadingModels: boolean

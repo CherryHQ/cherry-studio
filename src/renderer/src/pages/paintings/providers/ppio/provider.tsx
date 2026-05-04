@@ -1,5 +1,5 @@
 import type { PpioPaintingData as PaintingData } from '../../model/types/paintingData'
-import { createMultiModeProvider, type GenerateContext, type PaintingProviderDefinition } from '../types'
+import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { getModelsByMode, type PpioMode } from './config'
 import { createDefaultPpioPainting } from './defaults'
 import { ppioFields } from './fields'
@@ -27,8 +27,5 @@ export const ppioProvider: PaintingProviderDefinition = createMultiModeProvider<
     byTab: ppioFields,
     onModelChange: ({ modelId }) => ({ model: modelId }) as Partial<PaintingData>
   },
-  prompt: {
-    translateShortcut: true
-  },
-  generate: (ctx: GenerateContext) => generateWithPpio(ctx)
+  generate: generateWithPpio
 })

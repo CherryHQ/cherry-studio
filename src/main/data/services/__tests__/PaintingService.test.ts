@@ -1,131 +1,103 @@
-import type { ReorderPaintingsDto } from '@shared/data/api/schemas/paintings'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { paintingTable } from '@data/db/schemas/painting'
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
 
-let capturedInsertValues: unknown = null
-let updateOperations: number[] = []
-
-function createPaintingServiceMockDb(options?: {
-  maxSortOrder?: number
-  scopeIds?: string[]
-  existingRow?: Record<string, unknown>
-}) {
-  const maxSortOrder = options?.maxSortOrder ?? 0
-  const scopeIds = options?.scopeIds ?? []
-  const existingRow = options?.existingRow ?? {
-    id: 'painting-1',
-    providerId: 'aihubmix',
-    mode: 'generate',
-    model: 'model-a',
-    prompt: 'hello',
-    params: {},
-    files: { output: [], input: [] },
-    parentId: null,
-    sortOrder: 1,
-    createdAt: 1,
-    updatedAt: 1
-  }
-
-  const tx = {
-    select: vi.fn(({ maxSortOrder: selectedMaxSortOrder }: Record<string, unknown> = {}) => ({
-      from: vi.fn(() => ({
-        get: vi.fn(async () => (selectedMaxSortOrder !== undefined ? { maxSortOrder } : { maxSortOrder })),
-        where: vi.fn(() => ({
-          get: vi.fn(async () => (selectedMaxSortOrder !== undefined ? { maxSortOrder } : null)),
-          all: vi.fn(async () => scopeIds.map((id) => ({ id }))),
-          limit: vi.fn(async () => [{ id: scopeIds[0] ?? existingRow.id }])
-        }))
-      }))
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn((values: unknown) => {
-        capturedInsertValues = values
-        return {
-          returning: vi.fn(async () => [values])
-        }
-      })
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn((values: Record<string, unknown>) => ({
-        where: vi.fn(() => {
-          updateOperations.push(values.sortOrder as number)
-          return {
-            returning: vi.fn(async () => [{ ...existingRow, ...values }])
-          }
-        })
-      }))
-    })),
-    delete: vi.fn(() => ({
-      where: vi.fn(async () => undefined)
-    }))
-  }
-
-  return {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => [existingRow])
-        }))
-      }))
-    })),
-    update: tx.update,
-    delete: tx.delete,
-    transaction: vi.fn(async (fn: (txArg: typeof tx) => Promise<unknown>) => fn(tx))
-  }
-}
-
-vi.mock('@main/core/application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
-})
-
-const { paintingService } = await import('../PaintingService')
+import { paintingService } from '../PaintingService'
 
 describe('PaintingService', () => {
-  beforeEach(() => {
-    capturedInsertValues = null
-    updateOperations = []
-    vi.clearAllMocks()
-  })
+  const dbh = setupTestDatabase()
 
-  it('assigns the next sort order when creating a painting', async () => {
-    MockMainDbServiceUtils.setDb(createPaintingServiceMockDb({ maxSortOrder: 7 }))
-
-    await paintingService.create({
+  it('assigns global order keys when creating paintings and inserts new items first', async () => {
+    const first = await paintingService.create({
       providerId: 'aihubmix',
       mode: 'generate',
-      prompt: 'hello'
+      prompt: 'first'
     })
-
-    expect(capturedInsertValues).toMatchObject({
+    const second = await paintingService.create({
       providerId: 'aihubmix',
       mode: 'generate',
-      sortOrder: 8
+      prompt: 'second'
     })
+
+    expect(first.orderKey).toBeTruthy()
+    expect(first.orderKey > second.orderKey).toBe(true)
+
+    const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
+    expect(rows.map((row) => row.id)).toEqual([second.id, first.id])
   })
 
-  it('rejects reorder payloads with duplicate ids before touching the database', async () => {
-    MockMainDbServiceUtils.setDb(createPaintingServiceMockDb())
-
-    await expect(
-      paintingService.reorder({
-        orderedIds: ['painting-1', 'painting-1']
-      })
-    ).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR'
+  it('uses one global order sequence across providers and modes', async () => {
+    const generate = await paintingService.create({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      prompt: 'generate'
     })
+    const edit = await paintingService.create({
+      providerId: 'aihubmix',
+      mode: 'edit',
+      prompt: 'edit'
+    })
+
+    expect(generate.orderKey > edit.orderKey).toBe(true)
+
+    const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
+    expect(rows.map((row) => row.id)).toEqual([edit.id, generate.id])
   })
 
-  it('reorders every record in the target scope', async () => {
-    MockMainDbServiceUtils.setDb(createPaintingServiceMockDb({ scopeIds: ['painting-1', 'painting-2', 'painting-3'] }))
+  it('lists filtered paintings ordered by global orderKey', async () => {
+    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
+    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
+    await paintingService.create({ providerId: 'aihubmix', mode: 'edit', prompt: 'other mode' })
 
-    const dto: ReorderPaintingsDto = {
-      orderedIds: ['painting-3', 'painting-1', 'painting-2']
-    }
+    const result = await paintingService.list({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      limit: 20,
+      offset: 0
+    })
 
-    const result = await paintingService.reorder(dto)
+    expect(result.items.map((item) => item.id)).toEqual([second.id, first.id])
+    expect(result.total).toBe(2)
+  })
 
-    expect(result).toEqual({ reorderedCount: 3 })
-    expect(updateOperations).toEqual([3, 2, 1])
+  it("moves a painting to the first position via { position: 'first' }", async () => {
+    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
+    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
+    const third = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'third' })
+
+    await paintingService.reorder(first.id, { position: 'first' })
+
+    const result = await paintingService.list({
+      providerId: 'aihubmix',
+      mode: 'generate',
+      limit: 20,
+      offset: 0
+    })
+    expect(result.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
+  })
+
+  it('allows anchors across providers and modes', async () => {
+    const generate = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'generate' })
+    const edit = await paintingService.create({ providerId: 'aihubmix', mode: 'edit', prompt: 'edit' })
+
+    await paintingService.reorder(generate.id, { after: edit.id })
+
+    const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
+    expect(rows.map((row) => row.id)).toEqual([edit.id, generate.id])
+  })
+
+  it('applies batch moves against the global order', async () => {
+    const first = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'first' })
+    const second = await paintingService.create({ providerId: 'aihubmix', mode: 'generate', prompt: 'second' })
+    const third = await paintingService.create({ providerId: 'dmxapi', mode: 'edit', prompt: 'third' })
+
+    await paintingService.reorderBatch([
+      { id: third.id, anchor: { position: 'first' } },
+      { id: first.id, anchor: { after: third.id } }
+    ])
+
+    const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
+    expect(rows.map((row) => row.id)).toEqual([third.id, first.id, second.id])
   })
 })

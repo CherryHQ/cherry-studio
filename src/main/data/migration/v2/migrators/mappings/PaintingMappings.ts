@@ -1,4 +1,4 @@
-import type { NewPaintingRow } from '@data/db/schemas/painting'
+import type { NewPainting } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { PaintingMode, PaintingParams } from '@shared/data/types/painting'
 
@@ -33,7 +33,7 @@ export interface PaintingFilter {
   mode: PaintingMode
 }
 
-export interface NormalizedPaintingRow extends Omit<NewPaintingRow, 'sortOrder'> {
+export interface NormalizedPaintingRow extends Omit<NewPainting, 'orderKey'> {
   id: string
   providerId: string
   mode: PaintingMode

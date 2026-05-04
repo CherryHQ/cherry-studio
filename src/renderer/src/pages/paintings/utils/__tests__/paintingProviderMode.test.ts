@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { ppioProvider } from '../../../providers/ppio/provider'
-import { zhipuProvider } from '../../../providers/zhipu/provider'
+import { ppioProvider } from '../../providers/ppio/provider'
+import { zhipuProvider } from '../../providers/zhipu/provider'
 import { resolvePaintingTabForMode } from '../paintingProviderMode'
 
 describe('resolvePaintingTabForMode', () => {

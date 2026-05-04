@@ -1,4 +1,3 @@
-import FileManager from '@renderer/services/FileManager'
 import { convertToBase64 } from '@renderer/utils'
 import i18next from 'i18next'
 
@@ -7,7 +6,7 @@ import { runPainting } from '../../model/services/paintingGenerationService'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
 import { checkProviderEnabled } from '../../utils'
-import type { GenerateContext } from '../types'
+import type { GenerateInput } from '../types'
 import { getDmxapiFileMap } from './runtime'
 
 async function prepareRequestConfig(
@@ -90,18 +89,11 @@ function prepareV2Request(prompt: string, painting: DmxapiPainting, provider: { 
   }
 }
 
-export async function generateWithDmxapi(ctx: GenerateContext<DmxapiPainting>) {
-  const {
-    input: { painting, provider, abortController, tab },
-    writers: { patchPainting }
-  } = ctx
+export async function generateWithDmxapi(input: GenerateInput<DmxapiPainting>) {
+  const { painting, provider, abortController, tab } = input
   const mode = tab || generationModeType.GENERATION
 
-  await checkProviderEnabled(provider)
-
-  if (!provider.apiKey) {
-    throw createPaintingGenerateError('NO_API_KEY')
-  }
+  const apiKey = await checkProviderEnabled(provider)
 
   if (!painting.model) {
     throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
@@ -118,24 +110,14 @@ export async function generateWithDmxapi(ctx: GenerateContext<DmxapiPainting>) {
     throw createPaintingGenerateError('IMAGE_HANDLE_REQUIRED')
   }
 
-  if (painting.files.length > 0) {
-    const confirmed = await window.modal.confirm({
-      content: i18next.t('paintings.regenerate.confirm'),
-      centered: true
-    })
-    if (!confirmed) return
-    await FileManager.deleteFiles(painting.files)
-  }
-
   const prompt = painting.prompt || ''
-  patchPainting({ prompt } as Partial<DmxapiPainting>)
 
-  await runPainting(ctx, async () => {
+  return runPainting(async () => {
     const requestConfig = await prepareRequestConfig(prompt, painting, mode, provider)
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      Authorization: `Bearer ${provider.apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
       ...requestConfig.headerExpand
     }

@@ -1,4 +1,5 @@
 import {
+  Button,
   InfoTooltip,
   Select,
   SelectContent,
@@ -8,16 +9,41 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import type { Provider } from '@types'
+import { X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
+import type { ModelOption } from '../hooks/useModelLoader'
+import type { PaintingData } from '../model/types/paintingData'
+import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
+import { PaintingProviderSidebarContent } from '../providers/rendering'
 import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
+import type { PaintingProviderDefinition } from '../providers/types'
 import PaintingsSectionTitle from './PaintingsSectionTitle'
 
-type ModelOption = {
+export function PaintingSettingsPanelHeader({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-col">
+        <span className="text-foreground text-xs tracking-wider">{t('common.settings')}</span>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="size-7 rounded-full text-muted-foreground"
+        onClick={onClose}>
+        <X className="size-3.5" />
+      </Button>
+    </>
+  )
+}
+
+type SidebarModelOption = {
   label: string
   value: string
   group?: string
@@ -25,29 +51,25 @@ type ModelOption = {
 
 type ModelSelectConfig = {
   value: string
-  options: ModelOption[]
+  options: SidebarModelOption[]
   onChange: (modelId: string) => void
   loading?: boolean
   placeholder?: string
   extra?: ReactNode
 }
 
-export interface PaintingSettingsSidebarProps {
-  provider?: Provider
-  options?: string[]
-  onProviderChange?: (id: string) => void
-  providerHeaderExtra?: ReactNode
+export interface PaintingSettingsProps {
+  provider: PaintingProviderRuntime
+  providerDefinition: PaintingProviderDefinition
+  modelOptions: ModelOption[]
+  isLoading: boolean
+  tab: string
   modelSelect?: ModelSelectConfig | ReactNode | null
-  showProviderSection?: boolean
   showModelSection?: boolean
   configItems: BaseConfigItem[]
-  painting: Record<string, unknown>
-  onConfigChange: (updates: Record<string, unknown>) => void
+  painting: PaintingData
+  onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
-  onImageUpload?: (key: string, file: File) => void
-  getImagePreviewSrc?: (key: string) => string | undefined
-  imagePlaceholder?: ReactNode
-  extraContent?: ReactNode
 }
 
 function isReactNode(value: ModelSelectConfig | ReactNode): value is ReactNode {
@@ -104,19 +126,45 @@ function ModelSelectFromConfig({ config }: { config: ModelSelectConfig }) {
   )
 }
 
-const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
+const PaintingSettings: FC<PaintingSettingsProps> = ({
+  provider,
+  providerDefinition,
+  modelOptions,
+  isLoading,
+  tab,
   modelSelect,
   showModelSection = true,
   configItems,
   painting,
   onConfigChange,
-  onGenerateRandomSeed,
-  onImageUpload,
-  getImagePreviewSrc,
-  imagePlaceholder,
-  extraContent
+  onGenerateRandomSeed
 }) => {
   const { t } = useTranslation()
+  const paintingRecord = painting as unknown as Record<string, unknown>
+
+  const handleImageUpload = useCallback(
+    (key: string, file: File) => {
+      providerDefinition.image?.onUpload?.({
+        key,
+        file,
+        patchPainting: onConfigChange as (updates: Partial<PaintingData>) => void
+      })
+    },
+    [onConfigChange, providerDefinition.image]
+  )
+
+  const getImagePreviewSrc = useCallback(
+    (key: string) => {
+      return providerDefinition.image?.getPreviewSrc?.({
+        key,
+        painting
+      })
+    },
+    [painting, providerDefinition.image]
+  )
+
+  const onImageUpload = providerDefinition.image?.onUpload ? handleImageUpload : undefined
+  const imagePreviewResolver = providerDefinition.image?.getPreviewSrc ? getImagePreviewSrc : undefined
 
   return (
     <>
@@ -125,7 +173,7 @@ const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
         (isReactNode(modelSelect) ? modelSelect : <ModelSelectFromConfig config={modelSelect} />)}
 
       {configItems
-        .filter((item) => !item.condition || item.condition(painting))
+        .filter((item) => !item.condition || item.condition(paintingRecord))
         .map((item, index) => (
           <div key={item.key || index}>
             {item.title && (
@@ -136,20 +184,27 @@ const PaintingSettingsSidebar: FC<PaintingSettingsSidebarProps> = ({
             )}
             <PaintingFieldRenderer
               item={item}
-              painting={painting}
+              painting={paintingRecord}
               translate={t}
-              onChange={onConfigChange}
+              onChange={(updates) => onConfigChange(updates as Partial<PaintingData>)}
               onGenerateRandomSeed={onGenerateRandomSeed}
               onImageUpload={onImageUpload ? (key, file) => onImageUpload(key, file) : undefined}
-              imagePreviewSrc={getImagePreviewSrc ? getImagePreviewSrc(item.key || '') : undefined}
-              imagePlaceholder={imagePlaceholder}
+              imagePreviewSrc={imagePreviewResolver ? imagePreviewResolver(item.key || '') : undefined}
+              imagePlaceholder={providerDefinition.image?.placeholder}
             />
           </div>
         ))}
 
-      {extraContent}
+      <PaintingProviderSidebarContent
+        provider={provider}
+        painting={painting}
+        modelOptions={modelOptions}
+        isLoading={isLoading}
+        patchPainting={onConfigChange}
+        tab={tab}
+      />
     </>
   )
 }
 
-export default PaintingSettingsSidebar
+export default PaintingSettings

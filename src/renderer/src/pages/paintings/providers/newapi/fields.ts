@@ -14,7 +14,7 @@ function getModelConfig(modelId: unknown) {
 
 function buildSizeField(): BaseConfigItem {
   return {
-    type: 'select',
+    type: 'sizeChips',
     key: 'size',
     title: 'paintings.image.size',
     condition: (painting) => {

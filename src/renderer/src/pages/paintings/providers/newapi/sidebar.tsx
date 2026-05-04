@@ -1,14 +1,21 @@
 import { Button } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
+import type { TFunction } from 'i18next'
 
 import PaintingsSectionTitle from '../../components/PaintingsSectionTitle'
-import type { GeneratePaintingData as PaintingData } from '../../model/types/paintingData'
-import type { SidebarSlotState } from '../types'
+import type { OpenApiCompatiblePaintingData as PaintingData } from '../../model/types/paintingData'
 import { addEditImageFile, getEditImageFiles, removeEditImageFile } from './editFiles'
 
-type NewApiSidebarState = SidebarSlotState<PaintingData>
+interface NewApiSidebarContentProps {
+  providerId: string
+  painting: PaintingData
+  modelOptions: Array<{ value: string; label: string; group?: string; [k: string]: any }>
+  patchPainting: (updates: Partial<PaintingData>) => void
+  tab: string
+  t: TFunction
+}
 
-function renderEmptyModelState(providerId: string, t: NewApiSidebarState['t']) {
+function renderEmptyModelState(providerId: string, t: NewApiSidebarContentProps['t']) {
   return (
     <div className="mt-6 rounded-md border border-border border-dashed bg-muted/10 p-6 text-center">
       <div className="mb-3 text-muted-foreground text-sm">
@@ -27,8 +34,11 @@ function renderEmptyModelState(providerId: string, t: NewApiSidebarState['t']) {
   )
 }
 
-function renderEditSidebar(paintingId: string, state: NewApiSidebarState) {
-  const { patchPainting, t } = state
+function renderEditSidebar(
+  paintingId: string,
+  patchPainting: NewApiSidebarContentProps['patchPainting'],
+  t: NewApiSidebarContentProps['t']
+) {
   const editFiles = getEditImageFiles(paintingId)
 
   return (
@@ -78,15 +88,22 @@ function renderEditSidebar(paintingId: string, state: NewApiSidebarState) {
   )
 }
 
-export function renderNewApiSidebarExtra(defaultProviderId: string, state: NewApiSidebarState) {
-  const actualProviderId = state.painting.providerId || defaultProviderId
+export function NewApiSidebarContent({
+  providerId,
+  painting,
+  modelOptions,
+  patchPainting,
+  tab,
+  t
+}: NewApiSidebarContentProps) {
+  const actualProviderId = painting.providerId || providerId
 
-  if (state.modelOptions.length === 0) {
-    return renderEmptyModelState(actualProviderId, state.t)
+  if (modelOptions.length === 0) {
+    return renderEmptyModelState(actualProviderId, t)
   }
 
-  if (state.tab === 'edit') {
-    return renderEditSidebar(state.painting.id, state)
+  if (tab === 'edit') {
+    return renderEditSidebar(painting.id, patchPainting, t)
   }
 
   return null

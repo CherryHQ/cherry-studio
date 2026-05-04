@@ -1,10 +1,11 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { uuid } from '@renderer/utils'
+import type { TFunction } from 'i18next'
 
 import { SettingHelpLink } from '../../../settings'
 import type { DmxapiPaintingData as DmxapiPainting } from '../../model/types/paintingData'
 import { generationModeType } from '../../model/types/paintingData'
-import { createMultiModeProvider, type GenerateContext, type PaintingProviderDefinition } from '../types'
+import { createMultiModeProvider, type PaintingProviderDefinition } from '../types'
 import { COURSE_URL, DEFAULT_PAINTING, GetModelGroup, MODEOPTIONS, TOP_UP_URL } from './config'
 import { buildDmxapiConfigFields } from './fields'
 import { generateWithDmxapi } from './generate'
@@ -16,11 +17,25 @@ import {
   setDmxapiModelGroups,
   toDmxapiDbMode
 } from './runtime'
-import { DmxapiSidebarExtra } from './slots'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
-export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = createMultiModeProvider<DmxapiPainting>({
+export function DmxapiHeaderActions({ t }: { t: TFunction }) {
+  const Icon = resolveProviderIcon('dmxapi')
+  return (
+    <>
+      <SettingHelpLink target="_blank" href={COURSE_URL}>
+        {t('paintings.paint_course')}
+      </SettingHelpLink>
+      <SettingHelpLink target="_blank" href={TOP_UP_URL}>
+        {t('paintings.top_up')}
+      </SettingHelpLink>
+      {Icon ? <Icon.Avatar size={16} className="ml-1" /> : null}
+    </>
+  )
+}
+
+export const dmxapiProvider: PaintingProviderDefinition = createMultiModeProvider<DmxapiPainting>({
   id: 'dmxapi',
   mode: {
     tabs: MODEOPTIONS.map((mode) => ({ value: mode.value, labelKey: mode.labelKey })),
@@ -65,6 +80,7 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = create
         return {
           ...DEFAULT_PAINTING,
           id: uuid(),
+          mode: toDmxapiDbMode(tab),
           seed: generateRandomSeed(),
           generationMode,
           model: first.value,
@@ -81,6 +97,7 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = create
       return {
         ...DEFAULT_PAINTING,
         id: uuid(),
+        mode: toDmxapiDbMode(tab),
         seed: generateRandomSeed(),
         generationMode,
         model,
@@ -105,25 +122,5 @@ export const dmxapiProvider: PaintingProviderDefinition<DmxapiPainting> = create
       return { model: modelId } as Partial<DmxapiPainting>
     }
   },
-  slots: {
-    headerExtra: (_provider, t) => {
-      const Icon = resolveProviderIcon('dmxapi')
-      return (
-        <>
-          <SettingHelpLink target="_blank" href={COURSE_URL}>
-            {t('paintings.paint_course')}
-          </SettingHelpLink>
-          <SettingHelpLink target="_blank" href={TOP_UP_URL}>
-            {t('paintings.top_up')}
-          </SettingHelpLink>
-          {Icon ? <Icon.Avatar size={16} className="ml-1" /> : null}
-        </>
-      )
-    },
-    sidebarExtra: (state) => {
-      const isEditOrMerge = state.tab === generationModeType.EDIT || state.tab === generationModeType.MERGE
-      return <DmxapiSidebarExtra mode={state.tab} isEditOrMerge={isEditOrMerge} t={state.t} />
-    }
-  },
-  generate: (ctx: GenerateContext<DmxapiPainting>) => generateWithDmxapi(ctx)
+  generate: (input) => generateWithDmxapi(input)
 })

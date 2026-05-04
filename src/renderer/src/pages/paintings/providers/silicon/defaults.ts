@@ -35,6 +35,8 @@ export const generateSiliconRandomSeed = () => Math.floor(Math.random() * 100000
 export function createDefaultSiliconPainting() {
   return {
     id: uuid(),
+    providerId: 'silicon' as const,
+    mode: 'generate' as const,
     files: [],
     prompt: '',
     negativePrompt: '',

@@ -121,11 +121,6 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.web_search.searching': boolean
 
-  // Paintings runtime state
-  'painting.runtime.${paintingId}': CacheValueTypes.PaintingRuntimeState
-  'painting.selection.${scope}': string | null
-  'painting.mode.${providerId}': string
-
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
@@ -198,12 +193,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.selected_message_ids': [],
   'chat.generating': false,
   'chat.web_search.searching': false,
-  'painting.runtime.${paintingId}': {
-    isLoading: false,
-    fallbackUrls: []
-  },
-  'painting.selection.${scope}': null,
-  'painting.mode.${providerId}': 'generate',
   'knowledge.recall.search_queries': {},
 
   // Minapp management

@@ -1,37 +1,20 @@
-import type { FileMetadata } from '@renderer/types'
+import type { CreatePaintingDto, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
-import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePaintings } from '../usePaintings'
 
-const { mockGetFile, mockDeleteFiles } = vi.hoisted(() => ({
-  mockGetFile: vi.fn(),
-  mockDeleteFiles: vi.fn()
-}))
-
-vi.mock('@renderer/services/FileManager', () => ({
-  default: {
-    getFile: mockGetFile,
-    deleteFiles: mockDeleteFiles
-  }
+vi.mock('@renderer/data/hooks/useReorder', () => ({
+  useReorder: vi.fn(() => ({
+    applyReorderedList: vi.fn(),
+    isPending: false,
+    move: vi.fn()
+  }))
 }))
 
 describe('usePaintings', () => {
-  const file: FileMetadata = {
-    id: 'file-1',
-    name: 'file-1.png',
-    origin_name: 'file-1.png',
-    path: '/tmp/file-1.png',
-    size: 10,
-    ext: '.png',
-    type: 'image',
-    created_at: '2026-01-01T00:00:00.000Z',
-    count: 1
-  }
-
   const record: PaintingRecord = {
     id: 'painting-1',
     providerId: 'silicon',
@@ -41,24 +24,16 @@ describe('usePaintings', () => {
     params: { guidanceScale: 4.5 },
     files: { output: ['file-1'], input: [] },
     parentId: null,
-    sortOrder: 0,
+    orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   }
 
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    MockDataApiUtils.resetMocks()
-    mockGetFile.mockReset()
-    mockDeleteFiles.mockReset()
-    mockGetFile.mockResolvedValue(file)
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('should hydrate painting records into canvas items', async () => {
+  it('returns raw painting records without hydration', () => {
     MockUseDataApiUtils.mockQueryData('/paintings', {
       items: [record],
       total: 1,
@@ -68,114 +43,55 @@ describe('usePaintings', () => {
 
     const { result } = renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
 
-    await waitFor(() => expect(result.current.isReady).toBe(true))
-
-    expect(result.current.items).toEqual([
-      {
-        id: 'painting-1',
-        providerId: 'silicon',
-        model: 'model-1',
-        prompt: 'draw a cat',
-        files: [file],
-        guidanceScale: 4.5
-      }
-    ])
+    expect(result.current.records).toEqual([record])
+    expect(result.current.total).toBe(1)
   })
 
-  it('should create paintings and persist the latest update after debounce', async () => {
-    vi.useFakeTimers()
+  it('uses DataApi mutations for create, update, and delete', async () => {
+    const createTrigger = vi.fn().mockResolvedValue(record)
+    const updateTrigger = vi.fn().mockResolvedValue(record)
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
 
-    MockUseDataApiUtils.mockQueryData('/paintings', {
-      items: [],
-      total: 0,
-      limit: 100,
-      offset: 0
+    mockUseMutation.mockImplementation((method, path) => {
+      if (method === 'POST' && path === '/paintings') {
+        return { trigger: createTrigger, isLoading: false, error: undefined }
+      }
+      if (method === 'PATCH' && path === '/paintings/:id') {
+        return { trigger: updateTrigger, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/paintings/:id') {
+        return { trigger: deleteTrigger, isLoading: false, error: undefined }
+      }
+      return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
 
-    const { result } = renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
+    const { result } = renderHook(() => usePaintings())
+    const createDto: CreatePaintingDto = {
+      id: 'painting-1',
+      providerId: 'silicon',
+      mode: 'generate',
+      model: 'model-1',
+      prompt: 'draw a cat',
+      params: { guidanceScale: 4.5 },
+      files: { output: [], input: [] }
+    }
+    const updateDto: UpdatePaintingDto = {
+      prompt: 'updated',
+      files: { output: ['file-1'], input: [] }
+    }
 
     await act(async () => {
-      await Promise.resolve()
+      await result.current.createPainting(createDto)
+      await result.current.updatePainting('painting-1', updateDto)
+      await result.current.deletePainting('painting-1')
     })
 
-    expect(result.current.isReady).toBe(true)
-
-    act(() => {
-      result.current.createPainting({
-        id: 'painting-new',
-        prompt: 'draft prompt',
-        model: 'model-2',
-        files: []
-      })
-    })
-
-    act(() => {
-      result.current.updatePainting({
-        id: 'painting-new',
-        prompt: 'updated prompt',
-        model: 'model-2',
-        files: []
-      })
-    })
-
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    act(() => {
-      vi.advanceTimersByTime(300)
-    })
-
-    const postCalls = MockDataApiUtils.getCalls('post')
-    expect(postCalls[0]).toEqual([
-      '/paintings',
-      {
-        body: {
-          id: 'painting-new',
-          providerId: 'silicon',
-          mode: 'generate',
-          model: 'model-2',
-          prompt: 'draft prompt',
-          params: {},
-          files: { output: [], input: [] }
-        }
-      }
-    ])
-
-    expect(MockDataApiUtils.getCalls('patch')[0]).toEqual([
-      '/paintings/painting-new',
-      {
-        body: {
-          model: 'model-2',
-          prompt: 'updated prompt',
-          params: {},
-          files: { output: [], input: [] }
-        }
-      }
-    ])
+    expect(createTrigger).toHaveBeenCalledWith({ body: createDto })
+    expect(updateTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' }, body: updateDto })
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
   })
 
-  it('should delete files and remove persisted paintings', async () => {
-    MockUseDataApiUtils.mockQueryData('/paintings', {
-      items: [record],
-      total: 1,
-      limit: 100,
-      offset: 0
-    })
-
-    const { result } = renderHook(() => usePaintings({ providerId: 'silicon', mode: 'generate' }))
-
-    await waitFor(() => expect(result.current.isReady).toBe(true))
-
-    await act(async () => {
-      await result.current.deletePainting(result.current.items[0])
-    })
-
-    expect(mockDeleteFiles).toHaveBeenCalledWith([file])
-    expect(MockDataApiUtils.getCalls('delete')[0]).toEqual(['/paintings/painting-1'])
-  })
-
-  it('should not inject pagination params unless the caller provides them', async () => {
+  it('passes only caller-provided query params to useQuery', async () => {
     MockUseDataApiUtils.mockQueryData('/paintings', {
       items: [],
       total: 0,

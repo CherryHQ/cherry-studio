@@ -1,24 +1,17 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
-import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviders } from '@renderer/hooks/useProviders'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import type { Provider as RendererProvider } from '@renderer/types'
-import {
-  createUniqueModelId,
-  ENDPOINT_TYPE,
-  type Model,
-  MODEL_CAPABILITY,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
-import md5 from 'md5'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ModelOption } from '../hooks/useModelLoader'
+import { createPaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
+import { getPaintingModelOptions } from '../model/utils/paintingModelOptions'
 import { providerRegistry } from '../providers/registry'
-import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../workspace/utils/paintingProviderMode'
+import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 
 const logger = loggerService.withContext('usePaintingModelSelectorCatalog')
 
@@ -57,50 +50,27 @@ export interface UsePaintingModelSelectorCatalogResult {
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
-function createSelectorProvider(providerId: string, provider: RendererProvider | undefined): Provider {
+function createSelectorProvider(providerId: string, provider: Provider | undefined): Provider {
   return {
     id: providerId,
-    presetProviderId: provider?.isSystem ? providerId : provider?.type,
+    presetProviderId: provider?.presetProviderId,
     name: provider?.name || getProviderNameById(providerId) || providerId,
     apiKeys: [],
     authType: 'api-key',
     apiFeatures: DEFAULT_API_FEATURES,
     settings: {},
-    isEnabled: provider?.enabled ?? false
+    isEnabled: provider?.isEnabled ?? false
   }
 }
 
-function createModelOptionFromV2Model(model: Model): ModelOption {
-  return {
-    label: model.name || model.apiModelId || parseUniqueModelId(model.id).modelId,
-    value: model.apiModelId || parseUniqueModelId(model.id).modelId,
-    group: model.group,
-    isEnabled: model.isEnabled,
-    _raw: model
-  }
-}
-
-function supportsImageGenerationEndpoint(model: Model): boolean {
-  if (model.endpointTypes?.length) {
-    return model.endpointTypes.includes(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
-  }
-
-  return model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
-}
-
-function getV2ModelOptions(providerId: string, v2Models: Model[]): ModelOption[] {
-  return v2Models
-    .filter((model) => model.providerId === providerId && !model.isHidden && supportsImageGenerationEndpoint(model))
-    .map(createModelOptionFromV2Model)
-}
-
-function shouldPreferV2Catalog(providerId: string): boolean {
+function shouldUseDataModelCatalog(providerId: string): boolean {
   return providerId === 'ovms' || !providerRegistry[providerId]
 }
 
-function getAsyncCatalogKey(providerId: string, targetTab: string, provider: RendererProvider | undefined): string {
+function getAsyncCatalogKey(providerId: string, targetTab: string, provider: Provider | undefined): string {
   if (providerId === 'tokenflux') {
-    return `${providerId}:${provider?.apiHost ?? ''}:${md5(provider?.apiKey || 'anonymous')}`
+    const keyIds = provider?.apiKeys.map((key) => key.id).join(',') ?? ''
+    return `${providerId}:${JSON.stringify(provider?.endpointConfigs ?? {})}:${keyIds}`
   }
 
   return `${providerId}:${targetTab}`
@@ -119,15 +89,17 @@ export function usePaintingModelSelectorCatalog({
   isCurrentLoading = false,
   isOpen
 }: UsePaintingModelSelectorCatalogInput): UsePaintingModelSelectorCatalogResult {
-  const rendererProviders = useAllProviders()
-  const shouldLoadV2Models = isOpen || shouldPreferV2Catalog(currentProviderId)
-  const { models: v2Models, isLoading: isV2ModelsLoading } = useModels(undefined, { fetchEnabled: shouldLoadV2Models })
+  const { providers: dataProviders } = useProviders()
+  const shouldLoadModels = isOpen || shouldUseDataModelCatalog(currentProviderId)
+  const { models: dataModels, isLoading: isModelsLoading } = useModels(undefined, { fetchEnabled: shouldLoadModels })
   const [catalogVersion, setCatalogVersion] = useState(0)
   const openedOnceRef = useRef(false)
 
-  const rendererProviderMap = useMemo(
-    () => new Map(rendererProviders.map((provider) => [provider.id, provider])),
-    [rendererProviders]
+  const providerMap = useMemo(() => new Map(dataProviders.map((provider) => [provider.id, provider])), [dataProviders])
+
+  const runtimeProviderMap = useMemo(
+    () => new Map(dataProviders.map((provider) => [provider.id, createPaintingProviderRuntime(provider, provider.id)])),
+    [dataProviders]
   )
 
   const getTargetTab = useCallback(
@@ -146,9 +118,11 @@ export function usePaintingModelSelectorCatalog({
         return []
       }
 
-      const v2Options = shouldPreferV2Catalog(providerId) ? getV2ModelOptions(providerId, v2Models) : []
-      if (v2Options.length > 0) {
-        return v2Options
+      const dataModelOptions = shouldUseDataModelCatalog(providerId)
+        ? getPaintingModelOptions(providerId, dataModels)
+        : []
+      if (dataModelOptions.length > 0) {
+        return dataModelOptions
       }
 
       if (providerId === currentProviderId && currentModelOptions.length > 0) {
@@ -157,20 +131,20 @@ export function usePaintingModelSelectorCatalog({
 
       const definition = resolvePaintingProviderDefinition(providerId)
       const modelConfig = definition.mode.getModels(targetTab)
-      const provider = rendererProviderMap.get(providerId)
+      const provider = runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(undefined, providerId)
 
       if (modelConfig.type === 'static') {
         return modelConfig.options
       }
 
       if (modelConfig.type === 'dynamic') {
-        return modelConfig.resolver((provider ?? { id: providerId, name: providerId, models: [] }) as RendererProvider)
+        return modelConfig.resolver(provider)
       }
 
-      const key = getAsyncCatalogKey(providerId, targetTab, provider)
+      const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
       return asyncCatalogCache.get(key)?.options ?? []
     },
-    [currentModelOptions, currentProviderId, getTargetTab, rendererProviderMap, v2Models]
+    [currentModelOptions, currentProviderId, dataModels, getTargetTab, providerMap, runtimeProviderMap]
   )
 
   const loadAsyncOptions = useCallback(
@@ -188,8 +162,8 @@ export function usePaintingModelSelectorCatalog({
         return getSyncOptions(providerId)
       }
 
-      const provider = rendererProviderMap.get(providerId)
-      const key = getAsyncCatalogKey(providerId, targetTab, provider)
+      const provider = runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(undefined, providerId)
+      const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
       const cached = asyncCatalogCache.get(key)
 
       if (cached?.status === 'ready') {
@@ -217,7 +191,7 @@ export function usePaintingModelSelectorCatalog({
         throw nextError
       }
     },
-    [getSyncOptions, getTargetTab, rendererProviderMap]
+    [getSyncOptions, getTargetTab, providerMap, runtimeProviderMap]
   )
 
   useEffect(() => {
@@ -256,7 +230,7 @@ export function usePaintingModelSelectorCatalog({
         continue
       }
 
-      const provider = rendererProviderMap.get(providerId)
+      const provider = providerMap.get(providerId)
       const definition = resolvePaintingProviderDefinition(providerId)
       const modelConfig = definition.mode.getModels(targetTab)
       const asyncKey = modelConfig.type === 'async' ? getAsyncCatalogKey(providerId, targetTab, provider) : undefined
@@ -315,7 +289,7 @@ export function usePaintingModelSelectorCatalog({
       selectedModelId = uniqueModelId
 
       if (!seenModelIds.has(uniqueModelId)) {
-        const currentProvider = rendererProviderMap.get(currentProviderId)
+        const currentProvider = providerMap.get(currentProviderId)
 
         if (!seenProviderIds.has(currentProviderId)) {
           providers.unshift(createSelectorProvider(currentProviderId, currentProvider))
@@ -352,15 +326,7 @@ export function usePaintingModelSelectorCatalog({
       isAsyncLoading: asyncLoading,
       currentCatalogError: currentError
     }
-  }, [
-    catalogVersion,
-    currentModelId,
-    currentProviderId,
-    getSyncOptions,
-    getTargetTab,
-    providerOptions,
-    rendererProviderMap
-  ])
+  }, [catalogVersion, currentModelId, currentProviderId, getSyncOptions, getTargetTab, providerMap, providerOptions])
 
   const getModelOption = useCallback(
     (providerId: string, modelId: string) => {
@@ -388,7 +354,7 @@ export function usePaintingModelSelectorCatalog({
 
   return {
     selectorData,
-    isLoading: isV2ModelsLoading || isCurrentLoading || isAsyncLoading,
+    isLoading: isModelsLoading || isCurrentLoading || isAsyncLoading,
     currentCatalogError,
     getModelOption,
     ensureProviderCatalog,
