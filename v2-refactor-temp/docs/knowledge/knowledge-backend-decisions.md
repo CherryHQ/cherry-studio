@@ -1,62 +1,79 @@
 # 知识库后端当前实现说明
 
-本文档只记录 `src/main/services/knowledge` 当前已经落地的后端分层、调用边界和 runtime 编排行为。
+本文档只记录当前分支中 `src/main/services/knowledge` 已经落地的后端分层、调用边界和 runtime 编排行为。
 
-它的目标不是描述理想方案，而是把当前代码中的稳定事实说明清楚，方便后续 v2 重构继续收敛。
+它的目标不是描述理想方案，而是把当前代码中的稳定事实说明清楚，方便后续 v2 重构继续收敛。本文不覆盖旧的 `src/main/knowledge` / `knowledge-base:*` 通道。
 
 ## 1. 当前架构图
 
 ```text
 +----------------------------------------------------------------------------------+
-|                                   Callers                                        |
+|                                      Callers                                      |
 |                                                                                  |
-|   UI (Data API)                    UI / preload IPC / main-side calls            |
-+------------------------------------------+---------------------------------------+
-                                           |
-                    +--------------------------+     +-----------------------------------+
-                    |       Data API           |     |  KnowledgeOrchestrationService    |
-                    |  knowledge handlers      |     |  caller-facing workflow facade    |
-                    +-------------+------------+     +-----------------+-----------------+
-                                  |                                    |
-                                  v                                    v
-                    +--------------------------+          +---------------------------+
-                    |   KnowledgeBaseService   |<---------|   KnowledgeItemService    |
-                    |   base data logic        |          |   item data + status      |
-                    +-------------+------------+          +-------------+-------------+
-                                  |                                    |
-                                  v                                    v
-                        +----------------------+          +---------------------------+
-                        |   SQLite / Drizzle   |          |   KnowledgeRuntimeService |
-                        +----------------------+          | runtime execution / queue  |
-                                                          +-------------+-------------+
-                                                                        |
-                                                                        v
-                                                          +---------------------------+
-                                                          | reader / chunk / embed / |
-                                                          | rerank / vectorstore      |
-                                                          +-------------+-------------+
-                                                                        |
-                                                                        v
-                                                          +------------------------+
-                                                          |  LibSQL vector store   |
-                                                          +------------------------+
+|   UI (Data API reads/patch)              UI / preload IPC / main-side workflow    |
++-----------------------------------+----------------------------------------------+
+                                    |
+                                    v
+                    +-------------------------------+
+                    |          Data API             |
+                    |  knowledge read/update        |
+                    +---------------+---------------+
+                                    |
+                                    v
+                    +-------------------------------+
+                    | KnowledgeBaseService /        |<-----------------------------+
+                    | KnowledgeItemService          |                              |
+                    | SQLite business data          |                              |
+                    +---------------+---------------+                              |
+                                    |                                              |
+                                    v                                              |
+                          +-------------------+                                    |
+                          | SQLite / Drizzle  |                                    |
+                          +-------------------+                                    |
+                                                                                   |
+       +----------------------------------------+                                  |
+       | KnowledgeOrchestrationService          |----------------------------------+
+       | caller-facing runtime workflow facade  |
+       +-------------------+--------------------+
+                           |
+                           v
+       +----------------------------------------+
+       | KnowledgeRuntimeService                |
+       | prepare/index/search/chunk runtime     |
+       +-------------------+--------------------+
+                           |
+                           v
+       +----------------------------------------+
+       | reader / chunk / embed / rerank /      |
+       | KnowledgeVectorStoreService            |
+       +-------------------+--------------------+
+                           |
+                           v
+                    +------------------+
+                    | LibSQL vector DB |
+                    +------------------+
 ```
 
-当前知识库后端已经分成三层：
+当前知识库后端分为四个主要职责层：
 
 1. `KnowledgeBaseService` / `KnowledgeItemService`
-   - 负责 SQLite 中的知识库业务主数据 CRUD
-   - 负责 `knowledge_item.status` / `error` 的持久化更新
-2. `KnowledgeOrchestrationService`
-   - 负责对外 workflow 编排
-   - 负责统一 caller-facing IPC
-   - 负责把 expand / create / add / delete / search 串成单次调用入口
-3. `KnowledgeRuntimeService`
-   - 负责 runtime 执行
+   - 负责 SQLite 中的知识库业务主数据读写
+   - 负责 `knowledge_item.status` / `phase` / `error` 的持久化更新
+   - 负责 `knowledge_item.data` 与 `type` 的一致性校验
+   - 负责 container item 的子项状态向上聚合
+2. Data API knowledge handlers
+   - 只暴露数据库可直接满足的读和 base metadata/config 更新
+   - 不负责 runtime mutation，不创建或删除 vector store artifacts
+3. `KnowledgeOrchestrationService`
+   - 负责 caller-facing runtime IPC 和 main-side workflow facade
+   - 负责 create/delete base、delete/reindex item ids 归一化、chunk/search workflow 转发
+   - 不直接执行 reader/chunk/embed/vector write，也不持有 queue
+4. `KnowledgeRuntimeService`
+   - 负责 runtime add item 创建、`prepare-root` / `index-leaf` 入队与执行
    - 负责 reader / chunk / embedding / vector store 调用串联
-   - 负责队列、中断、stop 清理和检索执行
+   - 负责 queue、中断、stop 清理、reindex 和检索执行
 
-## 2. Data Service 的定位
+## 2. Data Service 与 Data API 的定位
 
 `src/main/data/services/KnowledgeBaseService.ts` 和 `src/main/data/services/KnowledgeItemService.ts` 属于 data services。
 
@@ -65,14 +82,26 @@
 1. SQLite 业务表读写
 2. DTO 校验后的数据落库
 3. `knowledge_item.data` 与 `type` 的一致性校验
-4. item 状态与错误信息的持久化
+4. item 状态、阶段和错误信息的持久化
+5. leaf item 完成或失败后，向上更新 `directory` / `sitemap` container 的状态
 
 它们不负责：
 
-1. reader 调度
-2. embedding 调用
-3. 向量库写入与检索
-4. runtime queue 管理
+1. caller-facing runtime IPC
+2. reader 调度
+3. embedding 调用
+4. 向量库写入与检索
+5. runtime queue 管理
+
+当前 Data API knowledge handlers 只暴露：
+
+1. `GET /knowledge-bases`
+2. `GET /knowledge-bases/:id`
+3. `PATCH /knowledge-bases/:id`
+4. `GET /knowledge-bases/:id/items`
+5. `GET /knowledge-items/:id`
+
+也就是说，当前 Data API 不暴露 knowledge base 创建、knowledge base 删除、knowledge item 创建、knowledge item 删除或 item 状态 mutation。这些带 runtime side effects 的操作由 `KnowledgeOrchestrationService` 统一处理。
 
 ## 3. `KnowledgeRuntimeService` 的定位
 
@@ -87,28 +116,33 @@
 
 1. `@Injectable('KnowledgeRuntimeService')`
 2. `@ServicePhase(Phase.WhenReady)`
-3. 已注册到应用 service registry
+3. `@DependsOn(['KnowledgeVectorStoreService'])`
+4. 已注册到应用 service registry
 
 它当前对内部调用方暴露的核心能力是：
 
-1. `createBase(base)`
+1. `createBase(baseId)`
 2. `deleteBase(baseId)`
-3. `addItems(base, items)`
-4. `deleteItems(base, items)`
-5. `search(base, query)`
+3. `addItems(baseId, inputs)`
+4. `deleteItems(baseId, rootItems)`
+5. `reindexItems(baseId, rootItems)`
+6. `search(baseId, query)`
+7. `listItemChunks(baseId, itemId)`
+8. `deleteItemChunk(baseId, itemId, chunkId)`
 
 它负责：
 
-1. item 级索引任务入队与执行
-2. `knowledge_item.status` 的有限状态推进
-3. 失败与中断原因写回数据库
-4. 向量库实例的获取、删除和清理
-5. 检索后的 rerank 串联
-6. stop / delete 时的 queue 中断与向量清理补偿
+1. 创建 runtime add 传入的 `knowledge_item`
+2. `prepare-root` / `index-leaf` 任务入队与执行
+3. `knowledge_item.status` / `phase` 的有限状态推进
+4. 失败与中断原因写回数据库
+5. 向量库实例的获取、删除和清理
+6. 检索后的 rerank 串联
+7. stop / delete / reindex 时的 queue 中断与向量清理补偿
 
 它不负责：
 
-1. `knowledge_base` / `knowledge_item` 的主数据 CRUD
+1. `knowledge_base` 的主数据 CRUD
 2. caller-facing IPC workflow 编排
 3. `directory` / `sitemap` owner item 的对外展开入口
 4. 持久化任务队列
@@ -129,172 +163,138 @@
 
 1. `@Injectable('KnowledgeOrchestrationService')`
 2. `@ServicePhase(Phase.WhenReady)`
-3. 已注册到应用 service registry
+3. `@DependsOn(['KnowledgeRuntimeService'])`
+4. 已注册到应用 service registry
 
 它当前对外暴露的核心 IPC 能力是：
 
-1. `createBase(baseId)`
+1. `createBase(base dto)`
 2. `deleteBase(baseId)`
-3. `addItems(baseId, itemIds)`
+3. `addItems(baseId, item payloads)`
 4. `deleteItems(baseId, itemIds)`
-5. `search(baseId, query)`
+5. `reindexItems(baseId, itemIds)`
+6. `search(baseId, query)`
+7. `listItemChunks(baseId, itemId)`
+8. `deleteItemChunk(baseId, itemId, chunkId)`
 
 它负责：
 
 1. 统一 caller-facing knowledge runtime IPC
-2. 对传入 item ids 做主数据读取
-3. 对 `directory` / `sitemap` owner item 做内部 expand
-4. 通过 `KnowledgeItemService.createMany()` 持久化 expanded child items
-5. 过滤真正可索引的 leaf items，再交给 `KnowledgeRuntimeService.addItems()`
-6. 协调 runtime 与 data service 的调用顺序
+2. create base 时协调 SQLite base 创建和 vector store 创建
+3. delete base 时先 runtime cleanup，再删除 SQLite base
+4. 对 delete / reindex / chunk 操作传入的 item ids 做主数据读取
+5. 删除 / 重建时把传入 ids 归一化为 top-level roots
+6. 在 runtime 清理完成后删除 SQLite root rows
 
 它不负责：
 
 1. 直接执行 reader / chunk / embed / vector write
 2. 直接持有 queue
 3. 直接持有 vector store 实例
+4. 展开 `directory` / `sitemap`
+5. 创建 expanded child items
 
 ## 4. 当前调用边界与调用方契约
 
-### 4.1 UI
+### 4.1 UI / preload
+
+当前 v2 runtime 调用模型是：
 
 ```text
 UI
  |
- +--> Data API -> knowledge handlers -> KnowledgeBaseService / KnowledgeItemService
+ +--> Data API
+ |     -> list/get knowledge bases
+ |     -> patch base metadata/config
+ |     -> list/get knowledge items
  |
- \--> preload IPC -> KnowledgeOrchestrationService
-                     -> KnowledgeRuntimeService
+ \--> preload knowledgeRuntime IPC
+       -> create/delete base
+       -> add/delete/reindex items
+       -> search
+       -> list/delete chunks
 ```
 
-当前实现要求调用方明确区分两条调用路径：
+添加 file / url / note / directory / sitemap 时，调用方应直接走：
 
-1. Data API
-   - 负责 `knowledge_base` / `knowledge_item` 的持久化 CRUD
-   - 负责调用方显式创建的 owner item / leaf item 主数据创建
-   - 负责 `knowledge_item.status` / `error` 的持久化读写
-2. runtime IPC
-   - 负责统一的 knowledge workflow 入口
-   - 负责必要时在 main process 内部展开 `directory` / `sitemap`
-   - 负责索引入队、向量写入和删除
-   - 负责检索
+```text
+caller
+ -> preload IPC add-items(item payloads)
+```
 
-当前 Data API 侧稳定接口是：
-
-1. `GET /knowledge-bases`
-2. `POST /knowledge-bases`
-3. `GET /knowledge-bases/:id`
-4. `PATCH /knowledge-bases/:id`
-5. `DELETE /knowledge-bases/:id`
-6. `GET /knowledge-bases/:id/items`
-7. `POST /knowledge-bases/:id/items`
-8. `GET /knowledge-items/:id`
-9. `PATCH /knowledge-items/:id`
-10. `DELETE /knowledge-items/:id`
-
-preload 已暴露的 runtime IPC 通道是：
-
-1. `knowledge-runtime:create-base`
-2. `knowledge-runtime:delete-base`
-3. `knowledge-runtime:add-items`
-4. `knowledge-runtime:delete-items`
-5. `knowledge-runtime:search`
+调用方不再需要先通过 Data API 创建 item，也不需要把 created item ids 再传给 runtime `addItems`。
 
 ### 4.1.1 Leaf item 的调用链
 
-`file` / `url` / `note` 这类可直接索引的 leaf item，调用方应走：
-
 ```text
 caller
- -> Data API create item(s)
- -> get created item ids
- -> preload IPC add-items(item ids)
-```
-
-也就是说：
-
-1. 先通过 Data API 创建持久化 `knowledge_item`
-2. 再把 Data API 返回的 item ids 传给 runtime `addItems`
-3. runtime 不负责替调用方补建 leaf item 主数据
-4. runtime `addItems` 的输入语义是“已经存在于 SQLite 中的 item ids”
-
-批量添加 files 时，当前契约就是：
-
-```text
-caller
- -> Data API create file items
- -> get created file item ids
- -> preload IPC add-items(file item ids)
+ -> preload IPC add-items(leaf item payloads)
+    -> runtime creates leaf items
+    -> leaf status = processing, phase = null
+    -> enqueue index-leaf
 ```
 
 ### 4.1.2 Container item 的调用链
 
-`directory` / `sitemap` 当前已经收口为与 leaf item 相同的“两步调用模型”。
-
-当前调用方应使用：
+`directory` / `sitemap` 当前已经收口为与 leaf item 相同的 runtime 调用模型。
 
 ```text
 caller
- -> Data API create owner item
- -> preload IPC add-items(owner item ids)
+ -> preload IPC add-items(owner item payloads)
+    -> runtime creates root item
+    -> root status = processing, phase = preparing
+    -> enqueue prepare-root(root id)
+    -> prepare-root expands owner
+    -> prepare-root creates child items
+    -> prepare-root enqueues index-leaf(child leaf ids)
+    -> clear root phase
+    -> reconcile container status from children
 ```
-
-也就是说：
-
-1. owner item 的主数据创建仍然走 Data API
-2. 对外 IPC 不再暴露 `expand*`，而是由 `KnowledgeOrchestrationService.addItems()` 在内部判断 owner item 类型
-3. 如果传入的是 `directory` / `sitemap` owner item，orchestration 会：
-   - expand owner
-   - 通过 `KnowledgeItemService.createMany()` 持久化 child items
-   - 过滤出 indexable leaf items
-   - 调用 `KnowledgeRuntimeService.addItems()` 入队索引
-4. `groupId` / `groupRef` 的职责仍然是把 owner / child / nested child 的持久化关系写进 `knowledge_item`
-5. 当前调用方不再需要自己显式执行 “expand -> create children -> filter -> add” 这四步
 
 这个边界是当前实现的硬约束：
 
-1. expand 仍然负责生成要创建的持久化 items
-2. child item 的持久化仍然通过 `KnowledgeItemService.createMany()` 写入 SQLite
-3. `KnowledgeRuntimeService` 仍然只负责编排可索引 items 的读取 / 切块 / embedding / vector write
-4. orchestration 只是把上述步骤收口到一次 caller-facing IPC，不改变 data/runtime 的最终边界
-5. mixed batch 可用于持久化树结构，但不等于 mixed batch 可直接进入 runtime 索引队列
+1. expand 只发生在 runtime `prepare-root` task 内
+2. child item 的持久化由 prepare helper 通过 `KnowledgeItemService.create()` 写入 SQLite
+3. `KnowledgeRuntimeService` 同时负责 root preparation 和 leaf indexing 的 queue 生命周期
+4. orchestration 只是 caller-facing workflow facade，不参与 preparation 细节
+5. mixed batch 可包含 leaf 和 root container payload，但最终会拆成 `prepare-root` / `index-leaf` 两类 queue task
 
-这个调用链仍然符合“Data Service 负责主数据，Runtime 负责索引执行，Orchestration 负责 workflow 收口”的分层，不属于边界漂移。
+### 4.1.3 Nested container 约束
 
-`directory` / `sitemap` 的当前内部流程可以进一步写成：
+当前产品约束是：调用方不允许把 `directory` / `sitemap` 作为另一个 item 的用户输入子节点添加。
 
-```text
-directory/sitemap
- -> Data API create owner
- -> IPC add-items(owner item ids)
-    -> orchestration expand owner
-    -> orchestration create expanded items
-    -> orchestration filter indexable leaf items
-    -> runtime add-items(indexable child items)
-```
+允许的 container 来源只有：
 
-### 4.1.3 删除链路的当前约束
+1. 用户通过 `addItems()` 添加的 top-level `directory` / `sitemap` root
+2. directory expansion 内部为了保留目录层级而创建的 nested `directory` rows
 
-删除场景同样需要区分持久化删除与 runtime 删除。
+不允许的来源是：
+
+1. 用户显式创建 parent 为其他 item 的 `directory` / `sitemap`
+2. 用户把 `sitemap` 放进另一个 `directory` / `sitemap` 下面作为可独立 preparation 的 descendant root
+
+这个约束影响 delete / reindex 的 review 边界：
+
+1. 当前 runtime 只需要中断传入 roots 以及 fresh 查询到的 descendants
+2. 不需要为“descendant `prepare-root` 在 snapshot 之后继续发布新 leaf”的未来嵌套 container 场景加入 stable-loop interrupt
+3. 如果未来开放用户添加 nested `directory` / `sitemap`，必须先重新设计 interrupt/reconcile 语义，再放开这个输入能力
+
+### 4.1.4 删除链路的当前约束
 
 item 删除时，调用方应理解为两件独立的事：
 
 1. runtime IPC `delete-items`
    - 通过 orchestration 进入删除 workflow
-   - 中断 pending / running add task
+   - 将传入 ids 归一化为 top-level roots
+   - 中断 root `prepare-root` / `index-leaf`
+   - fresh 查询 descendants
+   - 中断 descendants 的 `prepare-root` / `index-leaf`
    - 删除 item 及其级联子项的向量
-2. Data API `DELETE /knowledge-items/:id`
-   - 删除 SQLite 中的 `knowledge_item`
-   - 依赖数据库 cascade 删除 grouped descendants
+2. orchestration 在 runtime cleanup 后删除 SQLite root rows
+   - 数据库 cascade 删除 grouped descendants
 
-base 删除时，调用方同样需要区分两步：
-
-1. runtime IPC `delete-base`
-   - 通过 orchestration 进入删除 workflow
-   - 中断该 base 下相关 add task
-   - 删除对应 vector store
-2. Data API `DELETE /knowledge-bases/:id`
-   - 删除 SQLite 中的 base 和关联 items
+base 删除时会先中断并等待该 base 的 runtime work，然后删除 SQLite base 和关联 items。
+SQLite 删除成功后，再 best-effort 删除该 base 的 vector artifacts；artifact 清理失败只记录日志，不回滚已完成的 SQLite 删除。
 
 当前实现下，Data API 删除并不会替调用方清理向量库，也不会替调用方中断 runtime 任务。
 
@@ -302,21 +302,46 @@ base 删除时，调用方同样需要区分两步：
 
 主进程内部其他模块如果需要 caller-facing workflow 能力，应优先调用 `KnowledgeOrchestrationService`。
 
-主进程内部如果已经明确持有 leaf items 且只需要底层索引执行能力，可以直接调用 `KnowledgeRuntimeService`。
+主进程内部如果只需要 SQLite 主数据读写能力，应直接调用 `KnowledgeBaseService` / `KnowledgeItemService`。
 
-主进程内部如果需要业务主数据能力，应直接调用 `KnowledgeBaseService` / `KnowledgeItemService`。
+## 5. Base workflow
 
-## 5. 当前 Queue 模型
+`createBase(dto)` 当前流程：
 
-### 5.1 已落地行为
+```text
+IPC create-base(CreateKnowledgeBaseDto)
+ -> KnowledgeBaseService.create(dto)
+ -> KnowledgeRuntimeService.createBase(base.id)
+ -> KnowledgeVectorStoreService.createStore(base)
+ -> return created base
+```
 
-当前实现使用一个进程内自定义 add queue：
+如果 vector store 初始化失败，orchestration 会调用 `KnowledgeBaseService.delete(base.id)` 回滚刚创建的 SQLite base，然后把原始错误抛给调用方。
+
+`deleteBase(baseId)` 当前流程：
+
+```text
+IPC delete-base(baseId)
+ -> KnowledgeRuntimeService.deleteBase(baseId)
+ -> KnowledgeBaseService.delete(baseId)
+ -> KnowledgeRuntimeService.deleteBaseArtifacts(baseId)
+```
+
+runtime 删除阶段会先中断该 base 下 pending / running runtime task，等待 running task settle，并返回被中断 item ids。
+随后 data service 删除 SQLite base 和关联 items。
+SQLite 删除成功后，orchestration 再调用 artifact cleanup 删除该 base 对应的 vector store；该 cleanup 失败只记录日志。
+如果 SQLite 删除失败，orchestration 会把被中断 items 标记为 failed，然后把 SQLite 删除错误抛给调用方。
+
+## 6. 当前 Queue 模型
+
+当前实现使用一个进程内 runtime queue：
 
 1. queue 持有者是 `KnowledgeRuntimeService`
 2. queue 为单实例 in-memory queue
 3. 默认 `concurrency = 5`
-4. 所有 base 的 add item 任务共用这一条 queue
-5. delete 行为不会进入 queue，而是先中断相关 add 任务，再直接删除向量
+4. 所有 base 的 runtime task 共用这一条 queue
+5. queue task 分为 `prepare-root` 和 `index-leaf`
+6. delete / reindex 不进入 queue，而是先中断相关 runtime task，再直接删除向量
 
 当前实现没有落地以下旧设计假设：
 
@@ -324,132 +349,137 @@ base 删除时，调用方同样需要区分两步：
 2. 不是 round-robin scheduler
 3. 没有全局持久化任务表
 
-### 5.2 当前可观测状态
+queue 内部维护 `entries` map，entry 上记录：
 
-当前 queue 内部维护的是一份 `entries` map，entry 上记录：
+1. `base`
+2. `baseId`
+3. `itemId`
+4. `kind = prepare-root | index-leaf`
+5. `status = pending | running | settled`
+6. `controller`
+7. `promise`
+8. `runPromise`
+9. `interruptError`
 
-1. `item.id`
-2. `status = pending | running`
-3. `controller`
-4. `promise`
-5. `interruptedBy`
+这些状态只用于：
 
-它们的作用仅是：
-
-1. 跟踪哪些 add 任务仍在等待执行
-2. 跟踪哪些 add 任务正在运行
-3. 在 delete / shutdown 时中断对应任务
+1. 跟踪哪些 runtime task 仍在等待执行
+2. 跟踪哪些 runtime task 正在运行
+3. 在 delete / reindex / shutdown 时中断对应任务
 4. 在 shutdown 时识别哪些 item 被中断并做失败补偿
 
-这些状态都只是 runtime 内部实现细节，不是对外数据模型的一部分。
+它们不是对外数据模型的一部分。
 
-### 5.3 入队行为
+## 7. 当前索引执行链路
 
-`addItems(base, items)` 当前行为：
-
-1. 对传入的每个 item 分别先写 `status = pending`
-2. 同时清空该 item 的旧 `error`
-3. 每个 item 在自己的状态写入成功后，立即作为一个 add task 入队
-4. 如果同一个 item 已经在 pending 或 running 中，再次 enqueue 会直接复用已有 promise，不会重复入队
-5. 当前实现不是“整批状态先全部落库，再统一开始 enqueue”的原子批次启动模型
-6. 因此如果某个 item 在写 `pending` 或 enqueue 之前失败，其他已经成功启动的 item 仍可能继续执行
-
-`deleteItems(base, items)` 当前行为：
-
-1. 不更新 item 状态
-2. 先对同 id 的 pending / running add task 做 interrupt
-3. 等待相关 running add task settle
-4. 直接删除这些 item 对应的向量
-
-当前有：
-
-1. item 级 add 去重保护
-2. delete / stop 中断 add task 的机制
-
-当前没有：
-
-1. 优先级队列
-2. 暂停 / 恢复 API
-3. 自动重试
-
-## 6. 当前索引执行链路
-
-一个 `knowledge_item` 的一次索引流程，当前是：
+一个 leaf `knowledge_item` 的一次索引流程，当前是：
 
 ```text
 addItems
- -> status = pending
- -> queue task
+ -> create leaf item
+ -> status = processing, phase = null
+ -> queue task index-leaf
+ -> phase = reading
  -> loadKnowledgeItemDocuments(item)
  -> chunkDocuments(base, item, documents)
+ -> phase = embedding
  -> getEmbedModel(base)
  -> embedDocuments(model, chunks)
- -> vectorStore.add(nodes)
- -> status = completed
+ -> runWithBaseWriteLock
+    -> KnowledgeVectorStoreService.createStore(base)
+    -> vectorStore.add(nodes)
+ -> status = completed, phase = null
 ```
 
-任意步骤抛错时：
+任意非中断错误抛出时：
 
 ```text
 catch error
- -> status = failed
+ -> logger.error(...)
+ -> best-effort cleanup vectors
+ -> status = failed, phase = null
  -> error = normalizedError.message
  -> 向上抛出异常
 ```
 
-当前还没有落地 `fileProcessorId` 的执行链路。代码中这一段仍然是 `// todo file processing`。
+`directory` / `sitemap` 的一次 preparation 流程，当前是：
 
-## 7. `knowledge_item.status` 的当前实现边界
+```text
+addItems
+ -> create root item
+ -> root status = processing, phase = preparing
+ -> queue task prepare-root
+ -> expand directory/sitemap with queue AbortSignal
+ -> create child items
+ -> child leaf status = processing
+ -> child directory status = processing, phase = preparing
+ -> enqueue child leaf index-leaf
+ -> root phase = null
+ -> reconcile root/container statuses from children
+```
 
-### 7.1 枚举定义
+preparation 被 interrupt 时：
 
-schema 和共享类型仍然保留完整状态集合：
+1. queue signal 会在 expand I/O 前后、循环边界和 child create 边界被检查
+2. prepare task 不再发布新的 stale leaf task
+3. cleanup 由 runtime interrupt flow 统一处理
+4. 已创建的 root / descendants 会被标记为 `failed` 或在 delete flow 中由 SQLite cascade 删除
+
+`fileProcessorId` 已保留在 schema/config 中，但 runtime 处理链路尚未接入该配置。
+
+## 8. `knowledge_item.status` / `phase` 的当前实现边界
+
+当前 `status` 表达总体状态：
 
 1. `idle`
-2. `pending`
-3. `file_processing`
-4. `read`
-5. `embed`
-6. `completed`
-7. `failed`
+2. `processing`
+3. `completed`
+4. `failed`
 
-### 7.2 当前 runtime 实际写入
+当前 `phase` 字段允许以下值：
 
-`KnowledgeRuntimeService` 当前真正写入的状态只有：
+1. `null`
+2. `preparing`
+3. `reading`
+4. `embedding`
 
-1. 入队前写 `pending`
-2. 成功完成写 `completed`
-3. 任意失败或 shutdown 中断写 `failed`
+`KnowledgeRuntimeService` 当前写入的 active 状态是：
+
+1. `processing, phase = preparing`：`directory` / `sitemap` root 或 nested directory 正在 expand / create children
+2. `processing, phase = reading`：leaf 正在读取 source documents
+3. `processing, phase = embedding`：leaf 正在 embedding / 写入 vector store
+4. `completed, phase = null`：leaf indexing 完成，或 container 没有 active children
+5. `failed, phase = null`：runtime task 失败、interrupt cleanup 失败，或 shutdown 中断补偿
 
 也就是说：
 
-1. `file_processing` / `read` / `embed` 目前仍是预留状态
-2. 它们已进入 schema，但当前 runtime 尚未推进到这些中间态
+1. `status` 不再承载 `read` / `embed` 这类阶段语义
+2. `phase` 是 runtime 内部进度，不应由通用 Data API update DTO 对外暴露
+3. container 的最终状态由自身 phase 和 children 状态自下而上 reconcile
 
-这部分必须在文档中明确，因为旧文档把这些状态当成“当前已经落地的推进链路”，但实现并非如此。
+这个拆分解决的核心问题是：`processing/read/embed` 不再同时表达总体状态和运行阶段，directory/sitemap 的 preparation 与 children indexing 也不会混在同一个字段里。
 
-## 8. Lifecycle 行为
+## 9. Lifecycle 行为
 
-`KnowledgeRuntimeService` 已经接入 lifecycle system，当前行为如下。
+`KnowledgeRuntimeService` 和 `KnowledgeVectorStoreService` 已经接入 lifecycle system。
 
-### 8.1 `onInit`
+### 9.1 `KnowledgeRuntimeService.onInit`
 
-当前做三件事：
+当前做一件事：
 
-1. `isStopping = false`
-2. `addQueue.reset()`
+1. 重新创建进程内 `KnowledgeQueueManager`
 
-当前没有启动时“扫描中间状态并补偿失败”的逻辑。
+当前没有启动时“扫描中间状态并补偿失败”或“自动恢复索引任务”的逻辑。
 
-### 8.2 `onStop`
+### 9.2 `KnowledgeRuntimeService.onStop`
 
 当前 stop 流程是：
 
-1. `isStopping = true`
-2. 调用 `addQueue.interruptAll('stop', SHUTDOWN_INTERRUPTED_REASON)`
-3. 收集中断的 entries 和 itemIds
-4. 等待相关 running add task settle
-5. best-effort 删除这些被中断 item 已写入的向量
+1. 调用 `queue.interruptAll(SHUTDOWN_INTERRUPTED_REASON)`
+2. 收集中断的 `prepare-root` / `index-leaf` entries
+3. 等待相关 running task settle
+4. 对 `index-leaf` 清理对应 leaf vectors
+5. 对 `prepare-root` fresh 查询 descendants，并清理 root / descendants vectors
 6. 将这些 item 批量写为 `failed`
 
 这意味着：
@@ -458,75 +488,96 @@ schema 和共享类型仍然保留完整状态集合：
 2. 当前会在 stop 时清理被中断 item 的向量残留
 3. 但没有做重启后的自动恢复
 
-## 9. Reader / Chunk / Embed / Search 的当前边界
+### 9.3 `KnowledgeVectorStoreService.onStop`
 
-### 9.1 Reader
+当前 stop 流程是：
 
-reader 由 `loadKnowledgeItemDocuments(item)` 按 `item.type` 分派：
+1. 遍历 cached vector stores
+2. 对 `LibSQLVectorStore` 调用 `client().close()`
+3. 清空 `instanceCache`
+
+## 10. Reader / Chunk / Embed / Search 的当前边界
+
+### 10.1 Reader
+
+reader 由 `loadKnowledgeItemDocuments(item)` 按 leaf `item.type` 分派：
 
 1. `file` -> `KnowledgeFileReader`
 2. `url` -> `KnowledgeUrlReader`
 3. `note` -> `KnowledgeNoteReader`
-4. `sitemap` -> `KnowledgeSitemapReader`
-5. `directory` -> `KnowledgeDirectoryReader`
+
+当前 runtime reader 不直接索引 `directory` / `sitemap`。这两类 item 必须先通过 `prepare-root` 展开成 `file` / `url` leaf items 后再进入 indexing。
 
 当前各 reader 的实际行为：
 
 1. `file`
    - 按扩展名选择 reader
-   - 已支持 `pdf` / `csv` / `docx` / `epub` / `json` / `md` / `draftsexport`
+   - 已支持 `.pdf` / `.csv` / `.docx` / `.epub` / `.json` / `.md` / `.draftsexport`
    - 其他扩展名回退到 `TextFileReader`
+   - metadata 保留 `source`
 2. `url`
    - 通过 `https://r.jina.ai/<url>` 抓取 markdown
-   - 元数据中保留 `itemId` / `itemType` / `sourceUrl` / `name`
+   - 支持 `AbortSignal`
+   - metadata 保留 `source`
 3. `note`
    - 直接把 `content` 包成一个 `Document`
+   - metadata 保留 `source`
 4. `sitemap`
    - 当前已保留 `KnowledgeSitemapReader` 代码路径
    - 但 runtime 侧暂时不直接索引 `sitemap` item
-   - 当前调用方会先创建 sitemap owner，再通过 runtime IPC 将其展开为具体 `url` item，再进入索引流程
 5. `directory`
    - 当前只作为 container placeholder
    - reader 会记录 warning 并返回空数组
-   - 也就是说它不会直接产出可索引文档，调用方需要先创建 directory owner，再通过 runtime IPC 将其展开为具体子 item
 
-### 9.2 Chunk
+### 10.2 Chunk
 
 `chunkDocuments(base, item, documents)` 当前做的事情：
 
 1. 使用 `SentenceSplitter`
 2. 读取 `base.chunkSize` 和 `base.chunkOverlap`
 3. 为每个 chunk 写入元数据：
+   - 原 document metadata
    - `itemId`
    - `itemType`
-   - `sourceDocumentIndex`
    - `chunkIndex`
-   - `chunkCount`
+   - `tokenCount`
 
-### 9.3 Embed
+当前 `KnowledgeChunkMetadataSchema` 要求 metadata 包含：
+
+1. `itemId`
+2. `itemType`
+3. `source`
+4. `chunkIndex`
+5. `tokenCount`
+
+### 10.3 Embed
 
 `getEmbedModel(base)` 当前只支持：
 
 1. 从 `embeddingModelId` 解析 `providerId::modelId`
 2. 仅接受 `providerId === 'ollama'`
+3. 通过 `createOllama().textEmbeddingModel(modelId)` 获取 embedding model
 
-其他 provider 当前会直接抛错。
+其他 provider 当前会直接抛错。`embeddingModelId` 为空时也会抛错。
 
-`embedDocuments(model, documents)` 当前会：
+`embedDocuments(model, documents, signal)` 当前会：
 
 1. 用 `embedMany` 批量生成 embeddings
-2. 构造 `TextNode`
-3. 在 `NodeRelationship.SOURCE` 上写回 `itemId`
+2. 支持把 `AbortSignal` 传给 AI SDK
+3. 构造 `TextNode`
+4. 在 `NodeRelationship.SOURCE` 上写回 `itemId` 和 metadata
 
-### 9.4 Search
+### 10.4 Search
 
-`search(base, query)` 当前链路是：
+`search(baseId, query)` 当前链路是：
 
 ```text
-embed query
+getEmbedModel(base)
+ -> embed query with embedMany
+ -> KnowledgeVectorStoreService.createStore(base)
  -> vectorStore.query(...)
  -> map nodes into KnowledgeSearchResult[]
- -> rerankKnowledgeSearchResults(base, query, results)
+ -> optional rerankKnowledgeSearchResults(base, query, results)
 ```
 
 查询参数来自 base：
@@ -535,7 +586,9 @@ embed query
 2. `similarityTopK = base.documentCount ?? 10`
 3. `alpha = base.hybridAlpha`
 
-### 9.5 Rerank 的当前真实状态
+如果 query embedding 为空，会抛出 `Failed to embed search query: model returned empty result`。
+
+### 10.5 Rerank 的当前真实状态
 
 当前 rerank 代码路径已经存在，但 runtime 配置解析尚未接通：
 
@@ -545,15 +598,16 @@ embed query
 
 换句话说，rerank 是“代码壳已存在，但还未真正启用”。
 
-## 10. `KnowledgeVectorStoreService` 的边界
+## 11. `KnowledgeVectorStoreService` 的边界
 
 `KnowledgeVectorStoreService` 当前负责 runtime vector store 的最小缓存和生命周期管理。
 
 它负责：
 
 1. 按 `base.id` 创建或复用 store
-2. 删除单个 base 的 store 文件
-3. shutdown 时关闭所有已缓存 store
+2. 按需打开磁盘上已存在的 store
+3. 删除单个 base 的 store 文件
+4. shutdown 时关闭所有已缓存 store
 
 它当前的重要约束是：
 
@@ -563,10 +617,12 @@ embed query
 
 当前实际 provider 是 `LibSqlVectorStoreProvider`：
 
-1. 向量文件路径位于 `application.getPath('feature.knowledgebase.data', <sanitizedBaseId>)`
-2. 删除 base 时会删除对应文件
+1. 向量文件路径位于 `application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))`
+2. collection 使用 `base.id`
+3. dimensions 使用 `base.dimensions`
+4. 删除 base 时会删除对应文件
 
-## 11. 当前明确不做的内容
+## 12. 当前明确不做的内容
 
 当前实现没有做：
 
@@ -578,19 +634,19 @@ embed query
 6. 自动恢复索引继续执行
 7. 自动重试
 8. chunk 级 queue
-9. runtime 在 `addItems` 内对 `directory` / `sitemap` item 做隐式自动展开
+9. 用户添加 nested `directory` / `sitemap`
 10. 真正可用的 rerank runtime 配置接入
 11. 非 `ollama` embedding provider 支持
 12. `fileProcessorId` 驱动的文件处理链路
 
-## 12. 后续更新本文档时的原则
+## 13. 后续更新本文档时的原则
 
 后续只有在以下行为真正落地之后，才应更新本文档：
 
 1. runtime queue 从单队列改成 per-base queue
-2. 中间状态 `file_processing` / `read` / `embed` 真的开始持久化写入
-3. rerank runtime 配置真正接通
-4. `fileProcessorId` 开始参与 runtime 执行链路
-5. runtime 在 `addItems` 中原生接管 `directory` / `sitemap` item 的隐式展开与索引编排
+2. rerank runtime 配置真正接通
+3. `fileProcessorId` 开始参与 runtime 执行链路
+4. 用户添加 nested `directory` / `sitemap`
+5. queue interrupt 从当前 root + fresh descendants 模型改成 stable-loop 或 generation/runId 模型
 
 在这些行为落地之前，文档应继续以“当前已实现”为准，不提前写成目标设计。

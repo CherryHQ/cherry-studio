@@ -11,12 +11,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { pinTable } from '@data/db/schemas/pin'
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc, eq } from 'drizzle-orm'
+
+import type { MigrationContext } from '../../core/MigrationContext'
 import { ChatMigrator } from '../ChatMigrator'
 import type { NewMessage, NewTopic, OldBlock, OldMainTextBlock, OldMessage, OldTopic } from '../mappings/ChatMappings'
 
 interface PreparedTopicData {
   topic: NewTopic
   messages: NewMessage[]
+  pinned: boolean
 }
 
 /** Create a minimal OldMainTextBlock */
@@ -230,6 +236,181 @@ describe('ChatMigrator.prepareTopicData', () => {
   })
 })
 
+describe('ChatMigrator pin migration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('captures pinned flag from Redux topic metadata onto PreparedTopicData', () => {
+    // Dexie topic row has no `pinned` column; the v1 source stores pin state
+    // on the Redux side under assistant.topics[].pinned. The migrator must
+    // merge that flag into PreparedTopicData so insertStagedTopics can later
+    // emit a `pin` row — without this flag the legacy pinned topic silently
+    // becomes unpinned post-migration.
+    const b1 = block('b1', 'u1')
+    const messages = [msg('u1', 'user', ['b1'])]
+    const oldTopic = topic('t1', messages)
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', b1]])
+    m['assistantLookup'] = new Map()
+    // Redux meta says it's pinned even though Dexie source doesn't carry the flag.
+    m['topicMetaLookup'] = new Map([['t1', { pinned: true }]])
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+
+    expect(result).not.toBeNull()
+    expect(result?.pinned).toBe(true)
+  })
+
+  it('defaults pinned to false when source has no pinned flag', () => {
+    const b1 = block('b1', 'u1')
+    const result = prepareTopic(topic('t1', [msg('u1', 'user', ['b1'])]), [b1])
+    expect(result).not.toBeNull()
+    expect(result?.pinned).toBe(false)
+  })
+
+  it('lets Redux pinned=false override Dexie pinned=true (Redux is authoritative)', () => {
+    // The merge order is `topicMeta.pinned ?? oldTopic.pinned`, so an explicit
+    // false in Redux wins over a stale true on the Dexie side.
+    const b1 = block('b1', 'u1')
+    const oldTopic: OldTopic = {
+      id: 't1',
+      assistantId: 'ast-1',
+      name: 'X',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      messages: [msg('u1', 'user', ['b1'])],
+      pinned: true
+    }
+
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blockLookup'] = new Map([['b1', b1]])
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map([['t1', { pinned: false }]])
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
+    const result = fn.call(migrator, oldTopic)
+    expect(result?.pinned).toBe(false)
+  })
+})
+
+describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
+  const dbh = setupTestDatabase()
+
+  /**
+   * Build a minimal NewTopic for staging directly into stagedTopics. The
+   * migrator's insert path only reads {id, name, assistantId, groupId,
+   * orderKey, createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
+   * defaults are fine.
+   */
+  function newTopic(id: string, updatedAt: number): NewTopic {
+    return {
+      id,
+      name: id,
+      isNameManuallyEdited: false,
+      assistantId: null,
+      activeNodeId: null,
+      groupId: null,
+      orderKey: '', // Stamped by phase 1 of insertStagedTopics
+      createdAt: updatedAt,
+      updatedAt
+    }
+  }
+
+  function stage(migrator: ChatMigrator, items: PreparedTopicData[]): void {
+    const m = migrator as unknown as Record<string, unknown>
+    m['stagedTopics'] = items
+    m['validAssistantIds'] = new Set<string>()
+    m['validModelIds'] = null
+  }
+
+  function ctxOf(): MigrationContext {
+    // Only ctx.db is exercised by insertStagedTopics; cast to satisfy the
+    // structural type without standing up the full context plumbing.
+    return { db: dbh.db } as unknown as MigrationContext
+  }
+
+  it('emits one pin row per pinned topic ordered by topic.updatedAt DESC', async () => {
+    const migrator = new ChatMigrator()
+    stage(migrator, [
+      { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
+      { topic: newTopic('t-new-pin', 300), messages: [], pinned: true },
+      { topic: newTopic('t-mid', 200), messages: [], pinned: false }
+    ])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    const result = await fn.call(migrator, ctxOf())
+
+    expect(result.pinsInserted).toBe(2)
+
+    const pins = await dbh.db
+      .select({ entityId: pinTable.entityId, orderKey: pinTable.orderKey })
+      .from(pinTable)
+      .where(eq(pinTable.entityType, 'topic'))
+      .orderBy(asc(pinTable.orderKey))
+
+    // Newest-first: t-new-pin (updatedAt=300) gets the smallest orderKey.
+    expect(pins.map((p) => p.entityId)).toEqual(['t-new-pin', 't-old-pin'])
+    expect(pins.every((p) => p.orderKey.length > 0)).toBe(true)
+    // Distinct, monotonically increasing keys.
+    expect(new Set(pins.map((p) => p.orderKey)).size).toBe(pins.length)
+  })
+
+  it('skips pin emission entirely when no topic is pinned', async () => {
+    const migrator = new ChatMigrator()
+    stage(migrator, [
+      { topic: newTopic('t1', 1), messages: [], pinned: false },
+      { topic: newTopic('t2', 2), messages: [], pinned: false }
+    ])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    const result = await fn.call(migrator, ctxOf())
+
+    expect(result.pinsInserted).toBe(0)
+    const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'topic'))
+    expect(pins).toHaveLength(0)
+  })
+
+  it('pin insertion uses ON CONFLICT DO NOTHING — a pre-existing pin row does not crash phase 3', async () => {
+    // Real-world failure mode: a user retried the v1 -> v2 migration after a
+    // mid-phase crash. verifyAndClearNewTables now clears `pin`, but if it
+    // were to miss one (or a future schema landed a stray row), phase 3 must
+    // not throw on the (entity_type, entity_id) UNIQUE index.
+    await dbh.db
+      .insert(pinTable)
+      .values({ id: 'preexisting', entityType: 'topic', entityId: 't-pin', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+    const migrator = new ChatMigrator()
+    stage(migrator, [{ topic: newTopic('t-pin', 100), messages: [], pinned: true }])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+
+    // Should not throw despite the existing pin row.
+    await expect(fn.call(migrator, ctxOf())).resolves.toBeDefined()
+
+    // Original pin row is preserved (DO NOTHING leaves it in place).
+    const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'topic'))
+    expect(pins).toHaveLength(1)
+    expect(pins[0]?.id).toBe('preexisting')
+  })
+})
+
 describe('ChatMigrator model reference sanitization', () => {
   it('nulls out dangling migrated message model ids', () => {
     const migrator = new ChatMigrator() as unknown as Record<string, unknown>
@@ -242,7 +423,7 @@ describe('ChatMigrator model reference sanitization', () => {
         topicId: 't1',
         role: 'assistant',
         data: { blocks: [] },
-        searchableText: null,
+        searchableText: '',
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',

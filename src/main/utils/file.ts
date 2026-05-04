@@ -261,8 +261,9 @@ export async function base64Image(file: FileMetadata): Promise<{ mime: string; b
   const filePath = application.getPath('feature.files.data', `${file.id}${file.ext}`)
   const data = await fs.promises.readFile(filePath)
   const base64 = data.toString('base64')
-  const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
-  const mime = `image/${ext}`
+  const rawExt = path.extname(filePath).slice(1)
+  const ext = rawExt === 'jpg' ? 'jpeg' : rawExt
+  const mime = ext ? `image/${ext}` : 'image/png'
   return {
     mime,
     base64,

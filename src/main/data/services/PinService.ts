@@ -15,6 +15,9 @@
  * - `purgeForEntity` MUST be called from consumer services' delete paths
  *   (mirrors `tagService.purgeForEntity`). The `pin` table has no FK to
  *   consumer tables by design; application-level purge is the contract.
+ * - For cascading deletes where a parent owns N entities of the same type,
+ *   prefer `purgeForEntities` over a loop of `purgeForEntity`. The bulk
+ *   variant emits a single aggregated log line and a single SQL round trip.
  */
 
 import { application } from '@application'
@@ -27,7 +30,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePinDto } from '@shared/data/api/schemas/pins'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -186,6 +189,19 @@ export class PinService {
     await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), eq(pinTable.entityId, entityId)))
 
     logger.info('Purged pins for entity', { entityType, entityId })
+  }
+
+  /**
+   * Bulk variant of `purgeForEntity` for callers that already hold a list of
+   * entity ids (e.g. cascading deletes from a parent that owns many entities
+   * of the same type). Empty input is a no-op. Emits a single aggregated log
+   * line so a large cascade does not produce per-id log entries.
+   */
+  async purgeForEntities(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+    if (entityIds.length === 0) return
+    await tx.delete(pinTable).where(and(eq(pinTable.entityType, entityType), inArray(pinTable.entityId, entityIds)))
+
+    logger.info('Purged pins for entities', { entityType, count: entityIds.length })
   }
 }
 

@@ -17,6 +17,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { miniappTable } from '@data/db/schemas/miniapp'
+import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
@@ -297,6 +298,7 @@ export class MigrationEngine {
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
+      { table: pinTable, name: 'pin' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
@@ -334,6 +336,7 @@ export class MigrationEngine {
     }
 
     // Clear tables in dependency order (children before parents)
+    await db.delete(pinTable)
     await db.delete(userModelTable)
     await db.delete(userProviderTable)
     await db.delete(messageTable) // FK → topic
@@ -425,7 +428,9 @@ export class MigrationEngine {
       await fs.rm(exportPath, { recursive: true, force: true })
       logger.info('Temporary files cleaned up', { path: exportPath })
     } catch (error) {
-      logger.warn('Failed to cleanup temp files', { error, path: exportPath })
+      // logger.error not warn — migration is already "completed" so a silent
+      // failure here leaks Dexie export blobs across retries.
+      logger.error('Failed to cleanup temp files', error as Error, { path: exportPath })
     }
   }
 

@@ -21,8 +21,8 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     tags: [],
     contentHash: 'hash-1',
     isEnabled: false,
-    createdAt: 1,
-    updatedAt: 1,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
     ...overrides
   }
 }
@@ -38,7 +38,7 @@ describe('useInstalledSkills', () => {
     })
     mockToggle.mockImplementation(async ({ skillId, isEnabled }) => ({
       success: true,
-      data: createSkill({ id: skillId, isEnabled, updatedAt: 2 })
+      data: createSkill({ id: skillId, isEnabled, updatedAt: '2024-01-02T00:00:00.000Z' })
     }))
     mockUninstall.mockResolvedValue({ success: true, data: null })
 
@@ -72,7 +72,7 @@ describe('useInstalledSkills', () => {
     expect(mockToggle).toHaveBeenCalledWith({ skillId: 'skill-1', agentId: 'agent-1', isEnabled: true })
     expect(mockList).toHaveBeenCalledTimes(1)
     expect(result.current.skills.find((skill) => skill.id === 'skill-1')).toEqual(
-      createSkill({ id: 'skill-1', isEnabled: true, updatedAt: 2 })
+      createSkill({ id: 'skill-1', isEnabled: true, updatedAt: '2024-01-02T00:00:00.000Z' })
     )
   })
 })

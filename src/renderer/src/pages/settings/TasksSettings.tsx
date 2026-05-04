@@ -1,21 +1,24 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { cacheService } from '@renderer/data/CacheService'
-import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
-import { useTaskLogs } from '@renderer/hooks/agents/useTasks'
+import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
+import type { AgentEntity } from '@renderer/types/agent'
 import { useNavigate } from '@tanstack/react-router'
 import { Alert, Button, DatePicker, Empty, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { CalendarClock, Clock, ExternalLink, History, Maximize2, Pause, Play, Search, Trash2 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mutate } from 'swr'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+
+const logger = loggerService.withContext('TasksSettings')
 
 // --------------- Types ---------------
 
@@ -101,25 +104,25 @@ const TaskDetail: FC<{
     interval: t('agent.cherryClaw.tasks.scheduleType.interval'),
     once: t('agent.cherryClaw.tasks.scheduleType.once')
   }
-  const agentName = agents.find((a) => a.id === task.agent_id)?.name ?? task.agent_id
+  const agentName = agents.find((a) => a.id === task.agentId)?.name ?? task.agentId
 
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
-  const [agentId, setAgentId] = useState(task.agent_id)
-  const [scheduleType, setScheduleType] = useState(task.schedule_type)
-  const [scheduleValue, setScheduleValue] = useState(task.schedule_value)
-  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeout_minutes?.toString() ?? '')
-  const [channelIds, setChannelIds] = useState<string[]>(task.channel_ids ?? [])
+  const [agentId, setAgentId] = useState(task.agentId)
+  const [scheduleType, setScheduleType] = useState(task.scheduleType)
+  const [scheduleValue, setScheduleValue] = useState(task.scheduleValue)
+  const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeoutMinutes?.toString() ?? '')
+  const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
 
   useEffect(() => {
     setName(task.name)
     setPrompt(task.prompt)
-    setAgentId(task.agent_id)
-    setScheduleType(task.schedule_type)
-    setScheduleValue(task.schedule_value)
-    setTimeoutMinutes(task.timeout_minutes?.toString() ?? '')
-    setChannelIds(task.channel_ids ?? [])
+    setAgentId(task.agentId)
+    setScheduleType(task.scheduleType)
+    setScheduleValue(task.scheduleValue)
+    setTimeoutMinutes(task.timeoutMinutes?.toString() ?? '')
+    setChannelIds(task.channelIds ?? [])
   }, [task])
 
   const saveField = useCallback(
@@ -146,12 +149,12 @@ const TaskDetail: FC<{
   }
 
   const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
-    if (task.schedule_type === 'interval') return `${task.schedule_value} ${t('agent.cherryClaw.tasks.intervalUnit')}`
-    if (task.schedule_type === 'once' && task.schedule_value) {
-      return formatDateTime(task.schedule_value)
+    if (task.scheduleType === 'cron') return task.scheduleValue
+    if (task.scheduleType === 'interval') return `${task.scheduleValue} ${t('agent.cherryClaw.tasks.intervalUnit')}`
+    if (task.scheduleType === 'once' && task.scheduleValue) {
+      return formatDateTime(task.scheduleValue)
     }
-    return task.schedule_value
+    return task.scheduleValue
   }
 
   return (
@@ -193,23 +196,23 @@ const TaskDetail: FC<{
         </SettingTitle>
         <SettingDivider />
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Tag color={scheduleTypeColors[task.schedule_type] ?? 'default'}>
-            {scheduleTypeLabels[task.schedule_type] ?? task.schedule_type}
+          <Tag color={scheduleTypeColors[task.scheduleType] ?? 'default'}>
+            {scheduleTypeLabels[task.scheduleType] ?? task.scheduleType}
           </Tag>
           <span className="inline-flex items-center gap-1 text-(--color-text-3)">
             <Clock size={12} />
             {formatScheduleValue()}
           </span>
-          {task.last_run && (
+          {task.lastRun && (
             <span className="inline-flex items-center gap-1 text-(--color-text-3)">
               <History size={12} />
-              {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.last_run)}
+              {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.lastRun)}
             </span>
           )}
-          {task.next_run && (
+          {task.nextRun && (
             <span className="inline-flex items-center gap-1 text-(--color-text-3)">
               <CalendarClock size={12} />
-              {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.next_run)}
+              {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.nextRun)}
             </span>
           )}
         </div>
@@ -241,7 +244,7 @@ const TaskDetail: FC<{
                 disabled={isCompleted}
                 onChange={(value) => {
                   setAgentId(value)
-                  saveField({ agent_id: value })
+                  saveField({ agentId: value })
                 }}
                 options={agents.map((a) => ({ value: a.id, label: a.name }))}
               />
@@ -284,7 +287,7 @@ const TaskDetail: FC<{
               onChange={(value) => {
                 setScheduleType(value)
                 setScheduleValue('')
-                saveField({ schedule_type: value, schedule_value: '' })
+                saveField({ scheduleType: value, scheduleValue: '' })
               }}
               options={[
                 { value: 'cron', label: t('agent.cherryClaw.tasks.scheduleType.cron') },
@@ -302,8 +305,8 @@ const TaskDetail: FC<{
                 onChange={(e) => setScheduleValue(e.target.value)}
                 onBlur={() =>
                   scheduleValue.trim() &&
-                  scheduleValue !== task.schedule_value &&
-                  saveField({ schedule_value: scheduleValue.trim() })
+                  scheduleValue !== task.scheduleValue &&
+                  saveField({ scheduleValue: scheduleValue.trim() })
                 }
                 placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
                 disabled={isCompleted}
@@ -318,8 +321,8 @@ const TaskDetail: FC<{
                 onChange={(e) => setScheduleValue(e.target.value)}
                 onBlur={() =>
                   scheduleValue.trim() &&
-                  scheduleValue !== task.schedule_value &&
-                  saveField({ schedule_value: scheduleValue.trim() })
+                  scheduleValue !== task.scheduleValue &&
+                  saveField({ scheduleValue: scheduleValue.trim() })
                 }
                 placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
                 suffix={t('agent.cherryClaw.tasks.intervalUnit')}
@@ -336,7 +339,7 @@ const TaskDetail: FC<{
                   if (val) {
                     const iso = val.toISOString()
                     setScheduleValue(iso)
-                    saveField({ schedule_value: iso })
+                    saveField({ scheduleValue: iso })
                   }
                 }}
                 disabled={isCompleted}
@@ -353,8 +356,8 @@ const TaskDetail: FC<{
               onChange={(e) => setTimeoutMinutes(e.target.value)}
               onBlur={() => {
                 const val = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
-                const prev = task.timeout_minutes ?? null
-                if (val !== prev) saveField({ timeout_minutes: val })
+                const prev = task.timeoutMinutes ?? null
+                if (val !== prev) saveField({ timeoutMinutes: val })
               }}
               placeholder={t('agent.cherryClaw.tasks.timeout.placeholder')}
               suffix={t('agent.cherryClaw.tasks.intervalUnit')}
@@ -367,7 +370,7 @@ const TaskDetail: FC<{
           channelIds={channelIds}
           onChange={(value) => {
             setChannelIds(value)
-            saveField({ channel_ids: value })
+            saveField({ channelIds: value })
           }}
           disabled={isCompleted}
         />
@@ -377,7 +380,7 @@ const TaskDetail: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.logs.label')}</SettingTitle>
         <SettingDivider />
-        <TaskLogsInline taskId={task.id} agentId={task.agent_id} />
+        <TaskLogsInline taskId={task.id} agentId={task.agentId} />
       </SettingGroup>
 
       <Modal
@@ -409,7 +412,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   const { t, i18n } = useTranslation()
   const locale = i18n.language
   const navigate = useNavigate()
-  const { logs, isLoading } = useTaskLogs(taskId)
+  const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
   const [searchText, setSearchText] = useState('')
 
   const filteredLogs = useMemo(() => {
@@ -420,7 +423,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.run_at).toLocaleString(locale).toLowerCase().includes(query)
+        new Date(log.runAt).toLocaleString(locale).toLowerCase().includes(query)
     )
   }, [locale, logs, searchText])
 
@@ -437,8 +440,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   const columns = [
     {
       title: t('agent.cherryClaw.tasks.logs.runAt'),
-      dataIndex: 'run_at',
-      key: 'run_at',
+      dataIndex: 'runAt',
+      key: 'runAt',
       width: 160,
       render: (val: string) =>
         new Date(val).toLocaleString(undefined, {
@@ -451,8 +454,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
     },
     {
       title: t('agent.cherryClaw.tasks.logs.duration'),
-      dataIndex: 'duration_ms',
-      key: 'duration_ms',
+      dataIndex: 'durationMs',
+      key: 'durationMs',
       width: 80,
       render: (val: number, record: TaskRunLogEntity) => {
         if (record.status === 'running') return '-'
@@ -488,7 +491,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
             : record.status === 'error'
               ? record.error
               : (val ?? '-')
-        const hasSession = !!record.session_id
+        const hasSession = !!record.sessionId
 
         return (
           <div className="flex items-center gap-1">
@@ -504,7 +507,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                   size="small"
                   icon={<ExternalLink size={12} />}
                   style={{ flexShrink: 0 }}
-                  onClick={() => navigateToSession(record.session_id!)}
+                  onClick={() => navigateToSession(record.sessionId!)}
                 />
               </Tooltip>
             )}
@@ -520,6 +523,10 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         <Spin size="small" />
       </div>
     )
+  }
+
+  if (logsError) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('agent.cherryClaw.tasks.logs.loadError')} />
   }
 
   if (logs.length === 0) {
@@ -593,10 +600,10 @@ const CreateForm: FC<{
       await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
-        schedule_type: scheduleType,
-        schedule_value: scheduleValue.trim(),
-        timeout_minutes: timeout && timeout > 0 ? timeout : undefined,
-        channel_ids: channelIds.length > 0 ? channelIds : undefined
+        scheduleType: scheduleType,
+        scheduleValue: scheduleValue.trim(),
+        timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
+        channelIds: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
@@ -760,8 +767,11 @@ const CreateForm: FC<{
 
 const TasksSettings: FC = () => {
   const { t } = useTranslation()
-  const client = useAgentClient()
   const { channels: rawChannels = [] } = useChannels()
+  const { createTask } = useCreateTask()
+  const { updateTask } = useUpdateTask()
+  const { deleteTask } = useDeleteTask()
+  const { runTask } = useRunTask()
 
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [tasks, setTasks] = useState<ScheduledTaskEntity[]>([])
@@ -784,27 +794,34 @@ const TasksSettings: FC = () => {
   )
 
   const loadData = useCallback(async () => {
-    if (!client) {
-      return
-    }
-
     try {
-      const [tasksRes, agentsRes] = await Promise.all([
-        client.listTasks({ limit: 200 }),
-        client.listAgents({ limit: 100 })
-      ])
-      setTasks(tasksRes.data)
-      setAgents(
-        agentsRes.data
-          .filter((a) => {
-            return a.configuration?.soul_enabled === true || a.configuration?.permission_mode === 'bypassPermissions'
+      const agentsResult = await dataApiService.get('/agents', { query: { limit: 100 } })
+      const agentList = (agentsResult as any).items ?? []
+      const tasksPerAgent = await Promise.all(
+        agentList.map(async (a: AgentEntity) => {
+          const result = await dataApiService.get(`/agents/${a.id}/tasks` as never, {
+            query: { limit: 200 }
           })
-          .map((a) => ({ id: a.id, name: a.name ?? a.id }))
+          return (result as any).items ?? []
+        })
       )
+      setTasks(tasksPerAgent.flat())
+      setAgents(
+        agentList
+          .filter(
+            (a: AgentEntity) =>
+              (a.configuration as any)?.soul_enabled === true ||
+              (a.configuration as any)?.permission_mode === 'bypassPermissions'
+          )
+          .map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id }))
+      )
+    } catch (error) {
+      logger.error('Failed to load tasks settings', error as Error)
+      window.toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [client])
+  }, [t])
 
   useEffect(() => {
     void loadData()
@@ -833,68 +850,59 @@ const TasksSettings: FC = () => {
 
   const handleCreate = useCallback(
     async (agentId: string, req: CreateTaskRequest) => {
-      if (!client) {
-        return
+      const created = await createTask(agentId, req)
+      if (created) {
+        setCreating(false)
+        await loadData()
+        setSelectedTaskId(created.id)
       }
-      const created = await client.createTask(agentId, req)
-      setCreating(false)
-      await loadData()
-      setSelectedTaskId(created.id)
     },
-    [client, loadData]
+    [createTask, loadData]
   )
 
   const handleUpdate = useCallback(
     async (taskId: string, updates: UpdateTaskRequest) => {
-      if (!client) {
-        return
-      }
-      await client.updateTask(taskId, updates)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await updateTask(task.agentId, taskId, updates)
       void loadData()
     },
-    [client, loadData]
+    [updateTask, tasks, loadData]
   )
 
   const handleDelete = useCallback(
     async (taskId: string) => {
-      if (!client) {
-        return
-      }
-      await client.deleteTask(taskId)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await deleteTask(task.agentId, taskId)
       if (selectedTaskId === taskId) setSelectedTaskId(null)
       void loadData()
     },
-    [client, selectedTaskId, loadData]
+    [deleteTask, tasks, selectedTaskId, loadData]
   )
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      if (!client) {
-        return
-      }
-      await client.runTask(taskId)
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await runTask(task.agentId, taskId)
       void loadData()
-      // Refresh task logs SWR cache so the logs list updates
-      const logsKey = client.taskPaths.logs(taskId)
-      void mutate(logsKey)
       // Task runs asynchronously — refresh again after a delay to capture completion
       setTimeout(() => {
-        void mutate(logsKey)
         void loadData()
       }, 1000)
     },
-    [client, loadData]
+    [runTask, tasks, loadData]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      if (!client) {
-        return
-      }
-      await client.updateTask(taskId, { status: newStatus as 'active' | 'paused' })
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) return
+      await updateTask(task.agentId, taskId, { status: newStatus as 'active' | 'paused' })
       void loadData()
     },
-    [client, loadData]
+    [updateTask, tasks, loadData]
   )
 
   if (loading) {
@@ -950,7 +958,7 @@ const TasksSettings: FC = () => {
                   key={task.id}
                   active={selectedTaskId === task.id && !creating}
                   title={task.name}
-                  subtitle={`${getAgentName(task.agent_id)} · ${scheduleTypeLabelsMap[task.schedule_type] ?? task.schedule_type}`}
+                  subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.scheduleType] ?? task.scheduleType}`}
                   icon={
                     <span
                       className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}

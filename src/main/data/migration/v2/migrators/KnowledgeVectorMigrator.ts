@@ -5,6 +5,13 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KnowledgeChunkMetadataSchema,
+  type KnowledgeItemData,
+  type KnowledgeItemType
+} from '@shared/data/types/knowledge'
+import { estimateTokenCount } from 'tokenx'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -14,6 +21,9 @@ const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
+const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
+const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
+const SKIP_WARNING_SAMPLE_LIMIT = 3
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
@@ -39,8 +49,24 @@ interface LegacyKnowledgeStateWithLoaders {
 interface PreparedVectorRow {
   document: string
   externalId: string
+  itemType: KnowledgeItemType
   source: string
+  chunkIndex: number
+  tokenCount: number
   embedding: number[]
+}
+
+interface MigratedKnowledgeItemForVector {
+  id: string
+  baseId: string
+  type: KnowledgeItemType
+  data: KnowledgeItemData
+}
+
+interface LoaderTarget {
+  id: string
+  itemType: KnowledgeItemType
+  source: string
 }
 
 interface PreparedBasePlan {
@@ -60,6 +86,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   private sourceCount = 0
   private skippedCount = 0
   private warnings: string[] = []
+  private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private preparedBasePlans: PreparedBasePlan[] = []
   private successfulBaseIds = new Set<string>()
   private targetCountByBaseId = new Map<string, number>()
@@ -69,6 +96,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.sourceCount = 0
     this.skippedCount = 0
     this.warnings = []
+    this.skippedWarnings = new Map<string, { count: number; samples: string[] }>()
     this.preparedBasePlans = []
     this.successfulBaseIds = new Set<string>()
     this.targetCountByBaseId = new Map<string, number>()
@@ -77,6 +105,33 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private getTempVectorStorePath(dbPath: string): string {
     return `${dbPath}.vectorstore.tmp`
+  }
+
+  private getLegacyBackupPath(dbPath: string): string {
+    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
+  }
+
+  private recordWarning(message: string): void {
+    logger.warn(message)
+    this.warnings.push(message)
+  }
+
+  private recordSkippedWarning(reason: string, message: string): void {
+    const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
+    bucket.count += 1
+    if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
+      bucket.samples.push(message)
+    }
+    this.skippedWarnings.set(reason, bucket)
+  }
+
+  private flushSkippedWarnings(): void {
+    for (const [reason, bucket] of this.skippedWarnings) {
+      const summary = `Skipped knowledge vector records (${reason}): count=${bucket.count}; examples: ${bucket.samples.join(' | ')}`
+      this.recordWarning(summary)
+    }
+
+    this.skippedWarnings.clear()
   }
 
   private async ensureVectorStoreSchema(client: Client, dimensions: number): Promise<void> {
@@ -180,7 +235,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       row.document,
       JSON.stringify({
         itemId: row.externalId,
-        ...(row.source.trim() !== '' ? { source: row.source } : {})
+        itemType: row.itemType,
+        source: row.source,
+        chunkIndex: row.chunkIndex,
+        tokenCount: row.tokenCount
       }),
       `[${row.embedding.join(',')}]`
     ])
@@ -195,31 +253,50 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     })
   }
 
-  private buildLoaderKeyMap(
+  private getMigratedItemSource(data: KnowledgeItemData): string {
+    if (!data || typeof data !== 'object' || !('source' in data) || typeof data.source !== 'string') {
+      return ''
+    }
+
+    return data.source.trim()
+  }
+
+  private buildLoaderTargetMap(
     legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
-    migratedItemIds: Set<string>
-  ): Map<string, string> {
-    const map = new Map<string, string>()
+    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>
+  ): Map<string, LoaderTarget> {
+    const map = new Map<string, LoaderTarget>()
     if (!legacyBase || !Array.isArray(legacyBase.items)) {
       return map
     }
 
     for (const item of legacyBase.items) {
-      if (!item.id || !migratedItemIds.has(item.id)) {
+      if (!item.id) {
         continue
+      }
+
+      const migratedItem = migratedItemsById.get(item.id)
+      if (!migratedItem) {
+        continue
+      }
+
+      const target: LoaderTarget = {
+        id: migratedItem.id,
+        itemType: migratedItem.type,
+        source: this.getMigratedItemSource(migratedItem.data)
       }
 
       if (Array.isArray(item.uniqueIds) && item.uniqueIds.length > 0) {
         for (const uniqueId of item.uniqueIds) {
           if (typeof uniqueId === 'string' && uniqueId.trim() !== '') {
-            map.set(uniqueId, item.id)
+            map.set(uniqueId, target)
           }
         }
         continue
       }
 
       if (typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '') {
-        map.set(item.uniqueId, item.id)
+        map.set(item.uniqueId, target)
       }
     }
 
@@ -239,14 +316,19 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       }
 
       const migratedItems = await ctx.db
-        .select({ id: knowledgeItemTable.id, baseId: knowledgeItemTable.baseId })
+        .select({
+          id: knowledgeItemTable.id,
+          baseId: knowledgeItemTable.baseId,
+          type: knowledgeItemTable.type,
+          data: knowledgeItemTable.data
+        })
         .from(knowledgeItemTable)
 
-      const migratedItemIdsByBaseId = new Map<string, Set<string>>()
+      const migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
       for (const item of migratedItems) {
-        const bucket = migratedItemIdsByBaseId.get(item.baseId) ?? new Set<string>()
-        bucket.add(item.id)
-        migratedItemIdsByBaseId.set(item.baseId, bucket)
+        const bucket = migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        bucket.set(item.id, item)
+        migratedItemsByBaseId.set(item.baseId, bucket)
       }
 
       const legacyBasesById = new Map(
@@ -256,11 +338,23 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       )
 
       for (const base of migratedBases) {
+        if (base.status === 'failed' || base.embeddingModelId === null) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: missing embedding model`
+          this.recordSkippedWarning(KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, warningMessage)
+          continue
+        }
+
+        const dimensions = base.dimensions
+        if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: invalid dimensions`
+          this.recordSkippedWarning('invalid_dimensions', warningMessage)
+          continue
+        }
+
         const legacyBase = legacyBasesById.get(base.id)
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base not found`
-          logger.warn(warningMessage)
-          this.warnings.push(warningMessage)
+          this.recordSkippedWarning('legacy_base_missing', warningMessage)
           continue
         }
 
@@ -268,26 +362,22 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('invalid_path', warningMessage)
             continue
           }
           case 'missing': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB missing`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('missing', warningMessage)
             continue
           }
           case 'directory': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB path is a directory`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('directory', warningMessage)
             continue
           }
           case 'not_embedjs': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: legacy DB is not embedjs format`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('not_embedjs', warningMessage)
             continue
           }
         }
@@ -295,38 +385,65 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const vectorRows = source.rows
         this.sourceCount += vectorRows.length
 
-        const loaderKeyMap = this.buildLoaderKeyMap(
+        const loaderTargetMap = this.buildLoaderTargetMap(
           legacyBase,
-          migratedItemIdsByBaseId.get(base.id) ?? new Set<string>()
+          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
         )
         const rows: PreparedVectorRow[] = []
+        const chunkIndexByItemId = new Map<string, number>()
 
         for (const row of vectorRows) {
           // V2 only keeps vectors that can be proven to belong to an existing
           // migrated knowledge_item row. Unmapped legacy vectors are treated
           // as invalid index residue and are intentionally dropped.
-          const externalId = loaderKeyMap.get(row.uniqueLoaderId)
-          if (!externalId) {
+          const target = loaderTargetMap.get(row.uniqueLoaderId)
+          if (!target) {
             this.skippedCount += 1
             const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            this.recordSkippedWarning('unmapped_loader', warningMessage)
             continue
           }
 
-          if (!row.vector || row.vector.length === 0) {
+          if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.itemType)) {
             this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
-            logger.warn(warningMessage)
-            this.warnings.push(warningMessage)
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: container item '${target.id}' of type '${target.itemType}' is not indexable`
+            this.recordSkippedWarning('non_indexable_container', warningMessage)
             continue
           }
+
+          if (row.vector.status === 'unsupported_encoding') {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
+            this.recordSkippedWarning('unsupported_vector_encoding', warningMessage)
+            continue
+          }
+
+          if (row.vector.status === 'missing' || row.vector.value.length === 0) {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
+            this.recordSkippedWarning('missing_vector_payload', warningMessage)
+            continue
+          }
+
+          const sourceText = row.source.trim() || target.source
+          if (sourceText === '') {
+            this.skippedCount += 1
+            const warningMessage = `Skipped knowledge vector row in base ${base.id}: source missing for item '${target.id}'`
+            this.recordSkippedWarning('missing_source', warningMessage)
+            continue
+          }
+
+          const chunkIndex = chunkIndexByItemId.get(target.id) ?? 0
+          chunkIndexByItemId.set(target.id, chunkIndex + 1)
 
           rows.push({
             document: row.pageContent,
-            externalId,
-            source: row.source,
-            embedding: row.vector
+            externalId: target.id,
+            itemType: target.itemType,
+            source: sourceText,
+            chunkIndex,
+            tokenCount: estimateTokenCount(row.pageContent),
+            embedding: row.vector.value
           })
         }
 
@@ -336,11 +453,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         this.preparedBasePlans.push({
           baseId: base.id,
           dbPath: source.dbPath,
-          dimensions: base.dimensions,
+          dimensions,
           rows,
           sourceRowCount: vectorRows.length
         })
       }
+
+      this.flushSkippedWarnings()
 
       return {
         success: true,
@@ -348,11 +467,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
+      this.flushSkippedWarnings()
+      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('KnowledgeVectorMigrator.prepare failed', error as Error)
       return {
         success: false,
         itemCount: this.sourceCount,
-        warnings: [error instanceof Error ? error.message : String(error)]
+        warnings: [...this.warnings, errorMessage]
       }
     }
   }
@@ -371,6 +492,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
     for (const plan of this.preparedBasePlans) {
       const tempPath = this.getTempVectorStorePath(plan.dbPath)
+      const backupPath = this.getLegacyBackupPath(plan.dbPath)
 
       try {
         const rebuiltRows: Array<PreparedVectorRow & { id: string }> = plan.rows.map((row) => ({
@@ -415,7 +537,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await yieldToEventLoop()
         }
 
-        await fs.promises.rm(plan.dbPath, { force: true })
+        // First migration preserves the legacy embedjs DB; retries remove the stale failed target before swapping.
+        if (!fs.existsSync(backupPath) && fs.existsSync(plan.dbPath)) {
+          await fs.promises.rename(plan.dbPath, backupPath)
+        } else {
+          await fs.promises.rm(plan.dbPath, { force: true })
+        }
         await fs.promises.rename(tempPath, plan.dbPath)
 
         this.successfulBaseIds.add(plan.baseId)
@@ -492,17 +619,51 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
 
-          const missingOrMismatchedItemIdResult = await client.execute({
-            sql: `SELECT count(*) AS count FROM ${VECTORSTORE_TABLE_NAME} WHERE json_extract(metadata, '$.itemId') IS NULL OR json_extract(metadata, '$.itemId') = '' OR json_extract(metadata, '$.itemId') != external_id`,
+          const metadataResult = await client.execute({
+            sql: `SELECT id, external_id, metadata FROM ${VECTORSTORE_TABLE_NAME}`,
             args: []
           })
-          const missingOrMismatchedItemIdCount = Number(missingOrMismatchedItemIdResult.rows[0]?.count ?? 0)
-          if (missingOrMismatchedItemIdCount > 0) {
+
+          let invalidMetadataCount = 0
+          let mismatchedItemIdCount = 0
+
+          for (const row of metadataResult.rows) {
+            let metadata: unknown
+
+            try {
+              metadata = JSON.parse(String(row.metadata ?? '{}'))
+            } catch {
+              invalidMetadataCount += 1
+              continue
+            }
+
+            const parsedMetadata = KnowledgeChunkMetadataSchema.safeParse(metadata)
+            if (!parsedMetadata.success) {
+              invalidMetadataCount += 1
+              continue
+            }
+
+            const externalId = typeof row.external_id === 'string' ? row.external_id : String(row.external_id ?? '')
+            if (parsedMetadata.data.itemId !== externalId) {
+              mismatchedItemIdCount += 1
+            }
+          }
+
+          if (invalidMetadataCount > 0) {
             errors.push({
-              key: `knowledge_vector_missing_item_id_${plan.baseId}`,
+              key: `knowledge_vector_invalid_metadata_${plan.baseId}`,
               expected: 0,
-              actual: missingOrMismatchedItemIdCount,
-              message: `Found ${missingOrMismatchedItemIdCount} knowledge vector rows without matching metadata.itemId in base ${plan.baseId}`
+              actual: invalidMetadataCount,
+              message: `Found ${invalidMetadataCount} knowledge vector rows with invalid runtime metadata in base ${plan.baseId}`
+            })
+          }
+
+          if (mismatchedItemIdCount > 0) {
+            errors.push({
+              key: `knowledge_vector_mismatched_item_id_${plan.baseId}`,
+              expected: 0,
+              actual: mismatchedItemIdCount,
+              message: `Found ${mismatchedItemIdCount} knowledge vector rows whose metadata.itemId does not match external_id in base ${plan.baseId}`
             })
           }
         } finally {

@@ -119,6 +119,31 @@ data: text({ mode: "json" }).$type<MyDataType>();
 
 Drizzle handles JSON serialization/deserialization automatically.
 
+## Column Nullability and Defaults
+
+### When `nullable` vs `NOT NULL`
+
+A column may be `nullable` only when **NULL carries a domain meaning distinct from any value in the column's domain**:
+
+| Pattern | Example |
+|---|---|
+| Optional foreign key | `assistant.modelId` (no model selected yet) |
+| Time of an event that may not have occurred | `deletedAt`, `cancelledAt` |
+| Unassigned-tagged state | `pr.reviewerId` (unassigned vs assigned) |
+
+All other columns should be `NOT NULL` with an appropriate default. If a column "should" always have a value, switch it to `NOT NULL` — do **not** add a `?? someValue` fallback in `rowToEntity` to mask NULL. See [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md).
+
+### Where the default value lives
+
+| Location | Use for | Note |
+|---|---|---|
+| **DB `.default('X')`** | Type-level "empty" values (`''`, `0`, `false`, `[]`) — won't change because they aren't product choices | **Effectively a near-permanent choice in SQLite** — every change requires a full-table rebuild that copies every row and never touches the existing ones; legacy NULL backfill must be hand-written into the rebuild's `INSERT ... SELECT`. For product-chosen values that could evolve (`'🌟'`, default model parameters), prefer service `??`. See [Default Values & Nullability § DB defaults are near-permanent](./best-practice-default-values-and-nullability.md#db-defaults-are-near-permanent). |
+| **Drizzle `$defaultFn(() => …)`** | Dynamic per-row values: UUIDs, `Date.now()` | Lives in the schema file but runs in JS at INSERT time |
+| **Service `dto.x ?? DEFAULT`** | Tunable product values that may evolve (e.g., inference parameters) | No migration needed when defaults change; covers all callers (handler, seeder, internal-service) |
+| **Zod `.default()`** | Avoid on entity / Create / Update schemas | Bypassed by non-handler callers; forces type asymmetry; see [API Design Guidelines § E](./api-design-guidelines.md#e-default-values-do-not-live-in-zod-schemas) |
+
+For the full rationale and decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
+
 ## Foreign Keys
 
 ### Basic Usage
@@ -238,6 +263,7 @@ Key principles:
 
 - **Shallow, not recursive**: only column-level NULLs are handled; nested JSON payloads are not deep-cleaned
 - **No third-party null-handling library**: the in-house `nullsToUndefined` (~10 LOC) is sufficient — avoid dependency bloat
+- **No fabricated fallbacks**: `row.x ?? '🌟'` / `row.x ?? []` is forbidden — see [Default Values & Nullability § R3](./best-practice-default-values-and-nullability.md). If a value "should" always be present, fix the column constraint instead of masking NULL in the mapper.
 
 ### Soft delete support
 
