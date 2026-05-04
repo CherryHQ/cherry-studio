@@ -55,5 +55,18 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   if (isAgentTool(toolName as AgentToolsType)) {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
+
+  // Temporary catch-all for cherry's new builtin tools (`fs__*`, `shell__*`,
+  // `skills__*`, etc.). Routing them through `MessageAgentTools` is a
+  // pragmatic patch — it gives us `ToolPermissionRequestCard` (so
+  // `fs__patch` approval cards actually render and we don't deadlock the
+  // model on missing UI), at the cost of falling through to
+  // `UnknownToolRenderer` for the body since the inner table still keys
+  // on Claude-Agent-SDK names. Replace this branch with cherry-shape
+  // renderers as we migrate off the Claude Agent SDK type vocabulary.
+  if (toolType === 'builtin') {
+    return <MessageAgentTools toolResponse={toolResponse} />
+  }
+
   return null
 }

@@ -15,6 +15,7 @@ import { AskUserQuestionCard } from '../AskUserQuestionCard'
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
+import { cherryToolRenderers } from './cherry'
 import { EditTool } from './EditTool'
 import { ExitPlanModeTool } from './ExitPlanModeTool'
 import { getEffectiveStatus, StreamingContext, type ToolStatus, ToolStatusIndicator } from './GenericTools'
@@ -97,9 +98,15 @@ function ToolContent({
   status?: ToolStatus
   hasError?: boolean
 }) {
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, (input ?? {}) as Record<string, unknown>, output)
-    : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+  // Cherry-builtin tools (`fs__read`, `shell__exec`, ...) are dispatched
+  // first so cherry-shape input/output is rendered correctly. Falls
+  // through to Claude-Agent-SDK names, then UnknownToolRenderer.
+  const cherryRenderer = toolName ? cherryToolRenderers[toolName] : undefined
+  const renderedItem = cherryRenderer
+    ? cherryRenderer({ input: (input ?? {}) as Record<string, unknown>, output })
+    : isValidAgentToolsType(toolName)
+      ? renderTool(toolName, (input ?? {}) as Record<string, unknown>, output)
+      : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
 
   const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
     ...renderedItem,
