@@ -11,45 +11,17 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAnthropicModel, isGeminiModel, isOpenAILLMModel } from '@shared/utils/model'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 
-import { getAiSdkProviderId } from '../../../provider/factory'
-import type { AppProviderId } from '../../../types'
+import { supportsNativePdf } from '../../../utils/pdfNativeSupport'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
 
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
-/**
- * AI SDK provider ids whose API natively supports PDF file input.
- *
- * Only first-party provider protocols (OpenAI Responses, Anthropic, Google)
- * plus cloud-hosted variants are included. Aggregators / generic
- * openai-compatible endpoints are excluded because they may route to
- * backends that reject the `file` part type.
- */
-const PDF_NATIVE_PROVIDER_IDS = new Set<AppProviderId>([
-  'openai-responses',
-  'anthropic',
-  'google',
-  'azure',
-  'azure-responses',
-  'google-vertex',
-  'amazon-bedrock',
-  'anthropic-vertex'
-])
-
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
   return part.type === 'file' && part.mediaType === 'application/pdf'
-}
-
-function supportsNativePdf(provider: Provider, model: Model): boolean {
-  // OpenAI, Claude, and Gemini models always support native PDF regardless of provider.
-  if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) return true
-  const aiSdkProviderId = getAiSdkProviderId(provider)
-  return PDF_NATIVE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
 function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageModelMiddleware {

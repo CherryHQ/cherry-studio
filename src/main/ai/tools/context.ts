@@ -1,5 +1,7 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ModelMessage } from 'ai'
 
 /**
@@ -7,11 +9,6 @@ import type { ModelMessage } from 'ai'
  * invocation in `AiService.buildAgentParams` and threaded through AI SDK's
  * `experimental_context` so every tool execute() handler receives the same
  * instance for the duration of the request.
- *
- * Kept deliberately small: only fields tools actually need today. Sub-LLM
- * calls were dropped from builtin tools after the agentic refactor, so
- * `model` / `provider` are not on this interface — re-add only if a future
- * tool genuinely needs to fan out a model call.
  */
 export interface RequestContext {
   /** Stable id correlating the whole request — used as telemetry trace key. */
@@ -24,6 +21,14 @@ export interface RequestContext {
   /** The assistant making the call. Tools that need static config — e.g.
    *  `kb__search` reading `assistant.knowledgeBaseIds` — pull from here. */
   readonly assistant?: Assistant
+
+  /** Active provider — used by tools that branch on provider capability
+   *  (e.g. `fs__read` deciding whether the model accepts native PDF). */
+  readonly provider?: Provider
+
+  /** Active model — used by tools that branch on model capability
+   *  (e.g. `fs__read` deciding whether to emit `image-data` or extract text). */
+  readonly model?: Model
 
   /**
    * Whole-request abort signal — present for cancellable paths

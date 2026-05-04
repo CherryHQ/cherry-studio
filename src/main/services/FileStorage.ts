@@ -3,8 +3,10 @@ import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
+  extractOfficeText,
   getFileType as getFileTypeByExt,
   getName,
+  OFFICE_DOCUMENT_EXTENSIONS,
   readTextFileWithAutoEncoding,
   scanDir
 } from '@main/utils/file'
@@ -27,7 +29,6 @@ import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
-import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
@@ -511,16 +512,14 @@ class FileStorage {
 
     if (documentExts.includes(fileExtension)) {
       try {
-        if (fileExtension === '.doc') {
-          const extractor = new WordExtractor()
-          const extracted = await extractor.extract(filePath)
-          return extracted.getBody()
+        if (OFFICE_DOCUMENT_EXTENSIONS.has(fileExtension.toLowerCase())) {
+          return extractOfficeText(filePath, this.tempDir)
         }
-
-        const data = await officeParser.parseOfficeAsync(filePath, {
+        // PDF and any other documentExts entries that aren't Office —
+        // officeparser supports PDF, keep that path as-is.
+        return officeParser.parseOfficeAsync(filePath, {
           tempFilesLocation: this.tempDir
         })
-        return data
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)
         throw error

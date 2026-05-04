@@ -68,6 +68,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
+    provider,
+    model,
     abortSignal: signal
   }
 

@@ -11,7 +11,9 @@ import type { FileMetadata, FileType, NotesTreeNode } from '@types'
 import { FILE_TYPE } from '@types'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
+import officeParser from 'officeparser'
 import { v4 as uuidv4 } from 'uuid'
+import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('Utils:File')
 
@@ -252,6 +254,32 @@ export async function isBinary(absolutePath: string): Promise<boolean> {
 
 export async function isText(absolutePath: string): Promise<boolean> {
   return !(await isBinary(absolutePath))
+}
+
+/**
+ * Office-family extensions extractable as text. `.doc` goes through
+ * `word-extractor`; everything else goes through `officeparser`.
+ */
+export const OFFICE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp'])
+
+/**
+ * Extract text from an Office document on disk. Single source of truth
+ * — `FileStorage.readFileCore` and the `fs__read` Office reader both
+ * route through here so library choice and `.doc` handling stay in one
+ * place.
+ *
+ * @param absolutePath - file path
+ * @param tempDir - optional scratch dir for officeparser. When omitted,
+ *   officeparser uses its built-in default (system temp).
+ */
+export async function extractOfficeText(absolutePath: string, tempDir?: string): Promise<string> {
+  const ext = path.extname(absolutePath).toLowerCase()
+  if (ext === '.doc') {
+    const extractor = new WordExtractor()
+    const extracted = await extractor.extract(absolutePath)
+    return extracted.getBody()
+  }
+  return officeParser.parseOfficeAsync(absolutePath, tempDir ? { tempFilesLocation: tempDir } : undefined)
 }
 
 export async function writeWithLock(
