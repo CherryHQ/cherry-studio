@@ -68,7 +68,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   className="h-full w-full object-cover"
                 />
                 <div className="absolute inset-0 hidden items-center justify-center bg-black/50 text-white hover:flex">
-                  点击替换
+                  {t('common.click_to_replace')}
                 </div>
               </div>
             </label>

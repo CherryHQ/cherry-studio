@@ -12,7 +12,7 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     await Promise.all((record.files?.output ?? []).map(async (id) => (await FileManager.getFile(id)) ?? null))
   ).filter((file): file is FileMetadata => Boolean(file))
 
-  let rawParams = { ...(record.params as Record<string, unknown>) }
+  let rawParams = { ...record.params }
   const generationFields = readRuntime(rawParams)
   rawParams = cleanRuntime(rawParams)
 

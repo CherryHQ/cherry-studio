@@ -13,7 +13,7 @@ export async function generateWithPpio(input: GenerateInput<PpioPainting>) {
 
   const apiKey = await checkProviderEnabled(provider)
 
-  const ppioPainting = painting as PpioPainting
+  const ppioPainting = painting
   const isEditMode = getModelsByMode('ppio_edit').some((model) => model.id === ppioPainting.model)
 
   if (isEditMode && !ppioPainting.imageFile) {
@@ -26,49 +26,45 @@ export async function generateWithPpio(input: GenerateInput<PpioPainting>) {
   }
 
   return runPainting(async () => {
-    try {
-      const service = new PpioService(apiKey)
-      const result = await service.generate(ppioPainting, abortController.signal)
+    const service = new PpioService(apiKey)
+    const result = await service.generate(ppioPainting, abortController.signal)
 
-      let imageUrls: string[] = []
+    let imageUrls: string[] = []
 
-      if (result.images) {
-        imageUrls = result.images
-      } else if (result.taskId) {
-        input.onGenerationStateChange?.({ generationTaskId: result.taskId })
-        const taskResult = await service.pollTaskResult(result.taskId, {
-          signal: abortController.signal,
-          onProgress: (progress) => {
-            input.onGenerationStateChange?.({ generationProgress: progress })
-          }
-        })
-
-        if (taskResult.images && taskResult.images.length > 0) {
-          imageUrls = taskResult.images.map((img) => img.image_url)
+    if (result.images) {
+      imageUrls = result.images
+    } else if (result.taskId) {
+      input.onGenerationStateChange?.({ generationTaskId: result.taskId })
+      const taskResult = await service.pollTaskResult(result.taskId, {
+        signal: abortController.signal,
+        onProgress: (progress) => {
+          input.onGenerationStateChange?.({ generationProgress: progress })
         }
-      }
+      })
 
-      if (imageUrls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          imageUrls.map(async (url) => {
-            try {
-              if (!url || url.trim() === '') {
-                return null
-              }
-              return await window.api.file.download(url)
-            } catch {
+      if (taskResult.images && taskResult.images.length > 0) {
+        imageUrls = taskResult.images.map((img) => img.image_url)
+      }
+    }
+
+    if (imageUrls.length > 0) {
+      const downloadedFiles = await Promise.all(
+        imageUrls.map(async (url) => {
+          try {
+            if (!url || url.trim() === '') {
               return null
             }
-          })
-        )
+            return await window.api.file.download(url)
+          } catch {
+            return null
+          }
+        })
+      )
 
-        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
-        return { files: validFiles }
-      }
-
-      return undefined
-    } catch (error) {
-      throw error
+      const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
+      return { files: validFiles }
     }
+
+    return undefined
   })
 }
