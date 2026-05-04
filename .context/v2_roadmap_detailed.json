@@ -1,139 +1,106 @@
 {
-  "generated_at": "2026-04-29T17:47:14.948063+00:00",
-  "date": "2026-04-29",
+  "generated_at": "2026-05-04T16:00:00.000000+00:00",
+  "date": "2026-05-04",
   "v2_branch_status": {
-    "open_prs": 70,
-    "merged_last_30d": 45
+    "open_prs": 71,
+    "merged_last_30d": 41
   },
   "open_prs_by_category": {
-    "refactor": 18,
-    "feat": 38,
-    "fix": 9,
-    "other": 4,
+    "feat": 41,
+    "refactor": 14,
+    "fix": 10,
+    "other": 5,
     "chore": 1
   },
   "merged_prs_by_category_30d": {
-    "fix": 13,
-    "feat": 15,
-    "refactor": 13,
+    "feat": 16,
+    "refactor": 14,
+    "fix": 8,
     "docs": 3,
-    "other": 1
+    "other": 2
   },
   "recent_merged_highlights": [
     {
-      "number": 14689,
-      "title": "fix(assistant-api): align patch defaults with entity schema",
-      "category": "fix"
+      "number": 14740,
+      "title": "fix(agents-migrator): coalesce legacy NULLs to schema defaults",
+      "category": "fix",
+      "merged_at": "2026-05-01"
     },
-    {
-      "number": 14490,
-      "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack",
-      "category": "feat"
-    },
-    {
-      "number": 14428,
-      "title": "♻️ refactor(agents-data-api): migrate agents domain to DataApi — remove BaseService, database/ shims",
-      "category": "refactor"
-    },
-    {
-      "number": 14269,
-      "title": "feat(data): add domain hooks for models/providers and batch model API",
-      "category": "feat"
-    },
-    {
-      "number": 14315,
-      "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI",
-      "category": "refactor"
-    },
-    {
-      "number": 14159,
-      "title": "feat: migrate agents storage to v2 main database",
-      "category": "feat"
-    },
-    {
-      "number": 14328,
-      "title": "refactor: stabilize ui package boundaries and theme contracts",
-      "category": "refactor"
-    },
-    {
-      "number": 14309,
-      "title": "refactor(settings): unify settings list item and action button patterns",
-      "category": "refactor"
-    },
-    {
-      "number": 14174,
-      "title": "refactor(v2): remove local web search backend",
-      "category": "refactor"
-    },
-    {
-      "number": 14359,
-      "title": "refactor(data-api): use greedy :uniqueModelId* for model route",
-      "category": "refactor"
-    },
-    {
-      "number": 14234,
-      "title": "feat(data): add Tag entity DataApi with CRUD and entity-tag associations",
-      "category": "feat"
-    },
-    {
-      "number": 14229,
-      "title": "feat(migration): migrate llm model preferences to v2 with UniqueModelId format",
-      "category": "feat"
-    },
-    {
-      "number": 14257,
-      "title": "refactor(data): unify legacy model ID conversion and add FK references to user_model",
-      "category": "refactor"
-    },
-    {
-      "number": 14251,
-      "title": "refactor: remove memory module from v2",
-      "category": "refactor"
-    },
-    {
-      "number": 14086,
-      "title": "refactor: migrate shortcut system to Preference architecture",
-      "category": "refactor"
-    }
-  ],
-  "open_prs_pending_review": [
     {
       "number": 14719,
       "title": "refactor(knowledge-data): adjust knowledge v2 data and service",
-      "author": "eeee0717",
-      "created_at": "2026-04-29T06:22:30Z",
-      "draft": false,
-      "category": "refactor"
+      "category": "refactor",
+      "merged_at": "2026-05-01"
+    },
+    {
+      "number": 14669,
+      "title": "refactor(agent-schemas): migrate agent/session/task IDs to UUID v4",
+      "category": "refactor",
+      "merged_at": "2026-05-01"
     },
     {
       "number": 14431,
       "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi",
-      "author": "vaayne",
-      "created_at": "2026-04-20T16:39:11Z",
-      "draft": false,
-      "category": "refactor"
+      "category": "refactor",
+      "merged_at": "2026-05-01"
     },
     {
-      "number": 14071,
-      "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
-      "author": "DeJeune",
-      "created_at": "2026-04-06T07:51:50Z",
+      "number": 14627,
+      "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing",
+      "category": "feat",
+      "merged_at": "2026-04-30"
+    },
+    {
+      "number": 14632,
+      "title": "fix(draggable-list): bind scroll node via callback ref",
+      "category": "fix",
+      "merged_at": "2026-04-30"
+    },
+    {
+      "number": 14689,
+      "title": "fix(assistant-api): align patch defaults with entity schema",
+      "category": "fix",
+      "merged_at": "2026-04-29"
+    }
+  ],
+  "open_prs_pending_review": [
+    {
+      "number": 14788,
+      "title": "feat: add Duplicate Topic feature",
+      "author": "LWWZH",
+      "created_at": "2026-05-01",
+      "draft": false,
+      "category": "feat"
+    },
+    {
+      "number": 14760,
+      "title": "fix(chat-layout): restore chat composer sizing and anchor",
+      "author": "ousugo",
+      "created_at": "2026-04-30",
+      "draft": false,
+      "category": "fix"
+    },
+    {
+      "number": 14728,
+      "title": "feat(provider): support Responses API endpoint for Volcengine",
+      "author": "Saigut",
+      "created_at": "2026-04-30",
+      "draft": false,
+      "category": "feat"
+    },
+    {
+      "number": 14734,
+      "title": "WIP(v2): knowledge ui migration",
+      "author": "eeee0717",
+      "created_at": "2026-04-30",
       "draft": true,
-      "category": "feat"
+      "category": "other"
     },
     {
-      "number": 14556,
-      "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite",
-      "author": "zhangjiadi225",
-      "created_at": "2026-04-24T07:58:55Z",
-      "draft": false,
-      "category": "feat"
-    },
-    {
-      "number": 14464,
-      "title": "fix: preserve referenced models during v2 migration",
-      "author": "kovsu",
-      "created_at": "2026-04-22T03:53:19Z",
+      "number": 14609,
+      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v2 migration",
+      "author": "DeJeune",
+      "created_at": "2026-04-25",
       "draft": false,
       "category": "fix"
     },
@@ -141,63 +108,31 @@
       "number": 14567,
       "title": "feat(settings): refactor settings UI and add settings window",
       "author": "kangfenmao",
-      "created_at": "2026-04-24T11:53:07Z",
+      "created_at": "2026-04-24",
       "draft": true,
       "category": "feat"
     },
     {
-      "number": 14627,
-      "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing pattern",
-      "author": "DeJeune",
-      "created_at": "2026-04-26T13:23:06Z",
+      "number": 14556,
+      "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite",
+      "author": "zhangjiadi225",
+      "created_at": "2026-04-24",
       "draft": false,
       "category": "feat"
     },
     {
-      "number": 14609,
-      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v2 migration",
+      "number": 14489,
+      "title": "feat(notify): support image and file attachments across channels",
       "author": "DeJeune",
-      "created_at": "2026-04-25T19:04:30Z",
+      "created_at": "2026-04-22",
       "draft": false,
-      "category": "fix"
-    },
-    {
-      "number": 14669,
-      "title": "fix: replace builtin agent hardcoded IDs with isBuiltin column and UUID migration",
-      "author": "vaayne",
-      "created_at": "2026-04-27T15:15:07Z",
-      "draft": false,
-      "category": "fix"
-    },
-    {
-      "number": 14632,
-      "title": "fix(draggable-list): bind scroll node via callback ref",
-      "author": "DeJeune",
-      "created_at": "2026-04-26T16:32:31Z",
-      "draft": false,
-      "category": "fix"
-    },
-    {
-      "number": 14313,
-      "title": "feat(data): migrate paintings to v2 data architecture",
-      "author": "jidan745le",
-      "created_at": "2026-04-16T11:44:41Z",
-      "draft": true,
       "category": "feat"
     },
     {
-      "number": 14631,
-      "title": "Introduce ProviderSettingsV2 integration preview on v2",
-      "author": "jidan745le",
-      "created_at": "2026-04-26T16:22:13Z",
-      "draft": true,
-      "category": "other"
-    },
-    {
-      "number": 14678,
-      "title": "fix(deepseek): display web search citations from DeepSeek annotations",
-      "author": "octo-patch",
-      "created_at": "2026-04-28T01:45:36Z",
+      "number": 14464,
+      "title": "fix: preserve referenced models during v2 migration",
+      "author": "kovsu",
+      "created_at": "2026-04-22",
       "draft": false,
       "category": "fix"
     },
@@ -205,72 +140,87 @@
       "number": 14442,
       "title": "feat(library): add v2 resource library page with assistant tag & search APIs",
       "author": "zhangjiadi225",
-      "created_at": "2026-04-21T04:20:07Z",
+      "created_at": "2026-04-21",
       "draft": true,
       "category": "feat"
-    },
-    {
-      "number": 14658,
-      "title": "feat(agents): add common options for agent",
-      "author": "LWWZH",
-      "created_at": "2026-04-27T09:49:59Z",
-      "draft": false,
-      "category": "feat"
-    },
-    {
-      "number": 14656,
-      "title": "feat: add enable/disable toggle for custom parameters",
-      "author": "LWWZH",
-      "created_at": "2026-04-27T09:18:11Z",
-      "draft": false,
-      "category": "feat"
-    },
-    {
-      "number": 14562,
-      "title": "fix(code-tools): improve dark mode visibility",
-      "author": "Raymond8196",
-      "created_at": "2026-04-24T10:02:33Z",
-      "draft": false,
-      "category": "fix"
     },
     {
       "number": 14443,
       "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
       "author": "kangfenmao",
-      "created_at": "2026-04-21T08:03:34Z",
+      "created_at": "2026-04-21",
       "draft": false,
       "category": "refactor"
+    },
+    {
+      "number": 14313,
+      "title": "feat(data): migrate paintings to v2 data architecture",
+      "author": "jidan745le",
+      "created_at": "2026-04-16",
+      "draft": true,
+      "category": "feat"
+    },
+    {
+      "number": 14071,
+      "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
+      "author": "DeJeune",
+      "created_at": "2026-04-06",
+      "draft": true,
+      "category": "feat"
     },
     {
       "number": 13430,
       "title": "refactor(data): migrate QuickPhrase to Prompt with version management",
       "author": "zhangjiadi225",
-      "created_at": "2026-03-13T02:48:31Z",
+      "created_at": "2026-03-13",
       "draft": false,
       "category": "refactor"
     },
     {
-      "number": 14489,
-      "title": "feat(notify): support image and file attachments across channels",
-      "author": "DeJeune",
-      "created_at": "2026-04-22T13:29:38Z",
-      "draft": false,
-      "category": "feat"
+      "number": 10090,
+      "title": "[WIP] feat: terminal",
+      "author": "EurFelux",
+      "created_at": "2025-07-12",
+      "draft": true,
+      "category": "other"
     }
   ],
   "refactor_themes": [
-    "agents storage → v2 main database (SQLite / Drizzle)",
-    "renderer agent hooks → DataApi (HTTP removal)",
-    "AI streaming pipeline v2 (blocks-to-parts migration)",
-    "Model selector v2 on new data/UI stack",
-    "Settings unification (list item + action button patterns)",
-    "Code Tools page redesign (tool grid + drawer UI)",
-    "Knowledge v2 data & service layer",
-    "Entity/assistant/agent selectors on EntitySelector composite"
+    "agents storage → v2 main database (SQLite / Drizzle) — agent ID migration to UUID v4 complete",
+    "knowledge v2: DataApi + runtime IPC separation complete, UI migration in progress",
+    "AI streaming pipeline v2 (blocks-to-parts) — draft, pending review",
+    "Model selector v2 on new data/UI stack — merged",
+    "Settings unification (settings window) — draft in progress",
+    "Topics ordering with fractional indexing — merged",
+    "EntitySelector composite for assistant/agent/topic selectors — in review",
+    "Web search settings: remove local providers → v2 preferences — in review",
+    "Paintings migration to v2 data architecture — draft"
   ],
   "velocity": {
-    "merged_prs_30d": 45,
-    "open_prs_waiting": 70,
-    "note": "Active V2 refactoring in progress; main branch is under code freeze."
-  }
+    "merged_prs_30d": 41,
+    "open_prs_waiting": 71,
+    "note": "Active V2 refactoring in progress; main branch is under code freeze. Velocity 41 merges/30d."
+  },
+  "main_branch_hotfixes_open": [
+    {
+      "number": 14828,
+      "title": "fix(messages): normalize tool-call card shells under custom themes"
+    },
+    {
+      "number": 14823,
+      "title": "feat(claudecode): support user-defined hooks from settings.json"
+    },
+    {
+      "number": 14816,
+      "title": "fix(reasoning): use adaptive thinking for Claude 4.7+ models"
+    },
+    {
+      "number": 14815,
+      "title": "hotfix(agents): remove stale mcp__browser__* references from agent prompt"
+    },
+    {
+      "number": 14811,
+      "title": "fix(agent): allow CherryIN OpenAI-protocol models in Agent model picker"
+    }
+  ]
 }
