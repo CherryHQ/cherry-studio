@@ -63,7 +63,7 @@ function wireDeps(opts: {
   mockUseProvidersFn.mockReturnValue({
     providers: opts.providers,
     isLoading: false,
-    refetch: vi.fn(),
+    refetch: vi.fn().mockResolvedValue(undefined),
     createProvider: vi.fn(),
     isCreating: false,
     createError: undefined
@@ -71,7 +71,7 @@ function wireDeps(opts: {
   mockUseModelsFn.mockReturnValue({
     models: opts.models,
     isLoading: opts.isModelsLoading ?? false,
-    refetch: vi.fn()
+    refetch: vi.fn().mockResolvedValue(undefined)
   })
   mockUsePinsFn.mockReturnValue({
     isLoading: opts.isPinsLoading ?? false,
@@ -79,7 +79,7 @@ function wireDeps(opts: {
     isMutating: opts.isPinsMutating ?? false,
     error: undefined,
     pinnedIds: opts.pinnedIds ?? [],
-    refetch: vi.fn(),
+    refetch: vi.fn().mockResolvedValue(undefined),
     togglePin: vi.fn()
   })
 }

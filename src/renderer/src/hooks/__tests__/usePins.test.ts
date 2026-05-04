@@ -51,7 +51,7 @@ function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: bo
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue(undefined),
       mutate: vi.fn()
     }
   })
@@ -145,6 +145,7 @@ describe('usePins', () => {
   })
 
   it('blocks toggling while a background refresh is running to avoid stale-snapshot races', async () => {
+    const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
     wirePins([], { isRefreshing: true })
     const { postTrigger, deleteTrigger } = wireMutations()
 
@@ -157,6 +158,15 @@ describe('usePins', () => {
     expect(postTrigger).not.toHaveBeenCalled()
     expect(deleteTrigger).not.toHaveBeenCalled()
     expect(result.current.isRefreshing).toBe(true)
+    expect(consoleDebugSpy).toHaveBeenCalledWith(
+      'togglePin gated',
+      expect.objectContaining({
+        entityType: 'model',
+        entityId: 'openai::gpt-4',
+        isRefreshing: true
+      })
+    )
+    consoleDebugSpy.mockRestore()
   })
 
   it('rejects mutation errors so callers can log and show feedback', async () => {

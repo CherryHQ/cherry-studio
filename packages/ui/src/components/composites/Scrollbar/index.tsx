@@ -14,7 +14,7 @@ const Scrollbar = ({
   onScroll: externalOnScroll,
   style,
   ...htmlProps
-}: ScrollbarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
+}: ScrollbarProps & { ref?: React.Ref<HTMLDivElement> }) => {
   const [isScrolling, setIsScrolling] = React.useState(false)
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 

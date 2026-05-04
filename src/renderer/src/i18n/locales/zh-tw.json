@@ -36,7 +36,9 @@
         "comingSoon": "即將推出",
         "connected": "已連線",
         "connecting": "連接",
+        "createError": "",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
+        "deleteError": "",
         "description": "將您的 Agent 連接到訊息平台。",
         "disconnected": "已中斷連線",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "頻道",
+        "updateError": "",
         "wechat": {
           "addAccount": "新增微信帳號",
           "chatIds": "允許的使用者 ID",
@@ -211,6 +214,9 @@
         },
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
+        "error": {
+          "loadFailed": ""
+        },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
@@ -220,6 +226,7 @@
           "error": "錯誤",
           "justNow": "剛剛",
           "label": "執行歷史",
+          "loadError": "",
           "result": "結果",
           "runAt": "執行時間",
           "running": "執行中...",
@@ -3696,7 +3703,7 @@
         "title": "應用篩選名單",
         "user_tips": {
           "mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
-          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等"
         }
       },
       "linux": {
@@ -3817,6 +3824,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能體",
+      "empty_text": "暫無智能體",
+      "search_placeholder": "搜尋智能體…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暫無助手",
+      "multi_hint": "（與多模型互斥）",
+      "multi_label": "多助手並行",
+      "search_placeholder": "搜尋助手…"
+    },
+    "common": {
+      "edit": "編輯",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3884,7 +3916,35 @@
       "title": "頻道"
     },
     "componentLab": {
-      "description": "僅在開發環境顯示，用於直接在應用內聯調新的模型選擇元件。",
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
+        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "智能體選擇器",
+        "triggerPlaceholder": "選擇智能體",
+        "valueProp": "目前 value"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "助手選擇器",
+        "triggerPlaceholder": "選擇助手",
+        "triggerSelectedCount": "已選 {{count}} 個助手",
+        "valueProp": "目前 value"
+      },
+      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
       "label": "元件測試",
       "modelSelector": {
         "behaviorConfig": "互動與顯示設定",
@@ -5444,7 +5504,8 @@
         "documentation": "檢視官方文件以取得更多設定詳細資訊：",
         "learn_more": "瞭解更多",
         "location": "地區",
-        "location_help": "Vertex AI 服務地區，例如：us-central1",
+        "location_help": "Vertex AI 服務地區，例如：us-central1。此欄位不會從 Service Account JSON 自動帶入，需手動填寫。",
+        "location_placeholder": "選擇 Vertex AI 地區",
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5454,7 +5515,12 @@
           "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
           "client_email_placeholder": "輸入服務帳戶 client email",
           "description": "使用服務帳戶進行身份驗證，適用於 ADC 無法使用的環境",
-          "incomplete_config": "請先完成服務帳戶設定",
+          "incomplete_config": "請先完整填寫所有必需的 Vertex AI 設定",
+          "json_input": "Service Account JSON",
+          "json_input_help": "貼上完整 JSON 金鑰內容。解析後只會儲存 project_id、client_email 和 private_key，並清空原始 JSON。",
+          "json_input_placeholder": "貼上完整的 Service Account JSON 金鑰內容",
+          "json_parse_error": "解析 Service Account JSON 失敗，請確認格式正確",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",

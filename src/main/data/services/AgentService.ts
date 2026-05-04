@@ -1,55 +1,64 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentChannelTable as channelsTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
-import { agentSkillTable as agentSkillsTable } from '@data/db/schemas/agentSkill'
-import { agentTaskTable as scheduledTasksTable } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from '@main/services/agents/services/builtin/BuiltinAgentIds'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   AGENT_MUTABLE_FIELDS,
+  type AgentConfiguration,
   type AgentEntity,
   type CreateAgentDto,
+  sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
+
+function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
+  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+  if (invalidKeys.length > 0) {
+    logger.warn('Agent configuration drift detected; dropping invalid keys', { invalidKeys })
+  }
+  return data
+}
 
 function rowToAgent(row: AgentRow): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    accessiblePaths: row.accessiblePaths ?? [],
+    accessiblePaths: row.accessiblePaths,
+    configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
 /** Compute the default workspace paths for an agent without creating any directories. */
-function computeWorkspacePaths(paths: string[] | undefined, id: string): string[] {
+function computeWorkspacePaths(paths: string[] | undefined): string[] {
   if (paths && paths.length > 0) return paths
-  const shortId = id.substring(id.length - 9)
-  // getPath returns the workspace root; append the per-agent short-ID subdirectory.
-  return [`${application.getPath('feature.agents.workspaces')}/${shortId}`]
+  // Workspace dir uses its own uuid, decoupled from agent.id, so id-format
+  // changes never require moving on-disk workspaces.
+  return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
 }
 
 export class AgentService {
-  static readonly DEFAULT_AGENT_ID = CHERRY_CLAW_AGENT_ID
-
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
-    const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     // Compute workspace paths (pure — directory creation is the caller's responsibility).
-    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths, id)
+    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
 
-    const insertData: InsertAgentRow = {
+    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
+    // instructions has no DB DEFAULT — service supplies the product-strategic default.
+    const insertData: Omit<InsertAgentRow, 'sortOrder'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -58,19 +67,24 @@ export class AgentService {
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
-      mcps: req.mcps ?? null,
-      allowedTools: req.allowedTools ?? null,
-      configuration: req.configuration ?? null,
-      accessiblePaths: resolvedPaths,
-      sortOrder: 0
+      mcps: req.mcps,
+      allowedTools: req.allowedTools,
+      configuration: req.configuration,
+      accessiblePaths: resolvedPaths
     }
 
     const database = application.get('DbService').getDb()
     await withSqliteErrors(
       () =>
         database.transaction(async (tx) => {
-          await tx.update(agentsTable).set({ sortOrder: sql`${agentsTable.sortOrder} + 1` })
-          await tx.insert(agentsTable).values(insertData)
+          // Prepend: place new agent ahead of existing rows under asc(sortOrder).
+          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
+          // preserving the user-visible "newest at top" ordering.
+          const [minRow] = await tx
+            .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
+            .from(agentsTable)
+          const sortOrder = (minRow?.min ?? 0) - 1
+          await tx.insert(agentsTable).values({ ...insertData, sortOrder })
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -260,27 +274,14 @@ export class AgentService {
       return false
     }
 
-    if (isBuiltinAgentId(id)) {
-      const deletedAt = Date.now()
-      const updatedAt = Date.now()
-
-      await withSqliteErrors(
-        async () =>
-          database.transaction(async (tx) => {
-            await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agentId, id))
-            await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agentId, id))
-            await tx.delete(sessionsTable).where(eq(sessionsTable.agentId, id))
-            await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
-            await tx.update(agentsTable).set({ deletedAt, updatedAt }).where(eq(agentsTable.id, id))
-          }),
-        defaultHandlersFor('Agent', id)
-      )
-
-      return true
-    }
-
+    // Wrap pin purge + agent delete in one transaction so a partial delete cannot leave
+    // dangling pin rows behind (mirrors AssistantService.delete + ProviderService.delete).
     const result = await withSqliteErrors(
-      async () => database.delete(agentsTable).where(eq(agentsTable.id, id)),
+      async () =>
+        database.transaction(async (tx) => {
+          await pinService.purgeForEntity(tx, 'agent', id)
+          return tx.delete(agentsTable).where(eq(agentsTable.id, id))
+        }),
       defaultHandlersFor('Agent', id)
     )
 
@@ -290,13 +291,6 @@ export class AgentService {
   async agentExists(id: string): Promise<boolean> {
     const result = await this.findAgentRow(id)
     return !!result
-  }
-
-  /** Returns the agent row regardless of soft-deletion, for bootstrap use. */
-  async findAgentIncludingDeleted(id: string): Promise<{ deletedAt: number | null } | null> {
-    const row = await this.findAgentRow(id, { includeDeleted: true })
-    if (!row) return null
-    return { deletedAt: row.deletedAt ?? null }
   }
 }
 

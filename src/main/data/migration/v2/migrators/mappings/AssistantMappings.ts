@@ -21,6 +21,7 @@
 
 import type { AssistantInsert } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -170,15 +171,24 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   if (source.mcpMode != null) legacySettings.mcpMode = source.mcpMode
   if (source.enableWebSearch != null) legacySettings.enableWebSearch = source.enableWebSearch
 
+  // Migrator bypasses AssistantService.create(), so it mirrors the same defaults that the
+  // service would supply: '🌟' for emoji, DEFAULT_ASSISTANT_SETTINGS for settings, and the
+  // DB-default '' for prompt / description. Keeps the migrator's output consistent with
+  // every other write path even though we're not going through the service layer.
+  const settings: AssistantInsert['settings'] =
+    Object.keys(legacySettings).length > 0
+      ? { ...DEFAULT_ASSISTANT_SETTINGS, ...(legacySettings as Partial<AssistantInsert['settings']>) }
+      : DEFAULT_ASSISTANT_SETTINGS
+
   return {
     assistant: {
       id: assistantId,
       name: source.name || 'Unnamed Assistant',
-      prompt: source.prompt ?? null,
-      emoji: source.emoji ?? null,
-      description: source.description ?? null,
+      prompt: source.prompt ?? '',
+      emoji: source.emoji ?? '🌟',
+      description: source.description ?? '',
       modelId: primaryModelId ?? null,
-      settings: Object.keys(legacySettings).length > 0 ? (legacySettings as AssistantInsert['settings']) : null
+      settings
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),

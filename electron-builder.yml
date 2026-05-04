@@ -80,7 +80,7 @@ extraResources:
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: Cherry Studio
+  executableName: CherryStudio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -146,52 +146,38 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.2 - Skills Creation & Vietnamese Support
-
-    ✨ New Features
-    - [Skills] Agents can now author and register new skills directly from chat using the skills tool
-    - [Skills] Add "Add More Skills" button to agent settings for quick navigation to Skills management
-    - [Skills] Skills and memory MCP tools now available to all agents (not just Soul Mode agents)
-    - [i18n] Add Vietnamese (Tiếng Việt) language support with complete UI translations
+    Cherry Studio 1.9.4 - Bug Fixes & Model Support
 
     🐛 Bug Fixes
-    - [Analytics] Fix telemetry being sent even when data collection is disabled
-    - [Agents] Agent settings changes (model, permissions, tools, etc.) now sync immediately to all active sessions
-    - [Agents] Built-in agent prompt updates now properly sync to existing sessions
-    - [Agents] Cherry Assistant now displays the 🍒 avatar instead of generic ⭐️
-    - [Search] Fix CJK (Chinese/Japanese/Korean) text search failing in whole-word mode
-    - [Search] Add phrase search support (e.g., "machine learning" with quotes)
-    - [Export] Fix Obsidian export silently failing due to blocked obsidian:// protocol
-    - [Knowledge] Fix knowledge base creation failing for Ollama embedding models
-    - [Models] Fix custom parameters not being passed to Gemini API when using NewAPI/AiHubMix providers
-    - [Knowledge] Fix Dify knowledge search compatibility with Dify 1.13.3
-    - [OpenClaw] Fix language selection not persisting in overview page
+    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
+    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
+    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
+    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
+    - [Copilot] Fixed GitHub Copilot model synchronization
 
-    ⚡ Performance
-    - [Electron] Upgrade to Electron 41.2.1 with improved window resize handling on Windows
+    ✨ New Features
+    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
+    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
+    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+
+    💄 Improvements
+    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.2 - 技能创作与越南语支持
-
-    ✨ 新功能
-    - [技能] 智能体现在可以直接在对话中通过 skills 工具编写和注册新技能
-    - [技能] 在智能体设置的技能页面添加"添加更多技能"按钮，快速跳转到技能管理页面
-    - [技能] skills 和 memory MCP 工具现对所有智能体可用（不仅限于灵魂模式）
-    - [i18n] 新增越南语（Tiếng Việt）支持，包含完整的 UI 翻译
+    Cherry Studio 1.9.4 - 错误修复与模型支持
 
     🐛 问题修复
-    - [数据统计] 修复即使禁用数据统计仍发送统计数据的问题
-    - [智能体] 智能体设置更改（模型、权限、工具等）现立即同步到所有活跃会话
-    - [智能体] 内置智能体提示词更新现正确同步到现有会话
-    - [智能体] Cherry Assistant 现显示 🍒 头像而非通用的 ⭐️
-    - [搜索] 修复中日韩（CJK）文本在全词模式下搜索失败的问题
-    - [搜索] 添加短语搜索支持（例如带引号的 "machine learning"）
-    - [导出] 修复因 obsidian:// 协议被阻止导致 Obsidian 导出静默失败的问题
-    - [知识库] 修复使用 Ollama 嵌入模型创建知识库失败的问题
-    - [模型] 修复使用 NewAPI/AiHubMix 服务商时自定义参数未传递给 Gemini API 的问题
-    - [知识库] 修复与 Dify 1.13.3 的知识搜索兼容性问题
-    - [OpenClaw] 修复概览页面语言选择无法持久化的问题
+    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
+    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
+    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
+    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
+    - [Copilot] 修复 GitHub Copilot 模型同步问题
 
-    ⚡ 性能优化
-    - [Electron] 升级至 Electron 41.2.1，改进 Windows 平台的窗口调整大小体验
+    ✨ 新功能
+    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
+    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
+    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+
+    💄 改进
+    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
     <!--LANG:END-->

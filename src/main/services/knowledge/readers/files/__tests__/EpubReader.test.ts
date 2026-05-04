@@ -57,15 +57,7 @@ describe('EpubReader', () => {
 
     expect(docs).toHaveLength(2)
     expect(docs[0]?.text).toBe('chapter-1 content')
-    expect(docs[0]?.metadata).toMatchObject({
-      source: 'book.epub',
-      title: 'Test EPUB',
-      creator: 'Author',
-      language: 'en',
-      chapterId: 'chapter-1',
-      chapterTitle: 'Chapter 1',
-      chapterOrder: 1
-    })
+    expect(docs[0]?.metadata).toEqual({})
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 

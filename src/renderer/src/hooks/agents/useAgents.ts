@@ -1,14 +1,12 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useCache } from '@renderer/data/hooks/useCache'
-import type { AddAgentForm, CreateAgentResponse, GetAgentResponse } from '@renderer/types'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import type { AddAgentForm, AgentEntity, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
-import { useApiServer } from '../useApiServer'
-import { useAgentClient } from './useAgentClient'
-
+import { useLegacyAgentReorderClient } from './useLegacyAgentReorderClient'
 type Result<T> =
   | {
       success: true
@@ -21,113 +19,65 @@ type Result<T> =
 
 export const useAgents = () => {
   const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = client?.agentPaths.base
-  const { apiServerConfig, apiServerRunning } = useApiServer()
-
-  // Disable SWR fetching when server auth is not ready
-  const swrKey = apiServerRunning && apiServerConfig.apiKey && key ? key : null
-
-  const fetcher = useCallback(async () => {
-    // API server will start on startup if enabled OR there are agents
-    if (!apiServerConfig.enabled && !apiServerRunning) {
-      throw new Error(t('apiServer.messages.notEnabled'))
-    }
-    if (!apiServerRunning) {
-      throw new Error(t('agent.server.error.not_running'))
-    }
-    if (!client) {
-      throw new Error(t('apiServer.messages.notEnabled'))
-    }
-    const result = await client.listAgents({ sortBy: 'sortOrder', orderBy: 'asc' })
-    // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
-    return result.data
-  }, [apiServerConfig.enabled, apiServerRunning, client, t])
-
-  const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
+  const { data, isLoading, error, refetch, mutate } = useQuery('/agents')
+  const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const [activeAgentId] = useCache('agent.active_id')
+  const legacyReorderClient = useLegacyAgentReorderClient()
 
+  const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
-        if (!client) {
-          throw new Error(t('apiServer.messages.notEnabled'))
-        }
-        const result = await client.createAgent(form)
-        void mutate((prev) => [result, ...(prev ?? [])])
+        const result = await createTrigger({ body: form })
         window.toast.success(t('common.add_success'))
-        return { success: true, data: result }
+        return { success: true, data: result as unknown as CreateAgentResponse }
       } catch (error) {
-        const errorMessage = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
-        window.toast.error(errorMessage)
-        if (error instanceof Error) {
-          return { success: false, error }
-        } else {
-          return { success: false, error: new Error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))) }
-        }
+        const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
+        window.toast.error(msg)
+        return { success: false, error: error instanceof Error ? error : new Error(msg) }
       }
     },
-    [client, mutate, t]
+    [createTrigger, t]
   )
 
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', { refresh: ['/agents'] })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        if (!client) {
-          throw new Error(t('apiServer.messages.notEnabled'))
-        }
-        await client.deleteAgent(id)
+        await deleteTrigger({ params: { agentId: id } })
         const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
         cacheService.set('agent.session.active_id_map', { ...currentMap, [id]: null })
         if (activeAgentId === id) {
-          const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
+          const newId = agents.filter((a) => a.id !== id).find(() => true)?.id
           cacheService.set('agent.active_id', newId ?? null)
         }
-        void mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [activeAgentId, client, data, mutate, t]
-  )
-
-  const getAgent = useCallback(
-    async (id: string) => {
-      if (!client) {
-        return
-      }
-      const result = await client.getAgent(id)
-      void mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
-    },
-    [client, mutate]
+    [deleteTrigger, activeAgentId, agents, t]
   )
 
   const reorderAgents = useCallback(
-    async (reorderedList: GetAgentResponse[]) => {
+    async (reorderedList: AgentEntity[]) => {
       const orderedIds = reorderedList.map((a) => a.id)
-      // Optimistic update
-      void mutate(reorderedList, false)
       try {
-        if (!client) {
+        if (!legacyReorderClient) {
           throw new Error(t('apiServer.messages.notEnabled'))
         }
-        await client.reorderAgents(orderedIds)
+        if (data) {
+          await mutate({ ...data, items: reorderedList } as never, { revalidate: false })
+        }
+        await legacyReorderClient.reorderAgents(orderedIds)
+        await refetch()
       } catch (error) {
-        void mutate()
+        await refetch()
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.reorder.error.failed')))
       }
     },
-    [client, mutate, t]
+    [legacyReorderClient, refetch, mutate, data, t]
   )
 
-  return {
-    agents: data,
-    error,
-    isLoading,
-    addAgent,
-    deleteAgent,
-    getAgent,
-    reorderAgents
-  }
+  return { agents, error, isLoading, addAgent, deleteAgent, reorderAgents }
 }
