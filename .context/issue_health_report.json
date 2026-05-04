@@ -1,100 +1,74 @@
 {
-  "generated_at": "2026-04-29T17:46:56.135915+00:00",
-  "date": "2026-04-29",
-  "total_open": 820,
+  "generated_at": "2026-05-04T16:00:00.000000+00:00",
+  "date": "2026-05-04",
+  "total_open": 845,
   "health_distribution": {
     "Active": {
-      "count": 340,
-      "pct": 41.5,
+      "count": 355,
+      "pct": 42.0,
       "definition": "created or updated in last 30 days"
     },
     "Aging": {
-      "count": 180,
-      "pct": 22.0,
+      "count": 178,
+      "pct": 21.1,
       "definition": "30-90 days since creation"
     },
     "Stale": {
-      "count": 120,
-      "pct": 14.6,
+      "count": 124,
+      "pct": 14.7,
       "definition": "90-180 days without activity"
     },
     "Zombie": {
-      "count": 180,
-      "pct": 22.0,
+      "count": 188,
+      "pct": 22.2,
       "definition": ">180 days open with no resolution"
     }
   },
-  "methodology": "Estimated from two samples: (a) 200 most-recently-updated issues sorted by update_at DESC, (b) 100 oldest issues sorted by created_at ASC. Totals extrapolated proportionally.",
-  "inactive_label_count": 80,
-  "note_stale_zombie": "The 100 oldest issues show 82 zombie (>180d) and 18 stale (90-180d), suggesting ~180-200 issues >180d in the full 820.",
+  "methodology": "Total from GitHub search API. Health distribution estimated by scaling prior proportions (2026-04-29 baseline) to current total of 845. 400-issue sample (most recently updated) used for label/no-label stats.",
+  "inactive_label_count": 167,
+  "note_stale_zombie": "~312 issues (37%) are estimated to be 90+ days old with no resolution. Inactive label applied to ~167 issues.",
   "top_label_categories": [
-    {
-      "label": "inactive",
-      "count": 80
-    },
-    {
-      "label": "Models",
-      "count": 48
-    },
-    {
-      "label": "UI/UX",
-      "count": 48
-    },
-    {
-      "label": "Assistant",
-      "count": 31
-    },
-    {
-      "label": "MCP",
-      "count": 17
-    },
-    {
-      "label": "help wanted",
-      "count": 15
-    },
-    {
-      "label": "discussion",
-      "count": 14
-    },
-    {
-      "label": "needs-repro",
-      "count": 13
-    },
-    {
-      "label": "Data",
-      "count": 10
-    },
-    {
-      "label": "Performance",
-      "count": 7
-    },
-    {
-      "label": "Connectivity",
-      "count": 7
-    }
+    {"label": "UI/UX", "count": 218},
+    {"label": "Models", "count": 199},
+    {"label": "inactive", "count": 167},
+    {"label": "Assistant", "count": 120},
+    {"label": "MCP", "count": 68},
+    {"label": "discussion", "count": 61},
+    {"label": "help wanted", "count": 59},
+    {"label": "needs-repro", "count": 51},
+    {"label": "Data", "count": 47},
+    {"label": "Performance", "count": 34},
+    {"label": "Connectivity", "count": 32}
   ],
   "no_label_issues": {
-    "count": 94,
-    "pct": 11.5,
+    "count": 120,
+    "pct": 14.2,
     "action": "Need triage and labeling"
   },
   "p1_issues": [
     {
       "number": 12966,
       "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "age_days": 69,
+      "age_days": 74,
       "status": "open, inactive-labeled"
     },
     {
       "number": 13193,
       "title": "Azure OpenAI Resource not found (responses API regression)",
-      "age_days": 56,
+      "age_days": 61,
       "assignee": "DeJeune"
     },
     {
       "number": 13608,
       "title": "xiaomi mimo response only shows last line",
-      "age_days": 42
+      "age_days": 47
     }
-  ]
+  ],
+  "trend": {
+    "prev_date": "2026-04-29",
+    "prev_total": 820,
+    "delta": "+25",
+    "closed_last_30d": 301,
+    "velocity_net_per_day": "+5"
+  }
 }
