@@ -6027,6 +6027,8 @@
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
+    "symlinkWarningMessage": "The application is accessed via a symlink ({{symlinkPath}} -> {{realPath}}), which may cause the app to be deleted during the update. Please move CherryStudio.app directly to /Applications (not as a symlink) and try again.",
+    "symlinkWarningTitle": "Update Not Available",
     "title": "Update"
   },
   "warning": {

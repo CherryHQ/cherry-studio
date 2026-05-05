@@ -6027,6 +6027,8 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "儲存資料失敗，請重試",
+    "symlinkWarningMessage": "當前應用通過符號連結訪問（{{symlinkPath}} -> {{realPath}}），更新過程中可能導致應用被刪除。請將 CherryStudio.app 直接移動到 /Applications（不要使用符號連結），然後重試。",
+    "symlinkWarningTitle": "無法更新",
     "title": "更新提示"
   },
   "warning": {
