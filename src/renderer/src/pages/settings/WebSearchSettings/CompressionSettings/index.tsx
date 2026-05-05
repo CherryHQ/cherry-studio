@@ -30,7 +30,7 @@ const CompressionSettings = () => {
       <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
       <SettingDivider />
 
-      <SettingRow className="gap-8 py-2">
+      <SettingRow className="-py-2 gap-8">
         <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
         <Select
           value={compressionConfig?.method || 'none'}

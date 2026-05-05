@@ -252,7 +252,7 @@ const BlacklistSettings: FC = () => {
           rows={4}
         />
         <div className="mt-2.5 flex justify-end">
-          <Button type="button" size="sm" onClick={() => updateManualBlacklist(blacklistInput)}>
+          <Button type="button" size="sm" variant="outline" onClick={() => updateManualBlacklist(blacklistInput)}>
             {t('common.save')}
           </Button>
         </div>
@@ -300,6 +300,7 @@ const BlacklistSettings: FC = () => {
                 <Button
                   type="button"
                   size="sm"
+                  variant="outline"
                   loading={subscribeAction === 'add'}
                   disabled={subscribeChecking}
                   onClick={handleAddSubscribe}>

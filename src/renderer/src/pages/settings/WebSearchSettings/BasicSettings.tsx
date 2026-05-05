@@ -86,7 +86,7 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.tool.websearch.search_provider')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="gap-8 py-2">
+        <SettingRow className="-py-2 gap-8">
           <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
           <Selector
             size={14}
@@ -103,13 +103,13 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="gap-8 py-2">
+        <SettingRow className="-py-2 gap-8">
           <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow className="items-start gap-8 py-3">
-          <SettingRowTitle className="min-w-32 shrink-0 pt-0.5">
+        <SettingRow className="items-start gap-8">
+          <SettingRowTitle className="mt-2 min-w-32 shrink-0">
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
@@ -118,7 +118,7 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <div className="w-full max-w-xl">
+          <div className="-mb-2 mt-3 w-full max-w-xl">
             <Slider
               defaultValue={[maxResults]}
               className="w-full"
