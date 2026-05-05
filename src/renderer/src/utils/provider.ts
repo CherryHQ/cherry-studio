@@ -1,4 +1,4 @@
-import type { AzureOpenAIProvider, ProviderType } from '@renderer/types'
+import type { AzureOpenAIProvider, Model, ProviderType } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
 import { isAzureOpenAIProvider } from '@shared/aiCore/provider/utils'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
@@ -138,6 +138,18 @@ export const isGeminiWebSearchProvider = (provider: Provider) => {
 
 export const isNewApiProvider = (provider: Provider) => {
   return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.type === 'new-api'
+}
+
+export const isVolcengineProvider = (provider: Provider) => {
+  return provider.id === SystemProviderIds.doubao
+}
+
+export const isEndpointTypeProvider = (provider: Provider) => {
+  return isNewApiProvider(provider) || isVolcengineProvider(provider)
+}
+
+export const isVolcengineResponsesEndpointModel = (provider: Provider, model: Model) => {
+  return isVolcengineProvider(provider) && model.endpoint_type === 'openai-response'
 }
 
 /**

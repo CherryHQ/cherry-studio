@@ -1,4 +1,4 @@
-import { type AzureOpenAIProvider, type Provider, SystemProviderIds } from '@renderer/types'
+import { type AzureOpenAIProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -9,6 +9,7 @@ import {
   isAnthropicSupportedProvider,
   isAzureOpenAIProvider,
   isCherryAIProvider,
+  isEndpointTypeProvider,
   isGeminiProvider,
   isGeminiWebSearchProvider,
   isNewApiProvider,
@@ -22,7 +23,9 @@ import {
   isSupportServiceTierProvider,
   isSupportStreamOptionsProvider,
   isSupportUrlContextProvider,
-  isSupportVerbosityProvider
+  isSupportVerbosityProvider,
+  isVolcengineProvider,
+  isVolcengineResponsesEndpointModel
 } from '../provider'
 
 vi.mock('@renderer/store/settings', () => ({
@@ -56,6 +59,14 @@ const createSystemProvider = (overrides: Partial<Provider> = {}): Provider =>
     isSystem: true,
     ...overrides
   })
+
+const createModel = (overrides: Partial<Model> = {}): Model =>
+  ({
+    id: 'gpt-4o',
+    name: 'gpt-4o',
+    provider: 'openai',
+    ...overrides
+  }) as Model
 
 describe('provider utils', () => {
   it('filters Claude supported providers', () => {
@@ -179,6 +190,32 @@ describe('provider utils', () => {
     expect(isNewApiProvider(createProvider({ id: SystemProviderIds.cherryin }))).toBe(true)
     expect(isNewApiProvider(createProvider({ type: 'new-api' }))).toBe(true)
     expect(isNewApiProvider(createProvider())).toBe(false)
+  })
+
+  it('detects endpoint type capable providers', () => {
+    expect(isEndpointTypeProvider(createProvider({ id: SystemProviderIds['new-api'] }))).toBe(true)
+    expect(isEndpointTypeProvider(createProvider({ id: SystemProviderIds.doubao }))).toBe(true)
+    expect(isEndpointTypeProvider(createProvider())).toBe(false)
+  })
+
+  it('detects Volcengine providers and Responses endpoint models', () => {
+    const doubaoProvider = createProvider({ id: SystemProviderIds.doubao })
+    const openaiProvider = createProvider({ id: SystemProviderIds.openai })
+
+    expect(isVolcengineProvider(doubaoProvider)).toBe(true)
+    expect(isVolcengineProvider(openaiProvider)).toBe(false)
+    expect(
+      isVolcengineResponsesEndpointModel(
+        doubaoProvider,
+        createModel({ provider: SystemProviderIds.doubao, endpoint_type: 'openai-response' })
+      )
+    ).toBe(true)
+    expect(
+      isVolcengineResponsesEndpointModel(doubaoProvider, createModel({ provider: SystemProviderIds.doubao }))
+    ).toBe(false)
+    expect(isVolcengineResponsesEndpointModel(openaiProvider, createModel({ endpoint_type: 'openai-response' }))).toBe(
+      false
+    )
   })
 
   it('detects specific provider ids', () => {

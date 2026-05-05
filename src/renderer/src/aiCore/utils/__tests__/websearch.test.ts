@@ -19,6 +19,10 @@ vi.mock('@renderer/utils/blacklistMatchPattern', () => ({
   mapRegexToPatterns: vi.fn((patterns) => patterns || [])
 }))
 
+vi.mock('@renderer/services/ProviderService', () => ({
+  getProviderById: vi.fn((id) => ({ id }))
+}))
+
 describe('websearch utils', () => {
   describe('getWebSearchParams', () => {
     it('should return enhancement params for hunyuan provider', () => {
@@ -184,6 +188,21 @@ describe('websearch utils', () => {
           openai: {
             searchContextSize: 'medium'
           }
+        })
+      })
+
+      it('should omit OpenAI-only web search options for Doubao Responses models', () => {
+        const model: Model = {
+          id: 'doubao-seed-2-0-pro-260215',
+          name: 'Doubao Seed 2.0 Pro',
+          provider: 'doubao',
+          endpoint_type: 'openai-response'
+        } as Model
+
+        const result = buildProviderBuiltinWebSearchConfig('openai', defaultWebSearchConfig, model)
+
+        expect(result).toEqual({
+          openai: {}
         })
       })
     })

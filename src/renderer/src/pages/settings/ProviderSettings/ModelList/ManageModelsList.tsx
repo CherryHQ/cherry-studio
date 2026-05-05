@@ -7,7 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isEndpointTypeProvider } from '@renderer/utils/provider'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -98,7 +98,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({
           // 添加整组
           const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
 
-          if (isNewApiProvider(provider)) {
+          if (isEndpointTypeProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
               wouldAddModels.forEach(onAddModel)
             } else {

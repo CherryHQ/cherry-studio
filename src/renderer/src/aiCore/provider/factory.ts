@@ -1,7 +1,11 @@
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { type Provider, SystemProviderIds } from '@renderer/types'
-import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
+import { type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import {
+  isAzureOpenAIProvider,
+  isAzureResponsesEndpoint,
+  isVolcengineResponsesEndpointModel
+} from '@renderer/utils/provider'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { extensions } from './extensions'
@@ -51,4 +55,12 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     registeredIds: Object.keys(appProviderIds)
   })
   return provider.id
+}
+
+export function getAiSdkProviderIdForModel(provider: Provider, model: Model): AppProviderId {
+  if (isVolcengineResponsesEndpointModel(provider, model)) {
+    return appProviderIds.openai
+  }
+
+  return getAiSdkProviderId(provider)
 }

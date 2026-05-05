@@ -43,7 +43,7 @@ import { merge } from 'lodash'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
-import { getAiSdkProviderId } from '../provider/factory'
+import { getAiSdkProviderIdForModel } from '../provider/factory'
 import type { ProviderCapabilities } from '../types'
 import { buildGeminiGenerateImageParams } from './image'
 import {
@@ -160,7 +160,7 @@ export function buildProviderOptions(
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
 } {
-  const rawProviderId = getAiSdkProviderId(actualProvider)
+  const rawProviderId = getAiSdkProviderIdForModel(actualProvider, model)
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities, rawProviderId })
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}

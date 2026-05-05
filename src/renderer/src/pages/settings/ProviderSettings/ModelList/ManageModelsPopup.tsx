@@ -19,7 +19,7 @@ import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getDuplicateModelNames, isFreeModel } from '@renderer/utils/model'
-import { isNewApiProvider } from '@renderer/utils/provider'
+import { isEndpointTypeProvider } from '@renderer/utils/provider'
 import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -134,8 +134,8 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       if (!isEmpty(model.name)) {
         const hasSupportedEndpointTypes = model.supported_endpoint_types?.length
 
-        // NewAPI provider without supported_endpoint_types needs manual configuration
-        if (isNewApiProvider(provider) && !hasSupportedEndpointTypes) {
+        // Endpoint-selectable providers without supported_endpoint_types need manual configuration
+        if (isEndpointTypeProvider(provider) && !hasSupportedEndpointTypes) {
           void NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           return
         }
@@ -159,7 +159,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
       onOk: () => {
-        if (isNewApiProvider(provider)) {
+        if (isEndpointTypeProvider(provider)) {
           if (wouldAddModel.every(isValidNewApiModel)) {
             wouldAddModel.forEach(onAddModel)
           } else {

@@ -37,7 +37,10 @@ const providerMocks = vi.hoisted(() => ({
   isOpenAIProvider: vi.fn(),
   isVertexProvider: vi.fn(),
   isAwsBedrockProvider: vi.fn(),
-  isAzureOpenAIProvider: vi.fn()
+  isAzureOpenAIProvider: vi.fn(),
+  isVolcengineResponsesEndpointModel: vi.fn(
+    (provider, model) => provider?.id === 'doubao' && model?.endpoint_type === 'openai-response'
+  )
 }))
 
 vi.mock('@renderer/utils/provider', () => providerMocks)
@@ -185,6 +188,16 @@ describe('websearch helpers', () => {
 
       const nonSearch = createModel({ id: 'gpt-4o-image' })
       expect(isWebSearchModel(nonSearch)).toBe(false)
+    })
+
+    it('supports Doubao models on the Doubao Responses endpoint', () => {
+      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds.doubao }))
+      expect(
+        isWebSearchModel(createModel({ id: 'doubao-seed-2-0-pro-260215', endpoint_type: 'openai-response' }))
+      ).toBe(true)
+
+      providerMock.mockReturnValueOnce(createProvider({ id: SystemProviderIds.doubao }))
+      expect(isWebSearchModel(createModel({ id: 'custom-model', endpoint_type: 'openai-response' }))).toBe(false)
     })
 
     it('supports Perplexity sonar families including mandatory variants', () => {

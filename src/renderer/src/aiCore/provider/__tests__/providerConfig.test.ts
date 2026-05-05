@@ -623,6 +623,149 @@ describe('providerToAiSdkConfig', () => {
     })
   })
 
+  describe('Volcengine Responses builder', () => {
+    it('uses OpenAI Responses with a request body sanitizer for Doubao response endpoint models', async () => {
+      const provider = makeProvider({
+        id: 'doubao',
+        type: 'openai',
+        apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+        apiKey: 'volcengine-key'
+      })
+
+      const config = await providerToAiSdkConfig(
+        provider,
+        makeModel('doubao-seed-2-0-pro-260215', provider.id, { endpoint_type: 'openai-response' })
+      )
+
+      expect(config.providerId).toBe('openai')
+      const settings = config.providerSettings as any
+      expect(typeof settings.fetch).toBe('function')
+
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await settings.fetch('https://ark.cn-beijing.volces.com/api/v3/responses', {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'doubao-seed-2-0-pro-260215',
+          input: [
+            { role: 'user', content: [{ type: 'input_text', text: 'hi' }] },
+            { role: 'assistant', content: [{ type: 'output_text', text: 'hello' }] },
+            { role: 'assistant', status: 'in_progress', content: [{ type: 'output_text', text: 'thinking' }] }
+          ],
+          include: ['web_search_call.action.sources', 'reasoning.encrypted_content'],
+          previous_response_id: 'resp_123',
+          store: false,
+          service_tier: 'auto',
+          tools: [
+            {
+              type: 'web_search',
+              search_context_size: 'medium',
+              user_location: { type: 'approximate', city: 'Beijing' }
+            },
+            {
+              type: 'function',
+              name: 'get_weather',
+              parameters: { type: 'object', properties: {} }
+            }
+          ]
+        })
+      })
+
+      const sanitizedBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+      expect(sanitizedBody.include).toBeUndefined()
+      expect(sanitizedBody.previous_response_id).toBe('resp_123')
+      expect(sanitizedBody.store).toBe(false)
+      expect(sanitizedBody.service_tier).toBeUndefined()
+      expect(sanitizedBody.tools[0]).toEqual({ type: 'web_search' })
+      expect(sanitizedBody.tools[1]).toMatchObject({ type: 'function', name: 'get_weather' })
+      expect(sanitizedBody.input[0].type).toBe('message')
+      expect(sanitizedBody.input[0].status).toBeUndefined()
+      expect(sanitizedBody.input[1].type).toBe('message')
+      expect(sanitizedBody.input[1].status).toBe('completed')
+      expect(sanitizedBody.input[2].type).toBe('message')
+      expect(sanitizedBody.input[2].status).toBe('in_progress')
+    })
+
+    it('normalizes Volcengine Responses SSE url citations for AI SDK parsing', async () => {
+      const provider = makeProvider({
+        id: 'doubao',
+        type: 'openai',
+        apiHost: 'https://ark.cn-beijing.volces.com/api/v3',
+        apiKey: 'volcengine-key'
+      })
+
+      const config = await providerToAiSdkConfig(
+        provider,
+        makeModel('doubao-seed-2-0-pro-260215', provider.id, { endpoint_type: 'openai-response' })
+      )
+
+      const settings = config.providerSettings as any
+      const sse = [
+        'event: response.output_text.annotation.added',
+        'data: {"type":"response.output_text.annotation.added","annotation":{"type":"url_citation","title":"News","url":"https://example.com/news","logo_url":"https://example.com/logo.png"}}',
+        '',
+        'event: response.output_text.delta',
+        'data: {"type":"response.output_text.delta","delta":"hello"}',
+        '',
+        'event: response.content_part.done',
+        'data: {"type":"response.content_part.done","part":{"type":"output_text","text":"hello","annotations":[{"type":"url_citation","title":"Nested","url":"https://example.com/nested","site_name":"Example"},{"type":"file_citation","file_id":"file_123","filename":"doc.txt","index":0}]}}',
+        '',
+        'data: [DONE]',
+        ''
+      ].join('\n')
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(sse, {
+            headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+            status: 200
+          })
+        )
+      )
+
+      const response = (await settings.fetch('https://ark.cn-beijing.volces.com/api/v3/responses', {
+        method: 'POST',
+        body: JSON.stringify({ model: 'doubao-seed-2-0-pro-260215', stream: true })
+      })) as Response
+      const normalizedSse = await response.text()
+      const payloads = normalizedSse
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.slice('data: '.length))
+
+      const annotationEvent = JSON.parse(payloads[0])
+      expect(annotationEvent.annotation).toMatchObject({
+        type: 'url_citation',
+        title: 'News',
+        url: 'https://example.com/news',
+        logo_url: 'https://example.com/logo.png',
+        start_index: 0,
+        end_index: 0
+      })
+
+      expect(JSON.parse(payloads[1])).toEqual({ type: 'response.output_text.delta', delta: 'hello' })
+
+      const contentPartDone = JSON.parse(payloads[2])
+      expect(contentPartDone.part.annotations[0]).toMatchObject({
+        type: 'url_citation',
+        title: 'Nested',
+        url: 'https://example.com/nested',
+        site_name: 'Example',
+        start_index: 0,
+        end_index: 0
+      })
+      expect(contentPartDone.part.annotations[1]).toEqual({
+        type: 'file_citation',
+        file_id: 'file_123',
+        filename: 'doc.txt',
+        index: 0
+      })
+      expect(payloads[3]).toBe('[DONE]')
+    })
+  })
+
   describe('Anthropic OAuth builder', () => {
     it('uses OAuth token with bearer auth', async () => {
       const provider = makeProvider({
