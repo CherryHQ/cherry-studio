@@ -79,7 +79,7 @@ describe('FileProcessingOverrideMappings', () => {
           mineru: {
             apiKeys: ['mineru-key'],
             capabilities: {
-              markdown_conversion: {
+              document_to_markdown: {
                 apiHost: 'https://mineru-proxy.example.com'
               }
             },
@@ -88,7 +88,7 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               }
@@ -162,7 +162,7 @@ describe('FileProcessingOverrideMappings', () => {
           mistral: {
             apiKeys: ['mistral-key'],
             capabilities: {
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://mistral-proxy.example.com',
                 modelId: 'mistral-ocr-custom'
               }
@@ -282,7 +282,7 @@ describe('FileProcessingOverrideMappings', () => {
           ovocr: {
             apiKeys: ['ovocr-key'],
             capabilities: {
-              text_extraction: {
+              image_to_text: {
                 apiHost: 'https://ovocr.example.com'
               }
             },

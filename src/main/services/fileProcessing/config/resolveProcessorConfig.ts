@@ -10,8 +10,8 @@ import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/
 import { mergeProcessorPreset } from './mergeProcessorPreset'
 
 const DEFAULT_PROCESSOR_KEY_BY_FEATURE = {
-  markdown_conversion: 'feature.file_processing.default_markdown_conversion',
-  text_extraction: 'feature.file_processing.default_text_extraction'
+  document_to_markdown: 'feature.file_processing.default_document_to_markdown',
+  image_to_text: 'feature.file_processing.default_image_to_text'
 } as const satisfies Record<FileProcessorFeature, PreferenceKeyType>
 
 function getOverrides(): FileProcessorOverrides {

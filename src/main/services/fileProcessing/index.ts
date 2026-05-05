@@ -1,13 +1,11 @@
 export { FileProcessingOrchestrationService } from './FileProcessingOrchestrationService'
-export { MarkdownTaskService } from './markdown/MarkdownTaskService'
-export { ocrService } from './ocr/OcrService'
-export { TesseractRuntimeService } from './runtime/services/TesseractRuntimeService'
+export { TesseractRuntimeService } from './processors/tesseract/runtime/TesseractRuntimeService'
+export { FileProcessingTaskService } from './task/FileProcessingTaskService'
 export type {
-  BaseProcessFileInput,
-  ExtractTextInput,
-  FileProcessingMarkdownTaskResult,
-  FileProcessingMarkdownTaskStartResult,
-  FileProcessingTextExtractionResult,
-  GetMarkdownConversionTaskResultInput,
-  StartMarkdownConversionTaskInput
+  CancelFileProcessingTaskInput,
+  FileProcessingArtifact,
+  FileProcessingTaskResult,
+  FileProcessingTaskStartResult,
+  GetFileProcessingTaskInput,
+  StartFileProcessingTaskInput
 } from './types'

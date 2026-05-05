@@ -11,7 +11,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import {
   FileProcessingOrchestrationService,
-  MarkdownTaskService,
+  FileProcessingTaskService,
   TesseractRuntimeService
 } from '@main/services/fileProcessing'
 import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
@@ -70,7 +70,7 @@ export const services = {
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
-  MarkdownTaskService,
+  FileProcessingTaskService,
   AnalyticsService,
   AppMenuService,
   CodeCliService,

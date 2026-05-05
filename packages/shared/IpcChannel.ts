@@ -202,9 +202,9 @@ export enum IpcChannel {
   KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
-  FileProcessing_ExtractText = 'file-processing:extract-text',
-  FileProcessing_StartMarkdownConversionTask = 'file-processing:start-markdown-conversion-task',
-  FileProcessing_GetMarkdownConversionTaskResult = 'file-processing:get-markdown-conversion-task-result',
+  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_GetTask = 'file-processing:get-task',
+  FileProcessing_CancelTask = 'file-processing:cancel-task',
 
   //file
   File_Open = 'file:open',

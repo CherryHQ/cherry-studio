@@ -1,39 +1,39 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
+import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileMetadataSchema } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
-import { ocrService } from './ocr/OcrService'
 import type {
-  ExtractTextInput,
-  FileProcessingMarkdownTaskResult,
-  FileProcessingMarkdownTaskStartResult,
-  FileProcessingTextExtractionResult,
-  GetMarkdownConversionTaskResultInput,
-  StartMarkdownConversionTaskInput
+  CancelFileProcessingTaskInput,
+  FileProcessingTaskResult,
+  FileProcessingTaskStartResult,
+  GetFileProcessingTaskInput,
+  StartFileProcessingTaskInput
 } from './types'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
+
+const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 
-const ExtractTextPayloadSchema = z
+const StartTaskPayloadSchema = z
   .object({
+    feature: FileProcessorFeatureSchema,
     file: FileMetadataSchema,
     processorId: FileProcessorIdSchema.optional()
   })
   .strict()
 
-const StartMarkdownConversionTaskPayloadSchema = z
+const GetTaskPayloadSchema = z
   .object({
-    file: FileMetadataSchema,
-    processorId: FileProcessorIdSchema.optional()
+    taskId: z.string().trim().min(1)
   })
   .strict()
 
-const GetMarkdownConversionTaskResultPayloadSchema = z
+const CancelTaskPayloadSchema = z
   .object({
     taskId: z.string().trim().min(1)
   })
@@ -41,70 +41,48 @@ const GetMarkdownConversionTaskResultPayloadSchema = z
 
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MarkdownTaskService', 'TesseractRuntimeService'])
+@DependsOn(['FileProcessingTaskService'])
 export class FileProcessingOrchestrationService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
     logger.info('File processing service initialized')
   }
 
-  async extractText({ file, processorId, signal }: ExtractTextInput): Promise<FileProcessingTextExtractionResult> {
-    logger.debug('Dispatching OCR request', {
-      requestedProcessorId: processorId,
-      fileId: file.id
+  async startTask(input: StartFileProcessingTaskInput): Promise<FileProcessingTaskStartResult> {
+    logger.debug('Dispatching file processing task start request', {
+      feature: input.feature,
+      requestedProcessorId: input.processorId,
+      fileId: input.file.id
     })
 
-    return ocrService.extractText({
-      file,
-      processorId,
-      signal
-    })
+    return application.get('FileProcessingTaskService').startTask(input)
   }
 
-  async startMarkdownConversionTask({
-    file,
-    processorId,
-    signal
-  }: StartMarkdownConversionTaskInput): Promise<FileProcessingMarkdownTaskStartResult> {
-    const markdownTaskService = application.get('MarkdownTaskService')
-
-    logger.debug('Dispatching markdown task start request', {
-      requestedProcessorId: processorId,
-      fileId: file.id
+  async getTask(input: GetFileProcessingTaskInput): Promise<FileProcessingTaskResult> {
+    logger.debug('Dispatching file processing task query request', {
+      taskId: input.taskId
     })
 
-    return markdownTaskService.startTask({
-      file,
-      processorId,
-      signal
-    })
+    return application.get('FileProcessingTaskService').getTask(input)
   }
 
-  async getMarkdownConversionTaskResult({
-    taskId,
-    signal
-  }: GetMarkdownConversionTaskResultInput): Promise<FileProcessingMarkdownTaskResult> {
-    const markdownTaskService = application.get('MarkdownTaskService')
-
-    logger.debug('Dispatching markdown task query request', {
-      taskId
+  async cancelTask(input: CancelFileProcessingTaskInput): Promise<FileProcessingTaskResult> {
+    logger.debug('Dispatching file processing task cancel request', {
+      taskId: input.taskId
     })
 
-    return markdownTaskService.getTaskResult({
-      taskId,
-      signal
-    })
+    return application.get('FileProcessingTaskService').cancelTask(input)
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.FileProcessing_ExtractText, async (_, payload: unknown) => {
-      return await this.extractText(ExtractTextPayloadSchema.parse(payload))
+    this.ipcHandle(IpcChannel.FileProcessing_StartTask, async (_, payload: unknown) => {
+      return await this.startTask(StartTaskPayloadSchema.parse(payload))
     })
-    this.ipcHandle(IpcChannel.FileProcessing_StartMarkdownConversionTask, async (_, payload: unknown) => {
-      return await this.startMarkdownConversionTask(StartMarkdownConversionTaskPayloadSchema.parse(payload))
+    this.ipcHandle(IpcChannel.FileProcessing_GetTask, async (_, payload: unknown) => {
+      return await this.getTask(GetTaskPayloadSchema.parse(payload))
     })
-    this.ipcHandle(IpcChannel.FileProcessing_GetMarkdownConversionTaskResult, async (_, payload: unknown) => {
-      return await this.getMarkdownConversionTaskResult(GetMarkdownConversionTaskResultPayloadSchema.parse(payload))
+    this.ipcHandle(IpcChannel.FileProcessing_CancelTask, async (_, payload: unknown) => {
+      return await this.cancelTask(CancelTaskPayloadSchema.parse(payload))
     })
   }
 }

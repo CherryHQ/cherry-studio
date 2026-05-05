@@ -1,22 +1,23 @@
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 export type {
-  FileProcessingMarkdownTaskResult,
-  FileProcessingMarkdownTaskStartResult,
-  FileProcessingTextExtractionResult
+  FileProcessingArtifact,
+  FileProcessingTaskResult,
+  FileProcessingTaskStartResult
 } from '@shared/data/types/fileProcessing'
 import type { FileMetadata } from '@types'
 
-export interface BaseProcessFileInput {
+export interface StartFileProcessingTaskInput {
+  feature: FileProcessorFeature
   file: FileMetadata
   processorId?: FileProcessorId
   signal?: AbortSignal
 }
 
-export interface ExtractTextInput extends BaseProcessFileInput {}
-
-export interface StartMarkdownConversionTaskInput extends BaseProcessFileInput {}
-
-export interface GetMarkdownConversionTaskResultInput {
+export interface GetFileProcessingTaskInput {
   taskId: string
   signal?: AbortSignal
+}
+
+export interface CancelFileProcessingTaskInput {
+  taskId: string
 }

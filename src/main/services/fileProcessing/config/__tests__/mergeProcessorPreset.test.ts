@@ -13,7 +13,7 @@ describe('mergeProcessorPreset', () => {
       type: 'builtin',
       capabilities: [
         {
-          feature: 'text_extraction',
+          feature: 'image_to_text',
           inputs: ['image'],
           output: 'text'
         }
@@ -39,7 +39,7 @@ describe('mergeProcessorPreset', () => {
       type: 'api',
       capabilities: [
         {
-          feature: 'markdown_conversion',
+          feature: 'document_to_markdown',
           inputs: ['document'],
           output: 'markdown',
           apiHost: 'https://v2.doc2x.noedgeai.com',
@@ -60,7 +60,7 @@ describe('mergeProcessorPreset', () => {
 
     const merged = mergeProcessorPreset(preset!, {
       capabilities: {
-        markdown_conversion: {
+        document_to_markdown: {
           apiHost: 'https://custom.example.com',
           modelId: 'custom-model'
         }
@@ -69,14 +69,14 @@ describe('mergeProcessorPreset', () => {
 
     expect(merged.capabilities).toEqual([
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PaddleOCR-VL-1.5'
       },
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://custom.example.com',

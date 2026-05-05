@@ -13,7 +13,6 @@ import {
   type FileProcessorOverrides,
   type FileProcessorType
 } from '../preference/preferenceTypes'
-import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
 /**
  * File Processing Presets
@@ -41,29 +40,15 @@ export const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 
 /**
- * Input file type schema
- * Reuses the canonical file type definitions shared across the app.
- */
-export const FileProcessorInputSchema = FileTypeSchema.extract([FILE_TYPE.IMAGE, FILE_TYPE.DOCUMENT])
-
-const FileProcessorTextOutputSchema = FileTypeSchema.extract([FILE_TYPE.TEXT])
-
-/**
- * Output content format schema
- * `text` reuses the canonical file type, while `markdown` remains a processing-specific format.
- */
-export const FileProcessorOutputSchema = z.union([FileProcessorTextOutputSchema, z.literal('markdown')])
-
-/**
  * Feature capability definition
  *
  * Each capability binds a feature with its supported inputs, output, and optional API settings.
  */
 
-export const TextExtractionCapabilitySchema = z
+export const ImageToTextCapabilitySchema = z
   .object({
-    feature: z.literal('text_extraction'),
-    inputs: z.array(FileProcessorInputSchema).min(1),
+    feature: z.literal('image_to_text'),
+    inputs: z.array(z.literal('image')).min(1),
     output: z.literal('text'),
     apiHost: z.url().optional(),
     modelId: z.string().min(1).optional()
@@ -71,11 +56,11 @@ export const TextExtractionCapabilitySchema = z
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
-export type TextExtractionCapability = z.infer<typeof TextExtractionCapabilitySchema>
+export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
 
-export const MarkdownConversionCapabilitySchema = z
+export const DocumentToMarkdownCapabilitySchema = z
   .object({
-    feature: z.literal('markdown_conversion'),
+    feature: z.literal('document_to_markdown'),
     inputs: z.array(z.literal('document')).min(1),
     output: z.literal('markdown'),
     apiHost: z.url().optional(),
@@ -84,11 +69,11 @@ export const MarkdownConversionCapabilitySchema = z
     // excludedFormats?: string[] // Blacklist: all formats except these (uncomment when needed)
   })
   .strict()
-export type MarkdownConversionCapability = z.infer<typeof MarkdownConversionCapabilitySchema>
+export type DocumentToMarkdownCapability = z.infer<typeof DocumentToMarkdownCapabilitySchema>
 
 export const FileProcessorFeatureCapabilitySchema = z.discriminatedUnion('feature', [
-  TextExtractionCapabilitySchema,
-  MarkdownConversionCapabilitySchema
+  ImageToTextCapabilitySchema,
+  DocumentToMarkdownCapabilitySchema
 ])
 export type FileProcessorFeatureCapability = z.infer<typeof FileProcessorFeatureCapabilitySchema>
 
@@ -176,8 +161,8 @@ export const FileProcessorCapabilityOverrideSchema: z.ZodType<FileProcessorCapab
 
 export const FileProcessorCapabilityOverridesSchema: z.ZodType<FileProcessorCapabilityOverrides> = z
   .object({
-    markdown_conversion: FileProcessorCapabilityOverrideSchema.optional(),
-    text_extraction: FileProcessorCapabilityOverrideSchema.optional()
+    document_to_markdown: FileProcessorCapabilityOverrideSchema.optional(),
+    image_to_text: FileProcessorCapabilityOverrideSchema.optional()
   })
   .strict()
 
@@ -230,7 +215,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'builtin',
     capabilities: [
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text'
       }
@@ -238,20 +223,20 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   system: {
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
   paddleocr: {
     type: 'api',
     capabilities: [
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://paddleocr.aistudio-app.com/',
         modelId: 'PaddleOCR-VL-1.5'
       },
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://paddleocr.aistudio-app.com/',
@@ -261,7 +246,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   ovocr: {
     type: 'builtin',
-    capabilities: [{ feature: 'text_extraction', inputs: ['image'], output: 'text' }]
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
 
   // === Document Processors (former Preprocess) ===
@@ -269,7 +254,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://mineru.net',
@@ -281,7 +266,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'https://v2.doc2x.noedgeai.com',
@@ -293,7 +278,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'text_extraction',
+        feature: 'image_to_text',
         inputs: ['image'],
         output: 'text',
         apiHost: 'https://api.mistral.ai',
@@ -305,7 +290,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
-        feature: 'markdown_conversion',
+        feature: 'document_to_markdown',
         inputs: ['document'],
         output: 'markdown',
         apiHost: 'http://127.0.0.1:8000'

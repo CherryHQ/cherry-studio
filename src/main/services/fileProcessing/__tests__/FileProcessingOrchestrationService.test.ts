@@ -3,29 +3,24 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { extractTextMock, startTaskMock, getTaskResultMock } = vi.hoisted(() => ({
-  extractTextMock: vi.fn(),
+const { startTaskMock, getTaskMock, cancelTaskMock } = vi.hoisted(() => ({
   startTaskMock: vi.fn(),
-  getTaskResultMock: vi.fn()
+  getTaskMock: vi.fn(),
+  cancelTaskMock: vi.fn()
 }))
 
 vi.mock('@main/core/application', async () => {
   const { createMockApplication } = await import('@test-mocks/main/application')
   return {
     application: createMockApplication({
-      MarkdownTaskService: {
+      FileProcessingTaskService: {
         startTask: startTaskMock,
-        getTaskResult: getTaskResultMock
+        getTask: getTaskMock,
+        cancelTask: cancelTaskMock
       }
     } as any)
   }
 })
-
-vi.mock('../ocr/OcrService', () => ({
-  ocrService: {
-    extractText: extractTextMock
-  }
-}))
 
 const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
 
@@ -41,18 +36,6 @@ const imageFile = {
   count: 1
 } as const
 
-const documentFile = {
-  id: 'file-2',
-  name: 'report.pdf',
-  origin_name: 'report.pdf',
-  path: '/tmp/report.pdf',
-  size: 512,
-  ext: '.pdf',
-  type: 'document',
-  created_at: '2026-03-31T00:00:00.000Z',
-  count: 1
-} as const
-
 type RegisteredIpcHandler = (event: unknown, payload: unknown) => Promise<unknown>
 
 describe('FileProcessingOrchestrationService', () => {
@@ -61,15 +44,12 @@ describe('FileProcessingOrchestrationService', () => {
     BaseService.resetInstances()
   })
 
-  it('uses WhenReady phase and waits for file-processing runtime services', () => {
+  it('uses WhenReady phase and waits for the task service', () => {
     expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual([
-      'MarkdownTaskService',
-      'TesseractRuntimeService'
-    ])
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileProcessingTaskService'])
   })
 
-  it('registers the three file processing IPC handlers', () => {
+  it('registers only the three unified file processing IPC handlers', () => {
     const service = new FileProcessingOrchestrationService()
     const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
@@ -77,27 +57,28 @@ describe('FileProcessingOrchestrationService', () => {
     const handlerCalls = ipcHandleSpy.mock.calls.map((call) => call[0])
 
     expect(handlerCalls).toEqual([
-      'file-processing:extract-text',
-      'file-processing:start-markdown-conversion-task',
-      'file-processing:get-markdown-conversion-task-result'
+      'file-processing:start-task',
+      'file-processing:get-task',
+      'file-processing:cancel-task'
     ])
   })
 
-  it('validates extract-text IPC input before dispatching to OCR', async () => {
+  it('validates start-task IPC input before delegating', async () => {
     const service = new FileProcessingOrchestrationService()
     const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
 
-    const extractTextHandler = ipcHandleSpy.mock.calls.find(
-      (call) => call[0] === 'file-processing:extract-text'
-    )?.[1] as RegisteredIpcHandler | undefined
+    const startTaskHandler = ipcHandleSpy.mock.calls.find((call) => call[0] === 'file-processing:start-task')?.[1] as
+      | RegisteredIpcHandler
+      | undefined
 
-    expect(extractTextHandler).toBeDefined()
+    expect(startTaskHandler).toBeDefined()
 
     await expect(
-      extractTextHandler!(
+      startTaskHandler!(
         {},
         {
+          feature: 'image_to_text',
           file: {
             id: 'file-1'
           },
@@ -106,94 +87,100 @@ describe('FileProcessingOrchestrationService', () => {
       )
     ).rejects.toThrow('[')
 
-    expect(extractTextMock).not.toHaveBeenCalled()
+    expect(startTaskMock).not.toHaveBeenCalled()
   })
 
-  it('validates markdown-result IPC input before dispatching to markdown tasks', async () => {
+  it('validates get-task IPC input before delegating', async () => {
     const service = new FileProcessingOrchestrationService()
     const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
     ;(service as any).onInit()
 
-    const getResultHandler = ipcHandleSpy.mock.calls.find(
-      (call) => call[0] === 'file-processing:get-markdown-conversion-task-result'
-    )?.[1] as RegisteredIpcHandler | undefined
+    const getTaskHandler = ipcHandleSpy.mock.calls.find((call) => call[0] === 'file-processing:get-task')?.[1] as
+      | RegisteredIpcHandler
+      | undefined
 
-    expect(getResultHandler).toBeDefined()
+    expect(getTaskHandler).toBeDefined()
 
-    await expect(getResultHandler!({}, { taskId: '   ' })).rejects.toThrow('[')
-    expect(getTaskResultMock).not.toHaveBeenCalled()
+    await expect(getTaskHandler!({}, { taskId: '   ' })).rejects.toThrow('[')
+    expect(getTaskMock).not.toHaveBeenCalled()
   })
 
-  it('delegates OCR requests to ocrService', async () => {
-    const signal = new AbortController().signal
+  it('validates cancel-task IPC input before delegating', async () => {
     const service = new FileProcessingOrchestrationService()
+    const ipcHandleSpy = vi.spyOn(service as any, 'ipcHandle').mockReturnValue({ dispose: vi.fn() })
+    ;(service as any).onInit()
 
-    extractTextMock.mockResolvedValueOnce({
-      text: 'hello'
-    })
+    const cancelTaskHandler = ipcHandleSpy.mock.calls.find((call) => call[0] === 'file-processing:cancel-task')?.[1] as
+      | RegisteredIpcHandler
+      | undefined
 
-    await expect(service.extractText({ file: imageFile as never, signal })).resolves.toEqual({
-      text: 'hello'
-    })
+    expect(cancelTaskHandler).toBeDefined()
 
-    expect(extractTextMock).toHaveBeenCalledWith({
-      file: imageFile,
-      processorId: undefined,
-      signal
-    })
+    await expect(cancelTaskHandler!({}, { taskId: '   ' })).rejects.toThrow('[')
+    expect(cancelTaskMock).not.toHaveBeenCalled()
   })
 
-  it('delegates markdown task start requests to MarkdownTaskService', async () => {
-    const signal = new AbortController().signal
+  it('delegates start/get/cancel requests to FileProcessingTaskService', async () => {
     const service = new FileProcessingOrchestrationService()
 
     startTaskMock.mockResolvedValueOnce({
       taskId: 'task-1',
+      feature: 'image_to_text',
       status: 'processing',
       progress: 0,
-      processorId: 'open-mineru'
+      processorId: 'tesseract'
     })
-
-    await expect(service.startMarkdownConversionTask({ file: documentFile as never, signal })).resolves.toEqual({
+    getTaskMock.mockResolvedValueOnce({
       taskId: 'task-1',
+      feature: 'image_to_text',
       status: 'processing',
-      progress: 0,
-      processorId: 'open-mineru'
+      progress: 50,
+      processorId: 'tesseract'
     })
-
-    expect(startTaskMock).toHaveBeenCalledWith({
-      file: documentFile,
-      processorId: undefined,
-      signal
-    })
-  })
-
-  it('delegates markdown task queries to MarkdownTaskService by taskId', async () => {
-    const signal = new AbortController().signal
-    const service = new FileProcessingOrchestrationService()
-
-    getTaskResultMock.mockResolvedValueOnce({
-      status: 'completed',
-      progress: 100,
-      processorId: 'doc2x',
-      markdownPath: '/tmp/output.md'
+    cancelTaskMock.mockResolvedValueOnce({
+      taskId: 'task-1',
+      feature: 'image_to_text',
+      status: 'cancelled',
+      progress: 50,
+      processorId: 'tesseract',
+      reason: 'cancelled'
     })
 
     await expect(
-      service.getMarkdownConversionTaskResult({
-        taskId: 'task-1',
-        signal
+      service.startTask({
+        feature: 'image_to_text',
+        file: imageFile as never
       })
     ).resolves.toEqual({
-      status: 'completed',
-      progress: 100,
-      processorId: 'doc2x',
-      markdownPath: '/tmp/output.md'
+      taskId: 'task-1',
+      feature: 'image_to_text',
+      status: 'processing',
+      progress: 0,
+      processorId: 'tesseract'
     })
 
-    expect(getTaskResultMock).toHaveBeenCalledWith({
+    await expect(service.getTask({ taskId: 'task-1' })).resolves.toEqual({
       taskId: 'task-1',
-      signal
+      feature: 'image_to_text',
+      status: 'processing',
+      progress: 50,
+      processorId: 'tesseract'
     })
+
+    await expect(service.cancelTask({ taskId: 'task-1' })).resolves.toEqual({
+      taskId: 'task-1',
+      feature: 'image_to_text',
+      status: 'cancelled',
+      progress: 50,
+      processorId: 'tesseract',
+      reason: 'cancelled'
+    })
+
+    expect(startTaskMock).toHaveBeenCalledWith({
+      feature: 'image_to_text',
+      file: imageFile
+    })
+    expect(getTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
+    expect(cancelTaskMock).toHaveBeenCalledWith({ taskId: 'task-1' })
   })
 })

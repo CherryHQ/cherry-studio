@@ -224,7 +224,7 @@ export const FILE_PROCESSOR_TYPES = ['api', 'builtin'] as const
 
 export type FileProcessorType = (typeof FILE_PROCESSOR_TYPES)[number]
 
-export const FILE_PROCESSOR_FEATURES = ['text_extraction', 'markdown_conversion'] as const
+export const FILE_PROCESSOR_FEATURES = ['image_to_text', 'document_to_markdown'] as const
 
 export type FileProcessorFeature = (typeof FILE_PROCESSOR_FEATURES)[number]
 

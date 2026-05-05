@@ -81,11 +81,11 @@ function getPresetCapability(processorId: FileProcessorId, feature: FileProcesso
 function resolvePreprocessFeature(processorId: FileProcessorId): FileProcessorFeature {
   const processor = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === processorId)!
 
-  if (processor.capabilities.some((capability) => capability.feature === 'markdown_conversion')) {
-    return 'markdown_conversion'
+  if (processor.capabilities.some((capability) => capability.feature === 'document_to_markdown')) {
+    return 'document_to_markdown'
   }
 
-  return 'text_extraction'
+  return 'image_to_text'
 }
 
 function setCapabilityApiHost(
@@ -225,7 +225,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
 
   addApiKey(override, config.accessToken)
   if (providerId !== 'paddleocr') {
-    setCapabilityApiHost(override, providerId, 'text_extraction', config.apiUrl)
+    setCapabilityApiHost(override, providerId, 'image_to_text', config.apiUrl)
   }
 
   const langs = normalizeLangs(config.langs, providerId)
@@ -236,7 +236,7 @@ function mergeOcrProvider(overrides: FileProcessorOverrides, provider: unknown) 
   if (isRecord(config.api)) {
     addApiKey(override, config.api.apiKey)
     if (providerId !== 'paddleocr') {
-      setCapabilityApiHost(override, providerId, 'text_extraction', config.api.apiHost)
+      setCapabilityApiHost(override, providerId, 'image_to_text', config.api.apiHost)
     }
 
     if (isNonEmptyString(config.api.apiVersion)) {
