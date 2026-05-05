@@ -5276,7 +5276,10 @@
     },
     "plugins": {
       "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
-      "title": "系統插件",
+      "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "installing": "安裝中...",
+      "notInstalled": "未安裝",
+      "title": "環境依賴",
       "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },
     "privacy": {

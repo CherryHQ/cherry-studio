@@ -5276,7 +5276,10 @@
     },
     "plugins": {
       "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
-      "title": "系统插件",
+      "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "installing": "安装中...",
+      "notInstalled": "未安装",
+      "title": "环境依赖",
       "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
     "privacy": {

@@ -4,7 +4,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
-  Blocks,
   CalendarClock,
   Cloud,
   Command,
@@ -13,6 +12,7 @@ import {
   HardDrive,
   Info,
   Package,
+  PackageCheck,
   PictureInPicture2,
   Radio,
   Search,
@@ -89,7 +89,7 @@ const SettingsPage: FC = () => {
               />
               <MenuItem
                 className={menuItemClassName}
-                icon={<Blocks />}
+                icon={<PackageCheck />}
                 label={t('settings.plugins.title')}
                 active={isActive('/settings/plugins')}
                 onClick={() => go('/settings/plugins')}

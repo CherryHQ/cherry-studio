@@ -1,19 +1,17 @@
-import { Badge, Button, Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@cherrystudio/ui'
+import { Badge, Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { cn } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
-import { CircleAlert, FolderOpen, Package } from 'lucide-react'
+import { Download, FolderOpen, PackageCheck, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingTitle } from '..'
-
-interface Props {
+interface EnvironmentDependenciesProps {
   mini?: boolean
 }
 
-interface DependencyCardProps {
+interface EnvironmentDependencyItemProps {
   actionLabel: string
   description: string
   installed: boolean
@@ -25,7 +23,7 @@ interface DependencyCardProps {
   t: (key: string) => string
 }
 
-const DependencyCard: FC<DependencyCardProps> = ({
+const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
   actionLabel,
   description,
   installed,
@@ -36,55 +34,63 @@ const DependencyCard: FC<DependencyCardProps> = ({
   onOpenPath,
   t
 }) => (
-  <Item
-    variant="outline"
-    className={cn('min-h-0 w-full flex-nowrap border-border/80 px-3.5 py-3', !installed && 'border-warning/30')}>
-    <ItemContent className="min-w-0 gap-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <ItemTitle>{name}</ItemTitle>
-        {installed ? (
-          <Badge
-            variant="outline"
-            className="rounded-md border-transparent bg-primary/8 px-1.5 py-0 font-normal text-[11px] text-primary">
-            {t('settings.skills.installed')}
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="gap-1 rounded-full border-warning/40 px-2 py-0.5 text-warning text-xs">
-            <CircleAlert className="size-3.5" />
-            {t('settings.mcp.install')}
-          </Badge>
-        )}
+  <div className="group flex min-h-13 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-muted/55">
+    <div
+      className={cn(
+        'flex size-9 shrink-0 items-center justify-center rounded-xl',
+        installed ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-500'
+      )}>
+      <PackageCheck className="size-4" />
+    </div>
+
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-baseline gap-2">
+        <div className="truncate font-medium text-foreground text-sm leading-5">{name}</div>
       </div>
-      <ItemDescription className="line-clamp-none text-xs leading-5">{description}</ItemDescription>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/75">
-        <span className="truncate">
-          {installed ? path || name : `${name} ${t('settings.mcp.missingDependencies')}`}
-        </span>
+
+      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+        <span className="truncate">{description}</span>
         <button
           type="button"
           onClick={onOpenPath}
           disabled={!path}
           aria-label={t('settings.skills.directory')}
           className={cn(
-            'inline-flex items-center transition-colors',
-            path ? 'text-muted-foreground/80 hover:text-foreground' : 'cursor-default text-muted-foreground/40'
+            'inline-flex size-4.5 shrink-0 items-center justify-center rounded-md transition-colors',
+            path ? 'text-muted-foreground/55 hover:bg-background hover:text-foreground' : 'hidden'
           )}>
-          <FolderOpen className="size-3.5 shrink-0" />
+          <FolderOpen className="size-3" />
         </button>
       </div>
-    </ItemContent>
+    </div>
 
-    <ItemActions className="shrink-0">
-      {!installed && (
-        <Button size="sm" className="shrink-0 rounded-lg shadow-none" onClick={onInstall} disabled={installing}>
-          {installing ? t('settings.mcp.dependenciesInstalling') : actionLabel}
-        </Button>
+    <div className="flex min-w-[92px] shrink-0 items-center justify-end gap-2">
+      {installed ? (
+        <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
+          {t('settings.skills.installed')}
+        </Badge>
+      ) : (
+        <>
+          <Badge className="border-transparent bg-muted px-1.5 py-0 font-medium text-[11px] text-muted-foreground leading-4">
+            {t('settings.plugins.notInstalled')}
+          </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 font-medium text-xs shadow-none"
+            onClick={onInstall}
+            disabled={installing}
+            loading={installing}>
+            {!installing && <Download className="size-3.5" />}
+            {installing ? t('settings.plugins.installing') : actionLabel}
+          </Button>
+        </>
       )}
-    </ItemActions>
-  </Item>
+    </div>
+  </div>
 )
 
-const InstallNpxUv: FC<Props> = ({ mini = false }) => {
+const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [isUvInstalled, setIsUvInstalled] = usePersistCache('feature.mcp.is_uv_installed')
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
 
@@ -160,10 +166,10 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
     return (
       <Button
-        className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none"
+        className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
         variant="ghost"
         onClick={() => navigate({ to: '/settings/plugins' })}>
-        <Package size={14} className="text-destructive" />
+        <TriangleAlert size={14} />
       </Button>
     )
   }
@@ -174,12 +180,20 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     }
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <SettingTitle className="px-1 text-base">{t('settings.plugins.title')}</SettingTitle>
+  const dependenciesCount = 2
 
-      <div className="flex flex-col gap-2">
-        <DependencyCard
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
+          <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
+        </div>
+        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <EnvironmentDependencyItem
           actionLabel={t('settings.mcp.install')}
           description={t('settings.plugins.uvDescription')}
           installed={!!isUvInstalled}
@@ -190,7 +204,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
           onOpenPath={openBinariesDir}
           t={t}
         />
-        <DependencyCard
+        <EnvironmentDependencyItem
           actionLabel={t('settings.mcp.install')}
           description={t('settings.plugins.bunDescription')}
           installed={!!isBunInstalled}
@@ -206,4 +220,4 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   )
 }
 
-export default InstallNpxUv
+export default EnvironmentDependencies
