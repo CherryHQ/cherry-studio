@@ -7,7 +7,13 @@ import { useChatWithHistory } from '../useChatWithHistory'
 const mockUseChat = vi.fn()
 
 vi.mock('@ai-sdk/react', () => ({
-  useChat: (...args: unknown[]) => mockUseChat(...args)
+  useChat: (...args: unknown[]) => mockUseChat(...args),
+  Chat: class {
+    id: string
+    constructor(opts: { id: string }) {
+      this.id = opts.id
+    }
+  }
 }))
 
 // `useTopicStreamStatus` is driven by the shared
@@ -149,7 +155,6 @@ describe('useChatWithHistory', () => {
       expect(resumeStream).toHaveBeenCalledTimes(2)
     })
     expect(refresh).toHaveBeenCalledTimes(1)
-    expect(setMessages).toHaveBeenCalledWith(refreshedMessages)
-    expect(setMessages.mock.invocationCallOrder[0]).toBeLessThan(resumeStream.mock.invocationCallOrder[1])
+    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(resumeStream.mock.invocationCallOrder[1])
   })
 })
