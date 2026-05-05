@@ -23,7 +23,7 @@ import MessageGroupMenuBar from './MessageGroupMenuBar'
 
 const logger = loggerService.withContext('MessageGroup')
 interface Props {
-  messages: (Message & { index: number })[]
+  messages: Message[]
   topic: Topic
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
@@ -231,13 +231,13 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   }, [messages, usefulMessageId])
 
   const renderMessage = useCallback(
-    (message: Message & { index: number }) => {
+    (message: Message, index: number) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
         message,
         topic,
-        index: message.index
+        index
       } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
