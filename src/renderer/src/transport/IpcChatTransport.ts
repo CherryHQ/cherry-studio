@@ -130,9 +130,42 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           }
         }
 
+        // ── RAF-batched chunk delivery ──────────────────────────────
+        let pendingChunks: UIMessageChunk[] = []
+        let rafHandle: number | null = null
+        const flushPending = () => {
+          rafHandle = null
+          if (pendingChunks.length === 0 || isStreamClosed) {
+            pendingChunks = []
+            return
+          }
+          const batch = pendingChunks
+          pendingChunks = []
+          for (const chunk of batch) controller.enqueue(chunk)
+        }
+        const schedulePending = (chunk: UIMessageChunk) => {
+          pendingChunks.push(chunk)
+          if (rafHandle === null) rafHandle = requestAnimationFrame(flushPending)
+        }
+        const cancelPending = () => {
+          if (rafHandle !== null) {
+            cancelAnimationFrame(rafHandle)
+            rafHandle = null
+          }
+          pendingChunks = []
+        }
+        unsubscribers.push(cancelPending)
+
         const closeStream = () => {
           if (isStreamClosed) return
           isStreamClosed = true
+          // Flush any pending chunks before closing — losing the last
+          // few text-deltas because we batched them right before `done`
+          // would clip the visible output.
+          if (rafHandle !== null) cancelAnimationFrame(rafHandle)
+          rafHandle = null
+          for (const chunk of pendingChunks) controller.enqueue(chunk)
+          pendingChunks = []
           cleanup()
           controller.close()
         }
@@ -140,6 +173,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         const errorStream = (err: Error) => {
           if (isStreamClosed) return
           isStreamClosed = true
+          cancelPending()
           cleanup()
           controller.error(err)
         }
@@ -156,7 +190,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             if (executionId && data.executionId !== executionId) return // per-execution filter
             if (!executionId && data.executionId) return // primary stream: skip multi-model chunks
             if (isStreamClosed || !matchesStream(data)) return
-            controller.enqueue(data.chunk)
+            schedulePending(data.chunk)
           })
         )
 

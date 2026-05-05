@@ -356,6 +356,32 @@ function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNod
   return <ToolPartView key={partId} part={part} partId={partId} />
 }
 
+interface ToolGroupEntryShape {
+  part: CherryMessagePart
+  index: number
+}
+const ToolGroupView = React.memo(
+  function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
+    const toolItems = entries.flatMap((e): ToolRenderItem[] => {
+      const id = `${messageId}-part-${e.index}`
+      const toolResponse = buildToolResponseFromPart(e.part, id)
+      return toolResponse ? [{ id, toolResponse }] : []
+    })
+    if (toolItems.length === 0) return null
+    if (toolItems.length === 1) return <MessageTools toolResponse={toolItems[0].toolResponse} />
+    return <ToolBlockGroup items={toolItems} />
+  },
+  (prev, next) => {
+    if (prev.messageId !== next.messageId) return false
+    if (prev.entries.length !== next.entries.length) return false
+    for (let i = 0; i < prev.entries.length; i++) {
+      if (prev.entries[i].part !== next.entries[i].part) return false
+      if (prev.entries[i].index !== next.entries[i].index) return false
+    }
+    return true
+  }
+)
+
 // ============================================================================
 // Main component
 // ============================================================================
@@ -420,28 +446,10 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
           }
 
           if (isToolPart(firstPart)) {
-            // Build ToolRenderItems directly from parts — no MessageBlock intermediary
-            const toolItems = entry
-              .map((e): ToolRenderItem | null => {
-                const id = `${message.id}-part-${e.index}`
-                const toolResponse = buildToolResponseFromPart(e.part, id)
-                return toolResponse ? { id, toolResponse } : null
-              })
-              .filter((item): item is ToolRenderItem => item !== null)
-
-            if (toolItems.length === 0) return null
-
-            if (toolItems.length === 1) {
-              return (
-                <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                  <MessageTools toolResponse={toolItems[0].toolResponse} />
-                </AnimatedBlockWrapper>
-              )
-            }
             const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
             return (
               <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
-                <ToolBlockGroup items={toolItems} />
+                <ToolGroupView entries={entry} messageId={message.id} />
               </AnimatedBlockWrapper>
             )
           }

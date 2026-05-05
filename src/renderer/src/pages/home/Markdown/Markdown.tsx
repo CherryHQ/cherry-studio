@@ -6,12 +6,11 @@ import 'remark-github-blockquote-alert/alert.css'
 import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
-import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, type FC, memo, use, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -71,48 +70,6 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const [mathEngine] = usePreference('chat.message.math.engine')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
 
-  const isTrulyDone = 'status' in block && block.status === 'success'
-  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
-  const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
-
-  const prevContentRef = useRef(block.content)
-  const prevBlockIdRef = useRef(block.id)
-
-  const { addChunk, reset } = useSmoothStream({
-    onUpdate: (rawText) => {
-      // 如果提供了后处理函数就调用，否则直接使用原始文本
-      const finalText = postProcess ? postProcess(rawText) : rawText
-      setDisplayedContent(finalText)
-    },
-    streamDone: isStreamDone,
-    initialText: block.content
-  })
-
-  useEffect(() => {
-    const newContent = block.content || ''
-    const oldContent = prevContentRef.current || ''
-
-    const isDifferentBlock = block.id !== prevBlockIdRef.current
-
-    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
-
-    if (isDifferentBlock || isContentReset) {
-      reset(newContent)
-    } else {
-      const delta = newContent.substring(oldContent.length)
-      if (delta) {
-        addChunk(delta)
-      }
-    }
-
-    prevContentRef.current = newContent
-    prevBlockIdRef.current = block.id
-
-    // 更新 stream 状态
-    const isStreaming = block.status === 'streaming'
-    setIsStreamDone(!isStreaming)
-  }, [block.content, block.id, block.status, addChunk, reset])
-
   const remarkPlugins = useMemo(() => {
     const plugins = [
       [remarkGfm, { singleTilde: false }] as Pluggable,
@@ -127,11 +84,12 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [mathEngine, mathEnableSingleDollar])
 
   const messageContent = useMemo(() => {
-    if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
+    if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
-    return removeSvgEmptyLines(processLatexBrackets(displayedContent))
-  }, [block, displayedContent, t])
+    const raw = postProcess ? postProcess(block.content) : block.content
+    return removeSvgEmptyLines(processLatexBrackets(raw))
+  }, [block.status, block.content, postProcess, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: Pluggable[] = []
