@@ -191,7 +191,7 @@ const DocProcessSettings: FC = () => {
   const renderHeaderIcon = () => {
     if (!activeEntry) {
       return (
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground shadow-xs">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <div className="flex size-6 shrink-0 items-center justify-center">
             <Sparkles size={16} />
           </div>
@@ -201,7 +201,7 @@ const DocProcessSettings: FC = () => {
 
     if (activeEntry.kind === 'ocr') {
       return (
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted shadow-xs">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
           <div className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md text-foreground [&_svg]:size-4.5 [&_svg]:shrink-0">
             <OcrProviderLogo provider={activeEntry.provider} size={18} />
           </div>
@@ -210,7 +210,7 @@ const DocProcessSettings: FC = () => {
     }
 
     return (
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted shadow-xs">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
         <div className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md">
           <LogoAvatar
             logo={getPreprocessProviderLogo(activeEntry.provider.id)}
@@ -272,7 +272,7 @@ const DocProcessSettings: FC = () => {
           <div className={settingsContentBodyClassName}>
             {activeEntry ? (
               <div className="flex w-full flex-col gap-4">
-                <div className="flex items-center justify-between gap-4 px-1">
+                <div className="flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-4">
                     {renderHeaderIcon()}
                     <div className="min-w-0">

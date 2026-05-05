@@ -39,15 +39,15 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
-} from './shared/menuStyles'
-import ThemeColorPicker from './shared/ThemeColorPicker'
+} from '../shared/menuStyles'
+import ThemeColorPicker from './components/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'

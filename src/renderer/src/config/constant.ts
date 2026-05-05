@@ -29,9 +29,9 @@ export const LOAD_MORE_COUNT = 20
 
 export const DEFAULT_COLOR_PRIMARY = '#00b96b'
 export const THEME_COLOR_PRESETS = [
+  DEFAULT_COLOR_PRIMARY,
   '#EF4444', // Red
   '#F59E0B', // Amber
-  DEFAULT_COLOR_PRIMARY,
   '#3B82F6', // Blue
   '#8B5CF6' // Purple
 ]

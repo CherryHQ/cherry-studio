@@ -23,8 +23,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-import ThemeColorPicker from '../shared/ThemeColorPicker'
-import SidebarIconsManager from './SidebarIconsManager'
+import SidebarIconsManager from './components/SidebarIconsManager'
+import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DisplaySettings: FC = () => {
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
