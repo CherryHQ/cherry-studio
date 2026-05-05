@@ -14,6 +14,11 @@ export type MistralImageDocument = {
   imageUrl: string
 }
 
+export type MistralDocumentUrlDocument = {
+  type: 'document_url'
+  documentUrl: string
+}
+
 export type MistralOcrResponse = Awaited<ReturnType<Mistral['ocr']['process']>>
 
 export const MistralOcrResponseSchema = z.object({

@@ -1,5 +1,6 @@
 import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
+import { mistralDocumentToMarkdownHandler } from './mistral/document-to-markdown/handler'
 import { mistralImageToTextHandler } from './mistral/image-to-text/handler'
 import { openMineruDocumentToMarkdownHandler } from './open-mineru/document-to-markdown/handler'
 import { ovocrImageToTextHandler } from './ovocr/image-to-text/handler'
@@ -43,6 +44,7 @@ export const processorRegistry = {
   },
   mistral: {
     capabilities: {
+      document_to_markdown: mistralDocumentToMarkdownHandler,
       image_to_text: mistralImageToTextHandler
     }
   },

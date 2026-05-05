@@ -108,11 +108,13 @@ describe('resolveProcessorConfig', () => {
     )
   })
 
-  it('fails fast when the migrated default markdown processor is invalid for markdown conversion', () => {
+  it('uses mistral when it is the default markdown processor', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_document_to_markdown', 'mistral')
 
-    expect(() => resolveProcessorConfigByFeature('document_to_markdown')).toThrowError(
-      'File processor mistral does not support document_to_markdown'
+    expect(resolveProcessorConfigByFeature('document_to_markdown')).toEqual(
+      expect.objectContaining({
+        id: 'mistral'
+      })
     )
   })
 

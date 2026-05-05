@@ -278,6 +278,13 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'api',
     capabilities: [
       {
+        feature: 'document_to_markdown',
+        inputs: ['document'],
+        output: 'markdown',
+        apiHost: 'https://api.mistral.ai',
+        modelId: 'mistral-ocr-latest'
+      },
+      {
         feature: 'image_to_text',
         inputs: ['image'],
         output: 'text',
