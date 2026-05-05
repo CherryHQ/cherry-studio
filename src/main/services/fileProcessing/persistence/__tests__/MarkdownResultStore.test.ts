@@ -26,10 +26,14 @@ describe('MarkdownResultStore', () => {
     vi.mocked(application.getPath).mockImplementation((key: string) => `/mock/${key}`)
   })
 
-  it('derives file-processing result directories from the files data path', () => {
-    expect(getFileProcessingResultsDir('file-1', 'task-1')).toBe(
-      '/mock/feature.files.data/file-1/file-processing/task-1'
-    )
+  it('derives file-processing result directories from the main-generated task id', () => {
+    expect(getFileProcessingResultsDir('task-1')).toBe('/mock/feature.file_processing.results/task-1')
+  })
+
+  it('rejects unsafe task ids before deriving a result directory', () => {
+    expect(() => getFileProcessingResultsDir('')).toThrow('Invalid file processing task id')
+    expect(() => getFileProcessingResultsDir('../escape')).toThrow('Invalid file processing task id: ../escape')
+    expect(() => getFileProcessingResultsDir('nested/task')).toThrow('Invalid file processing task id: nested/task')
   })
 
   it('persists inline markdown content to output.md under the task directory', async () => {
@@ -37,7 +41,6 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        fileId: 'file-1',
         taskId: 'task-1',
         result: {
           kind: 'markdown',
@@ -47,7 +50,7 @@ describe('MarkdownResultStore', () => {
     ).resolves.toBe('/mock/result/output.md')
 
     expect(persistMarkdownResultMock).toHaveBeenCalledWith({
-      resultsDir: '/mock/feature.files.data/file-1/file-processing/task-1',
+      resultsDir: '/mock/feature.file_processing.results/task-1',
       markdownContent: '# hello'
     })
   })
@@ -65,7 +68,6 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        fileId: 'file-1',
         taskId: 'task-1',
         result: {
           kind: 'remote-zip-url',
@@ -93,7 +95,6 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        fileId: 'file-1',
         taskId: 'task-1',
         result: {
           kind: 'remote-zip-url',
@@ -124,7 +125,6 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        fileId: 'file-1',
         taskId: 'task-1',
         result: {
           kind: 'remote-zip-url',

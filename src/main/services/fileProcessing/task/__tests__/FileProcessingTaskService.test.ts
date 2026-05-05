@@ -298,7 +298,6 @@ describe('FileProcessingTaskService', () => {
     })
 
     expect(persistResultMock).toHaveBeenCalledWith({
-      fileId: documentFile.id,
       taskId: started.taskId,
       result: {
         kind: 'markdown',
@@ -306,6 +305,56 @@ describe('FileProcessingTaskService', () => {
       },
       signal: expect.any(AbortSignal)
     })
+
+    await service._doStop()
+  })
+
+  it('does not use renderer-provided file ids when persisting markdown artifacts', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      kind: 'markdown',
+      markdownContent: '# safe'
+    })
+    const handler = {
+      prepare: vi.fn().mockReturnValue({
+        mode: 'background' as const,
+        execute
+      })
+    }
+    processorRegistryMock['open-mineru'] = {
+      capabilities: {
+        document_to_markdown: handler
+      }
+    }
+    resolveProcessorConfigByFeatureMock.mockReturnValue(
+      createConfig('open-mineru', 'document_to_markdown', ['document'])
+    )
+    persistResultMock.mockResolvedValue('/tmp/file-processing/output.md')
+
+    const service = new FileProcessingTaskService()
+    await service._doInit()
+
+    const started = await service.startTask({
+      feature: 'document_to_markdown',
+      file: {
+        ...documentFile,
+        id: '../escape'
+      },
+      processorId: 'open-mineru'
+    })
+
+    await vi.waitFor(() => {
+      expect(persistResultMock).toHaveBeenCalledOnce()
+    })
+
+    expect(persistResultMock).toHaveBeenCalledWith({
+      taskId: started.taskId,
+      result: {
+        kind: 'markdown',
+        markdownContent: '# safe'
+      },
+      signal: expect.any(AbortSignal)
+    })
+    expect(persistResultMock.mock.calls[0][0]).not.toHaveProperty('fileId')
 
     await service._doStop()
   })
@@ -1254,7 +1303,6 @@ describe('FileProcessingTaskService', () => {
       expect.any(AbortSignal)
     )
     expect(persistResultMock).toHaveBeenCalledWith({
-      fileId: documentFile.id,
       taskId: started.taskId,
       result: {
         kind: 'markdown',

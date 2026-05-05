@@ -719,7 +719,6 @@ export class FileProcessingTaskService extends BaseService {
             kind: 'file',
             format: 'markdown',
             path: await markdownResultStore.persistResult({
-              fileId: task.fileId,
               taskId: task.taskId,
               result: output,
               signal

@@ -21,18 +21,28 @@ export type MarkdownPersistencePayload =
       response: Response
     }
 
-export function getFileProcessingResultsDir(fileId: string, taskId: string): string {
-  return path.join(application.getPath('feature.files.data'), fileId, 'file-processing', taskId)
+export function getFileProcessingResultsDir(taskId: string): string {
+  if (
+    taskId.length === 0 ||
+    path.isAbsolute(taskId) ||
+    taskId === '.' ||
+    taskId === '..' ||
+    taskId.includes('/') ||
+    taskId.includes('\\')
+  ) {
+    throw new Error(`Invalid file processing task id: ${taskId}`)
+  }
+
+  return path.join(application.getPath('feature.file_processing.results'), taskId)
 }
 
 class MarkdownResultStore {
   async persistResult(options: {
-    fileId: string
     taskId: string
     result: MarkdownPersistencePayload
     signal?: AbortSignal
   }): Promise<string> {
-    const resultsDir = getFileProcessingResultsDir(options.fileId, options.taskId)
+    const resultsDir = getFileProcessingResultsDir(options.taskId)
 
     switch (options.result.kind) {
       case 'markdown':
