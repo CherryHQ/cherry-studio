@@ -1,226 +1,192 @@
 {
-  "generated_at": "2026-05-04T16:00:00.000000+00:00",
-  "date": "2026-05-04",
+  "generated_at": "2026-05-05T17:50:20.827216+00:00",
+  "date": "2026-05-05",
   "v2_branch_status": {
-    "open_prs": 71,
-    "merged_last_30d": 41
+    "open_prs_total": 71,
+    "feat_prs": 41,
+    "fix_prs": 10,
+    "other_prs": 20
   },
-  "open_prs_by_category": {
-    "feat": 41,
-    "refactor": 14,
-    "fix": 10,
-    "other": 5,
-    "chore": 1
+  "area_distribution": {
+    "other": 30,
+    "ui": 7,
+    "model": 6,
+    "data": 5,
+    "search": 4,
+    "file": 4,
+    "chat": 3,
+    "message": 3,
+    "agent": 3,
+    "settings": 3,
+    "trace": 1,
+    "memory": 1,
+    "mcp": 1
   },
-  "merged_prs_by_category_30d": {
-    "feat": 16,
-    "refactor": 14,
-    "fix": 8,
-    "docs": 3,
-    "other": 2
-  },
-  "recent_merged_highlights": [
-    {
-      "number": 14740,
-      "title": "fix(agents-migrator): coalesce legacy NULLs to schema defaults",
-      "category": "fix",
-      "merged_at": "2026-05-01"
-    },
-    {
-      "number": 14719,
-      "title": "refactor(knowledge-data): adjust knowledge v2 data and service",
-      "category": "refactor",
-      "merged_at": "2026-05-01"
-    },
-    {
-      "number": 14669,
-      "title": "refactor(agent-schemas): migrate agent/session/task IDs to UUID v4",
-      "category": "refactor",
-      "merged_at": "2026-05-01"
-    },
-    {
-      "number": 14431,
-      "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi",
-      "category": "refactor",
-      "merged_at": "2026-05-01"
-    },
-    {
-      "number": 14627,
-      "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing",
-      "category": "feat",
-      "merged_at": "2026-04-30"
-    },
-    {
-      "number": 14632,
-      "title": "fix(draggable-list): bind scroll node via callback ref",
-      "category": "fix",
-      "merged_at": "2026-04-30"
-    },
-    {
-      "number": 14689,
-      "title": "fix(assistant-api): align patch defaults with entity schema",
-      "category": "fix",
-      "merged_at": "2026-04-29"
-    }
-  ],
-  "open_prs_pending_review": [
+  "open_feat_prs": [
     {
       "number": 14788,
-      "title": "feat: add Duplicate Topic feature",
-      "author": "LWWZH",
-      "created_at": "2026-05-01",
-      "draft": false,
-      "category": "feat"
+      "title": "feat: add Duplicate Topic feature"
     },
     {
-      "number": 14760,
-      "title": "fix(chat-layout): restore chat composer sizing and anchor",
-      "author": "ousugo",
-      "created_at": "2026-04-30",
-      "draft": false,
-      "category": "fix"
+      "number": 14742,
+      "title": "feat(trace): make call chain window adapt to text length and size"
+    },
+    {
+      "number": 14739,
+      "title": "feat(message-service): add getPathThrough for branch-aware path queries"
+    },
+    {
+      "number": 14730,
+      "title": "feat(provider): add OpenCode Go provider with 14 preset models"
     },
     {
       "number": 14728,
-      "title": "feat(provider): support Responses API endpoint for Volcengine",
-      "author": "Saigut",
-      "created_at": "2026-04-30",
-      "draft": false,
-      "category": "feat"
+      "title": "feat(provider): support Responses API endpoint for Volcengine provider"
     },
     {
-      "number": 14734,
-      "title": "WIP(v2): knowledge ui migration",
-      "author": "eeee0717",
-      "created_at": "2026-04-30",
-      "draft": true,
-      "category": "other"
+      "number": 14658,
+      "title": "feat(agents): add common options for agent"
     },
     {
-      "number": 14609,
-      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v2 migration",
-      "author": "DeJeune",
-      "created_at": "2026-04-25",
-      "draft": false,
-      "category": "fix"
+      "number": 14656,
+      "title": "feat: add enable/disable toggle for custom parameters"
+    },
+    {
+      "number": 14595,
+      "title": "feat(topics): Add folder grouping for pinned topics"
     },
     {
       "number": 14567,
-      "title": "feat(settings): refactor settings UI and add settings window",
-      "author": "kangfenmao",
-      "created_at": "2026-04-24",
-      "draft": true,
-      "category": "feat"
-    },
-    {
-      "number": 14556,
-      "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite",
-      "author": "zhangjiadi225",
-      "created_at": "2026-04-24",
-      "draft": false,
-      "category": "feat"
+      "title": "feat(settings): refactor settings UI and add settings window"
     },
     {
       "number": 14489,
-      "title": "feat(notify): support image and file attachments across channels",
-      "author": "DeJeune",
-      "created_at": "2026-04-22",
-      "draft": false,
-      "category": "feat"
+      "title": "feat(notify): support image and file attachments across channels"
     },
     {
-      "number": 14464,
-      "title": "fix: preserve referenced models during v2 migration",
-      "author": "kovsu",
-      "created_at": "2026-04-22",
-      "draft": false,
-      "category": "fix"
+      "number": 14477,
+      "title": "feat(topics): Add sorting methods to topics page"
+    },
+    {
+      "number": 14456,
+      "title": "feat: add session-based prompt cache expiration reminder per conversation"
     },
     {
       "number": 14442,
-      "title": "feat(library): add v2 resource library page with assistant tag & search APIs",
-      "author": "zhangjiadi225",
-      "created_at": "2026-04-21",
-      "draft": true,
-      "category": "feat"
+      "title": "feat(library): add v2 resource library page with assistant tag &amp; search APIs"
     },
     {
-      "number": 14443,
-      "title": "refactor(websearch-settings): remove local providers and use v2 preferences",
-      "author": "kangfenmao",
-      "created_at": "2026-04-21",
-      "draft": false,
-      "category": "refactor"
+      "number": 14410,
+      "title": "feat: show installed state for skill search results"
+    },
+    {
+      "number": 14357,
+      "title": "feat(memory): pluggable memory provider system with Hindsight integration"
     },
     {
       "number": 14313,
-      "title": "feat(data): migrate paintings to v2 data architecture",
-      "author": "jidan745le",
-      "created_at": "2026-04-16",
-      "draft": true,
-      "category": "feat"
+      "title": "feat(data): migrate paintings to v2 data architecture"
     },
     {
-      "number": 14071,
-      "title": "feat(ai): add V2 AI streaming pipeline and blocks-to-parts migration",
-      "author": "DeJeune",
-      "created_at": "2026-04-06",
-      "draft": true,
-      "category": "feat"
+      "number": 14262,
+      "title": "feat(minapp): add category-based display with cross-category drag-and-drop"
     },
     {
-      "number": 13430,
-      "title": "refactor(data): migrate QuickPhrase to Prompt with version management",
-      "author": "zhangjiadi225",
-      "created_at": "2026-03-13",
-      "draft": false,
-      "category": "refactor"
+      "number": 14261,
+      "title": "feat(anthropic): improve prompt caching with incremental strategy and cached tok"
     },
     {
-      "number": 10090,
-      "title": "[WIP] feat: terminal",
-      "author": "EurFelux",
-      "created_at": "2025-07-12",
-      "draft": true,
-      "category": "other"
+      "number": 14218,
+      "title": "feat: Insert message"
+    },
+    {
+      "number": 14160,
+      "title": "feat: migrate agents data access to data api"
     }
   ],
-  "refactor_themes": [
-    "agents storage → v2 main database (SQLite / Drizzle) — agent ID migration to UUID v4 complete",
-    "knowledge v2: DataApi + runtime IPC separation complete, UI migration in progress",
-    "AI streaming pipeline v2 (blocks-to-parts) — draft, pending review",
-    "Model selector v2 on new data/UI stack — merged",
-    "Settings unification (settings window) — draft in progress",
-    "Topics ordering with fractional indexing — merged",
-    "EntitySelector composite for assistant/agent/topic selectors — in review",
-    "Web search settings: remove local providers → v2 preferences — in review",
-    "Paintings migration to v2 data architecture — draft"
-  ],
-  "velocity": {
-    "merged_prs_30d": 41,
-    "open_prs_waiting": 71,
-    "note": "Active V2 refactoring in progress; main branch is under code freeze. Velocity 41 merges/30d."
-  },
-  "main_branch_hotfixes_open": [
+  "open_fix_prs": [
     {
-      "number": 14828,
-      "title": "fix(messages): normalize tool-call card shells under custom themes"
+      "number": 14760,
+      "title": "fix(chat-layout): restore chat composer sizing and anchor messages to bottom"
     },
     {
-      "number": 14823,
-      "title": "feat(claudecode): support user-defined hooks from settings.json"
+      "number": 14748,
+      "title": "fix(models): route gpt-image-2 through chat completion instead of dedicated imag"
     },
     {
-      "number": 14816,
-      "title": "fix(reasoning): use adaptive thinking for Claude 4.7+ models"
+      "number": 14735,
+      "title": "fix(image-generation): preserve aspect ratios for gpt-image-2"
     },
     {
-      "number": 14815,
-      "title": "hotfix(agents): remove stale mcp__browser__* references from agent prompt"
+      "number": 14678,
+      "title": "fix(deepseek): display web search citations from DeepSeek annotations"
     },
     {
-      "number": 14811,
-      "title": "fix(agent): allow CherryIN OpenAI-protocol models in Agent model picker"
+      "number": 14609,
+      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v"
+    },
+    {
+      "number": 14562,
+      "title": "fix(code-tools): improve dark mode visibility"
+    },
+    {
+      "number": 14555,
+      "title": "fix: respect trailing # in API host preview"
+    },
+    {
+      "number": 14464,
+      "title": "fix: preserve referenced models during v2 migration"
+    },
+    {
+      "number": 14102,
+      "title": "fix: allow sending messages when QuickPanel is open with @ in content"
+    },
+    {
+      "number": 14065,
+      "title": "fix(mcp): clear OAuth token when deleting MCP server"
     }
-  ]
+  ],
+  "other_open_prs": [
+    {
+      "number": 14734,
+      "title": "WIP(v2): knowledge ui migration"
+    },
+    {
+      "number": 14631,
+      "title": "Introduce ProviderSettingsV2 integration preview on v2"
+    },
+    {
+      "number": 14443,
+      "title": "refactor(websearch-settings): remove local providers and use v2 preferences"
+    },
+    {
+      "number": 14429,
+      "title": "refactor(agents-db): FK-link agent/session model columns to user_model"
+    },
+    {
+      "number": 14351,
+      "title": "refactor(translate): rebuild translate page on @cherrystudio/ui"
+    },
+    {
+      "number": 14178,
+      "title": "refactor(copilot): separate business logic from IPC handler signatures"
+    },
+    {
+      "number": 14096,
+      "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init"
+    },
+    {
+      "number": 14049,
+      "title": "refactor(miniapp): migrate to v2 data layer"
+    },
+    {
+      "number": 13989,
+      "title": "[topic] Reuse assistant markdown heading for topic naming (v2)"
+    },
+    {
+      "number": 13871,
+      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 da"
+    }
+  ],
+  "policy": "main branch is under code freeze; all new features must target v2 branch"
 }

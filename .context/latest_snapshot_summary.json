@@ -1,79 +1,134 @@
 {
-  "generated_at": "2026-05-04T16:00:00.000000+00:00",
-  "date": "2026-05-04",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-05-05T17:50:20.827216+00:00",
+  "date": "2026-05-05",
   "issues": {
-    "open_total": 845,
-    "closed_last_30d": 301,
-    "no_label": 120,
-    "no_label_pct": 14.2,
-    "p1_count": 3,
-    "p1_issues": [
+    "open_total": 840,
+    "closed_30d_total": 6159,
+    "bug_label_open": 118,
+    "no_label_open": 89,
+    "no_label_pct": 10.6,
+    "top_labels": {
+      "inactive": 36,
+      "Models": 33,
+      "UI/UX": 28,
+      "Assistant": 11,
+      "discussion": 9,
+      "help wanted": 7,
+      "MCP": 6,
+      "needs-repro": 6,
+      "BUG": 5,
+      "Connectivity": 5,
+      "Data": 5,
+      "Performance": 4,
+      "needs-more-info": 4,
+      "Agent": 4,
+      "P3": 3
+    },
+    "p1_urgent": [
       {
-        "number": 12966,
-        "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-        "labels": ["BUG", "P1", "inactive"],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12966",
-        "created_at": "2026-02-19",
-        "age_days": 74
+        "number": 11688,
+        "title": "[Bug]: Model API returns context-length error when Agent automatically sends ove",
+        "labels": [
+          "BUG",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/11688"
       },
       {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI Resource not found (defaults to responses API)",
-        "labels": ["P1", "Models"],
-        "assignee": "DeJeune",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-        "created_at": "2026-03-04",
-        "age_days": 61
+        "number": 14717,
+        "title": "[Bug]: Agent model picker hides CherryIN provider's GPT models while AiHubMix GP",
+        "labels": [
+          "BUG",
+          "Assistant",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14717"
       },
       {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": ["P1", "Models"],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-        "created_at": "2026-03-18",
-        "age_days": 47
+        "number": 13924,
+        "title": "[Bug]: AUTH_TOKEN set in settings.json conflicts with code tool settings, causin",
+        "labels": [
+          "BUG",
+          "Agent",
+          "ClaudeCode"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13924"
+      },
+      {
+        "number": 12304,
+        "title": "[Bug]: CPU usage is abnormally high even when no tasks are being performed",
+        "labels": [
+          "BUG",
+          "Performance",
+          "inactive"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12304"
+      },
+      {
+        "number": 13810,
+        "title": "[Discussion]: Agent conversation interface task is completed, but the task in ta",
+        "labels": [
+          "BUG",
+          "Assistant",
+          "inactive",
+          "Agent"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13810"
+      },
+      {
+        "number": 10918,
+        "title": "[Bug]: Impossible to add a knowledge base",
+        "labels": [
+          "BUG",
+          "RAG",
+          "inactive"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/10918"
+      },
+      {
+        "number": 12890,
+        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in sing",
+        "labels": [
+          "BUG",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12890"
+      },
+      {
+        "number": 14470,
+        "title": "[Bug]: Agent MCP tool configuration not respected — Tavily not loaded when enabl",
+        "labels": [
+          "BUG",
+          "MCP",
+          "needs-repro"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14470"
+      },
+      {
+        "number": 14418,
+        "title": "[Bug]: Agent mode fails on all CherryIN models with ECONNRESET, Chat works with ",
+        "labels": [
+          "BUG",
+          "Assistant",
+          "Connectivity"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14418"
+      },
+      {
+        "number": 14419,
+        "title": "[Bug]: Scheduled task confirmation reply shows wrong time (~8h off) while actual",
+        "labels": [
+          "BUG",
+          "MCP"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14419"
       }
-    ],
-    "inactive_labeled": 167,
-    "label_distribution": {
-      "UI/UX": 218,
-      "Models": 199,
-      "inactive": 167,
-      "Assistant": 120,
-      "MCP": 68,
-      "discussion": 61,
-      "help wanted": 59,
-      "needs-repro": 51,
-      "Data": 47,
-      "Performance": 34,
-      "BUG": 34,
-      "Connectivity": 32,
-      "feature": 19,
-      "RAG": 17,
-      "P3": 13,
-      "v2": 13,
-      "P2": 6,
-      "Planned": 11,
-      "Agent": 9,
-      "Blocked: v2": 2
-    }
+    ]
   },
   "pull_requests": {
-    "open_total_main": 226,
-    "open_total_v2": 71,
-    "open_total": 297
-  },
-  "v2_branch": {
-    "open_prs": 71,
-    "merged_last_30d": 41
-  },
-  "delta_from_prev": {
-    "prev_date": "2026-04-29",
-    "open_issues_delta": "+25",
-    "closed_30d_delta": "+13",
-    "v2_merged_30d_delta": "-4",
-    "v2_open_prs_delta": "+1"
-  },
-  "notes": "Open issue total from GitHub search API (exact). Label distribution and no-label count extrapolated from 400-issue sample (most recently updated). Health distribution estimated from proportions. V2 merged PRs from search API (exact)."
+    "open_total": 100,
+    "open_main_branch": 61,
+    "open_v2_branch": 39,
+    "v2_open_total": 71
+  }
 }

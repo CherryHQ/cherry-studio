@@ -1,74 +1,152 @@
 {
-  "generated_at": "2026-05-04T16:00:00.000000+00:00",
-  "date": "2026-05-04",
-  "total_open": 845,
-  "health_distribution": {
-    "Active": {
-      "count": 355,
-      "pct": 42.0,
-      "definition": "created or updated in last 30 days"
-    },
-    "Aging": {
-      "count": 178,
-      "pct": 21.1,
-      "definition": "30-90 days since creation"
-    },
-    "Stale": {
-      "count": 124,
-      "pct": 14.7,
-      "definition": "90-180 days without activity"
-    },
-    "Zombie": {
-      "count": 188,
-      "pct": 22.2,
-      "definition": ">180 days open with no resolution"
+  "generated_at": "2026-05-05T17:50:20.827216+00:00",
+  "date": "2026-05-05",
+  "total_open_issues": 840,
+  "health_buckets": {
+    "zombie_gt90d": {
+      "count": 4,
+      "items": [
+        {
+          "number": 5712,
+          "title": "【需求汇总】Agents with Workflows / 工作流&协同",
+          "last_updated": "2025-10-23"
+        },
+        {
+          "number": 10844,
+          "title": "[Feature]: Backup feature enhance",
+          "last_updated": "2025-11-01"
+        },
+        {
+          "number": 11578,
+          "title": "Upgrade to the MCP protocol by November 25, 2025.",
+          "last_updated": "2025-11-30"
+        },
+        {
+          "number": 5640,
+          "title": "【需求汇总】Cherry Studio as a Service (CSaaS)",
+          "last_updated": "2026-01-31"
+        }
+      ]
     }
   },
-  "methodology": "Total from GitHub search API. Health distribution estimated by scaling prior proportions (2026-04-29 baseline) to current total of 845. 400-issue sample (most recently updated) used for label/no-label stats.",
-  "inactive_label_count": 167,
-  "note_stale_zombie": "~312 issues (37%) are estimated to be 90+ days old with no resolution. Inactive label applied to ~167 issues.",
-  "top_label_categories": [
-    {"label": "UI/UX", "count": 218},
-    {"label": "Models", "count": 199},
-    {"label": "inactive", "count": 167},
-    {"label": "Assistant", "count": 120},
-    {"label": "MCP", "count": 68},
-    {"label": "discussion", "count": 61},
-    {"label": "help wanted", "count": 59},
-    {"label": "needs-repro", "count": 51},
-    {"label": "Data", "count": 47},
-    {"label": "Performance", "count": 34},
-    {"label": "Connectivity", "count": 32}
-  ],
-  "no_label_issues": {
-    "count": 120,
-    "pct": 14.2,
-    "action": "Need triage and labeling"
+  "labeling": {
+    "no_label_total": 89,
+    "no_label_pct": 10.6,
+    "inactive_label": 36,
+    "needs_repro_label": 6,
+    "needs_more_info_label": 4
   },
-  "p1_issues": [
-    {
-      "number": 12966,
-      "title": "[URGENT] Critical Security Advisory (GHSA-qmgw-45x4-3626)",
-      "age_days": 74,
-      "status": "open, inactive-labeled"
-    },
-    {
-      "number": 13193,
-      "title": "Azure OpenAI Resource not found (responses API regression)",
-      "age_days": 61,
-      "assignee": "DeJeune"
-    },
-    {
-      "number": 13608,
-      "title": "xiaomi mimo response only shows last line",
-      "age_days": 47
-    }
-  ],
-  "trend": {
-    "prev_date": "2026-04-29",
-    "prev_total": 820,
-    "delta": "+25",
-    "closed_last_30d": 301,
-    "velocity_net_per_day": "+5"
-  }
+  "bug_breakdown": {
+    "total_bug_open": 118,
+    "active_bugs_sample": [
+      {
+        "number": 11688,
+        "title": "[Bug]: Model API returns context-length error when Agent automatically sends ove",
+        "labels": [
+          "BUG",
+          "Models"
+        ]
+      },
+      {
+        "number": 14717,
+        "title": "[Bug]: Agent model picker hides CherryIN provider's GPT models while AiHubMix GP",
+        "labels": [
+          "BUG",
+          "Assistant",
+          "Models"
+        ]
+      },
+      {
+        "number": 13924,
+        "title": "[Bug]: AUTH_TOKEN set in settings.json conflicts with code tool settings, causin",
+        "labels": [
+          "BUG",
+          "Agent",
+          "ClaudeCode"
+        ]
+      },
+      {
+        "number": 12890,
+        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in sing",
+        "labels": [
+          "BUG",
+          "Models"
+        ]
+      },
+      {
+        "number": 14470,
+        "title": "[Bug]: Agent MCP tool configuration not respected — Tavily not loaded when enabl",
+        "labels": [
+          "BUG",
+          "MCP",
+          "needs-repro"
+        ]
+      },
+      {
+        "number": 14418,
+        "title": "[Bug]: Agent mode fails on all CherryIN models with ECONNRESET, Chat works with ",
+        "labels": [
+          "BUG",
+          "Assistant",
+          "Connectivity"
+        ]
+      },
+      {
+        "number": 14419,
+        "title": "[Bug]: Scheduled task confirmation reply shows wrong time (~8h off) while actual",
+        "labels": [
+          "BUG",
+          "MCP"
+        ]
+      },
+      {
+        "number": 14415,
+        "title": "[Bug]: OpenClaw dashboard opens without auth token — 'gateway token missing', co",
+        "labels": [
+          "BUG"
+        ]
+      },
+      {
+        "number": 13082,
+        "title": "[Bug]: Frequent lag during normal operations",
+        "labels": [
+          "BUG",
+          "Planned",
+          "Performance",
+          "v2"
+        ]
+      },
+      {
+        "number": 9943,
+        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+        "labels": [
+          "BUG",
+          "MCP"
+        ]
+      },
+      {
+        "number": 13194,
+        "title": "[Bug]: VertexAI Provider Data Storage Architecture Flaw - Type Mismatch with Act",
+        "labels": [
+          "BUG",
+          "P2",
+          "Data"
+        ]
+      },
+      {
+        "number": 10241,
+        "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
+        "labels": [
+          "BUG",
+          "MCP"
+        ]
+      }
+    ]
+  },
+  "action_items": [
+    "Triage 89 unlabeled issues (10.6% of open)",
+    "Review 4 zombie issues (>90d) for closure or re-prioritization",
+    "Address 118 open BUG-labeled issues — highest priority category",
+    "MCP/Agent/Connectivity bug cluster needs dedicated attention"
+  ]
 }

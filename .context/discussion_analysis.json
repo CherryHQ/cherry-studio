@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-04T16:00:00.000000+00:00",
-  "date": "2026-05-04",
-  "note": "GitHub Discussions data requires GraphQL API not available via current MCP tools. Placeholder for future integration.",
-  "data_source": "discussions GraphQL endpoint not available",
-  "manual_check_url": "https://github.com/CherryHQ/cherry-studio/discussions"
+  "generated_at": "2026-05-05T17:50:20.827216+00:00",
+  "date": "2026-05-05",
+  "note": "Discussions GraphQL API not accessible via current MCP tools. Using 'discussion'-labeled issues as proxy.",
+  "discussion_label_issues": {
+    "open_count": 9,
+    "description": "Issues tagged 'discussion' serve as community discussion threads"
+  },
+  "top_discussion_topics": [
+    "Agent Workflows & Collaboration (#5712)",
+    "Cherry Studio as a Service / CSaaS API (#5640)",
+    "MCP Protocol v2 upgrade (#11578)",
+    "Backup feature enhancement (#10844)"
+  ]
 }
