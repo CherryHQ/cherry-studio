@@ -214,7 +214,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 
         <MutedCell>{version || '—'}</MutedCell>
 
-        <div className="min-w-0">
+        <div className="min-w-0 shrink-0">
           <MetaBadge className={getTypeBadgeClass()}>{typeLabel}</MetaBadge>
         </div>
 
@@ -266,7 +266,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'grid min-h-12 w-full min-w-[700px] cursor-pointer grid-cols-[minmax(220px,1fr)_72px_112px_112px_76px] items-center gap-3 border-border/60 border-b bg-card px-4 py-1.5 text-sm transition-colors hover:bg-muted/35',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted/35',
       className
     )}
     {...props}
@@ -274,7 +274,7 @@ const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex min-w-0 items-center gap-2.5', className)} {...props} />
+  <div className={cn('flex min-w-0 flex-1 items-center gap-2.5', className)} {...props} />
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -286,11 +286,14 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 )
 
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('min-w-0 truncate text-muted-foreground text-sm', className)} {...props} />
+  <div
+    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-sm min-[1180px]:block', className)}
+    {...props}
+  />
 )
 
 const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex min-w-0 items-center gap-1.5', className)} {...props} />
+  <div className={cn('hidden min-w-0 shrink-0 items-center gap-1.5 min-[1320px]:flex', className)} {...props} />
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

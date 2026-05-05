@@ -37,7 +37,7 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   }, [shikiMarkdownIt, searchKey, t])
 
   return (
-    <div className="max-w-[calc(100vw-var(--sidebar-width)-var(--settings-width)-75px)] pt-2">
+    <div className="w-full min-w-0 pt-2">
       <div
         className="rounded-lg border border-border bg-card p-6"
         style={{

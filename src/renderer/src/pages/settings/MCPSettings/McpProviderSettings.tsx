@@ -205,8 +205,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   return (
                     <Button
                       disabled={isAlreadyAdded}
+                      variant="ghost"
                       size="icon-sm"
-                      className="ml-2.5 size-7 min-h-7"
+                      className="ml-2.5 size-7 min-h-7 shadow-none"
                       onClick={async () => {
                         if (!isAlreadyAdded) {
                           try {
@@ -231,7 +232,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 }
 
 const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col p-5 pt-4', className)} {...props} />
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col px-5 py-4', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

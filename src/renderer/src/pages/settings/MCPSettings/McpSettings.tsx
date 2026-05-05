@@ -597,7 +597,7 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="mx-auto flex w-full max-w-[920px] flex-col gap-5 pb-6"
+            className="mx-auto flex w-full min-w-0 max-w-[920px] flex-col gap-5 pb-6"
             id="mcp-settings-form">
             <McpFormSection>
               <McpFormGrid>
@@ -1024,12 +1024,15 @@ const McpSettings: React.FC = () => {
 
   return (
     <Container>
-      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <div className="min-h-0">
-          <SettingTitle>
-            <Flex className="mr-10 items-center justify-between gap-5">
-              <Flex className="items-center gap-2">
-                <ServerName className="text-nowrap">{server?.name}</ServerName>
+      <SettingContainer
+        theme={theme}
+        className="min-w-0"
+        style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <div className="min-h-0 min-w-0">
+          <SettingTitle className="min-w-0 flex-wrap gap-2">
+            <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
+              <Flex className="min-w-0 flex-1 items-center gap-2">
+                <ServerName className="truncate">{server?.name}</ServerName>
                 {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
               </Flex>
               <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
@@ -1039,7 +1042,7 @@ const McpSettings: React.FC = () => {
                 <DeleteIcon size={14} className="lucide-custom text-destructive" />
               </Button>
             </Flex>
-            <Flex className="items-center gap-4">
+            <Flex className="shrink-0 items-center gap-3">
               <Switch
                 checked={server.isActive}
                 key={server.id}
@@ -1062,8 +1065,8 @@ const McpSettings: React.FC = () => {
             value={activeTabValue}
             onValueChange={(value) => setActiveTab(value as TabKey)}
             variant="line"
-            className="mt-2 bg-transparent">
-            <TabsList>
+            className="mt-2 min-w-0 bg-transparent">
+            <TabsList className="max-w-full overflow-x-auto">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.key} value={tab.key}>
                   {tab.label}
@@ -1115,11 +1118,11 @@ const McpSettings: React.FC = () => {
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('h-[calc(100vh-var(--navbar-height))]', className)} {...props} />
+  <Scrollbar className={cn('h-[calc(100vh-var(--navbar-height))] min-w-0', className)} {...props} />
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('font-medium text-sm', className)} {...props} />
+  <span className={cn('block min-w-0 font-medium text-sm', className)} {...props} />
 )
 
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

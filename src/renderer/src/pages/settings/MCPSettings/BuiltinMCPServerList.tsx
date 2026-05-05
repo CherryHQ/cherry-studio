@@ -38,7 +38,7 @@ const BuiltinMCPServerList: FC = () => {
       const description = getBuiltInMcpServerDescriptionLabel(server.name).toLowerCase()
       return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
     })
-  }, [filter, mcpServers, searchText, t])
+  }, [filter, mcpServers, searchText])
 
   return (
     <div className="mb-5">
@@ -49,27 +49,29 @@ const BuiltinMCPServerList: FC = () => {
         </span>
       </div>
 
-      <div className="mb-3 flex w-full min-w-[360px] items-center justify-between gap-3 overflow-x-auto">
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="shrink-0">
-          <TabsList className="h-8 rounded-lg bg-muted/70 p-0.5">
-            <TabsTrigger value="all" className="h-7 rounded-full px-2.5 text-xs">
+      <div className="mb-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+        <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
+          <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
+            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
               {t('models.all')}
             </TabsTrigger>
-            <TabsTrigger value="installed" className="h-7 rounded-full px-2.5 text-xs">
+            <TabsTrigger value="installed" className="h-7 rounded-[14px] px-2.5 text-xs">
               {t('settings.skills.installed')}
             </TabsTrigger>
-            <TabsTrigger value="available" className="h-7 rounded-full px-2.5 text-xs">
+            <TabsTrigger value="available" className="h-7 rounded-[14px] px-2.5 text-xs">
               {t('settings.skills.install')}
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <CollapsibleSearchBar
-          onSearch={setSearchText}
-          placeholder={t('settings.mcp.search.placeholder')}
-          tooltip={t('settings.mcp.search.tooltip')}
-          maxWidth={200}
-          style={{ borderRadius: 16 }}
-        />
+        <div className="min-w-0">
+          <CollapsibleSearchBar
+            onSearch={setSearchText}
+            placeholder={t('settings.mcp.search.placeholder')}
+            tooltip={t('settings.mcp.search.tooltip')}
+            maxWidth={200}
+            style={{ borderRadius: 16 }}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">

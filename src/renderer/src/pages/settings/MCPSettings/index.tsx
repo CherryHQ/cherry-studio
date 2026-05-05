@@ -53,8 +53,8 @@ const MCPSettings: FC = () => {
   }
 
   return (
-    <Flex className="flex-1">
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+    <Flex className="min-w-0 flex-1">
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
         <Scrollbar className={settingsSubmenuScrollClassName}>
           <MenuList className={settingsSubmenuListClassName}>
             <MenuItem
@@ -97,7 +97,7 @@ const MCPSettings: FC = () => {
             ))}
           </MenuList>
         </Scrollbar>
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1 overflow-hidden">
           {!isHomePage() && (
             <div className="absolute top-0 right-0 left-0 z-[1000] flex items-center bg-transparent px-5 py-2.5">
               <Link to="/settings/mcp/servers">
