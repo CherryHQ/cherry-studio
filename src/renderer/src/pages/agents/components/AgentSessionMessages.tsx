@@ -70,7 +70,7 @@ const AgentSessionMessages = ({ agentId, sessionId, adaptedMessages, partsMap, i
 
   const groupedMessages = useMemo(() => {
     const grouped = Object.entries(getGroupedMessages(displayMessages))
-    const newGrouped: { [key: string]: (Message & { index: number })[] } = {}
+    const newGrouped: { [key: string]: Message[] } = {}
     grouped.forEach(([key, group]) => {
       newGrouped[key] = group.toReversed()
     })

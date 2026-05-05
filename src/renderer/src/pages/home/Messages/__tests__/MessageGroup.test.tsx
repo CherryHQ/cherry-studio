@@ -99,15 +99,14 @@ vi.mock('../MessageGroupMenuBar', () => ({
 
 const { default: MessageGroup } = await import('../MessageGroup')
 
-const createMessage = (id: string, index: number) =>
+const createMessage = (id: string, _index: number) =>
   ({
     id,
     askId: 'ask-1',
     role: 'assistant',
     blocks: [],
-    multiModelMessageStyle: 'horizontal',
-    index
-  }) as unknown as Message & { index: number }
+    multiModelMessageStyle: 'horizontal'
+  }) as unknown as Message
 
 describe('MessageGroup', () => {
   beforeEach(() => {
