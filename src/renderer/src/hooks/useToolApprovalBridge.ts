@@ -48,7 +48,7 @@ export function useToolApprovalBridge(
         try {
           await patchMessage({
             params: { id: match.messageId },
-            body: { data: { parts: after } }
+            body: { data: { parts: after }, status: 'pending' }
           })
         } catch (err) {
           logger.error('Failed to PATCH approval state into DB', {

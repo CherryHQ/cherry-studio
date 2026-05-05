@@ -146,27 +146,12 @@ export function useChatWithHistory(
       })
   }, [setMessages, topicId])
 
-  // On stream done/error: replace messages with DB truth.
-  //
-  // Per-execution `done` events only trigger a refresh when the topic
-  // is done — in a happy-path multi-model turn, all N executions
-  // succeed in rapid succession and we let the topic-done event fold
-  // them into a single refresh. Per-execution **error** events are
-  // always refreshed individually: an errored execution is terminal
-  // for that bubble and there's no guarantee the topic-done event
-  // will land soon (other executions may still be streaming).
   useEffect(() => {
-    const doneUnsub = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topicId) return
-      if (data.executionId && !data.isTopicDone) return
-      refreshAndReplace()
-    })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
       refreshAndReplace()
     })
     return () => {
-      doneUnsub()
       errorUnsub()
     }
   }, [topicId, refreshAndReplace])

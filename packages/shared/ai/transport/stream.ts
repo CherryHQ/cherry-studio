@@ -53,6 +53,7 @@ export interface StreamDonePayload {
   status: 'success' | 'paused'
   /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
+  finalMessage?: CherryUIMessage
 }
 
 /** Stream error. */

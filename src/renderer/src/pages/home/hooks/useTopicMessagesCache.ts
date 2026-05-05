@@ -78,6 +78,26 @@ function synthesizeOptimisticUserMessage(params: {
   }
 }
 
+function synthesizeOptimisticAssistantPlaceholder(params: { topicId: string; parentId: string }): SharedMessage {
+  const now = new Date().toISOString()
+  return {
+    id: `optimistic-asst-${crypto.randomUUID()}`,
+    topicId: params.topicId,
+    parentId: params.parentId,
+    role: 'assistant',
+    data: { parts: [] },
+    searchableText: '',
+    status: 'pending',
+    siblingsGroupId: 0,
+    modelId: null,
+    modelSnapshot: null,
+    traceId: null,
+    stats: null,
+    createdAt: now,
+    updatedAt: now
+  }
+}
+
 export interface UseTopicMessagesCacheParams {
   topicId: string
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
@@ -137,6 +157,53 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     [mutate, topicId]
   )
 
+  const patchMessageInBranch = useCallback(
+    async (messageId: string, patch: Partial<SharedMessage>) => {
+      await mutate(
+        (pages) => {
+          if (!pages) return pages
+          let mutated = false
+          const next = pages.map((page) => {
+            const idx = page.items.findIndex((item) => item.message.id === messageId)
+            if (idx === -1) return page
+            mutated = true
+            const items = page.items.slice()
+            items[idx] = { ...items[idx], message: { ...items[idx].message, ...patch } }
+            return { ...page, items }
+          })
+          return mutated ? next : pages
+        },
+        { revalidate: false }
+      )
+    },
+    [mutate]
+  )
+
+  const seedOptimisticAssistant = useCallback(
+    async (params: { parentId: string }): Promise<string | undefined> => {
+      let tempId: string | undefined
+      await mutate(
+        (pages) => {
+          if (!pages?.length) return pages
+          const message = synthesizeOptimisticAssistantPlaceholder({ topicId, parentId: params.parentId })
+          tempId = message.id
+          const [firstPage, ...rest] = pages
+          return [
+            {
+              ...firstPage,
+              items: [...firstPage.items, { message }],
+              activeNodeId: message.id
+            },
+            ...rest
+          ]
+        },
+        { revalidate: false }
+      )
+      return tempId
+    },
+    [mutate, topicId]
+  )
+
   /** Full rollback: force a revalidation against the server. */
   const rollbackBranch = useCallback(async () => {
     await mutate()
@@ -167,6 +234,8 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     branchWithoutIds,
     seedOptimisticBranch,
     seedOptimisticUser,
+    seedOptimisticAssistant,
+    patchMessageInBranch,
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,

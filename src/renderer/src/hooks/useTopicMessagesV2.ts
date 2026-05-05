@@ -16,7 +16,7 @@
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 const PAGE_SIZE = 50
@@ -184,10 +184,17 @@ export function useTopicMessagesV2(topicId: string): UseTopicMessagesV2Result {
     void mutate().then(() => setIsReady(true))
   }, [topicId]) // eslint-disable-line react-hooks/exhaustive-deps -- mutate is stable
 
-  const uiMessages = useMemo<CherryUIMessage[]>(
-    () => flattenBranchMessages(branchItems).map(toUIMessage),
-    [branchItems]
-  )
+  const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
+  const uiMessages = useMemo<CherryUIMessage[]>(() => {
+    const cache = projectionCacheRef.current
+    return flattenBranchMessages(branchItems).map((shared) => {
+      const cached = cache.get(shared)
+      if (cached) return cached
+      const projected = toUIMessage(shared)
+      cache.set(shared, projected)
+      return projected
+    })
+  }, [branchItems])
 
   const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
 
