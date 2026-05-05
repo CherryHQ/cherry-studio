@@ -1,11 +1,55 @@
 ## Guiding Principles (MUST FOLLOW)
 
+### Mindset
+
+How to approach any coding task in this repo.
+
+#### Think Before Coding
+
+- State assumptions explicitly. If uncertain, ask before implementing.
+- When multiple interpretations exist, surface them — do not pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what is confusing. Ask.
+
+#### Simplicity First
+
+- Write the minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that was not requested.
+- No error handling for impossible scenarios.
+- If you wrote 200 lines and it could be 50, rewrite it.
+
+#### Surgical Changes
+
+- Touch only what the task requires. Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match existing style even if you would do it differently.
+- If you notice unrelated dead code, mention it — do not delete it.
+- Remove imports / variables / functions that **your** changes orphaned. Leave pre-existing dead code alone unless asked.
+- Every changed line must trace directly to the user's request.
+
+#### Goal-Driven Execution
+
+- Convert tasks into verifiable goals before coding:
+  - "Add validation" → "Write tests for invalid inputs, then make them pass."
+  - "Fix the bug" → "Write a test that reproduces it, then make it pass."
+  - "Refactor X" → "Ensure tests pass before and after."
+- For multi-step tasks, state a brief plan with explicit verification per step:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+```
+
+### Operational Rules
+
+Project-specific tools, paths, and conventions.
+
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
-- **Start simple**: Begin with the simplest design — no extra abstraction layers, wrapper classes, or separate services unless explicitly requested. Prefer flat, minimal designs.
-- **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Read local READMEs first**: Before editing code in a directory, check for a `README.md` in that directory (and its parents) and read it — these files capture local conventions, invariants, and entry points that aren't obvious from the code alone.
+- **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Library-first, custom-last**: Before writing custom code, check library/framework docs for built-in options or existing solutions. Write custom code only when no adequate alternative exists.
-- **Match the house style**: Reuse existing patterns, naming, and conventions.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component; never add `antd`, `HeroUI`, or `styled-components`.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
@@ -41,24 +85,15 @@ Before upgrading any dependency, check `patches/` for custom patches.
 
 ### Pull Requests
 
-When creating a Pull Request, you MUST use the `gh-create-pr` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
+Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.md` directly.
 
 ### Code Review
 
-When reviewing a Pull Request, do NOT run `pnpm lint`, `pnpm test`, or `pnpm format` locally.
-Instead, check CI status directly using GitHub CLI:
-
-- **Check CI status**: `gh pr checks <PR_NUMBER>` - View all CI check results for the PR
-- **Check PR details**: `gh pr view <PR_NUMBER>` - View PR status, reviews, and merge readiness
-- **View failed logs**: `gh run view <RUN_ID> --log-failed` - Inspect logs for failed CI runs
-
-Only investigate CI failures by reading the logs, not by re-running checks locally.
+Do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — inspect CI via `gh` instead.
 
 ### Issues
 
-When creating an Issue, you MUST use the `gh-create-issue` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
+Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/SKILL.md` directly.
 
 ## Conventions
 
