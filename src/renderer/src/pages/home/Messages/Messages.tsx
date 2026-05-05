@@ -5,7 +5,6 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
@@ -26,14 +25,14 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import InfiniteScroll from 'react-infinite-scroll-component'
 
 import { resolvePartFromParts, usePartsMap } from './Blocks'
+import { ChatVirtualList, type ChatVirtualListHandle } from './ChatVirtualList'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
-import { MessagesContainer, ScrollContainer } from './shared'
+import { MessagesContainer } from './shared'
 
 interface MessagesProps {
   topic: Topic
@@ -57,9 +56,6 @@ const Messages: React.FC<MessagesProps> = ({
   hasOlder = false
 }) => {
   const { assistant } = useAssistant(topic.assistantId)
-  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
-    `topic-${topic.id}`
-  )
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [showPrompt] = usePreference('chat.message.show_prompt')
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
@@ -69,6 +65,13 @@ const Messages: React.FC<MessagesProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
+
+  const chatListRef = useRef<ChatVirtualListHandle | null>(null)
+  // Mirrors the scroll element from `chatListRef.current?.getScrollElement()`
+  // so consumers expecting a ref-shaped object (capture utils, SelectionBox)
+  // don't have to thread the imperative handle around. Updated after each
+  // commit by the effect below.
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messagesRef = useRef<Message[]>(messages)
@@ -90,19 +93,26 @@ const Messages: React.FC<MessagesProps> = ({
     }
   }, [])
 
-  const displayMessages = messages.toReversed()
+  // Chronological order (oldest first). Display order matches array order
+  // now that the column-reverse trick is gone — `ChatVirtualList` owns
+  // scrolling and starts at the bottom on first mount.
+  const displayMessages = messages
   const hasMore = hasOlder
 
-  // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
-    if (scrollContainerRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTo({ top: 0 })
-        }
-      })
-    }
-  }, [scrollContainerRef])
+    chatListRef.current?.scrollToBottom('instant')
+  }, [])
+
+  const scrollToMessageById = useCallback(
+    (messageId: string) => {
+      const target = messages.find((m) => m.id === messageId)
+      if (!target) return
+      const groupKey =
+        target.role === 'assistant' && target.askId ? 'assistant' + target.askId : target.role + target.id
+      chatListRef.current?.scrollToKey(groupKey, 'start')
+    },
+    [messages]
+  )
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -219,63 +229,64 @@ const Messages: React.FC<MessagesProps> = ({
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
+  // Chronological grouping. The legacy code reversed twice (outer + inner)
+  // to compensate for `column-reverse`; with the natural-direction
+  // virtualized list both reversals are gone.
   const groupedMessages = useMemo(() => {
-    const grouped = Object.entries(getGroupedMessages(displayMessages))
-    const newGrouped: {
-      [key: string]: (Message & {
-        index: number
-      })[]
-    } = {}
-    grouped.forEach(([key, group]) => {
-      newGrouped[key] = group.toReversed()
-    })
-    return Object.entries(newGrouped)
+    const grouped = getGroupedMessages(displayMessages)
+    return Object.entries(grouped)
   }, [displayMessages])
 
+  // After the virtualizer mounts, mirror its scroll element into the
+  // ref shape that `captureScrollableAsBlob` / `SelectionBox` expect.
+  useEffect(() => {
+    scrollContainerRef.current = (chatListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
+  }, [groupedMessages])
+
   return (
-    <MessagesContainer
-      id="messages"
-      className="messages-container"
-      ref={scrollContainerRef}
-      key={assistant?.id ?? topic.assistantId}
-      onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        <InfiniteScroll
-          dataLength={displayMessages.length}
-          next={loadMoreMessages}
-          hasMore={hasMore}
-          loader={null}
-          scrollableTarget="messages"
-          inverse
-          style={{ overflow: 'visible' }}>
-          <ContextMenu>
-            <ScrollContainer>
-              {groupedMessages.map(([key, groupMessages]) => (
+    <MessagesContainer id="messages" className="messages-container" key={assistant?.id ?? topic.assistantId}>
+      <NarrowLayout style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {showPrompt && <Prompt key={assistant?.prompt ?? ''} topic={topic} />}
+        <ContextMenu>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <ChatVirtualList
+              handleRef={chatListRef}
+              items={groupedMessages}
+              getItemKey={([key]) => key}
+              estimateSize={600}
+              overscan={8}
+              hasMoreTop={hasMore}
+              onReachTop={loadMoreMessages}
+              renderItem={([key, groupMessages]) => (
                 <MessageGroup
                   key={key}
                   messages={groupMessages}
                   topic={topic}
                   registerMessageElement={registerMessageElement}
                 />
-              ))}
-              {isLoadingMore && (
-                <div
-                  className="pointer-events-none flex w-full justify-center py-2.5"
-                  style={{ background: 'var(--color-background)' }}>
-                  <LoadingIcon color="var(--color-text-2)" />
-                </div>
               )}
-            </ScrollContainer>
-          </ContextMenu>
-        </InfiniteScroll>
-
-        {showPrompt && <Prompt key={assistant?.prompt ?? ''} topic={topic} />}
+              style={{ flex: 1, minHeight: 0 }}
+            />
+            {isLoadingMore && (
+              <div
+                className="pointer-events-none flex w-full justify-center py-2.5"
+                style={{ background: 'var(--color-background)' }}>
+                <LoadingIcon color="var(--color-text-2)" />
+              </div>
+            )}
+          </div>
+        </ContextMenu>
       </NarrowLayout>
-      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+      {messageNavigation === 'anchor' && (
+        <MessageAnchorLine
+          messages={displayMessages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToBottom={scrollToBottom}
+        />
+      )}
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}
-        scrollContainerRef={scrollContainerRef}
+        scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
         messageElements={messageElements.current}
         handleSelectMessage={handleSelectMessage}
       />

@@ -21,9 +21,16 @@ import { usePartsMap } from './Blocks'
 
 interface MessageLineProps {
   messages: Message[]
+  scrollToMessageId?: (messageId: string) => void
+  /** Scroll the message list to its bottom. */
+  scrollToBottom?: () => void
 }
 
-const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
+const MessageAnchorLine: FC<MessageLineProps> = ({
+  messages,
+  scrollToMessageId,
+  scrollToBottom: scrollToBottomProp
+}) => {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const avatar = useAvatar()
@@ -118,27 +125,39 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
 
   const scrollToMessage = useCallback(
     (message: Message) => {
+      // Virtualized message list: prefer the imperative API. Off-screen
+      // messages have no DOM, so the legacy `getElementById` lookup
+      // would silently no-op. Fall back to it only when the prop isn't
+      // wired (older callers / tests).
+      if (scrollToMessageId) {
+        // Resolve fold state first — multi-model groups hide non-active
+        // siblings via display:none; selecting the right sibling unfolds
+        // it before we ask the virtualizer to scroll.
+        scrollToMessageId(message.id)
+        return
+      }
       const messageElement = document.getElementById(`message-${message.id}`)
-
       if (!messageElement) return
-
       const display = messageElement ? window.getComputedStyle(messageElement).display : null
       if (display === 'none') {
         setSelectedMessage(message)
         return
       }
-
       scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
     },
-    [setSelectedMessage]
+    [scrollToMessageId, setSelectedMessage]
   )
 
   const scrollToBottom = useCallback(() => {
+    if (scrollToBottomProp) {
+      scrollToBottomProp()
+      return
+    }
     const messagesContainer = document.getElementById('messages')
     if (messagesContainer) {
       messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' })
     }
-  }, [])
+  }, [scrollToBottomProp])
 
   if (messages.length === 0) return null
 
@@ -170,21 +189,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       onMouseLeave={handleMouseLeave}
       $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
-        <MessageItem
-          key="bottom-anchor"
-          ref={(el) => {
-            if (el) messageItemsRef.current.set('bottom-anchor', el)
-            else messageItemsRef.current.delete('bottom-anchor')
-          }}
-          style={{
-            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(0 - messages.length / 2)) / 5)
-          }}
-          onClick={scrollToBottom}>
-          <CircleChevronDown
-            size={10 + calculateValueByDistance('bottom-anchor', 20)}
-            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
-          />
-        </MessageItem>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
           const scale = 1 + calculateValueByDistance(message.id, 1.2)
@@ -247,6 +251,21 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
             </MessageItem>
           )
         })}
+        <MessageItem
+          key="bottom-anchor"
+          ref={(el) => {
+            if (el) messageItemsRef.current.set('bottom-anchor', el)
+            else messageItemsRef.current.delete('bottom-anchor')
+          }}
+          style={{
+            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(messages.length - messages.length / 2)) / 5)
+          }}
+          onClick={scrollToBottom}>
+          <CircleChevronDown
+            size={10 + calculateValueByDistance('bottom-anchor', 20)}
+            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
+          />
+        </MessageItem>
       </MessagesList>
     </MessageLineContainer>
   )
@@ -301,7 +320,7 @@ const MessageLineContainer = styled.div<{ $height: number | null }>`
 
 const MessagesList = styled.div`
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   will-change: transform;
 `
 

@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PartsContext } from '../V2Contexts'
+import { PartsProvider } from '../V2Contexts'
 
 // ============================================================================
 // Mocks — keep minimal, only mock what prevents module loading
@@ -143,9 +143,9 @@ const msg = (overrides: Partial<Message> = {}): Message =>
 const renderParts = (parts: CherryMessagePart[], message?: Message) => {
   const m = message ?? msg()
   return render(
-    <PartsContext value={{ [m.id]: parts }}>
+    <PartsProvider value={{ [m.id]: parts }}>
       <PartsRenderer message={m} />
-    </PartsContext>
+    </PartsProvider>
   )
 }
 

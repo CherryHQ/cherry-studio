@@ -13,6 +13,7 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
@@ -20,7 +21,7 @@ import { convertReferencesToCitations, convertReferencesToLegacyCitations } from
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { use, useMemo } from 'react'
+import React, { useMemo } from 'react'
 
 import MessageAttachments from '../MessageAttachments'
 import MessageVideo from '../MessageVideo'
@@ -35,7 +36,7 @@ import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { PartsContext } from './V2Contexts'
+import { useMessageParts } from './V2Contexts'
 
 const logger = loggerService.withContext('PartsRenderer')
 
@@ -63,15 +64,20 @@ const blockWrapperVariants: Variants = {
 const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimation: boolean }> = ({
   children,
   enableAnimation
-}) => (
-  <motion.div
-    className="block-wrapper"
-    variants={blockWrapperVariants}
-    initial={enableAnimation ? 'hidden' : 'static'}
-    animate={enableAnimation ? 'visible' : 'static'}>
-    <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
-  </motion.div>
-)
+}) => {
+  if (!enableAnimation) {
+    return (
+      <div className="block-wrapper">
+        <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
+      </div>
+    )
+  }
+  return (
+    <motion.div className="block-wrapper" variants={blockWrapperVariants} initial="hidden" animate="visible">
+      <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
+    </motion.div>
+  )
+}
 
 // ============================================================================
 // Props
@@ -387,13 +393,13 @@ const ToolGroupView = React.memo(
 // ============================================================================
 
 const PartsRenderer: React.FC<Props> = ({ message }) => {
-  const partsMap = use(PartsContext)
-  const messageParts = partsMap?.[message.id]
+  const messageParts = useMessageParts(message.id)
 
-  const isStreaming = message.status.includes('ing')
+  const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const isStreaming = isTopicStreaming && message.status === 'pending'
 
   const grouped = useMemo(() => {
-    if (!messageParts || messageParts.length === 0) return []
+    if (messageParts.length === 0) return []
     return groupSimilarParts(messageParts)
   }, [messageParts])
 
@@ -401,7 +407,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
-  if (!messageParts || messageParts.length === 0) {
+  if (messageParts.length === 0) {
     if (isProcessing) {
       return (
         <AnimatePresence mode="sync">
