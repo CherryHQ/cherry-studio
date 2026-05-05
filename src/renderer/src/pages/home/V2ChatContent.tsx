@@ -127,11 +127,17 @@ const V2ChatContentInner: FC<InnerProps> = ({
   hasOlder,
   messagesCacheMutate
 }) => {
-  const { sendMessage, regenerate, stop, setMessages, activeExecutionIds, chat } = useChatWithHistory(
+  const { sendMessage, regenerate, stop, status, setMessages, activeExecutionIds, chat } = useChatWithHistory(
     topic.id,
     initialMessages,
     refresh
   )
+
+  useEffect(() => {
+    if (status === 'streaming' || status === 'submitted') return
+    const canonical = uiMessages.filter((m) => !m.id.startsWith('optimistic-'))
+    setMessages(canonical)
+  }, [uiMessages, status, setMessages])
 
   const respondToToolApproval = useToolApprovalBridge(chat, uiMessages)
 
@@ -142,27 +148,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // Topic-messages optimistic cache + DataApi mutation triggers.
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
-  // Stream-done finalisation: surgically swap the streaming placeholder for
-  // its final ('success' / 'paused') form using the `finalMessage` payload
-  // Main now sends along with the broadcast. Replaces the older flow where
-  // `useChatWithHistory` did `refresh()` (= full SWR revalidation) which
-  // re-fetched every page from DataApi and yielded fresh references for
-  // every message in the topic — flashing the entire list on stream-end.
-  // The patch here keeps unchanged messages reference-stable so MessageGroup
-  // memos hold; only the streaming bubble re-renders.
-  //
-  // We also push the same final message into `useChat.state.messages` so
-  // the next user turn sends canonical history (the trigger chat doesn't
-  // accumulate streaming chunks itself — the per-execution collectors do).
-  //
-  // Falls back to the legacy `rollbackBranch()` (full revalidation) when
-  // Main didn't include `finalMessage` (transition window or unexpected
-  // error path), so behaviour matches the old flow.
   useEffect(() => {
     const unsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topic.id) return
-      // Per-execution done that isn't topic-done: let the topic-level event
-      // fold all sibling executions into a single patch wave.
       if (data.executionId && !data.isTopicDone) return
       const final = data.finalMessage
       if (!final) {
@@ -174,12 +162,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
         data: { parts: final.parts as never },
         updatedAt: new Date().toISOString()
       })
-      setMessages((prev) => prev.map((m) => (m.id === final.id ? final : m)))
     })
     return () => {
       unsub()
     }
-  }, [topic.id, cache, setMessages])
+  }, [topic.id, cache])
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so

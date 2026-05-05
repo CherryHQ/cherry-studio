@@ -1,20 +1,3 @@
-/**
- * Shared hook wrapping `useChat` for Cherry's V2/agent/selection pipelines.
- *
- * Primary `useChat` is **trigger-only**: it owns `sendMessage` / `regenerate`
- * / `stop` / `setMessages` and keeps `state.messages` as the conversation
- * history context AI SDK passes back to the transport on each turn. Chunks
- * coming from Main are tagged with their execution's `modelId`
- * (`AiStreamManager.onChunk`) so they land in per-execution
- * `ExecutionStreamCollector` components, not here. Rendering is owned by
- * each caller (V2ChatContent / AgentChat / …).
- *
- * On stream-done / per-execution-error the hook refreshes the caller's
- * data source (DB via `refresh()`) and pushes the DB snapshot into
- * `state.messages` via `setMessages(refreshed)` — so the next turn's
- * request carries the canonical history, not stale in-memory chunks.
- */
-
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
@@ -36,9 +19,9 @@ export interface UseChatWithHistoryResult {
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   stop: () => Promise<void>
   error: Error | undefined
+  status: ReturnType<typeof useChat<CherryUIMessage>>['status']
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
   activeExecutionIds: readonly UniqueModelId[]
-  /** Underlying AI SDK chat instance — pass to hooks that need it (e.g. approval bridge). */
   chat: Chat<CherryUIMessage>
 }
 
@@ -49,8 +32,6 @@ export function useChatWithHistory(
   initialMessages: CherryUIMessage[],
   refresh: () => Promise<CherryUIMessage[]>
 ): UseChatWithHistoryResult {
-  // No `sendAutomaticallyWhen` — Cherry never lets `useChat` auto-fire from
-  // `chat.state.messages` state transitions.
   const [chat] = useState<Chat<CherryUIMessage>>(
     () =>
       new Chat<CherryUIMessage>({
@@ -68,7 +49,6 @@ export function useChatWithHistory(
     experimental_throttle: 0
   })
 
-  // Stable ref for refresh to avoid re-subscribing IPC listeners
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
@@ -84,18 +64,8 @@ export function useChatWithHistory(
 
       resumeInFlightRef.current = (async () => {
         if (reason === 'started-event') {
-          // The `pending` broadcast reaches every window subscribed to
-          // this topic — originator and passive observers alike. Both
-          // need `refresh()` so the caller's data source picks up the
-          // new DB row. For the originator (`submitted`/`streaming`)
-          // we skip `setMessages` because `useChat` already owns an
-          // `activeResponse` with the pre-allocated id; overwriting
-          // `state.messages` would detach the in-flight bubble.
           try {
-            const refreshed = await refreshRef.current()
-            if (status !== 'streaming' && status !== 'submitted') {
-              setMessages(refreshed)
-            }
+            await refreshRef.current()
           } catch (err) {
             logger.warn('Failed to refresh messages before resuming stream', { topicId, err })
           }
@@ -114,18 +84,13 @@ export function useChatWithHistory(
           resumeInFlightRef.current = null
         })
     },
-    [resumeStream, setMessages, status, topicId]
+    [resumeStream, status, topicId]
   )
 
   useEffect(() => {
     resumeActiveStream('mount')
   }, [resumeActiveStream])
 
-  // Trigger reattach when a new stream is created on this topic.
-  // The `pending` transition uniquely marks "send() just created a new
-  // ActiveStream"; downstream deltas (streaming / done / error /
-  // aborted) describe an ongoing lifecycle and must not retrigger a
-  // reattach.
   const prevTopicStatusRef = useRef<typeof topicStreamStatus>(undefined)
   useEffect(() => {
     const prev = prevTopicStatusRef.current
@@ -135,32 +100,24 @@ export function useChatWithHistory(
     }
   }, [resumeActiveStream, topicStreamStatus])
 
-  const refreshAndReplace = useCallback(() => {
-    void refreshRef
-      .current()
-      .then((refreshed) => {
-        setMessages(refreshed)
-      })
-      .catch((err) => {
-        logger.warn('Failed to refresh messages after stream end', { topicId, err })
-      })
-  }, [setMessages, topicId])
-
   useEffect(() => {
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
-      refreshAndReplace()
+      void refreshRef.current().catch((err) => {
+        logger.warn('Failed to refresh messages after stream error', { topicId, err })
+      })
     })
     return () => {
       errorUnsub()
     }
-  }, [topicId, refreshAndReplace])
+  }, [topicId])
 
   return {
     sendMessage,
     regenerate,
     stop,
     error,
+    status,
     setMessages,
     activeExecutionIds,
     chat

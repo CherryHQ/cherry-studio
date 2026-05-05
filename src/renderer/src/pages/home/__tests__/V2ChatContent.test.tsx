@@ -36,6 +36,18 @@ vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
 }))
 
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: () => ({
+    assistant: {
+      id: 'assistant-1',
+      knowledgeBaseIds: [],
+      settings: { enableWebSearch: false }
+    },
+    model: undefined,
+    setModel: vi.fn()
+  })
+}))
+
 vi.mock('../Inputbar/Inputbar', () => ({
   default: ({ onSend }: { onSend: (text: string) => Promise<void> | void }) => (
     (capturedOnSend = onSend),
@@ -104,6 +116,8 @@ describe('V2ChatContent', () => {
     messages: []
   } as any
 
+  const originalApi = window.api as any
+
   beforeEach(() => {
     mockUseTopicMessagesV2.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
@@ -121,12 +135,23 @@ describe('V2ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
+      status: 'ready',
       setMessages: vi.fn(),
       activeExecutionIds: []
     })
+
+    ;(window as any).api = {
+      ...originalApi,
+      ai: {
+        ...originalApi?.ai,
+        onStreamDone: vi.fn(() => () => {}),
+        onStreamError: vi.fn(() => () => {})
+      }
+    }
   })
 
   afterEach(() => {
+    ;(window as any).api = originalApi
     vi.clearAllMocks()
     capturedOnSend = undefined
   })
