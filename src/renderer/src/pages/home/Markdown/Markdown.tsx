@@ -6,11 +6,12 @@ import 'remark-github-blockquote-alert/alert.css'
 import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
+import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { createContext, type FC, memo, use, useCallback, useMemo } from 'react'
+import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -83,13 +84,52 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return plugins
   }, [mathEngine, mathEnableSingleDollar])
 
+  // `block.status === 'streaming'` is set by callers when (and only when)
+  // the topic-level ActiveStream is live for this message — see
+  // `PartsRenderer`, which derives the streaming flag from
+  // `useTopicStreamStatus` and threads it down through MainTextBlock /
+  // ThinkingBlock.
+  const isStreaming = block.status === 'streaming'
+  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
+  const [isStreamDone, setIsStreamDone] = useState(!isStreaming)
+  const prevContentRef = useRef(block.content)
+  const prevBlockIdRef = useRef(block.id)
+
+  const { addChunk, reset } = useSmoothStream({
+    onUpdate: (rawText) => {
+      const finalText = postProcess ? postProcess(rawText) : rawText
+      setDisplayedContent(finalText)
+    },
+    streamDone: isStreamDone,
+    initialText: block.content
+  })
+
+  useEffect(() => {
+    const newContent = block.content || ''
+    const oldContent = prevContentRef.current || ''
+
+    const isDifferentBlock = block.id !== prevBlockIdRef.current
+    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
+
+    if (isDifferentBlock || isContentReset) {
+      reset(newContent)
+    } else {
+      const delta = newContent.substring(oldContent.length)
+      if (delta) addChunk(delta)
+    }
+
+    prevContentRef.current = newContent
+    prevBlockIdRef.current = block.id
+
+    setIsStreamDone(!isStreaming)
+  }, [block.content, block.id, isStreaming, addChunk, reset])
+
   const messageContent = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
-    const raw = postProcess ? postProcess(block.content) : block.content
-    return removeSvgEmptyLines(processLatexBrackets(raw))
-  }, [block.status, block.content, postProcess, t])
+    return removeSvgEmptyLines(processLatexBrackets(displayedContent))
+  }, [block.status, block.content, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: Pluggable[] = []
