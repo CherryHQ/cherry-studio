@@ -302,12 +302,12 @@ const DocProcessSettings: FC = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-border/60 bg-background px-5 py-5 shadow-xs">
-                  <div className="min-h-0">{renderProviderPanel()}</div>
-                </div>
+                <div className="h-px bg-border/60" />
+
+                <div className="min-h-0 px-1">{renderProviderPanel()}</div>
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-2xl border border-border/70 border-dashed bg-background">
+              <div className="flex h-full items-center justify-center">
                 <div className="text-center text-foreground-muted text-sm">{t('common.no_results')}</div>
               </div>
             )}
