@@ -20,7 +20,7 @@ const ActionsList = memo(
       <Droppable droppableId={droppableId}>
         {(provided: DroppableProvided) => (
           <div ref={provided.innerRef} className="mb-4 rounded pb-px" {...provided.droppableProps}>
-            <div className="p-2.5">
+            <div>
               {items.map((item, index) => (
                 <Draggable key={item.id} draggableId={item.id} index={index}>
                   {(provided) => (

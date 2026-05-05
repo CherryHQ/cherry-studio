@@ -266,7 +266,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b bg-card px-3 py-1.5 text-sm transition-colors hover:bg-muted/35',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-3 py-1.5 text-sm transition-colors hover:bg-muted/35',
       className
     )}
     {...props}
@@ -278,7 +278,7 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-semibold text-[14px] leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (

@@ -175,8 +175,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       </SettingsPanel>
 
       {sortedServers.length > 0 && (
-        <SettingsPanel className="mt-4">
-          <div className="mt-5 flex items-center justify-between">
+        <SettingsPanel>
+          <div className="flex items-center justify-between">
             <PanelTitle>{t('settings.mcp.servers', 'Available MCP Servers')}</PanelTitle>
             <CollapsibleSearchBar
               onSearch={setSearchText}
@@ -248,7 +248,7 @@ const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithou
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-4 rounded-xl border border-border/70 bg-card px-4 py-2 shadow-xs', className)} {...props} />
+  <div className={cn('mt-4', className)} {...props} />
 )
 
 const PanelTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -262,7 +262,7 @@ const ServerList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 const ServerItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex items-center justify-between rounded-lg border border-border/60 bg-background px-3.5 py-2.5 transition-colors hover:bg-muted/35',
+      'flex items-center justify-between rounded-lg border border-border/60 px-3 py-2 transition-colors hover:bg-muted/35',
       className
     )}
     {...props}

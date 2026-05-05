@@ -17,6 +17,6 @@ export const settingsContentBodyClassName = 'mx-auto flex min-h-full w-full max-
 
 export const settingsContentHeaderClassName = 'mb-5'
 
-export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-xl'
+export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
 
 export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-muted text-sm'

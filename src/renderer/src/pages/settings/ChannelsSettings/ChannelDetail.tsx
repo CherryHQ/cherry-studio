@@ -492,7 +492,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
           </p>
         </div>
-        <Button size="sm" disabled={!channelDef.available} onClick={handleAdd}>
+        <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
           <Plus className="size-4" />
           {t('agent.cherryClaw.channels.add')}
         </Button>

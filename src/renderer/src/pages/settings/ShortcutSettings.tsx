@@ -495,7 +495,7 @@ const ShortcutSettings: FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-primary text-xs shadow-none"
+                  className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
                   onClick={handleResetAllShortcuts}>
                   <Undo2 size={13} />
                   {t('settings.shortcuts.reset')}

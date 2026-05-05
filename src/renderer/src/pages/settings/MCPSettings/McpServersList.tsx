@@ -138,39 +138,15 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-4 overflow-hidden px-5 py-4">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-5 py-4">
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
-          <span className="shrink-0 text-muted-foreground text-sm">
-            {activeServerCount}/{mcpServers.length}
-          </span>
-        </div>
-      </div>
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-3 xl:justify-between">
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
-          <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('models.all')}
-            </TabsTrigger>
-            <TabsTrigger value="enabled" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('common.enabled')}
-            </TabsTrigger>
-            <TabsTrigger value="disabled" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('common.disabled')}
-            </TabsTrigger>
-            <TabsTrigger value="stdio" className="h-7 rounded-[14px] px-2.5 text-xs">
-              STDIO
-            </TabsTrigger>
-            <TabsTrigger value="sse" className="h-7 rounded-[14px] px-2.5 text-xs">
-              SSE
-            </TabsTrigger>
-            <TabsTrigger value="builtin" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('settings.mcp.builtinServers')}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 xl:justify-end">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
+            <span className="shrink-0 text-muted-foreground text-sm">
+              {activeServerCount}/{mcpServers.length}
+            </span>
+          </div>
           <CollapsibleSearchBar
             onSearch={setSearchText}
             placeholder={t('settings.mcp.search.placeholder')}
@@ -179,6 +155,8 @@ const McpServersList: FC = () => {
             maxWidth={200}
             style={{ borderRadius: 16 }}
           />
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           <InstallNpxUv mini />
           <Button
             variant="ghost"
@@ -204,7 +182,31 @@ const McpServersList: FC = () => {
           </Popover>
         </div>
       </div>
-      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+        <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
+          <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
+            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
+              {t('models.all')}
+            </TabsTrigger>
+            <TabsTrigger value="enabled" className="h-7 rounded-[14px] px-2.5 text-xs">
+              {t('common.enabled')}
+            </TabsTrigger>
+            <TabsTrigger value="disabled" className="h-7 rounded-[14px] px-2.5 text-xs">
+              {t('common.disabled')}
+            </TabsTrigger>
+            <TabsTrigger value="stdio" className="h-7 rounded-[14px] px-2.5 text-xs">
+              STDIO
+            </TabsTrigger>
+            <TabsTrigger value="sse" className="h-7 rounded-[14px] px-2.5 text-xs">
+              SSE
+            </TabsTrigger>
+            <TabsTrigger value="builtin" className="h-7 rounded-[14px] px-2.5 text-xs">
+              {t('settings.mcp.builtinServers')}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
             <Scrollbar ref={scrollRef} className="min-h-0 flex-1">

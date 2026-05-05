@@ -277,7 +277,7 @@ const DocProcessSettings: FC = () => {
                     {renderHeaderIcon()}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-semibold text-base text-foreground leading-5">
+                        <span className="truncate font-semibold text-[15px] text-foreground leading-5">
                           {activeEntry.kind === 'ocr'
                             ? getOcrProviderName(activeEntry.provider)
                             : activeEntry.provider.name}
