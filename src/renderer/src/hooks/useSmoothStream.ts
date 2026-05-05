@@ -10,6 +10,15 @@ interface UseSmoothStreamOptions {
 const languages = ['en-US', 'de-DE', 'es-ES', 'zh-CN', 'zh-TW', 'ja-JP', 'ru-RU', 'el-GR', 'fr-FR', 'pt-PT', 'ro-RO']
 const segmenter = new Intl.Segmenter(languages)
 
+/**
+ * Cap on graphemes revealed per frame after the upstream stream has
+ * ended. Without it, `streamDone` used to dump the entire remaining
+ * queue in a single frame — the user saw the trailing chunk appear all
+ * at once. Capping keeps the tail visibly typewriting at a steady pace
+ * (~5 graphemes / 16ms = 300 graphemes/sec at 60Hz).
+ */
+const POST_STREAM_STEP = 5
+
 export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialText = '' }: UseSmoothStreamOptions) => {
   const chunkQueueRef = useRef<string[]>([])
   const animationFrameRef = useRef<number | null>(null)
@@ -58,9 +67,10 @@ export const useSmoothStream = ({ onUpdate, streamDone, minDelay = 10, initialTe
       // 3. 动态计算本次渲染的字符数
       let charsToRenderCount = Math.max(1, Math.floor(chunkQueueRef.current.length / 5))
 
-      // 如果流已结束，一次性渲染所有剩余字符
+      // 流式已结束 + 队列还有内容：限制每帧字符数让尾部可见地打字机渲染，
+      // 而不是把整个队列一帧 dump 完（会让用户看到「最后一坨突然冒出来」）。
       if (streamDone) {
-        charsToRenderCount = chunkQueueRef.current.length
+        charsToRenderCount = Math.min(charsToRenderCount, POST_STREAM_STEP)
       }
 
       const charsToRender = chunkQueueRef.current.slice(0, charsToRenderCount)

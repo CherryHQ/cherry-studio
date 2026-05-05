@@ -206,16 +206,45 @@ const V2ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="flex flex-1 flex-col justify-between"
                   style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {activeExecutionIds.map((executionId) => (
-                    <ExecutionStreamCollector
-                      key={executionId}
-                      topicId={topic.id}
-                      executionId={executionId}
-                      initialMessages={uiMessages}
-                      onMessagesChange={handleExecutionMessagesChange}
-                      onDispose={handleExecutionDispose}
-                    />
-                  ))}
+                  {/*
+                   * Two coupled guards on the per-execution chunk collector:
+                   *
+                   * 1. Mount only after SWR's `uiMessages` ends with an
+                   *    in-flight assistant. Collector's `useChat` seeds AI
+                   *    SDK's `createStreamingUIMessageState` from
+                   *    `initialMessages.at(-1)`; AI SDK reuses that object as
+                   *    the streaming `state.message` and a `start` chunk only
+                   *    overwrites its `id`, leaving the original `parts`
+                   *    array in place. If we mount while last is still the
+                   *    OLD assistant being replaced, new chunks append onto
+                   *    that array — the bubble renders "old content + new
+                   *    stream" once SWR finally flips active to the new
+                   *    placeholder.
+                   *
+                   * 2. Re-key on the in-flight assistant id so subsequent
+                   *    regenerates for the same model REMOUNT the collector.
+                   *    Without this, React reuses the existing `useChat`
+                   *    instance whose `state.messages` already carries the
+                   *    previous turn's assistant; the next regenerate seeds
+                   *    from THAT, accumulating pollution turn over turn.
+                   *
+                   * The collector cannot self-correct: it sees `resume: true`
+                   * only, never the `regenerate` trigger driving the turn.
+                   */}
+                  {(() => {
+                    const last = uiMessages.at(-1)
+                    if (last?.role !== 'assistant') return null
+                    return activeExecutionIds.map((executionId) => (
+                      <ExecutionStreamCollector
+                        key={`${executionId}:${last.id}`}
+                        topicId={topic.id}
+                        executionId={executionId}
+                        initialMessages={uiMessages}
+                        onMessagesChange={handleExecutionMessagesChange}
+                        onDispose={handleExecutionDispose}
+                      />
+                    ))
+                  })()}
 
                   <Messages
                     key={topic.id}

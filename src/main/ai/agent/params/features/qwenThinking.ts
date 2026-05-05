@@ -44,7 +44,7 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
 
 const createQwenThinkingPlugin = (enableThinking: boolean) =>
   definePlugin({
-    name: 'qwenThinking',
+    name: 'qwen-thinking',
     enforce: 'pre',
 
     configureContext: (context) => {

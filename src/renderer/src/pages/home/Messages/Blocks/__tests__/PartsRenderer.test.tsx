@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { PartsContext } from '../V2Contexts'
+import { PartsProvider } from '../V2Contexts'
 
 // ============================================================================
 // Mocks — keep minimal, only mock what prevents module loading
@@ -98,19 +98,19 @@ vi.mock('../../Tools/toolResponse', () => ({
 
 vi.mock('../../MessageVideo', () => ({
   __esModule: true,
-  default: ({ block }: any) => (
-    <div data-testid="mock-message-video" data-url={block?.url ?? ''} data-file-path={block?.filePath ?? ''} />
+  default: ({ url, filePath }: any) => (
+    <div data-testid="mock-message-video" data-url={url ?? ''} data-file-path={filePath ?? ''} />
   )
 }))
 
 vi.mock('../ErrorBlock', () => ({
   __esModule: true,
-  default: ({ block }: any) => <div data-testid="mock-error-block" data-error-message={block?.error?.message ?? ''} />
+  default: ({ error }: any) => <div data-testid="mock-error-block" data-error-message={error?.message ?? ''} />
 }))
 
 vi.mock('../../MessageAttachments', () => ({
   __esModule: true,
-  default: ({ block }: any) => <div data-testid="mock-attachments" data-file-name={block?.file?.name ?? ''} />
+  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
@@ -143,9 +143,9 @@ const msg = (overrides: Partial<Message> = {}): Message =>
 const renderParts = (parts: CherryMessagePart[], message?: Message) => {
   const m = message ?? msg()
   return render(
-    <PartsContext value={{ [m.id]: parts }}>
+    <PartsProvider value={{ [m.id]: parts }}>
       <PartsRenderer message={m} />
-    </PartsContext>
+    </PartsProvider>
   )
 }
 

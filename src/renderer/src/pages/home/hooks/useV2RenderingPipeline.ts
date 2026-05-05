@@ -21,7 +21,7 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 
 import { uiToMessage } from '../uiToMessage'
 
@@ -57,23 +57,40 @@ export function useV2RenderingPipeline(
     return undefined
   }, [uiMessages])
 
-  const projectedMessages = useMemo<Message[]>(
-    () =>
-      uiMessages.map((m) =>
-        uiToMessage(m, {
-          assistantId: assistant?.id ?? topic.assistantId,
-          topicId: topic.id,
-          askIdFallback: lastUserIdInBase,
-          modelFallback: fallbackSnapshot
-        })
-      ),
-    [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot]
-  )
+  const projectionCacheRef = useRef<{ sig: string; cache: WeakMap<CherryUIMessage, Message> } | null>(null)
 
+  const projectedMessages = useMemo<Message[]>(() => {
+    const ctx = {
+      assistantId: assistant?.id ?? topic.assistantId,
+      topicId: topic.id,
+      askIdFallback: lastUserIdInBase,
+      modelFallback: fallbackSnapshot
+    }
+    const sig = `${ctx.assistantId}|${ctx.topicId}|${ctx.askIdFallback ?? ''}|${ctx.modelFallback?.id ?? ''}|${ctx.modelFallback?.provider ?? ''}`
+    if (projectionCacheRef.current?.sig !== sig) {
+      projectionCacheRef.current = { sig, cache: new WeakMap() }
+    }
+    const cache = projectionCacheRef.current.cache
+    return uiMessages.map((m) => {
+      const cached = cache.get(m)
+      if (cached) return cached
+      const result = uiToMessage(m, ctx)
+      cache.set(m, result)
+      return result
+    })
+  }, [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot])
+
+  const basePartsMapRef = useRef<Record<string, CherryMessagePart[]>>({})
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of uiMessages) map[m.id] = (m.parts ?? []) as CherryMessagePart[]
-    return map
+    const prev = basePartsMapRef.current
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const m of uiMessages) {
+      const incoming = (m.parts ?? []) as CherryMessagePart[]
+      const prior = prev[m.id]
+      next[m.id] = prior && prior === incoming ? prior : incoming
+    }
+    basePartsMapRef.current = next
+    return next
   }, [uiMessages])
 
   // Per-execution streaming overlay. Each mounted `ExecutionStreamCollector`
@@ -87,9 +104,9 @@ export function useV2RenderingPipeline(
     const next = { ...basePartsMap }
     for (const execMessages of Object.values(executionMessagesById)) {
       for (const uiMessage of execMessages) {
-        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
-          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-        }
+        if (uiMessage.role !== 'assistant' || !uiMessage.parts?.length) continue
+        if (!(uiMessage.id in basePartsMap)) continue
+        next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
       }
     }
     return next

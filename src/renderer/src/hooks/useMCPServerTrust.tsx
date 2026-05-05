@@ -4,6 +4,7 @@ import {
   getCommandPreview
 } from '@renderer/pages/settings/MCPSettings/utils'
 import { modalConfirm } from '@renderer/utils'
+import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +15,7 @@ import { useTranslation } from 'react-i18next'
  *
  * @param updateServer - callback to persist trust changes for a server
  */
-export const useMCPServerTrust = (updateServer: (body: Partial<MCPServer>) => void) => {
+export const useMCPServerTrust = (updateServer: (patch: UpdateMCPServerDto) => void) => {
   const { t } = useTranslation()
 
   /**

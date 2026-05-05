@@ -9,6 +9,8 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { devtoolsFeature } from './devtools'
+import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { modelParamsFeature } from './modelParams'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
@@ -22,6 +24,8 @@ import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
+  devtoolsFeature,
+  gatewayUsageNormalizeFeature,
   modelParamsFeature,
   pdfCompatibilityFeature,
   reasoningExtractionFeature,

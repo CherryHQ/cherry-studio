@@ -13,6 +13,7 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
@@ -20,7 +21,7 @@ import { convertReferencesToCitations, convertReferencesToLegacyCitations } from
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { use, useMemo } from 'react'
+import React, { useMemo } from 'react'
 
 import MessageAttachments from '../MessageAttachments'
 import MessageVideo from '../MessageVideo'
@@ -35,7 +36,7 @@ import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlockGroup from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
-import { PartsContext } from './V2Contexts'
+import { useMessageParts } from './V2Contexts'
 
 const logger = loggerService.withContext('PartsRenderer')
 
@@ -63,15 +64,20 @@ const blockWrapperVariants: Variants = {
 const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimation: boolean }> = ({
   children,
   enableAnimation
-}) => (
-  <motion.div
-    className="block-wrapper"
-    variants={blockWrapperVariants}
-    initial={enableAnimation ? 'hidden' : 'static'}
-    animate={enableAnimation ? 'visible' : 'static'}>
-    <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
-  </motion.div>
-)
+}) => {
+  if (!enableAnimation) {
+    return (
+      <div className="block-wrapper">
+        <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
+      </div>
+    )
+  }
+  return (
+    <motion.div className="block-wrapper" variants={blockWrapperVariants} initial="hidden" animate="visible">
+      <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
+    </motion.div>
+  )
+}
 
 // ============================================================================
 // Props
@@ -179,6 +185,36 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
 }
 
 /**
+ * Memoized adapter from `ErrorPartData` (with optional name/message/stack) to
+ * the normalized `SerializedError` shape `ErrorBlock` consumes. Lives here —
+ * not inline in the switch — so the normalized object's identity is tied to
+ * `rawData`, not to whichever render of the parent triggered it. Keeping
+ * identity stable lets `React.memo(ErrorBlock)` and the downstream `useMemo`s
+ * actually do their job; an inline spread would mint a fresh object every
+ * render and silently break memoization.
+ */
+const ErrorPartView = React.memo(function ErrorPartView({
+  partId,
+  rawData,
+  message
+}: {
+  partId: string
+  rawData: ErrorPartData
+  message: Message
+}) {
+  const error = useMemo(
+    () => ({
+      ...rawData,
+      name: rawData.name ?? null,
+      message: rawData.message ?? null,
+      stack: rawData.stack ?? null
+    }),
+    [rawData]
+  )
+  return <ErrorBlock partId={partId} error={error} message={message} />
+})
+
+/**
  * Render a single part directly from CherryMessagePart — no MessageBlock conversion.
  *
  * Data extraction happens HERE — leaf components receive pure view props only.
@@ -258,19 +294,7 @@ function renderPart(part: CherryMessagePart, partId: string, message: Message, i
     case 'data-error': {
       const rawData = 'data' in part ? (part.data as ErrorPartData) : undefined
       if (!rawData) return null
-      return (
-        <ErrorBlock
-          key={partId}
-          partId={partId}
-          error={{
-            ...rawData,
-            name: rawData.name ?? null,
-            message: rawData.message ?? null,
-            stack: rawData.stack ?? null
-          }}
-          message={message}
-        />
-      )
+      return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
     }
 
     case 'data-video': {
@@ -338,18 +362,44 @@ function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNod
   return <MessageTools key={partId} toolResponse={toolResponse} />
 }
 
+interface ToolGroupEntryShape {
+  part: CherryMessagePart
+  index: number
+}
+const ToolGroupView = React.memo(
+  function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
+    const toolItems = entries.flatMap((e): ToolRenderItem[] => {
+      const id = `${messageId}-part-${e.index}`
+      const toolResponse = buildToolResponseFromPart(e.part, id)
+      return toolResponse ? [{ id, toolResponse }] : []
+    })
+    if (toolItems.length === 0) return null
+    if (toolItems.length === 1) return <MessageTools toolResponse={toolItems[0].toolResponse} />
+    return <ToolBlockGroup items={toolItems} />
+  },
+  (prev, next) => {
+    if (prev.messageId !== next.messageId) return false
+    if (prev.entries.length !== next.entries.length) return false
+    for (let i = 0; i < prev.entries.length; i++) {
+      if (prev.entries[i].part !== next.entries[i].part) return false
+      if (prev.entries[i].index !== next.entries[i].index) return false
+    }
+    return true
+  }
+)
+
 // ============================================================================
 // Main component
 // ============================================================================
 
 const PartsRenderer: React.FC<Props> = ({ message }) => {
-  const partsMap = use(PartsContext)
-  const messageParts = partsMap?.[message.id]
+  const messageParts = useMessageParts(message.id)
 
-  const isStreaming = message.status.includes('ing')
+  const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const isStreaming = isTopicStreaming && message.status === 'pending'
 
   const grouped = useMemo(() => {
-    if (!messageParts || messageParts.length === 0) return []
+    if (messageParts.length === 0) return []
     return groupSimilarParts(messageParts)
   }, [messageParts])
 
@@ -357,7 +407,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
-  if (!messageParts || messageParts.length === 0) {
+  if (messageParts.length === 0) {
     if (isProcessing) {
       return (
         <AnimatePresence mode="sync">
@@ -402,28 +452,10 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
           }
 
           if (isToolPart(firstPart)) {
-            // Build ToolRenderItems directly from parts — no MessageBlock intermediary
-            const toolItems = entry
-              .map((e): ToolRenderItem | null => {
-                const id = `${message.id}-part-${e.index}`
-                const toolResponse = buildToolResponseFromPart(e.part, id)
-                return toolResponse ? { id, toolResponse } : null
-              })
-              .filter((item): item is ToolRenderItem => item !== null)
-
-            if (toolItems.length === 0) return null
-
-            if (toolItems.length === 1) {
-              return (
-                <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-                  <MessageTools toolResponse={toolItems[0].toolResponse} />
-                </AnimatedBlockWrapper>
-              )
-            }
             const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
             return (
               <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
-                <ToolBlockGroup items={toolItems} />
+                <ToolGroupView entries={entry} messageId={message.id} />
               </AnimatedBlockWrapper>
             )
           }

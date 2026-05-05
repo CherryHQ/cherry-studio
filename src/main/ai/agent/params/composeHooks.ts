@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import type { AgentLoopHooks, BeforeIterationResult, ErrorContext, IterationContext, IterationResult } from '../loop'
+import type { AgentLoopHooks, ErrorContext } from '../loop'
 
 const logger = loggerService.withContext('composeHooks')
 
@@ -14,8 +14,6 @@ export function composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>): Age
     onToolExecutionStart: chainVoid(parts, 'onToolExecutionStart'),
     onToolExecutionEnd: chainVoid(parts, 'onToolExecutionEnd'),
     onFinish: chainVoid(parts, 'onFinish'),
-    beforeIteration: chainBeforeIteration(parts),
-    afterIteration: chainAfterIteration(parts),
     onError: chainOnError(parts),
     prepareStep: chainPrepareStep(parts)
   }
@@ -43,44 +41,6 @@ function chainVoid<K extends VoidHookKey>(
   return composed as AgentLoopHooks[K]
 }
 
-function chainBeforeIteration(
-  parts: ReadonlyArray<Partial<AgentLoopHooks>>
-): AgentLoopHooks['beforeIteration'] | undefined {
-  const fns = parts
-    .map((p) => p.beforeIteration)
-    .filter((f): f is NonNullable<AgentLoopHooks['beforeIteration']> => Boolean(f))
-  if (fns.length === 0) return undefined
-  if (fns.length === 1) return fns[0]
-  return async (ctx: IterationContext) => {
-    let merged: BeforeIterationResult | undefined
-    for (const fn of fns) {
-      const result = await fn(ctx)
-      if (result) {
-        merged = { ...merged, ...result }
-      }
-    }
-    return merged
-  }
-}
-
-function chainAfterIteration(
-  parts: ReadonlyArray<Partial<AgentLoopHooks>>
-): AgentLoopHooks['afterIteration'] | undefined {
-  const fns = parts
-    .map((p) => p.afterIteration)
-    .filter((f): f is NonNullable<AgentLoopHooks['afterIteration']> => Boolean(f))
-  if (fns.length === 0) return undefined
-  if (fns.length === 1) return fns[0]
-  return async (ctx: IterationContext, result: IterationResult) => {
-    let shouldContinue = false
-    for (const fn of fns) {
-      const r = await fn(ctx, result)
-      if (r === true) shouldContinue = true
-    }
-    return shouldContinue
-  }
-}
-
 function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['onError'] | undefined {
   const fns = parts.map((p) => p.onError).filter((f): f is NonNullable<AgentLoopHooks['onError']> => Boolean(f))
   if (fns.length === 0) return undefined
@@ -99,7 +59,18 @@ function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentL
   const fns = parts.map((p) => p.prepareStep).filter((f): f is NonNullable<AgentLoopHooks['prepareStep']> => Boolean(f))
   if (fns.length === 0) return undefined
   if (fns.length === 1) return fns[0]
-  // Last wins. Surfaces the conflict so an operator can detect overlap.
-  logger.debug('multiple features supplied prepareStep; last writer wins', { count: fns.length })
-  return fns[fns.length - 1]
+  return async (options) => {
+    let mutated = options
+    let merged: Record<string, unknown> | undefined
+    for (const fn of fns) {
+      const r = await fn(mutated)
+      if (r) {
+        merged = { ...merged, ...r }
+        if (r.messages) {
+          mutated = { ...mutated, messages: r.messages }
+        }
+      }
+    }
+    return merged as Awaited<ReturnType<NonNullable<AgentLoopHooks['prepareStep']>>>
+  }
 }

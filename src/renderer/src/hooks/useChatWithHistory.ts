@@ -65,7 +65,7 @@ export function useChatWithHistory(
 
   const { setMessages, stop, status, error, sendMessage, regenerate, resumeStream } = useChat<CherryUIMessage>({
     chat,
-    experimental_throttle: 50
+    experimental_throttle: 0
   })
 
   // Stable ref for refresh to avoid re-subscribing IPC listeners

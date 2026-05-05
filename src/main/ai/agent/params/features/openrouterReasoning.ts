@@ -52,7 +52,7 @@ function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
 
 const createOpenrouterReasoningPlugin = () =>
   definePlugin({
-    name: 'openrouterReasoning',
+    name: 'openrouter-reasoning',
     enforce: 'pre',
 
     configureContext: (context) => {

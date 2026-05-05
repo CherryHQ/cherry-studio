@@ -12,6 +12,7 @@ import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import type { TabsProps } from 'antd'
@@ -74,7 +75,10 @@ const McpSettings: React.FC = () => {
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMCPServer, deleteMCPServer } = useMCPServer(serverId ?? '')
 
-  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
+  const updateServerBody = useCallback(
+    (patch: UpdateMCPServerDto) => updateMCPServer({ body: patch }),
+    [updateMCPServer]
+  )
 
   const { ensureServerTrusted } = useMCPServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
@@ -297,10 +301,7 @@ const McpSettings: React.FC = () => {
     try {
       const values = await form.validateFields()
 
-      // set basic fields
-      const mcpServer: MCPServer = {
-        ...server,
-        id: server.id,
+      const mcpServerPatch: UpdateMCPServerDto = {
         name: values.name,
         type: values.serverType || server.type,
         description: values.description,
@@ -316,31 +317,29 @@ const McpSettings: React.FC = () => {
         tags: values.tags ?? server.tags
       }
 
-      // set stdio or sse server
       if (values.serverType === 'sse' || values.serverType === 'streamableHttp') {
-        mcpServer.baseUrl = values.baseUrl
+        mcpServerPatch.baseUrl = values.baseUrl
       } else {
-        mcpServer.command = values.command
-        mcpServer.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
+        mcpServerPatch.command = values.command
+        mcpServerPatch.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
       }
 
-      // set env variables
       if (values.env) {
-        mcpServer.env = parseKeyValueString(values.env)
+        mcpServerPatch.env = parseKeyValueString(values.env)
       }
 
       if (values.headers) {
-        mcpServer.headers = parseKeyValueString(values.headers)
+        mcpServerPatch.headers = parseKeyValueString(values.headers)
       }
 
       if (server.isActive) {
         try {
-          await window.api.mcp.restartServer(mcpServer)
-          await updateMCPServer({ body: { ...mcpServer, isActive: true } })
+          await window.api.mcp.restartServer({ ...server, ...mcpServerPatch, isActive: true })
+          await updateMCPServer({ body: { ...mcpServerPatch, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          await updateMCPServer({ body: { ...mcpServer, isActive: false } }).catch(() => {})
+          await updateMCPServer({ body: { ...mcpServerPatch, isActive: false } }).catch(() => {})
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -348,7 +347,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        await updateMCPServer({ body: { ...mcpServer, isActive: false } })
+        await updateMCPServer({ body: { ...mcpServerPatch, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('MCPSettings/utils')
@@ -42,7 +43,7 @@ export const getCommandPreview = (server: MCPServer): string => {
 export async function ensureServerTrusted(
   currentServer: MCPServer,
   requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (body: Partial<MCPServer>) => void
+  updateServer: (patch: UpdateMCPServerDto) => void
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 

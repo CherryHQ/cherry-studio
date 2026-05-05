@@ -71,48 +71,6 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const [mathEngine] = usePreference('chat.message.math.engine')
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
 
-  const isTrulyDone = 'status' in block && block.status === 'success'
-  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
-  const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
-
-  const prevContentRef = useRef(block.content)
-  const prevBlockIdRef = useRef(block.id)
-
-  const { addChunk, reset } = useSmoothStream({
-    onUpdate: (rawText) => {
-      // 如果提供了后处理函数就调用，否则直接使用原始文本
-      const finalText = postProcess ? postProcess(rawText) : rawText
-      setDisplayedContent(finalText)
-    },
-    streamDone: isStreamDone,
-    initialText: block.content
-  })
-
-  useEffect(() => {
-    const newContent = block.content || ''
-    const oldContent = prevContentRef.current || ''
-
-    const isDifferentBlock = block.id !== prevBlockIdRef.current
-
-    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
-
-    if (isDifferentBlock || isContentReset) {
-      reset(newContent)
-    } else {
-      const delta = newContent.substring(oldContent.length)
-      if (delta) {
-        addChunk(delta)
-      }
-    }
-
-    prevContentRef.current = newContent
-    prevBlockIdRef.current = block.id
-
-    // 更新 stream 状态
-    const isStreaming = block.status === 'streaming'
-    setIsStreamDone(!isStreaming)
-  }, [block.content, block.id, block.status, addChunk, reset])
-
   const remarkPlugins = useMemo(() => {
     const plugins = [
       [remarkGfm, { singleTilde: false }] as Pluggable,
@@ -126,12 +84,52 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return plugins
   }, [mathEngine, mathEnableSingleDollar])
 
+  // `block.status === 'streaming'` is set by callers when (and only when)
+  // the topic-level ActiveStream is live for this message — see
+  // `PartsRenderer`, which derives the streaming flag from
+  // `useTopicStreamStatus` and threads it down through MainTextBlock /
+  // ThinkingBlock.
+  const isStreaming = block.status === 'streaming'
+  const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
+  const [isStreamDone, setIsStreamDone] = useState(!isStreaming)
+  const prevContentRef = useRef(block.content)
+  const prevBlockIdRef = useRef(block.id)
+
+  const { addChunk, reset } = useSmoothStream({
+    onUpdate: (rawText) => {
+      const finalText = postProcess ? postProcess(rawText) : rawText
+      setDisplayedContent(finalText)
+    },
+    streamDone: isStreamDone,
+    initialText: block.content
+  })
+
+  useEffect(() => {
+    const newContent = block.content || ''
+    const oldContent = prevContentRef.current || ''
+
+    const isDifferentBlock = block.id !== prevBlockIdRef.current
+    const isContentReset = oldContent && newContent && !newContent.startsWith(oldContent)
+
+    if (isDifferentBlock || isContentReset) {
+      reset(newContent)
+    } else {
+      const delta = newContent.substring(oldContent.length)
+      if (delta) addChunk(delta)
+    }
+
+    prevContentRef.current = newContent
+    prevBlockIdRef.current = block.id
+
+    setIsStreamDone(!isStreaming)
+  }, [block.content, block.id, isStreaming, addChunk, reset])
+
   const messageContent = useMemo(() => {
-    if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
+    if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
     return removeSvgEmptyLines(processLatexBrackets(displayedContent))
-  }, [block, displayedContent, t])
+  }, [block.status, block.content, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
     const plugins: Pluggable[] = []

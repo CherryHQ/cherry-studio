@@ -1,4 +1,4 @@
-import { createAgent, embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
+import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -18,13 +18,13 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
-  type ToolSet,
   type UIMessageChunk
 } from 'ai'
 
-import { type AgentLoopHooks, runAgentLoop } from './agent/loop'
+import { Agent } from './agent/Agent'
+import type { AgentLoopHooks } from './agent/loop'
+import { mergeUsage, ZERO_USAGE } from './agent/observers/usage'
 import { buildAgentParams } from './agent/params/buildAgentParams'
-import { composeHooks } from './agent/params/composeHooks'
 import type { RequestFeature } from './agent/params/feature'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
@@ -265,7 +265,7 @@ export class AiService extends BaseService {
 
   /**
    * Start a streaming chat request and return the raw AI SDK UIMessageChunk
-   * stream directly from `runAgentLoop`. The caller (AiStreamManager) owns
+   * stream directly from `Agent.stream`. The caller (AiStreamManager) owns
    * the read loop, multicast, final-message accumulation, and terminal
    * dispatching.
    *
@@ -305,29 +305,30 @@ export class AiService extends BaseService {
     // `file://`, so the provider would otherwise see bogus links.
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
-    return runAgentLoop(
-      {
-        providerId: sdkConfig.providerId,
-        providerSettings: sdkConfig.providerSettings,
-        modelId: sdkConfig.modelId,
-        messageId: request.messageId,
-        plugins,
-        tools,
-        system,
-        options,
-        pendingMessages: request.pendingMessages,
-        hooks: this.composeAllHooks(model, hookParts)
-      },
-      preparedMessages,
-      signal
-    )
+    const agent = new Agent({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: sdkConfig.modelId,
+      messageId: request.messageId,
+      plugins,
+      tools,
+      system,
+      options,
+      pendingMessages: request.pendingMessages,
+      hookParts: [this.analyticsHookPart(model), ...hookParts]
+    })
+
+    return agent.stream(preparedMessages, signal)
   }
 
-  private composeAllHooks(model: Model, builtHookParts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks {
-    const internal: Partial<AgentLoopHooks> = {
-      onFinish: (result) => this.trackUsage(model, result.totalUsage)
+  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = ZERO_USAGE
+    return {
+      onStepFinish: (step) => {
+        if (step.usage) total = mergeUsage(total, step.usage)
+      },
+      onFinish: () => this.trackUsage(model, total)
     }
-    return composeHooks([internal, ...builtHookParts])
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -339,35 +340,25 @@ export class AiService extends BaseService {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, tools, plugins, system, options, model } = await this.buildAgentParamsFor(
+    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
     )
 
-    const agent = await createAgent<AppProviderSettingsMap, typeof sdkConfig.providerId, ToolSet>({
+    const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
-      agentSettings: {
-        tools,
-        instructions: request.system ?? system,
-        ...options
-      }
+      tools,
+      system: request.system ?? system,
+      options,
+      hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 
-    // prompt and messages are mutually exclusive in AI SDK.
-    // When a signal is provided, forward it via `abortSignal` so the underlying
-    // HTTP work can be cancelled (e.g. by `checkModel`'s timeout).
-    const generateParams = request.prompt
-      ? { prompt: request.prompt, ...(signal ? { abortSignal: signal } : {}) }
-      : { messages: request.messages ?? [], ...(signal ? { abortSignal: signal } : {}) }
-
-    const result = await agent.generate(generateParams)
-
-    this.trackUsage(model, result.usage)
-    return { text: result.text, usage: result.usage }
+    // prompt and messages are mutually exclusive in AI SDK; preserve that.
+    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
   }
 
   // ── Image generation ──

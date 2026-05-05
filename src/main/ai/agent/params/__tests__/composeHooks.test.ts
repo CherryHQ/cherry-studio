@@ -1,42 +1,8 @@
-import type { LanguageModelUsage, StepResult, ToolSet } from 'ai'
+import type { ModelMessage, StepResult, ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type {
-  AgentLoopHooks,
-  ErrorContext,
-  IterationContext,
-  IterationResult,
-  LoopFinishResult,
-  ToolExecutionEndEvent,
-  ToolExecutionStartEvent
-} from '../../loop'
+import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop'
 import { composeHooks } from '../composeHooks'
-
-const ITERATION_CTX: IterationContext = { iterationNumber: 1, messages: [], totalSteps: 0 }
-
-const ZERO_USAGE: LanguageModelUsage = {
-  inputTokens: 0,
-  outputTokens: 0,
-  totalTokens: 0,
-  inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-  outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined }
-}
-
-const ITERATION_RESULT: IterationResult = {
-  messages: [],
-  usage: ZERO_USAGE,
-  finishReason: 'stop',
-  steps: [],
-  response: { id: 'r1', modelId: 'm1', timestamp: new Date(0) },
-  sources: []
-}
-
-const FINISH_RESULT: LoopFinishResult = {
-  totalUsage: ZERO_USAGE,
-  totalIterations: 1,
-  totalSteps: 0,
-  finishReason: 'stop'
-}
 
 const TOOL_START_EVENT: ToolExecutionStartEvent = {
   callId: 'c1',
@@ -78,7 +44,7 @@ describe('composeHooks', () => {
       const a = vi.fn()
       const c = vi.fn()
       const composed = composeHooks([{ onFinish: a }, {}, { onFinish: c }])
-      await composed.onFinish!(FINISH_RESULT)
+      await composed.onFinish!()
       expect(a).toHaveBeenCalledTimes(1)
       expect(c).toHaveBeenCalledTimes(1)
     })
@@ -119,61 +85,7 @@ describe('composeHooks', () => {
       })
       const b = vi.fn()
       const composed = composeHooks([{ onFinish: a }, { onFinish: b }])
-      await composed.onFinish!(FINISH_RESULT)
-      expect(a).toHaveBeenCalledTimes(1)
-      expect(b).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('beforeIteration', () => {
-    it('merges results across parts (later wins on each field)', async () => {
-      const composed = composeHooks([
-        { beforeIteration: () => ({ system: 'first' }) },
-        { beforeIteration: () => ({ messages: [{ id: 'm', role: 'user', parts: [] }] }) },
-        { beforeIteration: () => ({ system: 'last' }) }
-      ])
-      const result = await composed.beforeIteration!(ITERATION_CTX)
-      expect(result).toEqual({
-        system: 'last',
-        messages: [{ id: 'm', role: 'user', parts: [] }]
-      })
-    })
-
-    it('returns undefined when all parts return nothing', async () => {
-      const composed = composeHooks([{ beforeIteration: () => undefined }, { beforeIteration: () => undefined }])
-      expect(await composed.beforeIteration!(ITERATION_CTX)).toBeUndefined()
-    })
-
-    it('passes the iteration context to each part', async () => {
-      const a = vi.fn(() => undefined)
-      const b = vi.fn(() => undefined)
-      const composed = composeHooks([{ beforeIteration: a }, { beforeIteration: b }])
-      await composed.beforeIteration!(ITERATION_CTX)
-      expect(a).toHaveBeenCalledWith(ITERATION_CTX)
-      expect(b).toHaveBeenCalledWith(ITERATION_CTX)
-    })
-  })
-
-  describe('afterIteration', () => {
-    it('returns true if any part returns true (OR semantics)', async () => {
-      const composed = composeHooks([
-        { afterIteration: () => false },
-        { afterIteration: () => true },
-        { afterIteration: () => undefined }
-      ])
-      expect(await composed.afterIteration!(ITERATION_CTX, ITERATION_RESULT)).toBe(true)
-    })
-
-    it('returns false when no part returns true', async () => {
-      const composed = composeHooks([{ afterIteration: () => false }, { afterIteration: () => undefined }])
-      expect(await composed.afterIteration!(ITERATION_CTX, ITERATION_RESULT)).toBe(false)
-    })
-
-    it('runs every part even after a true (so side effects always fire)', async () => {
-      const a = vi.fn(() => true)
-      const b = vi.fn(() => false)
-      const composed = composeHooks([{ afterIteration: a }, { afterIteration: b }])
-      await composed.afterIteration!(ITERATION_CTX, ITERATION_RESULT)
+      await composed.onFinish!()
       expect(a).toHaveBeenCalledTimes(1)
       expect(b).toHaveBeenCalledTimes(1)
     })
@@ -186,13 +98,13 @@ describe('composeHooks', () => {
         { onError: () => 'retry' as const },
         { onError: () => 'abort' as const }
       ])
-      const ctx: ErrorContext = { iterationNumber: 1, error: new Error('x') }
+      const ctx: ErrorContext = { error: new Error('x') }
       expect(await composed.onError!(ctx)).toBe('retry')
     })
 
     it("defaults to 'abort' when no part returns 'retry'", async () => {
       const composed = composeHooks([{ onError: () => 'abort' as const }, { onError: () => 'abort' as const }])
-      const ctx: ErrorContext = { iterationNumber: 1, error: new Error('x') }
+      const ctx: ErrorContext = { error: new Error('x') }
       expect(await composed.onError!(ctx)).toBe('abort')
     })
 
@@ -200,7 +112,7 @@ describe('composeHooks', () => {
       const a = vi.fn(() => 'retry' as const)
       const b = vi.fn(() => 'abort' as const)
       const composed = composeHooks([{ onError: a }, { onError: b }])
-      const ctx: ErrorContext = { iterationNumber: 1, error: new Error('x') }
+      const ctx: ErrorContext = { error: new Error('x') }
       await composed.onError!(ctx)
       expect(a).toHaveBeenCalledTimes(1)
       expect(b).toHaveBeenCalledTimes(1)
@@ -208,18 +120,43 @@ describe('composeHooks', () => {
   })
 
   describe('prepareStep', () => {
+    const baseOptions = {
+      stepNumber: 0,
+      steps: [],
+      messages: [{ role: 'user', content: 'hi' } as ModelMessage],
+      model: { modelId: 'fake' } as never,
+      experimental_context: undefined
+    }
+
     it('keeps the only prepareStep when one part defines it', () => {
       const fn = vi.fn()
       const composed = composeHooks([{ prepareStep: fn }, {}])
       expect(composed.prepareStep).toBe(fn)
     })
 
-    it('uses the last prepareStep when multiple parts define it', () => {
-      const a = vi.fn()
-      const b = vi.fn()
-      const c = vi.fn()
-      const composed = composeHooks([{ prepareStep: a }, { prepareStep: b }, { prepareStep: c }])
-      expect(composed.prepareStep).toBe(c)
+    it('chains prepareStep — each part sees the previous mutation', async () => {
+      const a = vi.fn(({ messages }) =>
+        Promise.resolve({ messages: [...messages, { role: 'user', content: 'a' } as ModelMessage] })
+      )
+      const b = vi.fn(({ messages }) =>
+        Promise.resolve({ messages: [...messages, { role: 'user', content: 'b' } as ModelMessage] })
+      )
+      const composed = composeHooks([{ prepareStep: a }, { prepareStep: b }])
+      const result = await composed.prepareStep!(baseOptions)
+      // b saw a's appended message, so its messages array has both
+      const seenByB = b.mock.calls[0][0].messages
+      expect(seenByB.map((m: ModelMessage) => m.content)).toEqual(['hi', 'a'])
+      // final merged result holds b's appended-twice array
+      expect((result?.messages ?? []).map((m: ModelMessage) => m.content)).toEqual(['hi', 'a', 'b'])
+    })
+
+    it('merges non-messages keys across parts (later wins)', async () => {
+      const composed = composeHooks([
+        { prepareStep: () => Promise.resolve({ system: 'first', toolChoice: 'auto' as const }) },
+        { prepareStep: () => Promise.resolve({ system: 'last' }) }
+      ])
+      const result = await composed.prepareStep!(baseOptions)
+      expect(result).toMatchObject({ system: 'last', toolChoice: 'auto' })
     })
 
     it('returns undefined when no part defines prepareStep', () => {

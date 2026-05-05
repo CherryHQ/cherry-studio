@@ -1,16 +1,3 @@
-/**
- * Per-request orchestrator: takes already-resolved provider/model/assistant
- * plus the raw request, runs all phases (MCP sync → tool selection → defer
- * exposition → feature collection → system-prompt assembly → options
- * assembly), and returns the bundle that AiService hands to `runAgentLoop`
- * (or `agent.generate`).
- *
- * Lives in `agentParams/` rather than on AiService so the future stream-
- * manager direct path (and tests) can drive the same logic without going
- * through the service. AiService's role shrinks to: resolve the assistant,
- * call this, attach internal hooks (analytics), run the agent.
- */
-
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
