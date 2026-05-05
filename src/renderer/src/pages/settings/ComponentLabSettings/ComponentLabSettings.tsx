@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingGroup, SettingTitle } from '.'
+import { SettingContainer, SettingGroup, SettingTitle } from '..'
 import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettings'
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
 import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'

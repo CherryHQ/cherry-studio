@@ -5,7 +5,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingRow, SettingRowTitle } from '.'
+import { SettingRow, SettingRowTitle } from '..'
 
 type SelectionType = 'id' | 'item'
 

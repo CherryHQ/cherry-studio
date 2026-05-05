@@ -6,7 +6,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingRow, SettingRowTitle } from '.'
+import { SettingDivider, SettingRow, SettingRowTitle } from '..'
 
 type DebugSelection = Model | Model[] | UniqueModelId | UniqueModelId[] | undefined
 
