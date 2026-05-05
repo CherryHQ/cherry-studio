@@ -65,28 +65,10 @@ export function useV2ChatOverrides(params: Params): Result {
     setActiveNodeTrigger
   } = cache
 
-  /**
-   * Pull DB truth back into `useChat.state.messages`. Optimistic mutations
-   * (delete/edit/clear) update `state.messages` locally via `setMessages`,
-   * but on error rollback they don't auto-revert; and on success the local
-   * projection may still drift from the canonical DB row. Calling this at
-   * the tail of each handler keeps the primary chat state consistent with
-   * what the user sees (which is projected from `uiMessages`).
-   */
-  const syncChatStateFromDB = useCallback(async () => {
-    try {
-      const refreshed = await refresh()
-      setMessages(refreshed)
-    } catch (err) {
-      logger.warn('Failed to sync useChat state from DB', { err })
-    }
-  }, [refresh, setMessages])
-
   const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
     async (id, traceOptions) => {
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
-      setMessages((msgs) => msgs.filter((m) => m.id !== id))
 
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
@@ -96,32 +78,19 @@ export function useV2ChatOverrides(params: Params): Result {
             const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
             const deletedSet = new Set(result.deletedIds)
             await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
-            setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
           } catch (cascadeErr) {
             await rollbackBranch()
-            await syncChatStateFromDB()
             throw cascadeErr
           }
         } else {
           await rollbackBranch()
-          await syncChatStateFromDB()
           throw err
         }
       }
-      // Best-effort: drop span-cache history for the turn we just removed.
       void window.api.trace.cleanHistory(topic.id, traceOptions?.traceId ?? '', traceOptions?.modelName)
-      await syncChatStateFromDB()
       logger.info('Deleted message', { id })
     },
-    [
-      branchWithoutIds,
-      deleteMessageTrigger,
-      rollbackBranch,
-      seedOptimisticBranch,
-      setMessages,
-      syncChatStateFromDB,
-      topic.id
-    ]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, topic.id]
   )
 
   const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(
@@ -131,44 +100,27 @@ export function useV2ChatOverrides(params: Params): Result {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
         const deletedSet = new Set(result.deletedIds)
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
-        setMessages((msgs) => msgs.filter((m) => !deletedSet.has(m.id)))
         logger.info('Deleted message group', { id, count: result.deletedIds.length })
       } catch (err) {
         await rollbackBranch()
-        await syncChatStateFromDB()
         throw err
       }
-      await syncChatStateFromDB()
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, syncChatStateFromDB]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleClearTopicMessages = useCallback(async () => {
     const rootMsg = projectedMessages.find((m: Message) => !m.askId)
-    if (!rootMsg) {
-      setMessages([])
-      return
-    }
+    if (!rootMsg) return
     await clearBranchCache()
-    setMessages([])
     try {
       await deleteMessageTrigger({ params: { id: rootMsg.id }, query: { cascade: true } })
       logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
     } catch (err) {
       await rollbackBranch()
-      await syncChatStateFromDB()
       throw err
     }
-    await syncChatStateFromDB()
-  }, [
-    projectedMessages,
-    clearBranchCache,
-    deleteMessageTrigger,
-    rollbackBranch,
-    setMessages,
-    syncChatStateFromDB,
-    topic.id
-  ])
+  }, [projectedMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
 
   const handleEditMessage = useCallback<V2ChatOverrides['editMessage']>(
     async (messageId, editedParts) => {
@@ -181,20 +133,15 @@ export function useV2ChatOverrides(params: Params): Result {
           siblingsGroup: item.siblingsGroup?.map(patch)
         }))
       })
-      setMessages((msgs) =>
-        msgs.map((m) => (m.id === messageId ? { ...m, parts: editedParts as CherryUIMessage['parts'] } : m))
-      )
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
-        await syncChatStateFromDB()
         throw err
       }
-      await syncChatStateFromDB()
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages, syncChatStateFromDB]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
@@ -277,18 +224,14 @@ export function useV2ChatOverrides(params: Params): Result {
         }
         throw err
       }
-      const refreshed = await refresh()
-      setMessages(refreshed)
     },
-    [setActiveNodeTrigger, topic.id, refresh, setMessages]
+    [setActiveNodeTrigger, topic.id]
   )
 
   const handleSetActiveBranch = useCallback<V2ChatOverrides['setActiveBranch']>(
     async (throughNodeId) => {
       let leafId = throughNodeId
       try {
-        // Cast: TS can't disambiguate `/topics/:id` vs `/topics/:topicId/path`
-        // when both match a template literal — concrete handler returns DbMessage[].
         const path = (await dataApiService.get(`/topics/${topic.id}/path`, {
           query: { nodeId: throughNodeId }
         })) as DbMessage[]
@@ -312,10 +255,8 @@ export function useV2ChatOverrides(params: Params): Result {
         }
         throw err
       }
-      const refreshed = await refresh()
-      setMessages(refreshed)
     },
-    [setActiveNodeTrigger, topic.id, refresh, setMessages]
+    [setActiveNodeTrigger, topic.id]
   )
 
   const overrides = useMemo<V2ChatOverrides>(
