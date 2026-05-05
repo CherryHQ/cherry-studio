@@ -1,518 +1,904 @@
-# File Processing Service PR Scope
+# File Processing Unified Task Refactor
 
 ## 1. 文档目的
 
-这份文档用于明确当前 File Processing PR 的任务边界、约束范围和评审基线，避免后续实现和 review 时把本次改动误解为“完整迁移”或“要求与 v1 完全一致”。
+这份文档是 `src/main/services/fileProcessing` 下一轮重构的设计基线。
 
-当前 PR 的定位很明确：
+当前代码已经有一版 Main-side file-processing service，但它不是定稿。后续实现可以围绕本文重新组织接口、任务模型和内部服务边界，不需要维护旧的 split API 作为兼容目标。
 
-1. 只处理 Main 线程的 file-processing service 迁移。
-2. 不在本次 PR 内完成 Renderer 侧调用切换。
-3. 不以完全保持 v1 行为一致为目标。
+本文覆盖：
 
----
+1. file-processing 的模块边界
+2. 统一任务式 API
+3. artifact 结果模型
+4. 任务状态、取消、事件和落盘语义
+5. processor 与配置边界
+6. 本轮重构明确不做的内容
 
-## 2. 当前 PR 要做什么
-
-本次 PR 只专注于 `v2` 分支上的 File Processing Main-side service 迁移。
-
-核心目标：
-
-1. 在 Main 线程落地 file-processing 的后端 service 能力。
-2. 让 file-processing 从当前知识库实现中拆分出来，成为独立模块。
-3. 统一承接原先分散在 preprocess 和 OCR 中的 provider 能力。
-4. 为后续 Renderer / UI 切流提供稳定的 Main-side 基础设施。
-
-这里要特别明确：
-
-1. 本次迁移不是把 v1 代码原样搬运到 `v2`。
-2. 本次迁移允许围绕模块边界和职责拆分做结构性调整。
-3. 只要调整方向符合“从知识库中解耦、形成独立 file-processing 模块”的目标，就不应默认按“与 v1 不同”来判定为缺陷。
+本文不直接描述 UI 交互，也不要求立刻完成 Renderer 切流。
 
 ---
 
-## 3. 当前 PR 的设计取向
+## 2. 设计定位
 
-这次改动的一个关键前提是：`file-processing` 不再继续作为知识库内部耦合实现存在，而是作为独立模块建设。
+`file-processing` 是 Main 进程里的内容提取 / 内容转换能力模块。
 
-这意味着本次 PR 的设计重心是：
+当前明确支持两类使用场景：
 
-1. 优先建立清晰的 Main-side service 边界。
-2. 优先把 file-processing 的职责从知识库逻辑中拆出来。
-3. 优先让模块关系、依赖方向和后续扩展点更清晰。
+1. 知识库上传 PDF / Word 等文档前，先把文档转换成 Markdown。
+2. 翻译等上层功能上传图片后，把图片 OCR 成文字。
 
-当前 service 设计还需要明确两条约束：
-
-1. 文档预处理 provider 和 OCR provider 都收口到 `file-processing` 模块内，而不是分散在不同业务模块中继续维护。
-2. processor 的能力边界以 feature 为单位表达；同一个 processor 可以同时暴露 `markdown_conversion` 和 `text_extraction` 两类能力接口。
-
-因此，本次 PR 可以接受以下类型的变化：
-
-1. 与 v1 不完全一致的 service 组织方式。
-2. 为了解耦知识库而产生的调用链调整。
-3. 为适配 `v2` 数据层和服务层而做的接口或结构重组。
-
----
-
-## 4. 当前 PR 明确不包含什么
-
-本次 PR 不包含 Renderer 侧改动。
-
-也就是说，以下内容不在本次范围内：
-
-1. Renderer 侧 file-processing 调用入口的统一切换。
-2. 现有前端调用链路的系统性替换。
-3. UI 层为新 Main-side service 做的适配与清理。
-4. KnowledgeService 对 file-processing 结果的消费与后续入库联调。
-
-当前阶段的处理原则是：
-
-1. 原有 Renderer 逻辑先保留。
-2. 等后续 UI PR 再统一修改调用方式。
-3. 当前执行入口由 `FileProcessingOrchestrationService` 对外提供 provider-aware 的执行入口；processor 配置当前由 shared preset + preference key 组合表达，不再通过 DataApi handler 暴露配置接口。
-4. 本次 PR 先把 Main-side service 迁移完成，再推进前端切流和知识库接入。
-
----
-
-## 5. 当前接口与分层设计
-
-当前实现已经拆成执行入口、markdown 任务运行时、OCR 能力层和共享配置定义，不再保留旧的单体 `FileProcessingService` / DataApi facade：
-
-1. 执行入口：`FileProcessingOrchestrationService`
-   - `extractText(...)`
-   - `startMarkdownConversionTask(...)`
-   - `getMarkdownConversionTaskResult(...)`
-   - 负责 IPC handler 注册、payload 校验和对外方法转发
-2. markdown 任务运行时：`MarkdownTaskService`
-   - 负责本地 `taskId` 生成
-   - 负责 Main 进程内存态 task store
-   - 负责远程查询去重、后台执行跟踪、TTL 剪枝和结果落盘状态推进
-3. OCR 能力层：
-   - `ocrService`：direct-import singleton，负责解析 OCR config、选择 provider 并执行 `text_extraction`
-   - `TesseractRuntimeService`：生命周期 service，负责共享 worker、串行队列、idle release 和 stop 时的清理
-4. 共享配置与类型定义：
-   - `packages/shared/data/presets/file-processing.ts`
-   - `packages/shared/data/types/fileProcessing.ts`
-   - `feature.file_processing.default_*`
-   - `feature.file_processing.overrides`
-   - `resolveProcessorConfig(...)` / `mergeProcessorPreset(...)`
-
-因此，当前对外 provider-aware entry 仍然是 `FileProcessingOrchestrationService`；但 markdown 任务上下文和状态 source of truth 已经收口到 `MarkdownTaskService`，而不是再额外拆一个独立的 markdown runtime facade。
-
-当前推荐能力面：
-
-1. `extractText(...)`
-2. `startMarkdownConversionTask(...)`
-3. `getMarkdownConversionTaskResult(...)`
-
-设计原则：
-
-1. `FileProcessingOrchestrationService` 负责参数校验、方法签名统一和 IPC 暴露，不直接持有 markdown task store。
-2. 当前对外 markdown 任务契约已经统一为本地 `taskId`；`providerTaskId` 只保存在 Main 进程内部 task record 中，不再通过 shared result type 暴露给调用方。
-3. 所有 markdown provider 无论是 remote-poll 还是 background 模式，都会先由 Main 进程生成统一 `taskId`，再把 provider 内部的 `providerTaskId` 绑定到该任务记录。
-4. `resolveProcessorConfig(...)` 会先使用显式传入的 `processorId`，否则读取按 feature 区分的默认 preference；若两者都没有，则直接 fail fast。
-   - 这里的 fail fast 是当前明确接受的契约，不是待补默认值的缺陷。
-   - fresh install 场景同样适用这条约束：用户必须先配置默认 processor，或者调用方必须显式传入 `processorId`，否则主服务拒绝执行属于预期行为。
-   - legacy migration 场景同样适用这条约束：如果迁移后的默认 markdown processor 落到当前新模型不支持、不可用或未配置完成的值上，当前不会在迁移阶段自动改写成其他默认值，而是在真正执行时 fail fast；这同样属于预期行为。
-5. 当前 Main service 方法签名已切到 input object 风格；IPC handler 也已统一成单 `payload` 入参，并在 `FileProcessingOrchestrationService` 内通过 Zod schema `.parse(...)` 做显式运行时校验，风格与 `KnowledgeOrchestrationService` 对齐。
-6. 当前生命周期分层是：
-   - `FileProcessingOrchestrationService`：`WhenReady`
-   - `MarkdownTaskService`：`WhenReady`
-   - `TesseractRuntimeService`：`WhenReady`
-   - `ocrService`：non-lifecycle direct-import singleton
-   - `FileProcessingOrchestrationService` 会显式依赖 `MarkdownTaskService` 和 `TesseractRuntimeService`，避免 IPC 提前暴露到尚未完成初始化的运行时能力
-
-### 5.1 当前数据归属与 `docs/references/data` 对齐
-
-当前实现里，file-processing 相关数据并不全部落到同一种数据系统里，而是按职责拆分：
-
-1. processor 只读模板定义：
-   - 位于 `packages/shared/data/presets/file-processing.ts`
-   - 属于 shared code 内建元数据，不属于 DataApi / Cache / Preference 持久化记录
-2. 用户可配置的默认 processor 与 override：
-   - 位于 Preference
-   - 当前键位包括：
-     - `feature.file_processing.default_markdown_conversion`
-     - `feature.file_processing.default_text_extraction`
-     - `feature.file_processing.overrides`
-3. markdown 任务运行时状态：
-   - 由 `MarkdownTaskService` 持有
-   - 包括 task record、`providerTaskId`、`queryContext`、in-flight query、background execution、abort controller 等
-   - 这些都属于 Main 进程 runtime coordination state，不落 DataApi，也不额外镜像到 Cache / SharedCache
-4. markdown 最终结果文件：
-   - 稳定落盘到 `application.getPath('feature.files.data')/fileId/file-processing/taskId`
-   - 属于 feature-owned filesystem artifact，不通过 DataApi table 持久化，也不通过 Cache 承载最终内容
-
-因此，当前 file-processing 的数据归属应直接理解为：
-
-1. 配置在 Preference
-2. 运行时状态在 lifecycle service 内存
-3. 最终文件结果在 feature 文件目录
-4. 不额外引入 DataApi facade 或 shared cache 镜像层
-
-### 5.2 当前 IPC / 输入校验边界
-
-当前 `FileProcessingOrchestrationService` 使用 Zod 做 payload 结构校验，但边界有意保持在“当前服务负责的最小闭环”：
-
-1. `processorId` 会按 `FILE_PROCESSOR_IDS` 枚举校验。
-2. markdown 查询接口只要求非空 `taskId`。
-3. 文件入参当前复用共享的 `FileMetadataSchema` 做结构校验，确保 payload 形状符合当前主服务调用约定。
-4. 更高一层的文件系统来源、文件所有权和统一文件标识约束，当前仍由上游文件系统链路负责，不在本次 PR 的 file-processing service 内重复建模。
-
-当前接口语义：
-
-1. `extractText(...)`：
-   返回 `FileProcessingTextExtractionResult`
-2. `startMarkdownConversionTask(...)`：
-   返回 `FileProcessingMarkdownTaskStartResult`
-3. `getMarkdownConversionTaskResult(...)`：
-   返回 `FileProcessingMarkdownTaskResult`
-
-其中：
-
-1. `FileProcessingTextExtractionResult` 承载文本提取结果。
-2. `FileProcessingMarkdownTaskStartResult` 当前返回：
-   - `taskId`
-   - `status`
-   - `progress`
-   - `processorId`
-3. `FileProcessingMarkdownTaskResult` 承载查询到的文档解析任务状态与最终结果。
-4. 对文档解析查询来说，调用方当前只需要提供：
-   - `taskId`
-
-这里需要特别说明：
-
-1. 当前 `FileProcessingOrchestrationService` 已经引入统一的本地 `taskId` 模型；调用方不再直接持有 `providerTaskId` 进行查询。
-2. 当前 `providerTaskId` 仍然存在，但它是 provider 内部任务句柄，由 `MarkdownTaskService` 持有并用于 remote-poll / background 执行衔接。
-3. 当前查询契约仍然是“当前 Main 进程会话内可轮询”；如果 Main 进程重启，调用方应视为任务上下文失效并重新发起任务。
-4. 当前终态结果不会在首次查询后立刻删除；`completed` / `failed` 任务会继续保留在内存态 store 中，直到 TTL 剪枝或服务停止。
-5. 当前 `markdown_conversion` 已经不再建模成“同步立即返回最终结果”，但 provider 内部差异仍然没有被完全屏蔽；统一的是对外 `taskId` 查询入口。
-6. 当前 remote-poll provider 在“provider 已完成但下载 / 落盘失败”这类场景下，任务状态不会立即推进到终态，后续对同一 `taskId` 再次查询时仍可能重试收口；background provider 当前没有等价的 retryable snapshot 语义。
-
----
-
-## 6. Provider 抽象设计
-
-`file-processing` 的 provider 当前按统一接口表达能力，但不同 provider 的执行行为仍然允许存在差异。
-
-### 6.1 能力维度
-
-统一能力仍然保持两类：
-
-1. `text_extraction`
-2. `markdown_conversion`
-
-同一个 processor 可以同时支持两类能力，也可以只支持其中一类。
-
-### 6.2 当前 capability 分层接口
-
-当前实现不再要求所有 provider 暴露完全相同的三方法能力面，而是按当前代码中的两类 provider 入口表达：
-
-1. OCR provider：
-   - `extractText(...)`
-   - 由 `createOcrProvider(...)` 选择具体实现，统一走 `ocrService`
-2. markdown provider：
-   - `MarkdownRemoteTaskProvider`
-     - `startTask(...)`
-     - `pollTask(...)`
-   - `MarkdownBackgroundTaskProvider`
-     - `startTask(...)`
-     - `executeTask(...)`
-   - 由 `createMarkdownProvider(...)` 选择具体实现，统一走 `MarkdownTaskService`
-
-这样做的目标是：
-
-1. 避免不支持某项能力的 provider 实现无意义的占位方法。
-2. 让 `FileProcessingOrchestrationService` 按 feature 选择对应的 provider factory。
-3. 保留统一 Main-side 调用入口，同时让 provider 抽象更贴近真实能力边界。
-
-当前阶段对这些接口的理解是：
-
-1. `extractText(...)`：
-   主要用于图片 OCR / 文本提取
-2. `startTask(...)`：
-   主要用于启动文档解析任务
-3. `pollTask(...)` / `executeTask(...)`：
-   分别用于远程轮询型 provider 和后台执行型 provider 的后续状态推进
-
-这里需要再明确一条 `markdown_conversion` 的输入约束：
-
-1. `markdown_conversion` 当前没有放在 facade 层做统一的文件类型前置准入校验。
-2. 具体某个 provider 实际支持哪些文档格式，由上游调用方和 provider 自身共同决定，不要求在 `FileProcessingOrchestrationService` 层统一做一层前置格式拦截。
-3. 换句话说，`FileProcessingOrchestrationService` 当前不负责回答“这个文档格式是否一定能被某 provider 成功解析”；它只负责按 feature 选 processor 并转发调用。
-4. provider 仍然会做自身需要的运行时校验，例如 `file.path`、`apiHost`、`apiKey`、特定模型限制，部分 `text_extraction` provider 还会校验是否为图片输入。
-5. 因此，评审时不应把“未在 facade 层统一校验 `file.type === 'document'`”单独判定为缺陷；这是当前明确保留给上游调用方和具体 provider 的职责边界。
-
-### 6.3 provider 行为差异
-
-虽然 `FileProcessingOrchestrationService` 对外保持统一执行入口，但 provider 内部实现和能力分布仍分成两类：
-
-#### 远程查询型 provider
-
-这类 provider 天然支持“启动任务 + 查询任务结果”。
-
-典型例子：
-
-1. `mineru`
-2. `paddleocr`
-3. `doc2x`
-
-这类 provider 的特点：
-
-1. provider `startTask(...)` 会返回内部 `providerTaskId` 和可选 `queryContext`
-2. `MarkdownTaskService` 会把该内部任务句柄绑定到统一的本地 `taskId`
-3. 调用方对外只看到 `taskId`；后续查询由 `MarkdownTaskService` 内部再用 `providerTaskId + queryContext` 继续轮询
-4. `paddleocr` 当前同时支持 `text_extraction` 和 `markdown_conversion`；二者都走远程任务能力，但结果收口方式不同：
-   - `text_extraction` 内部会等待任务完成并直接返回文本
-   - `markdown_conversion` 会先启动任务，随后通过 `taskId` 轮询获取结果
-
-#### 本地 / 后台执行型 provider
-
-这类 provider 不一定天然支持远程任务查询，但当前仍通过 capability 分层接口接入 `FileProcessingOrchestrationService`。
-
-典型例子：
-
-1. `tesseract`
-2. `system`
-3. `ovocr`
-4. `mistral`
-5. `open-mineru`
-
-这类 provider 的特点：
-
-1. `tesseract`、`system`、`ovocr`、`mistral` 当前仅支持图片 `text_extraction`，不参与 `markdown_conversion` 文档解析。
-2. `open-mineru` 当前通过 `MarkdownTaskService` 的 background execution 模式接入 `markdown_conversion`；provider 自身会先生成内部 `providerTaskId`，但对外统一返回的仍然是主服务生成的 `taskId`。
-3. `tesseract` 的 worker 不是在 bootstrap 时预热，而是在首次 OCR 调用时按语言懒创建；`TesseractRuntimeService` 负责生命周期、串行队列、idle release 和 stop 时的中断处理。
-4. `open-mineru` 当前没有单独的 `OpenMineruRuntimeService`；其后台任务上下文、进度和终态收口都由 `MarkdownTaskService` 持有。
-5. 对不支持某项能力的方法，当前实现允许直接抛明确错误。
-
-这里还需要把 `file-processing migration` 的整体语义明确写死：
-
-1. legacy `preprocess` / OCR 配置迁移到新的 file-processing 模型时，目标是按新模块边界重建当前可接受的配置，不是按 v1 语义做 1:1 保真搬运。
-2. 迁移过程允许对超出新能力边界、已经被裁剪或当前不再继续支持的旧语义做有损收敛。
-3. 因此，评审时不应把“迁移后某些 legacy 语义不再继续映射”本身直接视为缺陷；需要先看它是否属于当前文档已经明确接受的迁移约束。
-
-这里还需要把 `mistral` 的迁移语义明确写死：
-
-1. legacy `preprocess` 里的 `mistral` 配置，当前不再按 `markdown_conversion` 语义迁移。
-2. 当前接受的迁移策略是：legacy `preprocess` 里的 `mistral` 配置只迁移到新的 `text_extraction` 配置位。
-3. 换句话说，当前不应把 legacy `preprocess` 中的 `mistral` 理解成“仍然接入文档 markdown 解析链路”。
-4. 这是一条明确接受的过渡约束；评审时不应把“legacy preprocess 的 `mistral` 没有迁移到 `markdown_conversion`”单独判定为缺陷。
-
-`paddleocr` 的迁移语义也需要明确：
-
-1. legacy `preprocess` 和 legacy OCR 里的 `paddleocr` 配置，当前至少会迁移 API key / token。
-2. 当前接受的迁移策略是：`paddleocr` 的自定义 `apiHost`、`apiUrl`、`model` 不进入新的 capability override。
-3. 换句话说，迁移后的 `paddleocr` override 当前主要承担凭证承接，不承诺保留 legacy 自定义 endpoint / model 配置。
-4. 但如果 legacy 数据里存在 `preprocess.options`、OCR `langs` 或 OCR `apiVersion`，当前实现仍会沿用通用 `options` merge 逻辑把这些值并入新的 override `options`。
-5. 因此，评审时不应把“`paddleocr` 没有迁移 legacy 自定义 host/model”单独判定为缺陷；当前真正被明确放弃的是 capability 级 host/model 迁移，而不是所有 option 字段都一律丢弃。
-
-### 6.4 当前抽象边界
-
-当前阶段的边界是：
-
-1. 统一的是 `FileProcessingOrchestrationService` 对外执行入口、capability 分层接口和本地 `taskId` 查询模型。
-2. `FileProcessingOrchestrationService` 当前只是 provider-aware orchestration entry，不负责屏蔽所有 provider 差异；真正的 markdown task state、轮询和后台执行收口在 `MarkdownTaskService`。
-3. `providerTaskId`、`queryContext`、background execution 细节目前都属于 Main 进程内部实现细节，不再显式暴露给调用方。
-
-### 6.4.1 与统一进程管理的未来边界
-
-当前 `file-processing` 只负责 provider 选择、必要的运行时输入校验、本地 `taskId` 与内部 provider task 的绑定、状态映射和结果落盘，不负责建设通用进程管理能力。
-
-这里的“必要的运行时输入校验”应理解为：
-
-1. 文件路径、必填配置、provider 请求参数等能否执行当前调用的基本校验。
-2. 不包含对 `markdown_conversion` 支持文档范围的统一前置格式拦截。
-3. 对“某类文档是否适合某 provider”这类更高层的准入判断，当前仍由上游调用方负责。
-
-当前结果落盘已经不是 Main 进程 temp 目录过渡方案，而是稳定写入 `application.getPath('feature.files.data')/fileId/file-processing/taskId`。当前实现会把 markdown 统一收口为稳定文件名 `output.md`，并以原子替换方式更新当前任务的结果目录。
-
-当前结果落盘还有一条需要明确的过渡约束：
-
-1. 当前持久化结果目录按 `fileId/taskId` 分桶；同一个文件的不同 `taskId` 不再共享同一个结果目录。
-2. 这意味着同一个文件在当前会话内重复触发 file-processing 时，不同任务的 `markdownPath` 会稳定指向各自的结果目录，不再互相覆盖。
-3. 当前对结果路径的暴露仍以任务查询返回的 `markdownPath` 为主；当前没有额外提供“按 fileId 查询 latest result”的别名路径或索引接口。
-4. 对 zip 类结果，当前实现会做 entry path 规范化与安全校验，并把 provider 内部的 markdown 路径归一到稳定输出文件名；评审时不应再按“结果仍落 temp”或“markdown 文件名随 provider 变化”来理解。
-
-如果后续主进程引入统一的 `ProcessManagerService` / utility process / process pool，边界应理解为：
-
-1. `file-processing` 保留：
-   - capability 分发
-   - 本地 `taskId` / 内部 provider task 上下文绑定
-   - 结果状态映射
-   - 输入输出路径与结果解析
-2. 统一进程管理应接管：
-   - 外部二进制或 utility process 的创建 / 停止 / 重启
-   - 进程句柄追踪
-   - 进程级日志、崩溃恢复和优雅关闭
-   - 进程级并发池 / worker 池
-3. 因此，当前 provider 内部与本地执行器直接耦合的实现，只应保持“当前可运行的最小闭环”，不应在 `file-processing` 内继续扩展成通用进程生命周期系统。
-4. 典型地：
-   - `ovocr` 未来如果继续依赖外部二进制，应切到统一 `ChildProcess` 管理
-   - `tesseract` 如果未来迁到独立 utility process 或进程池，则其 worker 生命周期与并发控制也应迁出 `file-processing`
-   - `doc2x`、`mineru`、`paddleocr` 这类远程 HTTP provider 不属于统一进程管理重点范围
-
-### 6.5 当前模块目录与 provider 组织约定
-
-当前 `file-processing` 模块内的目录已经形成了明确分层：
-
-1. `config/`
-   - preset 与 preference override 合并、feature 默认 processor 解析
-2. `markdown/`
-   - markdown task model、provider 选择、任务状态推进与结果落盘
-3. `ocr/`
-   - OCR provider 选择和 `text_extraction` 调度
-4. `persistence/`
-   - markdown / zip 结果的原子落盘和安全解包
-5. `runtime/`
-   - 当前仅放需要单独生命周期托管的运行时 service，例如 `TesseractRuntimeService`
-6. `utils/`
-   - URL 安全校验、provider 通用 helper 等模块级工具
-
-#### 当前 provider 入口文件是 flat wrapper + provider 子目录
-
-当前实现并不是“所有 provider 文件都放进各自目录”的纯目录化模式，而是：
-
-1. 在 `markdown/providers/` 或 `ocr/providers/` 根目录放置 provider 入口文件
-   - 例如：
-     - `doc2xMarkdownProvider.ts`
-     - `mineruMarkdownProvider.ts`
-     - `openMineruMarkdownProvider.ts`
-     - `paddleMarkdownProvider.ts`
-     - `mistralOcrProvider.ts`
-     - `tesseractOcrProvider.ts`
-2. 如果某个 provider 需要更多本地 schema / utils / tests，再在同级建立 provider 子目录
-   - 例如：
-     - `markdown/providers/doc2x/`
-     - `markdown/providers/mineru/`
-     - `markdown/providers/open-mineru/`
-     - `markdown/providers/paddle/`
-     - `ocr/providers/mistral/`
-     - `ocr/providers/tesseract/`
-     - `ocr/providers/system/`
-     - `ocr/providers/ovocr/`
-     - `ocr/providers/paddle/`
-
-换句话说，当前代码的默认组织方式是：
-
-1. provider 入口文件保持 flat，便于 factory 直接 import
-2. provider 细节实现按需拆入同名子目录
-3. 不是强制“一个 provider 所有文件都必须进独立目录”，而是“入口稳定 + 细节按需目录化”
-
-#### 当前 provider 文件职责约定
-
-当前目录下的文件职责约定是：
-
-1. `*MarkdownProvider.ts` / `*OcrProvider.ts`
-   - 负责 capability 接口实现
-   - 负责准备 context
-   - 负责 orchestration / 状态推进
-   - 不承载大段杂糅的协议细节或工具函数
-2. provider 子目录下的 `types.ts`
-   - 负责 provider 本地 schema、context、局部类型定义
-3. provider 子目录下的 `utils.ts`
-   - 负责与 provider 强绑定但可独立复用的执行细节
-   - 包括请求封装、worker 初始化、下载 / 上传辅助、结果解析等
-
-`utils.ts` 不是强制文件；如果 provider 入口文件仍然足够薄，可以只保留入口文件或入口 + types。
-
-#### file-processing 内部优先自持 provider 实现
-
-当前 processor 的组织还有一条重要约束：
-
-1. `file-processing` provider 不应再绕回旧的知识库 preprocess service
-2. builtin OCR processor 也不应继续依赖旧的 `main/services/ocr` service 作为中转层
-
-允许复用的是：
-
-1. 通用底层工具，例如 `loadOcrImage`
-2. 第三方 SDK / 原生库
-3. 少量稳定的 shared config / constants
-
-不鼓励继续复用的是：
-
-1. 老的 provider registry
-2. 旧 OCR service 的 facade 层
-3. 旧 knowledge preprocess 的业务编排层
-
-原因很明确：
-
-1. 当前目标是让 `file-processing` 成为独立 Main-side 模块
-2. provider 行为应在 `file-processing` 模块内闭环
-3. 避免形成“新 service 仍依赖旧 service 中转”的反向耦合
-
-#### 当前 flat 文件的理解
-
-当前 `file-processing` provider 仍然保留“flat 入口文件”这一层，但不再把所有协议细节都直接平铺在同一目录里。
-
-这里的约束可以直接理解为：
-
-1. 新增 provider 默认应至少有清晰的入口文件
-2. 一旦 provider 逻辑超过几行 orchestration，就继续拆出 provider 子目录承载 `types.ts` / `utils.ts`
-3. 不再回到“所有请求封装、schema、解析逻辑都堆在单个平铺 provider 文件里”的实现方式
-
----
-
-## 7. 运行时状态边界
-
-当前 `file-processing` 不再维护独立的 shared cache 任务摘要镜像。
-
-当前状态应理解为：
-
-1. 当前对外查询接口已经统一为 `taskId` 输入。
-2. 运行时任务上下文的 source of truth 是 Main 进程内 `MarkdownTaskService` 的内存态 task store。
-3. task record 当前至少包含：
-   - `taskId`
-   - `processorId`
-   - `providerTaskId`
-   - `fileId`
-   - `status`
-   - `progress`
-   - `queryContext`
-   - `markdownPath`
-   - `error`
-   - `createdAt` / `updatedAt`
-4. task state 带有 TTL，当前默认保留 10 分钟，并由 5 分钟一次的后台 prune timer 负责清理。
-5. 每次 `getMarkdownConversionTaskResult(...)` 查询都会 touch 当前 task 的 `updatedAt`，因此持续轮询会延长任务保留时间；当前没有单独的“访问时即时 prune”路径。
-6. `completed` / `failed` 任务在 TTL 过期前仍可重复查询；当前实现不是一次性消费语义。
-7. `file-processing` 当前不额外承担跨窗口状态分发职责，也不尝试对 UI 暴露独立任务中心。
-8. `file-processing` 任务状态当前只存在于 Main 进程内存态 store；服务 stop / app restart 后不会恢复。
+这两个场景都应该收口到同一套底层能力，但 `file-processing` 本身不应该理解知识库或翻译业务。
 
 换句话说：
 
-1. 当前阶段不再把 `file-processing` 任务状态额外镜像到 shared cache。
-2. 如果后续由 `KnowledgeService` 或其他上层 service 编排 file-processing 流程，则应由上层 service 负责聚合进度并对 UI 暴露状态。
-3. 当前仍不应把 `file-processing` 误解成已经完整落地的统一任务编排与状态分发系统；运行时查询上下文仍以 Main 进程内 store 为准。
-4. 对 remote-poll provider，当前相同 `taskId` 的并发查询会在 `MarkdownTaskService` 内部做 dedupe，避免同一任务被重复轮询。
-5. 对 background provider，当前后台执行对象也由 `MarkdownTaskService` 内部跟踪，并会在 service stop 或 task 过期时统一 abort。
+1. `file-processing` 负责把输入文件处理成可消费的结果 artifact。
+2. `KnowledgeService` 或其他上层 service 负责决定何时处理、如何展示进度、如何入库、如何切 chunk、如何做 embedding。
+3. 翻译页面或翻译业务负责把 OCR 文本插入输入框、发起翻译或展示错误。
+
+因此，底层接口不使用 `preprocessKnowledgeFile`、`translateOcr` 这类业务命名，而使用 `startTask`、`getTask`、`cancelTask` 这类能力命名。
 
 ---
 
-## 8. 评审基线
+## 3. Canonical Terms
 
-评审本次 PR 时，应以“是否完成 Main-side file-processing 迁移，并建立独立模块边界”为主要标准，而不是以“是否已经完成全链路迁移”为标准。
+| 术语 | 含义 |
+| --- | --- |
+| File Processing | 文件内容提取 / 转换能力集合，不代表某个具体业务流程 |
+| Processor | 一个可执行文件处理能力的处理器，例如 `tesseract`、`paddleocr`、`mineru`、`doc2x` |
+| Feature | Processor 暴露的能力类型，当前只有 `image_to_text` 和 `document_to_markdown` |
+| Capability | Processor 对某个 Feature 的支持声明，包括输入类型、输出类型和默认 API 配置 |
+| FileProcessingTask | 一次 processor execution，由 Main 进程生成统一 `taskId` 跟踪 |
+| Artifact | 任务完成后产出的结果项，例如内联 text 或落盘 markdown file |
+| Provider task | 第三方 provider 自己的任务句柄，例如远程 OCR / Markdown 服务返回的 job id；只属于 Main 内部实现细节 |
+| Runtime state | 任务状态、abort controller、远程 query context、in-flight query 等 Main 进程内存态协调数据 |
 
-评审应重点关注：
+需要避免的命名：
 
-1. Main-side service 是否已经具备合理、清晰的职责边界。
-2. file-processing 是否已经从知识库中有效拆分。
-3. 当前实现是否为后续 Renderer / UI 接入留下稳定入口。
-
-以下情况不应单独作为本次 PR 的 blocker：
-
-1. Renderer 仍然保留旧逻辑。
-2. 前后端调用链路尚未在本次 PR 中完全收口。
-3. 某些行为与 v1 不完全一致，但这种差异来自本次明确接受的模块解耦和架构调整。
+1. 不把底层 `image_to_text` 命名成 `translate_ocr`。
+2. 不把底层 `document_to_markdown` 命名成 `knowledge_preprocess`。
+3. 不在对外契约里暴露 `providerTaskId` 或 provider-specific query context。
 
 ---
 
-## 9. 后续 PR 再处理的内容
+## 4. Public Main-side Contract
 
-后续 UI / Renderer PR 再统一处理以下事项：
+统一对外能力面：
 
-1. Renderer 对新 Main-side service 的正式接入。
-2. 旧调用路径的替换与清理。
-3. KnowledgeService 对 file-processing 结果的消费、编排和入库链路接入。
-4. 与新模块边界对应的前端状态、交互和调用方式收口。
+1. `startTask({ feature, file, processorId? })`
+2. `getTask({ taskId })`
+3. `cancelTask({ taskId })`
 
-换句话说，当前 PR 的产出是 Main-side 基础设施；后续 PR 的产出才是完整切流。
+推荐 IPC channel：
+
+1. `file-processing:start-task`
+2. `file-processing:get-task`
+3. `file-processing:cancel-task`
+
+旧 file-processing IPC 不保留兼容包装：
+
+1. `file-processing:extract-text`
+2. `file-processing:start-markdown-conversion-task`
+3. `file-processing:get-markdown-conversion-task-result`
+
+这些旧接口应在实现重构时被替换，而不是继续作为新 API 的 facade。
+
+### 4.1 startTask
+
+`startTask` 接收：
+
+1. `feature`: `image_to_text` 或 `document_to_markdown`
+2. `file`: `FileMetadata`
+3. `processorId`: 可选；未传时按 feature 读取默认 processor preference
+
+`startTask` 返回任务启动结果：
+
+```ts
+type FileProcessingTaskStartResult = {
+  taskId: string
+  feature: FileProcessorFeature
+  status: 'pending' | 'processing'
+  progress: number
+  processorId: FileProcessorId
+}
+```
+
+约束：
+
+1. Main 进程必须生成统一 `taskId`。
+2. 调用方不直接持有 provider task id。
+3. 如果没有显式 `processorId`，且对应 feature 没有配置默认 processor，直接 fail fast。
+4. 如果指定 processor 不支持该 feature，直接 fail fast。
+5. 如果 `file.type` 不符合 capability 的输入类型，直接 fail fast。
+
+### 4.2 getTask
+
+`getTask` 接收：
+
+```ts
+type GetFileProcessingTaskInput = {
+  taskId: string
+}
+```
+
+`getTask` 返回当前任务快照：
+
+```ts
+type FileProcessingTaskResult =
+  | FileProcessingTaskPendingResult
+  | FileProcessingTaskProcessingResult
+  | FileProcessingTaskCompletedResult
+  | FileProcessingTaskFailedResult
+  | FileProcessingTaskCancelledResult
+```
+
+`getTask` 是查询入口，同时允许 task service 在查询时推进 remote-poll provider 的状态。
+
+约束：
+
+1. 对 remote-poll provider，同一个 `taskId` 的并发查询应在 Main 内部 dedupe。
+2. 对 background provider，查询只返回内存中已知状态，不重复启动任务。
+3. completed / failed / cancelled 是终态，重复查询返回同一终态快照，直到 TTL 清理。
+4. app 重启后任务上下文失效；调用方应重新发起任务。
+
+### 4.3 cancelTask
+
+`cancelTask` 接收：
+
+```ts
+type CancelFileProcessingTaskInput = {
+  taskId: string
+}
+```
+
+`cancelTask` 返回取消后的任务快照。
+
+取消语义：
+
+1. pending / processing 任务进入 `cancelled`。
+2. 本地 background execution 必须 abort。
+3. remote-poll query 必须停止本地轮询。
+4. 第三方远程平台上的 provider task 只做 best effort，不承诺真正远程取消。
+5. completed / failed / cancelled 任务再次 cancel 时保持原终态并返回当前快照。
+6. 不存在的 `taskId` 直接报错。
+
+---
+
+## 5. Task State Model
+
+任务状态统一为：
+
+1. `pending`
+2. `processing`
+3. `completed`
+4. `failed`
+5. `cancelled`
+
+基础字段：
+
+```ts
+type FileProcessingTaskBase = {
+  taskId: string
+  feature: FileProcessorFeature
+  processorId: FileProcessorId
+  status: FileProcessingTaskStatus
+  progress: number
+}
+```
+
+终态字段：
+
+```ts
+type FileProcessingTaskCompletedResult = FileProcessingTaskBase & {
+  status: 'completed'
+  progress: 100
+  artifacts: FileProcessingArtifact[]
+}
+
+type FileProcessingTaskFailedResult = FileProcessingTaskBase & {
+  status: 'failed'
+  error: string
+}
+
+type FileProcessingTaskCancelledResult = FileProcessingTaskBase & {
+  status: 'cancelled'
+  reason?: string
+}
+```
+
+实现要求：
+
+1. `progress` 统一 clamp 到 0-100 的整数。
+2. `completed` 必须有至少一个 artifact。
+3. `failed` 必须有非空 error。
+4. `cancelled` 不应伪装成 failed。
+5. provider-specific status 必须映射到以上统一状态。
+
+---
+
+## 6. Artifact Model
+
+任务结果统一通过 `artifacts` 表达，而不是为每个 feature 增加专用字段。
+
+当前最小 artifact 类型：
+
+```ts
+type FileProcessingArtifact =
+  | {
+      kind: 'text'
+      format: 'plain'
+      text: string
+    }
+  | {
+      kind: 'file'
+      format: 'markdown'
+      path: string
+    }
+```
+
+当前 feature 到 artifact 的映射：
+
+| Feature | Artifact |
+| --- | --- |
+| `image_to_text` | `{ kind: 'text', format: 'plain', text }` |
+| `document_to_markdown` | `{ kind: 'file', format: 'markdown', path }` |
+
+设计取向：
+
+1. OCR 文本以内联 text artifact 返回，避免翻译场景还要额外读文件。
+2. Markdown 文档以 file artifact 返回，因为大文档、图片资源和 zip 解包结果更适合落盘。
+3. artifact 是统一结果容器，不等于所有结果都用同一种存储方式。
+4. 未来如果需要结构化 OCR、表格、图片资源或多文件输出，应扩展 artifact union，而不是把 provider-specific 字段塞进 task 顶层。
+
+---
+
+## 7. Service 分层
+
+目标分层：
+
+1. `FileProcessingOrchestrationService`
+   - 生命周期 service
+   - 注册 IPC handler
+   - 做 payload Zod 校验
+   - 调用 task service
+   - 不持有 task store
+2. `FileProcessingTaskService`
+   - 生命周期 service
+   - 生成 `taskId`
+   - 持有 Main 进程内存 task store
+   - 管理 background execution、remote-poll query、dedupe、TTL、cancel
+   - 产出统一 artifact
+   - 暴露内部 `onTaskChanged` event
+3. Processor 层
+   - 以 processor 为第一层组织单元
+   - 按 capability feature 暴露 handler
+   - 不暴露 provider task id 给调用方
+   - 不依赖旧 knowledge preprocess service 或旧 OCR facade
+4. Processor-owned runtime 层
+   - 只在某个 processor 真的拥有生命周期资源时出现
+   - 承载 worker、队列、池、锁、idle release、stop / destroy cleanup 等 processor-owned runtime state
+   - 当前只有 `tesseract` 需要 lifecycle runtime
+
+`FileProcessingTaskService` 应是任务状态的 source of truth。
+
+`FileProcessingOrchestrationService` 只是对外入口，不应该重复维护任务状态或实现 provider 细节。
+
+### 7.1 Processor-first 目录结构
+
+`fileProcessing` 内部目录应以 processor 为第一层组织轴心，而不是以 `ocr` / `markdown` feature 分类。
+
+目标结构：
+
+```text
+src/main/services/fileProcessing/
+  config/
+  persistence/
+  processors/
+    registry.ts
+    types.ts
+    tesseract/
+      index.ts
+      types.ts
+      image-to-text/
+        handler.ts
+        prepare.ts
+        __tests__/
+      runtime/
+        TesseractRuntimeService.ts
+        types.ts
+        __tests__/
+    paddleocr/
+      index.ts
+      types.ts
+      utils.ts
+      image-to-text/
+        handler.ts
+      document-to-markdown/
+        handler.ts
+    mineru/
+      document-to-markdown/
+        handler.ts
+    doc2x/
+      document-to-markdown/
+        handler.ts
+    mistral/
+      image-to-text/
+        handler.ts
+    system/
+      image-to-text/
+        handler.ts
+    ovocr/
+      image-to-text/
+        handler.ts
+    open-mineru/
+      document-to-markdown/
+        handler.ts
+  task/
+  utils/
+```
+
+目录规则：
+
+1. processor 目录名使用 processor id，例如 `tesseract`、`paddleocr`、`open-mineru`。
+2. feature 子目录使用 kebab-case，例如 `image-to-text`、`document-to-markdown`。
+3. shared feature enum 使用 `image_to_text` / `document_to_markdown`，目录名只是对应的 kebab-case 形式。
+4. 同一个 processor 的跨 feature 共享代码放在 processor 根目录，例如 `processors/paddleocr/types.ts`、`processors/paddleocr/utils.ts`。
+5. 只有跨多个 processor 都适用的 helper 才放在 file-processing 顶层 `utils/`。
+6. 重构时应一次性移除旧的顶层 `ocr/`、`markdown/`、`runtime/services/` 结构，不保留长期桥接目录。
+
+### 7.2 Processor Registry
+
+processor handler 通过静态 registry 注册。
+
+推荐 shape：
+
+```ts
+processorRegistry[processorId].capabilities[feature]
+```
+
+设计约束：
+
+1. registry 以 processor 为第一层 map，和目录结构一致。
+2. 不做目录自动扫描，避免 Electron / Vite 打包和类型推断变复杂。
+3. 不维护 processor map 和 feature map 两套 source of truth。
+4. 测试必须校验 `PRESETS_FILE_PROCESSORS` 声明的 capability 与 registry handler 一致：
+   - preset 有 capability，registry 必须有 handler
+   - registry 不应声明 preset 不支持的 capability
+5. `FileProcessingTaskService` 解析 processor config 后，通过 registry 找到目标 capability handler。
+
+### 7.3 Capability Handler Contract
+
+processor module 对 task service 暴露 capability handler，而不是继续暴露 `OcrProvider` / `MarkdownProvider` 两套接口。
+
+handler 使用 discriminated execution mode：
+
+1. `mode: 'background'`
+2. `mode: 'remote-poll'`
+
+handler 方法分层：
+
+1. `prepare(file, config, signal?)`
+   - 做 provider-specific fail-fast 校验
+   - 解析 processor options / capability config
+   - 返回后续执行需要的 prepared context
+2. background handler
+   - `execute(context, executionContext)`
+   - 用于本地 OCR、同步 API 或没有远程任务查询模型的 processor
+3. remote-poll handler
+   - `startRemote(context)`
+   - `pollRemote(remoteContext)`
+   - 用于天然支持远程 start / query 的 processor
+
+设计约束：
+
+1. `prepare` 不创建本地 task record；task record 仍由 `FileProcessingTaskService` 创建。
+2. `prepare` 可以在 `startTask` 期间 fail fast，例如缺 path、缺 API key、processor option 无效、file type 不匹配。
+3. provider task id、query context、remote context 都只保存在 Main 进程内部 task record。
+4. handler 输出不直接作为 IPC result；task service 负责统一映射成 artifacts。
+5. capability handler 不应持有跨任务可变全局状态；需要生命周期状态时，交给 processor-owned runtime service。
+
+---
+
+## 8. Execution Model
+
+统一任务 API 不要求所有 processor 内部都变成同一种执行方式。
+
+Task service 内部允许两类执行模式：
+
+1. background execution
+2. remote poll
+
+### 8.1 background execution
+
+适用于本地 OCR、同步 API 调用、或 processor 自身没有远程任务查询模型的能力。
+
+典型场景：
+
+1. `tesseract` 图片 OCR
+2. `system` 图片 OCR
+3. `ovocr` 图片 OCR
+4. `mistral` 图片 OCR
+5. `open-mineru` 这类由 Main 启动并等待的后台执行
+
+行为：
+
+1. `startTask` 创建本地 task record 后立即返回。
+2. Task service 在后台执行 capability handler。
+3. handler 成功后由 task service 转成 artifacts。
+4. handler 抛错后 task 进入 `failed`。
+5. caller cancel 或 service stop 时 abort。
+
+### 8.2 remote poll
+
+适用于 processor 天然支持“启动远程任务 + 查询远程任务结果”的能力。
+
+典型场景：
+
+1. `mineru`
+2. `paddleocr` 的文档解析能力
+3. `doc2x`
+
+行为：
+
+1. `startTask` 创建本地 `taskId`。
+2. handler `startRemote` 返回内部 provider task id 和 query context。
+3. Task service 把 provider task id 绑定到本地 task record。
+4. 调用方后续只用本地 `taskId` 查询。
+5. `getTask` 可推进一次远程查询并更新 task store。
+6. 如果 remote task 已完成但 artifact 下载或落盘失败，任务进入 `failed`；调用方可重新发起任务。
+
+### 8.3 OCR 任务化
+
+即使图片 OCR 通常很快，也必须走统一 `FileProcessingTask`。
+
+代价：
+
+1. 翻译 OCR 场景从直接 await 文本变成 start/query。
+2. Renderer 需要适配 task polling。
+
+收益：
+
+1. OCR 和 Markdown 使用同一套状态、失败、取消、进度模型。
+2. 上层服务可以用同一种方式编排文件处理。
+3. 未来加入更慢的 OCR provider 时不需要再改对外契约。
+
+---
+
+## 9. Internal Events
+
+`FileProcessingTaskService` 应使用 lifecycle 的 `Emitter<T>` / `Event<T>` 暴露任务变化事件。
+
+推荐形式：
+
+```ts
+private readonly _onTaskChanged = new Emitter<FileProcessingTaskResult>()
+public readonly onTaskChanged: Event<FileProcessingTaskResult> = this._onTaskChanged.event
+```
+
+事件语义：
+
+1. task 创建后 fire 一次 pending / processing 快照。
+2. progress 变化时 fire 当前快照。
+3. completed / failed / cancelled 时 fire 终态快照。
+4. listener 错误不影响 task service。
+5. event 只用于 Main 进程内 service 协调。
+
+重要边界：
+
+1. `Emitter/Event` 不直接等于 Renderer IPC 推送。
+2. 本轮不设计 Renderer 订阅协议、多窗口广播或 UI task center。
+3. Renderer / preload 暂时仍以 `getTask` 查询为准。
+4. 如果后续需要实时 UI 推送，可以在 Orchestration 或专门的 bridge service 中订阅 `onTaskChanged` 后再转发 IPC。
+
+不使用 `Signal` 表达 task 状态，因为 task 状态是 repeatable event，不是一次性初始化完成信号。
+
+---
+
+## 10. Data Ownership
+
+file-processing 相关数据按职责分层：
+
+1. Processor preset
+   - 位于 `packages/shared/data/presets/file-processing.ts`
+   - 属于内建 shared metadata
+   - 不属于 DataApi / Cache / Preference 记录
+2. 用户默认 processor 与 override
+   - 位于 Preference
+   - 当前键位继续使用：
+     - `feature.file_processing.default_document_to_markdown`
+     - `feature.file_processing.default_image_to_text`
+     - `feature.file_processing.overrides`
+3. 任务运行时状态
+   - 位于 `FileProcessingTaskService` 内存 store
+   - 包括 task record、provider task id、query context、abort controller、in-flight query、background execution
+   - 不落 DataApi，不镜像到 Cache / SharedCache
+4. 最终 file artifact
+   - 落盘到 `application.getPath('feature.files.data')/fileId/file-processing/taskId`
+   - 由 task completed artifact 返回 path
+
+DataApi 边界：
+
+1. 当前没有 file-processing task 数据表。
+2. task state 是 runtime coordination state，不是 SQLite-backed business data。
+3. 因此不新增 DataApi endpoint。
+
+Cache 边界：
+
+1. 不新增 shared cache task mirror。
+2. 不把 task progress 当跨窗口共享状态存 Cache。
+3. 如果上层业务需要聚合进度，应由上层业务维护自己的状态。
+
+---
+
+## 11. Task Retention
+
+任务状态只在当前 Main 进程会话内有效。
+
+默认保留策略：
+
+1. task store 内存态。
+2. completed / failed / cancelled 终态 task 在 TTL 到期前可重复查询。
+3. pending / processing task 如果长期无访问，也会被 TTL 清理并 abort。
+4. 每次 `getTask` 可 touch `updatedAt`，持续轮询会延长保留时间。
+5. service stop 时 abort 所有非终态任务并清理内存。
+6. app restart 后不恢复 task store。
+
+可以沿用当前默认值：
+
+1. task TTL：10 分钟
+2. prune interval：5 分钟
+
+最终 artifact 文件不会因为 task TTL 自动删除。artifact 生命周期由 feature 文件数据目录和上层业务清理策略决定。
+
+---
+
+## 12. Input Validation
+
+`FileProcessingOrchestrationService` / task service 必须做基础准入校验。
+
+基础校验包括：
+
+1. IPC payload 使用 Zod schema 校验。
+2. `feature` 必须是 `FILE_PROCESSOR_FEATURES` 中的值。
+3. `processorId` 如果传入，必须是 `FILE_PROCESSOR_IDS` 中的值。
+4. `file` 必须符合共享 `FileMetadataSchema`。
+5. processor 必须支持请求的 feature。
+6. `file.type` 必须匹配 capability `inputs`，例如：
+   - `image_to_text` 接收 `image`
+   - `document_to_markdown` 接收 `document`
+
+不在 facade 层做的校验：
+
+1. PDF、DOCX、PNG、JPG 等细分扩展名白名单。
+2. provider 特定模型限制。
+3. provider 特定 API key / api host / path 可用性。
+4. 远程服务是否真的支持某个文档格式。
+
+这些细节由 provider 自己负责，并把错误映射为 failed task 或 startTask fail-fast。
+
+---
+
+## 13. Processor Boundary
+
+file-processing processor 应在 `src/main/services/fileProcessing/processors` 内闭环。
+
+允许复用：
+
+1. 通用底层工具，例如 `loadOcrImage`
+2. 第三方 SDK / 原生库
+3. shared preset / preference 类型
+4. `application.getPath(...)`
+5. processor-owned lifecycle runtime service，例如 `processors/tesseract/runtime/TesseractRuntimeService`
+
+不应依赖：
+
+1. 旧 knowledge preprocess service
+2. 旧 `src/main/services/ocr` facade
+3. Renderer store / Redux / Dexie / ElectronStore
+4. processor-specific 全局单例状态，除非有 lifecycle runtime service 管理
+
+Processor handler 输出不直接返回给 IPC 调用方，而由 task service 统一转换成 artifact。
+
+Processor 内部错误应尽量包含明确上下文，但不要把 secret、API key、token 写入错误或日志。
+
+### 13.1 Runtime Ownership Criteria
+
+`runtime` 不是 provider utils 的新名字。只有 processor 执行时需要长期持有、可复用、需要 lifecycle 清理的资源管理层，才应该建立 processor-owned runtime。
+
+满足以下任意两条时，才考虑 runtime：
+
+1. 持有长寿命 worker、process、pool、connection 或模型加载状态。
+2. 需要 lifecycle `onStop` / `onDestroy` 清理。
+3. 有队列、池、锁或 idle release。
+4. 初始化成本高，需要跨任务复用。
+5. 任务取消不能只靠单个请求的 `AbortSignal` 解决。
+
+当前判断：
+
+1. `tesseract`
+   - 需要 runtime service。
+   - 原因是它持有 `tesseract.js` worker、串行队列、language-key worker reuse、idle release 和 lifecycle cleanup。
+2. `ovocr`
+   - 暂时不建 runtime service。
+   - 它当前是一次性 child process execution，临时目录、脚本执行和结果解析留在 `processors/ovocr/image-to-text` 内。
+   - 未来如果多个 processor 都需要外部进程生命周期管理，再迁入统一 process management。
+3. `open-mineru`
+   - 暂时不建 runtime service。
+   - 当前只调用已经运行的本地 HTTP service；除非未来由 Cherry 负责启动 / 停止 OpenMinerU 服务本身。
+4. `mineru`、`doc2x`、`paddleocr`、`mistral`
+   - 暂时不建 runtime service。
+   - 它们是远程 API processor。
+5. `system`
+   - 暂时不建 runtime service。
+   - 当前只调用系统 OCR API，不持有长寿命资源。
+
+本轮不抽通用 `ProcessManagerService` 或 `ProcessRunner`。
+
+原因：
+
+1. Tesseract worker、OV OCR script、OpenMinerU HTTP call 不是同一种 runtime。
+2. 当前没有足够重复的外部进程需求来支撑通用进程平台。
+3. 过早抽象会把 file-processing 重构扩大成基础设施工程。
+4. 如果未来出现多个外部二进制 / utility process processor，再把 process lifecycle 从 processor 内迁到统一 ProcessManager。
+
+### 13.2 Tesseract Runtime Boundary
+
+`TesseractRuntimeService` 应移动到 `processors/tesseract/runtime/`，并只暴露 runtime-level API。
+
+推荐 public input：
+
+```ts
+type TesseractRuntimeInput = {
+  file: ImageFileMetadata
+  langs: LanguageCode[]
+  signal?: AbortSignal
+}
+```
+
+边界：
+
+1. `processors/tesseract/image-to-text/prepare.ts` 负责从 `FileProcessorMerged` 解析 langs 和 options。
+2. `TesseractRuntimeService` 不接收 `FileProcessorMerged`，也不 import image-to-text handler 的 private types。
+3. `TesseractRuntimeService` 可以保留图片大小校验和 `loadOcrImage`，因为它们属于 worker 执行前的资源保护和输入加载。
+4. runtime 继续保持当前行为：
+   - 单 shared worker
+   - 按 langs key 复用
+   - `PQueue` concurrency 1
+   - idle release
+   - stop / destroy 时 abort pending work 并 terminate worker
+5. 不在本轮引入 language worker pool 或 per-task worker。
+
+---
+
+## 14. Result Persistence
+
+Markdown conversion 的文件 artifact 继续由 Main 进程稳定落盘。
+
+落盘规则：
+
+1. 路径使用 `application.getPath('feature.files.data')` 派生。
+2. 结果目录按 `fileId/taskId` 分桶。
+3. Markdown 主文件归一为稳定文件名，例如 `output.md`。
+4. zip 结果必须做 entry path 规范化和安全校验，防止 zip slip。
+5. 写入结果目录时继续使用原子替换策略。
+
+OCR text artifact 不落盘，直接以内联文本返回。
+
+如果未来 text artifact 可能很大，再单独引入 size threshold 或 file artifact fallback；本轮不提前设计这个分支。
+
+---
+
+## 15. Lifecycle
+
+服务选择：
+
+1. `FileProcessingOrchestrationService`：生命周期 service，因为它注册 IPC handler。
+2. `FileProcessingTaskService`：生命周期 service，因为它持有任务 store、timer、abort controller 和 internal event。
+3. `processors/tesseract/runtime/TesseractRuntimeService`：继续作为生命周期 service，因为它管理长寿命 worker、队列和 idle release。
+4. processor helper / pure utility：保持普通函数或 direct-import singleton，不引入无意义 lifecycle 层。
+
+依赖关系：
+
+1. `FileProcessingOrchestrationService` 依赖 `FileProcessingTaskService`。
+2. `FileProcessingTaskService` 不直接访问 `TesseractRuntimeService`；Tesseract image-to-text handler 在执行时通过 `application.get('TesseractRuntimeService')` 获取 runtime。
+3. 不需要声明对 BeforeReady 服务的 cross-phase `@DependsOn`；Preference 等 BeforeReady 初始化顺序由 lifecycle 系统保证。
+
+清理要求：
+
+1. `onStop` abort 所有非终态 execution / query。
+2. 等待后台 promise settle 后清空 in-flight maps。
+3. 清理 prune timer。
+4. owned `Emitter` 在 `onDestroy` dispose，不作为 stop disposable 清掉。
+
+---
+
+## 16. Legacy And Scope
+
+本轮 file-processing 重构不做以下事情：
+
+1. 不完成 Renderer 全量切流。
+2. 不删除旧 `window.api.ocr`。
+3. 不删除旧 `src/main/services/ocr`。
+4. 不把旧 OCR IPC 桥接到新 task API。
+5. 不完成 KnowledgeService 对新 artifact 的消费、入库和 chunk 联调。
+6. 不建立统一 UI task center。
+7. 不新增 DataApi task table。
+
+短期允许并存：
+
+1. 新 file-processing task API
+2. 旧 OCR renderer/main 调用链
+3. 尚未切流的知识库旧 preprocess 调用链
+
+但是新 file-processing API 自身不保留旧接口包装。
+
+后续 PR 应分别处理：
+
+1. Renderer / preload 对 `startTask/getTask/cancelTask` 的正式接入。
+2. 翻译 OCR 从旧 `window.api.ocr` 切到 file-processing task。
+3. KnowledgeService 消费 Markdown file artifact。
+4. 删除旧 OCR service 与旧 preprocess provider。
+5. 清理旧 i18n、设置页和 migration 中不再需要的兼容逻辑。
+
+---
+
+## 17. Feature Rename Implementation Notes
+
+当前 feature 名应从旧的行为描述改成 I/O 描述：
+
+| Old | New | Handler name | Directory |
+| --- | --- | --- | --- |
+| `text_extraction` | `image_to_text` | `imageToText` | `image-to-text/` |
+| `markdown_conversion` | `document_to_markdown` | `documentToMarkdown` | `document-to-markdown/` |
+
+命名理由：
+
+1. `text_extraction` 太宽，容易和 PDF 原生文本提取、Word 解析、任意文档读文本混淆。
+2. `image_to_text` 明确表达输入是 image、输出是 text，不把 OCR 这个实现方式写进 feature 名。
+3. `document_to_markdown` 明确表达输入是 document、输出是 markdown，比泛化的 conversion 更具体。
+4. 两个 feature 都以 I/O 命名，不携带知识库或翻译业务语义。
+
+实现时必须同步修改：
+
+1. `packages/shared/data/preference/preferenceTypes.ts`
+   - `FILE_PROCESSOR_FEATURES` 改成 `['image_to_text', 'document_to_markdown']`。
+2. `packages/shared/data/presets/file-processing.ts`
+   - capability schema 从旧 literal 改成新 literal。
+   - preset capability 的 `feature` 字段全部改名。
+   - capability override schema key 从旧 feature key 改成新 feature key。
+3. preference schema / default preference keys
+   - 默认 processor key 改成 `feature.file_processing.default_image_to_text`。
+   - 默认 processor key 改成 `feature.file_processing.default_document_to_markdown`。
+   - `feature.file_processing.overrides` 内 capability override key 使用新 feature 名。
+4. `v2-refactor-temp/tools/data-classify/data/classification.json`
+   - 更新目标 key，之后通过 data-classify toolchain 重新生成 preference schema 和 mapping。
+5. v2 migration mappings / tests
+   - 更新 file-processing override merge 中的 feature 名。
+   - 更新 default processor mapping 的 target key。
+   - 更新相关单测断言。
+6. file-processing service / processor code
+   - resolver、registry、task payload schema、capability handler、tests 全部使用新 feature 名。
+
+本轮不考虑旧数据兼容性：
+
+1. 不保留旧 preference key 到新 preference key 的 runtime fallback。
+2. 不在 service 里接受旧 feature 名 alias。
+3. 不在 override 读取时兼容旧 `text_extraction` / `markdown_conversion` capability key。
+4. migration / data-classify 只需要生成新 schema 和新目标 key，不需要为旧 v2 中间数据做兼容迁移。
+5. 如果本分支已有旧名写入的开发期数据，可以直接清理或重新迁移；这属于 v2 开发期 schema drift。
+
+---
+
+## 18. Testing Baseline
+
+共享类型 / schema 测试：
+
+1. `startTask` payload 校验
+2. `getTask` payload 校验
+3. `cancelTask` payload 校验
+4. `FileProcessingTaskResult` discriminated union
+5. `FileProcessingArtifact` discriminated union
+
+Task service 测试：
+
+1. 启动 `image_to_text` task 并返回 text artifact。
+2. 启动 `document_to_markdown` task 并返回 markdown file artifact。
+3. remote-poll task 并发查询 dedupe。
+4. background task progress 更新。
+5. provider 抛错后进入 failed。
+6. cancel pending / processing task 后进入 cancelled。
+7. cancel completed task 保持 completed。
+8. 缺默认 processor 时 fail fast。
+9. processor 不支持 feature 时 fail fast。
+10. file type 不匹配 capability inputs 时 fail fast。
+11. TTL prune 会 abort 非终态 task。
+12. `onTaskChanged` 在创建、进度变化和终态时 fire。
+
+Registry 测试：
+
+1. 每个 preset capability 都有对应 registry handler。
+2. registry 不声明 preset 不支持的 capability。
+3. `processorRegistry[processorId].capabilities[feature]` 可以被 task service 按 processor + feature 找到。
+
+Persistence 测试：
+
+1. markdown content 原子写入 `output.md`。
+2. zip result 安全解包并归一 markdown path。
+3. unsafe zip entry 被拒绝。
+4. 同一 file 不同 taskId 的结果目录互不覆盖。
+
+Processor 测试：
+
+1. processor-specific schema / request / result parsing 保持单测覆盖。
+2. processor feature handler 不测试 task store 细节。
+3. task service 不测试第三方真实网络。
+4. processor-specific 测试贴近实现目录，例如 `processors/tesseract/runtime/__tests__`、`processors/paddleocr/image-to-text/__tests__`。
+5. Tesseract runtime 测试继续覆盖 lifecycle phase、worker reuse、queued work、stop / destroy cleanup、idle release、stop 后拒绝新任务。
+
+完成实现前必须运行：
+
+1. `pnpm lint`
+2. `pnpm test`
+3. `pnpm format`
+
+---
+
+## 19. Accepted Trade-offs
+
+统一任务式 API 的代价：
+
+1. 快速 OCR 也需要 start/query。
+2. 翻译页需要适配轮询或上层 await helper。
+3. 类型比原来的 `extractText -> { text }` 更复杂。
+
+接受这些代价的原因：
+
+1. OCR 和 Markdown 共享进度、失败、取消和终态模型。
+2. 慢 OCR provider 不需要未来再破坏接口。
+3. 上层服务可以用统一方式编排文件处理。
+
+统一 artifact 模型的代价：
+
+1. 调用方需要 inspect `artifact.kind` 和 `artifact.format`。
+2. 文本和文件仍然有不同存储策略。
+
+接受这些代价的原因：
+
+1. 未来可以自然扩展多 artifact 输出。
+2. 不需要在 task result 顶层不断增加 feature-specific 字段。
+3. OCR 保持内联文本的消费效率，Markdown 保持落盘文件的稳定性。
+
+内存任务状态的代价：
+
+1. app 重启后无法恢复任务。
+2. 多窗口不能天然共享实时进度。
+
+接受这些代价的原因：
+
+1. 当前 task state 是 runtime coordination state，不是 business data。
+2. 结果 artifact 已经稳定落盘。
+3. 避免引入 DataApi / Cache 双 source of truth。
+
+---
+
+## 20. Review Baseline
+
+评审这次重构时，应以本文作为目标契约。
+
+重点关注：
+
+1. 是否真正形成统一 `FileProcessingTask` API。
+2. 是否避免把知识库 / 翻译业务语义塞进 file-processing。
+3. 是否正确隐藏 provider task id 和 query context。
+4. 是否用 artifact 统一终态结果。
+5. 是否有清晰取消语义。
+6. 是否把 task runtime state 保持在 Main 内存 source of truth。
+7. 是否通过 `Emitter/Event` 暴露 Main 内部任务变化，而没有过早设计 Renderer broadcast 协议。
+
+不应作为 blocker 的事项：
+
+1. Renderer 尚未切到新 task API。
+2. 旧 OCR service 尚未删除。
+3. KnowledgeService 尚未消费新 markdown artifact。
+4. 任务状态不跨 app restart 恢复。
+5. facade 没有维护具体扩展名白名单。
