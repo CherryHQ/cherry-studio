@@ -87,7 +87,8 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: result.modelId,
       status: result.status,
-      isTopicDone: result.isTopicDone
+      isTopicDone: result.isTopicDone,
+      finalMessage: result.finalMessage
     } satisfies StreamDonePayload)
   }
 
@@ -101,7 +102,8 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: result.modelId,
       status: result.status,
-      isTopicDone: result.isTopicDone
+      isTopicDone: result.isTopicDone,
+      finalMessage: result.finalMessage
     } satisfies StreamDonePayload)
   }
 

@@ -10,7 +10,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
@@ -142,6 +142,45 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // Topic-messages optimistic cache + DataApi mutation triggers.
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
+  // Stream-done finalisation: surgically swap the streaming placeholder for
+  // its final ('success' / 'paused') form using the `finalMessage` payload
+  // Main now sends along with the broadcast. Replaces the older flow where
+  // `useChatWithHistory` did `refresh()` (= full SWR revalidation) which
+  // re-fetched every page from DataApi and yielded fresh references for
+  // every message in the topic — flashing the entire list on stream-end.
+  // The patch here keeps unchanged messages reference-stable so MessageGroup
+  // memos hold; only the streaming bubble re-renders.
+  //
+  // We also push the same final message into `useChat.state.messages` so
+  // the next user turn sends canonical history (the trigger chat doesn't
+  // accumulate streaming chunks itself — the per-execution collectors do).
+  //
+  // Falls back to the legacy `rollbackBranch()` (full revalidation) when
+  // Main didn't include `finalMessage` (transition window or unexpected
+  // error path), so behaviour matches the old flow.
+  useEffect(() => {
+    const unsub = window.api.ai.onStreamDone((data) => {
+      if (data.topicId !== topic.id) return
+      // Per-execution done that isn't topic-done: let the topic-level event
+      // fold all sibling executions into a single patch wave.
+      if (data.executionId && !data.isTopicDone) return
+      const final = data.finalMessage
+      if (!final) {
+        void cache.rollbackBranch()
+        return
+      }
+      void cache.patchMessageInBranch(final.id, {
+        status: data.status,
+        data: { parts: final.parts as never },
+        updatedAt: new Date().toISOString()
+      })
+      setMessages((prev) => prev.map((m) => (m.id === final.id ? final : m)))
+    })
+    return () => {
+      unsub()
+    }
+  }, [topic.id, cache, setMessages])
+
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
   // the send path below mirrors the same shape.
@@ -167,11 +206,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
           console.warn('[V2ChatContent] failed to persist temporary topic, falling back', err)
         }
       }
-      await cache.seedOptimisticUser({
+      const optimisticUserId = await cache.seedOptimisticUser({
         text,
         parentId: activeNodeId ?? null,
         files: options?.files
       })
+      if (optimisticUserId && !options?.mentionedModels?.length) {
+        await cache.seedOptimisticAssistant({ parentId: optimisticUserId })
+      }
       try {
         await sendMessage(
           { text },

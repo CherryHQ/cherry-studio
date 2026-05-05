@@ -68,13 +68,6 @@ export function filterEmptyMessages(messages: Message[]): Message[] {
 
 /**
  * Groups messages by user message ID or assistant askId.
- *
- * Returns plain `Message` references — no `{ ...message, index }` spread.
- * The original index is the array index of each entry inside its group;
- * consumers that need the topic-level index can compute it from the
- * surrounding `messages` array. Spreading would mint a new object per
- * message per call, defeating `React.memo` on every downstream
- * `MessageGroup` even when nothing changed.
  */
 export function getGroupedMessages(messages: Message[]): { [key: string]: Message[] } {
   const groups: { [key: string]: Message[] } = {}

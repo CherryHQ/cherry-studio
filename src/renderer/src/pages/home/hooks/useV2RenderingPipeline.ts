@@ -80,19 +80,6 @@ export function useV2RenderingPipeline(
     })
   }, [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot])
 
-  const basePartsMapRef = useRef<Record<string, CherryMessagePart[]>>({})
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const prev = basePartsMapRef.current
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const m of uiMessages) {
-      const incoming = (m.parts ?? []) as CherryMessagePart[]
-      const prior = prev[m.id]
-      next[m.id] = prior && prior === incoming ? prior : incoming
-    }
-    basePartsMapRef.current = next
-    return next
-  }, [uiMessages])
-
   // Per-execution streaming overlay. Each mounted `ExecutionStreamCollector`
   // pushes its `messages` here; ids match DB placeholder ids directly
   // (Main tags every chunk with the execution's modelId), so `mergedPartsMap`
@@ -101,16 +88,19 @@ export function useV2RenderingPipeline(
     useExecutionMessages(activeExecutionIds)
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const m of uiMessages) {
+      next[m.id] = (m.parts ?? []) as CherryMessagePart[]
+    }
     for (const execMessages of Object.values(executionMessagesById)) {
       for (const uiMessage of execMessages) {
         if (uiMessage.role !== 'assistant' || !uiMessage.parts?.length) continue
-        if (!(uiMessage.id in basePartsMap)) continue
+        if (!(uiMessage.id in next)) continue
         next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
       }
     }
     return next
-  }, [basePartsMap, executionMessagesById])
+  }, [uiMessages, executionMessagesById])
 
   return {
     projectedMessages,
