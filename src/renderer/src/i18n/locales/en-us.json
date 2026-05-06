@@ -1476,6 +1476,11 @@
       "move_to": "Move to",
       "new": "New Topic",
       "pin": "Pin Topic",
+      "pin_name": "Pin Name",
+      "unpin_name": "Unpin Name",
+      "pin_name_success": "Topic name pinned",
+      "unpin_name_success": "Topic name unpinned",
+      "name_pinned": "This topic name is pinned and will not be automatically updated",
       "prompt": {
         "edit": {
           "title": "Edit Topic Prompts"

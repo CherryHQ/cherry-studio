@@ -44,6 +44,7 @@ import {
   FolderOpen,
   HelpCircle,
   ListChecks,
+  Lock,
   MenuIcon,
   NotebookPen,
   PackagePlus,
@@ -249,7 +250,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <Sparkles size={14} />,
-        disabled: isRenaming(topic.id),
+        disabled: isRenaming(topic.id) || topic.isNameManuallyEdited,
         async onClick() {
           const messages = await TopicManager.getTopicMessages(topic.id)
           if (messages.length >= 2) {
@@ -286,6 +287,18 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
             updateTopic(updatedTopic)
           }
+        }
+      },
+      {
+        label: topic.isNameManuallyEdited ? t('chat.topics.unpin_name') : t('chat.topics.pin_name'),
+        key: 'toggle-pin-name',
+        icon: <Lock size={14} />,
+        onClick() {
+          const updatedTopic = { ...topic, isNameManuallyEdited: !topic.isNameManuallyEdited }
+          updateTopic(updatedTopic)
+          window.toast.success(
+            topic.isNameManuallyEdited ? t('chat.topics.unpin_name_success') : t('chat.topics.pin_name_success')
+          )
         }
       },
       {
@@ -655,6 +668,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                       }>
                       {topicName}
                     </TopicName>
+                  )}
+                  {topic.isNameManuallyEdited && (
+                    <Tooltip title={t('chat.topics.name_pinned')} mouseEnterDelay={0.7}>
+                      <MenuButton className="pin">
+                        <Lock size={12} color="var(--color-text-3)" />
+                      </MenuButton>
+                    </Tooltip>
                   )}
                   {!topic.pinned && (
                     <Tooltip

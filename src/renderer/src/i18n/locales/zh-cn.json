@@ -1476,6 +1476,11 @@
       "move_to": "移动到",
       "new": "开始新对话",
       "pin": "固定话题",
+      "pin_name": "固定名称",
+      "unpin_name": "取消固定名称",
+      "pin_name_success": "话题名称已固定",
+      "unpin_name_success": "话题名称已取消固定",
+      "name_pinned": "该话题名称已固定，不会被自动更新",
       "prompt": {
         "edit": {
           "title": "编辑话题提示词"

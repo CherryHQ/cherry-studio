@@ -154,6 +154,10 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     }
 
     if (!enableTopicNaming) {
+      // Guard legacy manually-renamed topics that predate isNameManuallyEdited
+      if (topic.isNameManuallyEdited === undefined && topic.name !== i18n.t('chat.default.topic.name')) {
+        return
+      }
       const topicName = getFirstMessageName()
       if (topicName) {
         try {
