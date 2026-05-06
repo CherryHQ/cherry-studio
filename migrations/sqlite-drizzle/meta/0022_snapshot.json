@@ -2101,14 +2101,14 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "url": {
           "name": "url",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "logo": {
@@ -2131,7 +2131,8 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": true
         },
         "background": {
           "name": "background",
@@ -2185,6 +2186,13 @@
         },
         "preset_miniapp_id": {
           "name": "preset_miniapp_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "user_overrides": {
+          "name": "user_overrides",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

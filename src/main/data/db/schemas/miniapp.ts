@@ -24,38 +24,46 @@ export type MiniAppKind = 'default' | 'custom'
 export type MiniAppRegion = 'CN' | 'Global'
 
 /**
- * MiniApp table — stores either:
+ * Fields whose values can be re-synced from {@link PRESETS_MINI_APPS} during
+ * a batch upsert. If the user has explicitly modified a field (tracked in
+ * `userOverrides`), the sync skips that field. Same mechanism as
+ * {@link userModelTable.userOverrides}.
+ */
+export const REGISTRY_ENRICHABLE_MINIAPP_FIELDS = [
+  'name',
+  'url',
+  'logo',
+  'bordered',
+  'background',
+  'supportedRegions',
+  'nameKey'
+] as const
+export type RegistryEnrichableMiniAppField = (typeof REGISTRY_ENRICHABLE_MINIAPP_FIELDS)[number]
+
+export function isRegistryEnrichableField(field: string): field is RegistryEnrichableMiniAppField {
+  return (REGISTRY_ENRICHABLE_MINIAPP_FIELDS as readonly string[]).includes(field)
+}
+
+/**
+ * MiniApp table — single table holds preset-derived and custom miniapps,
+ * following the same pattern as `user_provider` / `user_model`:
  *
- *   - A **delta-only override row** for a preset app (preset_miniapp_id=appId,
- *     name/url/logo/etc. NULL). Preset fields come from PRESETS_MINI_APPS at
- *     read time, so future preset updates propagate automatically. Override
- *     rows are written lazily — only when the user modifies status, orderKey,
- *     etc. Uncustomized preset apps have no DB row.
- *
- *   - A **full custom row** (preset_miniapp_id=NULL, name/url required).
- *
- * `presetMiniappId` is the explicit discriminator (not NULL-pairing on
- * preset fields). User-overridable preset fields are intentionally absent
- * from this table so preset version bumps reach all users immediately
- * (see best-practice-layered-preset-pattern.md §"Update Compatibility").
+ *   - `presetMiniappId` links a row to its preset entry (NULL for custom apps).
+ *   - `userOverrides` lists fields the user has explicitly modified;
+ *     {@link MiniAppService.batchUpsert} skips these fields when re-syncing
+ *     preset data so user edits survive preset version bumps. See
+ *     best-practice-layered-preset-pattern.md §"Update Compatibility".
  */
 export const miniAppTable = sqliteTable(
   'mini_app',
   {
     appId: text('app_id').primaryKey(),
 
-    /**
-     * If this row inherits from a preset entry, the preset's id (== appId,
-     * since miniapp presets share the id space). NULL for pure custom apps.
-     * Mirrors `userProviderTable.presetProviderId`.
-     */
+    /** Preset id this row inherits from. NULL for custom apps. Mirrors `userProviderTable.presetProviderId`. */
     presetMiniappId: text('preset_miniapp_id'),
 
-    /** Required for custom apps; NULL for preset override rows. */
-    name: text(),
-    /** Required for custom apps; NULL for preset override rows. */
-    url: text(),
-    /** NULL for preset override rows. */
+    name: text().notNull(),
+    url: text().notNull(),
     logo: text(),
 
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
@@ -63,16 +71,14 @@ export const miniAppTable = sqliteTable(
     // Fractional-indexing order key, scoped per status (see data-ordering-guide.md)
     ...orderKeyColumns,
 
-    /** NULL for preset override rows. */
-    bordered: integer({ mode: 'boolean' }),
-    /** NULL for preset override rows. */
+    bordered: integer({ mode: 'boolean' }).default(true),
     background: text(),
-    /** NULL for preset override rows. */
     supportedRegions: text('supported_regions', { mode: 'json' }).$type<MiniAppRegion[]>(),
-    /** Reserved for both row shapes; rarely used. */
     configuration: text({ mode: 'json' }),
-    /** NULL for preset override rows. */
     nameKey: text(),
+
+    /** Fields user has explicitly modified. {@link MiniAppService.batchUpsert} skips these on preset re-sync. */
+    userOverrides: text('user_overrides', { mode: 'json' }).$type<RegistryEnrichableMiniAppField[]>(),
 
     ...createUpdateTimestamps
   },

@@ -9,10 +9,10 @@ const { listMock, createMock, getByAppIdMock, updateMock, deleteMock, reorderMoc
   reorderMock: vi.fn()
 }))
 
-vi.mock('@data/services/MiniAppRegistryService', () => ({
-  miniAppRegistryService: {
+vi.mock('@data/services/MiniAppService', () => ({
+  miniAppService: {
     list: listMock,
-    createCustom: createMock,
+    create: createMock,
     getByAppId: getByAppIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -44,8 +44,7 @@ describe('miniAppHandlers', () => {
 
       const result = await miniAppHandlers['/mini-apps'].GET({ query: { status: 'enabled', type: 'default' } } as never)
 
-      // Handler maps `type` (API alias) → `kind` (registry parameter).
-      expect(listMock).toHaveBeenCalledWith({ status: 'enabled', kind: 'default' })
+      expect(listMock).toHaveBeenCalledWith({ status: 'enabled', type: 'default' })
       expect(result).toEqual(response)
     })
 
@@ -91,9 +90,9 @@ describe('miniAppHandlers', () => {
     it('should parse body and delegate to service', async () => {
       const created = {
         appId: 'my-app',
-        type: 'custom',
+        kind: 'custom',
         status: 'enabled',
-        sortOrder: 0,
+        orderKey: 'a0',
         name: 'My App',
         url: 'https://my.app'
       }
@@ -102,7 +101,7 @@ describe('miniAppHandlers', () => {
       const result = await miniAppHandlers['/mini-apps'].POST({ body: validBody })
 
       expect(createMock).toHaveBeenCalledWith(validBody)
-      expect(result).toMatchObject({ appId: 'my-app' })
+      expect(result).toEqual(created)
     })
 
     it('should reject missing required fields before calling the service', async () => {

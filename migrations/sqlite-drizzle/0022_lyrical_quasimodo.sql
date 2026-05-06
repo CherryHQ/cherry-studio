@@ -4,34 +4,36 @@ PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_mini_app` (
 	`app_id` text PRIMARY KEY NOT NULL,
 	`preset_miniapp_id` text,
-	`name` text,
-	`url` text,
+	`name` text NOT NULL,
+	`url` text NOT NULL,
 	`logo` text,
 	`status` text DEFAULT 'enabled' NOT NULL,
 	`order_key` text NOT NULL,
-	`bordered` integer,
+	`bordered` integer DEFAULT true,
 	`background` text,
 	`supported_regions` text,
 	`configuration` text,
 	`name_key` text,
+	`user_overrides` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	CONSTRAINT "mini_app_status_check" CHECK("__new_mini_app"."status" IN ('enabled', 'disabled', 'pinned'))
 );--> statement-breakpoint
-INSERT INTO `__new_mini_app`("app_id", "preset_miniapp_id", "name", "url", "logo", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "created_at", "updated_at")
+INSERT INTO `__new_mini_app`("app_id", "preset_miniapp_id", "name", "url", "logo", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "user_overrides", "created_at", "updated_at")
 SELECT
   "app_id",
   CASE WHEN "kind" = 'default' THEN "app_id" ELSE NULL END,
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "name" END,
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "url" END,
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "logo" END,
+  "name",
+  "url",
+  "logo",
   "status",
   "order_key",
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "bordered" END,
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "background" END,
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "supported_regions" END,
+  "bordered",
+  "background",
+  "supported_regions",
   "configuration",
-  CASE WHEN "kind" = 'default' THEN NULL ELSE "name_key" END,
+  "name_key",
+  NULL,
   "created_at",
   "updated_at"
 FROM `mini_app`;--> statement-breakpoint

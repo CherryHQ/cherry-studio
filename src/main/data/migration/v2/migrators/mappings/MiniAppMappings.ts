@@ -48,18 +48,26 @@ export function transformMiniApp(
   status: MiniAppStatus
 ): Omit<MiniAppInsert, 'orderKey'> {
   const appId = toRequired<string>(source.id, '')
+  const preset = presetMap.get(appId)
 
-  // Preset (default) app — store delta only with presetMiniappId set.
-  if (presetMap.has(appId)) {
+  // Preset (default) app — full preset data + delta status, presetMiniappId set.
+  // Mirrors ModelService preset-derived rows: full data with presetModelId.
+  if (preset) {
     return {
       appId,
       presetMiniappId: appId,
+      name: preset.name,
+      url: preset.url,
+      logo: preset.logo ?? null,
+      bordered: preset.bordered ?? true,
+      background: preset.background ?? null,
+      supportedRegions: preset.supportedRegions ?? null,
+      nameKey: preset.nameKey ?? null,
       status
-      // name/url/logo/bordered/background/supportedRegions/nameKey all NULL
     }
   }
 
-  // Custom app — store full data.
+  // Custom app — full data from source.
   const rawLogo = source.logo
   const logo = typeof rawLogo === 'string' && rawLogo.length > 0 ? rawLogo : null
 

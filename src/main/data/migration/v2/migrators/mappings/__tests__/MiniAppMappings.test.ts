@@ -84,29 +84,25 @@ describe('MiniAppMappings', () => {
       })
     })
 
-    describe('preset apps (delta only)', () => {
-      it('should drop preset fields (name, url, logo, etc.) for built-in apps', () => {
+    describe('preset apps (full preset data)', () => {
+      it('should populate preset fields from PRESETS_MINI_APPS, not from source', () => {
         const source = createPresetSource({
+          // These source fields should be ignored — preset is the source of truth.
           logo: 'https://stale-old-logo.png',
-          bordered: true,
+          bordered: false,
           background: '#fff',
           supportedRegions: ['CN'],
-          nameKey: 'minapp.openai'
+          nameKey: 'minapp.openai-stale'
         })
 
         const result = transformMiniApp(source, 'pinned' as MiniAppStatus)
 
-        // Delta-only fields are populated:
         expect(result.appId).toBe('openai')
+        expect(result.presetMiniappId).toBe('openai')
         expect(result.status).toBe('pinned')
-        // Preset fields are dropped (will come from PRESETS_MINI_APPS at read time):
-        expect(result.name).toBeUndefined()
-        expect(result.url).toBeUndefined()
-        expect(result.logo).toBeUndefined()
-        expect(result.bordered).toBeUndefined()
-        expect(result.background).toBeUndefined()
-        expect(result.supportedRegions).toBeUndefined()
-        expect(result.nameKey).toBeUndefined()
+        // Preset values are stamped in (not the stale source values).
+        expect(result.name).toBe('ChatGPT')
+        expect(result.url).toBe('https://chatgpt.com/')
       })
 
       it('should handle all status values for preset apps', () => {
@@ -114,7 +110,7 @@ describe('MiniAppMappings', () => {
         for (const status of statuses) {
           const result = transformMiniApp(createPresetSource(), status)
           expect(result.status).toBe(status)
-          expect(result.name).toBeUndefined()
+          expect(result.presetMiniappId).toBe('openai')
         }
       })
     })
