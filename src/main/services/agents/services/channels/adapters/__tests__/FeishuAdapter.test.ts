@@ -266,7 +266,7 @@ describe('FeishuAdapter', () => {
     expect(mockReactionCreate).toHaveBeenCalledTimes(1)
     expect(mockReactionCreate).toHaveBeenCalledWith({
       path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'THINKING' } }
+      data: { reaction_type: { emoji_type: 'Typing' } }
     })
   })
 
@@ -286,7 +286,7 @@ describe('FeishuAdapter', () => {
     })
     expect(mockReactionCreate).toHaveBeenLastCalledWith({
       path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'OK' } }
+      data: { reaction_type: { emoji_type: 'LGTM' } }
     })
   })
 
