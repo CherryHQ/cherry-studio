@@ -225,42 +225,4 @@ describe('MiniAppService', () => {
       })
     })
   })
-
-  describe('batchUpsertPresets', () => {
-    it('should insert all preset rows on first run', async () => {
-      await miniAppService.batchUpsertPresets()
-
-      const rows = await dbh.db.select().from(miniAppTable)
-      expect(rows.length).toBe(PRESETS_MINI_APPS.length)
-      expect(rows.every((r) => r.presetMiniappId !== null)).toBe(true)
-    })
-
-    it('should preserve user-overridden fields on re-sync', async () => {
-      await seedPreset('openai', { logo: 'user-custom', userOverrides: ['logo'] })
-
-      await miniAppService.batchUpsertPresets()
-
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(row.logo).toBe('user-custom') // preserved
-      expect(row.name).toBe(PRESETS_MINI_APPS.find((p) => p.id === 'openai')!.name) // refreshed
-    })
-
-    it('should refresh fields not in userOverrides', async () => {
-      await seedPreset('openai', { name: 'Stale Name', userOverrides: [] })
-
-      await miniAppService.batchUpsertPresets()
-
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(row.name).toBe(PRESETS_MINI_APPS.find((p) => p.id === 'openai')!.name)
-    })
-
-    it('should not touch user status', async () => {
-      await seedPreset('openai', { status: 'pinned' })
-
-      await miniAppService.batchUpsertPresets()
-
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(row.status).toBe('pinned') // user status preserved
-    })
-  })
 })

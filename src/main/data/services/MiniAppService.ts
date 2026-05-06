@@ -3,11 +3,12 @@
  *
  * Owns the `mini_app` SQLite table. Mirrors {@link ProviderService}:
  * uniform CRUD over rows, with row-shape policy enforced via column checks
- * (`presetMiniappId`). Preset re-sync uses {@link batchUpsertPresets}, which
- * respects `userOverrides` so user edits survive preset version bumps — same
- * mechanism as {@link ModelService.batchUpsert}.
+ * (`presetMiniappId`). Preset rows are seeded by {@link MiniAppSeeder} at
+ * boot; user-modified fields tracked in `userOverrides` are preserved across
+ * preset version bumps (see best-practice-layered-preset-pattern.md
+ * §"Update Compatibility").
  *
- * Layered preset pattern: see best-practice-layered-preset-pattern.md
+ * Layered preset pattern:
  *   - presetMiniappId !== null  →  inherits from a {@link PRESETS_MINI_APPS} entry
  *   - presetMiniappId === null  →  pure custom app
  */
@@ -19,8 +20,7 @@ import {
   type MiniAppRegion,
   type MiniAppSelect,
   type MiniAppStatus,
-  miniAppTable,
-  type RegistryEnrichableMiniAppField
+  miniAppTable
 } from '@data/db/schemas/miniapp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
@@ -31,22 +31,13 @@ import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
-import { applyMoves, generateOrderKeySequence, insertWithOrderKey } from './utils/orderKey'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniappIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
-
-/**
- * Pre-generated fractional-indexing keys for preset apps in their declared order.
- * Used by {@link batchUpsert} to seed initial orderKey values.
- */
-const PRESET_DEFAULT_ORDER_KEYS: ReadonlyArray<string> = generateOrderKeySequence(PRESETS_MINI_APPS.length)
-const presetDefaultOrderKey: ReadonlyMap<string, string> = new Map(
-  PRESETS_MINI_APPS.map((p, i) => [p.id, PRESET_DEFAULT_ORDER_KEYS[i]])
-)
 
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
@@ -281,88 +272,6 @@ export class MiniAppService {
       defaultHandlersFor('MiniApp', 'multiple')
     )
     logger.info('Reordered miniapps', { count: moves.length, partitions: movesByStatus.size })
-  }
-
-  /**
-   * Batch upsert preset rows from {@link PRESETS_MINI_APPS}.
-   *
-   * - Inserts new preset entries that don't exist yet.
-   * - For existing rows, refreshes preset-managed fields **except** those listed
-   *   in each row's `userOverrides`. This preserves user edits across preset
-   *   version bumps — same mechanism as {@link ModelService.batchUpsert}.
-   *
-   * Called at boot or admin time; not exposed via the API.
-   */
-  async batchUpsertPresets(): Promise<void> {
-    const db = this.db
-
-    // Fetch all existing preset-derived rows to get their userOverrides
-    const existingRows = await db
-      .select({
-        appId: miniAppTable.appId,
-        userOverrides: miniAppTable.userOverrides
-      })
-      .from(miniAppTable)
-      .where(
-        inArray(
-          miniAppTable.appId,
-          PRESETS_MINI_APPS.map((p) => p.id)
-        )
-      )
-
-    const overridesByAppId = new Map<string, Set<RegistryEnrichableMiniAppField>>()
-    for (const row of existingRows) {
-      if (row.userOverrides && row.userOverrides.length > 0) {
-        overridesByAppId.set(row.appId, new Set(row.userOverrides))
-      } else {
-        overridesByAppId.set(row.appId, new Set())
-      }
-    }
-
-    await db.transaction(async (tx) => {
-      for (const preset of PRESETS_MINI_APPS) {
-        const userOverrides = overridesByAppId.get(preset.id) ?? new Set<RegistryEnrichableMiniAppField>()
-
-        // Build the full preset row.
-        const presetRow: MiniAppInsert = {
-          appId: preset.id,
-          presetMiniappId: preset.id,
-          name: preset.name,
-          url: preset.url,
-          logo: preset.logo ?? null,
-          bordered: preset.bordered ?? true,
-          background: preset.background ?? null,
-          supportedRegions: preset.supportedRegions ?? null,
-          nameKey: preset.nameKey ?? null,
-          status: 'enabled',
-          orderKey: presetDefaultOrderKey.get(preset.id) ?? ''
-        }
-
-        // For onConflictDoUpdate: refresh only fields not in userOverrides.
-        const refreshSet: Partial<MiniAppInsert> = {}
-        const enrichableFields: Record<RegistryEnrichableMiniAppField, unknown> = {
-          name: preset.name,
-          url: preset.url,
-          logo: preset.logo ?? null,
-          bordered: preset.bordered ?? true,
-          background: preset.background ?? null,
-          supportedRegions: preset.supportedRegions ?? null,
-          nameKey: preset.nameKey ?? null
-        }
-        for (const [field, value] of Object.entries(enrichableFields)) {
-          if (!userOverrides.has(field as RegistryEnrichableMiniAppField)) {
-            ;(refreshSet as Record<string, unknown>)[field] = value
-          }
-        }
-
-        await tx.insert(miniAppTable).values(presetRow).onConflictDoUpdate({
-          target: miniAppTable.appId,
-          set: refreshSet
-        })
-      }
-    })
-
-    logger.info('Batch upserted preset miniapps', { count: PRESETS_MINI_APPS.length })
   }
 }
 
