@@ -48,7 +48,12 @@ export function transformMiniApp(
   status: MiniAppStatus
 ): Omit<MiniAppInsert, 'orderKey'> {
   const appId = toRequired<string>(source.id, '')
-  const preset = presetMap.get(appId)
+  // v1 stamps `type: 'Custom'` on apps loaded from custom-minapps.json
+  // (see v1 src/renderer/src/config/minapps.ts:loadCustomMiniApp). Preset rows
+  // in v1 leave `type` unset. Honor that explicit signal first so a user-created
+  // app whose id collides with a v2-only preset isn't misclassified as preset.
+  const isExplicitCustom = source.type === 'Custom'
+  const preset = !isExplicitCustom ? presetMap.get(appId) : undefined
 
   // Preset (default) app — full preset data + delta status, presetMiniappId set.
   // Mirrors ModelService preset-derived rows: full data with presetModelId.

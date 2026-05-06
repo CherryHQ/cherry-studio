@@ -113,6 +113,23 @@ describe('MiniAppMappings', () => {
           expect(result.presetMiniappId).toBe('openai')
         }
       })
+
+      it('should treat type="Custom" as custom even when id collides with a preset', () => {
+        // v1's loadCustomMiniApp stamps `type: 'Custom'` on user-imported apps.
+        // If a v2 preset id happens to match a v1 custom app's id, the explicit
+        // type field is the authoritative signal — must not be overridden.
+        const source = createPresetSource({
+          type: 'Custom',
+          name: 'My Custom Override',
+          url: 'https://my-custom.example.com'
+        })
+
+        const result = transformMiniApp(source, 'enabled')
+
+        expect(result.presetMiniappId).toBeNull()
+        expect(result.name).toBe('My Custom Override')
+        expect(result.url).toBe('https://my-custom.example.com')
+      })
     })
 
     it('should handle all status values for custom apps', () => {
