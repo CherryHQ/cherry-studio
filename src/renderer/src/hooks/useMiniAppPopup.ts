@@ -177,12 +177,14 @@ export const useMiniAppPopup = () => {
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive && sharedCache) {
-        // Update cache via get/set to avoid duplicate entries
-        const cacheApp = sharedCache.get(app.appId)
-        if (!cacheApp) sharedCache.set(app.appId, app)
+        // Check the LRU cache (canonical source) before mutating it.
+        // openedKeepAliveMiniApps lags one render behind onInsert, so it
+        // would return stale results immediately after sharedCache.set.
+        const alreadyOpen = sharedCache.has(app.appId)
+        if (!alreadyOpen) sharedCache.set(app.appId, app)
 
         // If the miniapp is already open, just switch the display
-        if (openedKeepAliveMiniApps.some((item) => item.appId === app.appId)) {
+        if (alreadyOpen) {
           setCurrentMiniAppId(app.appId)
           setMiniAppShow(true)
           return
@@ -199,7 +201,7 @@ export const useMiniAppPopup = () => {
       setMiniAppShow(true)
       return
     },
-    [openedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
   )
 
   /** a wrapper of openMiniApp(app, true) */
