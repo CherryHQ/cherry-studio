@@ -1,6 +1,7 @@
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +26,7 @@ import {
   useAssistantPresetCatalog
 } from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
+import { buildLibraryListSearch, LIBRARY_ROUTE, parseLibraryRouteSearch } from './routeSearch'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
 
 type ConfigView =
@@ -62,9 +64,14 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export default function LibraryPage() {
   const { t } = useTranslation()
-  const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>({
-    resourceType: DEFAULT_RESOURCE_TYPE
-  })
+  const navigate = useNavigate()
+  const routeSearch = parseLibraryRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const routeResourceType = routeSearch.resourceType
+  const routeAction = routeSearch.action
+  const routeResourceId = routeSearch.id
+  const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>(() => ({
+    resourceType: routeResourceType ?? DEFAULT_RESOURCE_TYPE
+  }))
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -116,11 +123,66 @@ export default function LibraryPage() {
   )
 
   const noop = useCallback(() => {}, [])
-  const handleBackToList = useCallback(() => setConfigView({ type: 'list' }), [])
+  const clearRouteActionSearch = useCallback(() => {
+    if (!routeAction && !routeResourceType) return
+
+    void navigate({
+      to: LIBRARY_ROUTE,
+      search: buildLibraryListSearch(routeResourceType ?? sidebarFilter.resourceType),
+      replace: true
+    })
+  }, [navigate, routeAction, routeResourceType, sidebarFilter.resourceType])
+
+  const handleBackToList = useCallback(() => {
+    setConfigView({ type: 'list' })
+    clearRouteActionSearch()
+  }, [clearRouteActionSearch])
   const handleCreated = useCallback(() => {
     refetch()
     setConfigView({ type: 'list' })
-  }, [refetch])
+    clearRouteActionSearch()
+  }, [clearRouteActionSearch, refetch])
+
+  useEffect(() => {
+    if (!routeResourceType) return
+
+    setSidebarFilter((prev) => (prev.resourceType === routeResourceType ? prev : { resourceType: routeResourceType }))
+    setActiveTag(null)
+    if (routeResourceType !== 'assistant') {
+      setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+    }
+  }, [routeResourceType])
+
+  useEffect(() => {
+    if (routeAction !== 'create' || !routeResourceType) return
+
+    if (routeResourceType === 'assistant') {
+      setConfigView((prev) => (prev.type === 'assistant-create' ? prev : { type: 'assistant-create' }))
+    } else if (routeResourceType === 'agent') {
+      setConfigView((prev) => (prev.type === 'agent-create' ? prev : { type: 'agent-create' }))
+    }
+  }, [routeAction, routeResourceType])
+
+  useEffect(() => {
+    if (routeAction !== 'edit' || !routeResourceType || !routeResourceId) return
+
+    const resource = allResources.find((r) => r.type === routeResourceType && r.id === routeResourceId)
+    if (!resource) return
+
+    if (resource.type === 'assistant') {
+      const assistant = resource.raw as Assistant
+      setConfigView((prev) =>
+        prev.type === 'assistant-edit' && prev.assistant.id === assistant.id
+          ? prev
+          : { type: 'assistant-edit', assistant }
+      )
+    } else if (resource.type === 'agent') {
+      const agent = resource.raw as AgentDetail
+      setConfigView((prev) =>
+        prev.type === 'agent-edit' && prev.agent.id === agent.id ? prev : { type: 'agent-edit', agent }
+      )
+    }
+  }, [allResources, routeAction, routeResourceId, routeResourceType])
 
   useEffect(() => {
     if (!isAssistantLibrary && activeAssistantCatalogTab !== ASSISTANT_CATALOG_MY_TAB) {
@@ -332,6 +394,9 @@ export default function LibraryPage() {
           setActiveTag(null)
           if (f.resourceType !== 'assistant') {
             setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+          }
+          if (routeAction || routeResourceType) {
+            void navigate({ to: LIBRARY_ROUTE, search: buildLibraryListSearch(f.resourceType), replace: true })
           }
         }}
         typeCounts={typeCounts}

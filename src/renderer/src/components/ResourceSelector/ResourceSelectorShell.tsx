@@ -22,6 +22,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState
 } from 'react'
 
@@ -215,6 +216,26 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     },
     [openProp, onOpenChangeProp]
   )
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        runPendingCloseAction()
+        return
+      }
+
+      handleOpenChange(false)
+    },
+    [handleOpenChange, open, runPendingCloseAction]
+  )
 
   const [searchValue, setSearchValue] = useState('')
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -335,7 +356,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         type: 'button',
         onClick: (event: MouseEvent<HTMLButtonElement>) => {
           event.stopPropagation()
-          onEditItem(item.id)
+          closeBeforeAction(() => onEditItem(item.id))
         },
         className: ITEM_ACTION_BUTTON_CLASS,
         'aria-label': labels.edit,
@@ -410,6 +431,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       labels.edit,
       fallbackIcon,
       togglePin,
+      closeBeforeAction,
       onEditItem,
       renderItemAction,
       isPinActionDisabled
@@ -499,8 +521,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         <button
           type="button"
           onClick={() => {
-            handleOpenChange(false)
-            onCreateNew()
+            closeBeforeAction(onCreateNew)
           }}
           className="flex w-full cursor-pointer items-center gap-2.5 rounded-2xs px-3 py-[5px] text-left text-muted-foreground text-sm transition-colors hover:bg-accent/20 hover:text-foreground">
           <Plus size={14} className="shrink-0" />
@@ -516,6 +537,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       trigger={trigger}
       open={open}
       onOpenChange={handleOpenChange}
+      onCloseComplete={runPendingCloseAction}
       sections={sections}
       mode={entityMode}
       value={entityValue}
@@ -542,8 +564,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           <button
             type="button"
             onClick={() => {
-              onEditItem(item.id)
               close()
+              closeBeforeAction(() => onEditItem(item.id))
             }}
             className="flex w-full cursor-pointer items-center gap-1.5 rounded-3xs px-2 py-[3px] text-left text-foreground text-xs transition-colors hover:bg-accent/15">
             <Pencil size={10} />

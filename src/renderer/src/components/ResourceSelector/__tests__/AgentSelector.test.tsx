@@ -1,10 +1,10 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { navigateMock, refetchPinsMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
-  navigateMock: vi.fn(),
+const { openTabMock, refetchPinsMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
+  openTabMock: vi.fn(),
   refetchPinsMock: vi.fn(),
   togglePinMock: vi.fn(),
   usePinsMock: vi.fn(),
@@ -24,8 +24,10 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+vi.mock('@renderer/hooks/useTabs', () => ({
+  useTabs: () => ({
+    openTab: openTabMock
+  })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -193,6 +195,30 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
     expect(togglePinMock).toHaveBeenCalledWith(ALPHA_AGENT_ID)
+  })
+
+  it('navigates to the resource library agent editor from the row edit action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+
+    await waitFor(() =>
+      expect(openTabMock).toHaveBeenCalledWith(`/app/library?resourceType=agent&action=edit&id=${BETA_AGENT_ID}`, {
+        forceNew: true
+      })
+    )
+  })
+
+  it('navigates to the resource library agent create flow from the footer action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+
+    await waitFor(() =>
+      expect(openTabMock).toHaveBeenCalledWith('/app/library?resourceType=agent&action=create', { forceNew: true })
+    )
   })
 
   it('does not show the empty state while the agents query is loading', () => {

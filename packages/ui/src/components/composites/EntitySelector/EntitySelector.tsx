@@ -18,10 +18,16 @@ import type { EntityItemBase, EntitySelectorProps } from './types'
 const DEFAULT_MAX_LIST_HEIGHT = 320
 const DEFAULT_WIDTH = 320
 
+function PopoverContentLifecycle({ onUnmount }: { onUnmount: () => void }) {
+  useEffect(() => onUnmount, [onUnmount])
+  return null
+}
+
 export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorProps<T>) {
   const {
     open: openProp,
     onOpenChange,
+    onCloseComplete,
     trigger,
     mode,
     value,
@@ -62,6 +68,8 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
   }, [sectionsProp, itemsProp])
   const [internalOpen, setInternalOpen] = useState(false)
   const open = openProp ?? internalOpen
+  const openRef = useRef(open)
+  openRef.current = open
   const setOpen = useCallback(
     (next: boolean) => {
       if (openProp === undefined) setInternalOpen(next)
@@ -69,6 +77,11 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
     },
     [openProp, onOpenChange]
   )
+  const handleContentUnmount = useCallback(() => {
+    if (!openRef.current) {
+      onCloseComplete?.()
+    }
+  }, [onCloseComplete])
 
   const [filterOpen, setFilterOpen] = useState(false)
   const ctxMenu = useItemContextMenu()
@@ -304,6 +317,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             userPopoverClassName,
             className
           )}>
+          <PopoverContentLifecycle onUnmount={handleContentUnmount} />
           <Header
             search={search}
             searchInputRef={searchInputRef}

@@ -61,6 +61,8 @@ type EntitySelectorBaseProps<T extends EntityItemBase> = {
   /** Controlled open state; pair with `onOpenChange`. Omit for uncontrolled. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** Fired after the popover content has completed its close lifecycle and unmounted. */
+  onCloseComplete?: () => void
 
   /**
    * Trigger node, rendered outside the popover. Must be a single ReactElement (not a fragment,

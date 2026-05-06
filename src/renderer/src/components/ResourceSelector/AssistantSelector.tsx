@@ -1,11 +1,3 @@
-// TODO(library-routing): `onEditItem` and `onCreateNew` are temporary stubs that navigate to the
-//               legacy `/app/assistant` list page. They should be wired to the V2 resource library
-//               once that flow ships (landing branch: `feat/v2/resource-library-agents`):
-//                 - Edit → library assistant detail / config page scoped to the selected id
-//                 - Create → library "new assistant" entry flow
-//               Update this file together with the corresponding AgentSelector TODO when the
-//               library routes are finalized. Until then the stubs only keep the selector
-//               interactive without leaving the user stranded on a dead click.
 // TODO(tags): wire tag filter chips once the resource library PR (feat/v2/resource-library-agents,
 //             upstream PR #14442) is merged into main. That PR exposes Assistant↔Tag associations
 //             (tagIds on the Assistant DTO or a batch lookup endpoint) and a tag list API for the
@@ -15,7 +7,12 @@
 import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import { useNavigate } from '@tanstack/react-router'
+import { useTabs } from '@renderer/hooks/useTabs'
+import {
+  buildLibraryCreateSearch,
+  buildLibraryEditSearch,
+  buildLibraryRouteUrl
+} from '@renderer/pages/library/routeSearch'
 import { type ReactElement, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -75,12 +72,11 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange } = props
   const { t } = useTranslation()
+  const { openTab } = useTabs()
 
   // `limit: 500` matches ListAssistantsQuerySchema's max; realistic libraries sit well under it.
   // If a user ever exceeds this we should move to usePaginatedQuery + scroll-load inside the popover.
   const { data, isLoading } = useQuery('/assistants', { query: { limit: 500 } })
-  const navigate = useNavigate()
-
   const {
     isLoading: isPinnedLoading,
     isRefreshing: isPinsRefreshing,
@@ -131,13 +127,11 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     pinnedIds,
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    onEditItem: () => {
-      // TODO(library-routing): replace with library assistant edit route once `feat/v2/resource-library-agents` ships.
-      void navigate({ to: '/app/assistant' })
+    onEditItem: (id: string) => {
+      openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', id)), { forceNew: true })
     },
     onCreateNew: () => {
-      // TODO(library-routing): replace with library assistant create route once `feat/v2/resource-library-agents` ships.
-      void navigate({ to: '/app/assistant' })
+      openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('assistant')), { forceNew: true })
     },
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),

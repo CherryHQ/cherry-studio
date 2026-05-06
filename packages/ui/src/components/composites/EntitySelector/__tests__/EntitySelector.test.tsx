@@ -85,6 +85,28 @@ describe('EntitySelector', () => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 
+    it('fires onCloseComplete after the popover content unmounts', async () => {
+      const onCloseComplete = vi.fn()
+      render(
+        <EntitySelector
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          mode="single"
+          value={null}
+          onChange={vi.fn()}
+          onCloseComplete={onCloseComplete}
+          renderItem={(item, ctx) => <Row item={item} ctx={ctx} />}
+        />
+      )
+      openPopover()
+      expect(screen.getByTestId('row-1')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('row-2'))
+
+      await waitFor(() => expect(screen.queryByTestId('row-1')).not.toBeInTheDocument())
+      expect(onCloseComplete).toHaveBeenCalledTimes(1)
+    })
+
     it('marks the current value as selected', () => {
       render(
         <EntitySelector

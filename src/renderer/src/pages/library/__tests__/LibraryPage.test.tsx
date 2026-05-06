@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RESOURCE_TYPE_ORDER } from '../constants'
 import LibraryPage from '../LibraryPage'
 
-const refetchSpy = vi.fn()
+const { allResourcesMock, navigateMock, refetchSpy, routeSearchMock } = vi.hoisted(() => ({
+  allResourcesMock: [] as any[],
+  navigateMock: vi.fn(),
+  refetchSpy: vi.fn(),
+  routeSearchMock: vi.fn(() => ({}))
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -24,6 +29,11 @@ vi.mock('motion/react', () => ({
     div: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
     create: (Component: ComponentType<Record<string, unknown>>) => Component
   }
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
+  useSearch: () => routeSearchMock()
 }))
 
 vi.mock('../adapters/assistantAdapter', () => ({
@@ -44,7 +54,7 @@ vi.mock('../adapters/tagAdapter', () => ({
 vi.mock('../list/useResourceLibrary', () => ({
   useResourceLibrary: () => ({
     resources: [],
-    allResources: [],
+    allResources: allResourcesMock,
     isLoading: false,
     isRefreshing: false,
     error: undefined,
@@ -120,7 +130,11 @@ vi.mock('../editor/agent/AgentConfigPage', () => ({
 
 describe('LibraryPage create flow', () => {
   beforeEach(() => {
+    allResourcesMock.length = 0
+    navigateMock.mockReset()
     refetchSpy.mockReset()
+    routeSearchMock.mockReset()
+    routeSearchMock.mockReturnValue({})
   })
 
   it('uses the first sidebar resource type as the initial grid filter', () => {
@@ -161,5 +175,32 @@ describe('LibraryPage create flow', () => {
     })
     expect(screen.queryByTestId('agent-edit-page')).not.toBeInTheDocument()
     expect(refetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the assistant create page from route search', () => {
+    routeSearchMock.mockReturnValue({ resourceType: 'assistant', action: 'create' })
+
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('assistant-create-page')).toBeInTheDocument()
+  })
+
+  it('opens the agent editor from route search after resources load', () => {
+    allResourcesMock.push({
+      id: 'agent-from-selector',
+      type: 'agent',
+      name: 'Selector Agent',
+      description: '',
+      avatar: '',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'agent-from-selector' }
+    })
+    routeSearchMock.mockReturnValue({ resourceType: 'agent', action: 'edit', id: 'agent-from-selector' })
+
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('agent-edit-page')).toBeInTheDocument()
   })
 })
