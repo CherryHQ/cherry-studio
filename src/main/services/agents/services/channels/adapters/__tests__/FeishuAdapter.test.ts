@@ -240,21 +240,25 @@ describe('FeishuAdapter', () => {
     expect(mockReactionCreate).not.toHaveBeenCalled()
   })
 
-  it('sendTypingIndicator() reacts to the latest user message and is idempotent', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
+  async function deliverIncomingTextMessage(messageId = 'msg-in-1', chatId = 'oc_123') {
     const handler = capturedEventHandlers['im.message.receive_v1']
     await handler({
       sender: { sender_id: { open_id: 'ou_user1' } },
       message: {
-        message_id: 'msg-in-1',
-        chat_id: 'oc_123',
+        message_id: messageId,
+        chat_id: chatId,
         chat_type: 'p2p',
         message_type: 'text',
         content: JSON.stringify({ text: 'Hello agent' })
       }
     })
+  }
+
+  it('sendTypingIndicator() reacts to the latest user message with INHALE and is idempotent', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
 
     await adapter.sendTypingIndicator('oc_123')
     await adapter.sendTypingIndicator('oc_123')
@@ -262,31 +266,58 @@ describe('FeishuAdapter', () => {
     expect(mockReactionCreate).toHaveBeenCalledTimes(1)
     expect(mockReactionCreate).toHaveBeenCalledWith({
       path: { message_id: 'msg-in-1' },
-      data: { reaction_type: { emoji_type: 'THUMBSUP' } }
+      data: { reaction_type: { emoji_type: 'INHALE' } }
     })
   })
 
-  it('sendMessage() removes the typing reaction after responding', async () => {
+  it('sendMessage() promotes the typing reaction from INHALE to OK_HAND', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
-    const handler = capturedEventHandlers['im.message.receive_v1']
-    await handler({
-      sender: { sender_id: { open_id: 'ou_user1' } },
-      message: {
-        message_id: 'msg-in-1',
-        chat_id: 'oc_123',
-        chat_type: 'p2p',
-        message_type: 'text',
-        content: JSON.stringify({ text: 'Hello agent' })
-      }
-    })
-
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
     await adapter.sendTypingIndicator('oc_123')
+
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-done' } })
     await adapter.sendMessage('oc_123', 'reply')
 
     expect(mockReactionDelete).toHaveBeenCalledWith({
-      path: { message_id: 'msg-in-1', reaction_id: 'rx-1' }
+      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
+    })
+    expect(mockReactionCreate).toHaveBeenLastCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'OK_HAND' } }
+    })
+  })
+
+  it('sendMessage() does not add OK_HAND when there was no prior typing reaction', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    // /new style ack — no incoming user message tracked, no typing indicator first
+    await adapter.sendMessage('oc_123', 'New session created.')
+
+    expect(mockReactionCreate).not.toHaveBeenCalled()
+    expect(mockReactionDelete).not.toHaveBeenCalled()
+  })
+
+  it('onStreamError() swaps the reaction to CRY', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
+    await adapter.sendTypingIndicator('oc_123')
+
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
+    await adapter.onStreamError('oc_123', 'boom')
+
+    expect(mockReactionDelete).toHaveBeenCalledWith({
+      path: { message_id: 'msg-in-1', reaction_id: 'rx-thinking' }
+    })
+    expect(mockReactionCreate).toHaveBeenLastCalledWith({
+      path: { message_id: 'msg-in-1' },
+      data: { reaction_type: { emoji_type: 'CRY' } }
     })
   })
 

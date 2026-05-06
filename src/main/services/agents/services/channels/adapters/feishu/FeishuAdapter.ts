@@ -23,15 +23,19 @@ import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 const FEISHU_MAX_LENGTH = 4000
 
 /**
- * Emoji used as a "typing" indicator. Feishu has no native typing API, so we
- * react to the user's latest message instead. Must be a valid Feishu emoji_type.
+ * Lifecycle reactions on the user's last message. Feishu has no native typing
+ * API, so we use emoji reactions as a visible status indicator: thinking →
+ * done / error. Each value must be a valid Feishu emoji_type.
  * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
  */
-const TYPING_REACTION_EMOJI = 'THUMBSUP'
+const REACTION_THINKING = 'INHALE'
+const REACTION_DONE = 'OK_HAND'
+const REACTION_ERROR = 'CRY'
 
-type TypingReaction = {
+type ChatReaction = {
   messageId: string
   reactionId: string
+  emoji: string
 }
 
 type FeishuApiResponse<T = unknown> = {
@@ -466,10 +470,10 @@ class FeishuAdapter extends ChannelAdapter {
   private registrationAbort: AbortController | null = null
   /** Per-chat streaming controller. One stream at a time per chat. */
   private readonly streamingControllers = new Map<string, FeishuStreamingController>()
-  /** Latest user message id per chat — used as the target for typing reactions. */
+  /** Latest user message id per chat — used as the target for status reactions. */
   private readonly latestUserMessageByChat = new Map<string, string>()
-  /** Active typing reaction per chat, so we can remove it once we respond. */
-  private readonly typingReactions = new Map<string, TypingReaction>()
+  /** Active status reaction per chat, so we can swap or remove it. */
+  private readonly chatReactions = new Map<string, ChatReaction>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -613,7 +617,7 @@ class FeishuAdapter extends ChannelAdapter {
       controller.dispose()
     }
     this.streamingControllers.clear()
-    this.typingReactions.clear()
+    this.chatReactions.clear()
     this.latestUserMessageByChat.clear()
 
     if (this.wsClient) {
@@ -631,7 +635,10 @@ class FeishuAdapter extends ChannelAdapter {
     }
     void _opts
 
-    await this.clearTypingReaction(chatId)
+    // Promote the typing reaction to DONE before delivering the reply,
+    // so the user sees the lifecycle transition. No-op for messages that
+    // weren't preceded by a typing indicator (e.g. /new acks).
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
 
     const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
 
@@ -655,44 +662,64 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendTypingIndicator(chatId: string): Promise<void> {
+    await this.setChatReaction(chatId, REACTION_THINKING)
+  }
+
+  /**
+   * Set the status reaction for a chat to `emoji`, swapping any existing
+   * reaction on the same user message. No-op if there is no recent user
+   * message to react to. Idempotent for the same (messageId, emoji) pair.
+   */
+  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
     if (!this.client) return
 
     const messageId = this.latestUserMessageByChat.get(chatId)
     if (!messageId) return
 
-    const existing = this.typingReactions.get(chatId)
-    if (existing?.messageId === messageId) return
+    const existing = this.chatReactions.get(chatId)
+    if (existing?.messageId === messageId && existing.emoji === emoji) return
 
-    // A reaction lingered from a previous user message — clear it before the new one.
     if (existing) {
-      await this.clearTypingReaction(chatId)
+      await this.clearChatReaction(chatId)
     }
 
     try {
       const res = ensureFeishuSuccess<{ reaction_id?: string }>(
         await this.client.im.messageReaction.create({
           path: { message_id: messageId },
-          data: { reaction_type: { emoji_type: TYPING_REACTION_EMOJI } }
+          data: { reaction_type: { emoji_type: emoji } }
         }),
-        'Add typing reaction'
+        'Add status reaction'
       )
       const reactionId = res.data?.reaction_id
       if (reactionId) {
-        this.typingReactions.set(chatId, { messageId, reactionId })
+        this.chatReactions.set(chatId, { messageId, reactionId, emoji })
       }
     } catch (error) {
-      this.log.debug('Failed to add typing reaction', {
+      this.log.debug('Failed to add status reaction', {
         chatId,
         messageId,
+        emoji,
         error: error instanceof Error ? error.message : String(error)
       })
     }
   }
 
-  private async clearTypingReaction(chatId: string): Promise<void> {
-    const reaction = this.typingReactions.get(chatId)
+  /**
+   * Swap the active reaction to `emoji`, but only if there is currently a
+   * transient reaction (e.g. THINKING). Used at completion/error so that
+   * non-streaming sendMessage calls (e.g. /new) don't get a DONE reaction.
+   */
+  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
+    const existing = this.chatReactions.get(chatId)
+    if (!existing || !from.includes(existing.emoji)) return
+    await this.setChatReaction(chatId, emoji)
+  }
+
+  private async clearChatReaction(chatId: string): Promise<void> {
+    const reaction = this.chatReactions.get(chatId)
     if (!reaction) return
-    this.typingReactions.delete(chatId)
+    this.chatReactions.delete(chatId)
     if (!this.client) return
 
     try {
@@ -700,10 +727,10 @@ class FeishuAdapter extends ChannelAdapter {
         await this.client.im.messageReaction.delete({
           path: { message_id: reaction.messageId, reaction_id: reaction.reactionId }
         }),
-        'Remove typing reaction'
+        'Remove status reaction'
       )
     } catch (error) {
-      this.log.debug('Failed to remove typing reaction', {
+      this.log.debug('Failed to remove status reaction', {
         chatId,
         error: error instanceof Error ? error.message : String(error)
       })
@@ -723,7 +750,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
-    await this.clearTypingReaction(chatId)
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
     const controller = this.streamingControllers.get(chatId)
     if (!controller) return false
 
@@ -732,7 +759,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamError(chatId: string, error: string): Promise<void> {
-    await this.clearTypingReaction(chatId)
+    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
     const controller = this.streamingControllers.get(chatId)
     if (!controller) return
 
