@@ -1,25 +1,22 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { CircleIcon } from 'lucide-react'
 import * as React from 'react'
 
 const radioGroupItemVariants = cva(
   cn(
-    'aspect-square shrink-0 rounded-full border transition-all outline-none',
-    'border-primary text-primary',
-    'hover:bg-primary/10',
-    'aria-checked:ring-3 aria-checked:ring-primary/20',
+    'aspect-square shrink-0 rounded-full border border-input bg-transparent text-primary shadow-none transition-[color,border-color,box-shadow] outline-none',
+    'data-[state=checked]:border-2 data-[state=checked]:border-primary',
+    'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
-    'dark:bg-input/30 shadow-xs'
+    'disabled:cursor-not-allowed disabled:opacity-50'
   ),
   {
     variants: {
       size: {
-        sm: 'size-4',
-        md: 'size-5',
-        lg: 'size-6'
+        sm: 'size-3.5',
+        md: 'size-4',
+        lg: 'size-5'
       }
     },
     defaultVariants: {
@@ -43,13 +40,7 @@ function RadioGroupItem({
       data-size={size}
       className={cn(radioGroupItemVariants({ size }), className)}
       {...props}>
-      <RadioGroupPrimitive.Indicator
-        data-slot="radio-group-indicator"
-        className="relative flex items-center justify-center">
-        <CircleIcon
-          className={cn('fill-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-2.5')}
-        />
-      </RadioGroupPrimitive.Indicator>
+      <RadioGroupPrimitive.Indicator data-slot="radio-group-indicator" />
     </RadioGroupPrimitive.Item>
   )
 }

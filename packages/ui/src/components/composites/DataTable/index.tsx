@@ -12,7 +12,7 @@ import * as React from 'react'
 
 import { cn } from '../../../lib/utils'
 import { Checkbox } from '../../primitives/checkbox'
-import { RadioGroup, RadioGroupItem } from '../../primitives/radioGroup'
+import { RadioGroup, RadioGroupItem } from '../../primitives/radio-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../primitives/table'
 
 export type DataTableKey = React.Key

@@ -27,7 +27,7 @@ vi.mock('../../../primitives/checkbox', () => ({
   )
 }))
 
-vi.mock('../../../primitives/radioGroup', async () => {
+vi.mock('../../../primitives/radio-group', async () => {
   const React = await import('react')
   const RadioContext = React.createContext<{
     value?: string
