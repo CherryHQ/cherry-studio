@@ -34,7 +34,7 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
   onOpenPath,
   t
 }) => (
-  <div className="group flex min-h-13 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-muted/55">
+  <div className="group flex min-h-13 w-full items-center gap-2.5 rounded-lg border border-border/60 bg-transparent px-2.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
     <div
       className={cn(
         'flex size-9 shrink-0 items-center justify-center rounded-xl',
@@ -192,7 +192,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         <EnvironmentDependencyItem
           actionLabel={t('settings.mcp.install')}
           description={t('settings.plugins.uvDescription')}

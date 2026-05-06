@@ -290,8 +290,8 @@ const BlacklistSettings: FC = () => {
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  variant="outline"
+                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   disabled={subscribeChecking || selectedRowKeys.length === 0}
                   onClick={handleDeleteSubscribe}>
                   <Trash2 className="size-3.5" />

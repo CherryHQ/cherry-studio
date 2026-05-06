@@ -131,7 +131,9 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               )}
             />
             <Flex className="mt-2 justify-end">
-              <Button type="submit">{t('settings.tool.websearch.subscribe_add')}</Button>
+              <Button type="submit" variant="outline">
+                {t('settings.tool.websearch.subscribe_add')}
+              </Button>
             </Flex>
           </form>
         </Form>

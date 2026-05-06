@@ -1,5 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Button, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, Divider, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
@@ -178,7 +178,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               </SettingTitleExternalLink>
             )}
           </Flex>
-          <Button variant="default" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
+          <Button variant="outline" disabled={!canSetAsDefault} onClick={handleSetAsDefault}>
             {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
           </Button>
         </Flex>
@@ -189,7 +189,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.tool.websearch.local_provider.settings')}
           </SettingSubtitle>
-          <Button variant="default" onClick={openLocalProviderSettings}>
+          <Button variant="outline" onClick={openLocalProviderSettings}>
             <ExportOutlined />
             {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
           </Button>
@@ -210,12 +210,12 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+              <Button variant="outline" size="icon-sm" onClick={openApiKeyList}>
                 <List size={14} />
               </Button>
             </Tooltip>
           </SettingSubtitle>
-          <Flex className="gap-2">
+          <ButtonGroup className="w-full">
             <Input
               type="password"
               value={apiKey}
@@ -224,8 +224,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               onBlur={onUpdateApiKey}
               spellCheck={false}
               autoFocus={apiKey === ''}
+              className="min-w-0 flex-1"
             />
-            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
+            <Button
+              variant="outline"
+              className="h-9 shrink-0 px-3 shadow-none"
+              onClick={checkSearch}
+              disabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -234,7 +239,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Flex>
+          </ButtonGroup>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <RowFlex>
               {apiKeyWebsite && (
