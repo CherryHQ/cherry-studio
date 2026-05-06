@@ -1,9 +1,16 @@
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Textarea
+} from '@cherrystudio/ui'
 import type { Prompt } from '@shared/data/types/prompt'
-import { Input, Modal, Space } from 'antd'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const { TextArea } = Input
 
 interface FormData {
   title: string
@@ -23,6 +30,7 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
 
   const isEdit = !!prompt
+  const canSave = formData.title.trim().length > 0 && formData.content.trim().length > 0
 
   useEffect(() => {
     if (open) {
@@ -34,7 +42,7 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
   }, [open, prompt])
 
   const handleOk = useCallback(async () => {
-    if (!formData.title.trim() || !formData.content.trim()) {
+    if (!canSave) {
       return
     }
 
@@ -42,40 +50,56 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
       title: formData.title,
       content: formData.content
     })
-  }, [formData, onSave])
+  }, [canSave, formData, onSave])
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        onCancel()
+      }
+    },
+    [onCancel]
+  )
 
   return (
-    <Modal
-      title={isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}
-      open={open}
-      onOk={handleOk}
-      confirmLoading={saving}
-      onCancel={onCancel}
-      width={600}
-      transitionName="animation-move-down"
-      centered
-      maskClosable={false}>
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <div>
-          <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.titleLabel')}</div>
-          <Input
-            placeholder={t('settings.prompts.titlePlaceholder')}
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          />
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[600px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
+            {t('settings.prompts.titleLabel')}
+            <Input
+              placeholder={t('settings.prompts.titlePlaceholder')}
+              value={formData.title}
+              onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
+            {t('settings.prompts.contentLabel')}
+            <Textarea.Input
+              className="min-h-[184px] resize-none"
+              placeholder={t('settings.prompts.contentPlaceholder')}
+              value={formData.content}
+              onValueChange={(content) => setFormData((current) => ({ ...current, content }))}
+              rows={8}
+            />
+          </label>
         </div>
-        <div>
-          <div className="mb-1 text-[var(--color-text)] text-sm">{t('settings.prompts.contentLabel')}</div>
-          <TextArea
-            placeholder={t('settings.prompts.contentPlaceholder')}
-            value={formData.content}
-            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-            rows={8}
-            style={{ resize: 'none' }}
-          />
-        </div>
-      </Space>
-    </Modal>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={saving}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={() => void handleOk()} loading={saving} disabled={!canSave || saving}>
+            {t('common.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

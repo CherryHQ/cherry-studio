@@ -6,9 +6,9 @@
  *   through `applyMoves`; callers never touch `orderKey` directly.
  */
 
+import { application } from '@application'
 import { promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'

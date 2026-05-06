@@ -97,12 +97,12 @@ export class PromptMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    // Stamp fractional-indexing orderKeys after sorting by the legacy `order`
-    // field so relative ordering is preserved across the migration.
+    // Stamp orderKeys in the same order legacy QuickPhraseService.getAll() returned.
+    // Consumers already preserve their old display behavior from that canonical order.
     const sortedPhrases = [...this.preparedPhrases].sort((a, b) => {
       const ao = a.order ?? 0
       const bo = b.order ?? 0
-      return ao - bo
+      return bo - ao
     })
     const stamped = assignOrderKeysInSequence(sortedPhrases)
 

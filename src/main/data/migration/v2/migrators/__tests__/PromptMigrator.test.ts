@@ -238,7 +238,7 @@ describe('PromptMigrator', () => {
 
       await migrator.execute(ctx)
 
-      expect(insertCalls.map((row) => row.title)).toEqual(['Early', 'Late'])
+      expect(insertCalls.map((row) => row.title)).toEqual(['Late', 'Early'])
       expect(String(insertCalls[0].orderKey) < String(insertCalls[1].orderKey)).toBe(true)
     })
 

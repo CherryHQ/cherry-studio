@@ -1,20 +1,21 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button, Flex, Spinner } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Flex, Spinner } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { loggerService } from '@logger'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptEditModal from '@renderer/components/PromptEditModal'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Prompt } from '@shared/data/types/prompt'
-import { Popconfirm } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
+
+const logger = loggerService.withContext('PromptSettings')
 
 const PromptSettings: FC = () => {
   const { t } = useTranslation()
@@ -22,12 +23,11 @@ const PromptSettings: FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [pendingDeletePromptId, setPendingDeletePromptId] = useState<string | null>(null)
+  const [deletePromptId, setDeletePromptId] = useState<string | null>(null)
 
   const { data: promptsList = [], isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
   const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
-  const deletePromptPath: `/prompts/${string}` = `/prompts/${pendingDeletePromptId ?? '__pending__'}`
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
@@ -39,43 +39,12 @@ const PromptSettings: FC = () => {
     onError: () => window.toast.error(t('message.error.unknown'))
   })
 
-  const { trigger: deletePrompt, isLoading: isDeletingPrompt } = useMutation('DELETE', deletePromptPath, {
+  const { trigger: deletePrompt, isLoading: isDeletingPrompt } = useMutation('DELETE', '/prompts/:id', {
     refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.delete.failed'))
   })
 
   const { applyReorderedList } = useReorder('/prompts')
-
-  const deletePromptRef = useRef(deletePrompt)
-  useEffect(() => {
-    deletePromptRef.current = deletePrompt
-  }, [deletePrompt])
-
-  useEffect(() => {
-    if (!pendingDeletePromptId) {
-      return
-    }
-
-    let cancelled = false
-
-    const runDelete = async () => {
-      try {
-        await deletePromptRef.current()
-      } catch {
-        // handled by useMutation onError
-      } finally {
-        if (!cancelled) {
-          setPendingDeletePromptId(null)
-        }
-      }
-    }
-
-    void runDelete()
-
-    return () => {
-      cancelled = true
-    }
-  }, [pendingDeletePromptId])
 
   const handleAdd = () => {
     setEditingPrompt(null)
@@ -88,8 +57,51 @@ const PromptSettings: FC = () => {
   }
 
   const handleDelete = (id: string) => {
-    setPendingDeletePromptId(id)
+    setDeletePromptId(id)
   }
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deletePromptId) {
+      return
+    }
+
+    try {
+      await deletePrompt({ params: { id: deletePromptId } })
+    } catch {
+      // handled by useMutation onError
+    }
+  }, [deletePrompt, deletePromptId])
+
+  const handleCloseDeleteDialog = useCallback((open: boolean) => {
+    if (!open) {
+      setDeletePromptId(null)
+    }
+  }, [])
+
+  const handleUpdateOrder = useCallback(
+    async (newPrompts: Prompt[]) => {
+      if (newPrompts.length === 0) return
+
+      try {
+        await applyReorderedList(newPrompts)
+      } catch (error) {
+        logger.error('Failed to reorder prompts', error as Error)
+        window.toast.error(t('message.error.unknown'))
+      }
+    },
+    [applyReorderedList, t]
+  )
+
+  const handleDraggableUpdate = useCallback(
+    (newList: Prompt[]) => {
+      void handleUpdateOrder([...newList].reverse())
+    },
+    [handleUpdateOrder]
+  )
+
+  const handleCancelModal = useCallback(() => {
+    setIsModalOpen(false)
+  }, [])
 
   const handleModalSave = async (data: { title: string; content: string }) => {
     try {
@@ -102,15 +114,10 @@ const PromptSettings: FC = () => {
       } else {
         await createPrompt({ body })
       }
-      setIsModalOpen(false)
+      handleCancelModal()
     } catch {
       // handled by useMutation onError
     }
-  }
-
-  const handleUpdateOrder = async (newPrompts: Prompt[]) => {
-    if (newPrompts.length === 0) return
-    await applyReorderedList(newPrompts)
   }
 
   const reversedPrompts = useMemo(() => [...promptsList].reverse(), [promptsList])
@@ -139,7 +146,7 @@ const PromptSettings: FC = () => {
             ) : (
               <DraggableList
                 list={reversedPrompts}
-                onUpdate={(newList) => handleUpdateOrder([...newList].reverse())}
+                onUpdate={handleDraggableUpdate}
                 style={{ paddingBottom: dragging ? '34px' : 0 }}
                 onDragStart={() => setDragging(true)}
                 onDragEnd={() => setDragging(false)}>
@@ -162,22 +169,14 @@ const PromptSettings: FC = () => {
                           <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
                             <EditIcon size={14} />
                           </Button>
-                          <Popconfirm
-                            title={t('settings.prompts.delete')}
-                            description={t('settings.prompts.deleteConfirm')}
-                            okText={t('common.confirm')}
-                            cancelText={t('common.cancel')}
-                            onConfirm={() => handleDelete(prompt.id)}
-                            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                            <Button
-                              key="delete"
-                              variant="ghost"
-                              onClick={() => {}}
-                              size="icon"
-                              loading={isDeletingPrompt && pendingDeletePromptId === prompt.id}>
-                              <DeleteIcon size={14} className="lucide-custom" />
-                            </Button>
-                          </Popconfirm>
+                          <Button
+                            key="delete"
+                            variant="ghost"
+                            onClick={() => handleDelete(prompt.id)}
+                            size="icon"
+                            loading={isDeletingPrompt && deletePromptId === prompt.id}>
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </Flex>
                       )
                     }}
@@ -194,7 +193,18 @@ const PromptSettings: FC = () => {
         prompt={editingPrompt}
         saving={isSavingPrompt}
         onSave={handleModalSave}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={handleCancelModal}
+      />
+      <ConfirmDialog
+        open={!!deletePromptId}
+        onOpenChange={handleCloseDeleteDialog}
+        title={t('settings.prompts.delete')}
+        description={t('settings.prompts.deleteConfirm')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        onConfirm={handleConfirmDelete}
+        destructive
+        confirmLoading={isDeletingPrompt}
       />
     </SettingContainer>
   )
