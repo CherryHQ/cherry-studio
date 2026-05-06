@@ -230,41 +230,39 @@ export const useMiniApps = () => {
   })
 
   // === Write: Update enabled apps (backward-compat) ===
+  // Diff against the full `enabled` set (not the region-filtered view): a CN-only
+  // app enabled under Global region is hidden from `visibleApps` but must still
+  // be disabled when the caller drops it from the new visible list.
   const updateMiniApps = useCallback(
     (visibleApps: MiniApp[]) => {
-      const currentVisibleIds = new Set(
-        enabled.filter((a) => isVisibleForRegion(a, effectiveRegion)).map((a) => a.appId)
-      )
       const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
 
-      const toEnable = visibleApps.filter((a) => a.status !== 'enabled' && !currentVisibleIds.has(a.appId))
-      const toDisable = enabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
+      const toEnable = visibleApps.filter((a) => a.status !== 'enabled')
+      const toDisable = enabled.filter((a) => !newVisibleIds.has(a.appId))
 
       return Promise.allSettled([
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
       ]).then((results) => settleAndInvalidate(results, invalidate, 'updateMiniApps'))
     },
-    [enabled, effectiveRegion, patchApp, invalidate]
+    [enabled, patchApp, invalidate]
   )
 
   // Write: Update disabled apps (backward-compat) ===
+  // Diff against the full `disabled` set; see updateMiniApps for rationale.
   const updateDisabledMiniApps = useCallback(
     (visibleApps: MiniApp[]) => {
-      const currentVisibleIds = new Set(
-        disabled.filter((a) => isVisibleForRegion(a, effectiveRegion)).map((a) => a.appId)
-      )
       const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
 
-      const toDisable = visibleApps.filter((a) => a.status !== 'disabled' && !currentVisibleIds.has(a.appId))
-      const toEnable = disabled.filter((a) => currentVisibleIds.has(a.appId) && !newVisibleIds.has(a.appId))
+      const toDisable = visibleApps.filter((a) => a.status !== 'disabled')
+      const toEnable = disabled.filter((a) => !newVisibleIds.has(a.appId))
 
       return Promise.allSettled([
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
         ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
       ]).then((results) => settleAndInvalidate(results, invalidate, 'updateDisabledMiniApps'))
     },
-    [disabled, effectiveRegion, patchApp, invalidate]
+    [disabled, patchApp, invalidate]
   )
 
   // Write: Update pinned apps (backward-compat) ===
