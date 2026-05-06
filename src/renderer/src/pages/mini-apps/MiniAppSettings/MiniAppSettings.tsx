@@ -64,10 +64,13 @@ const MiniAppSettings: FC = () => {
   }, [miniapps, updateDisabledMiniApps, updateMiniApps])
 
   const handleSwapMiniApps = useCallback(() => {
-    const temp = visibleMiniApps
-    setVisibleMiniApps(disabledMiniApps)
-    setDisabledMiniApps(temp)
-  }, [disabledMiniApps, visibleMiniApps])
+    const newVisible = disabledMiniApps
+    const newDisabled = visibleMiniApps
+    setVisibleMiniApps(newVisible)
+    setDisabledMiniApps(newDisabled)
+    void updateMiniApps(newVisible)
+    void updateDisabledMiniApps(newDisabled)
+  }, [disabledMiniApps, visibleMiniApps, updateMiniApps, updateDisabledMiniApps])
 
   // Restore default cache count
   const handleResetCacheLimit = useCallback(() => {
