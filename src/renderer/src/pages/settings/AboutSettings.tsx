@@ -168,7 +168,7 @@ const AboutSettings: FC = () => {
     <div className={cn('flex w-full flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden')}>
       <SettingGroup theme={theme}>
         <SettingTitle className="gap-2">
-          <div>{t('settings.about.title')}</div>
+          <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
           <button
             type="button"
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}

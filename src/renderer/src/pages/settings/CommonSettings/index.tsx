@@ -32,6 +32,7 @@ import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious, SettingsOpenTarget } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { SubWindowInitData } from '@shared/types/subWindow'
 import { useLocation } from '@tanstack/react-router'
 import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
@@ -59,6 +60,16 @@ type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-ad
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 
+const isSettingsPath = (value: unknown): value is `/settings${string}` =>
+  typeof value === 'string' && value.startsWith('/settings')
+
+const isDetachedSettingsWindowInitData = (value: unknown): value is SubWindowInitData => {
+  if (!value || typeof value !== 'object') return false
+
+  const url = (value as { url?: unknown }).url
+  return isSettingsPath(url)
+}
+
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
   { value: 'es', label: 'Español', flag: '🇪🇸' },
@@ -84,6 +95,7 @@ const CommonSettings: FC = () => {
 
   const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
   const [isSettingsWindow, setIsSettingsWindow] = useState(false)
+  const [isDetachedSettingsWindow, setIsDetachedSettingsWindow] = useState(false)
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
@@ -208,8 +220,9 @@ const CommonSettings: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.windowManager.getInitData<string>().then((initData) => {
-      setIsSettingsWindow(typeof initData === 'string' && initData.startsWith('/settings'))
+    void window.api.windowManager.getInitData<unknown>().then((initData) => {
+      setIsSettingsWindow(isSettingsPath(initData))
+      setIsDetachedSettingsWindow(isDetachedSettingsWindowInitData(initData))
     })
 
     void window.api.getSystemFonts().then((fonts: string[]) => {
@@ -495,16 +508,20 @@ const CommonSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.settings_open_target.title')}</SettingRowTitle>
-          <SegmentedControl<SettingsOpenTarget>
-            value={settingsOpenTarget}
-            onValueChange={handleSettingsOpenTargetChange}
-            options={settingsOpenTargetOptions}
-            size="sm"
-          />
-        </SettingRow>
+        {!isDetachedSettingsWindow && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.settings_open_target.title')}</SettingRowTitle>
+              <SegmentedControl<SettingsOpenTarget>
+                value={settingsOpenTarget}
+                onValueChange={handleSettingsOpenTargetChange}
+                options={settingsOpenTargetOptions}
+                size="sm"
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>

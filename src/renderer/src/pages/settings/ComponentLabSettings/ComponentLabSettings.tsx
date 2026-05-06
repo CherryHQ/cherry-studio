@@ -15,7 +15,9 @@ const ComponentLabSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.componentLab.title')}</SettingTitle>
+        <SettingTitle>
+          <span className="font-semibold text-[15px]">{t('settings.componentLab.title')}</span>
+        </SettingTitle>
         <Tabs defaultValue="assistant-selector" variant="line" className="mt-4 gap-4">
           <TabsList>
             <TabsTrigger value="assistant-selector">{t('settings.componentLab.assistantSelector.title')}</TabsTrigger>
