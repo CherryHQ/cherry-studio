@@ -136,7 +136,7 @@ export const AssistantSchema = z.strictObject({
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
   /** Tags associated with this assistant (embedded via inline join in list/get endpoints) */
-  tags: z.array(TagSchema).default([]),
+  tags: z.array(TagSchema),
   /**
    * Human-readable model name resolved from `user_model.name` at read time.
    * Read-only embedded field — edits go through `modelId`. Renderer consumers
@@ -145,6 +145,6 @@ export const AssistantSchema = z.strictObject({
    * `null` when the model row is missing (e.g. user removed the model after
    * binding).
    */
-  modelName: z.string().nullable().default(null)
+  modelName: z.string().nullable()
 })
 export type Assistant = z.infer<typeof AssistantSchema>
