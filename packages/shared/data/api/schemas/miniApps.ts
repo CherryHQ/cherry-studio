@@ -6,7 +6,7 @@
  */
 
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { MiniAppKindSchema, MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
+import { MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -45,8 +45,7 @@ export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
  * Query parameters for listing miniapps
  */
 export const ListMiniAppsQuerySchema = z.object({
-  status: MiniAppStatusSchema.optional(),
-  type: MiniAppKindSchema.optional()
+  status: MiniAppStatusSchema.optional()
 })
 export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
 

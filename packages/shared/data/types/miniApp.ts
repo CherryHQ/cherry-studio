@@ -17,21 +17,22 @@ export type MiniAppId = string & { readonly __brand: unique symbol }
 export type MiniAppRegion = 'CN' | 'Global'
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-// Status and type enums
+// Status enum
 export const MiniAppStatusSchema = z.enum(['enabled', 'disabled', 'pinned'])
 export type MiniAppStatus = z.infer<typeof MiniAppStatusSchema>
-
-export const MiniAppKindSchema = z.enum(['default', 'custom'])
-export type MiniAppKind = z.infer<typeof MiniAppKindSchema>
 
 export const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 
 /**
- * MiniApp entity schema
+ * MiniApp entity schema.
+ *
+ * `presetMiniappId` mirrors `userProvider.presetProviderId`:
+ *   - non-null  → row inherits from a PRESETS_MINI_APPS entry (preset-derived)
+ *   - null      → pure custom app
  */
 export const MiniAppSchema = z.object({
   appId: z.string(),
-  kind: MiniAppKindSchema,
+  presetMiniappId: z.string().nullable(),
   status: MiniAppStatusSchema,
   orderKey: z.string(),
   name: z.string(),

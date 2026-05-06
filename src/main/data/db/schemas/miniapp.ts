@@ -12,15 +12,6 @@ import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
-/**
- * Logical kind, derived at runtime from `presetMiniappId`:
- *   presetMiniappId !== null ⇒ 'default'  (inherits from a PRESETS_MINI_APPS entry)
- *   presetMiniappId === null ⇒ 'custom'   (user-created)
- *
- * Not stored as a column. Same pattern as {@link UserProvider.presetProviderId}.
- */
-export type MiniAppKind = 'default' | 'custom'
-
 export type MiniAppRegion = 'CN' | 'Global'
 
 /**

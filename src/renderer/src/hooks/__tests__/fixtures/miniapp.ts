@@ -18,7 +18,7 @@ export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): Mini
   appId: appId,
   name: appId,
   url: `https://${appId}.example.com`,
-  kind: 'default',
+  presetMiniappId: appId,
   status: 'enabled',
   orderKey: 'a0',
   ...overrides

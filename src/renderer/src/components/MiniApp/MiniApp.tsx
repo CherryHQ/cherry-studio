@@ -112,7 +112,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           }
         ]
       : []),
-    ...(app.kind === 'custom'
+    ...(app.presetMiniappId == null
       ? [
           {
             key: 'removeCustom',

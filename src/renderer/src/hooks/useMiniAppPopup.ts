@@ -18,7 +18,7 @@ function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
-type MiniAppInput = Omit<MiniApp, 'appId' | 'kind' | 'status' | 'orderKey'> & {
+type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniappId' | 'status' | 'orderKey'> & {
   appId: string
 }
 
@@ -26,10 +26,8 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    kind: 'default',
+    presetMiniappId: input.appId,
     status: 'enabled',
-    // Synthetic in-memory entry; no DB row exists, so any non-empty key is fine.
-    // Real ordering is determined by backend orderKey when the app is persisted.
     orderKey: ''
   }
 }

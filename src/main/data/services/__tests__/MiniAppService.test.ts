@@ -59,14 +59,14 @@ describe('MiniAppService', () => {
       const result = await miniAppService.getByAppId('custom-app')
       expect(result.appId).toBe('custom-app')
       expect(result.name).toBe('Custom App')
-      expect(result.kind).toBe('custom')
+      expect(result.presetMiniappId).toBeNull()
     })
 
-    it('should return a preset-derived miniapp with kind=default', async () => {
+    it('should return a preset-derived miniapp with presetMiniappId set', async () => {
       await seedPreset('openai')
       const result = await miniAppService.getByAppId('openai')
       expect(result.appId).toBe('openai')
-      expect(result.kind).toBe('default')
+      expect(result.presetMiniappId).toBe('openai')
     })
 
     it('should throw NOT_FOUND for nonexistent appId', async () => {
@@ -111,7 +111,7 @@ describe('MiniAppService', () => {
       const result = await miniAppService.create(dto)
 
       expect(result.appId).toBe('new-app')
-      expect(result.kind).toBe('custom')
+      expect(result.presetMiniappId).toBeNull()
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
       expect(row.presetMiniappId).toBeNull()

@@ -29,7 +29,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -63,7 +63,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
   const clean = nullsToUndefined(row)
   return {
     appId: brandId(clean.appId),
-    kind: clean.presetMiniappId !== undefined ? 'default' : 'custom',
+    presetMiniappId: clean.presetMiniappId ?? null,
     name: clean.name,
     url: clean.url,
     logo: clean.logo,
@@ -95,25 +95,11 @@ export class MiniAppService {
    * List miniapps with optional filters.
    * Sort: status priority (pinned > enabled > disabled), then orderKey ASC.
    */
-  async list(query: { status?: MiniAppStatus; type?: 'default' | 'custom' } = {}): Promise<MiniApp[]> {
-    const conditions: SQL[] = []
-    if (query.status !== undefined) {
-      conditions.push(eq(miniAppTable.status, query.status))
-    }
-    if (query.type === 'default') {
-      conditions.push(eq(miniAppTable.presetMiniappId, miniAppTable.appId))
-    } else if (query.type === 'custom') {
-      // Filter pure-custom rows (presetMiniappId IS NULL) — done in JS since drizzle's isNull
-      // would require additional import; stick with post-filter for simplicity.
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+  async list(query: { status?: MiniAppStatus } = {}): Promise<MiniApp[]> {
+    const where = query.status !== undefined ? eq(miniAppTable.status, query.status) : undefined
     const rows = await this.db.select().from(miniAppTable).where(where).orderBy(asc(miniAppTable.orderKey))
 
-    let items = rows.map(rowToMiniApp)
-    if (query.type === 'custom') {
-      items = items.filter((m) => m.kind === 'custom')
-    }
+    const items = rows.map(rowToMiniApp)
     items.sort((a, b) => {
       const order = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
       const diff = order(a.status) - order(b.status)

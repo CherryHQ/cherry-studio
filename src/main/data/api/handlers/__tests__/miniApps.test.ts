@@ -42,9 +42,9 @@ describe('miniAppHandlers', () => {
       const response = { items: [], total: 0, page: 1 }
       listMock.mockResolvedValueOnce(response)
 
-      const result = await miniAppHandlers['/mini-apps'].GET({ query: { status: 'enabled', type: 'default' } } as never)
+      const result = await miniAppHandlers['/mini-apps'].GET({ query: { status: 'enabled' } } as never)
 
-      expect(listMock).toHaveBeenCalledWith({ status: 'enabled', type: 'default' })
+      expect(listMock).toHaveBeenCalledWith({ status: 'enabled' })
       expect(result).toEqual(response)
     })
 
@@ -66,15 +66,6 @@ describe('miniAppHandlers', () => {
 
       expect(listMock).not.toHaveBeenCalled()
     })
-
-    it('should reject invalid type enum before calling the service', async () => {
-      await expect(miniAppHandlers['/mini-apps'].GET({ query: { type: 'premium' } } as never)).rejects.toHaveProperty(
-        'name',
-        'ZodError'
-      )
-
-      expect(listMock).not.toHaveBeenCalled()
-    })
   })
 
   describe('POST /mini-apps', () => {
@@ -90,7 +81,7 @@ describe('miniAppHandlers', () => {
     it('should parse body and delegate to service', async () => {
       const created = {
         appId: 'my-app',
-        kind: 'custom',
+        presetMiniappId: null,
         status: 'enabled',
         orderKey: 'a0',
         name: 'My App',
@@ -206,7 +197,7 @@ describe('miniAppHandlers', () => {
     it('should delegate to service with path appId', async () => {
       const app = {
         appId: 'openai',
-        type: 'default',
+        presetMiniappId: 'openai',
         status: 'enabled',
         sortOrder: 0,
         name: 'ChatGPT',
@@ -225,7 +216,7 @@ describe('miniAppHandlers', () => {
     it('should parse body and delegate to service', async () => {
       const updated = {
         appId: 'custom-app',
-        type: 'custom',
+        presetMiniappId: null,
         status: 'disabled',
         sortOrder: 0,
         name: 'My App',
