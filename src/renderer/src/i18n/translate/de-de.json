@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
-      "rag": "RAG wird ausgeführt...",
-      "rag_complete": "{{countAfter}} von {{countBefore}} Ergebnissen behalten...",
-      "rag_failed": "RAG fehlgeschlagen, leere Ergebnisse zurückgegeben..."
+      "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
   "miniapp": {
@@ -5741,23 +5739,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG fehlgeschlagen"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensionen automatisch erfolgreich abgerufen, Dimensionen sind {{dimensions}}"
-          },
           "method": {
             "cutoff": "Abschneiden",
             "label": "Kompressionsmethode",
-            "none": "Nicht komprimieren",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Anzahl Dokumentfragmente",
-              "tooltip": "Die erwartete Anzahl von Dokumentfragmenten, die aus einem einzelnen Suchergebnis extrahiert werden, ist dieser Wert multipliziert mit der Anzahl der Suchergebnisse."
-            }
+            "none": "Nicht komprimieren"
           },
           "title": "Suchergebnis-Kompression"
         },

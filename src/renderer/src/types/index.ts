@@ -38,6 +38,7 @@ export * from './plugin'
 export * from './provider'
 export * from './serialize'
 export * from './skill'
+export * from './websearch'
 
 export type McpMode = 'disabled' | 'auto' | 'manual'
 
@@ -673,10 +674,7 @@ export const WebSearchProviderIds = {
   exa: 'exa',
   'exa-mcp': 'exa-mcp',
   bocha: 'bocha',
-  querit: 'querit',
-  'local-google': 'local-google',
-  'local-bing': 'local-bing',
-  'local-baidu': 'local-baidu'
+  querit: 'querit'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds
@@ -747,13 +745,7 @@ export type WebSearchResponse = {
   source: WebSearchSource
 }
 
-export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
-
-export type WebSearchStatus = {
-  phase: WebSearchPhase
-  countBefore?: number
-  countAfter?: number
-}
+export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'

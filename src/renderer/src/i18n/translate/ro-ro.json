@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
-      "rag": "Se execută RAG...",
-      "rag_complete": "Se păstrează {{countAfter}} din {{countBefore}} rezultate...",
-      "rag_failed": "RAG a eșuat, se returnează rezultate goale..."
+      "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
   "miniapp": {
@@ -5741,23 +5739,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG eșuat"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensiuni obținute automat cu succes, dimensiuni: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Trunchiere",
             "label": "Metodă compresie",
-            "none": "Niciuna",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Număr fragmente document",
-              "tooltip": "Numărul așteptat de fragmente de document de extras din fiecare rezultat al căutării; numărul total real de fragmente extrase este această valoare înmulțită cu numărul de rezultate ale căutării."
-            }
+            "none": "Niciuna"
           },
           "title": "Compresie rezultate căutare"
         },
