@@ -40,6 +40,7 @@
     "i18n:check": "dotenv -e .env -- tsx scripts/check-i18n.ts",
     "i18n:hardcoded": "tsx scripts/check-hardcoded-strings.ts",
     "i18n:hardcoded:strict": "I18N_STRICT=true tsx scripts/check-hardcoded-strings.ts",
+    "i18n:unused": "tsx scripts/check-unused-i18n.ts",
     "styles:legacy-vars": "tsx scripts/check-legacy-css-vars.ts",
     "styles:legacy-vars:strict": "LEGACY_CSS_VARS_STRICT=true tsx scripts/check-legacy-css-vars.ts",
     "styles:legacy-vars:pr": "tsx scripts/check-pr-legacy-css-vars.ts",
