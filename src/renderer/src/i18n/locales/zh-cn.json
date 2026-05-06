@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "正在截断搜索内容...",
       "fetch_complete": "{{count}} 个搜索结果",
-      "rag": "正在执行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 个结果中的 {{countAfter}} 个...",
-      "rag_failed": "RAG 失败，返回空结果..."
+      "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
   "minapp": {
@@ -5740,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失败"
-          },
-          "info": {
-            "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截断",
             "label": "压缩方法",
-            "none": "不压缩",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文档片段数量",
-              "tooltip": "预期从单个搜索结果中提取的文档片段数量，实际提取的总数量是这个值乘以搜索结果数量。"
-            }
+            "none": "不压缩"
           },
           "title": "搜索结果压缩"
         },

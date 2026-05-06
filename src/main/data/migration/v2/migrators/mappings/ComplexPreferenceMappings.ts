@@ -18,7 +18,11 @@
  * The system uses strict mode - conflicts will cause errors at runtime.
  */
 
-import { flattenCompressionConfig, migrateWebSearchProviders } from '../transformers/PreferenceTransformers'
+import {
+  flattenCompressionConfig,
+  migrateWebSearchProviders,
+  normalizeWebSearchDefaultProvider
+} from '../transformers/PreferenceTransformers'
 import { transformCodeCli } from './CodeCliTransforms'
 import { mergeFileProcessingOverrides } from './FileProcessingOverrideMappings'
 import { transformLlmModelIds } from './LlmModelTransforms'
@@ -84,6 +88,17 @@ export interface ComplexMapping {
  * Remember to also define the target keys in target-key-definitions.json!
  */
 export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
+  // WebSearch default provider normalization
+  {
+    id: 'websearch_default_provider_migrate',
+    description: 'Normalize legacy websearch default provider into the curated preset-backed preference key',
+    sources: {
+      defaultProvider: { source: 'redux', category: 'websearch', key: 'defaultProvider' }
+    },
+    targetKeys: ['chat.web_search.default_provider'],
+    transform: normalizeWebSearchDefaultProvider
+  },
+
   // WebSearch provider overrides migration
   {
     id: 'websearch_providers_migrate',
@@ -105,11 +120,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     targetKeys: [
       'chat.web_search.compression.method',
       'chat.web_search.compression.cutoff_limit',
-      'chat.web_search.compression.cutoff_unit',
-      'chat.web_search.compression.rag_document_count',
-      'chat.web_search.compression.rag_embedding_model_id',
-      'chat.web_search.compression.rag_embedding_dimensions',
-      'chat.web_search.compression.rag_rerank_model_id'
+      'chat.web_search.compression.cutoff_unit'
     ],
     transform: flattenCompressionConfig
   },

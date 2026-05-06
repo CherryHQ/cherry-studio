@@ -2,19 +2,23 @@ import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icon
 import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
-import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import {
+  getWebSearchProviderLogo,
+  WEB_SEARCH_PROVIDER_CONFIG,
+  webSearchProviderRequiresApiKey,
+  webSearchProviderSupportsBasicAuth
+} from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useDefaultWebSearchProvider, useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { webSearchService } from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
-import { formatApiKeys, hasObjectKey } from '@renderer/utils'
+import { formatApiKeys } from '@renderer/utils'
 import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
@@ -41,7 +45,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
-      updateProvider({ apiKey })
+      void updateProvider({ apiKey })
     }
   }
 
@@ -51,7 +55,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== provider.apiHost) {
-      updateProvider({ apiHost: trimmedHost })
+      void updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(provider.apiHost || '')
     }
@@ -61,7 +65,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthUsername })
+      void updateProvider({ basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -71,7 +75,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthPassword })
+      void updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
@@ -93,6 +97,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       return
     }
 
+    if (needsApiKey && !hasApiKey) {
+      return
+    }
+
     if (apiKey.includes(',')) {
       await openApiKeyList()
       return
@@ -100,7 +108,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiChecking(true)
-      const { valid, error } = await webSearchService.checkSearch(provider)
+      const { valid, error } = await webSearchService.checkSearch({ ...provider, apiKey, apiHost })
 
       const errorMessage = error && error?.message ? ' ' + error?.message : ''
       window.toast[valid ? 'success' : 'error']({
@@ -133,26 +141,17 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
-  const isLocalProvider = provider.id.startsWith('local')
-
-  const openLocalProviderSettings = async () => {
-    if (officialWebsite) {
-      await window.api.searchService.openSearchWindow(provider.id, true)
-      await window.api.searchService.openUrlInSearchWindow(provider.id, officialWebsite)
-    }
-  }
-
-  // Check if this provider is already the default
   const isDefault = defaultProvider?.id === provider.id
 
-  // Check if provider needs API key but doesn't have one configured
-  const needsApiKey = hasObjectKey(provider, 'apiKey')
-  const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
-  const canSetAsDefault = !isDefault && (!needsApiKey || hasApiKey)
+  const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
+  const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
+  const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
+  const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
+  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id) === true
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
-      setDefaultProvider(provider)
+      void setDefaultProvider(provider)
     }
   }
 
@@ -166,7 +165,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             ) : (
               <div className="h-5 w-5 rounded bg-[var(--color-background-soft)]" />
             )}
-            <ProviderName> {provider.name}</ProviderName>
+            <span className="font-medium text-sm">{provider.name}</span>
             {officialWebsite && webSearchProviderConfig?.websites && (
               <Link target="_blank" href={webSearchProviderConfig.websites.official}>
                 <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
@@ -179,21 +178,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isLocalProvider && (
-        <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
-            {t('settings.tool.websearch.local_provider.settings')}
-          </SettingSubtitle>
-          <Button variant="default" onClick={openLocalProviderSettings}>
-            <ExportOutlined />
-            {t('settings.tool.websearch.local_provider.open_settings', { provider: provider.name })}
-          </Button>
-          <SettingHelpTextRow style={{ marginTop: 10 }}>
-            <SettingHelpText>{t('settings.tool.websearch.local_provider.hint')}</SettingHelpText>
-          </SettingHelpTextRow>
-        </>
-      )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiKey') && (
+      {needsApiKey && (
         <>
           <SettingSubtitle
             style={{
@@ -220,7 +205,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               type="password"
               autoFocus={apiKey === ''}
             />
-            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
+            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={!canCheckSearch}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -242,7 +227,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </SettingHelpTextRow>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'apiHost') && (
+      {provider.apiHost !== undefined && (
         <>
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
@@ -257,7 +242,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           </Flex>
         </>
       )}
-      {!isLocalProvider && hasObjectKey(provider, 'basicAuthUsername') && (
+      {supportsBasicAuth && (
         <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle
@@ -316,10 +301,5 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     </>
   )
 }
-
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
 
 export default WebSearchProviderSetting

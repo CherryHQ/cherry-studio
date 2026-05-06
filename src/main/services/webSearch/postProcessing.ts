@@ -23,7 +23,6 @@ export type WebSearchPostProcessingResult = {
  * Current behavior:
  * - `none`: return raw results
  * - `cutoff`: truncate result content
- * - `rag`: reserved for future Main-side implementation, currently returns raw results
  */
 export async function postProcessWebSearchResponse(
   response: WebSearchResponse,
@@ -43,19 +42,6 @@ export async function postProcessWebSearchResponse(
     }
   }
 
-  if (runtimeConfig.compression.method === 'rag') {
-    return applyRag(response, runtimeConfig)
-  }
-
-  return { response }
-}
-
-async function applyRag(
-  response: WebSearchResponse,
-  runtimeConfig: WebSearchExecutionConfig
-): Promise<WebSearchPostProcessingResult> {
-  void runtimeConfig
-  // TODO: implement Main-side RAG compression and lifecycle status handling.
   return { response }
 }
 

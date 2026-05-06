@@ -1,7 +1,6 @@
-import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { Querit } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
+import { BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
@@ -11,6 +10,7 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
@@ -18,7 +18,6 @@ import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/page
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { webSearchService } from '@renderer/services/WebSearchService'
 import { getEffectiveMcpMode, type WebSearchProvider, type WebSearchProviderId } from '@renderer/types'
-import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
 import { Globe } from 'lucide-react'
@@ -49,12 +48,6 @@ export const WebSearchProviderIcon = ({
       return <SearXNGLogo className="icon" width={size} height={size} color={color} />
     case 'querit':
       return <Querit.Mono className="icon" width={size} height={size} color={color} />
-    case 'local-baidu':
-      return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
-    case 'local-bing':
-      return <BingLogo className="icon" width={size} height={size} color={color} />
-    case 'local-google':
-      return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
     default:
       return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
   }
@@ -134,19 +127,29 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     const items: QuickPanelListItem[] = []
     items.push(
       ...providers
-        .map((p) => ({
-          label: p.name,
-          description: webSearchService.isWebSearchEnabled(p.id)
-            ? hasObjectKey(p, 'apiKey')
-              ? t('settings.tool.websearch.apikey')
-              : t('settings.tool.websearch.free')
-            : t('chat.input.web_search.enable_content'),
-          icon: <WebSearchProviderIcon size={13} pid={p.id} />,
-          isSelected: p.id === assistant?.webSearchProviderId,
-          disabled: !webSearchService.isWebSearchEnabled(p.id),
-          action: () => updateQuickPanelItem(p.id)
-        }))
-        .filter((item) => !item.disabled)
+        .map((p) => {
+          const availability = webSearchService.isWebSearchEnabled(p.id)
+          return {
+            availability,
+            item: {
+              label: p.name,
+              description:
+                availability === 'unknown'
+                  ? t('common.loading')
+                  : availability
+                    ? webSearchProviderRequiresApiKey(p.id)
+                      ? t('settings.tool.websearch.apikey')
+                      : t('settings.tool.websearch.free')
+                    : t('chat.input.web_search.enable_content'),
+              icon: <WebSearchProviderIcon size={13} pid={p.id} />,
+              isSelected: p.id === assistant?.webSearchProviderId,
+              disabled: availability === 'unknown',
+              action: () => updateQuickPanelItem(p.id)
+            }
+          }
+        })
+        .filter(({ availability }) => availability !== false)
+        .map(({ item }) => item)
     )
 
     if (isWebSearchModelEnabled) {

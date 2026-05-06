@@ -735,12 +735,20 @@ export const REDUX_STORE_MAPPINGS = {
   ],
   websearch: [
     {
+      originalKey: 'searchWithTime',
+      targetKey: 'chat.web_search.search_with_time'
+    },
+    {
       originalKey: 'maxResults',
       targetKey: 'chat.web_search.max_results'
     },
     {
       originalKey: 'excludeDomains',
       targetKey: 'chat.web_search.exclude_domains'
+    },
+    {
+      originalKey: 'subscribeSources',
+      targetKey: 'chat.web_search.subscribe_sources'
     }
   ],
   ocr: [
@@ -851,11 +859,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 186
+ * - Redux Store项: 188
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 194
+ * - 总配置项: 196
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
