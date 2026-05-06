@@ -2,7 +2,12 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isGemini3Model, isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import {
+  isDeepSeekModel,
+  isGemini3Model,
+  isQwen35to39Model,
+  isSupportedThinkingTokenQwenModel
+} from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
@@ -10,6 +15,7 @@ import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/uti
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createDeepseekDsmlParserPlugin } from './deepseekDsmlParserPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
@@ -82,6 +88,11 @@ export async function buildPlugins({ provider, model, config }: BuildPluginsCont
   // 0.3 OpenRouter reasoning redaction
   if (provider.id === SystemProviderIds.openrouter) {
     plugins.push(createOpenrouterReasoningPlugin())
+  }
+
+  // 0.3.1 DeepSeek DSML tool-call parser — converts leaked DSML tags into proper tool calls
+  if (isDeepSeekModel(model)) {
+    plugins.push(createDeepseekDsmlParserPlugin())
   }
 
   // 0.4 OVMS no-think for MCP tools

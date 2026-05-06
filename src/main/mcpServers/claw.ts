@@ -73,6 +73,11 @@ const CRON_TOOL: Tool = {
         description:
           'Channel IDs to send task results to. Omit to auto-bind all agent channels. Use an empty array [] to skip channel delivery.'
       },
+      timeout_minutes: {
+        type: 'number',
+        description:
+          'Timeout in minutes before the task is aborted. Default is 2. Increase for long-running tasks (e.g. 10).'
+      },
       id: {
         type: 'string',
         description: 'Job ID (required for remove)'
@@ -299,6 +304,7 @@ class ClawServer {
     const every = args.every as string | undefined
     const at = args.at as string | undefined
     const rawChannelIds = args.channel_ids as string[] | undefined
+    const timeoutMinutes = args.timeout_minutes as number | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
 
@@ -337,6 +343,7 @@ class ClawServer {
       prompt: message,
       scheduleType,
       scheduleValue,
+      timeoutMinutes: timeoutMinutes && timeoutMinutes > 0 ? timeoutMinutes : undefined,
       channelIds: channelIds && channelIds.length > 0 ? channelIds : undefined
     })
 
