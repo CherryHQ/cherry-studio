@@ -1,1 +1,0 @@
-ALTER TABLE `mini_app` DROP COLUMN `user_overrides`;

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6bcf104d-ca1e-4ed5-bc62-86997e111d29",
+  "id": "fbe9492f-6596-4ce2-99e4-7d64a08910fe",
   "prevId": "39877ab7-aad7-4432-adb5-c526fd17cca5",
   "tables": {
     "agent": {
@@ -2176,13 +2176,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "user_overrides": {
-          "name": "user_overrides",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3062,9 +3055,7 @@
   "enums": {},
   "_meta": {
     "schemas": {},
-    "tables": {
-      "\"miniapp\"": "\"mini_app\""
-    },
+    "tables": {},
     "columns": {}
   },
   "internal": {
