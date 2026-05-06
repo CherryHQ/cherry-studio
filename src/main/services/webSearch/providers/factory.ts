@@ -2,6 +2,8 @@ import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 import { BochaProvider } from './api/BochaProvider'
 import { ExaProvider } from './api/ExaProvider'
+import { FetchProvider } from './api/FetchProvider'
+import { JinaReaderProvider } from './api/JinaReaderProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearxngProvider } from './api/SearxngProvider'
 import { TavilyProvider } from './api/TavilyProvider'
@@ -25,6 +27,10 @@ export function createWebSearchProvider(provider: ResolvedWebSearchProvider): Ba
       return new BochaProvider(provider)
     case 'querit':
       return new QueritProvider(provider)
+    case 'fetch':
+      return new FetchProvider(provider)
+    case 'jina-reader':
+      return new JinaReaderProvider(provider)
     default:
       throw new Error(`Unsupported web search provider: ${provider.id}`)
   }

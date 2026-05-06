@@ -24,6 +24,8 @@ vi.mock('electron', () => ({
 
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
+import { FetchProvider } from '../api/FetchProvider'
+import { JinaReaderProvider } from '../api/JinaReaderProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -215,6 +217,115 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('fetches a URL without API key or API host', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
+
+    const provider = new FetchProvider(
+      createProvider({
+        id: 'fetch',
+        name: 'Fetch',
+        apiKeys: [],
+        apiHost: ''
+      })
+    )
+
+    const result = await provider.search('https://example.com/article', runtimeConfig)
+
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": null,
+          "headers": {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+          "method": "GET",
+          "url": "https://example.com/article",
+        },
+        "result": {
+          "query": "https://example.com/article",
+          "results": [
+            {
+              "content": "Resolved content from the target page.",
+              "title": "Resolved Page Title",
+              "url": "https://example.com/article",
+            },
+          ],
+        },
+      }
+    `)
+  })
+
+  it('matches Jina Reader request and normalized response snapshot', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        data: {
+          title: 'Reader Title',
+          content: 'Reader Content',
+          url: 'https://example.com/article'
+        }
+      })
+    )
+
+    const provider = new JinaReaderProvider(
+      createProvider({
+        id: 'jina-reader',
+        name: 'Jina Reader',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    const result = await provider.search('https://example.com/article', runtimeConfig)
+
+    expect({
+      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      result
+    }).toMatchInlineSnapshot(`
+      {
+        "request": {
+          "body": null,
+          "headers": {
+            "accept": "application/json",
+            "authorization": "Bearer jina-key",
+            "http-referer": "https://cherry-ai.com",
+            "x-retain-images": "none",
+            "x-title": "Cherry Studio",
+          },
+          "method": "GET",
+          "url": "https://r.jina.ai/https://example.com/article",
+        },
+        "result": {
+          "query": "https://example.com/article",
+          "results": [
+            {
+              "content": "Reader Content",
+              "title": "Reader Title",
+              "url": "https://example.com/article",
+            },
+          ],
+        },
+      }
+    `)
+  })
+
+  it('throws a clear error for non-URL reader queries', async () => {
+    const provider = new JinaReaderProvider(
+      createProvider({
+        id: 'jina-reader',
+        name: 'Jina Reader',
+        apiKeys: ['jina-key'],
+        apiHost: 'https://r.jina.ai'
+      })
+    )
+
+    await expect(provider.search('not a url', runtimeConfig)).rejects.toThrow('Invalid URL format: not a url')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {

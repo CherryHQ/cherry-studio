@@ -76,6 +76,16 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
     name: 'Querit',
     type: 'api',
     defaultApiHost: 'https://api.querit.ai'
+  },
+  fetch: {
+    name: 'Fetch',
+    type: 'api',
+    defaultApiHost: ''
+  },
+  'jina-reader': {
+    name: 'Jina Reader',
+    type: 'api',
+    defaultApiHost: 'https://r.jina.ai'
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

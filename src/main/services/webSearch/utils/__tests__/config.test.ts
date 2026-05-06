@@ -29,6 +29,8 @@ describe('webSearch config utils', () => {
 
     expect(providerIds).toContain('exa-mcp')
     expect(providerIds).toContain('querit')
+    expect(providerIds).toContain('fetch')
+    expect(providerIds).toContain('jina-reader')
 
     const tavily = resolved.providers.find((provider) => provider.id === 'tavily')
     expect(tavily?.apiKeys).toEqual(['tavily-key'])
@@ -80,6 +82,25 @@ describe('webSearch config utils', () => {
       type: 'api',
       apiKeys: ['tavily-key'],
       apiHost: 'https://api.tavily.com'
+    })
+  })
+
+  it('resolves URL reader provider presets', async () => {
+    const fetchProvider = await getProviderById('fetch', mockPreferenceReader)
+    const jinaReaderProvider = await getProviderById('jina-reader', mockPreferenceReader)
+
+    expect(fetchProvider).toMatchObject({
+      id: 'fetch',
+      name: 'Fetch',
+      type: 'api',
+      apiKeys: [],
+      apiHost: ''
+    })
+    expect(jinaReaderProvider).toMatchObject({
+      id: 'jina-reader',
+      name: 'Jina Reader',
+      type: 'api',
+      apiHost: 'https://r.jina.ai'
     })
   })
 })

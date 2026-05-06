@@ -132,7 +132,17 @@ export const WEB_SEARCH_PROVIDER_TYPES = ['api', 'mcp'] as const
 
 export type WebSearchProviderType = (typeof WEB_SEARCH_PROVIDER_TYPES)[number]
 
-export const WEB_SEARCH_PROVIDER_IDS = ['zhipu', 'tavily', 'searxng', 'exa', 'exa-mcp', 'bocha', 'querit'] as const
+export const WEB_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'querit',
+  'fetch',
+  'jina-reader'
+] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 

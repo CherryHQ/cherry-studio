@@ -32,6 +32,8 @@ vi.mock('electron', () => ({
 
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
+import { FetchProvider } from '../api/FetchProvider'
+import { JinaReaderProvider } from '../api/JinaReaderProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -62,6 +64,8 @@ describe('createWebSearchProvider', () => {
     expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
     expect(createWebSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
     expect(createWebSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'fetch' }))).toBeInstanceOf(FetchProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'jina-reader' }))).toBeInstanceOf(JinaReaderProvider)
   })
 
   it('throws for unsupported provider ids', () => {
