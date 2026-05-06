@@ -88,7 +88,7 @@ interface KnowledgePageContextValue {
   submitCreateGroup: (name: string) => Promise<void>
   submitRenameBase: (name: string) => Promise<void>
   submitRenameGroup: (name: string) => Promise<void>
-  moveBase: (baseId: string, groupId: string) => Promise<void>
+  moveBase: (baseId: string, groupId: string | null) => Promise<void>
   deleteBase: (baseId: string) => Promise<void>
   deleteGroup: (groupId: string) => Promise<void>
   startNavigatorResize: (event: ReactMouseEvent<HTMLDivElement>) => void
@@ -299,7 +299,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   )
 
   const moveBase = useCallback(
-    async (baseId: string, groupId: string) => {
+    async (baseId: string, groupId: string | null) => {
       await updateBase(baseId, { groupId })
     },
     [updateBase]

@@ -105,6 +105,7 @@ export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorR
 export const KnowledgeBaseRowMenu = ({
   menuPosition,
   availableGroups,
+  canMoveToUngrouped,
   onClose,
   onRename,
   onMove,
@@ -117,11 +118,19 @@ export const KnowledgeBaseRowMenu = ({
       <MenuList className="gap-0.5">
         <NavigatorRowMenuItem icon={<PencilLine />} label={t('knowledge_v2.context.rename')} onClick={onRename} />
 
-        {availableGroups.length > 0 ? (
+        {availableGroups.length > 0 || canMoveToUngrouped ? (
           <>
             <div className="px-2 pt-1 pb-0.5 text-[0.625rem] text-muted-foreground/70 leading-4">
               {t('knowledge_v2.context.move_to')}
             </div>
+
+            {canMoveToUngrouped ? (
+              <NavigatorRowMenuItem
+                icon={<ArrowRightLeft />}
+                label={t('knowledge_v2.groups.ungrouped')}
+                onClick={() => void onMove(null)}
+              />
+            ) : null}
 
             {availableGroups.map((group) => (
               <NavigatorRowMenuItem

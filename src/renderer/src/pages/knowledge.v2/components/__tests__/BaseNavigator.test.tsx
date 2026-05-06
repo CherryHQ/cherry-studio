@@ -323,6 +323,37 @@ describe('BaseNavigator', () => {
     expect(screen.queryByText('未分组')).not.toBeInTheDocument()
   })
 
+  it('shows ungrouped as a move target for grouped bases', async () => {
+    const onMoveBase = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BaseNavigator
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={onMoveBase}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
+
+    expect(screen.getByText('移动到')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: '未分组' })[0])
+
+    await waitFor(() => {
+      expect(onMoveBase).toHaveBeenCalledWith('base-1', null)
+    })
+  })
+
   it('opens a context menu on right click and moves the base to another group', async () => {
     const onMoveBase = vi.fn().mockResolvedValue(undefined)
 
@@ -352,6 +383,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByText('移动到')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Research' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '未分组' })).toHaveLength(1)
     expect(
       screen
         .getAllByRole('button', { name: 'Archive' })
@@ -370,11 +402,11 @@ describe('BaseNavigator', () => {
     })
   })
 
-  it('hides the move-to section when there are no other groups', () => {
+  it('hides the move-to section when an ungrouped base has no group targets', () => {
     render(
       <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
+        groups={[]}
         width={280}
         selectedBaseId="base-1"
         onSelectBase={vi.fn()}
@@ -392,7 +424,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
 
     expect(screen.queryByText('移动到')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Research' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: '未分组' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
 

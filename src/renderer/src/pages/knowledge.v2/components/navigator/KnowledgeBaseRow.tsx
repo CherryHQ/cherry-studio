@@ -29,7 +29,7 @@ const KnowledgeBaseRow = ({
   const statusLabel = t(`knowledge_v2.status.${base.status}`)
 
   const handleMoveBase = useCallback(
-    async (groupId: string) => {
+    async (groupId: string | null) => {
       closeContextMenu()
 
       if (base.groupId === groupId) {
@@ -101,6 +101,7 @@ const KnowledgeBaseRow = ({
       <KnowledgeBaseRowMenu
         menuPosition={contextMenuPosition}
         availableGroups={availableGroups}
+        canMoveToUngrouped={base.groupId !== null}
         onClose={closeContextMenu}
         onRename={handleRenameBase}
         onMove={handleMoveBase}

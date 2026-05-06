@@ -26,7 +26,7 @@ export interface BaseNavigatorContentProps {
   selectedBaseId: string
   getGroupLabel: (groupId: string | null) => string
   onSelectBase: (baseId: string) => void
-  onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+  onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBaseInGroup: (groupId: string) => void
@@ -41,7 +41,7 @@ export interface BaseNavigatorGroupSectionProps {
   groups: Group[]
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
-  onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+  onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBaseInGroup: (groupId: string) => void
@@ -82,7 +82,7 @@ export interface KnowledgeBaseRowProps {
   groups: Group[]
   selected: boolean
   onSelectBase: (baseId: string) => void
-  onMoveBase: (baseId: string, groupId: string) => Promise<void> | void
+  onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
@@ -92,7 +92,8 @@ export interface KnowledgeBaseRowMenuProps {
   availableGroups: Group[]
   onClose: () => void
   onRename: () => void
-  onMove: (groupId: string) => Promise<void> | void
+  canMoveToUngrouped: boolean
+  onMove: (groupId: string | null) => Promise<void> | void
   onRequestDelete: () => void
 }
 
