@@ -8,6 +8,7 @@
 
 import { application } from '@application'
 import { promptTable } from '@data/db/schemas/prompt'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -86,15 +87,7 @@ export class PromptService {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
-      if (dto.title === undefined && dto.content === undefined) {
-        return rowToPrompt(existing)
-      }
-
-      const updates: Partial<typeof promptTable.$inferInsert> = {}
-      if (dto.title !== undefined) updates.title = dto.title
-      if (dto.content !== undefined) updates.content = dto.content
-
-      const [row] = await tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).returning()
+      const [row] = await tx.update(promptTable).set(dto).where(eq(promptTable.id, id)).returning()
 
       logger.info('Updated prompt', { id, changes: Object.keys(dto) })
       return rowToPrompt(row)
@@ -119,8 +112,7 @@ export class PromptService {
   }
 
   /** Pre-check that every id in a reorder exists; convert to NOT_FOUND otherwise. */
-  // biome-ignore lint: tx is a transaction handle; structural typing over Drizzle's generic chain keeps this helper schema-agnostic.
-  private async assertPromptsExist(tx: any, ids: string[]): Promise<void> {
+  private async assertPromptsExist(tx: Pick<DbType, 'select'>, ids: string[]): Promise<void> {
     const uniqueIds = Array.from(new Set(ids))
     const rows = (await tx
       .select({ id: promptTable.id })

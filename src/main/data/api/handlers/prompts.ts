@@ -6,7 +6,7 @@
  */
 
 import { promptService } from '@data/services/PromptService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreatePromptSchema,
@@ -15,13 +15,7 @@ import {
   UpdatePromptSchema
 } from '@shared/data/api/schemas/prompts'
 
-type PromptHandler<Path extends keyof PromptSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const promptHandlers: {
-  [Path in keyof PromptSchemas]: {
-    [Method in keyof PromptSchemas[Path]]: PromptHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts': {
     GET: async () => {
       return await promptService.getAll()

@@ -94,17 +94,6 @@ describe('PromptService', () => {
       })
     })
 
-    it('should return the existing prompt unchanged when every field is undefined', async () => {
-      const p = await seedPrompt()
-      const before = await dbh.db.select().from(promptTable).where(eq(promptTable.id, p.id))
-
-      const result = await promptService.update(p.id, {})
-
-      expect(result.id).toBe(p.id)
-      const after = await dbh.db.select().from(promptTable).where(eq(promptTable.id, p.id))
-      expect(after[0]).toEqual(before[0])
-    })
-
     it('should throw NOT_FOUND when the prompt does not exist', async () => {
       await expect(promptService.update(PROMPT_ID_MISSING, { title: 'x' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND

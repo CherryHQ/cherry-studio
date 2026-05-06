@@ -27,14 +27,12 @@ const PromptSettings: FC = () => {
 
   const { data: promptsList = [], isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
-  const promptPath: `/prompts/${string}` = `/prompts/${editingPrompt?.id ?? '__pending__'}`
-
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.error.unknown'))
   })
 
-  const { trigger: updatePrompt, isLoading: isUpdatingPrompt } = useMutation('PATCH', promptPath, {
+  const { trigger: updatePrompt, isLoading: isUpdatingPrompt } = useMutation('PATCH', '/prompts/:id', {
     refresh: ['/prompts'],
     onError: () => window.toast.error(t('message.error.unknown'))
   })
@@ -110,7 +108,7 @@ const PromptSettings: FC = () => {
         content: data.content
       }
       if (editingPrompt) {
-        await updatePrompt({ body })
+        await updatePrompt({ params: { id: editingPrompt.id }, body })
       } else {
         await createPrompt({ body })
       }

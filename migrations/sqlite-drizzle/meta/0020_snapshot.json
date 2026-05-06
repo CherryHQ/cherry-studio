@@ -2389,11 +2389,6 @@
           "name": "prompt_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
-        },
-        "prompt_updated_at_idx": {
-          "name": "prompt_updated_at_idx",
-          "columns": ["updated_at"],
-          "isUnique": false
         }
       },
       "foreignKeys": {},

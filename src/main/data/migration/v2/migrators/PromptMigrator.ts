@@ -42,13 +42,11 @@ export class PromptMigrator extends BaseMigrator {
 
   private promptCount = 0
   private skippedCount = 0
-  private prepareError: string | null = null
   private preparedPhrases: LegacyQuickPhrase[] = []
 
   override reset(): void {
     this.promptCount = 0
     this.skippedCount = 0
-    this.prepareError = null
     this.preparedPhrases = []
   }
 
@@ -83,7 +81,6 @@ export class PromptMigrator extends BaseMigrator {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Prepare failed', error as Error)
-      this.prepareError = message
       return {
         success: false,
         itemCount: 0,
@@ -97,7 +94,8 @@ export class PromptMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    // Stamp orderKeys in the same order legacy QuickPhraseService.getAll() returned.
+    // Stamp orderKeys in the same order legacy QuickPhraseService.getAll() returned
+    // (descending by `order`, newest-first).
     // Consumers already preserve their old display behavior from that canonical order.
     const sortedPhrases = [...this.preparedPhrases].sort((a, b) => {
       const ao = a.order ?? 0
@@ -153,10 +151,6 @@ export class PromptMigrator extends BaseMigrator {
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     const errors: ValidationError[] = []
     const db = ctx.db
-
-    if (this.prepareError) {
-      errors.push({ key: 'prepare_failed', message: this.prepareError })
-    }
 
     try {
       const promptResult = await db.select({ count: sql<number>`count(*)` }).from(promptTable).get()

@@ -28,7 +28,13 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const { t } = useTranslation()
-  const quickPanelHook = useQuickPanel()
+  const {
+    close: closeQuickPanel,
+    isVisible: isQuickPanelVisible,
+    open: openQuickPanelContext,
+    symbol: quickPanelSymbol,
+    updateList: updateQuickPanelList
+  } = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
   const triggerInfoRef = useRef<
     (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
@@ -183,6 +189,18 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     [phraseItems, t]
   )
 
+  const quickPanelOpenOptionsRef = useRef(quickPanelOpenOptions)
+
+  useEffect(() => {
+    quickPanelOpenOptionsRef.current = quickPanelOpenOptions
+  }, [quickPanelOpenOptions])
+
+  useEffect(() => {
+    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.QuickPhrases) {
+      updateQuickPanelList(phraseItems)
+    }
+  }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])
+
   type QuickPhraseTrigger =
     | (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string })
     | undefined
@@ -190,8 +208,8 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
   const openQuickPanel = useCallback(
     (triggerInfo?: QuickPhraseTrigger) => {
       triggerInfoRef.current = triggerInfo
-      quickPanelHook.open({
-        ...quickPanelOpenOptions,
+      openQuickPanelContext({
+        ...quickPanelOpenOptionsRef.current,
         triggerInfo:
           triggerInfo && triggerInfo.type === 'input'
             ? {
@@ -205,16 +223,16 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
         }
       })
     },
-    [quickPanelHook, quickPanelOpenOptions]
+    [openQuickPanelContext]
   )
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.QuickPhrases) {
-      quickPanelHook.close()
+    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.QuickPhrases) {
+      closeQuickPanel()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanelHook])
+  }, [closeQuickPanel, isQuickPanelVisible, openQuickPanel, quickPanelSymbol])
 
   useEffect(() => {
     const disposeRootMenu = quickPanel.registerRootMenu([
@@ -234,9 +252,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
               : undefined
 
           context.close('select')
-          setTimeout(() => {
-            openQuickPanel(rootTrigger)
-          }, 0)
+          setTimeoutTimer('openQuickPhrasesRootMenu', () => openQuickPanel(rootTrigger), 0)
         }
       }
     ])
@@ -250,7 +266,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
       disposeRootMenu()
       disposeTrigger()
     }
-  }, [openQuickPanel, quickPanel, t])
+  }, [openQuickPanel, quickPanel, setTimeoutTimer, t])
 
   return (
     <>

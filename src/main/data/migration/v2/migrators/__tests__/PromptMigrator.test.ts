@@ -252,8 +252,11 @@ describe('PromptMigrator', () => {
 
       await migrator.execute(ctx)
 
-      // Progress reported at 10 and 15
-      expect(progressFn).toHaveBeenCalled()
+      expect(progressFn).toHaveBeenCalledTimes(2)
+      expect(progressFn.mock.calls[0][0]).toBe(67)
+      expect(progressFn.mock.calls[0][1]).toMatchObject({ message: 'Migrated 10/15 prompts' })
+      expect(progressFn.mock.calls[1][0]).toBe(100)
+      expect(progressFn.mock.calls[1][1]).toMatchObject({ message: 'Migrated 15/15 prompts' })
     })
 
     it('should return failure and reset processedCount to 0 when transaction throws', async () => {

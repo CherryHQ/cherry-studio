@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { orderKeyColumns, orderKeyIndex, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
@@ -20,5 +20,5 @@ export const promptTable = sqliteTable(
       .$defaultFn(() => Date.now())
       .$onUpdateFn(() => Date.now())
   },
-  (t) => [orderKeyIndex('prompt')(t), index('prompt_updated_at_idx').on(t.updatedAt)]
+  (t) => [orderKeyIndex('prompt')(t)]
 )

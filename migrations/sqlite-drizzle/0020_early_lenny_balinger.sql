@@ -7,5 +7,4 @@ CREATE TABLE `prompt` (
 	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `prompt_order_key_idx` ON `prompt` (`order_key`);--> statement-breakpoint
-CREATE INDEX `prompt_updated_at_idx` ON `prompt` (`updated_at`);
+CREATE INDEX `prompt_order_key_idx` ON `prompt` (`order_key`);
