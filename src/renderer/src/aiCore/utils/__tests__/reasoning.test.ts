@@ -432,6 +432,54 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should use enable_thinking:false for SiliconFlow + DeepSeek-V4-Flash when reasoning_effort is none', async () => {
+      const { isReasoningModel, isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'deepseek-ai/DeepSeek-V4-Flash',
+        name: 'DeepSeek V4 Flash',
+        provider: SystemProviderIds.silicon
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ enable_thinking: false })
+    })
+
+    it('should use enable_thinking:false for SiliconFlow + Zhipu model when reasoning_effort is none', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenZhipuModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenZhipuModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'THUDM/glm-4.5-thinking',
+        name: 'GLM-4.5 Thinking',
+        provider: SystemProviderIds.silicon
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ enable_thinking: false })
+    })
+
     it('should return medium effort for deep research models', async () => {
       const { isReasoningModel, isOpenAIDeepResearchModel } = await import('@renderer/config/models')
 
