@@ -5,6 +5,8 @@ import path from 'node:path'
 import { ConflictStrategy } from '@shared/backup'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { FileRestorer as FileRestorerClass } from '../FileRestorer'
+
 vi.mock('@application', () => ({
   application: {
     getPath: vi.fn()
@@ -22,7 +24,7 @@ vi.mock('@logger', () => ({
 }))
 
 describe('FileRestorer', () => {
-  let FileRestorer: typeof import('../FileRestorer').FileRestorer
+  let FileRestorer: typeof FileRestorerClass
   let tmpDir: string
   let liveDir: string
 

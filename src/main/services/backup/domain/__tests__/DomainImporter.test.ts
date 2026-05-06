@@ -1,6 +1,8 @@
 import { BackupDomain, ConflictStrategy } from '@shared/backup'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DomainImporter as DomainImporterClass } from '../DomainImporter'
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -61,7 +63,7 @@ describe('DomainImporter', () => {
     throwIfCancelled: vi.fn()
   })
 
-  let DomainImporter: typeof import('../DomainImporter').DomainImporter
+  let DomainImporter: typeof DomainImporterClass
 
   beforeEach(async () => {
     vi.clearAllMocks()

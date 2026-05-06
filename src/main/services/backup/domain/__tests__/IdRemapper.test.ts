@@ -1,6 +1,8 @@
 import { BackupDomain } from '@shared/backup'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { IdRemapper as IdRemapperClass } from '../IdRemapper'
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -12,7 +14,7 @@ vi.mock('@logger', () => ({
 }))
 
 describe('IdRemapper', () => {
-  let IdRemapper: typeof import('../IdRemapper').IdRemapper
+  let IdRemapper: typeof IdRemapperClass
 
   beforeEach(async () => {
     vi.clearAllMocks()
