@@ -28,8 +28,8 @@ const FEISHU_MAX_LENGTH = 4000
  * done / error. Each value must be a valid Feishu emoji_type.
  * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
  */
-const REACTION_THINKING = 'INHALE'
-const REACTION_DONE = 'OK_HAND'
+const REACTION_THINKING = 'THINKING'
+const REACTION_DONE = 'OK'
 const REACTION_ERROR = 'CRY'
 
 type ChatReaction = {
