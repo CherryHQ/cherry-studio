@@ -474,6 +474,7 @@ const McpSettings: React.FC = () => {
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
+          okButtonProps: { danger: true },
           onOk: async () => {
             await window.api.mcp.removeServer(serverToDelete)
             await deleteMCPServer({})
@@ -1053,13 +1054,19 @@ const McpSettings: React.FC = () => {
                 <Flex className="min-w-0 flex-1 items-center gap-2">
                   <ServerName className="truncate">{server?.name}</ServerName>
                   {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+                  <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
+                    {t('settings.mcp.logs', 'View Logs')}
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0"
+                    aria-label={t('common.delete')}
+                    title={t('common.delete')}
+                    onClick={() => onDeleteMcpServer(server)}>
+                    <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                  </Button>
                 </Flex>
-                <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
-                  {t('settings.mcp.logs', 'View Logs')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
-                  <DeleteIcon size={14} className="lucide-custom text-destructive" />
-                </Button>
               </Flex>
               <Flex className="shrink-0 items-center gap-3">
                 <Switch

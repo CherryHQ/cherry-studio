@@ -1,5 +1,13 @@
-import { InfoTooltip, Slider, Switch } from '@cherrystudio/ui'
-import Selector from '@renderer/components/Selector'
+import {
+  InfoTooltip,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch
+} from '@cherrystudio/ui'
 import { getWebSearchProviderLogo, webSearchProviderRequiresApiKey } from '@renderer/config/webSearchProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import {
@@ -97,16 +105,18 @@ const BasicSettings: FC = () => {
         <SettingDivider />
         <SettingRow className="gap-8 py-2">
           <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.default_provider')}</SettingRowTitle>
-          <Selector
-            size={14}
-            value={defaultProvider?.id}
-            onChange={(value: string) => updateSelectedWebSearchProvider(value)}
-            placeholder={t('settings.tool.websearch.search_provider_placeholder')}
-            options={providers.map((p) => ({
-              value: p.id,
-              label: renderProviderLabel(p)
-            }))}
-          />
+          <Select value={defaultProvider?.id} onValueChange={updateSelectedWebSearchProvider}>
+            <SelectTrigger style={{ width: '200px' }}>
+              <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {providers.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {renderProviderLabel(provider)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>

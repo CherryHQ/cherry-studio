@@ -144,7 +144,7 @@ describe('DataTable', () => {
 
     const table = screen.getByRole('table')
     const shell = table.closest('[data-slot="data-table-shell"]')
-    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-card', 'shadow-xs')
+    expect(shell).toHaveClass('rounded-lg', 'border-border/70', 'bg-background-subtle', 'shadow-xs')
 
     expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass(
       'h-10',
