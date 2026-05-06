@@ -23,7 +23,7 @@ describe('MiniAppSeeder', () => {
     }
   })
 
-  it('should refresh registry-enrichable fields not in userOverrides on re-run', async () => {
+  it('should refresh preset display fields on re-run', async () => {
     const preset = PRESETS_MINI_APPS[0]
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
@@ -31,8 +31,7 @@ describe('MiniAppSeeder', () => {
       name: 'Stale Name',
       url: preset.url,
       status: 'enabled',
-      orderKey: 'a0',
-      userOverrides: []
+      orderKey: 'a0'
     })
 
     const seed = new MiniAppSeeder()
@@ -40,25 +39,6 @@ describe('MiniAppSeeder', () => {
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.name).toBe(preset.name)
-  })
-
-  it('should preserve fields listed in userOverrides on re-run', async () => {
-    const preset = PRESETS_MINI_APPS[0]
-    await dbh.db.insert(miniAppTable).values({
-      appId: preset.id,
-      presetMiniappId: preset.id,
-      name: 'User Custom Name',
-      url: preset.url,
-      status: 'enabled',
-      orderKey: 'a0',
-      userOverrides: ['name']
-    })
-
-    const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
-
-    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
-    expect(row.name).toBe('User Custom Name')
   })
 
   it('should not overwrite user-modified status or orderKey on re-run', async () => {
@@ -69,8 +49,7 @@ describe('MiniAppSeeder', () => {
       name: preset.name,
       url: preset.url,
       status: 'disabled',
-      orderKey: 'z9',
-      userOverrides: []
+      orderKey: 'z9'
     })
 
     const seed = new MiniAppSeeder()
@@ -79,26 +58,6 @@ describe('MiniAppSeeder', () => {
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.status).toBe('disabled')
     expect(row.orderKey).toBe('z9')
-  })
-
-  it('should not throw and preserve custom fields when all enrichable fields are overridden', async () => {
-    const preset = PRESETS_MINI_APPS[0]
-    await dbh.db.insert(miniAppTable).values({
-      appId: preset.id,
-      presetMiniappId: preset.id,
-      name: 'Custom Name',
-      url: 'https://custom.example.com',
-      status: 'enabled',
-      orderKey: 'a0',
-      userOverrides: ['name', 'url', 'logo', 'bordered', 'background', 'supportedRegions', 'nameKey']
-    })
-
-    const seed = new MiniAppSeeder()
-    await expect(seed.run(dbh.db)).resolves.not.toThrow()
-
-    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
-    expect(row.name).toBe('Custom Name')
-    expect(row.url).toBe('https://custom.example.com')
   })
 
   it('should leave custom (non-preset) rows untouched', async () => {

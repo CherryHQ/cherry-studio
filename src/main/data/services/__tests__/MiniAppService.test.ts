@@ -147,32 +147,21 @@ describe('MiniAppService', () => {
   })
 
   describe('update', () => {
-    it('should update fields for a custom miniapp', async () => {
+    it('should update status on a custom miniapp', async () => {
       await seedCustom()
-      const dto: UpdateMiniAppDto = { name: 'Updated', status: 'disabled' }
+      const dto: UpdateMiniAppDto = { status: 'disabled' }
 
       const result = await miniAppService.update('custom-app', dto)
 
-      expect(result.name).toBe('Updated')
       expect(result.status).toBe('disabled')
     })
 
-    it('should track userOverrides on preset rows when registry-enrichable fields change', async () => {
+    it('should update status on a preset miniapp', async () => {
       await seedPreset('openai')
 
-      await miniAppService.update('openai', { logo: 'user-custom-logo' })
+      const result = await miniAppService.update('openai', { status: 'pinned' })
 
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(row.userOverrides).toContain('logo')
-    })
-
-    it('should not track userOverrides for status changes (status is not registry-enrichable)', async () => {
-      await seedPreset('openai')
-
-      await miniAppService.update('openai', { status: 'pinned' })
-
-      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(row.userOverrides ?? []).not.toContain('status')
+      expect(result.status).toBe('pinned')
     })
 
     it('should reject empty update', async () => {

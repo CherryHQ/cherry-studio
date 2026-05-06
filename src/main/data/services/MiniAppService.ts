@@ -3,10 +3,8 @@
  *
  * Owns the `mini_app` SQLite table. Mirrors {@link ProviderService}:
  * uniform CRUD over rows, with row-shape policy enforced via column checks
- * (`presetMiniappId`). Preset rows are seeded by {@link MiniAppSeeder} at
- * boot; user-modified fields tracked in `userOverrides` are preserved across
- * preset version bumps (see best-practice-layered-preset-pattern.md
- * §"Update Compatibility").
+ * (`presetMiniappId`). Preset display fields are seeded by {@link MiniAppSeeder}
+ * at boot and refreshed on every re-run (no UI exposes them for editing).
  *
  * Layered preset pattern:
  *   - presetMiniappId !== null  →  inherits from a {@link PRESETS_MINI_APPS} entry
@@ -15,7 +13,6 @@
 
 import { application } from '@application'
 import {
-  isRegistryEnrichableField,
   type MiniAppInsert,
   type MiniAppRegion,
   type MiniAppSelect,
@@ -42,21 +39,6 @@ const presetMiniappIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
-
-/**
- * Mapping from UpdateMiniAppDto field → DB column.
- * Mirrors {@link UPDATE_MODEL_FIELD_MAP}. Plain string entries map identically.
- */
-const UPDATE_MINI_APP_FIELDS: ReadonlyArray<keyof UpdateMiniAppDto> = [
-  'name',
-  'url',
-  'logo',
-  'status',
-  'bordered',
-  'background',
-  'supportedRegions',
-  'configuration'
-]
 
 /** Convert a DB row to the public MiniApp DTO. */
 function rowToMiniApp(row: MiniAppSelect): MiniApp {
@@ -155,35 +137,19 @@ export class MiniAppService {
   }
 
   /**
-   * Update an existing miniapp. Tracks user-modified fields in `userOverrides`
-   * so {@link MiniAppSeeder} can preserve them on preset re-sync.
-   * Mirrors {@link ModelService.update}'s userOverrides tracking.
+   * Update an existing miniapp. Currently only `status` is mutable — preset
+   * display fields (name/url/logo/...) are owned by {@link MiniAppSeeder} and
+   * have no edit UI; reordering goes through the dedicated `/order` endpoints.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
-    const [existing] = await this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1)
-    if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
-
     const updates: Partial<MiniAppInsert> = {}
-    for (const field of UPDATE_MINI_APP_FIELDS) {
-      if (dto[field] !== undefined) {
-        ;(updates as Record<string, unknown>)[field] = dto[field]
-      }
-    }
+    if (dto.status !== undefined) updates.status = dto.status
 
     if (Object.keys(updates).length === 0) {
       throw DataApiErrorFactory.validation(
         { _root: [`No updatable fields provided for "${appId}"`] },
         'No applicable fields to update'
       )
-    }
-
-    // Track which registry-enrichable fields the user explicitly changed.
-    if (existing.presetMiniappId !== null) {
-      const changedEnrichableFields = Object.keys(dto).filter(isRegistryEnrichableField)
-      if (changedEnrichableFields.length > 0) {
-        const existingOverrides = existing.userOverrides ?? []
-        updates.userOverrides = [...new Set([...existingOverrides, ...changedEnrichableFields])]
-      }
     }
 
     const [row] = await withSqliteErrors(

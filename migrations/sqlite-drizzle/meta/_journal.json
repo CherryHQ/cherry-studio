@@ -147,6 +147,13 @@
       "when": 1778051506617,
       "tag": "0020_real_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778063681092,
+      "tag": "0021_naive_dragon_lord",
+      "breakpoints": true
     }
   ],
   "version": "7"

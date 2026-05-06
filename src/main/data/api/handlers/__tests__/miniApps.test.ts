@@ -241,17 +241,6 @@ describe('miniAppHandlers', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
-    it('should reject invalid region in PATCH body before calling the service', async () => {
-      await expect(
-        miniAppHandlers['/mini-apps/:appId'].PATCH({
-          params: { appId: 'openai' },
-          body: { supportedRegions: ['EU'] }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateMock).not.toHaveBeenCalled()
-    })
-
     it('should pass empty body {} through to service (service rejects no-updatable-fields)', async () => {
       updateMock.mockRejectedValueOnce(
         Object.assign(new Error('No applicable fields'), { code: 'VALIDATION_ERROR', status: 422 })

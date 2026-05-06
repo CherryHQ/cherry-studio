@@ -27,17 +27,14 @@ export const CreateMiniAppSchema = z.object({
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
 /**
- * Zod schema for updating an existing miniapp
+ * Zod schema for updating an existing miniapp.
+ *
+ * Only `status` (enabled/disabled/pinned) is mutable. Preset display fields
+ * (name/url/logo/...) are owned by the seeder and have no edit UI. Reordering
+ * goes through the dedicated `/order` endpoints, not this PATCH.
  */
 export const UpdateMiniAppSchema = z.object({
-  name: z.string().min(1).optional(),
-  url: z.string().min(1).optional(),
-  logo: z.string().optional(),
-  status: MiniAppStatusSchema.optional(),
-  bordered: z.boolean().optional(),
-  background: z.string().nullable().optional(),
-  supportedRegions: z.array(MiniAppRegionSchema).optional(),
-  configuration: z.unknown().nullable().optional()
+  status: MiniAppStatusSchema.optional()
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

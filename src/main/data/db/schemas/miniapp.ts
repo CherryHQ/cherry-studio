@@ -15,35 +15,12 @@ export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 export type MiniAppRegion = 'CN' | 'Global'
 
 /**
- * Fields whose values can be re-synced from {@link PRESETS_MINI_APPS} during
- * a batch upsert. If the user has explicitly modified a field (tracked in
- * `userOverrides`), the sync skips that field. Same mechanism as
- * {@link userModelTable.userOverrides}.
- */
-export const REGISTRY_ENRICHABLE_MINIAPP_FIELDS = [
-  'name',
-  'url',
-  'logo',
-  'bordered',
-  'background',
-  'supportedRegions',
-  'nameKey'
-] as const
-export type RegistryEnrichableMiniAppField = (typeof REGISTRY_ENRICHABLE_MINIAPP_FIELDS)[number]
-
-export function isRegistryEnrichableField(field: string): field is RegistryEnrichableMiniAppField {
-  return (REGISTRY_ENRICHABLE_MINIAPP_FIELDS as readonly string[]).includes(field)
-}
-
-/**
  * MiniApp table — single table holds preset-derived and custom miniapps,
  * following the same pattern as `user_provider` / `user_model`:
  *
  *   - `presetMiniappId` links a row to its preset entry (NULL for custom apps).
- *   - `userOverrides` lists fields the user has explicitly modified;
- *     {@link MiniAppSeeder} skips these fields when re-syncing
- *     preset data so user edits survive preset version bumps. See
- *     best-practice-layered-preset-pattern.md §"Update Compatibility".
+ *   - Preset display fields (name/url/logo/...) are refreshed unconditionally
+ *     by {@link MiniAppSeeder} on every boot since no UI lets users edit them.
  */
 export const miniAppTable = sqliteTable(
   'mini_app',
@@ -67,9 +44,6 @@ export const miniAppTable = sqliteTable(
     supportedRegions: text('supported_regions', { mode: 'json' }).$type<MiniAppRegion[]>(),
     configuration: text({ mode: 'json' }),
     nameKey: text(),
-
-    /** Fields user has explicitly modified. {@link MiniAppSeeder} skips these on preset re-sync. */
-    userOverrides: text('user_overrides', { mode: 'json' }).$type<RegistryEnrichableMiniAppField[]>(),
 
     ...createUpdateTimestamps
   },
