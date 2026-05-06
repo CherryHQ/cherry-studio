@@ -28,7 +28,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
-const AT_BOTTOM_THRESHOLD_PX = 4
+const AT_BOTTOM_THRESHOLD_PX = 8
 
 export interface ChatVirtualListHandle {
   /** Scroll to the bottom of the list. */
@@ -195,19 +195,11 @@ export function ChatVirtualList<T>({
     // pushes the mutation past the commit phase, so the resulting
     // virtualizer update is just a normal setState.
     if (countDelta > 0 && firstKeyChanged && sizeDelta > 0) {
-      // Prepend: shift scrollTop by the new content height added above.
-      // Imperfect when prepended items haven't been `measureElement`-d
-      // yet — their estimated size differs from real size, so the user
-      // may see a small jump as ResizeObserver settles. The next
-      // layout-effect run re-anchors with the corrected sizeDelta.
       requestAnimationFrame(() => {
         const node = scrollerRef.current
         if (node) node.scrollTop = node.scrollTop + sizeDelta
       })
-    } else if (sizeDelta > 0 && wasAtBottomRef.current) {
-      // Append OR streaming-grow while user was at bottom: stick to
-      // bottom directly. We bypass `scrollToIndex` because its animation
-      // path fights `measureElement` during high-frequency chunks.
+    } else if (sizeDelta !== 0 && wasAtBottomRef.current) {
       requestAnimationFrame(() => {
         const node = scrollerRef.current
         if (!node) return
@@ -220,6 +212,61 @@ export function ChatVirtualList<T>({
     prevTotalSizeRef.current = totalSize
     prevItemCountRef.current = items.length
   }, [items, getItemKey, totalSize])
+
+  const stickyObserverRef = useRef<ResizeObserver | null>(null)
+  const observedItemsRef = useRef<Set<HTMLElement>>(new Set())
+  if (stickyObserverRef.current === null && typeof ResizeObserver !== 'undefined') {
+    stickyObserverRef.current = new ResizeObserver(() => {
+      if (!wasAtBottomRef.current) return
+      const node = scrollerRef.current
+      if (!node) return
+      const observed = observedItemsRef.current
+      let lastBottom = -Infinity
+      for (const el of observed) {
+        if (!el.isConnected) continue
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom > lastBottom) lastBottom = rect.bottom
+      }
+      if (lastBottom === -Infinity) {
+        node.scrollTop = node.scrollHeight
+        return
+      }
+      const scrollerRect = node.getBoundingClientRect()
+      const target = lastBottom - scrollerRect.top + node.scrollTop - node.clientHeight
+      node.scrollTop = Math.max(0, target)
+    })
+  }
+
+  useEffect(() => {
+    return () => {
+      stickyObserverRef.current?.disconnect()
+      stickyObserverRef.current = null
+      observedItemsRef.current.clear()
+    }
+  }, [])
+
+  const measureItem = useCallback(
+    (node: HTMLDivElement | null) => {
+      virtualizer.measureElement(node)
+      const observer = stickyObserverRef.current
+      if (!observer) return
+      const observed = observedItemsRef.current
+      if (node) {
+        if (!observed.has(node)) {
+          observer.observe(node)
+          observed.add(node)
+        }
+      } else {
+        for (const el of observed) {
+          if (!el.isConnected) {
+            observer.unobserve(el)
+            observed.delete(el)
+          }
+        }
+      }
+    },
+    [virtualizer]
+  )
 
   // ── Reach-top trigger for `loadOlder` ─────────────────────────
   const virtualItems = virtualizer.getVirtualItems()
@@ -263,7 +310,7 @@ export function ChatVirtualList<T>({
           <div
             key={vi.key}
             data-index={vi.index}
-            ref={virtualizer.measureElement}
+            ref={measureItem}
             style={{
               position: 'absolute',
               top: 0,
