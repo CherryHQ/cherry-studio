@@ -178,7 +178,7 @@ const sidebarIconKeyMap = {
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  miniapp: 'miniapp.title',
+  mini_app: 'miniapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
