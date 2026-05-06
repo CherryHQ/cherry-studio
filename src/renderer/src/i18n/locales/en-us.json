@@ -3651,7 +3651,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
-    "name": "Selection Assistant",
+    "name": "Selection",
     "settings": {
       "actions": {
         "add_tooltip": {
@@ -4690,7 +4690,7 @@
           "privacy_advanced": "Privacy & Advanced",
           "system_startup": "System & Startup"
         },
-        "title": "Common Settings"
+        "title": "General"
       },
       "display": {
         "title": "Display Settings"
@@ -5292,7 +5292,7 @@
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "installing": "Installing...",
       "notInstalled": "Not installed",
-      "title": "Environment Dependencies",
+      "title": "Dependencies",
       "uvDescription": "Python package manager for MCP services and dependency installation."
     },
     "privacy": {
@@ -5656,7 +5656,7 @@
       "selection_assistant_toggle": "Toggle Selection Assistant",
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
-      "title": "Keyboard Shortcuts",
+      "title": "Shortcuts",
       "toggle_new_context": "Clear Context",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
@@ -5769,9 +5769,9 @@
           "api_url_label": "Obtain Access Token and API URL",
           "paddleocr_url_label": "PaddleOCR Official Website"
         },
-        "provider": "Document Processing Provider",
-        "provider_placeholder": "Choose a document processing provider",
-        "title": "Document Processing",
+        "provider": "Doc Provider",
+        "provider_placeholder": "Choose a doc provider",
+        "title": "Doc Process",
         "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
       },
       "title": "Other Settings",
