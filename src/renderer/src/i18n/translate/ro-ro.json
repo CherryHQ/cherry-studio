@@ -36,7 +36,9 @@
         "comingSoon": "În curând",
         "connected": "Conectat",
         "connecting": "Conectare",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Conectați agentul la platforme de mesagerie.",
         "disconnected": "Deconectat",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canale",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Adaugă cont WeChat",
           "chatIds": "ID-uri de utilizator permise",
@@ -211,6 +214,9 @@
         },
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
@@ -220,6 +226,7 @@
           "error": "Eroare",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Rezultat",
           "runAt": "Rulat la",
           "running": "Alergând...",
@@ -3815,6 +3822,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3882,6 +3914,34 @@
       "title": "Canale"
     },
     "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
       "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
       "label": "[to be translated]:Component Lab",
       "modelSelector": {
@@ -5442,7 +5502,8 @@
         "documentation": "Vezi documentația oficială pentru mai multe detalii de configurare:",
         "learn_more": "Află mai multe",
         "location": "Locație",
-        "location_help": "Locația serviciului Vertex AI, de ex., us-central1",
+        "location_help": "Locația serviciului Vertex AI, de ex., us-central1. Acest câmp nu este citit din JSON-ul Service Account și trebuie introdus manual.",
+        "location_placeholder": "Selectează locația Vertex AI",
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
@@ -5453,6 +5514,11 @@
           "client_email_placeholder": "Introdu e-mailul clientului Contului de Serviciu",
           "description": "Folosește Contul de Serviciu pentru autentificare, potrivit pentru mediile unde ADC nu este disponibil",
           "incomplete_config": "Te rugăm să finalizezi mai întâi configurarea Contului de Serviciu",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Lipește conținutul complet al cheii JSON. După analiză, se salvează doar project_id, client_email și private_key, iar JSON-ul inițial este șters.",
+          "json_input_placeholder": "Lipește conținutul complet al cheii JSON pentru Service Account",
+          "json_parse_error": "Analizarea Service Account JSON a eșuat. Te rugăm să confirmi că formatul este corect.",
+          "json_parse_success": "Service Account JSON analizat",
           "private_key": "Cheie privată",
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",

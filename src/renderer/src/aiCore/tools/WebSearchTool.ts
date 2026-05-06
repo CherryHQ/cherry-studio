@@ -148,6 +148,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         '{question}',
         "Based on the search results, please answer the user's question with proper citations."
       ).replace('{references}', referenceContent)
+      const instructions = fullInstructions
       return {
         type: 'content',
         value: [
@@ -161,7 +162,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           },
           {
             type: 'text',
-            text: fullInstructions
+            text: instructions
           }
         ]
       }

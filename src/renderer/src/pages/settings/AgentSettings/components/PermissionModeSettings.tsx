@@ -11,6 +11,7 @@ import {
   type AgentConfigurationState,
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
+  DEFAULT_PERMISSION_MODE,
   defaultConfiguration,
   SettingsContainer,
   SettingsItem,
@@ -23,7 +24,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
 
   const configuration = useMemo(() => agentBase?.configuration ?? defaultConfiguration, [agentBase?.configuration])
   const selectedMode = useMemo(
-    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    () => agentBase?.configuration?.permission_mode ?? DEFAULT_PERMISSION_MODE,
     [agentBase?.configuration?.permission_mode]
   )
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])

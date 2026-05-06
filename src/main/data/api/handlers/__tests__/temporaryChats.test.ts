@@ -34,9 +34,7 @@ function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     assistantId: null,
     activeNodeId: null,
     groupId: null,
-    sortOrder: 0,
-    isPinned: false,
-    pinnedOrder: 0,
+    orderKey: '',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...overrides

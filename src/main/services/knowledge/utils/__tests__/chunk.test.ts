@@ -1,16 +1,22 @@
+import { type KnowledgeBase, KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
 
 import { chunkDocuments } from '../chunk'
 
-function createBase() {
+function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
+    groupId: null,
+    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
+    status: 'completed',
+    error: null,
     chunkSize: 1000,
     chunkOverlap: 0,
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -22,8 +28,9 @@ function createItem() {
     baseId: 'kb-1',
     groupId: null,
     type: 'note' as const,
-    data: { content: 'hello' },
+    data: { source: 'item-1', content: 'hello' },
     status: 'idle' as const,
+    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -39,32 +46,55 @@ describe('chunkDocuments', () => {
     const documents = [
       new Document({
         text: 'hello world',
-        metadata: { sourceUrl: 'https://example.com/1' }
+        metadata: { source: 'https://example.com/1', page: 1 }
       }),
       new Document({
         text: 'goodbye world',
-        metadata: { sourceUrl: 'https://example.com/2' }
+        metadata: { source: 'https://example.com/2' }
       })
     ]
 
     const chunks = chunkDocuments(createBase(), createItem(), documents)
+    const metadata = chunks.map((chunk) => KnowledgeChunkMetadataSchema.parse(chunk.metadata))
 
     expect(chunks).toHaveLength(2)
-    expect(chunks[0]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/1',
+    expect(metadata[0]).toMatchObject({
+      source: 'https://example.com/1',
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 0,
       chunkIndex: 0,
-      chunkCount: 1
+      tokenCount: expect.any(Number)
     })
-    expect(chunks[1]?.metadata).toMatchObject({
-      sourceUrl: 'https://example.com/2',
+    expect(metadata[0]).not.toHaveProperty('page')
+    expect(metadata[1]).toMatchObject({
+      source: 'https://example.com/2',
       itemId: 'item-1',
       itemType: 'note',
-      sourceDocumentIndex: 1,
-      chunkIndex: 0,
-      chunkCount: 1
+      chunkIndex: 1,
+      tokenCount: expect.any(Number)
     })
+    expect(metadata[0]?.tokenCount).toBeGreaterThan(0)
+  })
+
+  it('throws before returning chunks when source metadata is missing', () => {
+    expect(() =>
+      chunkDocuments(createBase(), createItem(), [
+        new Document({
+          text: 'hello world',
+          metadata: {}
+        })
+      ])
+    ).toThrow()
+  })
+
+  it('throws before returning chunks when source metadata is blank', () => {
+    expect(() =>
+      chunkDocuments(createBase(), createItem(), [
+        new Document({
+          text: 'hello world',
+          metadata: { source: '   ' }
+        })
+      ])
+    ).toThrow()
   })
 })

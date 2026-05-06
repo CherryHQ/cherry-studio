@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AgentConfigurationState,
   type AgentOrSessionSettingsProps,
+  DEFAULT_MAX_TURNS,
   defaultConfiguration,
   SettingsContainer,
   SettingsItem,
@@ -20,31 +21,32 @@ const { TextArea } = Input
 export const AdvancedSettings: React.FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
-  const [maxTurnsInput, setMaxTurnsInput] = useState<number>(defaultConfiguration.max_turns)
+  const [maxTurnsInput, setMaxTurnsInput] = useState<number>(DEFAULT_MAX_TURNS)
   const [envVarsText, setEnvVarsText] = useState<string>('')
 
   useEffect(() => {
     if (!agentBase) {
       setConfiguration(defaultConfiguration)
-      setMaxTurnsInput(defaultConfiguration.max_turns)
+      setMaxTurnsInput(DEFAULT_MAX_TURNS)
       setEnvVarsText('')
       return
     }
     const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
-    setMaxTurnsInput(parsed.max_turns)
+    setMaxTurnsInput(parsed.max_turns ?? DEFAULT_MAX_TURNS)
     setEnvVarsText(serializeKeyValueString(parsed.env_vars ?? {}))
   }, [agentBase])
 
   const commitMaxTurns = useCallback(() => {
     if (!agentBase) return
     if (!Number.isFinite(maxTurnsInput)) {
-      setMaxTurnsInput(configuration.max_turns)
+      setMaxTurnsInput(configuration.max_turns ?? DEFAULT_MAX_TURNS)
       return
     }
     const sanitized = Math.max(1, maxTurnsInput)
-    if (sanitized === configuration.max_turns) {
-      setMaxTurnsInput(configuration.max_turns)
+    const currentMaxTurns = configuration.max_turns ?? DEFAULT_MAX_TURNS
+    if (sanitized === currentMaxTurns) {
+      setMaxTurnsInput(currentMaxTurns)
       return
     }
     const next: AgentConfigurationState = { ...configuration, max_turns: sanitized }
