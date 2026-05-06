@@ -41,7 +41,7 @@ export function isRegistryEnrichableField(field: string): field is RegistryEnric
  *
  *   - `presetMiniappId` links a row to its preset entry (NULL for custom apps).
  *   - `userOverrides` lists fields the user has explicitly modified;
- *     {@link MiniAppService.batchUpsert} skips these fields when re-syncing
+ *     {@link MiniAppSeeder} skips these fields when re-syncing
  *     preset data so user edits survive preset version bumps. See
  *     best-practice-layered-preset-pattern.md §"Update Compatibility".
  */
@@ -68,7 +68,7 @@ export const miniAppTable = sqliteTable(
     configuration: text({ mode: 'json' }),
     nameKey: text(),
 
-    /** Fields user has explicitly modified. {@link MiniAppService.batchUpsert} skips these on preset re-sync. */
+    /** Fields user has explicitly modified. {@link MiniAppSeeder} skips these on preset re-sync. */
     userOverrides: text('user_overrides', { mode: 'json' }).$type<RegistryEnrichableMiniAppField[]>(),
 
     ...createUpdateTimestamps

@@ -156,7 +156,7 @@ export class MiniAppService {
 
   /**
    * Update an existing miniapp. Tracks user-modified fields in `userOverrides`
-   * so {@link batchUpsert} can preserve them on preset re-sync.
+   * so {@link MiniAppSeeder} can preserve them on preset re-sync.
    * Mirrors {@link ModelService.update}'s userOverrides tracking.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
