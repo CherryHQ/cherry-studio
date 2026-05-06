@@ -167,6 +167,55 @@ describe('ComplexPreferenceMappings', () => {
     })
   })
 
+  describe('sidebar_icons_rename', () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')
+      expect(mapping).toBeDefined()
+
+      const result = mapping!.transform({
+        visible: ['assistants', 'minapp', 'translate'],
+        disabled: ['minapp', 'files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.invisible': ['mini_app', 'files']
+      })
+    })
+
+    it('should pass through other literals unchanged', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'translate', 'paintings'],
+        disabled: ['files', 'knowledge']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should return non-array inputs as-is without crashing', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+
+      expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+
+      expect(mapping.transform({ visible: null, disabled: null })).toEqual({
+        'ui.sidebar.icons.visible': null,
+        'ui.sidebar.icons.invisible': null
+      })
+
+      expect(mapping.transform({})).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+    })
+  })
+
   describe('ComplexMapping structure validation', () => {
     it('should validate mapping structure', () => {
       // Create a valid mapping structure
