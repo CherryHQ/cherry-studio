@@ -31,6 +31,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -147,6 +148,7 @@ const McpSettings: React.FC = () => {
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
+  const [toolSearchText, setToolSearchText] = useState('')
 
   const [tools, setTools] = useState<MCPTool[]>([])
   const [prompts, setPrompts] = useState<MCPPrompt[]>([])
@@ -597,7 +599,7 @@ const McpSettings: React.FC = () => {
         <Form {...form}>
           <form
             onChange={() => setIsFormChanged(true)}
-            className="mx-auto flex w-full min-w-0 max-w-[920px] flex-col gap-5 pb-6"
+            className="flex w-full min-w-0 flex-col gap-5 pb-6"
             id="mcp-settings-form">
             <McpFormSection>
               <McpFormGrid>
@@ -994,19 +996,21 @@ const McpSettings: React.FC = () => {
   }
 
   if (server.isActive) {
+    tabs.push({
+      key: 'tools',
+      label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
+      children: (
+        <MCPToolsSection
+          tools={tools}
+          server={server}
+          searchText={toolSearchText}
+          onToggleTool={handleToggleTool}
+          onToggleAutoApprove={handleToggleAutoApprove}
+        />
+      )
+    })
+
     tabs.push(
-      {
-        key: 'tools',
-        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
-        children: (
-          <MCPToolsSection
-            tools={tools}
-            server={server}
-            onToggleTool={handleToggleTool}
-            onToggleAutoApprove={handleToggleAutoApprove}
-          />
-        )
-      },
       {
         key: 'prompts',
         label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
@@ -1076,13 +1080,26 @@ const McpSettings: React.FC = () => {
               </Flex>
             </SettingTitle>
             <SettingDivider className="mb-0" />
-            <TabsList className="max-w-full overflow-x-auto">
-              {tabs.map((tab) => (
-                <TabsTrigger key={tab.key} value={tab.key}>
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+              <TabsList className="min-w-0 max-w-full overflow-x-auto">
+                {tabs.map((tab) => (
+                  <TabsTrigger key={tab.key} value={tab.key}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {activeTabValue === 'tools' && tools.length > 0 && (
+                <div className="shrink-0 pt-1">
+                  <CollapsibleSearchBar
+                    onSearch={setToolSearchText}
+                    placeholder={t('common.search')}
+                    tooltip={t('common.search')}
+                    maxWidth={220}
+                    style={{ borderRadius: 20 }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <Scrollbar className="min-h-0 flex-1 px-4 pt-2 pb-4">
             {tabs.map((tab) => (

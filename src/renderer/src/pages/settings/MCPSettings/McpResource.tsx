@@ -66,31 +66,33 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
 
   return (
     <div className="mt-2 pt-2">
-      <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
-        {t('settings.mcp.resources.availableResources') || 'Available Resources'}
-      </h3>
       {resources.length > 0 ? (
-        <Accordion type="multiple">
-          {resources.map((resource) => (
-            <AccordionItem key={resource.uri} value={resource.uri}>
-              <AccordionTrigger className="py-3">
-                <ColFlex className="w-full min-w-0 items-start">
-                  <Flex className="w-full min-w-0 items-center">
-                    <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
-                  </Flex>
-                  {resource.description && (
-                    <span className="mt-1 text-[13px] text-foreground-secondary leading-5">
-                      {resource.description.length > 100
-                        ? `${resource.description.substring(0, 100)}...`
-                        : resource.description}
-                    </span>
-                  )}
-                </ColFlex>
-              </AccordionTrigger>
-              <AccordionContent className="select-text px-3">{renderResourceProperties(resource)}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <>
+          <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+            {t('settings.mcp.resources.availableResources') || 'Available Resources'}
+          </h3>
+          <Accordion type="multiple">
+            {resources.map((resource) => (
+              <AccordionItem key={resource.uri} value={resource.uri}>
+                <AccordionTrigger className="py-3">
+                  <ColFlex className="w-full min-w-0 items-start">
+                    <Flex className="w-full min-w-0 items-center">
+                      <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
+                    </Flex>
+                    {resource.description && (
+                      <span className="mt-1 text-[13px] text-foreground-secondary leading-5">
+                        {resource.description.length > 100
+                          ? `${resource.description.substring(0, 100)}...`
+                          : resource.description}
+                      </span>
+                    )}
+                  </ColFlex>
+                </AccordionTrigger>
+                <AccordionContent className="select-text px-3">{renderResourceProperties(resource)}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </>
       ) : (
         <EmptyState compact preset="no-result" description={t('settings.mcp.resources.noResourcesAvailable')} />
       )}

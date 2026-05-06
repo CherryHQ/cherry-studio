@@ -1,6 +1,5 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
-import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
@@ -14,14 +13,14 @@ import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 interface MCPToolsSectionProps {
   tools: MCPTool[]
   server: MCPServer
+  searchText: string
   onToggleTool: (tool: MCPTool, enabled: boolean) => void
   onToggleAutoApprove: (tool: MCPTool, autoApprove: boolean) => void
 }
 
-const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
+const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
   const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
-  const [searchText, setSearchText] = useState('')
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
@@ -221,17 +220,6 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       columns={columns}
       rowKey="id"
       emptyText={searchText ? t('common.no_results') : t('settings.mcp.tools.noToolsAvailable')}
-      headerRight={
-        tools.length > 0 ? (
-          <CollapsibleSearchBar
-            onSearch={setSearchText}
-            placeholder={t('common.search')}
-            tooltip={t('common.search')}
-            maxWidth={200}
-            style={{ borderRadius: 20 }}
-          />
-        ) : undefined
-      }
       expandedRowKeys={expandedRowKeys}
       onExpandedRowChange={setExpandedRowKeys}
       renderExpandedRow={(tool) => renderToolProperties(tool)}

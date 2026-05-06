@@ -55,27 +55,29 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
 
   return (
     <div className="mt-2 pt-2">
-      <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
-        {t('settings.mcp.prompts.availablePrompts')}
-      </h3>
       {prompts.length > 0 ? (
-        <Accordion type="multiple">
-          {prompts.map((prompt) => (
-            <AccordionItem key={prompt.id || prompt.name} value={prompt.id || prompt.name}>
-              <AccordionTrigger className="py-3">
-                <ColFlex className="min-w-0 items-start">
-                  <Flex className="w-full min-w-0 items-center">
-                    <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
-                  </Flex>
-                  {prompt.description && (
-                    <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>
-                  )}
-                </ColFlex>
-              </AccordionTrigger>
-              <AccordionContent className="select-text px-3">{renderPromptArguments(prompt)}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <>
+          <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+            {t('settings.mcp.prompts.availablePrompts')}
+          </h3>
+          <Accordion type="multiple">
+            {prompts.map((prompt) => (
+              <AccordionItem key={prompt.id || prompt.name} value={prompt.id || prompt.name}>
+                <AccordionTrigger className="py-3">
+                  <ColFlex className="min-w-0 items-start">
+                    <Flex className="w-full min-w-0 items-center">
+                      <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
+                    </Flex>
+                    {prompt.description && (
+                      <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>
+                    )}
+                  </ColFlex>
+                </AccordionTrigger>
+                <AccordionContent className="select-text px-3">{renderPromptArguments(prompt)}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </>
       ) : (
         <EmptyState compact preset="no-result" description={t('settings.mcp.prompts.noPromptsAvailable')} />
       )}

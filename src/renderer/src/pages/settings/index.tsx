@@ -76,7 +76,7 @@ export const SettingGroup = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
   <div
     data-theme-mode={theme}
-    className={cn('mt-3 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0', className)}
+    className={cn('mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0', className)}
     {...props}
   />
 )
