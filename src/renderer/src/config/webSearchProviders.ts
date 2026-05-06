@@ -1,6 +1,9 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Bocha, Exa, Querit, Searxng, Tavily, Zhipu } from '@cherrystudio/ui/icons'
+import { loggerService } from '@logger'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+
+const logger = loggerService.withContext('webSearchProviders')
 
 type WebSearchProviderConfig = {
   capabilities: {
@@ -130,6 +133,7 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
 ] as const
 
 export const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = WEB_SEARCH_PROVIDERS.map((provider) => provider.id) as string[]
+const warnedUnsupportedProviderIds = new Set<string>()
 
 export function isSupportedWebSearchProviderId(providerId?: string): providerId is WebSearchProviderId {
   if (!providerId) {
@@ -140,7 +144,21 @@ export function isSupportedWebSearchProviderId(providerId?: string): providerId 
 }
 
 export function filterSupportedWebSearchProviders<T extends { id: string }>(providers: T[]): T[] {
-  return providers.filter((provider) => isSupportedWebSearchProviderId(provider.id))
+  const supportedProviders: T[] = []
+
+  providers.forEach((provider) => {
+    if (isSupportedWebSearchProviderId(provider.id)) {
+      supportedProviders.push(provider)
+      return
+    }
+
+    if (!warnedUnsupportedProviderIds.has(provider.id)) {
+      warnedUnsupportedProviderIds.add(provider.id)
+      logger.warn('Unsupported web-search provider dropped', { providerId: provider.id })
+    }
+  })
+
+  return supportedProviders
 }
 
 export function webSearchProviderRequiresApiKey(providerId: WebSearchProviderId): boolean {

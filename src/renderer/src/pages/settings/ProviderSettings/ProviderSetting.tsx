@@ -1,5 +1,6 @@
 import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { HelpTooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -64,6 +65,8 @@ import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
+
+const logger = loggerService.withContext('ProviderSetting')
 
 interface Props {
   providerId: string
@@ -135,10 +138,13 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
   const updateWebSearchProviderKey = useCallback(
     ({ apiKey }: { apiKey: string }) => {
       if (provider.id === 'zhipu') {
-        void updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: apiKey.split(',')[0] })
+        void updateWebSearchProviderPreferenceOverride('zhipu', { apiKey: apiKey.split(',')[0] }).catch((error) => {
+          logger.error('Failed to update Zhipu web-search provider preference override', { error })
+          window.toast.error(t('error.diagnosis.unknown'))
+        })
       }
     },
-    [provider.id]
+    [provider.id, t]
   )
 
   // Store callbacks in ref to avoid recreating debounce function when dependencies change

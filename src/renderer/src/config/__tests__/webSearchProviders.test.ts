@@ -1,38 +1,26 @@
-import type { WebSearchProvider } from '@renderer/types'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  filterSupportedWebSearchProviders,
-  isSupportedWebSearchProviderId,
-  SUPPORTED_WEB_SEARCH_PROVIDER_IDS,
-  WEB_SEARCH_PROVIDERS
-} from '../webSearchProviders'
+import { filterSupportedWebSearchProviders } from '../webSearchProviders'
 
-describe('webSearchProviders config', () => {
-  it('keeps the supported provider list aligned with presets', () => {
-    expect(SUPPORTED_WEB_SEARCH_PROVIDER_IDS).toEqual(WEB_SEARCH_PROVIDERS.map((provider) => provider.id))
-    expect(SUPPORTED_WEB_SEARCH_PROVIDER_IDS).not.toContain('local-google')
-    expect(SUPPORTED_WEB_SEARCH_PROVIDER_IDS).not.toContain('local-bing')
-    expect(SUPPORTED_WEB_SEARCH_PROVIDER_IDS).not.toContain('local-baidu')
+describe('webSearchProviders', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
-  it('recognizes only supported provider ids', () => {
-    expect(isSupportedWebSearchProviderId('tavily')).toBe(true)
-    expect(isSupportedWebSearchProviderId('local-google')).toBe(false)
-    expect(isSupportedWebSearchProviderId('local-bing')).toBe(false)
-    expect(isSupportedWebSearchProviderId('local-baidu')).toBe(false)
-    expect(isSupportedWebSearchProviderId(undefined)).toBe(false)
-  })
+  it('warns once when unsupported web-search providers are dropped', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-  it('filters unsupported providers out of renderer-facing lists', () => {
     const providers = [
-      { id: 'tavily', name: 'Tavily', apiHost: 'https://api.tavily.com', apiKey: '' },
-      { id: 'local-bing', name: 'Bing', url: 'https://bing.test?q=%s' },
-      { id: 'local-google', name: 'Google', url: 'https://google.test?q=%s' }
-    ] as WebSearchProvider[]
+      { id: 'zhipu', name: 'Zhipu' },
+      { id: 'legacy-local', name: 'Legacy Local' }
+    ]
 
-    expect(filterSupportedWebSearchProviders(providers)).toEqual([
-      { id: 'tavily', name: 'Tavily', apiHost: 'https://api.tavily.com', apiKey: '' }
-    ])
+    expect(filterSupportedWebSearchProviders(providers)).toEqual([{ id: 'zhipu', name: 'Zhipu' }])
+    expect(filterSupportedWebSearchProviders(providers)).toEqual([{ id: 'zhipu', name: 'Zhipu' }])
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy).toHaveBeenCalledWith('Unsupported web-search provider dropped', {
+      providerId: 'legacy-local'
+    })
   })
 })

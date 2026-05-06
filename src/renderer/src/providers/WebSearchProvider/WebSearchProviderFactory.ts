@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { WebSearchProvider } from '@renderer/types'
 
 import type BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -9,6 +10,8 @@ import QueritProvider from './QueritProvider'
 import SearxngProvider from './SearxngProvider'
 import TavilyProvider from './TavilyProvider'
 import ZhipuProvider from './ZhipuProvider'
+
+const logger = loggerService.withContext('WebSearchProviderFactory')
 
 export default class WebSearchProviderFactory {
   static create(provider: WebSearchProvider): BaseWebSearchProvider {
@@ -28,6 +31,7 @@ export default class WebSearchProviderFactory {
       case 'querit':
         return new QueritProvider(provider)
       default:
+        logger.error('Unsupported web-search provider id', { providerId: provider.id })
         return new DefaultProvider(provider)
     }
   }
