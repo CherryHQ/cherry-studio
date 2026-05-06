@@ -2,16 +2,16 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import NavigationService from '@renderer/services/NavigationService'
-import { tabsService } from '@renderer/services/TabsService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { LRUCache } from 'lru-cache'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useNavbarPosition } from './useNavbar'
 
 const logger = loggerService.withContext('useMiniAppPopup')
+
+const DEFAULT_MAX_KEEP_ALIVE = 10
 
 /** Brand a raw string as MiniAppId. Safe — caller controls the string. */
 function brandId(raw: string): MiniAppId {
@@ -33,25 +33,17 @@ function toMiniApp(input: MiniAppInput): MiniApp {
 }
 
 /**
- * Singleton LRU cache shared across all hook consumers.
- * Unlike module-level `let`, this is managed via a stable reference so that
- * multi-instance consumers always observe the same cache object after resize.
+ * Cleanup performed when a miniapp is removed from the keep-alive list.
+ * Clears persisted webview state. Tab closing in the v2 AppShell layout is
+ * driven by the tabs cache directly; closing a v1 Redux tab here is no
+ * longer meaningful (v2 layout does not render v1 tabs).
  */
-let sharedCache: LRUCache<string, MiniApp> | undefined
-
-/**
- * Cache version counter for tracking cache resets.
- * Incremented when the cache is discarded and recreated.
- */
-let cacheVersion = 0
-
-/**
- * Reset the module-level cache. For testing purposes only.
- * @internal
- */
-export const _resetMiniAppsCache = () => {
-  sharedCache = undefined
-  cacheVersion++
+function evictMiniApp(appId: string) {
+  try {
+    clearWebviewState(appId)
+  } catch (error) {
+    logger.error('Error during miniapp eviction', error as Error)
+  }
 }
 
 /**
@@ -82,113 +74,46 @@ export const useMiniAppPopup = () => {
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
   const { isTopNavbar } = useNavbarPosition()
 
-  // Ref to hold callback so LRU disposeAfter/onInsert always calls the latest setter.
-  // This replaces the old module-level `cacheCallbacksRef` which was overwritten on every
-  // render — only the most recently mounted consumer's setter was called, silently
-  // desyncing other consumers. A useRef per hook instance is safe because the ref is
-  // read inside the cache callbacks which are closures over this specific ref.
-  const callbacksRef = useRef({
-    setOpenedKeepAliveMiniApps
-  })
-  // Keep the ref current on every render
-  callbacksRef.current = { setOpenedKeepAliveMiniApps }
+  const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE
 
-  const createLRUCache = useCallback(() => {
-    return new LRUCache<string, MiniApp>({
-      max: maxKeepAliveMiniApps ?? 10,
-      disposeAfter: (_value, key) => {
-        try {
-          // Clean up WebView state when app is disposed from cache
-          clearWebviewState(key)
+  // Mirror the React-synced keep-alive list into a ref so callbacks can read
+  // the latest value without going through the cache service directly. Avoids
+  // stale closures on a value that changes more frequently than callback deps.
+  const keepAliveRef = useRef<MiniApp[]>(openedKeepAliveMiniApps)
+  keepAliveRef.current = openedKeepAliveMiniApps
 
-          // Close corresponding tab if it exists
-          const tabs = tabsService.getTabs()
-          const tabToClose = tabs.find((tab) => tab.path === `/app/mini-app/${key}`)
-          if (tabToClose) {
-            tabsService.closeTab(tabToClose.id)
-          }
-
-          // Update cache state using ref (always has latest setter)
-          if (callbacksRef.current && sharedCache) {
-            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
-          }
-        } catch (error) {
-          logger.error('Error in LRU disposeAfter callback', error as Error)
-        }
-      },
-      onInsert: () => {
-        try {
-          // Update cache state using ref (always has latest setter)
-          if (callbacksRef.current && sharedCache) {
-            callbacksRef.current.setOpenedKeepAliveMiniApps(Array.from(sharedCache.values()))
-          }
-        } catch (error) {
-          logger.error('Error in LRU onInsert callback', error as Error)
-        }
-      },
-      updateAgeOnGet: true,
-      updateAgeOnHas: true
-    })
-  }, [maxKeepAliveMiniApps])
-
-  // Track previous maxKeepAliveMiniApps to detect changes
-  const prevMaxKeepAlive = useRef(maxKeepAliveMiniApps)
-  // Track cache version to detect external resets
-  const prevCacheVersion = useRef(cacheVersion)
-
-  // Initialize cache synchronously if not already initialized
-  if (!sharedCache) {
-    sharedCache = createLRUCache()
-    prevMaxKeepAlive.current = maxKeepAliveMiniApps
-    prevCacheVersion.current = cacheVersion
-  }
-
-  // Handle cache resize when maxKeepAliveMiniApps changes or external reset
+  // Trim the kept-alive list when the user lowers the cap. Evicts the oldest
+  // entries (head of the list) so the most-recently-touched ones survive.
   useEffect(() => {
-    const prev = prevMaxKeepAlive.current
-    const current = maxKeepAliveMiniApps
-
-    // Check if cache was reset externally (version changed)
-    const wasReset = prevCacheVersion.current !== cacheVersion
-
-    // Handle external reset
-    if (wasReset) {
-      sharedCache = createLRUCache()
-      prevMaxKeepAlive.current = current
-      prevCacheVersion.current = cacheVersion
-      return
-    }
-
-    // Handle cache resize when maxKeepAliveMiniApps changes
-    if (prev === current) return
-    prevMaxKeepAlive.current = current
-
-    // Always rebuild cache when max changes
-    // LRU cache mechanism: entries set later are placed first, so reverse
-    const oldEntries = Array.from(sharedCache!.entries()).reverse()
-    sharedCache = createLRUCache()
-    // Add entries up to the new max (LRU cache will evict excess automatically)
-    oldEntries.forEach(([key, value]) => {
-      sharedCache!.set(key, value)
-    })
-  }, [maxKeepAliveMiniApps, createLRUCache])
+    const list = keepAliveRef.current
+    if (list.length <= cap) return
+    const overflow = list.length - cap
+    const evicted = list.slice(0, overflow)
+    setOpenedKeepAliveMiniApps(list.slice(overflow))
+    for (const app of evicted) evictMiniApp(app.appId)
+  }, [cap, setOpenedKeepAliveMiniApps])
 
   /** Open a miniapp (popup shows and miniapp loaded) */
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
-      if (keepAlive && sharedCache) {
-        // Check the LRU cache (canonical source) before mutating it.
-        // openedKeepAliveMiniApps lags one render behind onInsert, so it
-        // would return stale results immediately after sharedCache.set.
-        const alreadyOpen = sharedCache.has(app.appId)
-        if (!alreadyOpen) sharedCache.set(app.appId, app)
-
-        // If the miniapp is already open, just switch the display
-        if (alreadyOpen) {
+      if (keepAlive) {
+        const list = keepAliveRef.current
+        const exists = list.some((item) => item.appId === app.appId)
+        if (exists) {
+          // "Touch": move to tail so it's the most recently used.
+          const reordered = [...list.filter((item) => item.appId !== app.appId), app]
+          setOpenedKeepAliveMiniApps(reordered)
           setCurrentMiniAppId(app.appId)
           setMiniAppShow(true)
           return
         }
+        // Evict from the head while we're over capacity, then append.
+        const next = [...list, app]
+        while (next.length > cap) {
+          const evicted = next.shift()
+          if (evicted) evictMiniApp(evicted.appId)
+        }
+        setOpenedKeepAliveMiniApps(next)
         setOpenedOneOffMiniApp(null)
         setCurrentMiniAppId(app.appId)
         setMiniAppShow(true)
@@ -199,9 +124,8 @@ export const useMiniAppPopup = () => {
       setOpenedOneOffMiniApp(app)
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
-      return
     },
-    [setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [cap, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
   )
 
   /** a wrapper of openMiniApp(app, true) */
@@ -228,30 +152,30 @@ export const useMiniAppPopup = () => {
   /** Close a miniapp immediately (popup hides and miniapp unloaded) */
   const closeMiniApp = useCallback(
     (appid: string) => {
-      if (openedKeepAliveMiniApps.some((item) => item.appId === appid) && sharedCache) {
-        sharedCache.delete(appid)
+      const list = keepAliveRef.current
+      if (list.some((item) => item.appId === appid)) {
+        setOpenedKeepAliveMiniApps(list.filter((item) => item.appId !== appid))
+        evictMiniApp(appid)
       } else if (openedOneOffMiniApp?.appId === appid) {
         setOpenedOneOffMiniApp(null)
       }
 
       setCurrentMiniAppId('')
       setMiniAppShow(false)
-      return
     },
-    [openedKeepAliveMiniApps, openedOneOffMiniApp, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
   )
 
   /** Close all miniapps (popup hides and all miniapps unloaded) */
   const closeAllMiniApps = useCallback(() => {
-    // Clear in place rather than reassigning, so the `miniAppsCache`
-    // reference returned to consumers (e.g. tabsService) stays valid.
-    // disposeAfter fires per entry, which correctly cleans up each
-    // webview state and tab.
-    sharedCache?.clear()
+    const list = keepAliveRef.current
     setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
     setMiniAppShow(false)
+    // Mirrors LRU.clear() firing disposeAfter per entry: clean up webviews +
+    // close any tab still open for each previously kept-alive app.
+    for (const app of list) evictMiniApp(app.appId)
   }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
   /** Hide the miniapp popup (only one-off miniapp unloaded) */
@@ -269,21 +193,25 @@ export const useMiniAppPopup = () => {
   const openSmartMiniApp = useCallback(
     (config: MiniAppInput, keepAlive: boolean = false) => {
       const app = toMiniApp(config)
-      if (isTopNavbar && sharedCache) {
-        // For top navbar mode, need to add to cache first for temporary apps
-        const wasCached = sharedCache.has(app.appId)
+      if (isTopNavbar) {
+        const list = keepAliveRef.current
+        const wasCached = list.some((item: MiniApp) => item.appId === app.appId)
         if (!wasCached) {
-          // Add temporary app to cache so MiniAppPage can find it
-          sharedCache.set(app.appId, app)
+          // Add temporary app to the keep-alive list so MiniAppPage can find it.
+          // Eviction-on-overflow mirrors openMiniApp(app, true).
+          const next = [...list, app]
+          while (next.length > cap) {
+            const evicted = next.shift()
+            if (evicted) evictMiniApp(evicted.appId)
+          }
+          setOpenedKeepAliveMiniApps(next)
         }
 
-        // Set current miniapp and show state
         setCurrentMiniAppId(app.appId)
         setMiniAppShow(true)
 
         // Skip route navigation when the app is already cached: the user is
-        // already on/near that tab, and re-navigating would rerun route
-        // effects unnecessarily.
+        // already on/near that tab, and re-navigating would rerun route effects.
         if (!wasCached && NavigationService.navigate) {
           void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
         }
@@ -292,7 +220,7 @@ export const useMiniAppPopup = () => {
         openMiniApp(app, keepAlive)
       }
     },
-    [isTopNavbar, openMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [isTopNavbar, cap, openMiniApp, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )
 
   return {
@@ -302,8 +230,6 @@ export const useMiniAppPopup = () => {
     closeMiniApp,
     hideMiniAppPopup,
     closeAllMiniApps,
-    openSmartMiniApp,
-    // Expose cache instance for TabsService integration
-    miniAppsCache: sharedCache
+    openSmartMiniApp
   }
 }

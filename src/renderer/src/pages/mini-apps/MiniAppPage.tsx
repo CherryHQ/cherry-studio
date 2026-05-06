@@ -3,7 +3,6 @@ import { LogoAvatar } from '@renderer/components/Icons'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { tabsService } from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -25,44 +24,22 @@ const MiniAppPage: FC = () => {
   const { t } = useTranslation()
   const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
-  const { openMiniAppKeepAlive, miniAppsCache } = useMiniAppPopup()
-  const { allApps, isLoading, error } = useMiniApps()
+  const { openMiniAppKeepAlive } = useMiniAppPopup()
+  const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
   const navigate = useNavigate()
 
   // Remember the initial navbar position when component mounts
   const initialIsTopNavbar = useRef<boolean>(isTopNavbar)
   const hasRedirected = useRef<boolean>(false)
 
-  // Initialize TabsService with cache reference
-  useEffect(() => {
-    if (miniAppsCache) {
-      tabsService.setMiniAppsCache(miniAppsCache)
-    }
-  }, [miniAppsCache])
-
-  // Debug: track navbar position changes
-  useEffect(() => {
-    if (initialIsTopNavbar.current !== isTopNavbar) {
-      logger.debug(`NavBar position changed from ${initialIsTopNavbar.current} to ${isTopNavbar}`)
-    }
-  }, [isTopNavbar])
-
-  // Find the app from all available apps (including cached ones)
+  // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
     if (!appId) return null
-
-    // First try to find in all apps from DataApi
     const found = allApps.find((a) => a.appId === appId)
-
-    // If not found and we have cache, try to find in cache (for temporary apps)
-    if (!found && miniAppsCache) {
-      return miniAppsCache.get(appId) ?? null
-    }
-
-    if (!found) return null
-
-    return found
-  }, [appId, allApps, miniAppsCache])
+    if (found) return found
+    // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
+    return openedKeepAliveMiniApps.find((a) => a.appId === appId) ?? null
+  }, [appId, allApps, openedKeepAliveMiniApps])
 
   useEffect(() => {
     // While data is still loading, don't redirect — app is null because allApps is empty
