@@ -7,6 +7,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -154,6 +155,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
     useExecutionMessages()
+
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
 
   // Flatten all collectors' assistant messages — in practice there's at
   // most one (single-model translate), but keep the shape generic in case
@@ -429,15 +432,19 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
         <Result>
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => (
-              <ExecutionStreamCollector
-                key={executionId}
-                topicId={temporaryTopicId}
-                executionId={executionId}
-                onMessagesChange={handleExecutionMessagesChange}
-                onDispose={handleExecutionDispose}
-              />
-            ))}
+            activeExecutionIds.map((executionId) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>

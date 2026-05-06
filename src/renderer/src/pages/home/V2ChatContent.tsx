@@ -3,6 +3,8 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
@@ -10,7 +12,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
@@ -141,41 +143,32 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const respondToToolApproval = useToolApprovalBridge(chat, uiMessages)
 
-  const {
-    projectedMessages,
-    mergedPartsMap,
-    executionMessagesById,
-    handleExecutionMessagesChange,
-    handleExecutionDispose
-  } = useV2RenderingPipeline(uiMessages, topic)
+  const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
+    useV2RenderingPipeline(uiMessages, topic)
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
-  const executionMessagesByIdRef = useRef(executionMessagesById)
-  executionMessagesByIdRef.current = executionMessagesById
-
-  useEffect(() => {
-    const unsub = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topic.id) return
-      if (!data.executionId) return
-      const overlay = executionMessagesByIdRef.current[data.executionId]
-      const final = overlay?.findLast((m: CherryUIMessage) => m.role === 'assistant')
-      if (!final) {
-        if (data.isTopicDone) void cache.rollbackBranch()
+  const handleExecutionFinish = useCallback(
+    (executionId: string, { message, isAbort, isError }: ExecutionFinishEvent) => {
+      if (isError || !message.parts?.length) {
+        void cache.rollbackBranch().then(() => handleExecutionDispose(executionId))
         return
       }
       void cache
-        .patchMessageInBranch(final.id, {
-          status: data.status,
-          data: { parts: final.parts as never },
+        .patchMessageInBranch(message.id, {
+          status: isAbort ? 'paused' : 'success',
+          data: { parts: message.parts as never },
           updatedAt: new Date().toISOString()
         })
-        .then(() => handleExecutionDispose(data.executionId!))
-    })
-    return () => {
-      unsub()
-    }
-  }, [topic.id, cache, handleExecutionDispose])
+        .then(() => handleExecutionDispose(executionId))
+    },
+    [cache, handleExecutionDispose]
+  )
+
+  const executionChats = useExecutionChats(topic.id, activeExecutionIds, {
+    initialMessages: uiMessages,
+    onFinish: handleExecutionFinish
+  })
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
@@ -272,16 +265,19 @@ const V2ChatContentInner: FC<InnerProps> = ({
                   {(() => {
                     const last = uiMessages.at(-1)
                     if (last?.role !== 'assistant') return null
-                    return activeExecutionIds.map((executionId) => (
-                      <ExecutionStreamCollector
-                        key={`${executionId}:${last.id}`}
-                        topicId={topic.id}
-                        executionId={executionId}
-                        initialMessages={uiMessages}
-                        onMessagesChange={handleExecutionMessagesChange}
-                        onDispose={handleExecutionDispose}
-                      />
-                    ))
+                    return activeExecutionIds.map((executionId) => {
+                      const chat = executionChats.get(executionId)
+                      if (!chat) return null
+                      return (
+                        <ExecutionStreamCollector
+                          key={`${executionId}:${last.id}`}
+                          executionId={executionId}
+                          chat={chat}
+                          onMessagesChange={handleExecutionMessagesChange}
+                          onDispose={handleExecutionDispose}
+                        />
+                      )
+                    })
                   })()}
 
                   <Messages
