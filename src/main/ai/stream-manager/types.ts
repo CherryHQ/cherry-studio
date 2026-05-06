@@ -170,6 +170,12 @@ export interface StreamListener {
 export interface StreamExecution {
   /** Model id for this execution (also the key in ActiveStream.executions). Format: "providerId::modelId". */
   modelId: UniqueModelId
+  /**
+   * The assistant message row this execution writes to — placeholder id for
+   * fresh/regenerate, anchor id for tool-approval continue. Undefined for
+   * temporary topics (no DB row pre-allocated).
+   */
+  anchorMessageId?: string
   /** Independent abort — aborting one model doesn't stop others in multi-model. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
