@@ -301,7 +301,7 @@ describe('FeishuAdapter', () => {
     expect(mockReactionDelete).not.toHaveBeenCalled()
   })
 
-  it('onStreamError() swaps the reaction to CRY', async () => {
+  it('onStreamError() swaps the reaction to CRY and posts the error to chat', async () => {
     const adapter = createAdapter()
     await adapter.connect()
 
@@ -310,6 +310,7 @@ describe('FeishuAdapter', () => {
     await adapter.sendTypingIndicator('oc_123')
 
     mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
+    mockImCreate.mockClear()
     await adapter.onStreamError('oc_123', 'boom')
 
     expect(mockReactionDelete).toHaveBeenCalledWith({
@@ -319,6 +320,35 @@ describe('FeishuAdapter', () => {
       path: { message_id: 'msg-in-1' },
       data: { reaction_type: { emoji_type: 'CRY' } }
     })
+    // No streaming controller exists, so the error must be sent as a plain message
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: 'oc_123',
+        msg_type: 'post',
+        content: expect.stringContaining('boom')
+      }
+    })
+  })
+
+  it('onStreamError() defers to the streaming card when one exists (no extra message)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await deliverIncomingTextMessage()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-thinking' } })
+    await adapter.sendTypingIndicator('oc_123')
+    await adapter.onTextUpdate('oc_123', 'partial...')
+    await vi.advanceTimersByTimeAsync(500)
+
+    mockImCreate.mockClear()
+    mockReactionCreate.mockResolvedValueOnce({ code: 0, data: { reaction_id: 'rx-error' } })
+
+    await adapter.onStreamError('oc_123', 'boom')
+
+    // The streaming card displays the error; no plain "Error" message should be sent
+    expect(mockImCreate).not.toHaveBeenCalled()
   })
 
   it('handles incoming text messages and emits message event', async () => {

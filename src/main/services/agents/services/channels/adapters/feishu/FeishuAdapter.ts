@@ -630,15 +630,19 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
-    if (!this.client) {
-      throw new Error('Client is not connected')
-    }
     void _opts
-
     // Promote the typing reaction to DONE before delivering the reply,
     // so the user sees the lifecycle transition. No-op for messages that
     // weren't preceded by a typing indicator (e.g. /new acks).
     await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
+    await this.sendRawMessage(chatId, text)
+  }
+
+  /** Send chunked text via the IM API without touching status reactions. */
+  private async sendRawMessage(chatId: string, text: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client is not connected')
+    }
 
     const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
 
@@ -761,10 +765,22 @@ class FeishuAdapter extends ChannelAdapter {
   override async onStreamError(chatId: string, error: string): Promise<void> {
     await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return
+    if (controller) {
+      this.streamingControllers.delete(chatId)
+      await controller.error(error)
+      return
+    }
 
-    this.streamingControllers.delete(chatId)
-    await controller.error(error)
+    // No streaming card was created (LLM errored before producing any text),
+    // so the error would otherwise be silent. Send it as a plain message.
+    try {
+      await this.sendRawMessage(chatId, `**Error**: ${error}`)
+    } catch (sendError) {
+      this.log.warn('Failed to deliver stream error to chat', {
+        chatId,
+        error: sendError instanceof Error ? sendError.message : String(sendError)
+      })
+    }
   }
 
   private handleMessageEvent(event: FeishuMessageEvent): void {
