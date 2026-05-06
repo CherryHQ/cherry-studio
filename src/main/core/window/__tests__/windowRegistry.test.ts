@@ -215,18 +215,3 @@ describe('mergeWindowOptions', () => {
     expect(result.height).toBe(777)
   })
 })
-
-describe('settings window registry', () => {
-  it('declares the settings window as a manually shown singleton popup', () => {
-    const settings = WINDOW_TYPE_REGISTRY[WindowType.Settings]
-
-    expect(settings).toMatchObject({
-      type: WindowType.Settings,
-      lifecycle: 'singleton',
-      htmlPath: 'settings.html',
-      showMode: 'manual',
-      behavior: expect.objectContaining({ closeToHide: true })
-    })
-    expect(settings?.windowOptions.title).toBeUndefined()
-  })
-})

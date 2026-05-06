@@ -99,8 +99,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.Settings]: {
     type: WindowType.Settings,
     lifecycle: 'singleton',
+    singletonConfig: {
+      retentionTime: 300
+    },
     htmlPath: 'settings.html',
-    showMode: 'manual',
     windowOptions: {
       ...DEFAULT_WINDOW_CONFIG,
       width: 960,
@@ -124,10 +126,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         webSecurity: false,
         webviewTag: true
       }
-    },
-    behavior: {
-      macShowInDock: true,
-      closeToHide: true
     }
   },
 

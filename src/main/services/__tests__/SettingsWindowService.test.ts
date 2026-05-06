@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, windowManagerMock, loggerMock } = vi.hoisted(() => {
+const { applicationMock, windowManagerMock } = vi.hoisted(() => {
   const windowManagerMock = {
     open: vi.fn<(type: string, args?: { initData?: unknown; options?: unknown }) => string>(() => 'settings-window-id'),
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
@@ -14,22 +14,10 @@ const { applicationMock, windowManagerMock, loggerMock } = vi.hoisted(() => {
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  const loggerMock = {
-    warn: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn()
-  }
-  return { applicationMock, windowManagerMock, loggerMock }
+  return { applicationMock, windowManagerMock }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => loggerMock
-  }
-}))
 
 vi.mock('electron', () => ({
   nativeTheme: {
@@ -113,6 +101,7 @@ describe('SettingsWindowService', () => {
       WindowType.Settings,
       expect.objectContaining({ initData: '/settings/about' })
     )
+    expect(windowManagerMock.getWindow).not.toHaveBeenCalled()
   })
 
   it('normalizes non-settings paths to the provider settings page', () => {
@@ -124,52 +113,6 @@ describe('SettingsWindowService', () => {
     )
   })
 
-  it('shows and focuses a ready settings window immediately', () => {
-    const window = createMockWindow()
-    getCreatedListener()({ id: 'settings-window-id', window })
-    window.emit('ready-to-show')
-    windowManagerMock.getWindow.mockReturnValue(window)
-
-    service.open('/settings/about')
-
-    expect(window.show).toHaveBeenCalledOnce()
-    expect(window.focus).toHaveBeenCalledOnce()
-  })
-
-  it('waits for ready-to-show before showing a cold settings window', () => {
-    const window = createMockWindow()
-    getCreatedListener()({ id: 'settings-window-id', window })
-    windowManagerMock.getWindow.mockReturnValue(window)
-
-    service.open('/settings/about')
-    expect(window.show).not.toHaveBeenCalled()
-
-    window.emit('ready-to-show')
-
-    expect(window.show).toHaveBeenCalledOnce()
-    expect(window.focus).toHaveBeenCalledOnce()
-  })
-
-  it('prewarms a hidden settings window without showing it', () => {
-    const id = service.prewarm()
-
-    expect(id).toBe('settings-window-id')
-    expect(windowManagerMock.open).toHaveBeenCalledWith(
-      WindowType.Settings,
-      expect.objectContaining({ initData: '/settings/provider' })
-    )
-    expect(windowManagerMock.getWindow).not.toHaveBeenCalled()
-  })
-
-  it('skips prewarm when a settings window already exists', () => {
-    windowManagerMock.getWindowsByType.mockReturnValue([{ id: 'existing-settings-window' }])
-
-    const id = service.prewarm()
-
-    expect(id).toBeNull()
-    expect(windowManagerMock.open).not.toHaveBeenCalled()
-  })
-
   it('keeps the native title empty even when the page title changes', () => {
     const window = createMockWindow()
     const event = { preventDefault: vi.fn() }
@@ -179,16 +122,5 @@ describe('SettingsWindowService', () => {
 
     expect(window.setTitle).toHaveBeenCalledWith('')
     expect(event.preventDefault).toHaveBeenCalledOnce()
-  })
-
-  it('schedules best-effort prewarm after all services are ready', () => {
-    vi.useFakeTimers()
-    const prewarmSpy = vi.spyOn(service, 'prewarm')
-
-    ;(service as any).onAllReady()
-    vi.advanceTimersByTime(1000)
-
-    expect(prewarmSpy).toHaveBeenCalledOnce()
-    vi.useRealTimers()
   })
 })

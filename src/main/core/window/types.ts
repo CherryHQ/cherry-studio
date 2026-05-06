@@ -227,13 +227,6 @@ export interface WindowBehavior {
    * No-op on Windows/Linux. Defaults to true when omitted.
    */
   macShowInDock?: boolean
-
-  /**
-   * Treat close as hide for reusable singleton surfaces. Applies to both
-   * WindowManager.close() and native close events, but native close still
-   * proceeds during app quit so shutdown is not blocked.
-   */
-  closeToHide?: boolean
 }
 
 /**

@@ -511,12 +511,6 @@ export class WindowManager extends BaseService {
     const managed = this.windows.get(windowId)
     if (!managed) return false
 
-    if (managed.metadata.behavior?.closeToHide) {
-      managed.window.hide()
-      this.updateDockVisibility()
-      return true
-    }
-
     for (const [type, state] of this.warmupStates) {
       if (state.managed.has(windowId)) {
         const metadata = getWindowTypeMetadata(type)
@@ -1549,14 +1543,6 @@ export class WindowManager extends BaseService {
       // App is quitting — let native close proceed so app.quit() can complete.
       // Without this, preventDefault'd windows stall will-quit indefinitely.
       if (application.isQuitting) return
-
-      const managed = this.windows.get(windowId)
-      if (managed?.metadata.behavior?.closeToHide) {
-        event.preventDefault()
-        managed.window.hide()
-        this.updateDockVisibility()
-        return
-      }
 
       for (const [type, state] of this.warmupStates) {
         if (!state.managed.has(windowId)) continue
