@@ -1,26 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  getAllMock,
-  getByIdMock,
-  createMock,
-  updateMock,
-  deleteMock,
-  getVersionsMock,
-  rollbackMock,
-  reorderMock,
-  reorderBatchMock
-} = vi.hoisted(() => ({
-  getAllMock: vi.fn(),
-  getByIdMock: vi.fn(),
-  createMock: vi.fn(),
-  updateMock: vi.fn(),
-  deleteMock: vi.fn(),
-  getVersionsMock: vi.fn(),
-  rollbackMock: vi.fn(),
-  reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
-}))
+const { getAllMock, getByIdMock, createMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(
+  () => ({
+    getAllMock: vi.fn(),
+    getByIdMock: vi.fn(),
+    createMock: vi.fn(),
+    updateMock: vi.fn(),
+    deleteMock: vi.fn(),
+    reorderMock: vi.fn(),
+    reorderBatchMock: vi.fn()
+  })
+)
 
 vi.mock('@data/services/PromptService', () => ({
   promptService: {
@@ -29,8 +19,6 @@ vi.mock('@data/services/PromptService', () => ({
     create: createMock,
     update: updateMock,
     delete: deleteMock,
-    getVersions: getVersionsMock,
-    rollback: rollbackMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -46,6 +34,12 @@ describe('promptHandlers', () => {
     vi.clearAllMocks()
   })
 
+  it('should not expose removed version or rollback endpoints', () => {
+    const handlers = promptHandlers as Record<string, unknown>
+    expect(handlers['/prompts/:id/versions']).toBeUndefined()
+    expect(handlers['/prompts/:id/rollback']).toBeUndefined()
+  })
+
   describe('/prompts', () => {
     it('should delegate GET to promptService.getAll', async () => {
       getAllMock.mockResolvedValueOnce([{ id: PROMPT_ID, title: 't', content: 'c' }])
@@ -53,7 +47,7 @@ describe('promptHandlers', () => {
       expect(getAllMock).toHaveBeenCalledOnce()
     })
 
-    it('should delegate POST with the parsed body', async () => {
+    it('should delegate POST with title/content only', async () => {
       createMock.mockResolvedValueOnce({ id: PROMPT_ID, title: 't', content: 'c' })
 
       const result = await promptHandlers['/prompts'].POST({
@@ -64,14 +58,10 @@ describe('promptHandlers', () => {
       expect(result).toMatchObject({ id: PROMPT_ID })
     })
 
-    it('should reject POST with empty title before calling the service', async () => {
+    it('should reject POST with empty fields before calling the service', async () => {
       await expect(
         promptHandlers['/prompts'].POST({ body: { title: '', content: 'c' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
-      expect(createMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject POST with empty content before calling the service', async () => {
       await expect(
         promptHandlers['/prompts'].POST({ body: { title: 't', content: '' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -86,10 +76,15 @@ describe('promptHandlers', () => {
       expect(createMock).not.toHaveBeenCalled()
     })
 
-    it('should reject POST with an unknown field (strictObject)', async () => {
+    it('should reject POST with removed fields', async () => {
       await expect(
         promptHandlers['/prompts'].POST({
-          body: { title: 't', content: 'c', sortOrder: 0 }
+          body: { title: 't', content: 'c', variables: [] }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(
+        promptHandlers['/prompts'].POST({
+          body: { title: 't', content: 'c', assistantId: OTHER_PROMPT_ID }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(createMock).not.toHaveBeenCalled()
@@ -134,21 +129,23 @@ describe('promptHandlers', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
-    it('should reject PATCH with an empty-string title', async () => {
+    it('should reject PATCH with empty or removed fields', async () => {
       await expect(
         promptHandlers['/prompts/:id'].PATCH({
           params: { id: PROMPT_ID },
           body: { title: '' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
-      expect(updateMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject PATCH with an unknown field (strictObject)', async () => {
       await expect(
         promptHandlers['/prompts/:id'].PATCH({
           params: { id: PROMPT_ID },
-          body: { sortOrder: 0 }
+          body: { currentVersion: 2 }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(
+        promptHandlers['/prompts/:id'].PATCH({
+          params: { id: PROMPT_ID },
+          body: { variables: [] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(updateMock).not.toHaveBeenCalled()
@@ -160,49 +157,6 @@ describe('promptHandlers', () => {
         promptHandlers['/prompts/:id'].DELETE({ params: { id: PROMPT_ID } } as never)
       ).resolves.toBeUndefined()
       expect(deleteMock).toHaveBeenCalledWith(PROMPT_ID)
-    })
-  })
-
-  describe('/prompts/:id/versions', () => {
-    it('should delegate GET with the parsed id', async () => {
-      getVersionsMock.mockResolvedValueOnce([{ version: 1 }])
-      await expect(
-        promptHandlers['/prompts/:id/versions'].GET({ params: { id: PROMPT_ID } } as never)
-      ).resolves.toEqual([{ version: 1 }])
-      expect(getVersionsMock).toHaveBeenCalledWith(PROMPT_ID)
-    })
-  })
-
-  describe('/prompts/:id/rollback', () => {
-    it('should delegate POST with parsed id and version', async () => {
-      rollbackMock.mockResolvedValueOnce({ id: PROMPT_ID, currentVersion: 4 })
-      const result = await promptHandlers['/prompts/:id/rollback'].POST({
-        params: { id: PROMPT_ID },
-        body: { version: 2 }
-      } as never)
-
-      expect(rollbackMock).toHaveBeenCalledWith(PROMPT_ID, { version: 2 })
-      expect(result).toMatchObject({ currentVersion: 4 })
-    })
-
-    it('should reject POST with version < 1', async () => {
-      await expect(
-        promptHandlers['/prompts/:id/rollback'].POST({
-          params: { id: PROMPT_ID },
-          body: { version: 0 }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-      expect(rollbackMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject POST missing the version field', async () => {
-      await expect(
-        promptHandlers['/prompts/:id/rollback'].POST({
-          params: { id: PROMPT_ID },
-          body: {}
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-      expect(rollbackMock).not.toHaveBeenCalled()
     })
   })
 

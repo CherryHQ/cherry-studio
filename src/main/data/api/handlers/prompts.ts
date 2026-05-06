@@ -2,8 +2,7 @@
  * Prompt API Handlers
  *
  * All input validation happens here at the IPC trust boundary. Business logic
- * — version creation, rollback semantics, orderKey computation — lives in
- * PromptService.
+ * lives in PromptService.
  */
 
 import { promptService } from '@data/services/PromptService'
@@ -13,7 +12,6 @@ import {
   CreatePromptSchema,
   PromptIdSchema,
   type PromptSchemas,
-  RollbackPromptSchema,
   UpdatePromptSchema
 } from '@shared/data/api/schemas/prompts'
 
@@ -51,21 +49,6 @@ export const promptHandlers: {
       const id = PromptIdSchema.parse(params.id)
       await promptService.delete(id)
       return undefined
-    }
-  },
-
-  '/prompts/:id/versions': {
-    GET: async ({ params }) => {
-      const id = PromptIdSchema.parse(params.id)
-      return await promptService.getVersions(id)
-    }
-  },
-
-  '/prompts/:id/rollback': {
-    POST: async ({ params, body }) => {
-      const id = PromptIdSchema.parse(params.id)
-      const parsed = RollbackPromptSchema.parse(body)
-      return await promptService.rollback(id, parsed)
     }
   },
 

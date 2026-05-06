@@ -11,10 +11,8 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useInputbarToolsDispatch } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import { getPromptVersionRollbackMarker } from '@renderer/utils/promptVersion'
-import type { Prompt, PromptVariable, PromptVersion } from '@shared/data/types/prompt'
+import type { Prompt } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,8 +27,6 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 
 const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
-  const [versionMenuPrompt, setVersionMenuPrompt] = useState<Prompt | null>(null)
-  const { setVariablePrompt } = useInputbarToolsDispatch()
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
@@ -39,16 +35,6 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
   >(undefined)
 
   const { data: promptsRaw, isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
-
-  const versionMenuPath: `/prompts/${string}/versions` = `/prompts/${versionMenuPrompt?.id ?? '__pending__'}/versions`
-  const {
-    data: versionMenuVersionsRaw,
-    isLoading: isVersionMenuLoading,
-    error: versionMenuError
-  } = useQuery(versionMenuPath, {
-    enabled: !!versionMenuPrompt
-  })
-  const versionMenuVersions = useMemo(() => (versionMenuVersionsRaw || []) as PromptVersion[], [versionMenuVersionsRaw])
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
@@ -131,89 +117,18 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
 
   const handleItemSelect = useCallback(
     (item: Prompt) => {
-      if (item.variables && item.variables.length > 0) {
-        setVariablePrompt({ content: item.content, variables: item.variables })
-      } else {
-        insertText(item.content)
-      }
+      insertText(item.content)
     },
-    [insertText, setVariablePrompt]
+    [insertText]
   )
-
-  const openVersionSubMenu = useCallback(
-    (item: Prompt) => {
-      quickPanelHook.open({
-        title: item.title,
-        list: [
-          {
-            label: t('common.loading'),
-            description: item.content,
-            icon: <Zap />,
-            disabled: true
-          }
-        ],
-        symbol: QuickPanelReservedSymbol.QuickPhrases
-      })
-      setVersionMenuPrompt(item)
-    },
-    [quickPanelHook, t]
-  )
-
-  useEffect(() => {
-    if (!versionMenuPrompt || isVersionMenuLoading) {
-      return
-    }
-
-    if (versionMenuError) {
-      logger.error('Failed to fetch prompt versions', versionMenuError)
-      window.toast.error(t('message.error.unknown'))
-      insertText(versionMenuPrompt.content)
-      setVersionMenuPrompt(null)
-      return
-    }
-
-    if (versionMenuVersions.length === 0) {
-      window.toast.error(t('message.error.unknown'))
-      insertText(versionMenuPrompt.content)
-      setVersionMenuPrompt(null)
-      return
-    }
-
-    const versionItems: QuickPanelListItem[] = versionMenuVersions.map((version) => ({
-      label:
-        getPromptVersionRollbackMarker(
-          version.rollbackFrom,
-          (rollbackFrom) =>
-            `v${version.version} (${t('settings.prompts.restoredFromVersion', { version: rollbackFrom })})`
-        ) ?? `v${version.version}`,
-      description: version.content,
-      icon: <Zap />,
-      isSelected: version.version === versionMenuPrompt.currentVersion,
-      action: () => {
-        if (version.variables && version.variables.length > 0) {
-          setVariablePrompt({ content: version.content, variables: version.variables })
-        } else {
-          insertText(version.content)
-        }
-      }
-    }))
-
-    quickPanelHook.open({
-      title: versionMenuPrompt.title,
-      list: versionItems,
-      symbol: QuickPanelReservedSymbol.QuickPhrases
-    })
-    setVersionMenuPrompt(null)
-  }, [insertText, isVersionMenuLoading, quickPanelHook, t, versionMenuError, versionMenuPrompt, versionMenuVersions])
 
   const handleAddModalSave = useCallback(
-    async (data: { title: string; content: string; variables: PromptVariable[] | null }) => {
+    async (data: { title: string; content: string }) => {
       try {
         await createPrompt({
           body: {
             title: data.title,
-            content: data.content,
-            variables: data.variables ?? undefined
+            content: data.content
           }
         })
         setIsAddModalOpen(false)
@@ -241,17 +156,12 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
       })
     } else {
       newList.push(
-        ...promptItems.map((item) => {
-          const hasMultipleVersions = item.currentVersion > 1
-
-          return {
-            label: item.title,
-            description: item.content,
-            icon: <Zap />,
-            isMenu: hasMultipleVersions,
-            action: hasMultipleVersions ? () => openVersionSubMenu(item) : () => handleItemSelect(item)
-          }
-        })
+        ...promptItems.map((item) => ({
+          label: item.title,
+          description: item.content,
+          icon: <Zap />,
+          action: () => handleItemSelect(item)
+        }))
       )
     }
 
@@ -262,7 +172,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     })
 
     return newList
-  }, [handleItemSelect, isPromptsLoading, openVersionSubMenu, promptItems, promptsError, t])
+  }, [handleItemSelect, isPromptsLoading, promptItems, promptsError, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({

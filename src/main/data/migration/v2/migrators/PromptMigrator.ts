@@ -10,10 +10,9 @@
  *   QuickPhrase.order     → drives relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase.createdAt → prompt.createdAt
  *   QuickPhrase.updatedAt → prompt.updatedAt
- *   (default)             → prompt.currentVersion = 1, one matching prompt_version(v1)
  */
 
-import { promptTable, promptVersionTable } from '@data/db/schemas/prompt'
+import { promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
@@ -122,17 +121,9 @@ export class PromptMigrator extends BaseMigrator {
             id: promptId,
             title: row.title || 'Untitled',
             content: row.content,
-            currentVersion: 1,
             orderKey: row.orderKey,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt
-          })
-
-          await tx.insert(promptVersionTable).values({
-            promptId,
-            version: 1,
-            content: row.content,
-            createdAt: row.createdAt
           })
 
           processedCount++
@@ -171,13 +162,9 @@ export class PromptMigrator extends BaseMigrator {
       const promptResult = await db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
       const targetCount = promptResult?.count ?? 0
 
-      const versionResult = await db.select({ count: sql<number>`count(*)` }).from(promptVersionTable).get()
-      const targetVersionCount = versionResult?.count ?? 0
-
       logger.info('Validation counts', {
         sourceCount: this.promptCount,
         targetPromptCount: targetCount,
-        targetVersionCount,
         skippedCount: this.skippedCount
       })
 
@@ -187,16 +174,6 @@ export class PromptMigrator extends BaseMigrator {
           expected: this.promptCount,
           actual: targetCount,
           message: `Expected at least ${this.promptCount} prompts, got ${targetCount}`
-        })
-      }
-
-      // Enforce "at least one version per prompt" — rollback histories may have more.
-      if (targetVersionCount < targetCount) {
-        errors.push({
-          key: 'version_count_mismatch',
-          expected: targetCount,
-          actual: targetVersionCount,
-          message: `Expected at least ${targetCount} versions, got ${targetVersionCount}`
         })
       }
 

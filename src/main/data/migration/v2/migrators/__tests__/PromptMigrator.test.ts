@@ -5,24 +5,17 @@ import { PromptMigrator } from '../PromptMigrator'
 
 /** Helper: build a minimal MigrationContext mock */
 function createMockContext(
-  overrides: { tableExists?: boolean; tableData?: unknown[]; promptCount?: number; versionCount?: number } = {}
+  overrides: { tableExists?: boolean; tableData?: unknown[]; promptCount?: number } = {}
 ): MigrationContext {
-  const { tableExists = true, tableData = [], promptCount = 0, versionCount = 0 } = overrides
+  const { tableExists = true, tableData = [], promptCount = 0 } = overrides
 
   const insertFn = vi.fn().mockImplementation(() => ({
     values: vi.fn().mockResolvedValue(undefined)
   }))
 
-  // validate() calls select().from(promptTable).get() then select().from(promptVersionTable).get()
-  let selectCallIndex = 0
-  const counts = [promptCount, versionCount]
   const selectFn = vi.fn().mockImplementation(() => ({
     from: vi.fn().mockImplementation(() => ({
-      get: vi.fn().mockImplementation(() => {
-        const count = counts[selectCallIndex] ?? 0
-        selectCallIndex++
-        return Promise.resolve({ count })
-      })
+      get: vi.fn().mockResolvedValue({ count: promptCount })
     }))
   }))
 
@@ -175,7 +168,7 @@ describe('PromptMigrator', () => {
       expect(ctx.db.transaction).not.toHaveBeenCalled()
     })
 
-    it('should insert prompt and version for each valid phrase', async () => {
+    it('should insert one prompt for each valid phrase', async () => {
       const phrases = [
         makePhrase({ id: 'p1', title: 'First', content: 'c1', order: 0 }),
         makePhrase({ id: 'p2', title: 'Second', content: 'c2', order: 1 })
@@ -218,6 +211,35 @@ describe('PromptMigrator', () => {
       // First insert call is the prompt row
       const promptRow = insertCalls[0] as Record<string, unknown>
       expect(promptRow.title).toBe('Untitled')
+    })
+
+    it('should preserve legacy quick phrase order', async () => {
+      const phrases = [
+        makePhrase({ id: 'p-late', title: 'Late', content: 'late', order: 20 }),
+        makePhrase({ id: 'p-early', title: 'Early', content: 'early', order: 10 })
+      ]
+      const ctx = createMockContext({ tableData: phrases })
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      const insertCalls: Array<Record<string, unknown>> = []
+      const mockInsert = vi.fn().mockImplementation(() => ({
+        values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
+          insertCalls.push(val)
+          return Promise.resolve()
+        })
+      }))
+
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<void>) => {
+          await fn({ insert: mockInsert })
+        }
+      )
+
+      await migrator.execute(ctx)
+
+      expect(insertCalls.map((row) => row.title)).toEqual(['Early', 'Late'])
+      expect(String(insertCalls[0].orderKey) < String(insertCalls[1].orderKey)).toBe(true)
     })
 
     it('should report progress', async () => {
@@ -265,8 +287,7 @@ describe('PromptMigrator', () => {
       const insertFn = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation(() => {
           insertCount++
-          // Each phrase inserts prompt (odd count) then version (even count). Fail on the 3rd (second prompt).
-          if (insertCount === 3) return Promise.reject(new Error('UNIQUE constraint failed: prompt.id'))
+          if (insertCount === 2) return Promise.reject(new Error('UNIQUE constraint failed: prompt.id'))
           return Promise.resolve(undefined)
         })
       }))
@@ -305,12 +326,11 @@ describe('PromptMigrator', () => {
 
       await migrator.execute(ctx)
 
-      const [promptRow, versionRow] = insertCalls
+      const [promptRow] = insertCalls
       const uuidv7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
       expect(promptRow.id).toMatch(uuidv7Pattern)
       expect(promptRow.id).not.toBe('legacy-v4-id')
-      // prompt_version.promptId must match the regenerated prompt.id.
-      expect(versionRow.promptId).toBe(promptRow.id)
+      expect(insertCalls).toHaveLength(1)
     })
   })
 
@@ -321,8 +341,7 @@ describe('PromptMigrator', () => {
       const ctx = createMockContext({
         tableData: phrases,
         // DB reports zero rows because the execute transaction rolled back.
-        promptCount: 0,
-        versionCount: 0
+        promptCount: 0
       })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
@@ -346,8 +365,7 @@ describe('PromptMigrator', () => {
       const phrases = [makePhrase({ id: 'p1', content: 'c1' })]
       const ctx = createMockContext({
         tableData: phrases,
-        promptCount: 1,
-        versionCount: 1
+        promptCount: 1
       })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
@@ -364,8 +382,7 @@ describe('PromptMigrator', () => {
       const phrases = [makePhrase({ id: 'p1', content: 'c1' }), makePhrase({ id: 'p2', content: 'c2' })]
       const ctx = createMockContext({
         tableData: phrases,
-        promptCount: 1, // less than source
-        versionCount: 1
+        promptCount: 1 // less than source
       })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
@@ -374,22 +391,6 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(false)
       expect(result.errors.some((e) => e.key === 'prompt_count_mismatch')).toBe(true)
-    })
-
-    it('should report error when version count is less than prompt count', async () => {
-      const phrases = [makePhrase({ id: 'p1', content: 'c1' })]
-      const ctx = createMockContext({
-        tableData: phrases,
-        promptCount: 1,
-        versionCount: 0 // no versions
-      })
-      const migrator = new PromptMigrator()
-      await migrator.prepare(ctx)
-
-      const result = await migrator.validate(ctx)
-
-      expect(result.success).toBe(false)
-      expect(result.errors.some((e) => e.key === 'version_count_mismatch')).toBe(true)
     })
 
     it('should handle db query failure gracefully', async () => {
@@ -415,8 +416,7 @@ describe('PromptMigrator', () => {
       ]
       const ctx = createMockContext({
         tableData: phrases,
-        promptCount: 1,
-        versionCount: 1
+        promptCount: 1
       })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)

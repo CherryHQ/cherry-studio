@@ -1,16 +1,9 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { FileMetadata, KnowledgeBase, Model } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
-import type { PromptVariable } from '@shared/data/types/prompt'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type QuickPanelTriggerHandler = (payload?: unknown) => void
-
-/** State for template mode — when a prompt with variables is active in the inputbar */
-export interface VariablePromptState {
-  content: string
-  variables: PromptVariable[]
-}
 
 /**
  * Read-only state interface for Inputbar tools.
@@ -25,8 +18,6 @@ export interface InputbarToolsState {
   selectedKnowledgeBases: KnowledgeBase[]
   /** Whether the inputbar is expanded */
   isExpanded: boolean
-  /** Active variable prompt template (null = normal textarea mode) */
-  variablePrompt: VariablePromptState | null
 
   /** Whether image files can be added (derived state) */
   couldAddImageFile: boolean
@@ -88,7 +79,6 @@ export interface InputbarToolsDispatch {
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
-  setVariablePrompt: React.Dispatch<React.SetStateAction<VariablePromptState | null>>
 
   /** Parent component actions */
   resizeTextArea: () => void
@@ -178,7 +168,6 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
     initialState?.selectedKnowledgeBases || []
   )
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)
-  const [variablePrompt, setVariablePrompt] = useState<VariablePromptState | null>(null)
 
   // Derived state (internal management)
   const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
@@ -260,7 +249,6 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       mentionedModels,
       selectedKnowledgeBases,
       isExpanded,
-      variablePrompt,
       couldAddImageFile,
       couldMentionNotVisionModel,
       extensions
@@ -270,7 +258,6 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       mentionedModels,
       selectedKnowledgeBases,
       isExpanded,
-      variablePrompt,
       couldAddImageFile,
       couldMentionNotVisionModel,
       extensions
@@ -303,7 +290,6 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
       setMentionedModels,
       setSelectedKnowledgeBases,
       setIsExpanded,
-      setVariablePrompt,
 
       // Stable actions
       ...stableActions,

@@ -3,55 +3,55 @@ import { describe, expect, it } from 'vitest'
 import { CreatePromptSchema, UpdatePromptSchema } from '../prompts'
 
 describe('prompt DTO schemas', () => {
-  it('rejects empty update payloads', () => {
-    expect(() => UpdatePromptSchema.parse({})).toThrow('At least one field is required')
-  })
-
-  it('accepts title-only updates', () => {
-    const result = UpdatePromptSchema.parse({ title: 'renamed' })
-    expect(result.title).toBe('renamed')
-  })
-
-  it('accepts variables-only updates', () => {
-    const result = UpdatePromptSchema.parse({
-      variables: [{ id: 'v_1', key: 'lang', type: 'select', options: ['en', 'zh'] }]
-    })
-    expect(result.variables).toHaveLength(1)
-  })
-
-  it('rejects null variables (optional, not nullable at the boundary)', () => {
-    expect(() => UpdatePromptSchema.parse({ variables: null })).toThrow()
-  })
-
-  it('rejects unknown fields (Rule C strictObject defense)', () => {
-    expect(() => UpdatePromptSchema.parse({ title: 'x', sortOrder: 3 })).toThrow()
-  })
-
-  it('accepts create with variables', () => {
-    const result = CreatePromptSchema.parse({
-      title: 'Test',
-      content: 'Hello ${name}',
-      variables: [{ id: 'v_1', key: 'name', type: 'input', placeholder: 'Your name' }]
-    })
-    expect(result.variables).toHaveLength(1)
-    expect(result.variables![0].key).toBe('name')
-  })
-
-  it('rejects create with null variables', () => {
-    expect(() =>
-      CreatePromptSchema.parse({
-        title: 'Test',
-        content: 'Hello',
-        variables: null
-      })
-    ).toThrow()
-  })
-
-  it('accepts create without variables field', () => {
+  it('accepts create with title and content', () => {
     const result = CreatePromptSchema.parse({
       title: 'Test',
       content: 'Hello'
     })
-    expect(result.variables).toBeUndefined()
+
+    expect(result).toEqual({ title: 'Test', content: 'Hello' })
+  })
+
+  it('rejects create with empty title or content', () => {
+    expect(() => CreatePromptSchema.parse({ title: '', content: 'Hello' })).toThrow()
+    expect(() => CreatePromptSchema.parse({ title: 'Test', content: '' })).toThrow()
+  })
+
+  it('rejects create with unknown prompt fields', () => {
+    expect(() =>
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        scope: 'global'
+      })
+    ).toThrow()
+
+    expect(() =>
+      CreatePromptSchema.parse({
+        title: 'Test',
+        content: 'Hello',
+        variables: []
+      })
+    ).toThrow()
+  })
+
+  it('rejects empty update payloads', () => {
+    expect(() => UpdatePromptSchema.parse({})).toThrow('At least one field is required')
+  })
+
+  it('accepts partial title/content updates', () => {
+    expect(UpdatePromptSchema.parse({ title: 'renamed' })).toEqual({ title: 'renamed' })
+    expect(UpdatePromptSchema.parse({ content: 'updated' })).toEqual({ content: 'updated' })
+  })
+
+  it('rejects update with empty title or content', () => {
+    expect(() => UpdatePromptSchema.parse({ title: '' })).toThrow()
+    expect(() => UpdatePromptSchema.parse({ content: '' })).toThrow()
+  })
+
+  it('rejects removed version, scope, and variable fields', () => {
+    expect(() => UpdatePromptSchema.parse({ currentVersion: 2 })).toThrow()
+    expect(() => UpdatePromptSchema.parse({ assistantId: 'assistant-1' })).toThrow()
+    expect(() => UpdatePromptSchema.parse({ variables: [] })).toThrow()
   })
 })
