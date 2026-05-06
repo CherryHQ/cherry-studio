@@ -195,7 +195,7 @@ const VertexAISettings = () => {
           aria-label={jsonInputLabel}
           onClick={() => setServiceAccountJsonVisible((visible) => !visible)}
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute top-1/2 right-1.5 z-1 size-7 -translate-y-1/2 text-muted-foreground shadow-none">
+          className="-translate-y-1/2 absolute top-1/2 right-1.5 z-1 size-7 text-muted-foreground shadow-none">
           {serviceAccountJsonVisible ? <Eye size={14} /> : <EyeOff size={14} />}
         </Button>
       </div>
@@ -244,7 +244,7 @@ const VertexAISettings = () => {
           aria-label={privateKeyLabel}
           onClick={() => setPrivateKeyVisible((visible) => !visible)}
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute top-1/2 right-1.5 z-1 size-7 -translate-y-1/2 text-muted-foreground shadow-none">
+          className="-translate-y-1/2 absolute top-1/2 right-1.5 z-1 size-7 text-muted-foreground shadow-none">
           {privateKeyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
         </Button>
       </div>

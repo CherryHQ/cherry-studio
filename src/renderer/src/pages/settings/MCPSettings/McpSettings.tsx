@@ -44,7 +44,7 @@ import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ChevronDown, SaveIcon, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -1026,46 +1026,56 @@ const McpSettings: React.FC = () => {
     <Container>
       <SettingContainer
         theme={theme}
-        className="min-w-0"
-        style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-        <div className="min-h-0 min-w-0">
-          <SettingTitle className="min-w-0 flex-wrap gap-2">
-            <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
-              <Flex className="min-w-0 flex-1 items-center gap-2">
-                <ServerName className="truncate">{server?.name}</ServerName>
-                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+        className="min-w-0 overflow-hidden p-0"
+        style={{ width: '100%', backgroundColor: 'transparent' }}>
+        <Tabs
+          value={activeTabValue}
+          onValueChange={(value) => setActiveTab(value as TabKey)}
+          variant="line"
+          className="flex min-h-0 flex-1 flex-col bg-transparent">
+          <div className="shrink-0 px-4 pt-4">
+            <SettingTitle className="min-w-0 flex-wrap gap-2">
+              <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
+                  aria-label={t('common.back')}
+                  title={t('common.back')}
+                  onClick={() => void navigate({ to: '/settings/mcp/servers' })}>
+                  <ArrowLeft size={16} />
+                </Button>
+                <Flex className="min-w-0 flex-1 items-center gap-2">
+                  <ServerName className="truncate">{server?.name}</ServerName>
+                  {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+                </Flex>
+                <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
+                  {t('settings.mcp.logs', 'View Logs')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                  <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                </Button>
               </Flex>
-              <Button size="sm" variant="ghost" onClick={() => setLogModalOpen(true)}>
-                {t('settings.mcp.logs', 'View Logs')}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
-                <DeleteIcon size={14} className="lucide-custom text-destructive" />
-              </Button>
-            </Flex>
-            <Flex className="shrink-0 items-center gap-3">
-              <Switch
-                checked={server.isActive}
-                key={server.id}
-                loading={loadingServer === server.id}
-                onCheckedChange={onToggleActive}
-              />
-              <Button
-                size="sm"
-                variant="default"
-                onClick={onSave}
-                disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
-                className="rounded-full">
-                <SaveIcon size={14} />
-                {t('common.save')}
-              </Button>
-            </Flex>
-          </SettingTitle>
-          <SettingDivider />
-          <Tabs
-            value={activeTabValue}
-            onValueChange={(value) => setActiveTab(value as TabKey)}
-            variant="line"
-            className="mt-2 min-w-0 bg-transparent">
+              <Flex className="shrink-0 items-center gap-3">
+                <Switch
+                  checked={server.isActive}
+                  key={server.id}
+                  loading={loadingServer === server.id}
+                  onCheckedChange={onToggleActive}
+                />
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={onSave}
+                  disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
+                  className="rounded-full">
+                  <SaveIcon size={14} />
+                  {t('common.save')}
+                </Button>
+              </Flex>
+            </SettingTitle>
+            <SettingDivider className="mb-0" />
             <TabsList className="max-w-full overflow-x-auto">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.key} value={tab.key}>
@@ -1073,13 +1083,15 @@ const McpSettings: React.FC = () => {
                 </TabsTrigger>
               ))}
             </TabsList>
+          </div>
+          <Scrollbar className="min-h-0 flex-1 px-4 pt-2 pb-4">
             {tabs.map((tab) => (
-              <TabsContent key={tab.key} value={tab.key} className="mt-2 min-h-0">
+              <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
                 {tab.children}
               </TabsContent>
             ))}
-          </Tabs>
-        </div>
+          </Scrollbar>
+        </Tabs>
       </SettingContainer>
 
       <Dialog
@@ -1117,8 +1129,8 @@ const McpSettings: React.FC = () => {
   )
 }
 
-const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('h-[calc(100vh-var(--navbar-height))] min-w-0', className)} {...props} />
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex h-full min-w-0 flex-col overflow-hidden', className)} {...props} />
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

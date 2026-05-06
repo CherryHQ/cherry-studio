@@ -8,7 +8,7 @@ import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import type { OcrProvider, PreprocessProvider } from '@renderer/types'
 import { isBuiltinOcrProvider, isImageOcrProvider } from '@renderer/types'
-import { ExternalLink, Sparkles } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -188,40 +188,6 @@ const DocProcessSettings: FC = () => {
     return <PreprocessProviderSettings provider={activeEntry.provider} hideHeader />
   }
 
-  const renderHeaderIcon = () => {
-    if (!activeEntry) {
-      return (
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <div className="flex size-6 shrink-0 items-center justify-center">
-            <Sparkles size={16} />
-          </div>
-        </div>
-      )
-    }
-
-    if (activeEntry.kind === 'ocr') {
-      return (
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <div className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md text-foreground [&_svg]:size-4.5 [&_svg]:shrink-0">
-            <OcrProviderLogo provider={activeEntry.provider} size={18} />
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-        <div className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md">
-          <LogoAvatar
-            logo={getPreprocessProviderLogo(activeEntry.provider.id)}
-            size={24}
-            className="aspect-square size-6 shrink-0 [&_.cs-avatar]:size-6 [&_img]:size-6 [&_img]:object-contain"
-          />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-1" data-theme-mode={themeMode}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
@@ -271,10 +237,9 @@ const DocProcessSettings: FC = () => {
         <Scrollbar className={settingsContentScrollClassName}>
           <div className={settingsContentBodyClassName}>
             {activeEntry ? (
-              <div className="flex w-full flex-col gap-4">
+              <div className="flex w-full flex-col gap-3">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-4">
-                    {renderHeaderIcon()}
+                  <div className="flex min-w-0 items-center">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="truncate font-semibold text-[15px] text-foreground leading-5">

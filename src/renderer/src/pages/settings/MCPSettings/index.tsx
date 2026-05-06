@@ -1,8 +1,8 @@
-import { Button, Flex, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
+import { Flex, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, FolderCog, Package, ShoppingBag } from 'lucide-react'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,17 +40,6 @@ const MCPSettings: FC = () => {
   }
 
   const activeView = getActiveView()
-
-  // 判断是否为主页面（是否显示返回按钮）
-  const isHomePage = () => {
-    const path = location.pathname
-    // 主页面不显示返回按钮
-    if (path === '/settings/mcp' || path === '/settings/mcp/servers') return true
-    if (path === '/settings/mcp/builtin' || path === '/settings/mcp/marketplaces') return true
-
-    // 服务商页面也是主页面
-    return providers.some((p) => path === `/settings/mcp/${p.key}`)
-  }
 
   return (
     <Flex className="min-w-0 flex-1">
@@ -98,15 +87,6 @@ const MCPSettings: FC = () => {
           </MenuList>
         </Scrollbar>
         <div className="relative min-w-0 flex-1 overflow-hidden">
-          {!isHomePage() && (
-            <div className="absolute top-0 right-0 left-0 z-[1000] flex items-center bg-transparent px-5 py-2.5">
-              <Link to="/settings/mcp/servers">
-                <Button variant="secondary" size="icon-sm" className="rounded-full">
-                  <ArrowLeft size={16} />
-                </Button>
-              </Link>
-            </div>
-          )}
           <Outlet />
         </div>
       </div>

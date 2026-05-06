@@ -339,7 +339,7 @@ const TaskDetail: FC<{
                   setScheduleValue('')
                   saveField({ scheduleType: value, scheduleValue: '' })
                 }}>
-                <SelectTrigger size="sm" className="w-full">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -789,7 +789,7 @@ const CreateForm: FC<{
                   setScheduleType(v)
                   setScheduleValue('')
                 }}>
-                <SelectTrigger size="sm" className="w-full">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -856,7 +856,7 @@ const CreateForm: FC<{
           <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={onCancel}>
+            <Button variant="outline" size="sm" onClick={onCancel}>
               {t('agent.cherryClaw.tasks.cancel')}
             </Button>
             <Button size="sm" disabled={!isValid} loading={saving} onClick={handleCreate}>

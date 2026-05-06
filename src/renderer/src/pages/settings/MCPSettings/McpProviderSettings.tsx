@@ -236,7 +236,7 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-4', className)} {...props} />
+  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-2', className)} {...props} />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
