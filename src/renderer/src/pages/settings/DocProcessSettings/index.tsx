@@ -1,4 +1,4 @@
-import { Badge, MenuDivider, MenuItem, MenuList, Switch } from '@cherrystudio/ui'
+import { Badge, Button, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
@@ -155,8 +155,8 @@ const DocProcessSettings: FC = () => {
     }
   }, [activeEntry, t])
 
-  const handleDefaultToggle = (checked: boolean) => {
-    if (!checked || !activeEntry) {
+  const handleSetDefault = () => {
+    if (isActiveDefault || !activeEntry) {
       return
     }
 
@@ -263,7 +263,9 @@ const DocProcessSettings: FC = () => {
                   </div>
 
                   <div className="flex shrink-0 items-center">
-                    <Switch checked={Boolean(isActiveDefault)} onCheckedChange={handleDefaultToggle} />
+                    <Button variant="outline" disabled={Boolean(isActiveDefault)} onClick={handleSetDefault}>
+                      {isActiveDefault ? t('common.default') : t('settings.tool.websearch.set_as_default')}
+                    </Button>
                   </div>
                 </div>
 

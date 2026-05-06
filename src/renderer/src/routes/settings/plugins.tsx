@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 const PluginsWrapper = () => (
   <SettingContainer className="bg-transparent">
-    <div className="mx-auto flex w-full max-w-5xl flex-col">
+    <div className="flex w-full flex-col">
       <EnvironmentDependencies />
     </div>
   </SettingContainer>

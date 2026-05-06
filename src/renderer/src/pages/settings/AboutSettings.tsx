@@ -1,4 +1,4 @@
-import { Badge, Button, CircularProgress, Divider, RadioGroup, RadioGroupItem, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -165,10 +165,7 @@ const AboutSettings: FC = () => {
   const testChannels = getAvailableTestChannels()
 
   return (
-    <div
-      className={cn(
-        'mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden'
-      )}>
+    <div className={cn('flex w-full flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden')}>
       <SettingGroup theme={theme}>
         <SettingTitle className="gap-2">
           <div>{t('settings.about.title')}</div>
@@ -255,26 +252,21 @@ const AboutSettings: FC = () => {
             {testPlan && (
               <>
                 <Divider className="my-1.5" />
-                <SettingRow className="items-start gap-3">
-                  <SettingRowTitle className="pt-1">{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <RadioGroup
-                    className="flex flex-wrap justify-end gap-3"
+                <SettingRow className="items-center gap-3">
+                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                  <SegmentedControl<UpgradeChannel>
                     value={getTestChannel()}
-                    onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
-                    {testChannels.map((option) => {
-                      const id = `about-test-channel-${option.value}`
-                      return (
-                        <Tooltip key={option.value} content={option.tooltip}>
-                          <label
-                            htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-(--color-border) px-3 py-2 text-(--color-foreground) text-sm transition-colors hover:bg-(--color-background-subtle)">
-                            <RadioGroupItem id={id} value={option.value} />
-                            <span>{option.label}</span>
-                          </label>
+                    onValueChange={handleTestChannelChange}
+                    options={testChannels.map((option) => ({
+                      value: option.value,
+                      label: (
+                        <Tooltip content={option.tooltip}>
+                          <span>{option.label}</span>
                         </Tooltip>
                       )
-                    })}
-                  </RadioGroup>
+                    }))}
+                    size="sm"
+                  />
                 </SettingRow>
               </>
             )}

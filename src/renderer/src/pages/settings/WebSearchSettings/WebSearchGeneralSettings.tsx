@@ -11,7 +11,7 @@ const WebSearchGeneralSettings: FC = () => {
 
   return (
     <SettingContainer theme={theme} className="px-5 py-4">
-      <div className="flex w-full max-w-4xl flex-col">
+      <div className="flex w-full flex-col">
         <BasicSettings />
         <CompressionSettings />
         <BlacklistSettings />
