@@ -1,5 +1,4 @@
-DROP INDEX `mini_app_kind_idx`;--> statement-breakpoint
-DROP INDEX `mini_app_status_kind_idx`;--> statement-breakpoint
+ALTER TABLE `miniapp` RENAME TO `mini_app`;--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_mini_app` (
 	`app_id` text PRIMARY KEY NOT NULL,
@@ -18,16 +17,17 @@ CREATE TABLE `__new_mini_app` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	CONSTRAINT "mini_app_status_check" CHECK("__new_mini_app"."status" IN ('enabled', 'disabled', 'pinned'))
-);--> statement-breakpoint
+);
+--> statement-breakpoint
 INSERT INTO `__new_mini_app`("app_id", "preset_miniapp_id", "name", "url", "logo", "status", "order_key", "bordered", "background", "supported_regions", "configuration", "name_key", "user_overrides", "created_at", "updated_at")
 SELECT
   "app_id",
-  CASE WHEN "kind" = 'default' THEN "app_id" ELSE NULL END,
+  CASE WHEN "type" = 'default' THEN "app_id" ELSE NULL END,
   "name",
   "url",
   "logo",
   "status",
-  "order_key",
+  '',
   "bordered",
   "background",
   "supported_regions",

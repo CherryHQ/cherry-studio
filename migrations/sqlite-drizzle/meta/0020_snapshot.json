@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ed7b7b01-f9ea-41a9-93b5-e723435ca7ac",
+  "id": "6bcf104d-ca1e-4ed5-bc62-86997e111d29",
   "prevId": "39877ab7-aad7-4432-adb5-c526fd17cca5",
   "tables": {
     "agent": {
@@ -2097,6 +2097,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "preset_miniapp_id": {
+          "name": "preset_miniapp_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -2118,14 +2125,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'custom'"
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -2134,13 +2133,12 @@
           "autoincrement": false,
           "default": "'enabled'"
         },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
         "bordered": {
           "name": "bordered",
@@ -2178,6 +2176,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "user_overrides": {
+          "name": "user_overrides",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2194,19 +2199,14 @@
         }
       },
       "indexes": {
-        "mini_app_status_sort_idx": {
-          "name": "mini_app_status_sort_idx",
-          "columns": ["status", "sort_order"],
+        "mini_app_status_order_key_idx": {
+          "name": "mini_app_status_order_key_idx",
+          "columns": ["status", "order_key"],
           "isUnique": false
         },
-        "mini_app_kind_idx": {
-          "name": "mini_app_kind_idx",
-          "columns": ["kind"],
-          "isUnique": false
-        },
-        "mini_app_status_kind_idx": {
-          "name": "mini_app_status_kind_idx",
-          "columns": ["status", "kind"],
+        "mini_app_preset_miniapp_id_idx": {
+          "name": "mini_app_preset_miniapp_id_idx",
+          "columns": ["preset_miniapp_id"],
           "isUnique": false
         }
       },
@@ -2217,10 +2217,6 @@
         "mini_app_status_check": {
           "name": "mini_app_status_check",
           "value": "\"mini_app\".\"status\" IN ('enabled', 'disabled', 'pinned')"
-        },
-        "mini_app_kind_check": {
-          "name": "mini_app_kind_check",
-          "value": "\"mini_app\".\"kind\" IN ('default', 'custom')"
         }
       }
     },
@@ -3069,9 +3065,7 @@
     "tables": {
       "\"miniapp\"": "\"mini_app\""
     },
-    "columns": {
-      "\"mini_app\".\"type\"": "\"mini_app\".\"kind\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {}
