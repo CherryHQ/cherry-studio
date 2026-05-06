@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
-    "minapps": "Minapps"
+    "miniapps": "MiniApps"
   },
   "lmstudio": {
     "keep_alive_time": {
