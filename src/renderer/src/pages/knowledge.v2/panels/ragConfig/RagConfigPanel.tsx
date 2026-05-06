@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useKnowledgeRagConfig } from '../../hooks'
-import { getKnowledgeRagConfigFormState, parseRequiredInteger } from '../../utils'
+import { getKnowledgeBaseFailureReason, getKnowledgeRagConfigFormState, parseRequiredInteger } from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
@@ -20,7 +20,33 @@ interface RagConfigPanelProps {
   onRestoreBase: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
 }
 
-const RagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
+const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
+  const { t } = useTranslation()
+  const failureReason = getKnowledgeBaseFailureReason(base, t)
+
+  return (
+    <Scrollbar className="flex h-full min-h-0 items-center justify-center">
+      <div className="w-full max-w-120 px-5 py-4">
+        <div
+          className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3"
+          data-testid="rag-failed-state">
+          <div className="text-[0.6875rem] font-medium text-destructive leading-4">
+            {t('knowledge_v2.status.failed')}
+          </div>
+          <p className="mt-1 text-[0.6875rem] text-muted-foreground leading-4">{failureReason}</p>
+          <Button
+            type="button"
+            className="mt-3 h-6 min-h-6 rounded-md bg-primary px-3 text-[0.6875rem] text-primary-foreground leading-4.125 shadow-none hover:bg-primary/90"
+            onClick={() => onRestoreBase(base)}>
+            {t('knowledge_v2.restore.action')}
+          </Button>
+        </div>
+      </div>
+    </Scrollbar>
+  )
+}
+
+const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
   const {
     initialValues,
@@ -136,6 +162,14 @@ const RagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
       </div>
     </Scrollbar>
   )
+}
+
+const RagConfigPanel = (props: RagConfigPanelProps) => {
+  if (props.base.status === 'failed') {
+    return <FailedRagConfigPanel {...props} />
+  }
+
+  return <ActiveRagConfigPanel {...props} />
 }
 
 export default RagConfigPanel

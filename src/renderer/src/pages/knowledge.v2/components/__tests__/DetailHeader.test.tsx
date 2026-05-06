@@ -68,12 +68,6 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-      <span>
-        {children}
-        {content ? <span role="tooltip">{content}</span> : null}
-      </span>
-    ),
     Popover: ({
       children,
       open,
@@ -164,13 +158,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('DetailHeader', () => {
   it('renders the current selected base item count and completed status', () => {
     const { container } = render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={3}
-        onRenameBase={vi.fn()}
-        onRestoreBase={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
+      <DetailHeader base={createKnowledgeBase()} itemCount={3} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />
     )
 
     expect(screen.getByText('3 文档')).toBeInTheDocument()
@@ -184,72 +172,35 @@ describe('DetailHeader', () => {
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
         itemCount={0}
         onRenameBase={vi.fn()}
-        onRestoreBase={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent(
-      '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。'
-    )
     expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
+    expect(
+      screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重建知识库' })).not.toBeInTheDocument()
   })
 
-  it('falls back to a generic failure hint when the failed base has no known error', () => {
+  it('does not render the generic failure hint in the header when the failed base has no known error', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: null })}
         itemCount={0}
         onRenameBase={vi.fn()}
-        onRestoreBase={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
 
-    expect(screen.getByRole('tooltip')).toHaveTextContent('该知识库迁移失败，请重建知识库并选择新的嵌入模型。')
-  })
-
-  it('shows the restore action only for failed bases and calls onRestoreBase', () => {
-    const onRestoreBase = vi.fn()
-    const failedBase = createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })
-
-    const { rerender } = render(
-      <DetailHeader
-        base={failedBase}
-        itemCount={0}
-        onRenameBase={vi.fn()}
-        onRestoreBase={onRestoreBase}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: '重建知识库' }))
-    expect(onRestoreBase).toHaveBeenCalledWith(failedBase)
-
-    rerender(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={0}
-        onRenameBase={vi.fn()}
-        onRestoreBase={onRestoreBase}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.queryByText('该知识库迁移失败，请重建知识库并选择新的嵌入模型。')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '重建知识库' })).not.toBeInTheDocument()
   })
 
   it('opens the more menu and shows rename and delete actions', () => {
-    render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={0}
-        onRenameBase={vi.fn()}
-        onRestoreBase={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
+    render(<DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
 
@@ -261,13 +212,7 @@ describe('DetailHeader', () => {
     const onRenameBase = vi.fn()
 
     render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={0}
-        onRenameBase={onRenameBase}
-        onRestoreBase={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
+      <DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={onRenameBase} onDeleteBase={vi.fn()} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
@@ -283,13 +228,7 @@ describe('DetailHeader', () => {
     const onDeleteBase = vi.fn().mockResolvedValue(undefined)
 
     render(
-      <DetailHeader
-        base={createKnowledgeBase()}
-        itemCount={0}
-        onRenameBase={vi.fn()}
-        onRestoreBase={vi.fn()}
-        onDeleteBase={onDeleteBase}
-      />
+      <DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={vi.fn()} onDeleteBase={onDeleteBase} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))

@@ -116,13 +116,11 @@ vi.mock('../components/DetailHeader', () => ({
     base,
     itemCount,
     onRenameBase,
-    onRestoreBase,
     onDeleteBase
   }: {
     base: KnowledgeBase
     itemCount: number
     onRenameBase: (base: { id: string; name: string }) => void
-    onRestoreBase: (base: KnowledgeBase) => void
     onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
@@ -130,9 +128,6 @@ vi.mock('../components/DetailHeader', () => ({
       <div data-testid="detail-header-item-count">{itemCount}</div>
       <button type="button" onClick={() => onRenameBase(base)}>
         HeaderRename {base.name}
-      </button>
-      <button type="button" onClick={() => onRestoreBase(base)}>
-        HeaderRestore {base.name}
       </button>
       <button type="button" onClick={() => void onDeleteBase(base.id)}>
         HeaderDelete {base.name}
@@ -217,7 +212,14 @@ vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
 }))
 
 vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
-  default: ({ base }: { base: { id: string; name: string } }) => <div data-testid="rag-config-panel">{base.name}</div>
+  default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
+    <div data-testid="rag-config-panel">
+      {base.name}
+      <button type="button" onClick={() => onRestoreBase(base)}>
+        RagRestore {base.name}
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../panels/recallTest/RecallTestPanel', () => ({
@@ -1060,7 +1062,7 @@ describe('KnowledgePage', () => {
     })
   })
 
-  it('opens the restore dialog from the detail header and selects the restored knowledge base after success', async () => {
+  it('opens the restore dialog from the RAG config panel and selects the restored knowledge base after success', async () => {
     const failedBase = createKnowledgeBase({
       id: 'failed-base',
       name: 'Legacy KB',
@@ -1110,7 +1112,8 @@ describe('KnowledgePage', () => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderRestore Legacy KB' }))
+    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
     expect(screen.getByTestId('restore-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('restore-dialog-source-name')).toHaveTextContent('Legacy KB')
 

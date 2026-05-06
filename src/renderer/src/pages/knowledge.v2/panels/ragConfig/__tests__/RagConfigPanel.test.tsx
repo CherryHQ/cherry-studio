@@ -8,8 +8,8 @@ import RagConfigPanel from '../RagConfigPanel'
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 
-const renderRagConfigPanel = (onRestoreBase = vi.fn()) => {
-  return render(<RagConfigPanel base={createKnowledgeBase({})} onRestoreBase={onRestoreBase} />)
+const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
+  return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
 }
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -28,7 +28,9 @@ vi.mock('@cherrystudio/ui', async () => {
     Label: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <label {...props}>{children}</label>
     ),
-    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
     Input: (props: Record<string, unknown>) => <input {...props} />,
     Select: ({
       children,
@@ -99,11 +101,16 @@ vi.mock('react-i18next', () => ({
           'common.reset': '重置',
           'common.save': '保存',
           'common.saved': '已保存',
+          'knowledge_v2.error.failed_base_unknown': '该知识库迁移失败，请重建知识库并选择新的嵌入模型。',
           'knowledge_v2.error.failed_to_edit': '保存失败',
+          'knowledge_v2.error.missing_embedding_model':
+            '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge_v2.not_set': '未设置',
           'knowledge_v2.embedding_model': 'Embedding 模型',
           'knowledge_v2.dimensions': '向量维度',
+          'knowledge_v2.restore.action': '重建知识库',
           'knowledge_v2.restore.submit': '重建',
+          'knowledge_v2.status.failed': '失败',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'models.rerank_model': 'Rerank 模型',
           'knowledge_v2.rag.document_count': '文档数量',
@@ -202,6 +209,33 @@ describe('RagConfigPanel', () => {
       isLoading: false,
       error: undefined
     })
+  })
+
+  it('renders only the failure hint and restore action for failed bases', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {
+      status: 'failed',
+      error: 'missing_embedding_model',
+      embeddingModelId: null,
+      dimensions: null
+    })
+
+    expect(screen.getByText('失败')).toBeInTheDocument()
+    expect(screen.getByTestId('rag-failed-state').parentElement?.parentElement).toHaveClass(
+      'items-center',
+      'justify-center'
+    )
+    expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
+    expect(screen.queryByText('文件处理')).not.toBeInTheDocument()
+    expect(screen.queryByText('分块规则')).not.toBeInTheDocument()
+    expect(screen.queryByText('Embedding 模型')).not.toBeInTheDocument()
+    expect(screen.queryByText('检索设置')).not.toBeInTheDocument()
+    expect(mockUseKnowledgeRagConfig).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '重建知识库' }))
+
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1', status: 'failed' }))
   })
 
   it('renders current chunk values, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {

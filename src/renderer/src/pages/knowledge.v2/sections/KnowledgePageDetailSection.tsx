@@ -36,7 +36,6 @@ const KnowledgePageDetailSection = () => {
         base={selectedBase}
         itemCount={selectedBaseItems.length}
         onRenameBase={openRenameBaseDialog}
-        onRestoreBase={openRestoreBaseDialog}
         onDeleteBase={deleteBase}
       />
       <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
