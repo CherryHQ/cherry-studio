@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -519,8 +520,11 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
 
       // Make patch succeed for app1 but fail for app2
-      MockDataApiUtils.setCustomResponse('/mini-apps/app1' as any, 'PATCH', { success: true })
-      MockDataApiUtils.setErrorResponse('/mini-apps/app2' as any, 'PATCH', new Error('Server error'))
+      vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
+        if (path === '/mini-apps/app1') return { success: true } as never
+        if (path === '/mini-apps/app2') throw new Error('Server error')
+        return undefined as never
+      })
 
       const { result } = renderHook(() => useMiniApps())
 
