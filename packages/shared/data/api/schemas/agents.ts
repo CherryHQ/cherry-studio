@@ -131,7 +131,8 @@ export const AGENT_MUTABLE_FIELDS = {
 /** Pick-set for session mutable fields — superset of AGENT_MUTABLE_FIELDS. */
 export const SESSION_MUTABLE_FIELDS = {
   ...AGENT_MUTABLE_FIELDS,
-  slashCommands: true
+  slashCommands: true,
+  isNameManuallyEdited: true
 } as const
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
@@ -152,6 +153,7 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   agentId: z.string(),
   agentType: z.enum(['claude-code']),
   slashCommands: z.array(SlashCommandSchema).optional(),
+  isNameManuallyEdited: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string()
 })

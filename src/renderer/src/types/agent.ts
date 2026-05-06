@@ -170,6 +170,7 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   agentId: z.string(),
   agentType: AgentTypeSchema,
   slashCommands: z.array(SlashCommandSchema).optional(),
+  isNameManuallyEdited: z.boolean().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -256,7 +257,7 @@ export type BaseSessionForm = AgentBase
 
 export type CreateSessionForm = BaseSessionForm & { id?: never }
 
-export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
+export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string; isNameManuallyEdited?: boolean }
 
 export type SessionForm = CreateSessionForm | UpdateSessionForm
 

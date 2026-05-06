@@ -24,6 +24,7 @@ export const agentSessionTable = sqliteTable(
     allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>().notNull().default(sql`'[]'`),
     configuration: text({ mode: 'json' }).$type<AgentConfiguration>().notNull().default(sql`'{}'`),
+    isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
     sortOrder: integer().notNull().default(0),
     ...createUpdateTimestamps
   },
