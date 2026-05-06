@@ -2,7 +2,7 @@ import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
@@ -12,12 +12,19 @@ import SkillDetailPage from './detail/skill/SkillDetailPage'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
 import { serializeAssistantForExport } from './editor/assistant/transfer'
+import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
 import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
 import PendingBackendNotice from './list/PendingBackendNotice'
 import { ResourceGrid } from './list/ResourceGrid'
+import {
+  ASSISTANT_CATALOG_MY_TAB,
+  type AssistantCatalogPreset,
+  toCreateAssistantDtoFromCatalogPreset,
+  useAssistantPresetCatalog
+} from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from './types'
 
@@ -66,15 +73,29 @@ export default function LibraryPage() {
   const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
+  const [activeAssistantCatalogTab, setActiveAssistantCatalogTab] = useState(ASSISTANT_CATALOG_MY_TAB)
+  const [previewAssistantPreset, setPreviewAssistantPreset] = useState<AssistantCatalogPreset | null>(null)
+  const [previewAssistantPresetAdding, setPreviewAssistantPresetAdding] = useState(false)
+
+  const activeResourceType = sidebarFilter.type === 'resource' ? sidebarFilter.resourceType : undefined
+  const isAssistantLibrary = activeResourceType === 'assistant'
+  const isAssistantCatalogMine = !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
 
   const { resources, allResources, typeCounts, pendingBackend, refetch } = useResourceLibrary({
     sidebarFilter,
-    activeTag,
-    search,
+    activeTag: isAssistantCatalogMine ? activeTag : null,
+    search: isAssistantCatalogMine ? search : '',
     sort: sortKey
   })
 
-  const { duplicateAssistant } = useAssistantMutations()
+  const assistantCatalog = useAssistantPresetCatalog({
+    activeTab: activeAssistantCatalogTab,
+    search,
+    mineCount: typeCounts.assistant,
+    enabled: isAssistantLibrary
+  })
+
+  const { createAssistant, duplicateAssistant } = useAssistantMutations()
   // Row 2「+ 标签」走 ensureTags 的幂等语义:已存在则静默复用,不存在才 POST。
   // Avoids 409 on duplicate names and keeps the UX consistent with BasicSection / 卡片菜单。
   const { ensureTags } = useEnsureTags()
@@ -83,7 +104,6 @@ export default function LibraryPage() {
   // `refresh: ['/tags']` side-effect on createTag / ensureTags.
   const tagList = useTagList()
 
-  const activeResourceType = sidebarFilter.type === 'resource' ? sidebarFilter.resourceType : undefined
   const scopedTags = useMemo(
     () => buildTags(allResources, tagList.tags, activeResourceType),
     [allResources, tagList.tags, activeResourceType]
@@ -104,6 +124,19 @@ export default function LibraryPage() {
     setConfigView({ type: 'list' })
   }, [refetch])
 
+  useEffect(() => {
+    if (!isAssistantLibrary && activeAssistantCatalogTab !== ASSISTANT_CATALOG_MY_TAB) {
+      setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+    }
+  }, [activeAssistantCatalogTab, isAssistantLibrary])
+
+  useEffect(() => {
+    if (!isAssistantLibrary) return
+    if (assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)) return
+
+    setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
+
   const handleEdit = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
       setConfigView({ type: 'assistant-edit', assistant: r.raw as Assistant })
@@ -121,6 +154,52 @@ export default function LibraryPage() {
       }
     },
     [duplicateAssistant]
+  )
+
+  const addAssistantPreset = useCallback(
+    async (preset: AssistantCatalogPreset) => {
+      await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      refetch()
+      window.toast.success(t('common.add_success'))
+    },
+    [createAssistant, refetch, t]
+  )
+
+  const handleAddAssistantPreset = useCallback(
+    async (preset: AssistantCatalogPreset) => {
+      try {
+        await addAssistantPreset(preset)
+      } catch (error) {
+        window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
+      }
+    },
+    [addAssistantPreset, t]
+  )
+
+  const handlePreviewAssistantPreset = useCallback((preset: AssistantCatalogPreset) => {
+    setPreviewAssistantPreset(preset)
+  }, [])
+
+  const handleAddPreviewAssistantPreset = useCallback(async () => {
+    if (!previewAssistantPreset || previewAssistantPresetAdding) return
+
+    setPreviewAssistantPresetAdding(true)
+    try {
+      await addAssistantPreset(previewAssistantPreset)
+      setPreviewAssistantPreset(null)
+    } catch (error) {
+      window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
+    } finally {
+      setPreviewAssistantPresetAdding(false)
+    }
+  }, [addAssistantPreset, previewAssistantPreset, previewAssistantPresetAdding, t])
+
+  const handlePreviewOpenChange = useCallback(
+    (open: boolean) => {
+      if (open || previewAssistantPresetAdding) return
+      setPreviewAssistantPreset(null)
+    },
+    [previewAssistantPresetAdding]
   )
 
   const handleDelete = useCallback((r: ResourceItem) => setDeleteConfirm(r), [])
@@ -253,6 +332,9 @@ export default function LibraryPage() {
         onFilterChange={(f) => {
           setSidebarFilter(f)
           setActiveTag(null)
+          if (f.type !== 'resource' || f.resourceType !== 'assistant') {
+            setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
+          }
         }}
         typeCounts={typeCounts}
       />
@@ -289,10 +371,32 @@ export default function LibraryPage() {
           }}
           onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
           allTagNames={allTagNames}
+          assistantCatalog={
+            isAssistantLibrary
+              ? {
+                  activeTab: activeAssistantCatalogTab,
+                  tabs: assistantCatalog.tabs,
+                  presets: assistantCatalog.presets,
+                  onTabChange: (tabId) => {
+                    setActiveAssistantCatalogTab(tabId)
+                    setActiveTag(null)
+                  },
+                  onAddPreset: handleAddAssistantPreset,
+                  onPreviewPreset: handlePreviewAssistantPreset
+                }
+              : undefined
+          }
         />
       </div>
 
       <DeleteConfirmDialog resource={deleteConfirm} onClose={() => setDeleteConfirm(null)} />
+      <AssistantPresetPreviewDialog
+        preset={previewAssistantPreset}
+        open={Boolean(previewAssistantPreset)}
+        adding={previewAssistantPresetAdding}
+        onOpenChange={handlePreviewOpenChange}
+        onAdd={handleAddPreviewAssistantPreset}
+      />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
     </div>

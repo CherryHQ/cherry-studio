@@ -67,7 +67,7 @@ export const FileTreeNode: FC<FileTreeNodeProps> = memo(
             onClick={() => onToggleDir(node.path)}
             title={node.name}
             style={indent}
-            className="flex w-full items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-xs text-foreground/75 transition-colors hover:bg-accent/50 hover:text-foreground">
+            className="flex w-full items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-foreground/75 text-xs transition-colors hover:bg-accent/50 hover:text-foreground">
             <ChevronRight
               size={11}
               className="shrink-0 text-muted-foreground/50 transition-transform"

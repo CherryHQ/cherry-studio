@@ -68,8 +68,8 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
 
   const variablesTip = (
     <div className="min-w-[200px]">
-      <div className="mb-1.5 font-medium text-xs text-foreground">{t('library.config.prompt.variables_title')}</div>
-      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-xs text-muted-foreground">
+      <div className="mb-1.5 font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-muted-foreground text-xs">
         {PROMPT_VARIABLES.map((v) => (
           <div key={v.name} className="contents">
             <span className="text-foreground/80">{v.name}</span>
@@ -84,12 +84,12 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
     <div className="max-w-2xl space-y-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.prompt.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.prompt.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.prompt.desc')}</p>
       </div>
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
         <div className="flex items-center justify-between gap-3">
-          <FieldLabel className="flex items-center gap-1.5 font-normal text-sm text-muted-foreground/80">
+          <FieldLabel className="flex items-center gap-1.5 font-normal text-muted-foreground/80 text-sm">
             <span>{t('library.config.prompt.label')}</span>
             <Tooltip content={variablesTip} placement="top" classNames={{ content: 'max-w-none' }}>
               <HelpCircle size={11} className="cursor-help text-muted-foreground/50 hover:text-foreground" />
@@ -99,7 +99,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={prompt.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {showPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(showPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
@@ -115,7 +115,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
             }`}>
             {showPreview ? (
               <div
-                className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-xs text-foreground"
+                className="markdown max-h-[50vh] min-h-[200px] overflow-auto p-3 text-foreground text-xs"
                 onDoubleClick={() => setShowPreview(false)}>
                 <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
               </div>
@@ -134,7 +134,7 @@ const PromptSection: FC<Props> = ({ assistant, prompt, promptError, onChange }) 
             )}
           </div>
           <FieldError className="text-xs" errors={promptError ? [{ message: promptError }] : undefined} />
-          <div className="flex justify-between text-xs text-muted-foreground/50">
+          <div className="flex justify-between text-muted-foreground/50 text-xs">
             <span>{t('library.config.prompt.dblclick_hint')}</span>
             <span className="tabular-nums">
               {t('library.config.prompt.tokens_label')}

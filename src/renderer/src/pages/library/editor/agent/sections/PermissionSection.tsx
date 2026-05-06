@@ -22,11 +22,11 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.permission.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.permission.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.permission.desc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.permission_mode.label')}
         </FieldLabel>
         <Select value={form.permissionMode || 'default'} onValueChange={(value) => onChange({ permissionMode: value })}>
@@ -41,7 +41,7 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
             ))}
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground/55">{t('library.config.agent.field.permission_mode.help')}</span>
+        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.permission_mode.help')}</span>
       </div>
     </div>
   )

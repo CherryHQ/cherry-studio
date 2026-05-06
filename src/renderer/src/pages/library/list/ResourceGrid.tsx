@@ -13,13 +13,17 @@ import {
   PopoverTrigger,
   Separator
 } from '@cherrystudio/ui'
+import { AssistantPresetGroupIcon } from '@renderer/pages/store/assistants/presets/components/AssistantPresetGroupIcon'
 import type { TFunction } from 'i18next'
 import {
   ArrowUpDown,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   Download,
+  Eye,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -33,7 +37,7 @@ import {
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutationsById } from '../adapters/agentAdapter'
@@ -41,6 +45,21 @@ import { useAssistantMutationsById } from '../adapters/assistantAdapter'
 import { useEnsureTags, useSyncEntityTags, useTagList } from '../adapters/tagAdapter'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META, SORT_META, SORT_ORDER } from '../constants'
 import type { ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from '../types'
+import {
+  ASSISTANT_CATALOG_MY_TAB,
+  type AssistantCatalogPreset,
+  type AssistantCatalogTab,
+  getAssistantPresetCatalogKey
+} from './useAssistantPresetCatalog'
+
+interface AssistantCatalogGridState {
+  activeTab: string
+  tabs: AssistantCatalogTab[]
+  presets: AssistantCatalogPreset[]
+  onTabChange: (tabId: string) => void
+  onAddPreset: (preset: AssistantCatalogPreset) => Promise<void> | void
+  onPreviewPreset: (preset: AssistantCatalogPreset) => void
+}
 
 interface Props {
   resources: ResourceItem[]
@@ -64,6 +83,7 @@ interface Props {
   /** Replace the tag-name set for a single resource. Caller handles ensure-tag + bind. */
   onUpdateResourceTags: (resourceId: string, tags: string[]) => Promise<void> | void
   allTagNames: string[]
+  assistantCatalog?: AssistantCatalogGridState
 }
 
 export function canDuplicateResource(resource: ResourceItem) {
@@ -80,6 +100,74 @@ function timeAgo(t: TFunction, dateStr: string) {
   const days = Math.floor(hours / 24)
   if (days < 30) return t('library.time_ago.days', { count: days })
   return t('library.time_ago.months', { count: Math.floor(days / 30) })
+}
+
+function getPresetSummary(preset: AssistantCatalogPreset) {
+  return (preset.description || preset.prompt || '').replace(/\s+/g, ' ').trim()
+}
+
+function AssistantCatalogTabRail({
+  tabs,
+  activeTab,
+  onTabChange
+}: Pick<AssistantCatalogGridState, 'tabs' | 'activeTab' | 'onTabChange'>) {
+  const { t } = useTranslation()
+  const railRef = useRef<HTMLDivElement>(null)
+  const scrollRail = (direction: -1 | 1) => {
+    railRef.current?.scrollBy({ left: direction * 240, behavior: 'smooth' })
+  }
+
+  return (
+    <div className="flex items-center gap-1 px-5 pb-3">
+      <Button
+        variant="ghost"
+        aria-label={t('library.assistant_catalog.scroll_left')}
+        onClick={() => scrollRail(-1)}
+        className="h-8 min-h-0 w-8 shrink-0 rounded-xs p-0 text-muted-foreground/45 shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
+        <ChevronLeft size={15} />
+      </Button>
+      <div className="relative min-w-0 flex-1">
+        <div
+          ref={railRef}
+          className="flex items-center gap-6 overflow-x-auto px-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabs.map((tab) => {
+            const active = activeTab === tab.id
+            const groupIconName = tab.id === ASSISTANT_CATALOG_MY_TAB ? '我的' : tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onTabChange(tab.id)}
+                className={`group relative flex h-10 shrink-0 items-center gap-2 px-0 font-normal text-sm outline-none transition-colors focus-visible:ring-0 ${
+                  active ? 'text-foreground' : 'text-muted-foreground/55 hover:text-foreground'
+                }`}>
+                <span className={active ? 'text-foreground/70' : 'text-muted-foreground/55'}>
+                  <AssistantPresetGroupIcon groupName={groupIconName} size={15} />
+                </span>
+                <span>{tab.label}</span>
+                <span className="rounded-full bg-accent/70 px-1.5 py-px text-[11px] text-muted-foreground/45 tabular-nums">
+                  {tab.count}
+                </span>
+                <span
+                  className={`absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-primary transition-opacity ${
+                    active ? 'opacity-100' : 'opacity-0 group-hover:opacity-35'
+                  }`}
+                />
+              </button>
+            )
+          })}
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
+      </div>
+      <Button
+        variant="ghost"
+        aria-label={t('library.assistant_catalog.scroll_right')}
+        onClick={() => scrollRail(1)}
+        className="h-8 min-h-0 w-8 shrink-0 rounded-xs p-0 text-muted-foreground/45 shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
+        <ChevronRight size={15} />
+      </Button>
+    </div>
+  )
 }
 
 export const ResourceGrid: FC<Props> = ({
@@ -101,7 +189,8 @@ export const ResourceGrid: FC<Props> = ({
   onTagFilter,
   onAddTag,
   onUpdateResourceTags,
-  allTagNames
+  allTagNames,
+  assistantCatalog
 }) => {
   const { t } = useTranslation()
   const [showSort, setShowSort] = useState(false)
@@ -110,6 +199,9 @@ export const ResourceGrid: FC<Props> = ({
   const [showAddTag, setShowAddTag] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [addingTag, setAddingTag] = useState(false)
+  const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
+  const showingAssistantCatalogPresets =
+    Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
 
   const openMenu = useCallback((id: string, e: MouseEvent) => {
     e.stopPropagation()
@@ -133,6 +225,27 @@ export const ResourceGrid: FC<Props> = ({
       setAddingTag(false)
     }
   }
+
+  const handleAddPreset = useCallback(
+    async (preset: AssistantCatalogPreset) => {
+      if (!assistantCatalog) return
+
+      const presetKey = getAssistantPresetCatalogKey(preset)
+      if (addingPresetKeys.has(presetKey)) return
+
+      setAddingPresetKeys((prev) => new Set(prev).add(presetKey))
+      try {
+        await assistantCatalog.onAddPreset(preset)
+      } finally {
+        setAddingPresetKeys((prev) => {
+          const next = new Set(prev)
+          next.delete(presetKey)
+          return next
+        })
+      }
+    },
+    [addingPresetKeys, assistantCatalog]
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -309,67 +422,86 @@ export const ResourceGrid: FC<Props> = ({
           </Popover>
         </div>
 
+        {assistantCatalog && (
+          <AssistantCatalogTabRail
+            tabs={assistantCatalog.tabs}
+            activeTab={assistantCatalog.activeTab}
+            onTabChange={assistantCatalog.onTabChange}
+          />
+        )}
+
         {/* Row 2: Tag chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
-          <Tag size={11} className="mr-0.5 shrink-0 text-muted-foreground/40" />
-          {tags.map((tag) => (
-            <Button
-              variant="ghost"
-              key={tag.id}
-              onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-              className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
-                activeTag === tag.name
-                  ? 'border-foreground/30 bg-foreground/[0.06] text-foreground hover:border-foreground/40 hover:bg-foreground/[0.08] hover:text-foreground'
-                  : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/50 hover:text-foreground'
-              }`}>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-              <span>{tag.name}</span>
-              <span className="text-muted-foreground/40 text-xs tabular-nums">{tag.count}</span>
-            </Button>
-          ))}
-          {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
-          {showAddTag ? (
-            <div className="flex shrink-0 items-center gap-1">
-              <Input
-                autoFocus
-                value={newTagName}
-                onChange={(e) => setNewTagName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleAddTag()
-                  if (e.key === 'Escape') {
-                    setShowAddTag(false)
-                    setNewTagName('')
-                  }
-                }}
-                onBlur={() => {
-                  if (!newTagName.trim() && !addingTag) setShowAddTag(false)
-                }}
-                disabled={addingTag}
-                placeholder={t('library.toolbar.add_tag_placeholder')}
-                className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-foreground text-xs shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
-              />
+        {(!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB) && (
+          <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
+            <Tag size={11} className="mr-0.5 shrink-0 text-muted-foreground/40" />
+            {tags.map((tag) => (
               <Button
                 variant="ghost"
-                onClick={() => void handleAddTag()}
-                disabled={addingTag || !newTagName.trim()}
-                className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
-                <Plus size={10} />
+                key={tag.id}
+                onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
+                className={`flex h-auto min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] font-normal text-xs shadow-none transition-all focus-visible:ring-0 ${
+                  activeTag === tag.name
+                    ? 'border-foreground/30 bg-foreground/[0.06] text-foreground hover:border-foreground/40 hover:bg-foreground/[0.08] hover:text-foreground'
+                    : 'border-border/30 text-muted-foreground/50 hover:border-border/50 hover:bg-accent/50 hover:text-foreground'
+                }`}>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                <span>{tag.name}</span>
+                <span className="text-muted-foreground/40 text-xs tabular-nums">{tag.count}</span>
               </Button>
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              onClick={() => setShowAddTag(true)}
-              className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-muted-foreground/40 text-xs shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-              <Plus size={9} /> {t('library.toolbar.tag_button')}
-            </Button>
-          )}
-        </div>
+            ))}
+            {/* Add tag (POST /tags; does not bind — newly-created tags appear only after binding) */}
+            {showAddTag ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Input
+                  autoFocus
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleAddTag()
+                    if (e.key === 'Escape') {
+                      setShowAddTag(false)
+                      setNewTagName('')
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!newTagName.trim() && !addingTag) setShowAddTag(false)
+                  }}
+                  disabled={addingTag}
+                  placeholder={t('library.toolbar.add_tag_placeholder')}
+                  className="h-auto w-[80px] rounded-full border border-border/40 bg-accent/25 px-2 py-[3px] text-foreground text-xs shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-foreground/40 focus-visible:ring-0 disabled:opacity-50"
+                />
+                <Button
+                  variant="ghost"
+                  onClick={() => void handleAddTag()}
+                  disabled={addingTag || !newTagName.trim()}
+                  className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
+                  <Plus size={10} />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={() => setShowAddTag(true)}
+                className="flex h-auto min-h-0 shrink-0 items-center gap-0.5 rounded-full border border-border/40 border-dashed px-2 py-[3px] font-normal text-muted-foreground/40 text-xs shadow-none transition-all hover:border-border/60 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
+                <Plus size={9} /> {t('library.toolbar.tag_button')}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-        {resources.length === 0 ? (
+        {showingAssistantCatalogPresets && assistantCatalog ? (
+          <AssistantCatalogPresetContent
+            presets={assistantCatalog.presets}
+            viewMode={viewMode}
+            search={search}
+            addingPresetKeys={addingPresetKeys}
+            onAddPreset={(preset) => void handleAddPreset(preset)}
+            onPreviewPreset={assistantCatalog.onPreviewPreset}
+          />
+        ) : resources.length === 0 ? (
           <EmptyState
             preset={search ? 'no-result' : 'no-resource'}
             title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.empty_title')}
@@ -417,6 +549,197 @@ export const ResourceGrid: FC<Props> = ({
           })()}
       </AnimatePresence>
     </div>
+  )
+}
+
+interface AssistantCatalogPresetContentProps {
+  presets: AssistantCatalogPreset[]
+  viewMode: ViewMode
+  search: string
+  addingPresetKeys: ReadonlySet<string>
+  onAddPreset: (preset: AssistantCatalogPreset) => void
+  onPreviewPreset: (preset: AssistantCatalogPreset) => void
+}
+
+function AssistantCatalogPresetContent({
+  presets,
+  viewMode,
+  search,
+  addingPresetKeys,
+  onAddPreset,
+  onPreviewPreset
+}: AssistantCatalogPresetContentProps) {
+  const { t } = useTranslation()
+
+  if (presets.length === 0) {
+    return (
+      <EmptyState
+        preset={search ? 'no-result' : 'no-resource'}
+        title={search ? t('library.assistant_catalog.no_match_title') : t('library.assistant_catalog.empty_title')}
+        description={
+          search
+            ? t('library.assistant_catalog.no_match_description')
+            : t('library.assistant_catalog.empty_description')
+        }
+        className="py-20"
+      />
+    )
+  }
+
+  if (viewMode === 'list') {
+    return (
+      <div className="space-y-1">
+        {presets.map((preset, index) => {
+          const presetKey = getAssistantPresetCatalogKey(preset)
+          return (
+            <AssistantPresetListRow
+              key={`${presetKey}-${index}`}
+              preset={preset}
+              index={index}
+              adding={addingPresetKeys.has(presetKey)}
+              onAdd={onAddPreset}
+              onPreview={onPreviewPreset}
+            />
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {presets.map((preset, index) => {
+        const presetKey = getAssistantPresetCatalogKey(preset)
+        return (
+          <AssistantPresetGridCard
+            key={`${presetKey}-${index}`}
+            preset={preset}
+            index={index}
+            adding={addingPresetKeys.has(presetKey)}
+            onAdd={onAddPreset}
+            onPreview={onPreviewPreset}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+interface AssistantPresetCardProps {
+  preset: AssistantCatalogPreset
+  index: number
+  adding: boolean
+  onAdd: (preset: AssistantCatalogPreset) => void
+  onPreview: (preset: AssistantCatalogPreset) => void
+}
+
+function AssistantPresetGridCard({ preset, index, adding, onAdd, onPreview }: AssistantPresetCardProps) {
+  const { t } = useTranslation()
+  const summary = getPresetSummary(preset)
+  const groups = (preset.group || []).slice(0, 3)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: index * 0.02 }}
+      className="group flex min-h-[178px] flex-col rounded-xs border border-border/30 bg-card p-4 transition-all duration-200 hover:border-border/55 hover:shadow-black/[0.035] hover:shadow-lg"
+      onClick={() => onPreview(preset)}>
+      <div className="mb-3 flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">
+          {preset.emoji || '🤖'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="truncate text-foreground text-sm">{preset.name}</h4>
+          <div className="mt-1 flex min-h-5 flex-wrap items-center gap-1">
+            {groups.map((group) => (
+              <Badge
+                key={group}
+                variant="secondary"
+                className="border-0 bg-accent/60 px-1.5 py-px text-muted-foreground/65 text-xs">
+                {group}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="line-clamp-3 min-h-[4.5em] flex-1 text-muted-foreground/70 text-xs leading-relaxed">{summary}</p>
+      <div className="mt-4 flex items-center justify-end gap-1.5">
+        <Button
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation()
+            onPreview(preset)
+          }}
+          className="flex h-7 min-h-0 items-center gap-1 rounded-lg px-2.5 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
+          <Eye size={12} />
+          {t('library.assistant_catalog.preview')}
+        </Button>
+        <Button
+          variant="default"
+          disabled={adding}
+          onClick={(e) => {
+            e.stopPropagation()
+            onAdd(preset)
+          }}
+          className="flex h-7 min-h-0 items-center gap-1 rounded-lg px-2.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0">
+          {t('library.assistant_catalog.add')}
+        </Button>
+      </div>
+    </motion.div>
+  )
+}
+
+function AssistantPresetListRow({ preset, index, adding, onAdd, onPreview }: AssistantPresetCardProps) {
+  const { t } = useTranslation()
+  const summary = getPresetSummary(preset)
+  const groups = (preset.group || []).slice(0, 3)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, delay: index * 0.015 }}
+      className="group flex cursor-pointer items-center gap-3 rounded-xs px-3 py-2.5 transition-colors hover:bg-accent/50"
+      onClick={() => onPreview(preset)}>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xs bg-accent/55 text-sm">
+        {preset.emoji || '🤖'}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-foreground text-sm">{preset.name}</span>
+          {groups.map((group) => (
+            <Badge
+              key={group}
+              variant="secondary"
+              className="shrink-0 border-0 bg-accent/60 px-1.5 py-px text-muted-foreground/65 text-xs">
+              {group}
+            </Badge>
+          ))}
+        </div>
+        <p className="mt-px truncate text-muted-foreground/60 text-xs">{summary}</p>
+      </div>
+      <Button
+        variant="ghost"
+        onClick={(e) => {
+          e.stopPropagation()
+          onPreview(preset)
+        }}
+        className="hidden h-7 min-h-0 items-center gap-1 rounded-lg px-2 font-normal text-muted-foreground/60 text-xs shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0 sm:flex">
+        <Eye size={12} />
+        {t('library.assistant_catalog.preview')}
+      </Button>
+      <Button
+        variant="default"
+        disabled={adding}
+        onClick={(e) => {
+          e.stopPropagation()
+          onAdd(preset)
+        }}
+        className="h-7 min-h-0 rounded-lg px-2.5 font-normal text-xs shadow-none focus-visible:ring-0">
+        {t('library.assistant_catalog.add')}
+      </Button>
+    </motion.div>
   )
 }
 

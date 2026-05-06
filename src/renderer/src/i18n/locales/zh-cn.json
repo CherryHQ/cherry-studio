@@ -2245,6 +2245,21 @@
       "manage_tags": "管理标签",
       "uninstall": "卸载"
     },
+    "assistant_catalog": {
+      "add": "添加",
+      "add_failed": "添加助手失败",
+      "browse_label": "助手分类",
+      "empty_description": "这个分类下暂时没有助手预设",
+      "empty_title": "暂无可添加助手",
+      "mine": "我的",
+      "no_match_description": "尝试其他搜索关键词",
+      "no_match_title": "未找到匹配的助手",
+      "preview": "预览",
+      "preview_description": "简介",
+      "preview_prompt": "提示词",
+      "scroll_left": "向左滚动分类",
+      "scroll_right": "向右滚动分类"
+    },
     "badge": {
       "update": "更新"
     },

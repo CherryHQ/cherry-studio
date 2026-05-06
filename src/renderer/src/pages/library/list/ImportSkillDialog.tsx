@@ -184,8 +184,8 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
           <div>
-            <h3 className="text-sm text-foreground">{t('library.import_skill_dialog.title')}</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground/55">{t('library.import_skill_dialog.subtitle')}</p>
+            <h3 className="text-foreground text-sm">{t('library.import_skill_dialog.title')}</h3>
+            <p className="mt-0.5 text-muted-foreground/55 text-xs">{t('library.import_skill_dialog.subtitle')}</p>
           </div>
           <Button
             variant="ghost"
@@ -219,8 +219,8 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
               dragOver ? 'border-primary/40 bg-primary/5' : 'border-border/20 hover:border-border/40 hover:bg-accent/10'
             } ${installing ? 'pointer-events-none opacity-60' : ''}`}>
             <Upload size={26} strokeWidth={1.2} className="mb-3 text-muted-foreground/35" />
-            <p className="mb-1 text-xs text-muted-foreground/60">{t('library.import_skill_dialog.local.drop_hint')}</p>
-            <p className="text-xs text-muted-foreground/40">{t('library.import_skill_dialog.local.formats')}</p>
+            <p className="mb-1 text-muted-foreground/60 text-xs">{t('library.import_skill_dialog.local.drop_hint')}</p>
+            <p className="text-muted-foreground/40 text-xs">{t('library.import_skill_dialog.local.formats')}</p>
           </div>
           <input
             ref={fileInputRef}
@@ -266,7 +266,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           exit={{ opacity: 0 }}
           className="mt-4 flex items-center gap-2 rounded-3xs border border-primary/20 bg-primary/10 px-3 py-2">
           <CheckCircle2 size={12} className="text-primary" />
-          <span className="text-xs text-foreground">{status.message}</span>
+          <span className="text-foreground text-xs">{status.message}</span>
         </motion.div>
       )}
       {status.kind === 'error' && (
@@ -276,7 +276,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           exit={{ opacity: 0 }}
           className="mt-4 flex items-center gap-2 rounded-3xs border border-destructive/20 bg-destructive/10 px-3 py-2">
           <AlertCircle size={12} className="text-destructive" />
-          <span className="text-xs text-destructive">{status.message}</span>
+          <span className="text-destructive text-xs">{status.message}</span>
         </motion.div>
       )}
     </AnimatePresence>

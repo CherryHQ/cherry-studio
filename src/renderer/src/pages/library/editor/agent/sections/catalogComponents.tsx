@@ -47,15 +47,15 @@ export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: ()
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm text-foreground">{item.name}</span>
+          <span className="truncate text-foreground text-sm">{item.name}</span>
           {item.inactiveBadge ? (
-            <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-xs text-warning">
+            <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-warning text-xs">
               {item.inactiveBadge}
             </span>
           ) : null}
         </div>
         {item.description ? (
-          <div className="mt-0.5 truncate text-xs text-muted-foreground/55">{item.description}</div>
+          <div className="mt-0.5 truncate text-muted-foreground/55 text-xs">{item.description}</div>
         ) : null}
       </div>
       <Switch
@@ -156,7 +156,7 @@ export const AddCatalogPopover: FC<{
           type="button"
           variant="ghost"
           disabled={disabled}
-          className="ml-auto flex h-auto min-h-0 items-center gap-1 rounded-2xs px-2 py-1 font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30">
+          className="ml-auto flex h-auto min-h-0 items-center gap-1 rounded-2xs px-2 py-1 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30">
           <Plus size={10} />
           <span>{triggerLabel}</span>
         </Button>
@@ -175,7 +175,7 @@ export const AddCatalogPopover: FC<{
           />
         </div>
         {available.length === 0 ? (
-          <p className="px-2 py-3 text-center text-xs text-muted-foreground/50">{emptyLabel}</p>
+          <p className="px-2 py-3 text-center text-muted-foreground/50 text-xs">{emptyLabel}</p>
         ) : (
           <Scrollbar className="max-h-60">
             <MenuList>
@@ -205,5 +205,5 @@ export const AddCatalogPopover: FC<{
 }
 
 export function EmptyPlaceholder({ children }: { children: ReactNode }) {
-  return <div className="py-14 text-center text-xs text-muted-foreground/55">{children}</div>
+  return <div className="py-14 text-center text-muted-foreground/55 text-xs">{children}</div>
 }

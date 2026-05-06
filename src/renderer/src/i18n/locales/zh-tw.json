@@ -2245,6 +2245,21 @@
       "manage_tags": "管理標籤",
       "uninstall": "解除安裝"
     },
+    "assistant_catalog": {
+      "add": "新增",
+      "add_failed": "新增助手失敗",
+      "browse_label": "助手分類",
+      "empty_description": "此分類下暫時沒有助手預設",
+      "empty_title": "暫無可新增助手",
+      "mine": "我的",
+      "no_match_description": "請嘗試其他搜尋關鍵字",
+      "no_match_title": "找不到相符的助手",
+      "preview": "預覽",
+      "preview_description": "簡介",
+      "preview_prompt": "提示詞",
+      "scroll_left": "向左捲動分類",
+      "scroll_right": "向右捲動分類"
+    },
     "badge": {
       "update": "[to be translated]:Update"
     },

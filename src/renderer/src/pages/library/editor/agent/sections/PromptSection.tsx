@@ -20,11 +20,11 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
     <div className="flex max-w-2xl flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.prompt.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.prompt.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.prompt.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.instructions.label')}
         </FieldLabel>
         <FieldContent>
@@ -32,7 +32,7 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
             value={form.instructions}
             onChange={(e) => onChange({ instructions: e.target.value })}
             placeholder={t('library.config.agent.field.instructions.placeholder')}
-            className="min-h-80 rounded-xs border border-border/20 bg-accent/15 px-3 py-2 font-mono text-xs text-foreground leading-relaxed transition-all focus:border-border/40 focus:bg-accent/20"
+            className="min-h-80 rounded-xs border border-border/20 bg-accent/15 px-3 py-2 font-mono text-foreground text-xs leading-relaxed transition-all focus:border-border/40 focus:bg-accent/20"
           />
         </FieldContent>
       </Field>

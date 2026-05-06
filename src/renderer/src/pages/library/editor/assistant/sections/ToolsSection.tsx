@@ -65,7 +65,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
     <div className="max-w-lg space-y-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.tools.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.tools.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.tools.desc')}</p>
       </div>
 
       <ModeGroup>
@@ -82,12 +82,12 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
 
       {mcpMode === 'manual' && (
         <div>
-          <FieldLabel className="mb-2 block font-normal text-sm text-muted-foreground/80">
+          <FieldLabel className="mb-2 block font-normal text-muted-foreground/80 text-sm">
             {t('library.config.tools.added')}
           </FieldLabel>
 
           {isLoading ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground/50">{t('common.loading')}</p>
+            <p className="px-3 py-2 text-muted-foreground/50 text-xs">{t('common.loading')}</p>
           ) : boundServers.length === 0 ? (
             <EmptyHint />
           ) : (
@@ -103,7 +103,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
               <Button
                 variant="ghost"
                 disabled={isLoading}
-                className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2.5 py-1.5 font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
+                className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2.5 py-1.5 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:border-border/40 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
                 <Plus size={10} /> {t('library.config.tools.add_mcp')}
               </Button>
             </PopoverTrigger>
@@ -121,7 +121,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
                 />
               </div>
               {availableForPicker.length === 0 ? (
-                <p className="px-2 py-3 text-center text-xs text-muted-foreground/50">
+                <p className="px-2 py-3 text-center text-muted-foreground/50 text-xs">
                   {t('library.config.tools.no_more')}
                 </p>
               ) : (
@@ -151,8 +151,8 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
       <div className="flex items-start gap-2 rounded-xs border border-blue-500/15 bg-blue-500/5 px-3 py-2.5">
         <AlertCircle size={12} className="mt-px shrink-0 text-blue-500/60" />
         <div>
-          <p className="text-xs text-blue-600/70 dark:text-blue-400/80">{t('library.config.tools.info_main')}</p>
-          <p className="mt-0.5 text-xs text-blue-600/50 dark:text-blue-400/60">{t('library.config.tools.info_sub')}</p>
+          <p className="text-blue-600/70 text-xs dark:text-blue-400/80">{t('library.config.tools.info_main')}</p>
+          <p className="mt-0.5 text-blue-600/50 text-xs dark:text-blue-400/60">{t('library.config.tools.info_sub')}</p>
         </div>
       </div>
     </div>
@@ -168,17 +168,17 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <NormalTooltip content={server.name} side="top">
-            <span className="truncate text-sm text-foreground">{server.name}</span>
+            <span className="truncate text-foreground text-sm">{server.name}</span>
           </NormalTooltip>
           {inactive && (
-            <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-xs text-warning">
+            <span className="shrink-0 rounded-3xs bg-warning/10 px-1 py-px text-warning text-xs">
               {t('library.config.tools.inactive_badge')}
             </span>
           )}
         </div>
         {server.description && (
           <NormalTooltip content={<span className="whitespace-pre-wrap">{server.description}</span>} side="top">
-            <div className="mt-0.5 truncate text-xs text-muted-foreground/55">{server.description}</div>
+            <div className="mt-0.5 truncate text-muted-foreground/55 text-xs">{server.description}</div>
           </NormalTooltip>
         )}
       </div>
@@ -251,7 +251,7 @@ function ModeRow({
       />
       <div className="min-w-0 flex-1">
         <div className="text-sm">{label}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground/55">{desc}</div>
+        <div className="mt-0.5 text-muted-foreground/55 text-xs">{desc}</div>
       </div>
     </Button>
   )
@@ -263,8 +263,8 @@ function EmptyHint() {
   return (
     <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
       <Plug size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/40" />
-      <p className="mb-1 text-xs text-muted-foreground/60">{t('library.config.tools.empty_title')}</p>
-      <p className="text-xs text-muted-foreground/50">{t('library.config.tools.empty_desc')}</p>
+      <p className="mb-1 text-muted-foreground/60 text-xs">{t('library.config.tools.empty_title')}</p>
+      <p className="text-muted-foreground/50 text-xs">{t('library.config.tools.empty_desc')}</p>
     </div>
   )
 }

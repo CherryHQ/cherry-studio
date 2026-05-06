@@ -21,15 +21,15 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.advanced.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.advanced.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.advanced.desc')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+          <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
             {t('library.config.agent.field.max_turns.label')}
           </FieldLabel>
-          <span className="font-mono text-xs text-foreground/70">{form.maxTurns || 0}</span>
+          <span className="font-mono text-foreground/70 text-xs">{form.maxTurns || 0}</span>
         </div>
         <EditableNumber
           block
@@ -44,11 +44,11 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           placeholder="0"
           className="rounded-xs border-border/20 bg-accent/15 text-xs focus-visible:border-border/40 focus-visible:bg-accent/20 focus-visible:ring-0"
         />
-        <span className="text-xs text-muted-foreground/55">{t('library.config.agent.field.max_turns.help')}</span>
+        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.max_turns.help')}</span>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel className="font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="font-normal text-muted-foreground/80 text-sm">
           {t('library.config.agent.field.env_vars.label')}
         </FieldLabel>
         <Textarea.Input
@@ -57,7 +57,7 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           placeholder={'KEY=value\nANOTHER_KEY=another_value'}
           className="min-h-30 rounded-xs border-border/20 bg-accent/15 px-3 py-2 font-mono text-xs focus:border-border/40 focus:bg-accent/20"
         />
-        <span className="text-xs text-muted-foreground/55">{t('library.config.agent.field.env_vars.help')}</span>
+        <span className="text-muted-foreground/55 text-xs">{t('library.config.agent.field.env_vars.help')}</span>
       </div>
     </div>
   )

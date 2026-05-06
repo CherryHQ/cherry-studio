@@ -70,7 +70,7 @@ export function ConfigEditorShell<Id extends string>({
           <ArrowLeft size={14} />
         </Button>
         <Breadcrumb>
-          <BreadcrumbList className="gap-1 text-xs text-muted-foreground/50 sm:gap-1">
+          <BreadcrumbList className="gap-1 text-muted-foreground/50 text-xs sm:gap-1">
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <button type="button" className="cursor-pointer" onClick={onBack}>
@@ -91,7 +91,7 @@ export function ConfigEditorShell<Id extends string>({
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
-              className="text-xs text-primary">
+              className="text-primary text-xs">
               {t('common.saved')}
             </motion.span>
           )}
@@ -100,7 +100,7 @@ export function ConfigEditorShell<Id extends string>({
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0 }}
-              className="text-xs text-destructive">
+              className="text-destructive text-xs">
               {error}
             </motion.span>
           )}

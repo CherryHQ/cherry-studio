@@ -2245,6 +2245,21 @@
       "manage_tags": "Manage tags",
       "uninstall": "Uninstall"
     },
+    "assistant_catalog": {
+      "add": "Add",
+      "add_failed": "Failed to add assistant",
+      "browse_label": "Assistant categories",
+      "empty_description": "This category has no assistant presets yet.",
+      "empty_title": "No assistants to add",
+      "mine": "Mine",
+      "no_match_description": "Try a different search keyword",
+      "no_match_title": "No matching assistants",
+      "preview": "Preview",
+      "preview_description": "Overview",
+      "preview_prompt": "Prompt",
+      "scroll_left": "Scroll categories left",
+      "scroll_right": "Scroll categories right"
+    },
     "badge": {
       "update": "Update"
     },

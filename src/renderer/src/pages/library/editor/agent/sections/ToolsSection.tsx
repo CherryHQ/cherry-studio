@@ -127,7 +127,7 @@ const ToolsSection: FC<Props> = ({ agent, form, onChange }) => {
     <div className="flex max-w-2xl flex-col gap-5">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.tools.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.agent.section.tools.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.agent.section.tools.desc')}</p>
       </div>
 
       <div className="relative">

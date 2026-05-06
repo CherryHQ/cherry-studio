@@ -58,18 +58,18 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
     <div className="max-w-lg space-y-6">
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.knowledge.title')}</h3>
-        <p className="text-xs text-muted-foreground/60">{t('library.config.knowledge.desc')}</p>
+        <p className="text-muted-foreground/60 text-xs">{t('library.config.knowledge.desc')}</p>
       </div>
 
       <div>
-        <FieldLabel className="mb-2 block font-normal text-sm text-muted-foreground/80">
+        <FieldLabel className="mb-2 block font-normal text-muted-foreground/80 text-sm">
           {t('library.config.knowledge.linked')}
         </FieldLabel>
         {linkedItems.length === 0 ? (
           <div className="flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
             <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/40" />
-            <p className="mb-1 text-xs text-muted-foreground/60">{t('library.config.knowledge.empty_title')}</p>
-            <p className="text-xs text-muted-foreground/50">{t('library.config.knowledge.empty_desc')}</p>
+            <p className="mb-1 text-muted-foreground/60 text-xs">{t('library.config.knowledge.empty_title')}</p>
+            <p className="text-muted-foreground/50 text-xs">{t('library.config.knowledge.empty_desc')}</p>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -81,8 +81,8 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                   <Database size={14} strokeWidth={1.4} className="text-foreground/70" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-foreground">{kb.name}</div>
-                  <div className="text-xs text-muted-foreground/50">
+                  <div className="truncate text-foreground text-sm">{kb.name}</div>
+                  <div className="text-muted-foreground/50 text-xs">
                     {t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
                   </div>
                 </div>
@@ -104,7 +104,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
             <Button
               variant="ghost"
               disabled={isLoading}
-              className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2.5 py-1.5 font-normal text-xs text-muted-foreground/60 shadow-none transition-colors hover:border-border/40 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
+              className="mt-2 flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2.5 py-1.5 font-normal text-muted-foreground/60 text-xs shadow-none transition-colors hover:border-border/40 hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-50">
               <Plus size={10} /> {t('library.config.knowledge.add')}
             </Button>
           </PopoverTrigger>
@@ -122,7 +122,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
               />
             </div>
             {unlinkedItems.length === 0 ? (
-              <p className="px-2 py-3 text-center text-xs text-muted-foreground/50">
+              <p className="px-2 py-3 text-center text-muted-foreground/50 text-xs">
                 {t('library.config.knowledge.no_more')}
               </p>
             ) : (
