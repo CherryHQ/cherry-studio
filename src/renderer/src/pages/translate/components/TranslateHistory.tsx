@@ -210,7 +210,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                         </Flex>
                         <HistoryListItemTextContainer>
                           <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
-                          <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
+                          <HistoryListItemTitle style={{ color: 'var(--color-foreground-secondary)' }}>
                             {item.targetText}
                           </HistoryListItemTitle>
                         </HistoryListItemTextContainer>
@@ -259,16 +259,16 @@ const HistoryListItemContainer = styled.div`
   position: relative;
   cursor: pointer;
   &:hover {
-    background-color: var(--color-background-mute);
+    background-color: var(--color-muted);
     button {
       opacity: 1;
     }
   }
 
-  border-top: 1px dashed var(--color-border-soft);
+  border-top: 1px dashed color-mix(in srgb, var(--color-border) 60%, transparent);
 
   &:last-child {
-    border-bottom: 1px dashed var(--color-border-soft);
+    border-bottom: 1px dashed color-mix(in srgb, var(--color-border) 60%, transparent);
   }
 `
 
@@ -294,12 +294,12 @@ const HistoryListItemTitle = styled.div`
 
 const HistoryListItemDate = styled.div`
   font-size: 12px;
-  color: var(--color-text-3);
+  color: var(--color-foreground-muted);
 `
 
 const HistoryListItemLanguage = styled.div`
   font-size: 12px;
-  color: var(--color-text-3);
+  color: var(--color-foreground-muted);
 `
 
 const HistoryListItemTextContainer = styled.div`
@@ -315,7 +315,7 @@ const IconWrapper = styled.div`
   height: 30px;
   width: 30px;
   border-radius: 15px;
-  background-color: var(--color-background-soft);
+  background-color: var(--color-secondary);
 `
 
 export default TranslateHistoryList
