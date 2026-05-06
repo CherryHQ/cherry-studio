@@ -26,7 +26,7 @@ import {
   useAssistantPresetCatalog
 } from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
-import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey, TagItem, ViewMode } from './types'
+import type { LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
 
 type ConfigView =
   | { type: 'list' }
@@ -66,8 +66,6 @@ export default function LibraryPage() {
     resourceType: 'agent'
   })
   const [search, setSearch] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
@@ -85,7 +83,7 @@ export default function LibraryPage() {
     sidebarFilter,
     activeTag: isAssistantCatalogMine ? activeTag : null,
     search: isAssistantCatalogMine ? search : '',
-    sort: sortKey
+    sort: 'name'
   })
 
   const assistantCatalog = useAssistantPresetCatalog({
@@ -343,12 +341,9 @@ export default function LibraryPage() {
         {pendingBackend && <PendingBackendNotice />}
         <ResourceGrid
           resources={resources}
-          viewMode={viewMode}
-          sortKey={sortKey}
+          activeResourceType={activeResourceType ?? 'agent'}
           search={search}
           onSearchChange={setSearch}
-          onViewModeChange={setViewMode}
-          onSortKeyChange={setSortKey}
           onEdit={handleEdit}
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}

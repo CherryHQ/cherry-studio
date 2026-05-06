@@ -231,7 +231,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError, tagCol
             {form.accessiblePaths.map((p) => (
               <div
                 key={p}
-                className="flex items-center gap-2 rounded-xs border border-border/15 bg-accent/15 px-3 py-2">
+                className="flex items-center gap-2 rounded-xs border border-border/30 bg-accent/15 px-3 py-2">
                 <span className="min-w-0 flex-1 truncate font-mono text-foreground/80 text-xs" title={p}>
                   {p}
                 </span>
@@ -426,7 +426,7 @@ function SwitchRow({
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <div className="rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5">
+    <div className="rounded-xs border border-border/30 bg-accent/15 px-3 py-2.5">
       <DescriptionSwitch
         label={label}
         description={help}

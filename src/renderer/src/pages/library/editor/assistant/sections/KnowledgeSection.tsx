@@ -76,7 +76,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
             {linkedItems.map((kb) => (
               <div
                 key={kb.id}
-                className="group flex items-center gap-3 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/30">
+                className="group flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xs bg-accent/50">
                   <Database size={14} strokeWidth={1.4} className="text-foreground/70" />
                 </div>

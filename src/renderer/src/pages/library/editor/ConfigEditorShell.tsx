@@ -65,7 +65,7 @@ export function ConfigEditorShell<Id extends string>({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       {/* Top bar */}
-      <div className="flex shrink-0 items-center gap-3 border-border/15 border-b px-5 py-3">
+      <div className="flex shrink-0 items-center gap-3 border-border/50 border-b px-5 py-3">
         <Button variant="ghost" size="icon-sm" onClick={onBack} className="text-muted-foreground/50">
           <ArrowLeft size={14} />
         </Button>
@@ -123,7 +123,7 @@ export function ConfigEditorShell<Id extends string>({
 
       {/* Body */}
       <div className="flex min-h-0 flex-1">
-        <div className="w-[220px] shrink-0 border-border/15 border-r p-3">
+        <div className="w-[220px] shrink-0 border-sidebar-border border-r bg-sidebar p-3">
           {sections.map((s) => {
             const Icon = s.icon
             const active = activeSection === s.id
@@ -137,11 +137,11 @@ export function ConfigEditorShell<Id extends string>({
                 icon={<Icon size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />}
                 label={t(s.labelKey)}
                 description={t(s.descKey)}
-                descriptionClassName="mt-px text-xs text-muted-foreground/60 group-data-[active=true]:text-muted-foreground/50"
+                descriptionClassName="mt-px text-xs text-sidebar-foreground/55 group-data-[active=true]:text-sidebar-foreground/50"
                 className={`mb-1 items-start gap-2.5 rounded-xs border-0 px-3 py-2.5 text-left font-normal transition-all focus-visible:ring-0 ${
                   active
-                    ? 'bg-accent/50 text-foreground data-[active=true]:bg-accent/50 data-[active=true]:text-foreground'
-                    : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground'
+                    ? 'bg-sidebar-accent text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground'
+                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 }`}
               />
             )

@@ -4,8 +4,6 @@ export type ResourceType = 'agent' | 'assistant' | 'skill'
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
 
-export type ViewMode = 'grid' | 'list'
-
 export interface ResourceItem {
   id: string
   type: ResourceType

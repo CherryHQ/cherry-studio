@@ -163,7 +163,7 @@ function ServerCard({ server, onToggle }: { server: MCPServer; onToggle: () => v
   const { t } = useTranslation()
   const inactive = !server.isActive
   return (
-    <div className="flex items-center gap-3 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/30">
+    <div className="flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
       <ServerAvatar server={server} size={36} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -242,7 +242,7 @@ function ModeRow({
       className={`flex h-auto min-h-0 items-start justify-start gap-2.5 rounded-xs border px-3 py-2.5 text-left font-normal shadow-none transition-all focus-visible:ring-0 ${
         active
           ? 'border-primary/35 bg-primary/[0.06] text-foreground hover:bg-primary/[0.06] hover:text-foreground'
-          : 'border-border/15 bg-accent/15 text-muted-foreground/70 hover:bg-accent/30 hover:text-foreground'
+          : 'border-border/30 bg-accent/15 text-muted-foreground/70 hover:border-border/45 hover:bg-accent/30 hover:text-foreground'
       }`}>
       <span
         className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${

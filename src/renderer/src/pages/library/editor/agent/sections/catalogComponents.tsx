@@ -41,7 +41,7 @@ export interface CatalogItem {
  */
 export function BoundRow({ item, onDisable }: { item: CatalogItem; onDisable: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-xs border border-border/15 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/30 hover:bg-accent/20">
+    <div className="flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
       {item.icon ? (
         <div className="flex size-8 shrink-0 items-center justify-center rounded-2xs bg-accent/50">{item.icon}</div>
       ) : null}
