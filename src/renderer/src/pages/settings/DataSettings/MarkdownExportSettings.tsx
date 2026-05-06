@@ -79,7 +79,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-1.25">
-          <InputGroup className="w-[250px]">
+          <InputGroup className="h-8 w-[250px]">
             <InputGroupInput
               type="text"
               value={markdownExportPath || ''}
@@ -90,13 +90,14 @@ const MarkdownExportSettings: FC = () => {
               <InputGroupAddon align="inline-end">
                 <InputGroupButton
                   onClick={handleClearPath}
-                  className="text-[var(--color-error-base)] hover:text-[var(--color-error-base)]">
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive">
                   <DeleteOutlined />
                 </InputGroupButton>
               </InputGroupAddon>
             )}
           </InputGroup>
-          <Button onClick={handleSelectFolder} variant="outline">
+          <Button onClick={handleSelectFolder} variant="outline" className="h-8">
             <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>
