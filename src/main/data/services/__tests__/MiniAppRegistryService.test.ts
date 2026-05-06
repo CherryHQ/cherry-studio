@@ -1,27 +1,27 @@
 import { miniAppTable } from '@data/db/schemas/miniapp'
-import { MiniAppService } from '@data/services/MiniAppService'
+import { miniAppRegistryService } from '@data/services/MiniAppRegistryService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
-import { ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-describe('MiniAppService', () => {
+describe('MiniAppRegistryService', () => {
   const dbh = setupTestDatabase()
-  let service: MiniAppService
 
   beforeEach(() => {
-    service = new MiniAppService()
+    // Each test gets a fresh DB; nothing else to reset.
   })
 
-  async function seedCustomApp(overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
+  /** Insert a custom (full-data) row directly. */
+  async function seedCustomRow(overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
     const values: typeof miniAppTable.$inferInsert = {
       appId: 'custom-app',
+      presetMiniappId: null,
       name: 'Custom App',
       url: 'https://custom.app',
       logo: 'application',
-      kind: 'custom',
       status: 'enabled',
       orderKey: 'a0',
       bordered: false,
@@ -31,12 +31,11 @@ describe('MiniAppService', () => {
     return values
   }
 
-  async function seedDefaultAppPref(appId: string, overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
+  /** Insert a preset-override row (delta only). */
+  async function seedOverrideRow(appId: string, overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
     const values: typeof miniAppTable.$inferInsert = {
       appId,
-      name: 'PlaceholderName',
-      url: 'https://placeholder.test',
-      kind: 'default',
+      presetMiniappId: appId,
       status: 'enabled',
       orderKey: 'a0',
       ...overrides
@@ -46,10 +45,10 @@ describe('MiniAppService', () => {
   }
 
   describe('getByAppId', () => {
-    it('should return a builtin miniapp merged with DB preferences', async () => {
-      await seedDefaultAppPref('openai', { status: 'disabled', orderKey: 'z9' })
+    it('should merge preset with override row for a default app', async () => {
+      await seedOverrideRow('openai', { status: 'disabled', orderKey: 'z9' })
 
-      const result = await service.getByAppId('openai')
+      const result = await miniAppRegistryService.getByAppId('openai')
 
       expect(result.appId).toBe('openai')
       expect(result.name).toBe('ChatGPT')
@@ -59,8 +58,8 @@ describe('MiniAppService', () => {
       expect(result.kind).toBe('default')
     })
 
-    it('should return builtin with defaults when no DB row exists', async () => {
-      const result = await service.getByAppId('gemini')
+    it('should return preset with default status when no override exists', async () => {
+      const result = await miniAppRegistryService.getByAppId('gemini')
 
       expect(result.appId).toBe('gemini')
       expect(result.name).toBe('Gemini')
@@ -69,17 +68,17 @@ describe('MiniAppService', () => {
     })
 
     it('should return a custom miniapp from DB', async () => {
-      await seedCustomApp()
+      await seedCustomRow()
 
-      const result = await service.getByAppId('custom-app')
+      const result = await miniAppRegistryService.getByAppId('custom-app')
 
       expect(result.appId).toBe('custom-app')
       expect(result.name).toBe('Custom App')
       expect(result.kind).toBe('custom')
     })
 
-    it('should throw NotFound for nonexistent custom app', async () => {
-      await expect(service.getByAppId('nonexistent')).rejects.toMatchObject({
+    it('should throw NOT_FOUND for nonexistent custom app', async () => {
+      await expect(miniAppRegistryService.getByAppId('nonexistent')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
@@ -88,44 +87,43 @@ describe('MiniAppService', () => {
 
   describe('list', () => {
     it('should return merged builtin and custom apps', async () => {
-      await seedCustomApp()
+      await seedCustomRow()
 
-      const result = await service.list({})
+      const result = await miniAppRegistryService.list({})
 
-      // Should include all builtin apps + the one custom app
-      expect(result.length).toBeGreaterThan(ORIGIN_DEFAULT_MINI_APPS.length)
+      expect(result.length).toBeGreaterThan(PRESETS_MINI_APPS.length)
     })
 
-    it('should filter by type=custom', async () => {
-      await seedCustomApp()
+    it('should filter by kind=custom', async () => {
+      await seedCustomRow()
 
-      const result = await service.list({ type: 'custom' })
+      const result = await miniAppRegistryService.list({ kind: 'custom' })
 
       expect(result).toHaveLength(1)
       expect(result[0].kind).toBe('custom')
       expect(result[0].appId).toBe('custom-app')
     })
 
-    it('should filter by type=default', async () => {
-      const result = await service.list({ type: 'default' })
+    it('should filter by kind=default', async () => {
+      const result = await miniAppRegistryService.list({ kind: 'default' })
 
-      expect(result.length).toBe(ORIGIN_DEFAULT_MINI_APPS.length)
+      expect(result.length).toBe(PRESETS_MINI_APPS.length)
       expect(result.every((item) => item.kind === 'default')).toBe(true)
     })
 
     it('should filter by status', async () => {
-      await seedDefaultAppPref('openai', { status: 'disabled' })
+      await seedOverrideRow('openai', { status: 'disabled' })
 
-      const result = await service.list({ status: 'disabled' })
+      const result = await miniAppRegistryService.list({ status: 'disabled' })
 
       expect(result.every((item) => item.status === 'disabled')).toBe(true)
     })
 
     it('should sort items by status priority then orderKey', async () => {
-      await seedCustomApp({ appId: 'a', name: 'A', orderKey: 'a2' })
-      await seedDefaultAppPref('openai', { status: 'pinned', orderKey: 'a5' })
+      await seedCustomRow({ appId: 'a', name: 'A', orderKey: 'a2' })
+      await seedOverrideRow('openai', { status: 'pinned', orderKey: 'a5' })
 
-      const result = await service.list({})
+      const result = await miniAppRegistryService.list({})
 
       const pinnedIndex = result.findIndex((item) => item.status === 'pinned')
       const enabledIndex = result.findIndex((item) => item.status === 'enabled')
@@ -133,7 +131,7 @@ describe('MiniAppService', () => {
     })
   })
 
-  describe('create', () => {
+  describe('createCustom', () => {
     it('should create a custom miniapp', async () => {
       const dto: CreateMiniAppDto = {
         appId: 'new-app',
@@ -144,7 +142,7 @@ describe('MiniAppService', () => {
         supportedRegions: ['CN', 'Global']
       }
 
-      const result = await service.create(dto)
+      const result = await miniAppRegistryService.createCustom(dto)
 
       expect(result.appId).toBe('new-app')
       expect(result.name).toBe('New App')
@@ -155,9 +153,9 @@ describe('MiniAppService', () => {
       expect(row.status).toBe('enabled')
     })
 
-    it('should reject creation if appId is a builtin app', async () => {
+    it('should reject creation if appId is a preset app', async () => {
       await expect(
-        service.create({
+        miniAppRegistryService.createCustom({
           appId: 'openai',
           name: 'test',
           url: 'https://test.app',
@@ -172,10 +170,10 @@ describe('MiniAppService', () => {
     })
 
     it('should reject creation if appId already exists in DB', async () => {
-      await seedCustomApp()
+      await seedCustomRow()
 
       await expect(
-        service.create({
+        miniAppRegistryService.createCustom({
           appId: 'custom-app',
           name: 'Duplicate',
           url: 'https://dup.app',
@@ -192,7 +190,7 @@ describe('MiniAppService', () => {
 
   describe('update', () => {
     it('should update all fields for a custom miniapp', async () => {
-      await seedCustomApp()
+      await seedCustomRow()
 
       const dto: UpdateMiniAppDto = {
         name: 'Updated App',
@@ -200,7 +198,7 @@ describe('MiniAppService', () => {
         status: 'disabled'
       }
 
-      const result = await service.update('custom-app', dto)
+      const result = await miniAppRegistryService.update('custom-app', dto)
 
       expect(result.name).toBe('Updated App')
       expect(result.url).toBe('https://updated.app')
@@ -211,83 +209,70 @@ describe('MiniAppService', () => {
       expect(row.status).toBe('disabled')
     })
 
-    it('should only allow preference fields for default apps', async () => {
-      const result = await service.update('openai', { status: 'pinned' })
+    it('should only allow status for preset apps; row stores delta only', async () => {
+      const result = await miniAppRegistryService.update('openai', { status: 'pinned' })
 
       expect(result.status).toBe('pinned')
+      expect(result.kind).toBe('default')
 
-      // A default-app pref row should have been upserted
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row.status).toBe('pinned')
-      expect(row.kind).toBe('default')
+      expect(row.name).toBeNull()
+      expect(row.url).toBeNull()
     })
 
-    it('should reject non-preference field updates for default apps', async () => {
-      await expect(service.update('openai', { name: 'New Name' })).rejects.toMatchObject({
+    it('should reject non-status field updates for preset apps', async () => {
+      await expect(miniAppRegistryService.update('openai', { name: 'New Name' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
       })
     })
 
-    it('should reject update of nonexistent app', async () => {
-      await expect(service.update('nonexistent', { name: 'New Name' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        status: 404
+    it('should reject empty update for preset apps', async () => {
+      await expect(miniAppRegistryService.update('openai', {})).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
       })
     })
   })
 
   describe('delete', () => {
     it('should delete a custom miniapp', async () => {
-      await seedCustomApp()
+      await seedCustomRow()
 
-      await expect(service.delete('custom-app')).resolves.toBeUndefined()
+      await miniAppRegistryService.delete('custom-app')
 
       const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'custom-app'))
       expect(rows).toHaveLength(0)
     })
 
-    it('should reject deletion of default apps', async () => {
-      await seedDefaultAppPref('openai')
-
-      await expect(service.delete('openai')).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        status: 422
+    it('should reject deletion of preset apps', async () => {
+      await expect(miniAppRegistryService.delete('openai')).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
       })
-
-      // Row should remain
-      const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
-      expect(rows).toHaveLength(1)
     })
   })
 
   describe('reorder', () => {
-    it('should swap orderKey via fractional-indexing in a transaction', async () => {
-      await seedCustomApp({ appId: 'app-1', name: 'A1', orderKey: 'a0' })
-      await seedCustomApp({ appId: 'app-2', name: 'A2', orderKey: 'b0' })
+    it('should swap orderKey via fractional-indexing within a status partition', async () => {
+      await seedCustomRow({ appId: 'app-1', name: 'A1', orderKey: 'a0' })
+      await seedCustomRow({ appId: 'app-2', name: 'A2', orderKey: 'b0' })
 
-      // Move app-2 before app-1
-      await service.reorder([{ id: 'app-2', anchor: { before: 'app-1' } }])
+      await miniAppRegistryService.reorder([{ id: 'app-2', anchor: { before: 'app-1' } }])
 
       const [row1] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-1'))
       const [row2] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-2'))
-      // After reorder, row2 should sort before row1 by orderKey
       expect(row2.orderKey < row1.orderKey).toBe(true)
     })
 
-    it('should ensure DB rows exist for builtin apps during reorder', async () => {
-      await service.reorder([{ id: 'openai', anchor: { position: 'first' } }])
+    it('should seed an override row for a preset app on first reorder', async () => {
+      await miniAppRegistryService.reorder([{ id: 'openai', anchor: { position: 'first' } }])
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row).toBeDefined()
       expect(row.orderKey).toBeTruthy()
-      expect(row.kind).toBe('default')
-    })
-
-    it('should throw NotFound for non-existent app IDs', async () => {
-      await expect(service.reorder([{ id: 'nonexistent', anchor: { position: 'first' } }])).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      // Override row — preset fields stay NULL.
+      expect(row.name).toBeNull()
+      expect(row.url).toBeNull()
     })
   })
 })

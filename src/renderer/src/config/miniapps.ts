@@ -65,7 +65,7 @@ import {
   Zhipu
 } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { ORIGIN_DEFAULT_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/mini-apps'
 
 /**
  * Legacy mini-app entity type used by the deprecated Redux slice and config layer.
@@ -143,7 +143,7 @@ const loadCustomMiniApps = async (): Promise<MiniAppType[]> => {
 }
 
 // I13: Derive renderer preset list from the shared single source of truth
-const ORIGIN_DEFAULT_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
+const PRESETS_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   id: app.id,
   name: app.name,
   nameKey: app.nameKey,
@@ -156,9 +156,9 @@ const ORIGIN_DEFAULT_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
 }))
 
 // All mini apps: built-in defaults + custom apps loaded from user config
-const allMiniApps = [...ORIGIN_DEFAULT_MINI_APPS, ...(await loadCustomMiniApps())]
+const allMiniApps = [...PRESETS_MINI_APPS, ...(await loadCustomMiniApps())]
 
-export { allMiniApps, ORIGIN_DEFAULT_MINI_APPS }
+export { allMiniApps, PRESETS_MINI_APPS }
 
 export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
   if (!LogoId) {

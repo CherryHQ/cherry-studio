@@ -5,7 +5,7 @@
  * Both renderer (UI display) and main process (DB merge logic) import from here.
  */
 
-export interface BuiltinMiniAppDefinition {
+export interface MiniAppPreset {
   id: string
   name: string
   nameKey?: string
@@ -17,7 +17,7 @@ export interface BuiltinMiniAppDefinition {
   style?: { padding?: number }
 }
 
-export const ORIGIN_DEFAULT_MINI_APPS: BuiltinMiniAppDefinition[] = [
+export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'openai',
     name: 'ChatGPT',

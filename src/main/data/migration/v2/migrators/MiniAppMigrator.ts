@@ -82,8 +82,10 @@ export class MiniAppMigrator extends BaseMigrator {
           try {
             const row = transformMiniApp(app, status)
 
-            // Skip rows with empty required fields (ghost apps)
-            if (!row.name || !row.url) {
+            // Custom rows (presetMiniappId IS NULL) must have name and url populated.
+            // Preset override rows (presetMiniappId set) intentionally have NULL preset fields.
+            const isCustom = row.presetMiniappId === null
+            if (isCustom && (!row.name || !row.url)) {
               this.skippedCount++
               warnings.push(`Skipped ${status} app ${app.id}: missing name or url`)
               continue
@@ -184,17 +186,23 @@ export class MiniAppMigrator extends BaseMigrator {
         })
       }
 
-      // Full validation: check for rows with empty required fields
+      // Validate custom rows (preset_miniapp_id IS NULL) must have non-empty
+      // appId, name, and url. Preset override rows are exempt from name/url checks.
       const badRows = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(miniAppTable)
-        .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)
+        .where(
+          sql`${miniAppTable.appId} = ''
+            OR (${miniAppTable.presetMiniappId} IS NULL
+                AND (${miniAppTable.name} IS NULL OR ${miniAppTable.name} = ''
+                     OR ${miniAppTable.url} IS NULL OR ${miniAppTable.url} = ''))`
+        )
         .get()
       const badCount = badRows?.count ?? 0
       if (badCount > 0) {
         errors.push({
           key: 'empty_fields',
-          message: `Found ${badCount} rows with empty appId, name, or url`
+          message: `Found ${badCount} custom rows with empty appId/name/url`
         })
       }
 

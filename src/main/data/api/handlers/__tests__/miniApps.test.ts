@@ -9,10 +9,10 @@ const { listMock, createMock, getByAppIdMock, updateMock, deleteMock, reorderMoc
   reorderMock: vi.fn()
 }))
 
-vi.mock('@data/services/MiniAppService', () => ({
-  miniAppService: {
+vi.mock('@data/services/MiniAppRegistryService', () => ({
+  miniAppRegistryService: {
     list: listMock,
-    create: createMock,
+    createCustom: createMock,
     getByAppId: getByAppIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -44,7 +44,8 @@ describe('miniAppHandlers', () => {
 
       const result = await miniAppHandlers['/mini-apps'].GET({ query: { status: 'enabled', type: 'default' } } as never)
 
-      expect(listMock).toHaveBeenCalledWith({ status: 'enabled', type: 'default' })
+      // Handler maps `type` (API alias) → `kind` (registry parameter).
+      expect(listMock).toHaveBeenCalledWith({ status: 'enabled', kind: 'default' })
       expect(result).toEqual(response)
     })
 
