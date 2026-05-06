@@ -6,6 +6,7 @@ import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -168,6 +169,8 @@ const AgentChatInner = ({
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
+  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutionIds)
+
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }
     for (const execMessages of Object.values(executionMessagesById)) {
@@ -191,15 +194,19 @@ const AgentChatInner = ({
           </div>
 
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            {chat.activeExecutionIds.map((executionId) => (
-              <ExecutionStreamCollector
-                key={executionId}
-                topicId={sessionTopicId}
-                executionId={executionId}
-                onMessagesChange={handleExecutionMessagesChange}
-                onDispose={handleExecutionDispose}
-              />
-            ))}
+            {chat.activeExecutionIds.map((executionId) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
 
             <AgentSessionMessages
               agentId={agentId}

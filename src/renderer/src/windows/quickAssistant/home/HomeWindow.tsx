@@ -5,6 +5,7 @@ import { isMac } from '@renderer/config/constant'
 import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -119,6 +120,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
     useExecutionMessages()
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutionIds.length)
@@ -436,15 +438,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             </div>
           )}
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => (
-              <ExecutionStreamCollector
-                key={executionId}
-                topicId={temporaryTopicId}
-                executionId={executionId}
-                onMessagesChange={handleExecutionMessagesChange}
-                onDispose={handleExecutionDispose}
-              />
-            ))}
+            activeExecutionIds.map((executionId) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
           <ChatWindow
             route={route}
             assistant={currentAssistant ?? null}

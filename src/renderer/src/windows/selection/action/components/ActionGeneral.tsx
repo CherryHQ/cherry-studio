@@ -4,6 +4,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -88,6 +89,8 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   // Per-execution collector pattern (see ActionTranslate for the why).
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
+
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
 
   useEffect(() => {
     if (isPending) {
@@ -180,15 +183,19 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
         <Result>
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => (
-              <ExecutionStreamCollector
-                key={executionId}
-                topicId={temporaryTopicId}
-                executionId={executionId}
-                onMessagesChange={handleExecutionMessagesChange}
-                onDispose={handleExecutionDispose}
-              />
-            ))}
+            activeExecutionIds.map((executionId) => {
+              const execChat = executionChats.get(executionId)
+              if (!execChat) return null
+              return (
+                <ExecutionStreamCollector
+                  key={executionId}
+                  executionId={executionId}
+                  chat={execChat}
+                  onMessagesChange={handleExecutionMessagesChange}
+                  onDispose={handleExecutionDispose}
+                />
+              )
+            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
             <PartsProvider value={partsMap}>
