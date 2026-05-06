@@ -10,7 +10,11 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
-import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
+import {
+  DEFAULT_MESSAGE_MENUBAR_SCOPE,
+  getMessageMenubarConfig,
+  STREAMING_DISABLED_BUTTON_IDS
+} from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessage } from '@renderer/hooks/useMessage'
@@ -82,6 +86,7 @@ interface Props {
   isGrouped?: boolean
   isLastMessage: boolean
   isAssistantMessage: boolean
+  isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
   onUpdateUseful?: (msgId: string) => void
@@ -123,11 +128,20 @@ type MessageMenubarButtonContext = {
   translateLanguages: TranslateLanguage[]
 }
 
-type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactNode | null
+type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext, disabled: boolean) => ReactNode | null
 
 const MessageMenubar: FC<Props> = (props) => {
-  const { message, isGrouped, isLastMessage, isAssistantMessage, model, topic, messageContainerRef, onUpdateUseful } =
-    props
+  const {
+    message,
+    isGrouped,
+    isLastMessage,
+    isAssistantMessage,
+    isProcessing,
+    model,
+    topic,
+    messageContainerRef,
+    onUpdateUseful
+  } = props
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
@@ -304,6 +318,7 @@ const MessageMenubar: FC<Props> = (props) => {
         label: t('chat.multiple.select.label'),
         key: 'multi-select',
         icon: <ListChecks size={15} />,
+        disabled: isProcessing,
         onClick: () => {
           toggleMultiSelectMode(true)
         }
@@ -459,6 +474,7 @@ const MessageMenubar: FC<Props> = (props) => {
     exportMenuOptions.siyuan,
     exportMenuOptions.yuque,
     isEditable,
+    isProcessing,
     mainTextContent,
     message,
     messageContainerRef,
@@ -536,7 +552,8 @@ const MessageMenubar: FC<Props> = (props) => {
             logger.warn(`No renderer registered for MessageMenubar button id: ${buttonId}`)
             return null
           }
-          const element = renderFn(buttonContext)
+          const disabled = isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(buttonId)
+          const element = renderFn(buttonContext, disabled)
           if (!element) {
             return null
           }
@@ -547,14 +564,22 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 }
 
-const ActionButton = ({ $softHoverBg, className, ...props }: ComponentProps<'div'> & { $softHoverBg?: boolean }) => {
+const ActionButton = ({
+  $softHoverBg,
+  className,
+  type,
+  ...props
+}: ComponentProps<'button'> & { $softHoverBg?: boolean }) => {
   return (
-    <div
+    <button
+      type={type ?? 'button'}
       className={classNames(
-        'flex h-[26px] w-[26px] cursor-pointer items-center justify-center rounded-lg text-(--color-icon) transition-all duration-200 ease-out',
-        '[&_.anticon]:cursor-pointer [&_.anticon]:text-sm [&_.icon-at]:text-base [&_.iconfont]:cursor-pointer [&_.iconfont]:text-sm',
-        'hover:text-(--color-text-1)',
-        $softHoverBg ? 'hover:bg-(--color-background-soft)' : 'hover:bg-(--color-background-mute)',
+        'flex h-[26px] w-[26px] items-center justify-center rounded-lg border-0 bg-transparent p-0 text-(--color-icon) transition-all duration-200 ease-out',
+        '[&_.anticon]:text-sm [&_.icon-at]:text-base [&_.iconfont]:text-sm',
+        'enabled:cursor-pointer enabled:hover:text-(--color-text-1)',
+        'enabled:[&_.anticon]:cursor-pointer enabled:[&_.iconfont]:cursor-pointer',
+        $softHoverBg ? 'enabled:hover:bg-(--color-background-soft)' : 'enabled:hover:bg-(--color-background-mute)',
+        'disabled:cursor-not-allowed disabled:opacity-40',
         className
       )}
       {...props}
@@ -563,14 +588,14 @@ const ActionButton = ({ $softHoverBg, className, ...props }: ComponentProps<'div
 }
 
 const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRenderer> = {
-  'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }) => {
+  'user-edit': ({ message, onEdit, softHoverBg, supportsWrites, t }, disabled) => {
     if (message.role !== 'user' || !supportsWrites) {
       return null
     }
 
     return (
       <Tooltip content={t('common.edit')} delay={800}>
-        <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
+        <ActionButton className="message-action-button" onClick={onEdit} disabled={disabled} $softHoverBg={softHoverBg}>
           <EditIcon size={15} />
         </ActionButton>
       </Tooltip>
@@ -584,14 +609,10 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </ActionButton>
     </Tooltip>
   ),
-  'assistant-regenerate': ({
-    isAssistantMessage,
-    confirmRegenerateMessage,
-    onRegenerate,
-    setShowDeleteTooltip,
-    softHoverBg,
-    t
-  }) => {
+  'assistant-regenerate': (
+    { isAssistantMessage, confirmRegenerateMessage, onRegenerate, setShowDeleteTooltip, softHoverBg, t },
+    disabled
+  ) => {
     if (!isAssistantMessage) {
       return null
     }
@@ -603,10 +624,12 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
             title={t('message.regenerate.confirm')}
             okButtonProps={{ danger: true }}
             onConfirm={() => onRegenerate()}
-            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+            disabled={disabled}>
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
+              disabled={disabled}
               $softHoverBg={softHoverBg}>
               <RefreshIcon size={15} />
             </ActionButton>
@@ -617,7 +640,11 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     return (
       <Tooltip content={t('common.regenerate')} delay={800}>
-        <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
+        <ActionButton
+          className="message-action-button"
+          onClick={onRegenerate}
+          disabled={disabled}
+          $softHoverBg={softHoverBg}>
           <RefreshIcon size={15} />
         </ActionButton>
       </Tooltip>
@@ -759,16 +786,19 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       </Tooltip>
     )
   },
-  delete: ({
-    confirmDeleteMessage,
-    deleteMessage,
-    message,
-    setShowDeleteTooltip,
-    showDeleteTooltip,
-    softHoverBg,
-    supportsWrites,
-    t
-  }) => {
+  delete: (
+    {
+      confirmDeleteMessage,
+      deleteMessage,
+      message,
+      setShowDeleteTooltip,
+      showDeleteTooltip,
+      softHoverBg,
+      supportsWrites,
+      t
+    },
+    disabled
+  ) => {
     if (!supportsWrites) {
       return null
     }
@@ -790,10 +820,12 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
           title={t('message.message.delete.content')}
           okButtonProps={{ danger: true }}
           onConfirm={async () => await handleDeleteMessage()}
-          onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+          onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+          disabled={disabled}>
           <ActionButton
             className="message-action-button"
             onClick={(e) => e.stopPropagation()}
+            disabled={disabled}
             $softHoverBg={softHoverBg}>
             {deleteTooltip}
           </ActionButton>
@@ -808,6 +840,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
           e.stopPropagation()
           await handleDeleteMessage()
         }}
+        disabled={disabled}
         $softHoverBg={softHoverBg}>
         {deleteTooltip}
       </ActionButton>

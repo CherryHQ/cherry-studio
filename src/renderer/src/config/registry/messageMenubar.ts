@@ -45,6 +45,12 @@ export const SESSION_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
   'more-menu'
 ]
 
+export const STREAMING_DISABLED_BUTTON_IDS: ReadonlySet<MessageMenubarButtonId> = new Set([
+  'user-edit',
+  'delete',
+  'assistant-regenerate'
+])
+
 const messageMenubarRegistry = new Map<MessageMenubarScope, MessageMenubarScopeConfig>([
   [DEFAULT_MESSAGE_MENUBAR_SCOPE, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }],
   [TopicType.Chat, { buttonIds: [...DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS] }],
