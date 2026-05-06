@@ -406,16 +406,16 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   deepseek: [
     {
-      id: 'deepseek-chat',
+      id: 'deepseek-v4-flash',
       provider: 'deepseek',
-      name: 'DeepSeek Chat',
-      group: 'DeepSeek Chat'
+      name: 'deepseek-v4-flash',
+      group: 'DeepSeek'
     },
     {
-      id: 'deepseek-reasoner',
+      id: 'deepseek-v4-pro',
       provider: 'deepseek',
-      name: 'DeepSeek Reasoner',
-      group: 'DeepSeek Reasoner'
+      name: 'deepseek-v4-pro',
+      group: 'DeepSeek'
     }
   ],
   together: [
