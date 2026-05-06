@@ -13,7 +13,7 @@ import {
 const REPO_ROOT = path.join(__dirname, '..')
 const LEGACY_CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const CANONICAL_CLASS_CHECK_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
-const STYLE_MIGRATION_COMMENT_MARKER = '<!-- legacy-css-vars-warning -->'
+const STYLE_REMINDERS_COMMENT_MARKER = '<!-- style-reminders-warning -->'
 
 export interface PullRequestLegacyFinding {
   file: string
@@ -26,7 +26,7 @@ export interface PullRequestTailwindCanonicalFinding extends TailwindCanonicalCl
   file: string
 }
 
-export interface CheckPullRequestStyleMigrationOptions {
+export interface CheckPullRequestStyleRemindersOptions {
   baseRef: string
   headRef: string
 }
@@ -46,7 +46,7 @@ function parseArgs(): { baseRef: string; headRef: string; markdownOutput?: strin
   const args = process.argv.slice(2)
   let baseRef = process.env.BASE_SHA ?? process.env.GITHUB_BASE_REF ?? ''
   let headRef = process.env.HEAD_SHA ?? process.env.GITHUB_SHA ?? 'HEAD'
-  let markdownOutput = process.env.STYLE_MIGRATION_PR_MARKDOWN_OUTPUT ?? process.env.LEGACY_CSS_VARS_PR_MARKDOWN_OUTPUT
+  let markdownOutput = process.env.STYLE_REMINDERS_PR_MARKDOWN_OUTPUT
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]
@@ -204,7 +204,7 @@ export function parseAddedLegacyVarFindingsFromDiff(diff: string, filePath: stri
 export function checkPullRequestLegacyVars({
   baseRef,
   headRef
-}: CheckPullRequestStyleMigrationOptions): PullRequestLegacyFinding[] {
+}: CheckPullRequestStyleRemindersOptions): PullRequestLegacyFinding[] {
   const files = getChangedRendererFiles(baseRef, headRef)
 
   return files.flatMap((filePath) => {
@@ -216,7 +216,7 @@ export function checkPullRequestLegacyVars({
 export async function checkPullRequestTailwindCanonicalClasses({
   baseRef,
   headRef
-}: CheckPullRequestStyleMigrationOptions): Promise<PullRequestTailwindCanonicalFinding[]> {
+}: CheckPullRequestStyleRemindersOptions): Promise<PullRequestTailwindCanonicalFinding[]> {
   const files = getChangedCanonicalClassFiles(baseRef, headRef)
   if (files.length === 0) return []
 
@@ -237,7 +237,7 @@ export async function checkPullRequestTailwindCanonicalClasses({
   })
 }
 
-export function buildPullRequestStyleMigrationComment(
+export function buildPullRequestStyleRemindersComment(
   findings: PullRequestLegacyFinding[],
   canonicalClassFindings: PullRequestTailwindCanonicalFinding[] = []
 ): string {
@@ -246,8 +246,8 @@ export function buildPullRequestStyleMigrationComment(
   }
 
   return [
-    STYLE_MIGRATION_COMMENT_MARKER,
-    '## Style Migration Reminders',
+    STYLE_REMINDERS_COMMENT_MARKER,
+    '## Style Reminders',
     '',
     buildLegacyVarsCommentSection(findings),
     buildCanonicalClassesCommentSection(canonicalClassFindings),
@@ -336,7 +336,7 @@ async function main(): Promise<void> {
   const { baseRef, headRef, markdownOutput } = parseArgs()
   const findings = checkPullRequestLegacyVars({ baseRef, headRef })
   const canonicalClassFindings = await checkPullRequestTailwindCanonicalClasses({ baseRef, headRef })
-  const body = buildPullRequestStyleMigrationComment(findings, canonicalClassFindings)
+  const body = buildPullRequestStyleRemindersComment(findings, canonicalClassFindings)
 
   if (findings.length === 0 && canonicalClassFindings.length === 0) {
     console.log(

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildPullRequestStyleMigrationComment,
+  buildPullRequestStyleRemindersComment,
   parseAddedLegacyVarFindingsFromDiff,
   parseAddedLineNumbersFromDiff
-} from '../check-pr-style-migration'
+} from '../check-pr-style-reminders'
 
-describe('check-pr-style-migration', () => {
+describe('check-pr-style-reminders', () => {
   it('reports legacy vars only from added lines', () => {
     const diff = `
 diff --git a/src/renderer/src/example.tsx b/src/renderer/src/example.tsx
@@ -56,7 +56,7 @@ index 1111111..2222222 100644
   })
 
   it('builds a PR comment body with a marker and summary', () => {
-    const body = buildPullRequestStyleMigrationComment(
+    const body = buildPullRequestStyleRemindersComment(
       [
         {
           file: 'src/renderer/src/example.tsx',
@@ -76,8 +76,8 @@ index 1111111..2222222 100644
       ]
     )
 
-    expect(body).toContain('<!-- legacy-css-vars-warning -->')
-    expect(body).toContain('## Style Migration Reminders')
+    expect(body).toContain('<!-- style-reminders-warning -->')
+    expect(body).toContain('## Style Reminders')
     expect(body).toContain('### Legacy CSS Variables Detected')
     expect(body).toContain('`--color-text-1`')
     expect(body).toContain('### Tailwind Canonical Classes Detected')
