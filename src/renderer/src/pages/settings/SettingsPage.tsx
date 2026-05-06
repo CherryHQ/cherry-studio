@@ -4,6 +4,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  Blocks,
   CalendarClock,
   Cloud,
   Command,
@@ -41,7 +42,7 @@ const SettingsPage: FC = () => {
       <div className="flex min-h-0 flex-1 flex-row">
         <div className="flex min-h-0 w-[200px] min-w-[200px]">
           <Scrollbar className="flex min-h-0 flex-1 select-none flex-col p-2.5">
-            <MenuList className="gap-0.5">
+            <MenuList className="gap-1">
               <div className={sectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={menuItemClassName}
@@ -86,6 +87,13 @@ const SettingsPage: FC = () => {
                 label={t('settings.tool.preprocess.title')}
                 active={isActive('/settings/docprocess')}
                 onClick={() => go('/settings/docprocess')}
+              />
+              <MenuItem
+                className={menuItemClassName}
+                icon={<Blocks />}
+                label={t('settings.integrations.title')}
+                active={isActive('/settings/integrations')}
+                onClick={() => go('/settings/integrations')}
               />
               <MenuItem
                 className={menuItemClassName}

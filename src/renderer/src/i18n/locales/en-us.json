@@ -4758,6 +4758,12 @@
         "russian": "Russian"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "Notes"
+      },
+      "title": "Integrations"
+    },
     "launch": {
       "onboot": "Start Automatically on Boot",
       "title": "Launch",

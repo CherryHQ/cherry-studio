@@ -4758,6 +4758,12 @@
         "russian": "Rusă"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "Note"
+      },
+      "title": "Integrări"
+    },
     "launch": {
       "onboot": "Pornește automat la pornirea sistemului",
       "title": "Lansare",

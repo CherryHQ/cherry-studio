@@ -4758,6 +4758,12 @@
         "russian": "Tiếng Nga"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "Ghi chú"
+      },
+      "title": "Tích hợp"
+    },
     "launch": {
       "onboot": "Tự động khởi động khi bật máy",
       "title": "Khởi chạy",

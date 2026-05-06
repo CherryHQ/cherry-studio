@@ -4758,6 +4758,12 @@
         "russian": "俄文"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "筆記"
+      },
+      "title": "集成"
+    },
     "launch": {
       "onboot": "開機自動啟動",
       "title": "啟動",

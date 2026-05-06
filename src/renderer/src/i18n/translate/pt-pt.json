@@ -4758,6 +4758,12 @@
         "russian": "Russo"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "Notas"
+      },
+      "title": "Integrações"
+    },
     "launch": {
       "onboot": "Iniciar automaticamente ao ligar",
       "title": "Inicialização",

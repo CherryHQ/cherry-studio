@@ -4758,6 +4758,12 @@
         "russian": "Ruso"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "Notas"
+      },
+      "title": "Integraciones"
+    },
     "launch": {
       "onboot": "Iniciar automáticamente al encender",
       "title": "Inicio",

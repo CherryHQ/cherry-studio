@@ -4758,6 +4758,12 @@
         "russian": "ロシア語"
       }
     },
+    "integrations": {
+      "groups": {
+        "notes": "ノート"
+      },
+      "title": "連携"
+    },
     "launch": {
       "onboot": "起動時に自動で開始",
       "title": "起動",

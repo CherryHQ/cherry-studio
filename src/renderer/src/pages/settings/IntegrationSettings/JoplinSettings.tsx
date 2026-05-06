@@ -114,7 +114,7 @@ const JoplinSettings: FC = () => {
               placeholder={t('settings.data.joplin.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleJoplinConnectionCheck} variant="outline">
+            <Button onClick={handleJoplinConnectionCheck} variant="outline" className="h-9 shrink-0">
               {t('settings.data.joplin.check.button')}
             </Button>
           </RowFlex>
