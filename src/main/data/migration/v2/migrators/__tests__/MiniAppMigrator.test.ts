@@ -395,6 +395,39 @@ describe('MiniAppMigrator', () => {
 
       expect(result.stats?.skippedCount).toBe(1)
     })
+
+    it('should count cross-group duplicates as skipped so engine invariant holds', async () => {
+      // v1 stores pinned apps in BOTH `pinned` and `enabled`. The migrator dedups
+      // by app id, but those duplicates must be reported as skipped — otherwise
+      // MigrationEngine.validateMigratorResult fails the
+      // `targetCount >= sourceCount - skippedCount` invariant.
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [
+              { id: 'app1', name: 'A1', url: 'https://1.com' },
+              { id: 'app2', name: 'A2', url: 'https://2.com' },
+              { id: 'app3', name: 'A3 (also pinned)', url: 'https://3.com' }
+            ],
+            pinned: [{ id: 'app3', name: 'A3 pinned', url: 'https://3.com' }]
+          }
+        },
+        dbh.db
+      ) as any
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const result = await migrator.validate(ctx)
+
+      expect(result.success).toBe(true)
+      // 4 raw entries (3 enabled + 1 pinned) → 3 unique rows, 1 dedup'd
+      expect(result.stats?.sourceCount).toBe(4)
+      expect(result.stats?.targetCount).toBe(3)
+      expect(result.stats?.skippedCount).toBe(1)
+      // engine invariant
+      expect(result.stats!.targetCount).toBe(result.stats!.sourceCount - result.stats!.skippedCount)
+    })
   })
 
   describe('migrator metadata', () => {

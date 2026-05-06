@@ -89,13 +89,17 @@ export class MiniAppMigrator extends BaseMigrator {
               continue
             }
 
-            // If already seen with same or higher priority, keep existing
-            // If seen with lower priority, replace (e.g. enabled -> pinned)
+            // If already seen with same or higher priority, keep existing.
+            // If seen with lower priority, replace (e.g. enabled -> pinned).
+            // Either way the duplicate is counted as skipped so the engine's
+            // `targetCount >= sourceCount - skippedCount` invariant holds —
+            // pinned apps in v1 also appear in `enabled`, inflating sourceCount.
             const existing = seenIds.get(app.id)
             if (!existing) {
               seenIds.set(app.id, row)
+            } else {
+              this.skippedCount++
             }
-            // else: keep the higher-priority version already stored
           } catch (err) {
             this.skippedCount++
             const errMsg = err instanceof Error ? err.message : String(err)
