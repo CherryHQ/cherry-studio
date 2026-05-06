@@ -117,24 +117,24 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // no assistant content. We accumulate assistant turns across completed
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
-  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
     useExecutionMessages()
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
-  const prevActiveCountRef = useRef(activeExecutionIds.length)
+  const prevActiveCountRef = useRef(activeExecutions.length)
   useEffect(() => {
     const wasActive = prevActiveCountRef.current > 0
-    prevActiveCountRef.current = activeExecutionIds.length
-    if (activeExecutionIds.length === 0 && wasActive) {
+    prevActiveCountRef.current = activeExecutions.length
+    if (activeExecutions.length === 0 && wasActive) {
       const finalized = collectLiveAssistants(executionMessagesById)
       if (finalized.length) {
         setCompletedAssistants((done) => [...done, ...finalized])
         resetExecutionMessages()
       }
     }
-  }, [activeExecutionIds, executionMessagesById, resetExecutionMessages])
+  }, [activeExecutions, executionMessagesById, resetExecutionMessages])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
@@ -438,7 +438,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             </div>
           )}
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => {
+            activeExecutions.map(({ executionId }) => {
               const execChat = executionChats.get(executionId)
               if (!execChat) return null
               return (

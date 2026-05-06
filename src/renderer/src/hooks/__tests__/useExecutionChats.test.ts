@@ -3,6 +3,7 @@
 // subtree via `key={topic.id}`, so this hook starts fresh on topic switch.
 
 import { Chat } from '@ai-sdk/react'
+import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { render, renderHook, waitFor } from '@testing-library/react'
@@ -28,6 +29,8 @@ import { type ExecutionFinishEvent, pickSeed, useExecutionChats } from '../useEx
 const TOPIC_ID = 'topic-1'
 const EXEC_A = 'openai::gpt-4o' as UniqueModelId
 const EXEC_B = 'anthropic::claude-3-5-sonnet' as UniqueModelId
+const ANCHOR_A = 'msg-a1'
+const ANCHOR_B = 'msg-b1'
 
 function makeUserMessage(id: string, text = 'hi'): CherryUIMessage {
   return {
@@ -42,9 +45,14 @@ function makeAssistantPlaceholder(id: string, modelId: UniqueModelId): CherryUIM
     id,
     role: 'assistant',
     parts: [],
-    metadata: { modelId } as CherryUIMessage['metadata']
+    metadata: { modelId, status: 'pending' } as CherryUIMessage['metadata']
   } as CherryUIMessage
 }
+
+const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecution => ({
+  executionId,
+  anchorMessageId
+})
 
 beforeEach(() => {
   transports.clear()
@@ -55,42 +63,37 @@ afterEach(() => {
 })
 
 // ─────────────────────────────────────────────────────────────────────
-// A. pickSeed (pure function)
+// A. pickSeed (pure function — id-based lookup)
 // ─────────────────────────────────────────────────────────────────────
 
 describe('pickSeed', () => {
-  it('A1 — returns the matching assistant when present', () => {
+  it('A1 — returns the message matching anchorMessageId', () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
-    const result = pickSeed([user, a], EXEC_A)
-    expect(result).toEqual([a])
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
+    expect(pickSeed([user, a], ANCHOR_A)).toEqual([a])
   })
 
-  it('A2 — multi-sibling: each executionId picks its own placeholder', () => {
+  it('A2 — multi-sibling: each anchor id picks its own placeholder', () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
-    const b = makeAssistantPlaceholder('b1', EXEC_B)
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
+    const b = makeAssistantPlaceholder(ANCHOR_B, EXEC_B)
     const messages = [user, a, b]
-    expect(pickSeed(messages, EXEC_A)).toEqual([a])
-    expect(pickSeed(messages, EXEC_B)).toEqual([b])
+    expect(pickSeed(messages, ANCHOR_A)).toEqual([a])
+    expect(pickSeed(messages, ANCHOR_B)).toEqual([b])
   })
 
-  it('A3 — no matching assistant returns undefined', () => {
+  it('A3 — anchor not in messages returns undefined (race-safe)', () => {
+    // Cache_Sync arrived with anchorMessageId before SWR refreshed uiMessages.
+    // pickSeed returns undefined → AI SDK creates a fresh assistant from the
+    // start chunk's messageId; mergedPartsMap reconciles by id once SWR catches up.
     const user = makeUserMessage('u1')
-    expect(pickSeed([user], EXEC_A)).toBeUndefined()
+    expect(pickSeed([user], ANCHOR_A)).toBeUndefined()
   })
 
-  it('A4 — empty / undefined input returns undefined', () => {
-    expect(pickSeed(undefined, EXEC_A)).toBeUndefined()
-    expect(pickSeed([], EXEC_A)).toBeUndefined()
-  })
-
-  it('A5 — findLast: with multiple assistants of same model, returns the most recent', () => {
-    const user = makeUserMessage('u1')
-    const a1 = makeAssistantPlaceholder('a1', EXEC_A)
-    const a2 = makeAssistantPlaceholder('a2', EXEC_A)
-    const result = pickSeed([user, a1, a2], EXEC_A)
-    expect(result).toEqual([a2])
+  it('A4 — empty / undefined messages or anchor returns undefined', () => {
+    expect(pickSeed(undefined, ANCHOR_A)).toBeUndefined()
+    expect(pickSeed([], ANCHOR_A)).toBeUndefined()
+    expect(pickSeed([makeAssistantPlaceholder(ANCHOR_A, EXEC_A)], undefined)).toBeUndefined()
   })
 })
 
@@ -99,56 +102,55 @@ describe('pickSeed', () => {
 // ─────────────────────────────────────────────────────────────────────
 
 describe('useExecutionChats', () => {
-  it('B1 — creates one Chat per executionId', async () => {
-    const { result } = renderHook(() => useExecutionChats(TOPIC_ID, [EXEC_A, EXEC_B]))
+  it('B1 — creates one Chat per active execution', async () => {
+    const { result } = renderHook(() => useExecutionChats(TOPIC_ID, [exec(EXEC_A), exec(EXEC_B)]))
     await waitFor(() => expect(result.current.size).toBe(2))
     expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat)
     expect(result.current.get(EXEC_B)).toBeInstanceOf(Chat)
   })
 
-  it('B2 — same executionId across rerender returns the same Chat reference', async () => {
-    const { result, rerender } = renderHook(({ ids }) => useExecutionChats(TOPIC_ID, ids), {
-      initialProps: { ids: [EXEC_A] as readonly UniqueModelId[] }
+  it('B2 — same execution across rerender returns the same Chat reference', async () => {
+    const { result, rerender } = renderHook(({ execs }) => useExecutionChats(TOPIC_ID, execs), {
+      initialProps: { execs: [exec(EXEC_A)] as readonly ActiveExecution[] }
     })
     await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
     const before = result.current.get(EXEC_A)!
-    rerender({ ids: [EXEC_A] })
+    rerender({ execs: [exec(EXEC_A)] })
     await waitFor(() => expect(result.current.get(EXEC_A)).toBe(before))
   })
 
-  it('B3 — adding a new executionId does not recreate existing Chats', async () => {
-    const { result, rerender } = renderHook(({ ids }) => useExecutionChats(TOPIC_ID, ids), {
-      initialProps: { ids: [EXEC_A] as readonly UniqueModelId[] }
+  it('B3 — adding a new execution does not recreate existing Chats', async () => {
+    const { result, rerender } = renderHook(({ execs }) => useExecutionChats(TOPIC_ID, execs), {
+      initialProps: { execs: [exec(EXEC_A)] as readonly ActiveExecution[] }
     })
     await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
     const aBefore = result.current.get(EXEC_A)!
-    rerender({ ids: [EXEC_A, EXEC_B] })
+    rerender({ execs: [exec(EXEC_A), exec(EXEC_B)] })
     await waitFor(() => expect(result.current.size).toBe(2))
     expect(result.current.get(EXEC_A)).toBe(aBefore)
     expect(result.current.get(EXEC_B)).toBeInstanceOf(Chat)
     expect(result.current.get(EXEC_B)).not.toBe(aBefore)
   })
 
-  it('B4 — multi-model isolation: each chat seeded with own placeholder, different references', async () => {
+  it('B4 — multi-model isolation: each chat seeded with its own anchor', async () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
-    const b = makeAssistantPlaceholder('b1', EXEC_B)
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
+    const b = makeAssistantPlaceholder(ANCHOR_B, EXEC_B)
     const { result } = renderHook(() =>
-      useExecutionChats(TOPIC_ID, [EXEC_A, EXEC_B], { initialMessages: [user, a, b] })
+      useExecutionChats(TOPIC_ID, [exec(EXEC_A, ANCHOR_A), exec(EXEC_B, ANCHOR_B)], {
+        initialMessages: [user, a, b]
+      })
     )
     await waitFor(() => expect(result.current.size).toBe(2))
-    const tailA = result.current.get(EXEC_A)!.messages.at(-1)
-    const tailB = result.current.get(EXEC_B)!.messages.at(-1)
-    expect(tailA?.metadata?.modelId).toBe(EXEC_A)
-    expect(tailB?.metadata?.modelId).toBe(EXEC_B)
-    expect(tailA).not.toBe(tailB)
+    expect(result.current.get(EXEC_A)!.messages.at(-1)?.id).toBe(ANCHOR_A)
+    expect(result.current.get(EXEC_B)!.messages.at(-1)?.id).toBe(ANCHOR_B)
   })
 
   it('B6 — initialMessages is a one-shot seed; rerender does not rebuild existing Chats', async () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
     const { result, rerender } = renderHook(
-      ({ msgs }) => useExecutionChats(TOPIC_ID, [EXEC_A], { initialMessages: msgs }),
+      ({ msgs }) => useExecutionChats(TOPIC_ID, [exec(EXEC_A, ANCHOR_A)], { initialMessages: msgs }),
       { initialProps: { msgs: [user, a] as CherryUIMessage[] } }
     )
     await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
@@ -160,6 +162,26 @@ describe('useExecutionChats', () => {
     expect(result.current.get(EXEC_A)).toBe(before)
     expect(before.messages).toBe(messagesBefore)
   })
+
+  it('B7 — race: anchor not yet in uiMessages → chat seeded empty, AI SDK creates from start chunk', async () => {
+    // Cache_Sync arrives with anchorMessageId='msg-future' before SWR
+    // refreshes uiMessages to include it. Hook must NOT pick a stale
+    // assistant by some heuristic — it must seed empty and let the chat
+    // create the assistant from the incoming start chunk.
+    const user = makeUserMessage('u1')
+    const oldAssistant = {
+      id: 'old-msg',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'old answer' }],
+      metadata: { modelId: EXEC_A, status: 'success' }
+    } as unknown as CherryUIMessage
+    const { result } = renderHook(() =>
+      useExecutionChats(TOPIC_ID, [exec(EXEC_A, 'msg-future')], { initialMessages: [user, oldAssistant] })
+    )
+    await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
+    // Chat is seeded empty (pickSeed returned undefined).
+    expect(result.current.get(EXEC_A)!.messages).toEqual([])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────
@@ -169,19 +191,18 @@ describe('useExecutionChats', () => {
 describe('useExecutionChats onFinish ref pattern', () => {
   it('B5 — rerender swaps onFinish without recreating chat; latest callback fires on stream finish', async () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
     const spy1 = vi.fn()
     const spy2 = vi.fn()
 
     const { result, rerender } = renderHook(
-      ({ onFinish }) => useExecutionChats(TOPIC_ID, [EXEC_A], { initialMessages: [user, a], onFinish }),
+      ({ onFinish }) => useExecutionChats(TOPIC_ID, [exec(EXEC_A, ANCHOR_A)], { initialMessages: [user, a], onFinish }),
       { initialProps: { onFinish: spy1 as (id: string, e: ExecutionFinishEvent) => void } }
     )
 
     await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
     const chatBefore = result.current.get(EXEC_A)!
 
-    // Mount collector to trigger useChat({chat, resume:true}) → chat.resumeStream()
     const onMessages = vi.fn()
     const { unmount } = render(
       React.createElement(ExecutionStreamCollector, {
@@ -203,7 +224,7 @@ describe('useExecutionChats onFinish ref pattern', () => {
     expect(chatAfter).toBe(chatBefore)
 
     const transport = transports.get(EXEC_A)!
-    transport.__pushChunk({ type: 'start', messageId: 'a1' } as CherryUIMessageChunk)
+    transport.__pushChunk({ type: 'start', messageId: ANCHOR_A } as CherryUIMessageChunk)
     transport.__pushChunk({ type: 'text-start', id: 'tA' } as CherryUIMessageChunk)
     transport.__pushChunk({ type: 'text-delta', id: 'tA', delta: 'hello' } as CherryUIMessageChunk)
     transport.__pushChunk({ type: 'text-end', id: 'tA' } as CherryUIMessageChunk)
@@ -229,11 +250,13 @@ describe('useExecutionChats onFinish ref pattern', () => {
 describe('useExecutionChats multi-model streaming isolation', () => {
   it('C — chunks for each execution land only in their own assistant; no cross-contamination', async () => {
     const user = makeUserMessage('u1')
-    const a = makeAssistantPlaceholder('a1', EXEC_A)
-    const b = makeAssistantPlaceholder('b1', EXEC_B)
+    const a = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
+    const b = makeAssistantPlaceholder(ANCHOR_B, EXEC_B)
 
     const { result } = renderHook(() =>
-      useExecutionChats(TOPIC_ID, [EXEC_A, EXEC_B], { initialMessages: [user, a, b] })
+      useExecutionChats(TOPIC_ID, [exec(EXEC_A, ANCHOR_A), exec(EXEC_B, ANCHOR_B)], {
+        initialMessages: [user, a, b]
+      })
     )
 
     await waitFor(() => expect(result.current.size).toBe(2))
@@ -266,14 +289,14 @@ describe('useExecutionChats multi-model streaming isolation', () => {
     const tA = transports.get(EXEC_A)!
     const tB = transports.get(EXEC_B)!
 
-    tA.__pushChunk({ type: 'start', messageId: 'a1' } as CherryUIMessageChunk)
+    tA.__pushChunk({ type: 'start', messageId: ANCHOR_A } as CherryUIMessageChunk)
     tA.__pushChunk({ type: 'text-start', id: 'tA' } as CherryUIMessageChunk)
     tA.__pushChunk({ type: 'text-delta', id: 'tA', delta: 'helloA' } as CherryUIMessageChunk)
     tA.__pushChunk({ type: 'text-end', id: 'tA' } as CherryUIMessageChunk)
     tA.__pushChunk({ type: 'finish' } as CherryUIMessageChunk)
     tA.__close()
 
-    tB.__pushChunk({ type: 'start', messageId: 'b1' } as CherryUIMessageChunk)
+    tB.__pushChunk({ type: 'start', messageId: ANCHOR_B } as CherryUIMessageChunk)
     tB.__pushChunk({ type: 'text-start', id: 'tB' } as CherryUIMessageChunk)
     tB.__pushChunk({ type: 'text-delta', id: 'tB', delta: 'helloB' } as CherryUIMessageChunk)
     tB.__pushChunk({ type: 'text-end', id: 'tB' } as CherryUIMessageChunk)
@@ -301,19 +324,19 @@ describe('useExecutionChats multi-model streaming isolation', () => {
       .map((p) => p.text)
       .join('')
 
-    expect(tailA.id).toBe('a1')
+    expect(tailA.id).toBe(ANCHOR_A)
     expect(textA).toBe('helloA')
     expect(textA).not.toContain('helloB')
 
-    expect(tailB.id).toBe('b1')
+    expect(tailB.id).toBe(ANCHOR_B)
     expect(textB).toBe('helloB')
     expect(textB).not.toContain('helloA')
 
-    // Ownership — without `pickSeed` each chat would inherit the foreign
-    // model's placeholder via the shared `[user, a, b]` seed. With pickSeed
-    // each chat only sees its own model's assistant.
-    expect(chatA.messages.find((m) => m.id === 'b1')).toBeUndefined()
-    expect(chatB.messages.find((m) => m.id === 'a1')).toBeUndefined()
+    // Ownership — each chat's history must NOT contain the OTHER model's
+    // anchor. Without anchor-scoped seeding the chats would share the full
+    // [user, a, b] tail, so this assertion catches that regression.
+    expect(chatA.messages.find((m) => m.id === ANCHOR_B)).toBeUndefined()
+    expect(chatB.messages.find((m) => m.id === ANCHOR_A)).toBeUndefined()
 
     collectorA.unmount()
     collectorB.unmount()

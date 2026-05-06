@@ -137,7 +137,7 @@ describe('V2ChatContent', () => {
       error: null,
       status: 'ready',
       setMessages: vi.fn(),
-      activeExecutionIds: []
+      activeExecutions: []
     })
 
     ;(window as any).api = {
@@ -164,7 +164,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: []
+      activeExecutions: []
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -212,7 +212,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: ['pending-placeholder'] as string[]
+      activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
@@ -247,7 +247,7 @@ describe('V2ChatContent', () => {
       stop: vi.fn(),
       error: null,
       setMessages: vi.fn(),
-      activeExecutionIds: ['gemini-new-pending'] as string[]
+      activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
     render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)

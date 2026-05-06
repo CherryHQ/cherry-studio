@@ -12,13 +12,13 @@
  */
 
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import type { TopicStreamStatus } from '@shared/ai/transport'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useMemo } from 'react'
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
-  activeExecutionIds: UniqueModelId[]
+  /** Live executions, paired with their anchor message id. Empty when no stream is active. */
+  activeExecutions: ActiveExecution[]
   /** `pending` (request sent, provider hasn't streamed yet) or `streaming` (chunks flowing) — both render as "busy". */
   isPending: boolean
   /** `done` AND this window hasn't marked it seen yet. */
@@ -32,7 +32,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const [seen, setSeen] = useCache(`topic.stream.seen.${topicId}` as const)
 
   const status = entry?.status
-  const activeExecutionIds = useMemo(() => entry?.activeExecutionIds ?? [], [entry])
+  const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
 
   const isPending = status === 'pending' || status === 'streaming'
   const isFulfilled = status === 'done' && !seen
@@ -41,5 +41,5 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     if (!seen) setSeen(true)
   }, [seen, setSeen])
 
-  return { status, activeExecutionIds, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, isPending, isFulfilled, markSeen }
 }

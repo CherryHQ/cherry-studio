@@ -169,7 +169,7 @@ const AgentChatInner = ({
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
-  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutionIds)
+  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }
@@ -194,7 +194,7 @@ const AgentChatInner = ({
           </div>
 
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            {chat.activeExecutionIds.map((executionId) => {
+            {chat.activeExecutions.map(({ executionId }) => {
               const execChat = executionChats.get(executionId)
               if (!execChat) return null
               return (

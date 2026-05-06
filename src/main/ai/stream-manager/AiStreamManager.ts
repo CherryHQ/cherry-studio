@@ -3,6 +3,7 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import type {
+  ActiveExecution,
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
@@ -581,9 +582,9 @@ export class AiStreamManager extends BaseService {
    * behaviour.
    */
   private broadcastTopicStatus(topicId: string, status: TopicStreamStatus): void {
-    const activeExecutionIds = this.collectActiveExecutionIds(topicId)
+    const activeExecutions = this.collectActiveExecutions(topicId)
     const cacheService = application.get('CacheService')
-    cacheService.setShared(`topic.stream.statuses.${topicId}` as const, { status, activeExecutionIds })
+    cacheService.setShared(`topic.stream.statuses.${topicId}` as const, { status, activeExecutions })
   }
 
   /**
@@ -591,15 +592,18 @@ export class AiStreamManager extends BaseService {
    * 'streaming'`, which is set at launch and cleared by `done` / `error`
    * / `aborted`). Returns `[]` when the topic is absent from
    * `activeStreams` or when every execution has hit a terminal state.
+   * Each entry pairs the executionId (UniqueModelId) with the assistant
+   * row this execution writes to (`anchorMessageId`), so the renderer can
+   * seed its `Chat` instance directly by id.
    */
-  private collectActiveExecutionIds(topicId: string): UniqueModelId[] {
+  private collectActiveExecutions(topicId: string): ActiveExecution[] {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return []
-    const ids: UniqueModelId[] = []
+    const out: ActiveExecution[] = []
     for (const [modelId, exec] of stream.executions) {
-      if (exec.status === 'streaming') ids.push(modelId)
+      if (exec.status === 'streaming') out.push({ executionId: modelId, anchorMessageId: exec.anchorMessageId })
     }
-    return ids
+    return out
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -634,6 +638,7 @@ export class AiStreamManager extends BaseService {
     // below, so initialise to a resolved sentinel.
     const exec: StreamExecution = {
       modelId,
+      anchorMessageId: request.messageId,
       abortController: new AbortController(),
       status: 'streaming',
       pendingMessages,

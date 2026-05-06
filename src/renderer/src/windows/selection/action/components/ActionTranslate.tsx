@@ -152,11 +152,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // execution's modelId by Main, so the per-execution collector below
   // owns the streaming content. One collector per `activeExecutionId`;
   // we read the streaming assistant message from its internal state.
-  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
     useExecutionMessages()
 
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
 
   // Flatten all collectors' assistant messages — in practice there's at
   // most one (single-model translate), but keep the shape generic in case
@@ -432,7 +432,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
         )}
         <Result>
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => {
+            activeExecutions.map(({ executionId }) => {
               const execChat = executionChats.get(executionId)
               if (!execChat) return null
               return (

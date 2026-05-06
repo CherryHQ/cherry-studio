@@ -780,14 +780,20 @@ describe('AiStreamManager', () => {
   // state transition under the per-topic template key, and the renderer's
   // `useTopicStreamStatus` hook reacts via `useSharedCache`. The
   // assertions inspect the sequence of `setShared` calls per topic to
-  // verify both status transitions and `activeExecutionIds` updates.
+  // verify both status transitions and `activeExecutions` updates.
 
   describe('topic status broadcast', () => {
     /** Every value written under `topic.stream.statuses.${topicId}` for the given topic. */
     const statusWritesFor = (topicId: string) =>
       fakeCacheService.setShared.mock.calls
         .filter(([key]) => key === `topic.stream.statuses.${topicId}`)
-        .map(([, value]) => value as { status: string; activeExecutionIds: string[] } | null)
+        .map(
+          ([, value]) =>
+            value as {
+              status: string
+              activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
+            } | null
+        )
 
     /** Status values for a single topic across every write. */
     const statusSequence = (topicId: string): string[] =>
@@ -876,7 +882,7 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
     })
 
-    it('carries activeExecutionIds in every status delta', async () => {
+    it('carries activeExecutions (with anchor message ids) in every status delta', async () => {
       mgr.send({
         topicId: 't',
         models: [
@@ -889,11 +895,11 @@ describe('AiStreamManager', () => {
       const deltas = () =>
         statusWritesFor('t').map((entry) => ({
           status: entry?.status,
-          activeExecutionIds: entry?.activeExecutionIds
+          executionIds: entry?.activeExecutions?.map((e) => e.executionId)
         }))
 
       // On send all executions are launched → both listed as active.
-      expect(deltas()).toEqual([{ status: 'pending', activeExecutionIds: ['p::a', 'p::b'] }])
+      expect(deltas()).toEqual([{ status: 'pending', executionIds: ['p::a', 'p::b'] }])
 
       // Per-execution terminals that don't take the topic terminal do NOT
       // re-write (topic still live; `onChunk` is the only path from
@@ -901,17 +907,17 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionError('t', 'p::a', error('boom'))
       expect(deltas()).toHaveLength(1)
 
-      // First chunk flips topic → 'streaming'. `collectActiveExecutionIds`
+      // First chunk flips topic → 'streaming'. `collectActiveExecutions`
       // filters by `exec.status === 'streaming'`, so p::a (now 'error') is
-      // dropped in the activeExecutionIds list.
+      // dropped from the list.
       mgr.onChunk('t', 'p::b', chunk('x'))
-      expect(deltas().at(-1)).toEqual({ status: 'streaming', activeExecutionIds: ['p::b'] })
+      expect(deltas().at(-1)).toEqual({ status: 'streaming', executionIds: ['p::b'] })
 
       // B completes: topic terminal. Since A had errored, topic status is
-      // 'error'. All execs are terminal → activeExecutionIds: [].
+      // 'error'. All execs are terminal → empty list.
       const deltasBeforeCleanup = deltas().length
       await mgr.onExecutionDone('t', 'p::b')
-      expect(deltas().at(-1)).toEqual({ status: 'error', activeExecutionIds: [] })
+      expect(deltas().at(-1)).toEqual({ status: 'error', executionIds: [] })
 
       // Grace-period cleanup is silent.
       vi.advanceTimersByTime(31_000)

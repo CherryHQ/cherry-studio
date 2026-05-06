@@ -51,7 +51,7 @@ interface Props {
  *     `V2ChatContext` provides to downstream components.
  *
  * `useChatWithHistory` stays trigger-only: `sendMessage` / `regenerate`
- * / `stop` / `setMessages` / `activeExecutionIds`. Its
+ * / `stop` / `setMessages` / `activeExecutions`. Its
  * `state.messages` is not rendered; chunks land in per-execution
  * `ExecutionStreamCollector`s and are overlaid into the partsMap by
  * the rendering pipeline.
@@ -129,7 +129,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   hasOlder,
   messagesCacheMutate
 }) => {
-  const { sendMessage, regenerate, stop, status, setMessages, activeExecutionIds, chat } = useChatWithHistory(
+  const { sendMessage, regenerate, stop, status, setMessages, activeExecutions, chat } = useChatWithHistory(
     topic.id,
     initialMessages,
     refresh
@@ -165,7 +165,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     [cache, handleExecutionDispose]
   )
 
-  const executionChats = useExecutionChats(topic.id, activeExecutionIds, {
+  const executionChats = useExecutionChats(topic.id, activeExecutions, {
     initialMessages: uiMessages,
     onFinish: handleExecutionFinish
   })
@@ -265,7 +265,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
                   {(() => {
                     const last = uiMessages.at(-1)
                     if (last?.role !== 'assistant') return null
-                    return activeExecutionIds.map((executionId) => {
+                    return activeExecutions.map(({ executionId }) => {
                       const chat = executionChats.get(executionId)
                       if (!chat) return null
                       return (

@@ -13,6 +13,7 @@ export interface AiChatRequestBody {
 
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export type {
+  ActiveExecution,
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,

@@ -87,10 +87,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   })
 
   // Per-execution collector pattern (see ActionTranslate for the why).
-  const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutionIds)
+  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
 
   useEffect(() => {
     if (isPending) {
@@ -183,7 +183,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
         <Result>
           {temporaryTopicId &&
-            activeExecutionIds.map((executionId) => {
+            activeExecutions.map(({ executionId }) => {
               const execChat = executionChats.get(executionId)
               if (!execChat) return null
               return (

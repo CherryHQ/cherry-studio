@@ -9,7 +9,7 @@
  *
  * Ownership:
  *   - `uiMessages` — input (DB truth from `useTopicMessagesV2`)
- *   - `activeExecutionIds` — input (SharedCache from `useChatWithHistory`)
+ *   - `activeExecutions` — input (SharedCache from `useChatWithHistory`)
  *   - `executionMessagesById` — local state populated by mounted
  *     `ExecutionStreamCollector` components via the returned handlers
  *   - `projectedMessages` / `mergedPartsMap` — outputs consumed by

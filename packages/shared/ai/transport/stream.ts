@@ -31,17 +31,27 @@ export type TopicStreamStatus =
   | 'error' // at least one execution errored with isTopicDone
 
 /**
+ * One live execution on a topic. `anchorMessageId` is the assistant row
+ * the execution writes to (placeholder for fresh/regenerate, anchor for
+ * tool-approval continue). Undefined for transports that don't pre-allocate
+ * a row (temporary topic).
+ */
+export interface ActiveExecution {
+  executionId: UniqueModelId
+  anchorMessageId?: string
+}
+
+/**
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.
  *
- * `activeExecutionIds` names every execution still in its non-terminal
- * phase (`exec.status === 'streaming'` — set at launch, cleared only by
- * `done` / `error` / `aborted`). Empty when every execution has hit a
- * terminal state.
+ * `activeExecutions` names every execution still in its non-terminal phase
+ * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
+ * `error` / `aborted`). Empty when every execution has hit a terminal state.
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
-  activeExecutionIds: UniqueModelId[]
+  activeExecutions: ActiveExecution[]
 }
 
 /** Stream ended. */

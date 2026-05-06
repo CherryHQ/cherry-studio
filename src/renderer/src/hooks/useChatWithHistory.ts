@@ -1,8 +1,8 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -10,7 +10,7 @@ import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
 
-const EMPTY_EXECUTIONS: readonly UniqueModelId[] = Object.freeze([])
+const EMPTY_EXECUTIONS: readonly ActiveExecution[] = Object.freeze([])
 
 // ── Return type ──
 
@@ -21,7 +21,7 @@ export interface UseChatWithHistoryResult {
   error: Error | undefined
   status: ReturnType<typeof useChat<CherryUIMessage>>['status']
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
-  activeExecutionIds: readonly UniqueModelId[]
+  activeExecutions: readonly ActiveExecution[]
   chat: Chat<CherryUIMessage>
 }
 
@@ -52,8 +52,8 @@ export function useChatWithHistory(
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
 
-  const { status: topicStreamStatus, activeExecutionIds: liveExecutionIds } = useTopicStreamStatus(topicId)
-  const activeExecutionIds = liveExecutionIds.length > 0 ? liveExecutionIds : EMPTY_EXECUTIONS
+  const { status: topicStreamStatus, activeExecutions: liveExecutions } = useTopicStreamStatus(topicId)
+  const activeExecutions = liveExecutions.length > 0 ? liveExecutions : EMPTY_EXECUTIONS
 
   const resumeInFlightRef = useRef<Promise<void> | null>(null)
 
@@ -119,7 +119,7 @@ export function useChatWithHistory(
     error,
     status,
     setMessages,
-    activeExecutionIds,
+    activeExecutions,
     chat
   }
 }

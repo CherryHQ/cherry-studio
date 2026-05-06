@@ -57,7 +57,7 @@ describe('useChatWithHistory', () => {
 
     mockTopicStreamStatus.mockImplementation((topicId: string) => ({
       status: statuses.get(topicId),
-      activeExecutionIds: [],
+      activeExecutions: [],
       isPending: statuses.get(topicId) === 'pending' || statuses.get(topicId) === 'streaming',
       isFulfilled: statuses.get(topicId) === 'done',
       markSeen: vi.fn()
