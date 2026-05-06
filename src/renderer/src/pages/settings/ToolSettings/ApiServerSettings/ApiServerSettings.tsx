@@ -99,15 +99,14 @@ const ApiServerSettings: FC = () => {
           )}
         </HeaderRow>
 
+        <SettingDivider />
         {!apiServerRunning && (
           <WarningBanner>
             <TriangleAlert className="size-4 shrink-0 text-warning" />
             <span>{t('agent.warning.enable_server')}</span>
           </WarningBanner>
         )}
-
-        <SettingDivider />
-        <SettingRow className="gap-6">
+        <StatusCard $running={apiServerRunning}>
           <StatusSection>
             <IndicatorLight
               color={apiServerRunning ? 'green' : '#ef4444'}
@@ -144,7 +143,7 @@ const ApiServerSettings: FC = () => {
               </Button>
             )}
           </ButtonGroup>
-        </SettingRow>
+        </StatusCard>
         {!apiServerRunning && (
           <>
             <SettingDivider />
@@ -221,7 +220,7 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
 )
 
 const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-start justify-between gap-4', className)} {...props} />
+  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
 )
 
 const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -231,7 +230,22 @@ const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef
 const WarningBanner = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'mt-4 flex items-center gap-2 rounded-md border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning',
+      'mb-2 flex items-center gap-2 rounded-md border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning',
+      className
+    )}
+    {...props}
+  />
+)
+
+const StatusCard = ({
+  $running,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
+  <div
+    className={cn(
+      'flex items-center justify-between gap-4 rounded-lg border p-3',
+      $running ? 'border-success/20 bg-success/5' : 'border-border bg-card',
       className
     )}
     {...props}
