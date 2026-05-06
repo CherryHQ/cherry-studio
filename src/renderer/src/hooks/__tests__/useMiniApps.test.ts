@@ -284,6 +284,28 @@ describe('useMiniApps', () => {
       const patchCalls = MockDataApiUtils.getCalls('patch')
       expect(patchCalls).toHaveLength(0)
     })
+
+    it('should disable region-hidden enabled apps when removed from visible list (I2.1)', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+
+      const app1 = createGlobalApp('app1', { status: 'enabled' })
+      const app2 = createCnOnlyApp('app2', { status: 'enabled' })
+      const app3 = createGlobalApp('app3', { status: 'enabled' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([app1, app2, app3]))
+
+      const { result } = renderHook(() => useMiniApps())
+      MockDataApiUtils.resetMocks()
+
+      // User keeps only app1 in the visible list
+      await act(async () => {
+        await result.current.updateMiniApps([app1])
+      })
+
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toContainEqual(['/mini-apps/app2', { body: { status: 'disabled' } }])
+      expect(patchCalls).toContainEqual(['/mini-apps/app3', { body: { status: 'disabled' } }])
+      expect(patchCalls.find(([path]) => path === '/mini-apps/app1')).toBeUndefined()
+    })
   })
 
   // === updatePinnedMiniApps ===
