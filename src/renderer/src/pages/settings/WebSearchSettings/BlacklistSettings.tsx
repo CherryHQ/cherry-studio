@@ -4,8 +4,6 @@ import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import { t } from 'i18next'
 import { Check, Info, Plus, RefreshCw, Trash2 } from 'lucide-react'
@@ -39,34 +37,33 @@ const columns: ColumnDef<DataType>[] = [
 const BlacklistSettings: FC = () => {
   const [errFormat, setErrFormat] = useState(false)
   const [blacklistInput, setBlacklistInput] = useState('')
-  const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
-  const { websearch, setSubscribeSources, addSubscribeSource } = useBlacklist()
+  const { subscribeSources, excludeDomains, setExcludeDomains, setSubscribeSources, addSubscribeSource } =
+    useBlacklist()
   const { theme } = useTheme()
   const [subscribeAction, setSubscribeAction] = useState<'add' | 'update' | null>(null)
   const [subscribeValid, setSubscribeValid] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [dataSource, setDataSource] = useState<DataType[]>(
-    websearch.subscribeSources?.map((source) => ({
+    subscribeSources.map((source) => ({
       key: source.key,
       url: source.url,
       name: source.name
-    })) || []
+    }))
   )
   const { setTimeoutTimer } = useTimer()
 
-  const dispatch = useAppDispatch()
   const subscribeChecking = subscribeAction !== null
 
   useEffect(() => {
     setDataSource(
-      (websearch.subscribeSources || []).map((source) => ({
+      subscribeSources.map((source) => ({
         key: source.key,
         url: source.url,
         name: source.name
       }))
     )
-    logger.info('subscribeSources', websearch.subscribeSources)
-  }, [websearch.subscribeSources])
+    logger.info('subscribeSources', subscribeSources)
+  }, [subscribeSources])
 
   useEffect(() => {
     if (excludeDomains) {
@@ -74,19 +71,18 @@ const BlacklistSettings: FC = () => {
     }
   }, [excludeDomains])
 
-  function updateManualBlacklist(blacklist: string) {
+  async function updateManualBlacklist(blacklist: string) {
     const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
     const validDomains: string[] = []
     const hasError = blacklistDomains.some((domain) => {
       const trimmedDomain = domain.trim()
-      // 正则表达式
       if (trimmedDomain.startsWith('/') && trimmedDomain.endsWith('/')) {
         try {
           const regexPattern = trimmedDomain.slice(1, -1)
           new RegExp(regexPattern, 'i')
           validDomains.push(trimmedDomain)
           return false
-        } catch (error) {
+        } catch {
           return true
         }
       } else {
@@ -102,13 +98,14 @@ const BlacklistSettings: FC = () => {
     setErrFormat(hasError)
     if (hasError) return
 
-    dispatch(setExcludeDomains(validDomains))
+    await setExcludeDomains(validDomains)
     window.toast.info({
       title: t('message.save.success.title'),
       timeout: 4000,
       icon: <Info className="size-4" />
     })
   }
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     logger.info('selectedRowKeys changed: ', newSelectedRowKeys)
     setSelectedRowKeys(newSelectedRowKeys)
@@ -118,10 +115,8 @@ const BlacklistSettings: FC = () => {
     setSubscribeAction('update')
 
     try {
-      // 获取选中的订阅源
       const selectedSources = dataSource.filter((item) => selectedRowKeys.includes(item.key))
 
-      // 用于存储所有成功解析的订阅源数据
       const updatedSources: {
         key: number
         url: string
@@ -129,10 +124,8 @@ const BlacklistSettings: FC = () => {
         blacklist: string[]
       }[] = []
 
-      // 为每个选中的订阅源获取并解析内容
       for (const source of selectedSources) {
         try {
-          // 获取并解析订阅源内容
           const blacklist = await parseSubscribeContent(source.url)
 
           if (blacklist.length > 0) {
@@ -145,7 +138,6 @@ const BlacklistSettings: FC = () => {
           }
         } catch (error) {
           logger.error(`Error updating subscribe source ${source.url}:`, error as Error)
-          // 显示具体源更新失败的消息
           window.toast.warning({
             title: t('settings.tool.websearch.subscribe_update_failed', { url: source.url }),
             timeout: 3000
@@ -154,10 +146,8 @@ const BlacklistSettings: FC = () => {
       }
 
       if (updatedSources.length > 0) {
-        // 更新 Redux store
-        setSubscribeSources(updatedSources)
+        await setSubscribeSources(updatedSources)
         setSubscribeValid(true)
-        // 显示成功消息
         window.toast.success({
           title: t('settings.tool.websearch.subscribe_update_success'),
           timeout: 2000
@@ -173,11 +163,11 @@ const BlacklistSettings: FC = () => {
         title: t('settings.tool.websearch.subscribe_update_failed'),
         timeout: 2000
       })
+    } finally {
+      setSubscribeAction(null)
     }
-    setSubscribeAction(null)
   }
 
-  // 修改 handleAddSubscribe 函数
   async function handleAddSubscribe() {
     const result = await AddSubscribePopup.show({
       title: t('settings.tool.websearch.subscribe_add')
@@ -189,26 +179,23 @@ const BlacklistSettings: FC = () => {
 
     setSubscribeAction('add')
     try {
-      // 获取并解析订阅源内容
       const blacklist = await parseSubscribeContent(result.url)
 
       if (blacklist.length === 0) {
         throw new Error('No valid patterns found in subscribe content')
       }
-      // 添加到 Redux store
-      addSubscribeSource({
+      await addSubscribeSource({
         url: result.url,
         name: result.name || result.url,
         blacklist
       })
       setSubscribeValid(true)
-      // 显示成功消息
       window.toast.success({
         title: t('settings.tool.websearch.subscribe_add_success'),
         timeout: 2000
       })
       setTimeoutTimer('handleAddSubscribe', () => setSubscribeValid(false), 3000)
-    } catch (error) {
+    } catch {
       setSubscribeValid(false)
       window.toast.error({
         title: t('settings.tool.websearch.subscribe_add_failed'),
@@ -218,16 +205,11 @@ const BlacklistSettings: FC = () => {
       setSubscribeAction(null)
     }
   }
-  function handleDeleteSubscribe() {
+
+  async function handleDeleteSubscribe() {
     try {
-      // 过滤掉被选中要删除的项目
-      const remainingSources =
-        websearch.subscribeSources?.filter((source) => !selectedRowKeys.includes(source.key)) || []
-
-      // 更新 Redux store
-      setSubscribeSources(remainingSources)
-
-      // 清空选中状态
+      const remainingSources = subscribeSources.filter((source) => !selectedRowKeys.includes(source.key))
+      await setSubscribeSources(remainingSources)
       setSelectedRowKeys([])
     } catch (error) {
       logger.error('Error deleting subscribes:', error as Error)
@@ -252,7 +234,7 @@ const BlacklistSettings: FC = () => {
           rows={4}
         />
         <div className="mt-2.5 flex justify-end">
-          <Button type="button" size="sm" variant="outline" onClick={() => updateManualBlacklist(blacklistInput)}>
+          <Button type="button" size="sm" variant="outline" onClick={() => void updateManualBlacklist(blacklistInput)}>
             {t('common.save')}
           </Button>
         </div>
@@ -283,7 +265,7 @@ const BlacklistSettings: FC = () => {
                   variant="outline"
                   loading={subscribeAction === 'update'}
                   disabled={subscribeChecking || selectedRowKeys.length === 0}
-                  onClick={updateSubscribe}>
+                  onClick={() => void updateSubscribe()}>
                   {subscribeValid ? <Check className="size-3.5" /> : <RefreshCw className="size-3.5" />}
                   {t('settings.tool.websearch.subscribe_update')}
                 </Button>
@@ -293,7 +275,7 @@ const BlacklistSettings: FC = () => {
                   variant="outline"
                   className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   disabled={subscribeChecking || selectedRowKeys.length === 0}
-                  onClick={handleDeleteSubscribe}>
+                  onClick={() => void handleDeleteSubscribe()}>
                   <Trash2 className="size-3.5" />
                   {t('settings.tool.websearch.subscribe_delete')}
                 </Button>
@@ -303,7 +285,7 @@ const BlacklistSettings: FC = () => {
                   variant="outline"
                   loading={subscribeAction === 'add'}
                   disabled={subscribeChecking}
-                  onClick={handleAddSubscribe}>
+                  onClick={() => void handleAddSubscribe()}>
                   <Plus className="size-3.5" />
                   {t('settings.tool.websearch.subscribe_add')}
                 </Button>

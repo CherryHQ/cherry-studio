@@ -2,41 +2,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
 import CutoffSettings from './CutoffSettings'
-import RagSettings from './RagSettings'
 
 const INPUT_BOX_WIDTH_CUTOFF = '200px'
-const INPUT_BOX_WIDTH_RAG = 'min(350px, 60%)'
 
 const CompressionSettings = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
+  const handleCompressionMethodChange = (value: 'none' | 'cutoff') => {
+    void updateCompressionConfig({
+      method: value,
+      cutoffLimit: value === 'cutoff' ? compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT : undefined
+    })
+  }
+
   const compressionMethodOptions = [
     { value: 'none', label: t('settings.tool.websearch.compression.method.none') },
-    { value: 'cutoff', label: t('settings.tool.websearch.compression.method.cutoff') },
-    { value: 'rag', label: t('settings.tool.websearch.compression.method.rag') }
+    { value: 'cutoff', label: t('settings.tool.websearch.compression.method.cutoff') }
   ]
-
-  const handleCompressionMethodChange = (method: 'none' | 'cutoff' | 'rag') => {
-    updateCompressionConfig({ method })
-  }
 
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.tool.websearch.compression.title')}</SettingTitle>
       <SettingDivider />
 
-      <SettingRow className="-py-2 gap-8">
+      <SettingRow className="gap-8 py-2">
         <SettingRowTitle className="shrink-0">{t('settings.tool.websearch.compression.method.label')}</SettingRowTitle>
-        <Select
-          value={compressionConfig?.method || 'none'}
-          onValueChange={(value) => handleCompressionMethodChange(value as 'none' | 'cutoff' | 'rag')}>
-          <SelectTrigger
-            style={{ width: compressionConfig?.method === 'rag' ? INPUT_BOX_WIDTH_RAG : INPUT_BOX_WIDTH_CUTOFF }}>
+        <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
+          <SelectTrigger style={{ width: INPUT_BOX_WIDTH_CUTOFF }}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -49,7 +47,6 @@ const CompressionSettings = () => {
         </Select>
       </SettingRow>
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
-      {compressionConfig?.method === 'rag' && <RagSettings />}
     </SettingGroup>
   )
 }

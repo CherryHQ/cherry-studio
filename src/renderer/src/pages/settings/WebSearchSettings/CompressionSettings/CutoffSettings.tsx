@@ -1,6 +1,7 @@
 import { InfoTooltip, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -10,11 +11,11 @@ const CutoffSettings = () => {
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
 
   const handleCutoffLimitChange = (value: number | null) => {
-    updateCompressionConfig({ cutoffLimit: value || undefined })
+    void updateCompressionConfig({ cutoffLimit: value || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT })
   }
 
   const handleCutoffUnitChange = (unit: 'char' | 'token') => {
-    updateCompressionConfig({ cutoffUnit: unit })
+    void updateCompressionConfig({ cutoffUnit: unit })
   }
 
   const unitOptions = [
@@ -44,8 +45,8 @@ const CutoffSettings = () => {
           onChange={(e) => {
             const value = e.target.value
             if (value === '') {
-              handleCutoffLimitChange(null)
-            } else if (!isNaN(Number(value)) && Number(value) > 0) {
+              handleCutoffLimitChange(DEFAULT_WEB_SEARCH_CUTOFF_LIMIT)
+            } else if (!Number.isNaN(Number(value)) && Number(value) > 0) {
               handleCutoffLimitChange(Number(value))
             }
           }}

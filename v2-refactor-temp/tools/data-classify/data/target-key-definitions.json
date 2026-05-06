@@ -48,11 +48,25 @@
       "description": "Settings page open target (v2 added, non-migration)"
     },
     {
-      "targetKey": "chat.web_search.compression.cutoff_limit",
-      "type": "number",
+      "targetKey": "chat.web_search.default_provider",
+      "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": null,
       "status": "classified",
-      "description": "Web search compression cutoff limit (from complex migration)"
+      "description": "Web search default provider id (normalized from legacy defaultProvider, unsupported legacy values collapse to null)"
+    },
+    {
+      "targetKey": "chat.web_search.subscribe_sources",
+      "type": "PreferenceTypes.WebSearchSubscribeSource[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Web search blacklist subscription sources"
+    },
+    {
+      "targetKey": "chat.web_search.compression.cutoff_limit",
+      "type": "number",
+      "defaultValue": 2000,
+      "status": "classified",
+      "description": "Web search compression cutoff limit (from complex migration; defaults when legacy value is empty)"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_unit",
@@ -67,34 +81,6 @@
       "defaultValue": "none",
       "status": "classified",
       "description": "Web search compression method (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_document_count",
-      "type": "number",
-      "defaultValue": 5,
-      "status": "classified",
-      "description": "Web search RAG document count (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_dimensions",
-      "type": "number",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding dimensions (from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_embedding_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG embedding model reference id (provider::modelId, from complex migration)"
-    },
-    {
-      "targetKey": "chat.web_search.compression.rag_rerank_model_id",
-      "type": "string",
-      "defaultValue": null,
-      "status": "classified",
-      "description": "Web search RAG rerank model reference id (provider::modelId, from complex migration)"
     },
     {
       "targetKey": "feature.code_cli.overrides",
@@ -116,6 +102,13 @@
       "defaultValue": 5,
       "status": "classified",
       "description": "Web search max results (from complex migration)"
+    },
+    {
+      "targetKey": "chat.web_search.search_with_time",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Prepend today's date to the query as a textual hint (no provider-side time filtering)"
     },
     {
       "targetKey": "chat.web_search.provider_overrides",
