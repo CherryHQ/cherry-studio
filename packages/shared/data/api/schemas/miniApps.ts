@@ -123,21 +123,4 @@ export interface MiniAppSchemas {
       response: void
     }
   }
-
-  /**
-   * Reset all builtin (default) app preferences to factory defaults.
-   * Removes all DB preference rows for type='default', restoring original status/sortOrder.
-   *
-   * TODO(I1): DELETE is semantically a resource deletion, but this endpoint is
-   * really a reset action. Consider POST /mini-apps/defaults/reset instead.
-   * Hold until a unified reorder spec is finalized.
-   *
-   * @example DELETE /mini-apps/_actions/reset-defaults
-   */
-  '/mini-apps/_actions/reset-defaults': {
-    /** Reset all default app preferences to builtin defaults */
-    DELETE: {
-      response: void
-    }
-  }
 }

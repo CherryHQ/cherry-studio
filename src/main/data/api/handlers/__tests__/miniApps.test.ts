@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByAppIdMock, updateMock, deleteMock, reorderMock, resetDefaultsMock } = vi.hoisted(
-  () => ({
-    listMock: vi.fn(),
-    createMock: vi.fn(),
-    getByAppIdMock: vi.fn(),
-    updateMock: vi.fn(),
-    deleteMock: vi.fn(),
-    reorderMock: vi.fn(),
-    resetDefaultsMock: vi.fn()
-  })
-)
+const { listMock, createMock, getByAppIdMock, updateMock, deleteMock, reorderMock } = vi.hoisted(() => ({
+  listMock: vi.fn(),
+  createMock: vi.fn(),
+  getByAppIdMock: vi.fn(),
+  updateMock: vi.fn(),
+  deleteMock: vi.fn(),
+  reorderMock: vi.fn()
+}))
 
 vi.mock('@data/services/MiniAppService', () => ({
   miniAppService: {
@@ -19,8 +16,7 @@ vi.mock('@data/services/MiniAppService', () => ({
     getByAppId: getByAppIdMock,
     update: updateMock,
     delete: deleteMock,
-    reorder: reorderMock,
-    resetDefaults: resetDefaultsMock
+    reorder: reorderMock
   }
 }))
 
@@ -276,30 +272,6 @@ describe('miniAppHandlers', () => {
       await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'custom-app' } })
 
       expect(deleteMock).toHaveBeenCalledWith('custom-app')
-    })
-  })
-
-  describe('DELETE /mini-apps/_actions/reset-defaults', () => {
-    it('should call resetDefaults exactly once', async () => {
-      resetDefaultsMock.mockResolvedValueOnce(undefined)
-
-      await miniAppHandlers['/mini-apps/_actions/reset-defaults'].DELETE({})
-
-      expect(resetDefaultsMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('should not collide with /mini-apps/:id delete', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
-      resetDefaultsMock.mockResolvedValueOnce(undefined)
-
-      // Deleting a specific app by appId
-      await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'custom-app' } })
-      // Resetting defaults
-      await miniAppHandlers['/mini-apps/_actions/reset-defaults'].DELETE({})
-
-      expect(deleteMock).toHaveBeenCalledWith('custom-app')
-      expect(resetDefaultsMock).toHaveBeenCalledTimes(1)
-      expect(deleteMock).toHaveBeenCalledTimes(1)
     })
   })
 })

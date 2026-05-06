@@ -291,18 +291,4 @@ describe('MiniAppService', () => {
       expect(result.skipped).toContain('nonexistent')
     })
   })
-
-  describe('resetDefaults', () => {
-    it('should delete all default app preference rows but preserve custom ones', async () => {
-      await seedCustomApp()
-      await seedDefaultAppPref('openai')
-      await seedDefaultAppPref('gemini', { status: 'pinned' })
-
-      await service.resetDefaults()
-
-      const rows = await dbh.db.select().from(miniAppTable)
-      expect(rows.some((r) => r.kind === 'default')).toBe(false)
-      expect(rows.some((r) => r.appId === 'custom-app')).toBe(true)
-    })
-  })
 })

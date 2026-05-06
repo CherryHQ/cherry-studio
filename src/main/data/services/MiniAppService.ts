@@ -392,19 +392,6 @@ export class MiniAppService {
     return { skipped }
   }
 
-  /**
-   * Reset all builtin (default) app preferences to factory defaults.
-   * Deletes all DB preference rows for type='default', so that subsequent
-   * list/get calls will fall back to hardcoded builtin definitions.
-   */
-  async resetDefaults(): Promise<void> {
-    await withSqliteErrors(
-      () => this.db.delete(miniAppTable).where(eq(miniAppTable.kind, 'default')),
-      defaultHandlersFor('MiniApp', 'defaults')
-    )
-    logger.info('Reset all default app preferences to factory defaults')
-  }
-
   // Private Helpers
 
   /**
