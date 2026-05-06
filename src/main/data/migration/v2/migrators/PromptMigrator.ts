@@ -26,7 +26,7 @@ const logger = loggerService.withContext('PromptMigrator')
 
 /** Legacy QuickPhrase shape from Dexie. */
 interface LegacyQuickPhrase {
-  id: string
+  id?: string
   title: string
   content: string
   createdAt: number
@@ -65,7 +65,7 @@ export class PromptMigrator extends BaseMigrator {
       }
 
       const phrases = await ctx.sources.dexieExport.readTable<LegacyQuickPhrase>('quick_phrases')
-      this.preparedPhrases = phrases.filter((p) => p.id && p.content)
+      this.preparedPhrases = phrases.filter((p) => typeof p.content === 'string' && p.content.length > 0)
       this.skippedCount = phrases.length - this.preparedPhrases.length
       this.promptCount = this.preparedPhrases.length
 

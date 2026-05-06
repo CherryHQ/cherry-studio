@@ -112,11 +112,11 @@ describe('PromptMigrator', () => {
       expect(result.warnings).toContain('quick_phrases table not found - skipping')
     })
 
-    it('should count valid phrases and skip invalid ones', async () => {
+    it('should count phrases with content and skip only invalid content', async () => {
       const ctx = createMockContext({
         tableData: [
           makePhrase({ id: 'a', content: 'valid' }),
-          makePhrase({ id: '', content: 'missing id' }), // invalid: empty id
+          makePhrase({ id: undefined, content: 'missing id' }), // valid: id is regenerated during execute
           makePhrase({ id: 'b', content: '' }), // invalid: empty content
           makePhrase({ id: 'c', content: 'also valid' })
         ]
@@ -126,8 +126,8 @@ describe('PromptMigrator', () => {
       const result = await migrator.prepare(ctx)
 
       expect(result.success).toBe(true)
-      expect(result.itemCount).toBe(2)
-      expect(result.warnings?.[0]).toMatch(/Skipped 2/)
+      expect(result.itemCount).toBe(3)
+      expect(result.warnings?.[0]).toMatch(/Skipped 1/)
     })
 
     it('should handle empty table', async () => {
@@ -412,7 +412,7 @@ describe('PromptMigrator', () => {
     it('should track skipped count in stats', async () => {
       const phrases = [
         makePhrase({ id: 'p1', content: 'valid' }),
-        makePhrase({ id: '', content: 'invalid' }) // skipped
+        makePhrase({ id: 'p2', content: '' }) // skipped
       ]
       const ctx = createMockContext({
         tableData: phrases,
