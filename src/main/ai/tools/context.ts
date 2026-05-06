@@ -18,6 +18,8 @@ export interface RequestContext {
    *  synthetic / IPC-driven invocations. */
   readonly topicId?: string
 
+  readonly assistantMessageId?: string
+
   /** The assistant making the call. Tools that need static config — e.g.
    *  `kb__search` reading `assistant.knowledgeBaseIds` — pull from here. */
   readonly assistant?: Assistant

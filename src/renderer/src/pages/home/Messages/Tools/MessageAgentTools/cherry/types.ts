@@ -77,13 +77,8 @@ export interface ShellExecInput {
 }
 
 export type ShellExecOutput =
-  | {
-      kind: 'completed'
-      exitCode: number
-      stdout: string
-      stderr: string
-      durationMs: number
-      truncated?: boolean
-    }
-  | { kind: 'timeout'; stdout: string; stderr: string; timeoutMs: number }
+  | { kind: 'running'; output: string; elapsedMs: number }
+  | { kind: 'completed'; exitCode: number; output: string; durationMs: number; truncated?: boolean }
+  | { kind: 'timed-out'; output: string; timeoutMs: number }
+  | { kind: 'auto-backgrounded'; taskId: string; partialOutput: string; elapsedMs: number }
   | { kind: 'error'; code: string; message: string }

@@ -111,7 +111,7 @@ export function createWebSearchToolEntry(): ToolEntry {
     defer: ToolDefer.Auto,
     capability: ToolCapability.Read,
     tool: webSearchTool,
-    applies: (scope) => Boolean(scope.assistant?.settings?.enableWebSearch),
+    applies: () => true,
     checkPermissions: () => ({ behavior: 'allow' })
   }
 }

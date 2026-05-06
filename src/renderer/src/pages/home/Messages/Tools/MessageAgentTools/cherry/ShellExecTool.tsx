@@ -37,15 +37,33 @@ export function ShellExecTool({
   if (output) {
     if (output.kind === 'completed') {
       stats = `exit ${output.exitCode} · ${output.durationMs}ms${output.truncated ? ' · truncated' : ''}`
-      const merged = [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ''].join('')
-      const trunc = truncateOutput(merged)
+      const trunc = truncateOutput(output.output)
       combinedText = trunc.data ?? undefined
       isTruncatedOutput = trunc.isTruncated
       originalLen = trunc.originalLength
-    } else if (output.kind === 'timeout') {
+    } else if (output.kind === 'running') {
+      stats = `running · ${output.elapsedMs}ms`
+      const trunc = truncateOutput(output.output)
+      combinedText = trunc.data ?? undefined
+      isTruncatedOutput = trunc.isTruncated
+      originalLen = trunc.originalLength
+    } else if (output.kind === 'auto-backgrounded') {
+      stats = `backgrounded · ${output.elapsedMs}ms`
+      const trunc = truncateOutput(output.partialOutput)
+      combinedText = trunc.data ?? undefined
+      isTruncatedOutput = trunc.isTruncated
+      originalLen = trunc.originalLength
+      footer = (
+        <div className="mt-1 text-muted-foreground text-xs">
+          {t(
+            'message.tools.shell_exec.backgrounded',
+            'Running in background — result will arrive as a follow-up message.'
+          )}
+        </div>
+      )
+    } else if (output.kind === 'timed-out') {
       stats = `timeout · ${output.timeoutMs}ms`
-      const merged = [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ''].join('')
-      const trunc = truncateOutput(merged)
+      const trunc = truncateOutput(output.output)
       combinedText = trunc.data ?? undefined
       isTruncatedOutput = trunc.isTruncated
       originalLen = trunc.originalLength

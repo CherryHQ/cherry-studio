@@ -2464,6 +2464,10 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "shell_exec": {
+        "backgrounded": "Running in background — result will arrive as a follow-up message.",
+        "timeout": "Timed out"
+      },
       "status": {
         "done": "Done",
         "error": "Error",

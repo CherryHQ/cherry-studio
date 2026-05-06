@@ -67,6 +67,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
+    assistantMessageId: request.messageId,
     assistant,
     provider,
     model,

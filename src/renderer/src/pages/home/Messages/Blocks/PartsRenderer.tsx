@@ -16,7 +16,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
-import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
+import { isMessageAwaitingApproval, isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
@@ -403,7 +403,12 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
     return groupSimilarParts(messageParts)
   }, [messageParts])
 
-  const isProcessing = isMessageProcessing(message)
+  // Beat loader visible while the assistant turn is still active —
+  // either streaming (status pending/processing/searching) or paused
+  // on a tool-approval-request waiting for the user. The latter is
+  // semantically "expecting input", which the loader's pulse conveys
+  // better than "frozen with no UI cue".
+  const isProcessing = isMessageProcessing(message) || isMessageAwaitingApproval(message)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder

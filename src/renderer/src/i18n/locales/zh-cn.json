@@ -2464,6 +2464,10 @@
         "stderr": "标准错误",
         "stdout": "标准输出"
       },
+      "shell_exec": {
+        "backgrounded": "已转后台运行 — 结果稍后会作为后续消息送达。",
+        "timeout": "已超时"
+      },
       "status": {
         "done": "完成",
         "error": "错误",

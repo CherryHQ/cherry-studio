@@ -15,6 +15,7 @@ import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { isMessageAwaitingApproval } from '@renderer/utils/messageUtils/is'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
@@ -129,7 +130,8 @@ const MessageItem: FC<Props> = ({
   const isAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const isProcessing = isTopicStreaming || isAwaitingApproval
   const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
-  const showMenubar = !hideMenuBar && !isEditing && !isStreamTarget
+  const isApprovalAnchor = isMessageAwaitingApproval(message)
+  const showMenubar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
