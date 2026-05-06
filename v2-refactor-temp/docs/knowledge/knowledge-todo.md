@@ -21,11 +21,6 @@
   - 后续需要补齐 provider / model runtime 解析和实际 rerank 调用链。
   - 参考：`src/main/services/knowledge/rerank/rerank.ts`
 
-- 明确并落实 `threshold` 的搜索语义。
-  - 当前配置可持久化，但搜索调用主要使用 `mode` / `topK` / `alpha`，未按 threshold 过滤结果。
-  - 后续要决定是在 runtime 过滤、UI 隐藏该配置，还是重新定义其含义。
-  - 参考：`src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
-
 - 为 chunk / RAG 配置变更提供明确 reindex 流程。
   - `chunkSize` / `chunkOverlap` 可更新，但不会自动重建已有 chunk 和向量。
   - 后续需要在 UI 中明确提示并触发 reindex，避免配置与旧索引长期不一致。
