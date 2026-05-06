@@ -3,8 +3,8 @@
  *
  * Mirrors {@link providers}.ts: thin handler that dispatches to {@link MiniAppService}.
  * Service enforces all row-shape policy (preset-row delete guard, preset-id
- * collision rejection on create). Preset re-sync is handled by
- * {@link MiniAppRegistryService.syncPresets} at boot/admin, not here.
+ * collision rejection on create). Preset re-sync is handled by calling
+ * {@link MiniAppService.batchUpsertPresets} at boot/admin, not here.
  *
  * All input validation (Zod) happens here at the system boundary.
  */

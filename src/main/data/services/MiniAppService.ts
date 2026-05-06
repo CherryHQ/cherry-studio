@@ -3,9 +3,9 @@
  *
  * Owns the `mini_app` SQLite table. Mirrors {@link ProviderService}:
  * uniform CRUD over rows, with row-shape policy enforced via column checks
- * (`presetMiniappId`). Preset re-sync uses {@link batchUpsert}, which respects
- * `userOverrides` so user edits survive preset version bumps — same mechanism
- * as {@link ModelService.batchUpsert}.
+ * (`presetMiniappId`). Preset re-sync uses {@link batchUpsertPresets}, which
+ * respects `userOverrides` so user edits survive preset version bumps — same
+ * mechanism as {@link ModelService.batchUpsert}.
  *
  * Layered preset pattern: see best-practice-layered-preset-pattern.md
  *   - presetMiniappId !== null  →  inherits from a {@link PRESETS_MINI_APPS} entry
@@ -291,8 +291,7 @@ export class MiniAppService {
    *   in each row's `userOverrides`. This preserves user edits across preset
    *   version bumps — same mechanism as {@link ModelService.batchUpsert}.
    *
-   * Called by {@link MiniAppRegistryService.syncPresets} at boot or admin time;
-   * not exposed via the API.
+   * Called at boot or admin time; not exposed via the API.
    */
   async batchUpsertPresets(): Promise<void> {
     const db = this.db
