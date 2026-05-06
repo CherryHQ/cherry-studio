@@ -33,6 +33,10 @@ export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
 
+export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
+export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
+export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
+
 export const KNOWLEDGE_BASE_STATUSES = ['completed', 'failed'] as const
 export const KnowledgeBaseStatusSchema = z.enum(KNOWLEDGE_BASE_STATUSES)
 export type KnowledgeBaseStatus = z.infer<typeof KnowledgeBaseStatusSchema>
@@ -359,6 +363,8 @@ export type KnowledgeSourceMetadata = Pick<KnowledgeChunkMetadata, 'source'>
 export const KnowledgeSearchResultSchema = z.strictObject({
   pageContent: z.string(),
   score: z.number(),
+  scoreKind: KnowledgeSearchScoreKindSchema,
+  rank: z.number().int().positive(),
   metadata: KnowledgeChunkMetadataSchema,
   itemId: z.string().optional(),
   chunkId: z.string()

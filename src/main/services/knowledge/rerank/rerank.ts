@@ -24,10 +24,11 @@ function mergeRerankResults(
         return undefined
       }
 
-      return { ...result, score }
+      return { ...result, score, scoreKind: 'relevance' as const }
     })
     .filter((result): result is KnowledgeSearchResult => result !== undefined)
     .sort((a, b) => b.score - a.score)
+    .map((result, index) => ({ ...result, rank: index + 1 }))
 }
 
 export async function resolveRerankRuntime(base: KnowledgeBase): Promise<ResolvedRerankRuntime | null> {

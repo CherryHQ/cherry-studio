@@ -2268,7 +2268,8 @@
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
         "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
-        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter."
+        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
+        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
       },
       "hybrid_alpha": "Hybrid Alpha",
       "hybrid_alpha_hint": "Only configurable in Hybrid retrieval mode",
@@ -2298,6 +2299,9 @@
       "history_title": "Search History",
       "placeholder": "Enter test query...",
       "result_count": "{{count}} results",
+      "result_rank": "Rank #{{rank}}",
+      "result_relevance": "Relevance {{score}}",
+      "ranking_only": "Ordered results",
       "searching": "Searching...",
       "submit": "Search",
       "top_score": "Top: {{score}}"

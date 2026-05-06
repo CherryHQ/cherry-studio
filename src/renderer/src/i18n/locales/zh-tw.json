@@ -2268,7 +2268,8 @@
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
-        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。"
+        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
+        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
       "hybrid_alpha": "Hybrid Alpha",
       "hybrid_alpha_hint": "仅在 Hybrid 检索模式下可配置",
@@ -2298,6 +2299,9 @@
       "history_title": "搜索历史",
       "placeholder": "输入测试 Query...",
       "result_count": "{{count}} 个结果",
+      "result_rank": "排序 #{{rank}}",
+      "result_relevance": "相关度 {{score}}",
+      "ranking_only": "按排序返回",
       "searching": "正在检索...",
       "submit": "检索",
       "top_score": "最高: {{score}}"

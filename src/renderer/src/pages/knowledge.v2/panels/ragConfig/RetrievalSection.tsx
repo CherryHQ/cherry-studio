@@ -39,6 +39,7 @@ const RetrievalSection = ({
 }: RetrievalSectionProps) => {
   const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
+  const usesRelevanceThreshold = searchMode === 'default'
 
   return (
     <section className="space-y-2.5">
@@ -59,7 +60,9 @@ const RetrievalSection = ({
 
       <RagSliderField
         label={t('knowledge_v2.rag.threshold')}
-        hint={t('knowledge_v2.rag.hints.threshold')}
+        hint={t(
+          usesRelevanceThreshold ? 'knowledge_v2.rag.hints.threshold' : 'knowledge_v2.rag.hints.threshold_disabled'
+        )}
         value={threshold}
         onValueChange={onThresholdChange}
         min={0}
@@ -68,6 +71,7 @@ const RetrievalSection = ({
         minLabel="0.0"
         maxLabel="1.0"
         formatValue={(value) => value.toFixed(1)}
+        disabled={!usesRelevanceThreshold}
       />
 
       <div>

@@ -51,7 +51,8 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
 
   const historyQueries = historyQueriesByBaseId[baseId] ?? []
   const historyItems = historyQueries.map((query) => ({ id: query, query }))
-  const topScore = results.reduce((score, item) => Math.max(score, item.score), 0)
+  const scoreKind = results[0]?.scoreKind ?? null
+  const topScore = scoreKind === 'relevance' ? results.reduce((score, item) => Math.max(score, item.score), 0) : 0
 
   const runSearch = async () => {
     const trimmedQuery = query.trim()
@@ -113,7 +114,8 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       hasSearched,
       results,
       duration,
-      topScore
+      topScore,
+      scoreKind
     },
     actions: {
       setQuery,

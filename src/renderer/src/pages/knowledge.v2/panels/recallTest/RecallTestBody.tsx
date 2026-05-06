@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import RecallResultCard from './RecallResultCard'
 import { useRecallTest } from './RecallTestProvider'
-import { formatRecallScore } from './utils'
+import { formatRecallPercent, formatRecallScore } from './utils'
 
 const RecallResultSummary = () => {
   const { t } = useTranslation()
   const {
-    state: { results, duration, topScore }
+    state: { results, duration, topScore, scoreKind }
   } = useRecallTest()
 
   return (
@@ -21,7 +21,13 @@ const RecallResultSummary = () => {
         <Clock className="size-2" />
         {t('knowledge_v2.recall.duration', { duration })}
       </span>
-      <span>{t('knowledge_v2.recall.top_score', { score: formatRecallScore(topScore) })}</span>
+      <span>
+        {scoreKind === 'ranking'
+          ? t('knowledge_v2.recall.ranking_only')
+          : t('knowledge_v2.recall.top_score', {
+              score: results.length === 0 ? formatRecallScore(topScore) : formatRecallPercent(topScore)
+            })}
+      </span>
     </div>
   )
 }

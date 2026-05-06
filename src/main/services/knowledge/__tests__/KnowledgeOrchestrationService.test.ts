@@ -824,6 +824,8 @@ describe('KnowledgeOrchestrationService', () => {
       {
         pageContent: 'hello',
         score: 0.9,
+        scoreKind: 'relevance' as const,
+        rank: 1,
         metadata: {
           itemId: 'note-1',
           itemType: 'note',

@@ -9,6 +9,7 @@ export const prependHistoryQuery = (queries: string[], query: string) => {
 }
 
 export const formatRecallScore = (score: number) => score.toFixed(2)
+export const formatRecallPercent = (score: number) => `${Math.round(Math.max(0, Math.min(score, 1)) * 100)}%`
 
 export const mapRecallResult = (result: KnowledgeSearchResult): RecallResultItem => {
   return {
@@ -17,6 +18,8 @@ export const mapRecallResult = (result: KnowledgeSearchResult): RecallResultItem
     chunkIndex: result.metadata.chunkIndex,
     tokenCount: result.metadata.tokenCount,
     score: result.score,
+    scoreKind: result.scoreKind,
+    rank: result.rank,
     content: result.pageContent,
     plainText: result.pageContent
   }

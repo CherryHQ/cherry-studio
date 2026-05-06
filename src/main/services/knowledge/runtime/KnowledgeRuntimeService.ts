@@ -31,8 +31,10 @@ import { chunkDocuments } from '../utils/chunk'
 import { embedDocuments } from '../utils/embed'
 import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model'
+import { mapChunkDocument } from './utils/chunks'
 import { deleteItemVectors, deleteVectorsForEntries, failItems } from './utils/cleanup'
 import { prepareKnowledgeItem } from './utils/prepare'
+import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeRuntimeService')
 
@@ -50,21 +52,6 @@ type QueueTaskLogContext = {
   baseId: string
   itemId: string
   kind: KnowledgeQueueTaskEntry['kind']
-}
-
-const mapChunkDocument = (chunk: {
-  id_: string
-  metadata: unknown
-  getContent: (mode?: MetadataMode) => string
-}): KnowledgeItemChunk => {
-  const metadata = KnowledgeChunkMetadataSchema.parse(chunk.metadata ?? {})
-
-  return {
-    id: chunk.id_,
-    itemId: metadata.itemId,
-    content: chunk.getContent(MetadataMode.NONE),
-    metadata
-  }
 }
 
 const assertNeverKnowledgeItem = (item: never): never => {
@@ -253,12 +240,15 @@ export class KnowledgeRuntimeService extends BaseService {
       alpha: base.hybridAlpha
     })
     const nodes = results.nodes ?? []
+    const scoreKind = getInitialSearchScoreKind(base)
     const searchResults = nodes.map((node, index) => {
       const metadata = KnowledgeChunkMetadataSchema.parse(node.metadata ?? {})
 
       return {
         pageContent: node.getContent(MetadataMode.NONE),
         score: results.similarities[index] ?? 0,
+        scoreKind,
+        rank: index + 1,
         metadata,
         itemId: metadata.itemId,
         chunkId: node.id_
@@ -266,10 +256,11 @@ export class KnowledgeRuntimeService extends BaseService {
     })
 
     if (base.rerankModelId) {
-      return await rerankKnowledgeSearchResults(base, query, searchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, searchResults)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return searchResults
+    return withSearchRanks(applyRelevanceThreshold(searchResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {

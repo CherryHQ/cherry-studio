@@ -22,6 +22,8 @@ const realSearchResults = [
   {
     pageContent: 'real result from file name',
     score: 0.98,
+    scoreKind: 'relevance',
+    rank: 1,
     metadata: {
       itemId: 'item-1',
       itemType: 'file',
@@ -34,7 +36,9 @@ const realSearchResults = [
   },
   {
     pageContent: 'real result from file path',
-    score: 76,
+    score: 0.76,
+    scoreKind: 'relevance',
+    rank: 2,
     metadata: {
       itemId: 'item-2',
       itemType: 'file',
@@ -85,7 +89,7 @@ vi.mock('@data/hooks/useCache', async () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number; duration?: number; score?: number | string }) =>
+    t: (key: string, options?: { count?: number; duration?: number; score?: number | string; rank?: number }) =>
       (
         ({
           'knowledge_v2.recall.collapse': '收起片段',
@@ -99,6 +103,9 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.recall.history_title': '搜索历史',
           'knowledge_v2.recall.placeholder': '输入测试 Query...',
           'knowledge_v2.recall.result_count': `${options?.count ?? 0} 个结果`,
+          'knowledge_v2.recall.result_rank': `排序 #${options?.rank ?? 0}`,
+          'knowledge_v2.recall.result_relevance': `相关度 ${options?.score ?? 0}`,
+          'knowledge_v2.recall.ranking_only': '按排序返回',
           'knowledge_v2.recall.searching': '正在检索...',
           'knowledge_v2.recall.submit': '检索',
           'knowledge_v2.recall.top_score': `最高: ${options?.score ?? 0}`
@@ -223,14 +230,14 @@ describe('RecallTestPanel', () => {
     })
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
     expect(screen.getByText('123ms')).toBeInTheDocument()
-    expect(screen.getByText('最高: 76.00')).toBeInTheDocument()
+    expect(screen.getByText('最高: 98%')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '复制片段' })).toHaveLength(2)
     expect(screen.getByText('/Users/test/Downloads/真实文档.pdf')).toBeInTheDocument()
     expect(screen.getByText('/Users/test/Downloads/路径文档.md')).toBeInTheDocument()
     expect(screen.getByText('#3')).toBeInTheDocument()
     expect(screen.getByText('#2')).toBeInTheDocument()
-    expect(screen.getByText('0.98')).toBeInTheDocument()
-    expect(screen.getByText('76.00')).toBeInTheDocument()
+    expect(screen.getByText('相关度 98%')).toBeInTheDocument()
+    expect(screen.getByText('相关度 76%')).toBeInTheDocument()
     expect(screen.getByText('real result from file name')).toBeInTheDocument()
     expect(screen.getByText('real result from file path')).toBeInTheDocument()
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
@@ -380,5 +387,36 @@ describe('RecallTestPanel', () => {
     expect(screen.getByText('最高: 0.00')).toBeInTheDocument()
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '复制片段' })).not.toBeInTheDocument()
+  })
+
+  it('renders ranking-only recall results without percentage scores', async () => {
+    mockKnowledgeRuntimeSearch.mockResolvedValueOnce([
+      {
+        ...realSearchResults[0],
+        score: 12.345,
+        scoreKind: 'ranking',
+        rank: 1
+      },
+      {
+        ...realSearchResults[1],
+        score: 3.21,
+        scoreKind: 'ranking',
+        rank: 2
+      }
+    ])
+
+    render(<RecallTestPanel baseId="base-1" />)
+
+    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
+      target: { value: '关键词检索' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('按排序返回')).toBeInTheDocument()
+    })
+    expect(screen.getByText('排序 #1')).toBeInTheDocument()
+    expect(screen.getByText('排序 #2')).toBeInTheDocument()
+    expect(screen.queryByText('相关度 1235%')).not.toBeInTheDocument()
   })
 })

@@ -67,7 +67,8 @@ vi.mock('@cherrystudio/ui', async () => {
       min,
       max,
       step,
-      disabled
+      disabled,
+      ...props
     }: {
       value: number[]
       onValueChange?: (value: number[]) => void
@@ -75,8 +76,10 @@ vi.mock('@cherrystudio/ui', async () => {
       max?: number
       step?: number
       disabled?: boolean
+      [key: string]: unknown
     }) => (
       <input
+        {...props}
         type="range"
         min={min}
         max={max}
@@ -138,6 +141,7 @@ vi.mock('react-i18next', () => ({
           'knowledge_v2.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
           'knowledge_v2.rag.hints.document_count': '每次召回返回的最大文档片段数。',
           'knowledge_v2.rag.hints.threshold': '过滤低相关片段的相似度阈值。',
+          'knowledge_v2.rag.hints.threshold_disabled': '该检索模式按排序返回结果，不使用相似度阈值。',
           'knowledge_v2.rag.hints.search_mode': '选择召回方式。',
           'knowledge_v2.rag.hints.hybrid_alpha': '混合检索中向量得分的权重。',
           'knowledge_v2.rag.hints.rerank_model': '对初步召回结果重新排序的模型。',
@@ -371,5 +375,7 @@ describe('RagConfigPanel', () => {
     )
 
     expect(screen.getByText('Hybrid Alpha')).toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: '相似度阈值' })).toBeDisabled()
+    expect(screen.getByRole('tooltip', { name: '该检索模式按排序返回结果，不使用相似度阈值。' })).toBeInTheDocument()
   })
 })

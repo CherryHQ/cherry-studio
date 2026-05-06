@@ -184,6 +184,7 @@ export const RagSliderField = ({
 
       <div className={disabled ? 'opacity-50' : undefined}>
         <Slider
+          aria-label={label}
           value={[value]}
           onValueChange={(nextValue) => onValueChange(nextValue[0] ?? min)}
           min={min}

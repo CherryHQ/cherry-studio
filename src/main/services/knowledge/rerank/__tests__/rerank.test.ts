@@ -54,6 +54,8 @@ function createSearchResults(): KnowledgeSearchResult[] {
     {
       pageContent: 'alpha',
       score: 0.1,
+      scoreKind: 'ranking',
+      rank: 1,
       metadata: {
         itemId: 'item-1',
         itemType: 'note',
@@ -66,6 +68,8 @@ function createSearchResults(): KnowledgeSearchResult[] {
     {
       pageContent: 'beta',
       score: 0.2,
+      scoreKind: 'ranking',
+      rank: 2,
       metadata: {
         itemId: 'item-2',
         itemType: 'note',
@@ -190,9 +194,16 @@ describe('knowledge rerank runtime', () => {
         }
       })
     )
-    expect(result.map((item) => ({ chunkId: item.chunkId, score: item.score }))).toEqual([
-      { chunkId: 'chunk-2', score: 0.9 },
-      { chunkId: 'chunk-1', score: 0.2 }
+    expect(
+      result.map((item) => ({
+        chunkId: item.chunkId,
+        score: item.score,
+        scoreKind: item.scoreKind,
+        rank: item.rank
+      }))
+    ).toEqual([
+      { chunkId: 'chunk-2', score: 0.9, scoreKind: 'relevance', rank: 1 },
+      { chunkId: 'chunk-1', score: 0.2, scoreKind: 'relevance', rank: 2 }
     ])
   })
 

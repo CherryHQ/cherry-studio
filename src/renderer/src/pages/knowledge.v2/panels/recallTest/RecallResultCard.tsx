@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { RecallResultItem } from './types'
-import { formatRecallScore } from './utils'
+import { formatRecallPercent } from './utils'
 
 interface RecallResultCardProps {
   item: RecallResultItem
@@ -14,6 +14,10 @@ interface RecallResultCardProps {
 const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
+  const scoreLabel =
+    item.scoreKind === 'relevance'
+      ? t('knowledge_v2.recall.result_relevance', { score: formatRecallPercent(item.score) })
+      : t('knowledge_v2.recall.result_rank', { rank: item.rank })
 
   const copyContent = async () => {
     await navigator.clipboard?.writeText(item.plainText).catch(() => undefined)
@@ -37,8 +41,8 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
               style={{ width: `${item.scorePercent}%` }}
             />
           </div> */}
-          <span className="w-10 text-right text-[0.5625rem] text-muted-foreground/50 tabular-nums leading-3.375">
-            {formatRecallScore(item.score)}
+          <span className="w-16 text-right text-[0.5625rem] text-muted-foreground/50 tabular-nums leading-3.375">
+            {scoreLabel}
           </span>
         </div>
         <Button

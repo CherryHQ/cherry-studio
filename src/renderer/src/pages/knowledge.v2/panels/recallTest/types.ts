@@ -1,3 +1,5 @@
+import type { KnowledgeSearchScoreKind } from '@shared/data/types/knowledge'
+
 export interface RecallHistoryItem {
   id: string
   query: string
@@ -9,6 +11,8 @@ export interface RecallResultItem {
   chunkIndex: number
   tokenCount: number
   score: number
+  scoreKind: KnowledgeSearchScoreKind
+  rank: number
   content: string
   plainText: string
 }
@@ -22,6 +26,7 @@ export interface RecallTestState {
   results: RecallResultItem[]
   duration: number
   topScore: number
+  scoreKind: KnowledgeSearchScoreKind | null
 }
 
 export interface RecallTestActions {

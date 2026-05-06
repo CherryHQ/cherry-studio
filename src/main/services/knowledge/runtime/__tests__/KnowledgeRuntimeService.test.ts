@@ -151,6 +151,21 @@ vi.mock('../utils/prepare', () => ({
 
 const { KnowledgeRuntimeService } = await import('..')
 
+function createSearchNode(id: string, score: number, chunkIndex = 0) {
+  return {
+    id_: id,
+    score,
+    metadata: {
+      itemId: `item-${id}`,
+      itemType: 'note',
+      source: `note-${id}`,
+      chunkIndex,
+      tokenCount: 2
+    },
+    getContent: vi.fn(() => `content ${id}`)
+  }
+}
+
 function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
@@ -1518,6 +1533,62 @@ describe('KnowledgeRuntimeService', () => {
     expect(vectorStoreQueryMock).not.toHaveBeenCalled()
   })
 
+  it('marks vector search scores as relevance and filters them by threshold', async () => {
+    const service = new KnowledgeRuntimeService()
+    const base = { ...createBase(), searchMode: 'default' as const, threshold: 0.7 }
+    const lowNode = createSearchNode('chunk-low', 0.6, 0)
+    const highNode = createSearchNode('chunk-high', 0.8, 1)
+
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(base)
+    vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [lowNode, highNode], similarities: [0.6, 0.8] })
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      {
+        pageContent: 'content chunk-high',
+        score: 0.8,
+        scoreKind: 'relevance',
+        rank: 1,
+        metadata: highNode.metadata,
+        itemId: 'item-chunk-high',
+        chunkId: 'chunk-high'
+      }
+    ])
+  })
+
+  it.each(['bm25', 'hybrid'] as const)(
+    'marks %s search scores as ranking and does not filter by threshold',
+    async (searchMode) => {
+      const service = new KnowledgeRuntimeService()
+      const base = { ...createBase(), searchMode, threshold: 0.7 }
+      const firstNode = createSearchNode(`${searchMode}-first`, 0.2, 0)
+      const secondNode = createSearchNode(`${searchMode}-second`, 0.1, 1)
+
+      knowledgeBaseGetByIdMock.mockResolvedValueOnce(base)
+      vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [firstNode, secondNode], similarities: [0.2, 0.1] })
+
+      await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+        {
+          pageContent: `content ${searchMode}-first`,
+          score: 0.2,
+          scoreKind: 'ranking',
+          rank: 1,
+          metadata: firstNode.metadata,
+          itemId: `item-${searchMode}-first`,
+          chunkId: `${searchMode}-first`
+        },
+        {
+          pageContent: `content ${searchMode}-second`,
+          score: 0.1,
+          scoreKind: 'ranking',
+          rank: 2,
+          metadata: secondNode.metadata,
+          itemId: `item-${searchMode}-second`,
+          chunkId: `${searchMode}-second`
+        }
+      ])
+    }
+  )
+
   it('reranks search results when the base has a rerank model', async () => {
     const service = new KnowledgeRuntimeService()
     const base = { ...createBase(), rerankModelId: 'openai::rerank-model' }
@@ -1536,6 +1607,8 @@ describe('KnowledgeRuntimeService', () => {
       {
         pageContent: 'hello world',
         score: 0.99,
+        scoreKind: 'relevance' as const,
+        rank: 1,
         metadata: node.metadata,
         itemId: 'note-1',
         chunkId: 'chunk-1'
@@ -1546,12 +1619,14 @@ describe('KnowledgeRuntimeService', () => {
     vectorStoreQueryMock.mockResolvedValueOnce({ nodes: [node], similarities: [0.8] })
     rerankKnowledgeSearchResultsMock.mockResolvedValueOnce(reranked)
 
-    await expect(service.search('kb-1', 'hello')).resolves.toBe(reranked)
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual(reranked)
 
     expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(base, 'hello', [
       {
         pageContent: 'hello world',
         score: 0.8,
+        scoreKind: 'ranking',
+        rank: 1,
         metadata: node.metadata,
         itemId: 'note-1',
         chunkId: 'chunk-1'
