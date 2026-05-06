@@ -31,6 +31,8 @@ import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('WebSearchService')
 
+export type WebSearchAvailability = boolean | 'unknown'
+
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
   | 'chat.web_search.default_provider'
@@ -124,23 +126,14 @@ export class WebSearchService {
   }
 
   /**
-   * 获取当前存储的网络搜索状态
-   * @private
-   * @returns 网络搜索状态
-   */
-  private getWebSearchState(): WebSearchState | null {
-    return getCachedRendererWebSearchState()
-  }
-
-  /**
    * 检查网络搜索功能是否启用
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
-  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
+  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): WebSearchAvailability {
     const providers = getCachedRendererWebSearchProviders()
     if (!providers) {
-      return false
+      return 'unknown'
     }
 
     const provider = providers.find((provider) => provider.id === providerId)
@@ -154,17 +147,6 @@ export class WebSearchService {
     }
 
     return Boolean(provider.apiHost?.trim())
-  }
-
-  /**
-   * @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用
-   *
-   * 检查是否启用覆盖搜索
-   * @public
-   * @returns 如果启用覆盖搜索则返回true，否则返回false
-   */
-  public isOverwriteEnabled(): boolean {
-    return this.getWebSearchState()?.overwrite ?? false
   }
 
   /**
@@ -261,14 +243,12 @@ export class WebSearchService {
 
     return rawResults.map((result) => {
       if (config.cutoffUnit === 'token') {
-        // 使用 token 截断
         const slicedContent = sliceByTokens(result.content, 0, perResultLimit)
         return {
           ...result,
           content: slicedContent.length < result.content.length ? slicedContent + '...' : slicedContent
         }
       } else {
-        // 使用字符截断（默认行为）
         return {
           ...result,
           content:
@@ -300,10 +280,8 @@ export class WebSearchService {
     extractResults: ExtractResults,
     requestId: string
   ): Promise<WebSearchProviderResponse> {
-    // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
 
-    // 检查 websearch 和 question 是否有效
     if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
       logger.info('No valid question found in extractResults.websearch')
       return { results: [] }
@@ -328,7 +306,6 @@ export class WebSearchService {
     const questions = extractResults.websearch.question
     const links = extractResults.websearch.links
 
-    // 处理 summarize
     if (questions[0] === 'summarize' && links && links.length > 0) {
       const contents = await fetchWebContents(links, undefined, undefined, {
         signal
@@ -432,13 +409,11 @@ export class WebSearchService {
 
     const { compressionConfig } = await getRendererWebSearchState()
 
-    // 截断压缩处理
     if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
       await this.setWebSearchStatus(requestId, { phase: 'cutoff' }, 500)
       finalResults = await this.compressWithCutoff(finalResults, compressionConfig)
     }
 
-    // 重置状态
     await this.setWebSearchStatus(requestId, { phase: 'default' })
 
     if (webSearchProvider.topicId) {
@@ -584,7 +559,6 @@ export function buildRendererWebSearchState(preferences: WebSearchPreferenceValu
     maxResults: Math.max(1, maxResults),
     excludeDomains,
     subscribeSources,
-    overwrite: false,
     compressionConfig: {
       method: compressionMethod,
       cutoffLimit: normalizeWebSearchCutoffLimit(cutoffLimit),

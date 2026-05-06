@@ -19,6 +19,5 @@ export type WebSearchState = {
   maxResults: number
   excludeDomains: string[]
   subscribeSources: WebSearchSubscribeSource[]
-  overwrite: false
   compressionConfig: RendererCompressionConfig
 }

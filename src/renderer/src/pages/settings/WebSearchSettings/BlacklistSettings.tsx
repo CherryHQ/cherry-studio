@@ -210,17 +210,19 @@ const BlacklistSettings: FC = () => {
     }
     setSubscribeChecking(false)
   }
-  function handleDeleteSubscribe() {
+  async function handleDeleteSubscribe() {
     try {
-      // 过滤掉被选中要删除的项目
       const remainingSources = subscribeSources.filter((source) => !selectedRowKeys.includes(source.key))
 
-      void setSubscribeSources(remainingSources)
+      await setSubscribeSources(remainingSources)
 
-      // 清空选中状态
       setSelectedRowKeys([])
     } catch (error) {
       logger.error('Error deleting subscribes:', error as Error)
+      window.toast.error({
+        title: t('error.diagnosis.unknown'),
+        timeout: 2000
+      })
     }
   }
 

@@ -127,19 +127,29 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     const items: QuickPanelListItem[] = []
     items.push(
       ...providers
-        .map((p) => ({
-          label: p.name,
-          description: webSearchService.isWebSearchEnabled(p.id)
-            ? webSearchProviderRequiresApiKey(p.id)
-              ? t('settings.tool.websearch.apikey')
-              : t('settings.tool.websearch.free')
-            : t('chat.input.web_search.enable_content'),
-          icon: <WebSearchProviderIcon size={13} pid={p.id} />,
-          isSelected: p.id === assistant?.webSearchProviderId,
-          disabled: !webSearchService.isWebSearchEnabled(p.id),
-          action: () => updateQuickPanelItem(p.id)
-        }))
-        .filter((item) => !item.disabled)
+        .map((p) => {
+          const availability = webSearchService.isWebSearchEnabled(p.id)
+          return {
+            availability,
+            item: {
+              label: p.name,
+              description:
+                availability === 'unknown'
+                  ? t('common.loading')
+                  : availability
+                    ? webSearchProviderRequiresApiKey(p.id)
+                      ? t('settings.tool.websearch.apikey')
+                      : t('settings.tool.websearch.free')
+                    : t('chat.input.web_search.enable_content'),
+              icon: <WebSearchProviderIcon size={13} pid={p.id} />,
+              isSelected: p.id === assistant?.webSearchProviderId,
+              disabled: availability === 'unknown',
+              action: () => updateQuickPanelItem(p.id)
+            }
+          }
+        })
+        .filter(({ availability }) => availability !== false)
+        .map(({ item }) => item)
     )
 
     if (isWebSearchModelEnabled) {

@@ -85,7 +85,6 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           }
         }
 
-        // 检查是否需要搜索
         if (finalQueries.length === 0 || finalQueries[0] === 'not_needed') {
           return { query: '', results: [] }
         }

@@ -45,7 +45,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
-      updateProvider({ apiKey })
+      void updateProvider({ apiKey })
     }
   }
 
@@ -55,7 +55,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       trimmedHost = trimmedHost.slice(0, -1)
     }
     if (trimmedHost !== provider.apiHost) {
-      updateProvider({ apiHost: trimmedHost })
+      void updateProvider({ apiHost: trimmedHost })
     } else {
       setApiHost(provider.apiHost || '')
     }
@@ -65,7 +65,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthUsername || ''
     const savedValue = provider.basicAuthUsername || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthUsername })
+      void updateProvider({ basicAuthUsername })
     } else {
       setBasicAuthUsername(provider.basicAuthUsername || '')
     }
@@ -75,7 +75,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     const currentValue = basicAuthPassword || ''
     const savedValue = provider.basicAuthPassword || ''
     if (currentValue !== savedValue) {
-      updateProvider({ basicAuthPassword })
+      void updateProvider({ basicAuthPassword })
     } else {
       setBasicAuthPassword(provider.basicAuthPassword || '')
     }
@@ -141,18 +141,17 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const providerLogo = getWebSearchProviderLogo(providerId)
 
-  // Check if this provider is already the default
   const isDefault = defaultProvider?.id === provider.id
 
   const needsApiKey = webSearchProviderRequiresApiKey(provider.id)
   const supportsBasicAuth = webSearchProviderSupportsBasicAuth(provider.id)
   const hasApiKey = apiKey.split(',').some((key) => key.trim() !== '')
   const canCheckSearch = !apiChecking && (!needsApiKey || hasApiKey)
-  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id)
+  const canSetAsDefault = !isDefault && webSearchService.isWebSearchEnabled(provider.id) === true
 
   const handleSetAsDefault = () => {
     if (canSetAsDefault) {
-      setDefaultProvider(provider)
+      void setDefaultProvider(provider)
     }
   }
 

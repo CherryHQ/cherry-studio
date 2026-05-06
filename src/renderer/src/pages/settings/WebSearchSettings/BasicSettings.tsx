@@ -59,12 +59,17 @@ const BasicSettings: FC = () => {
       return
     }
 
-    if (!webSearchService.isWebSearchEnabled(provider.id)) {
+    const availability = webSearchService.isWebSearchEnabled(provider.id)
+    if (availability === 'unknown') {
+      return
+    }
+
+    if (!availability) {
       openProviderSettings(provider)
       return
     }
 
-    setDefaultProvider(provider)
+    void setDefaultProvider(provider)
   }
 
   const renderProviderLabel = (provider: WebSearchProvider) => {

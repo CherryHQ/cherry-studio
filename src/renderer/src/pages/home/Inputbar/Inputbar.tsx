@@ -461,7 +461,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
         isMandatoryWebSearchModel: isMandatoryWebSearchModel(model),
         isProviderOverridesLoaded: isWebSearchProviderOverridesLoaded,
         isSelectedProviderEnabled: assistant.webSearchProviderId
-          ? webSearchService.isWebSearchEnabled(assistant.webSearchProviderId)
+          ? webSearchService.isWebSearchEnabled(assistant.webSearchProviderId) === true
           : false
       })
     ) {

@@ -289,6 +289,15 @@ describe('webSearchPreferences', () => {
     expect(getCachedRendererWebSearchState()).toBeNull()
   })
 
+  it('reports unknown provider availability while provider overrides cache is cold', () => {
+    vi.mocked(preferenceService.isCached).mockReturnValue(false)
+    vi.mocked(preferenceService.getCachedValue).mockReturnValue(undefined)
+
+    const service = new WebSearchService()
+
+    expect(service.isWebSearchEnabled('tavily')).toBe('unknown')
+  })
+
   it.each([
     {
       name: 'requires an API key even when the preset has a host',

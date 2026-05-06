@@ -1,5 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { filterSupportedWebSearchProviders } from '@renderer/config/webSearchProviders'
 import {
   buildRendererWebSearchState,
@@ -11,7 +12,19 @@ import {
 import type { WebSearchProvider, WebSearchProviderId, WebSearchState } from '@renderer/types'
 import type { UnifiedPreferenceType, WebSearchSubscribeSource } from '@shared/data/preference/preferenceTypes'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
+import { t } from 'i18next'
 import { useMemo } from 'react'
+
+const logger = loggerService.withContext('useWebSearchProviders')
+
+async function safeSetWebSearchPreference(action: string, update: () => Promise<void>): Promise<void> {
+  try {
+    await update()
+  } catch (error) {
+    logger.error(`Failed to update web search preference: ${action}`, error as Error)
+    window.toast.error(t('error.diagnosis.unknown'))
+  }
+}
 
 function resolveRendererWebSearchProviders(
   providerOverrides: UnifiedPreferenceType['chat.web_search.provider_overrides']
@@ -25,7 +38,7 @@ export const useDefaultWebSearchProvider = () => {
   const provider = defaultProviderId ? providers.find((item) => item.id === defaultProviderId) : undefined
 
   const setDefaultProvider = (nextProvider: WebSearchProvider) => {
-    void setDefaultProviderId(nextProvider.id)
+    return safeSetWebSearchPreference('defaultProvider', () => setDefaultProviderId(nextProvider.id))
   }
 
   return { provider, setDefaultProvider, updateDefaultProvider: setDefaultProvider }
@@ -38,13 +51,18 @@ export const useWebSearchProviders = () => {
   return {
     providers: resolvedProviders,
     updateWebSearchProviders: (nextProviders: WebSearchProvider[]) => {
-      void setProviderOverrides(buildWebSearchProviderOverrides(nextProviders))
+      return safeSetWebSearchPreference('providerOverrides', () =>
+        setProviderOverrides(buildWebSearchProviderOverrides(nextProviders))
+      )
     },
     addWebSearchProvider: (provider: WebSearchProvider) => {
       const exists = resolvedProviders.some((item) => item.id === provider.id)
       if (!exists) {
-        void setProviderOverrides(buildWebSearchProviderOverrides([...resolvedProviders, provider]))
+        return safeSetWebSearchPreference('providerOverrides', () =>
+          setProviderOverrides(buildWebSearchProviderOverrides([...resolvedProviders, provider]))
+        )
       }
+      return Promise.resolve()
     }
   }
 }
@@ -61,7 +79,9 @@ export const useWebSearchProvider = (id: WebSearchProviderId) => {
   return {
     provider,
     updateProvider: (updates: Partial<WebSearchProvider>) => {
-      void setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, id, updates))
+      return safeSetWebSearchPreference('providerOverride', () =>
+        setProviderOverrides(updateWebSearchProviderOverride(providerOverrides, id, updates))
+      )
     }
   }
 }
@@ -107,20 +127,24 @@ export const useWebSearchSettings = (): WebSearchState & {
   return {
     ...state,
     setMaxResults: async (value: number) => {
-      await setPreferences({ maxResults: value })
+      await safeSetWebSearchPreference('maxResults', () => setPreferences({ maxResults: value }))
     },
     setSearchWithTime: async (value: boolean) => {
-      await setPreferences({ searchWithTime: value })
+      await safeSetWebSearchPreference('searchWithTime', () => setPreferences({ searchWithTime: value }))
     },
     setCompressionConfig: async (config) => {
-      await setCompressionPreferences(config, state.compressionConfig)
+      await safeSetWebSearchPreference('compressionConfig', () =>
+        setCompressionPreferences(config, state.compressionConfig)
+      )
     },
     updateCompressionConfig: async (config) => {
       const nextConfig = {
         ...state.compressionConfig,
         ...config
       }
-      await setCompressionPreferences(nextConfig, state.compressionConfig)
+      await safeSetWebSearchPreference('compressionConfig', () =>
+        setCompressionPreferences(nextConfig, state.compressionConfig)
+      )
     }
   }
 }
