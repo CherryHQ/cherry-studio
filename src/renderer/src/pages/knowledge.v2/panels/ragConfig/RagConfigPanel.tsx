@@ -30,7 +30,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
         <div
           className="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3"
           data-testid="rag-failed-state">
-          <div className="text-[0.6875rem] font-medium text-destructive leading-4">
+          <div className="font-medium text-[0.6875rem] text-destructive leading-4">
             {t('knowledge_v2.status.failed')}
           </div>
           <p className="mt-1 text-[0.6875rem] text-muted-foreground leading-4">{failureReason}</p>

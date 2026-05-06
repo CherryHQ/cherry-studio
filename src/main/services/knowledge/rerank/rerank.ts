@@ -17,18 +17,18 @@ function mergeRerankResults(
     rerankResults.map((result) => [result.index, result.relevanceScore || DEFAULT_RELEVANT_SCORE])
   )
 
-  return searchResults
-    .map((result, index) => {
-      const score = resultMap.get(index)
-      if (score === undefined) {
-        return undefined
-      }
+  const rerankedResults: KnowledgeSearchResult[] = []
 
-      return { ...result, score, scoreKind: 'relevance' as const }
-    })
-    .filter((result): result is KnowledgeSearchResult => result !== undefined)
-    .sort((a, b) => b.score - a.score)
-    .map((result, index) => ({ ...result, rank: index + 1 }))
+  for (const [index, result] of searchResults.entries()) {
+    const score = resultMap.get(index)
+    if (score === undefined) {
+      continue
+    }
+
+    rerankedResults.push({ ...result, score, scoreKind: 'relevance' })
+  }
+
+  return rerankedResults.sort((a, b) => b.score - a.score).map((result, index) => ({ ...result, rank: index + 1 }))
 }
 
 export async function resolveRerankRuntime(base: KnowledgeBase): Promise<ResolvedRerankRuntime | null> {

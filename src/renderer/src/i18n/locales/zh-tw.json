@@ -2298,10 +2298,10 @@
       "history_remove": "删除历史",
       "history_title": "搜索历史",
       "placeholder": "输入测试 Query...",
+      "ranking_only": "按排序返回",
       "result_count": "{{count}} 个结果",
       "result_rank": "排序 #{{rank}}",
       "result_relevance": "相关度 {{score}}",
-      "ranking_only": "按排序返回",
       "searching": "正在检索...",
       "submit": "检索",
       "top_score": "最高: {{score}}"

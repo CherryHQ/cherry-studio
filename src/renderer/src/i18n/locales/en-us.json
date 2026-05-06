@@ -2298,10 +2298,10 @@
       "history_remove": "Remove History",
       "history_title": "Search History",
       "placeholder": "Enter test query...",
+      "ranking_only": "Ordered results",
       "result_count": "{{count}} results",
       "result_rank": "Rank #{{rank}}",
       "result_relevance": "Relevance {{score}}",
-      "ranking_only": "Ordered results",
       "searching": "Searching...",
       "submit": "Search",
       "top_score": "Top: {{score}}"
