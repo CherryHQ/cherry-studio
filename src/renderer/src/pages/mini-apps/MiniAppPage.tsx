@@ -11,6 +11,7 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
@@ -21,6 +22,7 @@ import WebviewSearch from './components/WebviewSearch'
 const logger = loggerService.withContext('MiniAppPage')
 
 const MiniAppPage: FC = () => {
+  const { t } = useTranslation()
   const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
   const { openMiniAppKeepAlive, miniAppsCache } = useMiniAppPopup()
@@ -183,7 +185,7 @@ const MiniAppPage: FC = () => {
     return (
       <ShellContainer>
         <LoadingMask>
-          <ErrorText>{isNotFound ? 'App not found' : 'Failed to load app'}</ErrorText>
+          <ErrorText>{t(isNotFound ? 'miniapp.error.not_found' : 'miniapp.error.load_failed')}</ErrorText>
         </LoadingMask>
       </ShellContainer>
     )

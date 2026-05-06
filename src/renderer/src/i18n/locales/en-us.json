@@ -2503,6 +2503,10 @@
   "miniapp": {
     "add_to_launchpad": "Add to Launchpad",
     "add_to_sidebar": "Add to Sidebar",
+    "error": {
+      "load_failed": "Failed to load app",
+      "not_found": "App not found"
+    },
     "popup": {
       "close": "Close MiniApp",
       "devtools": "Developer Tools",

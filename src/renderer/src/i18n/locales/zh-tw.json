@@ -2503,6 +2503,10 @@
   "miniapp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
+    "error": {
+      "load_failed": "應用載入失敗",
+      "not_found": "應用未找到"
+    },
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
