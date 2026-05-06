@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type {
   ResolvedWebSearchProvider,
@@ -8,6 +9,7 @@ import type {
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { postProcessWebSearchResponse } from './postProcessing'
 import type { WebSearchProviderDriver } from './providers/factory'
@@ -33,7 +35,20 @@ type PreparedWebSearchContext = {
   capability: WebSearchCapability
 }
 
-class WebSearchService {
+@Injectable('WebSearchService')
+@ServicePhase(Phase.WhenReady)
+export class WebSearchService extends BaseService {
+  protected onInit(): void {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.WebSearch_SearchKeywords, (_, request: WebSearchSearchKeywordsRequest) =>
+      this.searchKeywords(request)
+    )
+    this.ipcHandle(IpcChannel.WebSearch_FetchUrls, (_, request: WebSearchFetchUrlsRequest) => this.fetchUrls(request))
+  }
+
   private async prepareContext(request: RunCapabilityRequest): Promise<PreparedWebSearchContext> {
     const preferenceService = application.get('PreferenceService')
     const [provider, runtimeConfig] = await Promise.all([
@@ -165,5 +180,3 @@ class WebSearchService {
     )
   }
 }
-
-export const webSearchService = new WebSearchService()

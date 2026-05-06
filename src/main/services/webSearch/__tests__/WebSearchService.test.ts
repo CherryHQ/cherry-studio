@@ -1,9 +1,12 @@
+import { BaseService } from '@main/core/lifecycle'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
   WebSearchResponse
 } from '@shared/data/types/webSearch'
+import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as WebSearchProviderFactoryModule from '../providers/factory'
@@ -34,7 +37,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { webSearchService } from '../WebSearchService'
+import { WebSearchService } from '../WebSearchService'
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
@@ -137,10 +140,46 @@ function setWebSearchPreferences(
 }
 
 describe('WebSearchService', () => {
+  let webSearchService: WebSearchService
+
   beforeEach(() => {
+    BaseService.resetInstances()
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
     setWebSearchPreferences()
+    webSearchService = new WebSearchService()
+  })
+
+  it('registers IPC handlers for keyword search and URL fetching', async () => {
+    const keywordResponse = response('tavily', 'searchKeywords', 'hello', [
+      { title: 'Hello', content: 'ok', url: 'https://hello.test' }
+    ])
+    const fetchResponse = response('fetch', 'fetchUrls', 'https://example.com', [
+      { title: 'Example', content: 'ok', url: 'https://example.com' }
+    ])
+    const searchKeywordsSpy = vi.spyOn(webSearchService, 'searchKeywords').mockResolvedValue(keywordResponse)
+    const fetchUrlsSpy = vi.spyOn(webSearchService, 'fetchUrls').mockResolvedValue(fetchResponse)
+
+    await webSearchService._doInit()
+
+    expect(ipcMain.handle).toHaveBeenCalledWith(IpcChannel.WebSearch_SearchKeywords, expect.any(Function))
+    expect(ipcMain.handle).toHaveBeenCalledWith(IpcChannel.WebSearch_FetchUrls, expect.any(Function))
+
+    const searchKeywordsHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([channel]) => channel === IpcChannel.WebSearch_SearchKeywords)?.[1]
+    const fetchUrlsHandler = vi
+      .mocked(ipcMain.handle)
+      .mock.calls.find(([channel]) => channel === IpcChannel.WebSearch_FetchUrls)?.[1]
+
+    await expect(searchKeywordsHandler?.({} as any, { keywords: ['hello'] })).resolves.toBe(keywordResponse)
+    await expect(fetchUrlsHandler?.({} as any, { urls: ['https://example.com'] })).resolves.toBe(fetchResponse)
+    expect(searchKeywordsSpy).toHaveBeenCalledWith({ keywords: ['hello'] })
+    expect(fetchUrlsSpy).toHaveBeenCalledWith({ urls: ['https://example.com'] })
+
+    await webSearchService._doStop()
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.WebSearch_SearchKeywords)
+    expect(ipcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.WebSearch_FetchUrls)
   })
 
   it('uses the keyword default provider and returns service-owned response metadata', async () => {

@@ -154,7 +154,11 @@
  */
 
 import { loggerService } from '@logger'
-import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
+import type {
+  WebSearchProviderId,
+  WebSearchProviderOverride,
+  WebSearchProviderOverrides
+} from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
@@ -209,9 +213,40 @@ function getPresetCapability(
   return preset.capabilities.find((capability) => capability.feature === feature)
 }
 
+const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = new Set<WebSearchProviderId>(
+  PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)
+)
+
+function isSupportedWebSearchProviderId(value: string): value is WebSearchProviderId {
+  return SUPPORTED_WEB_SEARCH_PROVIDER_IDS.has(value as WebSearchProviderId)
+}
+
 // ============================================================================
 // WebSearch Transformers
 // ============================================================================
+
+/**
+ * Normalize the legacy default web search provider into the v2 keyword-search
+ * default provider key.
+ *
+ * Unsupported legacy ids, removed local providers, and empty strings are all
+ * treated as "no default provider selected" to keep the migrated Preference
+ * compatible with the curated preset list.
+ */
+export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
+  const defaultProvider = sources.defaultProvider?.trim()
+
+  if (defaultProvider && !isSupportedWebSearchProviderId(defaultProvider)) {
+    logger.warn('Unsupported legacy web-search default provider dropped during v2 migration', {
+      providerId: defaultProvider
+    })
+  }
+
+  return {
+    'chat.web_search.default_search_keywords_provider':
+      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
+  }
+}
 
 /**
  * WebSearch compression config source type
