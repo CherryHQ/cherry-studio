@@ -65,6 +65,7 @@ const PromptSettings: FC = () => {
 
     try {
       await deletePrompt({ params: { id: deletePromptId } })
+      setDeletePromptId(null)
     } catch {
       // handled by useMutation onError
     }
@@ -142,45 +143,46 @@ const PromptSettings: FC = () => {
                 {t('message.error.unknown')}
               </div>
             ) : (
-              <DraggableList
-                list={reversedPrompts}
-                onUpdate={handleDraggableUpdate}
-                style={{ paddingBottom: dragging ? '34px' : 0 }}
-                onDragStart={() => setDragging(true)}
-                onDragEnd={() => setDragging(false)}>
-                {(prompt) => (
-                  <FileItem
-                    key={prompt.id}
-                    fileInfo={{
-                      name: prompt.title,
-                      ext: '.txt',
-                      extra: (
-                        <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
-                          <span>
-                            {prompt.content.slice(0, 80)}
-                            {prompt.content.length > 80 ? '...' : ''}
-                          </span>
-                        </div>
-                      ),
-                      actions: (
-                        <Flex className="gap-1 opacity-60">
-                          <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
-                            <EditIcon size={14} />
-                          </Button>
-                          <Button
-                            key="delete"
-                            variant="ghost"
-                            onClick={() => handleDelete(prompt.id)}
-                            size="icon"
-                            loading={isDeletingPrompt && deletePromptId === prompt.id}>
-                            <DeleteIcon size={14} className="lucide-custom" />
-                          </Button>
-                        </Flex>
-                      )
-                    }}
-                  />
-                )}
-              </DraggableList>
+              <div className={dragging ? 'pb-[34px]' : 'pb-0'}>
+                <DraggableList
+                  list={reversedPrompts}
+                  onUpdate={handleDraggableUpdate}
+                  onDragStart={() => setDragging(true)}
+                  onDragEnd={() => setDragging(false)}>
+                  {(prompt) => (
+                    <FileItem
+                      key={prompt.id}
+                      fileInfo={{
+                        name: prompt.title,
+                        ext: '.txt',
+                        extra: (
+                          <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
+                            <span>
+                              {prompt.content.slice(0, 80)}
+                              {prompt.content.length > 80 ? '...' : ''}
+                            </span>
+                          </div>
+                        ),
+                        actions: (
+                          <Flex className="gap-1 opacity-60">
+                            <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
+                              <EditIcon size={14} />
+                            </Button>
+                            <Button
+                              key="delete"
+                              variant="ghost"
+                              onClick={() => handleDelete(prompt.id)}
+                              size="icon"
+                              loading={isDeletingPrompt && deletePromptId === prompt.id}>
+                              <DeleteIcon size={14} className="lucide-custom" />
+                            </Button>
+                          </Flex>
+                        )
+                      }}
+                    />
+                  )}
+                </DraggableList>
+              </div>
             )}
           </div>
         </SettingRow>

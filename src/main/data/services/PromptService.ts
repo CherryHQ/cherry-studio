@@ -63,21 +63,19 @@ export class PromptService {
   }
 
   async create(dto: CreatePromptDto): Promise<Prompt> {
-    return this.db.transaction(async (tx) => {
-      const inserted = await insertWithOrderKey(
-        tx,
-        promptTable,
-        {
-          title: dto.title,
-          content: dto.content
-        },
-        { pkColumn: promptTable.id }
-      )
-      const row = inserted as typeof promptTable.$inferSelect
+    const inserted = await insertWithOrderKey(
+      this.db,
+      promptTable,
+      {
+        title: dto.title,
+        content: dto.content
+      },
+      { pkColumn: promptTable.id }
+    )
+    const row = inserted as typeof promptTable.$inferSelect
 
-      logger.info('Created prompt', { id: row.id, title: dto.title })
-      return rowToPrompt(row)
-    })
+    logger.info('Created prompt', { id: row.id, title: dto.title })
+    return rowToPrompt(row)
   }
 
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
