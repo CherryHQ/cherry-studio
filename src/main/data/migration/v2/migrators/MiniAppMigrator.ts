@@ -2,6 +2,9 @@
  * MiniApp migrator - migrates miniapp configurations from Redux to SQLite
  */
 
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
 import { miniAppTable } from '@data/db/schemas/miniapp'
 import { loggerService } from '@logger'
@@ -61,6 +64,12 @@ export class MiniAppMigrator extends BaseMigrator {
       // Calculate original source count (total apps before filtering/deduplication)
       this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
 
+      // v1 strips `logo` to undefined before persisting custom apps to Redux state
+      // (see v1 src/renderer/src/store/minapps.ts reducers). The full custom-app
+      // record — including logo — lives in {userData}/Data/Files/custom-minapps.json
+      // and is reattached at runtime. Re-read it here so logos survive migration.
+      const customLogosByAppId = await loadCustomMiniAppLogos(ctx.paths.userData)
+
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
       const seenIds = new Map<string, MiniAppRowWithoutOrderKey>()
@@ -80,6 +89,11 @@ export class MiniAppMigrator extends BaseMigrator {
           }
 
           try {
+            // Reattach logo for custom apps from custom-minapps.json (v1 strips it from Redux).
+            if (!app.logo && customLogosByAppId.has(app.id)) {
+              app.logo = customLogosByAppId.get(app.id)
+            }
+
             const row = transformMiniApp(app, status)
 
             // All rows must have name and url populated (full data + delta tracking).
@@ -224,4 +238,43 @@ export class MiniAppMigrator extends BaseMigrator {
       }
     }
   }
+}
+
+/**
+ * Load `{userData}/Data/Files/custom-minapps.json` and return a map from app id
+ * to its logo string. Tolerant of missing/malformed files — returns an empty map.
+ */
+async function loadCustomMiniAppLogos(userData: string | undefined): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (!userData) return result
+  const file = path.join(userData, 'Data', 'Files', 'custom-minapps.json')
+  let raw: string
+  try {
+    raw = await fs.readFile(file, 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn('Failed to read custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
+    }
+    return result
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    logger.warn('Failed to parse custom-minapps.json', err instanceof Error ? err : new Error(String(err)))
+    return result
+  }
+  if (!Array.isArray(parsed)) return result
+  for (const entry of parsed) {
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as Record<string, unknown>).id === 'string' &&
+      typeof (entry as Record<string, unknown>).logo === 'string'
+    ) {
+      const { id, logo } = entry as { id: string; logo: string }
+      if (logo.length > 0) result.set(id, logo)
+    }
+  }
+  return result
 }

@@ -1,3 +1,7 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { miniAppTable } from '@data/db/schemas/miniapp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -160,6 +164,46 @@ describe('MiniAppMigrator', () => {
       expect(result.itemCount).toBe(1)
       expect(result.warnings).toBeDefined()
       expect(result.warnings!.length).toBeGreaterThan(0)
+    })
+
+    it('should reattach custom-app logos from custom-minapps.json (v1 strips logo from Redux)', async () => {
+      // Set up a temporary userData dir with a real custom-minapps.json on disk.
+      const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))
+      const filesDir = path.join(tmpUserData, 'Data', 'Files')
+      await fs.mkdir(filesDir, { recursive: true })
+      await fs.writeFile(
+        path.join(filesDir, 'custom-minapps.json'),
+        JSON.stringify([
+          {
+            id: 'bilibili',
+            name: '哔哩哔哩',
+            url: 'https://bilibili.com',
+            logo: 'https://b.cdn/logo.ico',
+            type: 'Custom'
+          }
+        ])
+      )
+
+      try {
+        const ctx = createTestContext(
+          {
+            minapps: {
+              // v1 reducer strips logo to undefined before persisting to Redux.
+              enabled: [{ id: 'bilibili', name: '哔哩哔哩', url: 'https://bilibili.com', type: 'Custom' }]
+            }
+          },
+          dbh.db
+        ) as any
+        ctx.paths = { userData: tmpUserData }
+
+        await migrator.prepare(ctx)
+        await migrator.execute(ctx)
+
+        const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'bilibili'))
+        expect(row.logo).toBe('https://b.cdn/logo.ico')
+      } finally {
+        await fs.rm(tmpUserData, { recursive: true, force: true })
+      }
     })
 
     it('should handle empty arrays in status groups', async () => {
