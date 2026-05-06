@@ -89,10 +89,14 @@ export class MiniAppSeeder implements ISeeder {
         }
       }
 
-      await db.insert(miniAppTable).values(insertRow).onConflictDoUpdate({
-        target: miniAppTable.appId,
-        set: refreshSet
-      })
+      if (Object.keys(refreshSet).length === 0) {
+        await db.insert(miniAppTable).values(insertRow).onConflictDoNothing()
+      } else {
+        await db.insert(miniAppTable).values(insertRow).onConflictDoUpdate({
+          target: miniAppTable.appId,
+          set: refreshSet
+        })
+      }
     }
   }
 }
