@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { useEnsureTags, useTagList } from './adapters/tagAdapter'
-import { DEFAULT_TAG_COLOR } from './constants'
+import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_ORDER } from './constants'
 import SkillDetailPage from './detail/skill/SkillDetailPage'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
@@ -17,7 +17,6 @@ import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
 import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
-import PendingBackendNotice from './list/PendingBackendNotice'
 import { ResourceGrid } from './list/ResourceGrid'
 import {
   ASSISTANT_CATALOG_MY_TAB,
@@ -35,6 +34,8 @@ type ConfigView =
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
   | { type: 'skill-detail'; skill: InstalledSkill }
+
+const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
 
 /**
  * Build the top-bar chip list.
@@ -62,8 +63,7 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 export default function LibraryPage() {
   const { t } = useTranslation()
   const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>({
-    type: 'resource',
-    resourceType: 'agent'
+    resourceType: DEFAULT_RESOURCE_TYPE
   })
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -75,11 +75,11 @@ export default function LibraryPage() {
   const [previewAssistantPreset, setPreviewAssistantPreset] = useState<AssistantCatalogPreset | null>(null)
   const [previewAssistantPresetAdding, setPreviewAssistantPresetAdding] = useState(false)
 
-  const activeResourceType = sidebarFilter.type === 'resource' ? sidebarFilter.resourceType : undefined
+  const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
   const isAssistantCatalogMine = !isAssistantLibrary || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
 
-  const { resources, allResources, typeCounts, pendingBackend, refetch } = useResourceLibrary({
+  const { resources, allResources, typeCounts, refetch } = useResourceLibrary({
     sidebarFilter,
     activeTag: isAssistantCatalogMine ? activeTag : null,
     search: isAssistantCatalogMine ? search : '',
@@ -330,7 +330,7 @@ export default function LibraryPage() {
         onFilterChange={(f) => {
           setSidebarFilter(f)
           setActiveTag(null)
-          if (f.type !== 'resource' || f.resourceType !== 'assistant') {
+          if (f.resourceType !== 'assistant') {
             setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
           }
         }}
@@ -338,10 +338,9 @@ export default function LibraryPage() {
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {pendingBackend && <PendingBackendNotice />}
         <ResourceGrid
           resources={resources}
-          activeResourceType={activeResourceType ?? 'agent'}
+          activeResourceType={activeResourceType}
           search={search}
           onSearchChange={setSearch}
           onEdit={handleEdit}

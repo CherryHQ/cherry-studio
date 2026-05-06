@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { RESOURCE_TYPE_ORDER } from '../constants'
 import LibraryPage from '../LibraryPage'
 
 const refetchSpy = vi.fn()
@@ -44,12 +45,9 @@ vi.mock('../list/useResourceLibrary', () => ({
   useResourceLibrary: () => ({
     resources: [],
     allResources: [],
-    allTagsFromBackend: [],
     isLoading: false,
     isRefreshing: false,
     error: undefined,
-    pendingBackend: false,
-    pendingBackendTypes: [],
     typeCounts: {
       assistant: 0,
       agent: 0,
@@ -61,10 +59,6 @@ vi.mock('../list/useResourceLibrary', () => ({
 
 vi.mock('../list/LibrarySidebar', () => ({
   LibrarySidebar: () => <div data-testid="library-sidebar" />
-}))
-
-vi.mock('../list/PendingBackendNotice', () => ({
-  default: () => <div data-testid="pending-backend-notice" />
 }))
 
 vi.mock('../list/DeleteConfirmDialog', () => ({
@@ -80,8 +74,14 @@ vi.mock('../list/ImportSkillDialog', () => ({
 }))
 
 vi.mock('../list/ResourceGrid', () => ({
-  ResourceGrid: ({ onCreate }: { onCreate: (type: 'assistant' | 'agent') => void }) => (
-    <div data-testid="resource-grid">
+  ResourceGrid: ({
+    activeResourceType,
+    onCreate
+  }: {
+    activeResourceType: 'assistant' | 'agent' | 'skill'
+    onCreate: (type: 'assistant' | 'agent' | 'skill') => void
+  }) => (
+    <div data-testid="resource-grid" data-resource-type={activeResourceType}>
       <button type="button" onClick={() => onCreate('assistant')}>
         create assistant
       </button>
@@ -121,6 +121,12 @@ vi.mock('../editor/agent/AgentConfigPage', () => ({
 describe('LibraryPage create flow', () => {
   beforeEach(() => {
     refetchSpy.mockReset()
+  })
+
+  it('uses the first sidebar resource type as the initial grid filter', () => {
+    render(<LibraryPage />)
+
+    expect(screen.getByTestId('resource-grid')).toHaveAttribute('data-resource-type', RESOURCE_TYPE_ORDER[0])
   })
 
   it('returns to the list and refetches after assistant creation succeeds', async () => {

@@ -217,7 +217,6 @@ export function useAssistantPresetCatalog({ activeTab, search, mineCount, enable
 
   return {
     tabs,
-    presets: filteredPresets,
-    isSystemTab: activeTab !== ASSISTANT_CATALOG_MY_TAB
+    presets: filteredPresets
   }
 }

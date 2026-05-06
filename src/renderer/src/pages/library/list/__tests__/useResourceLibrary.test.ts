@@ -57,7 +57,7 @@ function createTag(id: string, name: string): Tag {
 function renderResourceLibrary(options: Partial<Parameters<typeof useResourceLibrary>[0]> = {}) {
   return renderHook(() =>
     useResourceLibrary({
-      sidebarFilter: { type: 'resource', resourceType: 'assistant' },
+      sidebarFilter: { resourceType: 'assistant' },
       activeTag: null,
       search: '',
       sort: 'updatedAt',
@@ -139,7 +139,7 @@ describe('useResourceLibrary model display names', () => {
     expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
   })
 
-  it('uses global tag refs for skill resource cards instead of source metadata tags', () => {
+  it('uses global tags for skill resource cards instead of source metadata tags', () => {
     const productivity = createTag('tag-1', '生产力')
     mocks.useSkillList.mockReturnValue(
       listResult([
@@ -163,12 +163,11 @@ describe('useResourceLibrary model display names', () => {
     )
 
     const { result } = renderResourceLibrary({
-      sidebarFilter: { type: 'resource', resourceType: 'skill' }
+      sidebarFilter: { resourceType: 'skill' }
     })
     const skill = result.current.allResources.find((resource) => resource.type === 'skill')
 
     expect(skill?.tags).toEqual(['生产力'])
-    expect(skill?.tagRefs).toEqual([productivity])
   })
 
   it('passes skill search and tag filters to the backend without local filtering', () => {
@@ -216,7 +215,7 @@ describe('useResourceLibrary model display names', () => {
     })
 
     const { result } = renderResourceLibrary({
-      sidebarFilter: { type: 'resource', resourceType: 'skill' },
+      sidebarFilter: { resourceType: 'skill' },
       activeTag: '生产力',
       search: ' summary '
     })

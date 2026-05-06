@@ -57,11 +57,3 @@ export function getRandomTagColor(): string {
   const idx = Math.floor(Math.random() * TAG_COLOR_PALETTE.length)
   return TAG_COLOR_PALETTE[idx]
 }
-
-/**
- * Resource types whose DataApi backend is not yet wired. Empty today —
- * assistant / agent / skill all have working `useQuery(...)` adapters. Kept
- * around so future resource types can opt-in to the `<PendingBackendNotice />`
- * banner without re-introducing the constant.
- */
-export const PENDING_BACKEND_TYPES: ReadonlySet<ResourceType> = new Set()

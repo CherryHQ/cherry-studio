@@ -20,12 +20,6 @@ const ITEM_CLASS =
 export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }) => {
   const { t } = useTranslation()
 
-  const isActive = (f: LibrarySidebarFilter) => {
-    if (filter.type === 'resource' && f.type === 'resource') return filter.resourceType === f.resourceType
-    if (filter.type === 'tag' && f.type === 'tag') return filter.tagName === f.tagName
-    return false
-  }
-
   return (
     <div className="flex min-h-0 w-[200px] shrink-0 flex-col border-sidebar-border border-r bg-sidebar">
       {/* Header */}
@@ -46,8 +40,8 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
               <MenuItem
                 key={resourceType}
                 size="sm"
-                active={isActive({ type: 'resource', resourceType })}
-                onClick={() => onFilterChange({ type: 'resource', resourceType })}
+                active={filter.resourceType === resourceType}
+                onClick={() => onFilterChange({ resourceType })}
                 icon={<Icon size={16} strokeWidth={1.6} />}
                 label={t(meta.labelKey)}
                 suffix={

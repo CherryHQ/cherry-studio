@@ -25,7 +25,7 @@ interface Props {
  * assistant.
  */
 const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
   const bases = useMemo(() => data?.items ?? [], [data])
 
@@ -45,7 +45,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
     const keyword = search.trim().toLowerCase()
     const unlinked = bases.filter((b) => !value.includes(b.id) && (!keyword || b.name.toLowerCase().includes(keyword)))
     return { linkedItems: linked, unlinkedItems: unlinked }
-  }, [bases, i18n.resolvedLanguage, search, t, value])
+  }, [bases, search, t, value])
 
   const remove = (id: string) => onChange(value.filter((x) => x !== id))
   const add = (id: string) => {

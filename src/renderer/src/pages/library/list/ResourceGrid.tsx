@@ -516,7 +516,6 @@ interface CardItemProps {
 }
 
 function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
-  const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
   // Skills get the type-specific tinted background to match the menu icon;
   // assistants / agents fall back to the neutral accent block.
@@ -541,17 +540,10 @@ function GridCard({ resource: r, index, onEdit, onOpenMenu }: CardItemProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h4 className="truncate text-foreground text-sm">{r.name}</h4>
-              {r.hasUpdate && (
-                <Badge variant="secondary" className="shrink-0 border-0 bg-warning/10 px-1 py-px text-warning text-xs">
-                  {t('library.badge.update')}
-                </Badge>
-              )}
             </div>
-            {(r.model || r.version) && (
+            {r.model && (
               <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="min-w-0 flex-1 truncate text-muted-foreground/50 text-xs">
-                  {[r.model, r.version && `v${r.version}`].filter(Boolean).join(' ')}
-                </span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground/50 text-xs">{r.model}</span>
               </div>
             )}
           </div>

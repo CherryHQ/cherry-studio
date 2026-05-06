@@ -7,7 +7,6 @@ import { agentAdapter } from '../adapters/agentAdapter'
 import { assistantAdapter } from '../adapters/assistantAdapter'
 import { skillAdapter } from '../adapters/skillAdapter'
 import { useTagList } from '../adapters/tagAdapter'
-import { PENDING_BACKEND_TYPES } from '../constants'
 import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
 
 function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
@@ -27,12 +26,9 @@ export interface UseResourceLibraryOptions {
 export interface UseResourceLibraryResult {
   resources: ResourceItem[]
   allResources: ResourceItem[]
-  allTagsFromBackend: Tag[]
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  pendingBackend: boolean
-  pendingBackendTypes: ResourceType[]
   typeCounts: Record<ResourceType, number>
   refetch: () => void
 }
@@ -58,14 +54,14 @@ export function useResourceLibrary({
   const baseAgents = agentAdapter.useList()
   const skills = skillAdapter.useList()
 
-  // Resolve tag names to ids primarily from the embedded `tagRefs` we already
+  // Resolve tag names to ids primarily from the embedded tags we already
   // have on base data — every chip the user can click was rendered from a
   // resource in this set, so its id is guaranteed to be here. Falling back to
   // `useTagList()` alone would race: if `/tags` is slow or fails after the user
   // clicks a chip, we'd send `tagIds: undefined` and silently show the full
   // unfiltered list. `tagList.tags` only fills in for tags that exist
-  // server-side but aren't bound to any visible resource yet (sidebar `tag`
-  // mode), so it stays as a tail fallback.
+  // server-side but aren't bound to any visible resource yet, so it stays as a
+  // tail fallback.
   const tagIdByName = useMemo(() => {
     const map = new Map<string, string>()
     const collect = (refs: Tag[] | undefined) => {
@@ -83,30 +79,28 @@ export function useResourceLibrary({
   // arrays are forbidden by the backend schema (`tagIds.min(1)`), so we drop
   // the param when nothing resolves rather than sending a 400.
   const tagIds = useMemo(() => {
-    const names = [activeTag, sidebarFilter.type === 'tag' ? sidebarFilter.tagName : null].filter((x): x is string =>
-      Boolean(x)
-    )
+    const names = [activeTag].filter((x): x is string => Boolean(x))
     if (names.length === 0) return undefined
     const ids = names.flatMap((name) => {
       const id = tagIdByName.get(name)
       return id ? [id] : []
     })
     return ids.length > 0 ? ids : undefined
-  }, [activeTag, sidebarFilter, tagIdByName])
+  }, [activeTag, tagIdByName])
 
   // Defensive guard for the rare race where the user has a chip selected but
   // we can't resolve its id (e.g. base data reset between click and filter
   // resolve, or the tag was deleted server-side). Without this, the filtered
   // query would degrade to "no tag filter" and surface every resource —
   // misleading for a user who explicitly picked a tag.
-  const hasUnresolvedTagSelection = (Boolean(activeTag) || sidebarFilter.type === 'tag') && tagIds === undefined
+  const hasUnresolvedTagSelection = Boolean(activeTag) && tagIds === undefined
 
   const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
   const filteredAgents = agentAdapter.useList({ search: trimmedSearch, tagIds })
   // Skip the filtered fetch when skills are not displayed (sidebar pinned to
   // assistant or agent). With no args the adapter shares the same cache key
   // as the unfiltered `skills` call above, so we don't pay an extra request.
-  const skillsVisible = sidebarFilter.type !== 'resource' || sidebarFilter.resourceType === 'skill'
+  const skillsVisible = sidebarFilter.resourceType === 'skill'
   const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch, tagIds } : undefined)
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
@@ -124,8 +118,6 @@ export function useResourceLibrary({
       // bound model row was removed.
       model: a.modelName ?? undefined,
       tags: tags.map((t) => t.name),
-      tagRefs: tags,
-      enabled: true,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       raw: a
@@ -143,8 +135,6 @@ export function useResourceLibrary({
       avatar: avatarFromConfig || '🤖',
       model: a.modelName ?? undefined,
       tags: tags.map((t) => t.name),
-      tagRefs: tags,
-      enabled: true,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       raw: a
@@ -160,17 +150,10 @@ export function useResourceLibrary({
       description: s.description ?? '',
       // No emoji on InstalledSkill — fall back to the lightning glyph.
       avatar: '⚡',
-      author: s.author ?? undefined,
-      source: s.source,
       // `tags` are user-bound global tags from entity_tag. Skill metadata
       // tags from SKILL.md live on `sourceTags` and are intentionally not used
       // for resource-library filtering.
       tags: tags.map((t) => t.name),
-      tagRefs: tags,
-      // The library list is global (no agentId), so `isEnabled` is forced to
-      // false on the wire. Show every skill as available; per-agent toggling
-      // happens inside the agent editor.
-      enabled: true,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       raw: s
@@ -207,25 +190,13 @@ export function useResourceLibrary({
     // an unfiltered grid. See `hasUnresolvedTagSelection` above.
     if (hasUnresolvedTagSelection) return []
 
-    // Pick the active resource bucket. Sidebar's `tag` mode is currently
-    // unused (no UI dispatches it), but we honor the type union by falling
-    // back to the union of all server-filtered results.
     let list: ResourceItem[]
-    if (sidebarFilter.type === 'resource') {
-      if (sidebarFilter.resourceType === 'assistant') list = filteredAssistantItems
-      else if (sidebarFilter.resourceType === 'agent') list = filteredAgentItems
-      else list = skillItems
-    } else {
-      list = [...filteredAssistantItems, ...filteredAgentItems, ...skillItems]
-    }
+    if (sidebarFilter.resourceType === 'assistant') list = filteredAssistantItems
+    else if (sidebarFilter.resourceType === 'agent') list = filteredAgentItems
+    else list = skillItems
 
     return [...list].sort((a, b) => compareItems(a, b, sort))
   }, [hasUnresolvedTagSelection, sidebarFilter, filteredAssistantItems, filteredAgentItems, skillItems, sort])
-
-  const pendingBackend = useMemo(() => {
-    if (sidebarFilter.type === 'resource') return PENDING_BACKEND_TYPES.has(sidebarFilter.resourceType)
-    return false
-  }, [sidebarFilter])
 
   const isLoading =
     baseAssistants.isLoading ||
@@ -262,12 +233,9 @@ export function useResourceLibrary({
   return {
     resources,
     allResources,
-    allTagsFromBackend: tagList.tags,
     isLoading,
     isRefreshing,
     error,
-    pendingBackend,
-    pendingBackendTypes: Array.from(PENDING_BACKEND_TYPES),
     typeCounts,
     refetch
   }
