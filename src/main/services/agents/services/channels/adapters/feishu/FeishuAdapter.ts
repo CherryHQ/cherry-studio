@@ -29,7 +29,7 @@ const FEISHU_MAX_LENGTH = 4000
  * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
  */
 const REACTION_THINKING = 'Typing'
-const REACTION_DONE = 'LGTM'
+const REACTION_DONE = 'OK'
 const REACTION_ERROR = 'CRY'
 
 type ChatReaction = {
