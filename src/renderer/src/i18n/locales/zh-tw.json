@@ -1483,6 +1483,7 @@
       "move_to": "移動到",
       "new": "開始新對話",
       "pin": "固定話題",
+      "pin_name": "固定名稱",
       "prompt": {
         "edit": {
           "title": "編輯話題提示詞"
@@ -1495,7 +1496,8 @@
         "title": "搜尋"
       },
       "title": "話題",
-      "unpin": "取消固定"
+      "unpin": "取消固定",
+      "unpin_name": "取消固定名稱"
     },
     "translate": "翻譯",
     "user": "使用者",

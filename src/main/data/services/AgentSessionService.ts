@@ -62,6 +62,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
     accessiblePaths: row.accessiblePaths,
     configuration: parseConfiguration(row.configuration),
+    isNameManuallyEdited: row.isNameManuallyEdited,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

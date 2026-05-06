@@ -1483,6 +1483,7 @@
       "move_to": "Move to",
       "new": "New Topic",
       "pin": "Pin Topic",
+      "pin_name": "Pin Name",
       "prompt": {
         "edit": {
           "title": "Edit Topic Prompts"
@@ -1495,7 +1496,8 @@
         "title": "Search"
       },
       "title": "Topics",
-      "unpin": "Unpin Topic"
+      "unpin": "Unpin Topic",
+      "unpin_name": "Unpin Name"
     },
     "translate": "Translate",
     "user": "User",

@@ -308,6 +308,16 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         }
       },
       {
+        label: topic.isNameManuallyEdited ? t('chat.topics.unpin_name') : t('chat.topics.pin_name'),
+        key: 'pin-name',
+        icon: topic.isNameManuallyEdited ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+        disabled: isRenaming(topic.id),
+        onClick() {
+          const updatedTopic = { ...topic, isNameManuallyEdited: !topic.isNameManuallyEdited }
+          updateTopic(updatedTopic)
+        }
+      },
+      {
         label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
         icon: <PackagePlus size={14} />,
@@ -661,19 +671,24 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                   {editingTopicId === topic.id && isEditing ? (
                     <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
                   ) : (
-                    <TopicName
-                      className={getTopicNameClassName()}
-                      title={topicName}
-                      onDoubleClick={
-                        isManageMode
-                          ? undefined
-                          : () => {
-                              setEditingTopicId(topic.id)
-                              startEdit(topic.name)
-                            }
-                      }>
-                      {topicName}
-                    </TopicName>
+                    <>
+                      {topic.isNameManuallyEdited && (
+                        <PinIcon size={10} color="var(--color-text-3)" style={{ minWidth: 10, flexShrink: 0 }} />
+                      )}
+                      <TopicName
+                        className={getTopicNameClassName()}
+                        title={topic.isNameManuallyEdited ? `${topicName} (${t('chat.topics.pin_name')})` : topicName}
+                        onDoubleClick={
+                          isManageMode
+                            ? undefined
+                            : () => {
+                                setEditingTopicId(topic.id)
+                                startEdit(topic.name)
+                              }
+                        }>
+                        {topicName}
+                      </TopicName>
+                    </>
                   )}
                   {!topic.pinned && (
                     <Tooltip

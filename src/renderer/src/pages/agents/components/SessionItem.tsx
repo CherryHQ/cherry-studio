@@ -19,7 +19,7 @@ import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
-import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
+import { MenuIcon, PinIcon, PinOffIcon, Sparkles, XIcon } from 'lucide-react'
 import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -49,7 +49,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
       if (value !== session.name) {
-        await updateSession({ id: session.id, name: value })
+        await updateSession({ id: session.id, name: value, isNameManuallyEdited: true })
       }
     }
   })
@@ -152,6 +152,14 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
         }
       },
       {
+        label: session.isNameManuallyEdited ? t('chat.topics.unpin_name') : t('chat.topics.pin_name'),
+        key: 'pin-name',
+        icon: session.isNameManuallyEdited ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+        onClick: async () => {
+          await updateSession({ id: session.id, isNameManuallyEdited: !session.isNameManuallyEdited })
+        }
+      },
+      {
         label: t('settings.topic.position.label'),
         key: 'topic-position',
         icon: <MenuIcon size={14} />,
@@ -178,7 +186,17 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
         }
       }
     ],
-    [agentId, dispatch, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
+    [
+      agentId,
+      dispatch,
+      onDelete,
+      session.id,
+      session.isNameManuallyEdited,
+      sessionTopicId,
+      setTopicPosition,
+      t,
+      targetSession.id
+    ]
   )
 
   return (
@@ -203,6 +221,9 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
             <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
+              {session.isNameManuallyEdited && (
+                <PinIcon size={10} color="var(--color-text-3)" style={{ minWidth: 10, flexShrink: 0 }} />
+              )}
               <SessionName>
                 {channelIcon && <ChannelIconImg src={channelIcon} />}
                 <MarqueeText className="flex min-w-0 flex-1">

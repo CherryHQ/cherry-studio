@@ -178,19 +178,13 @@ export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionConte
     return
   }
 
+  agentSessionRenameLocks.add(lockId)
+
   try {
     const { messages } = await dbFacade.fetchMessages(topicId, true)
     if (!messages.length) {
       return
     }
-
-    const { text: summary } = await fetchMessagesSummary({ messages })
-    const summaryText = summary?.trim()
-    if (!summaryText) {
-      return
-    }
-
-    agentSessionRenameLocks.add(lockId)
 
     let session: AgentSessionEntity
     try {
@@ -199,6 +193,16 @@ export const renameAgentSessionIfNeeded = async (agentSession: AgentSessionConte
       )) as AgentSessionEntity
     } catch (error) {
       logger.warn('Failed to fetch agent session for rename', error as Error)
+      return
+    }
+
+    if (session.isNameManuallyEdited) {
+      return
+    }
+
+    const { text: summary } = await fetchMessagesSummary({ messages })
+    const summaryText = summary?.trim()
+    if (!summaryText) {
       return
     }
 
