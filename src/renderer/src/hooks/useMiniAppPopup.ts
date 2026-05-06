@@ -243,14 +243,16 @@ export const useMiniAppPopup = () => {
 
   /** Close all miniapps (popup hides and all miniapps unloaded) */
   const closeAllMiniApps = useCallback(() => {
-    // sharedCache.clear would invoke dispose multiple times,
-    // so recreate the LRU cache to replace it
-    sharedCache = createLRUCache()
+    // Clear in place rather than reassigning, so the `miniAppsCache`
+    // reference returned to consumers (e.g. tabsService) stays valid.
+    // disposeAfter fires per entry, which correctly cleans up each
+    // webview state and tab.
+    sharedCache?.clear()
     setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
     setMiniAppShow(false)
-  }, [createLRUCache, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
+  }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
   /** Hide the miniapp popup (only one-off miniapp unloaded) */
   const hideMiniAppPopup = useCallback(() => {
