@@ -30,7 +30,7 @@ describe('MiniAppIcon', () => {
     appId: 'test-app-1' as any,
     kind: 'default' as const,
     status: 'enabled' as const,
-    sortOrder: 0,
+    orderKey: 'a0',
     name: 'Test App',
     url: 'https://test.com',
     logo: '/test-logo-1.png',
@@ -70,7 +70,7 @@ describe('MiniAppIcon', () => {
       appId: 'unknown-app' as any,
       kind: 'default' as const,
       status: 'enabled' as const,
-      sortOrder: 0,
+      orderKey: 'a0',
       name: 'Unknown App',
       url: 'https://unknown.com'
     }

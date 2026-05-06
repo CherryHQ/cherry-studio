@@ -38,7 +38,10 @@ const BUILTIN_APP_LOGO_MAP: Record<string, string> = Object.fromEntries(
 const DEFAULT_LOGO_KEY = 'application'
 
 /**
- * Transform a single Redux MiniApp object into a SQLite miniapp row.
+ * Transform a single Redux MiniApp object into a SQLite miniapp row (without orderKey).
+ *
+ * Order keys are stamped by `assignOrderKeysByScope` in the migrator after all rows
+ * are partitioned into status buckets — see data-ordering-guide.md §5.
  *
  * [v2] Logo handling:
  * - Custom apps: preserve URL strings (base64 or http/https URLs)
@@ -47,13 +50,11 @@ const DEFAULT_LOGO_KEY = 'application'
  *
  * @param source - Raw MiniAppType from Redux
  * @param status - The status this app should have ('enabled' | 'disabled' | 'pinned')
- * @param sortOrder - Position within the status group (array index)
  */
 export function transformMiniApp(
   source: Record<string, unknown>,
-  status: MiniAppStatus,
-  sortOrder: number
-): MiniAppInsert {
+  status: MiniAppStatus
+): Omit<MiniAppInsert, 'orderKey'> {
   // [v2] Logo resolution: URL strings are preserved for custom apps,
   // built-in apps get their logo key from the mapping table
   const rawLogo = source.logo
@@ -80,7 +81,6 @@ export function transformMiniApp(
     logo,
     kind: normalizeType(source.type),
     status,
-    sortOrder,
     // v2 fix: Handle typo 'bodered' → 'bordered' during migration
     // Prefer the correctly spelled 'bordered' field; fall back to the typo field
     bordered: toRequired(source.bordered ?? source.bodered, true),

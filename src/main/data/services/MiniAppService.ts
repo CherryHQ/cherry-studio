@@ -18,11 +18,13 @@ import { type MiniAppKind, type MiniAppStatus, miniAppTable } from '@data/db/sch
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MINI_APPS } from '@shared/data/presets/mini-apps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { and, asc, desc, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
+import { applyMoves, generateOrderKeySequence, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
@@ -32,8 +34,11 @@ const builtinMiniAppMap = new Map<string, BuiltinMiniAppDefinition>(
   ORIGIN_DEFAULT_MINI_APPS.map((app) => [app.id, app])
 )
 
-const builtinMiniAppDefaultSortOrder = new Map<string, number>(
-  ORIGIN_DEFAULT_MINI_APPS.map((app, index) => [app.id, index])
+// Pre-generated fractional-indexing keys for builtin apps in their preset order.
+// Used to seed default app preference rows on first write within their `status='enabled'` partition.
+const BUILTIN_DEFAULT_ORDER_KEYS: ReadonlyArray<string> = generateOrderKeySequence(ORIGIN_DEFAULT_MINI_APPS.length)
+const builtinMiniAppDefaultOrderKey = new Map<string, string>(
+  ORIGIN_DEFAULT_MINI_APPS.map((app, index) => [app.id, BUILTIN_DEFAULT_ORDER_KEYS[index]])
 )
 
 /** Brand a raw DB/app-def string as a MiniAppId. Safe because DB enforces non-empty app_id. */
@@ -51,7 +56,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
     appId: brandId(clean.appId),
     kind: clean.kind,
     status: clean.status,
-    sortOrder: clean.sortOrder ?? 0,
+    orderKey: clean.orderKey,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
     createdAt: timestampToISO(clean.createdAt),
     updatedAt: timestampToISO(clean.updatedAt)
@@ -60,14 +65,14 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
 
 /**
  * Merge a builtin definition with a DB preference row (if exists).
- * If no DB row, uses defaults: status='enabled', sortOrder=array index.
+ * If no DB row, uses defaults: status='enabled', orderKey from preset position.
  */
 function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect): MiniApp {
   return {
     appId: brandId(def.id),
     kind: 'default',
     status: dbRow ? dbRow.status : 'enabled',
-    sortOrder: dbRow ? (dbRow.sortOrder ?? 0) : (builtinMiniAppDefaultSortOrder.get(def.id) ?? 0),
+    orderKey: dbRow?.orderKey ?? builtinMiniAppDefaultOrderKey.get(def.id) ?? '',
     name: def.name,
     url: def.url,
     logo: def.logo,
@@ -111,8 +116,16 @@ export class MiniAppService {
   /**
    * List all miniapps with optional filters.
    * Merges builtin apps (from hardcoded definitions + DB prefs) with custom apps (from DB).
+   * Sort: status priority (pinned > enabled > disabled), then orderKey ascending within each status.
    */
   async list(query: { status?: MiniAppStatus; type?: MiniAppKind }): Promise<MiniApp[]> {
+    const sortByStatusThenOrderKey = (a: MiniApp, b: MiniApp) => {
+      const statusOrder = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
+      const statusDiff = statusOrder(a.status) - statusOrder(b.status)
+      if (statusDiff !== 0) return statusDiff
+      return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
+    }
+
     // Load all custom apps from DB (always from DB)
     const customConditions: SQL[] = [eq(miniAppTable.kind, 'custom')]
     if (query.status !== undefined) {
@@ -120,27 +133,16 @@ export class MiniAppService {
     }
     const customWhere = and(...customConditions)
 
-    const customRows = await this.db.select().from(miniAppTable).where(customWhere).orderBy(asc(miniAppTable.sortOrder))
+    const customRows = await this.db.select().from(miniAppTable).where(customWhere).orderBy(asc(miniAppTable.orderKey))
 
     if (query.type === 'custom') {
-      const items = customRows.map(rowToMiniApp)
-      // Sort by status priority: pinned=0, enabled=1, disabled=2
-      const statusOrder = (s: MiniApp['status']) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
-      items.sort((a, b) => {
-        const diff = statusOrder(a.status) - statusOrder(b.status)
-        if (diff !== 0) return diff
-        return a.sortOrder - b.sortOrder
-      })
-      return items
+      return customRows.map(rowToMiniApp).sort(sortByStatusThenOrderKey)
     }
 
     // Load DB preference rows for all builtin apps
     const prefRows =
       builtinMiniAppMap.size > 0
-        ? await this.db
-            .select()
-            .from(miniAppTable)
-            .where(and(eq(miniAppTable.kind, 'default')))
+        ? await this.db.select().from(miniAppTable).where(eq(miniAppTable.kind, 'default'))
         : []
 
     const prefMap = new Map<string, MiniAppSelect>()
@@ -148,35 +150,18 @@ export class MiniAppService {
       prefMap.set(row.appId, row)
     }
 
-    // Merge builtin apps
-    let builtinItems: MiniApp[]
     const allBuiltinDefs = [...builtinMiniAppMap.values()]
-    if (query.status !== undefined) {
-      // Filter builtin apps by status from DB prefs
-      builtinItems = allBuiltinDefs
-        .filter((def) => {
-          const pref = prefMap.get(def.id)
-          const status = pref ? pref.status : 'enabled'
-          return status === query.status
-        })
-        .map((def) => builtinToMiniApp(def, prefMap.get(def.id)))
-        .sort((a: MiniApp, b: MiniApp) => a.sortOrder - b.sortOrder)
-    } else {
-      builtinItems = allBuiltinDefs
-        .map((def) => builtinToMiniApp(def, prefMap.get(def.id)))
-        .sort((a: MiniApp, b: MiniApp) => a.sortOrder - b.sortOrder)
-    }
+    const builtinItems = allBuiltinDefs
+      .filter((def) => {
+        if (query.status === undefined) return true
+        const pref = prefMap.get(def.id)
+        const status = pref ? pref.status : 'enabled'
+        return status === query.status
+      })
+      .map((def) => builtinToMiniApp(def, prefMap.get(def.id)))
 
-    const allItems = query.type === 'default' ? [...builtinItems] : [...builtinItems, ...customRows.map(rowToMiniApp)]
-    allItems.sort((a, b) => {
-      // Sort by status priority: pinned=0, enabled=1, disabled=2
-      const statusOrder = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
-      const statusDiff = statusOrder(a.status) - statusOrder(b.status)
-      if (statusDiff !== 0) return statusDiff
-      return a.sortOrder - b.sortOrder
-    })
-
-    return allItems
+    const allItems = query.type === 'default' ? builtinItems : [...builtinItems, ...customRows.map(rowToMiniApp)]
+    return allItems.sort(sortByStatusThenOrderKey)
   }
 
   /**
@@ -194,35 +179,33 @@ export class MiniAppService {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a builtin app and cannot be recreated`)
     }
 
-    // Calculate next sortOrder: offset by builtin apps count to avoid collisions
-    const builtinCount = builtinMiniAppMap.size
-    const maxSortOrderResult = await this.db
-      .select({ maxSortOrder: miniAppTable.sortOrder })
-      .from(miniAppTable)
-      .orderBy(desc(miniAppTable.sortOrder))
-      .limit(1)
-
-    const maxDbSortOrder = maxSortOrderResult[0]?.maxSortOrder ?? builtinCount - 1
-    const nextSortOrder = maxDbSortOrder + 1
-
-    const [row] = await withSqliteErrors(
+    const status: MiniAppStatus = 'enabled'
+    const row = await withSqliteErrors(
       () =>
-        this.db
-          .insert(miniAppTable)
-          .values({
-            appId: dto.appId,
-            name: dto.name,
-            url: dto.url,
-            logo: dto.logo,
-            kind: 'custom',
-            status: 'enabled',
-            sortOrder: nextSortOrder,
-            bordered: dto.bordered,
-            background: dto.background,
-            supportedRegions: dto.supportedRegions,
-            configuration: dto.configuration
-          })
-          .returning(),
+        this.db.transaction(async (tx) => {
+          const inserted = await insertWithOrderKey(
+            tx,
+            miniAppTable,
+            {
+              appId: dto.appId,
+              name: dto.name,
+              url: dto.url,
+              logo: dto.logo,
+              kind: 'custom',
+              status,
+              bordered: dto.bordered,
+              background: dto.background,
+              supportedRegions: dto.supportedRegions,
+              configuration: dto.configuration
+            },
+            {
+              pkColumn: miniAppTable.appId,
+              position: 'last',
+              scope: eq(miniAppTable.status, status)
+            }
+          )
+          return inserted as MiniAppSelect | undefined
+        }),
       defaultHandlersFor('MiniApp', dto.appId)
     )
 
@@ -230,7 +213,7 @@ export class MiniAppService {
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
     }
 
-    logger.info('Created miniapp', { appId: row.appId, name: row.name, sortOrder: row.sortOrder })
+    logger.info('Created miniapp', { appId: row.appId, name: row.name, orderKey: row.orderKey })
 
     return rowToMiniApp(row)
   }
@@ -326,70 +309,84 @@ export class MiniAppService {
   }
 
   /**
-   * Batch reorder miniapps.
+   * Reorder miniapps via fractional-indexing (see data-ordering-guide.md).
+   *
+   * Partitioned by `status`: each move resolves its scope from the target row's
+   * status, and any anchor (`before`/`after`) must live in the same scope.
+   * Default-app preference rows are seeded on demand in the same transaction
+   * so reordering builtin apps before the user has touched their preferences works.
+   *
+   * For batches mixing different `status` values, this method splits them into
+   * one `applyMoves` call per scope inside a single transaction.
    */
-  async reorder(items: Array<{ appId: string; sortOrder: number }>): Promise<{ skipped: string[] }> {
-    let skipped: string[] = []
+  async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
 
     await withSqliteErrors(
       () =>
         this.db.transaction(async (tx) => {
-          // Batch-ensure DB rows exist for all builtin apps in the reorder list
-          const builtinAppIds = items.map((item) => item.appId).filter((id) => builtinMiniAppMap.has(id))
-
-          if (builtinAppIds.length > 0) {
-            // Batch-query existing rows for builtin apps
-            const existingRows = await tx
+          // Seed default-app preference rows on demand for any builtin target
+          const targetIds = moves.map((m) => m.id)
+          const builtinIds = targetIds.filter((id) => builtinMiniAppMap.has(id))
+          if (builtinIds.length > 0) {
+            const existing = await tx
               .select({ appId: miniAppTable.appId })
               .from(miniAppTable)
-              .where(inArray(miniAppTable.appId, builtinAppIds))
-
-            const existingSet = new Set(existingRows.map((r) => r.appId))
-            const missingIds = builtinAppIds.filter((id) => !existingSet.has(id))
-
-            // Batch-insert missing builtin app preference rows
-            if (missingIds.length > 0) {
-              const valuesToInsert = missingIds.map((id) => {
-                const def = builtinMiniAppMap.get(id)!
-                return {
-                  appId: brandId(def.id),
-                  name: def.name,
-                  url: def.url,
-                  logo: def.logo ?? null,
-                  kind: 'default' as const,
-                  status: 'enabled' as const,
-                  sortOrder: builtinMiniAppDefaultSortOrder.get(def.id) ?? 0,
-                  bordered: def.bordered,
-                  background: def.background,
-                  supportedRegions: def.supportedRegions,
-                  nameKey: def.nameKey
-                }
-              })
-              await tx.insert(miniAppTable).values(valuesToInsert)
+              .where(inArray(miniAppTable.appId, builtinIds))
+            const existingSet = new Set(existing.map((r) => r.appId))
+            const missing = builtinIds.filter((id) => !existingSet.has(id))
+            if (missing.length > 0) {
+              await tx.insert(miniAppTable).values(
+                missing.map((id) => {
+                  const def = builtinMiniAppMap.get(id)!
+                  return {
+                    appId: brandId(def.id),
+                    name: def.name,
+                    url: def.url,
+                    logo: def.logo ?? null,
+                    kind: 'default' as const,
+                    status: 'enabled' as const,
+                    orderKey: builtinMiniAppDefaultOrderKey.get(def.id) ?? '',
+                    bordered: def.bordered,
+                    background: def.background,
+                    supportedRegions: def.supportedRegions,
+                    nameKey: def.nameKey
+                  } satisfies MiniAppInsert
+                })
+              )
             }
           }
 
-          // Update sort orders
-          skipped = []
-          for (const item of items) {
-            const result = await tx
-              .update(miniAppTable)
-              .set({ sortOrder: item.sortOrder })
-              .where(eq(miniAppTable.appId, item.appId))
-              .returning({ appId: miniAppTable.appId })
-            if (result.length === 0) {
-              skipped.push(item.appId)
+          // Resolve each target's scope (status), then group moves by scope.
+          // Cross-scope batches are an error per applyMoves contract.
+          const targetRows = await tx
+            .select({ appId: miniAppTable.appId, status: miniAppTable.status })
+            .from(miniAppTable)
+            .where(inArray(miniAppTable.appId, targetIds))
+          const statusByAppId = new Map(targetRows.map((r) => [r.appId, r.status]))
+
+          const movesByStatus = new Map<MiniAppStatus, Array<{ id: string; anchor: OrderRequest }>>()
+          for (const m of moves) {
+            const status = statusByAppId.get(m.id)
+            if (!status) {
+              throw DataApiErrorFactory.notFound('MiniApp', m.id)
             }
+            const bucket = movesByStatus.get(status) ?? []
+            bucket.push(m)
+            movesByStatus.set(status, bucket)
           }
-          if (skipped.length > 0) {
-            logger.warn('Reorder skipped non-existent app IDs', { skipped })
+
+          for (const [status, scopedMoves] of movesByStatus) {
+            await applyMoves(tx, miniAppTable, scopedMoves, {
+              pkColumn: miniAppTable.appId,
+              scope: eq(miniAppTable.status, status)
+            })
           }
         }),
       defaultHandlersFor('MiniApp', 'multiple')
     )
 
-    logger.info('Reordered miniapps', { count: items.length, skipped: skipped.length })
-    return { skipped }
+    logger.info('Reordered miniapps', { count: moves.length })
   }
 
   // Private Helpers
@@ -416,7 +413,7 @@ export class MiniAppService {
             logo: builtinDef.logo ?? null,
             kind: 'default',
             status: 'enabled',
-            sortOrder: builtinMiniAppDefaultSortOrder.get(builtinDef.id) ?? 0,
+            orderKey: builtinMiniAppDefaultOrderKey.get(builtinDef.id) ?? '',
             bordered: builtinDef.bordered,
             background: builtinDef.background,
             supportedRegions: builtinDef.supportedRegions,

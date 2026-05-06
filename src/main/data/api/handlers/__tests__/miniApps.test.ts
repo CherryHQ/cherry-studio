@@ -154,38 +154,48 @@ describe('miniAppHandlers', () => {
     })
   })
 
-  describe('PATCH /mini-apps (reorder)', () => {
-    const validReorderBody = {
-      items: [{ appId: 'openai', sortOrder: 0 }]
-    }
-
-    it('should parse body and delegate reorder to service', async () => {
+  describe('PATCH /mini-apps/:id/order', () => {
+    it('should parse body and delegate single-move reorder to service', async () => {
       reorderMock.mockResolvedValueOnce(undefined)
 
-      await miniAppHandlers['/mini-apps'].PATCH({ body: validReorderBody })
+      await miniAppHandlers['/mini-apps/:id/order'].PATCH({
+        params: { id: 'openai' },
+        body: { after: 'gemini' }
+      } as never)
 
-      expect(reorderMock).toHaveBeenCalledWith(validReorderBody.items)
+      expect(reorderMock).toHaveBeenCalledWith([{ id: 'openai', anchor: { after: 'gemini' } }])
     })
 
-    it('should reject empty appId in reorder items before calling the service', async () => {
+    it('should reject body that does not match the anchor union', async () => {
       await expect(
-        miniAppHandlers['/mini-apps'].PATCH({ body: { items: [{ appId: '', sortOrder: 0 }] } } as never)
+        miniAppHandlers['/mini-apps/:id/order'].PATCH({
+          params: { id: 'openai' },
+          body: { sortOrder: 0 } as never
+        } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(reorderMock).not.toHaveBeenCalled()
     })
+  })
 
-    it('should reject non-integer sortOrder before calling the service', async () => {
-      await expect(
-        miniAppHandlers['/mini-apps'].PATCH({ body: { items: [{ appId: 'openai', sortOrder: 1.5 }] } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+  describe('PATCH /mini-apps/order:batch', () => {
+    it('should parse body and delegate batch reorder to service', async () => {
+      reorderMock.mockResolvedValueOnce(undefined)
+      const moves = [
+        { id: 'openai', anchor: { after: 'gemini' } },
+        { id: 'qwen', anchor: { position: 'first' as const } }
+      ]
 
-      expect(reorderMock).not.toHaveBeenCalled()
+      await miniAppHandlers['/mini-apps/order:batch'].PATCH({ body: { moves } } as never)
+
+      expect(reorderMock).toHaveBeenCalledWith(moves)
     })
 
-    it('should reject non-number sortOrder before calling the service', async () => {
+    it('should reject empty id in moves before calling the service', async () => {
       await expect(
-        miniAppHandlers['/mini-apps'].PATCH({ body: { items: [{ appId: 'openai', sortOrder: 'first' }] } } as never)
+        miniAppHandlers['/mini-apps/order:batch'].PATCH({
+          body: { moves: [{ id: '', anchor: { position: 'first' } }] } as never
+        } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(reorderMock).not.toHaveBeenCalled()

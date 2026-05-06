@@ -2,7 +2,11 @@
  * MiniApp entity types
  *
  * System default apps are runtime-defined; the DB stores only user preferences
- * (status, sortOrder) for them. Custom apps store full data + preferences.
+ * (status, orderKey) for them. Custom apps store full data + preferences.
+ *
+ * Ordering: per data-ordering-guide.md, items are partitioned by `status` and
+ * stored in fractional-indexing `orderKey`. The list endpoint returns rows
+ * already sorted by (status, orderKey); clients should not re-sort.
  */
 
 import * as z from 'zod'
@@ -29,7 +33,7 @@ export const MiniAppSchema = z.object({
   appId: z.string(),
   kind: MiniAppKindSchema,
   status: MiniAppStatusSchema,
-  sortOrder: z.number(),
+  orderKey: z.string(),
   name: z.string(),
   url: z.string(),
   logo: z.string().optional(),

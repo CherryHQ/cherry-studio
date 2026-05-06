@@ -2,10 +2,11 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
+import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
-import type { CreateMiniAppDto, ReorderMiniAppsDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
+import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -180,7 +181,7 @@ export const useMiniApps = () => {
   const miniapps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
-    return regionFiltered.sort((a, b) => a.sortOrder - b.sortOrder)
+    return regionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
   }, [enabled, effectiveRegion, pinned])
   const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
   // Pinned apps are always visible regardless of region
@@ -215,9 +216,10 @@ export const useMiniApps = () => {
   const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
     refresh: ['/mini-apps']
   })
-  const { trigger: reorderMiniAppsApi } = useMutation('PATCH', '/mini-apps', {
-    refresh: ['/mini-apps']
-  })
+
+  // Fractional-indexing reorder per data-ordering-guide.md.
+  // applyReorderedList computes minimal moves and dispatches to the right endpoint.
+  const { applyReorderedList: applyMiniAppOrder } = useReorder('/mini-apps', { idKey: 'appId' })
 
   // Template-path mutations for single-item operations (per DataApi convention)
   const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
@@ -319,16 +321,21 @@ export const useMiniApps = () => {
     [deleteAppTrigger]
   )
 
+  /**
+   * Reorder miniapps. Pass the new ordered list (typically from a drag-and-drop
+   * callback). Internally diffs against current order and dispatches the
+   * minimal set of `PATCH /:id/order` or `PATCH /order:batch` calls.
+   */
   const reorderMiniApps = useCallback(
-    async (items: ReorderMiniAppsDto['items']) => {
+    async (orderedApps: MiniApp[]) => {
       try {
-        return await reorderMiniAppsApi({ body: { items } })
+        await applyMiniAppOrder(orderedApps)
       } catch (error) {
         logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [reorderMiniAppsApi]
+    [applyMiniAppOrder]
   )
 
   return {

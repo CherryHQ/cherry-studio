@@ -9,6 +9,8 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppKindSchema, MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
+import type { OrderEndpoints } from './_endpointHelpers'
+
 /**
  * Zod schema for creating a new custom miniapp
  */
@@ -40,19 +42,6 @@ export const UpdateMiniAppSchema = z.object({
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**
- * Zod schema for batch reordering miniapps
- */
-export const ReorderMiniAppsSchema = z.object({
-  items: z.array(
-    z.object({
-      appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
-      sortOrder: z.number().int()
-    })
-  )
-})
-export type ReorderMiniAppsDto = z.infer<typeof ReorderMiniAppsSchema>
-
-/**
  * Query parameters for listing miniapps
  */
 export const ListMiniAppsQuerySchema = z.object({
@@ -69,17 +58,11 @@ export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
  * MiniApp API Schema definitions
  * @public
  */
-export interface MiniAppSchemas {
+type MiniAppBaseSchemas = {
   /**
    * MiniApps collection endpoint
    * @example GET /mini-apps?status=enabled
    * @example POST /mini-apps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
-   * @example PATCH /mini-apps { "items": [{ "appId": "qwen", "sortOrder": 1 }] }
-   *
-   * TODO(I1): PATCH /mini-apps for batch reorder conflicts with the convention
-   * "PATCH = partial update of one resource". Per the api-design-guidelines
-   * decision tree, this should become PUT /mini-apps/order with body { items: [...] }.
-   * Hold until a unified reorder spec is finalized.
    */
   '/mini-apps': {
     /** Get all miniapps (optionally filtered by status/type) */
@@ -91,11 +74,6 @@ export interface MiniAppSchemas {
     POST: {
       body: CreateMiniAppDto
       response: MiniApp
-    }
-    /** Batch reorder miniapps */
-    PATCH: {
-      body: ReorderMiniAppsDto
-      response: void
     }
   }
 
@@ -124,3 +102,10 @@ export interface MiniAppSchemas {
     }
   }
 }
+
+/**
+ * MiniApp API schema, including order endpoints (`PATCH /mini-apps/:id/order`,
+ * `PATCH /mini-apps/order:batch`) per data-ordering-guide.md.
+ * Reordering is partitioned by `status` (handled in the service layer).
+ */
+export type MiniAppSchemas = MiniAppBaseSchemas & OrderEndpoints<'/mini-apps'>

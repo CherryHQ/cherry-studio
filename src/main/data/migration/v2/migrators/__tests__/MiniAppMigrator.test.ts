@@ -270,12 +270,12 @@ describe('MiniAppMigrator', () => {
       await migrator.prepare(ctx)
       await migrator.execute(ctx)
 
-      // Verify sortOrder is correctly indexed via real DB reads
-      const rows = await dbh.db.select().from(miniAppTable).orderBy(miniAppTable.sortOrder)
+      // Verify orderKey is correctly stamped (ascending) within the status partition
+      const rows = await dbh.db.select().from(miniAppTable).orderBy(miniAppTable.orderKey)
       expect(rows).toHaveLength(3)
-      expect(rows[0].sortOrder).toBe(0)
-      expect(rows[1].sortOrder).toBe(1)
-      expect(rows[2].sortOrder).toBe(2)
+      expect(rows[0].orderKey).toBeTruthy()
+      expect(rows[0].orderKey < rows[1].orderKey).toBe(true)
+      expect(rows[1].orderKey < rows[2].orderKey).toBe(true)
     })
 
     it('should set pinned status for pinned apps (dedup priority)', async () => {
@@ -316,7 +316,8 @@ describe('MiniAppMigrator', () => {
         name: 'Existing',
         url: 'https://existing.com',
         kind: 'custom',
-        status: 'enabled'
+        status: 'enabled',
+        orderKey: 'a0'
       })
 
       const result = await migrator.execute(ctx)

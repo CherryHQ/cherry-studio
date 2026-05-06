@@ -23,7 +23,7 @@ describe('MiniAppService', () => {
       logo: 'application',
       kind: 'custom',
       status: 'enabled',
-      sortOrder: 0,
+      orderKey: 'a0',
       bordered: false,
       ...overrides
     }
@@ -38,7 +38,7 @@ describe('MiniAppService', () => {
       url: 'https://placeholder.test',
       kind: 'default',
       status: 'enabled',
-      sortOrder: 0,
+      orderKey: 'a0',
       ...overrides
     }
     await dbh.db.insert(miniAppTable).values(values)
@@ -47,7 +47,7 @@ describe('MiniAppService', () => {
 
   describe('getByAppId', () => {
     it('should return a builtin miniapp merged with DB preferences', async () => {
-      await seedDefaultAppPref('openai', { status: 'disabled', sortOrder: 10 })
+      await seedDefaultAppPref('openai', { status: 'disabled', orderKey: 'z9' })
 
       const result = await service.getByAppId('openai')
 
@@ -55,7 +55,7 @@ describe('MiniAppService', () => {
       expect(result.name).toBe('ChatGPT')
       expect(result.url).toBe('https://chatgpt.com/')
       expect(result.status).toBe('disabled')
-      expect(result.sortOrder).toBe(10)
+      expect(result.orderKey).toBe('z9')
       expect(result.kind).toBe('default')
     })
 
@@ -121,9 +121,9 @@ describe('MiniAppService', () => {
       expect(result.every((item) => item.status === 'disabled')).toBe(true)
     })
 
-    it('should sort items by status priority then sortOrder', async () => {
-      await seedCustomApp({ appId: 'a', name: 'A', sortOrder: 2 })
-      await seedDefaultAppPref('openai', { status: 'pinned', sortOrder: 5 })
+    it('should sort items by status priority then orderKey', async () => {
+      await seedCustomApp({ appId: 'a', name: 'A', orderKey: 'a2' })
+      await seedDefaultAppPref('openai', { status: 'pinned', orderKey: 'a5' })
 
       const result = await service.list({})
 
@@ -262,33 +262,32 @@ describe('MiniAppService', () => {
   })
 
   describe('reorder', () => {
-    it('should batch update sort orders in a transaction', async () => {
-      await seedCustomApp({ appId: 'app-1', name: 'A1', sortOrder: 5 })
-      await seedCustomApp({ appId: 'app-2', name: 'A2', sortOrder: 7 })
+    it('should swap orderKey via fractional-indexing in a transaction', async () => {
+      await seedCustomApp({ appId: 'app-1', name: 'A1', orderKey: 'a0' })
+      await seedCustomApp({ appId: 'app-2', name: 'A2', orderKey: 'b0' })
 
-      await service.reorder([
-        { appId: 'app-1', sortOrder: 0 },
-        { appId: 'app-2', sortOrder: 1 }
-      ])
+      // Move app-2 before app-1
+      await service.reorder([{ id: 'app-2', anchor: { before: 'app-1' } }])
 
       const [row1] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-1'))
       const [row2] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'app-2'))
-      expect(row1.sortOrder).toBe(0)
-      expect(row2.sortOrder).toBe(1)
+      // After reorder, row2 should sort before row1 by orderKey
+      expect(row2.orderKey < row1.orderKey).toBe(true)
     })
 
     it('should ensure DB rows exist for builtin apps during reorder', async () => {
-      await service.reorder([{ appId: 'openai', sortOrder: 3 }])
+      await service.reorder([{ id: 'openai', anchor: { position: 'first' } }])
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'openai'))
       expect(row).toBeDefined()
-      expect(row.sortOrder).toBe(3)
+      expect(row.orderKey).toBeTruthy()
       expect(row.kind).toBe('default')
     })
 
-    it('should not throw for non-existent app IDs', async () => {
-      const result = await service.reorder([{ appId: 'nonexistent', sortOrder: 0 }])
-      expect(result.skipped).toContain('nonexistent')
+    it('should throw NotFound for non-existent app IDs', async () => {
+      await expect(service.reorder([{ id: 'nonexistent', anchor: { position: 'first' } }])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
 })

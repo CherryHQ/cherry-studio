@@ -19,7 +19,7 @@ describe('MiniAppMappings', () => {
         bordered: true
       })
 
-      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
 
       expect(result.appId).toBe('test-app')
       expect(result.name).toBe('Test App')
@@ -27,13 +27,12 @@ describe('MiniAppMappings', () => {
       expect(result.logo).toBe('https://logo.png')
       expect(result.kind).toBe('default')
       expect(result.status).toBe('enabled')
-      expect(result.sortOrder).toBe(0)
       expect(result.bordered).toBe(true)
     })
 
     it('should handle bodered typo correctly', () => {
       const source = createSource({ bodered: false })
-      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
       expect(result.bordered).toBe(false)
     })
 
@@ -41,21 +40,19 @@ describe('MiniAppMappings', () => {
       it('should preserve custom app URL logos (http/https)', () => {
         const httpLogo = transformMiniApp(
           createSource({ logo: 'https://example.com/logo.png' }),
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(httpLogo.logo).toBe('https://example.com/logo.png')
 
         const dataUri = transformMiniApp(
           createSource({ logo: 'data:image/png;base64,abc123' }),
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(dataUri.logo).toBe('data:image/png;base64,abc123')
       })
 
       it('should preserve string key logos', () => {
-        const result = transformMiniApp(createSource({ logo: 'custom-key' }), 'enabled' as MiniAppStatus, 0)
+        const result = transformMiniApp(createSource({ logo: 'custom-key' }), 'enabled' as MiniAppStatus)
         expect(result.logo).toBe('custom-key')
       })
 
@@ -63,22 +60,19 @@ describe('MiniAppMappings', () => {
         // Built-in apps should get their logo key from the mapping table
         const openai = transformMiniApp(
           { id: 'openai', name: 'ChatGPT', url: 'https://chatgpt.com', logo: { component: 'Openai' } },
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(openai.logo).toBe('openai')
 
         const gemini = transformMiniApp(
           { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com', logo: null },
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(gemini.logo).toBe('gemini')
 
         const deepseek = transformMiniApp(
           { id: 'deepseek', name: 'DeepSeek', url: 'https://chat.deepseek.com', logo: '' },
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(deepseek.logo).toBe('deepseek')
       })
@@ -86,16 +80,11 @@ describe('MiniAppMappings', () => {
       it('should fallback to application default for unknown app IDs', () => {
         const unknown = transformMiniApp(
           createSource({ id: 'unknown-app', logo: { invalid: true } }),
-          'enabled' as MiniAppStatus,
-          0
+          'enabled' as MiniAppStatus
         )
         expect(unknown.logo).toBe('application')
 
-        const emptyLogo = transformMiniApp(
-          createSource({ id: 'my-custom-app', logo: '' }),
-          'enabled' as MiniAppStatus,
-          0
-        )
+        const emptyLogo = transformMiniApp(createSource({ id: 'my-custom-app', logo: '' }), 'enabled' as MiniAppStatus)
         expect(emptyLogo.logo).toBe('application')
       })
 
@@ -114,8 +103,7 @@ describe('MiniAppMappings', () => {
         for (const { id, expected } of testCases) {
           const result = transformMiniApp(
             { id, name: 'Test', url: 'https://test.com', logo: null },
-            'enabled' as MiniAppStatus,
-            0
+            'enabled' as MiniAppStatus
           )
           expect(result.logo).toBe(expected)
         }
@@ -125,51 +113,46 @@ describe('MiniAppMappings', () => {
     it('should filter supportedRegions', () => {
       const valid = transformMiniApp(
         createSource({ supportedRegions: ['CN', 'Global', 'Invalid'] }),
-        'enabled' as MiniAppStatus,
-        0
+        'enabled' as MiniAppStatus
       )
       expect(valid.supportedRegions).toEqual(['CN', 'Global'])
 
-      const empty = transformMiniApp(createSource({ supportedRegions: [] }), 'enabled' as MiniAppStatus, 0)
+      const empty = transformMiniApp(createSource({ supportedRegions: [] }), 'enabled' as MiniAppStatus)
       expect(empty.supportedRegions).toBeNull()
     })
 
     it('should normalize supportedRegions with only-invalid entries to null', () => {
-      const result = transformMiniApp(
-        createSource({ supportedRegions: ['Invalid', 'EU'] }),
-        'enabled' as MiniAppStatus,
-        0
-      )
+      const result = transformMiniApp(createSource({ supportedRegions: ['Invalid', 'EU'] }), 'enabled' as MiniAppStatus)
       expect(result.supportedRegions).toBeNull()
     })
 
     it('should handle non-array supportedRegions gracefully', () => {
-      const stringRegion = transformMiniApp(createSource({ supportedRegions: 'CN' }), 'enabled' as MiniAppStatus, 0)
+      const stringRegion = transformMiniApp(createSource({ supportedRegions: 'CN' }), 'enabled' as MiniAppStatus)
       expect(stringRegion.supportedRegions).toBeNull()
 
-      const nullRegion = transformMiniApp(createSource({ supportedRegions: null }), 'enabled' as MiniAppStatus, 0)
+      const nullRegion = transformMiniApp(createSource({ supportedRegions: null }), 'enabled' as MiniAppStatus)
       expect(nullRegion.supportedRegions).toBeNull()
 
-      const undefinedRegion = transformMiniApp(createSource(), 'enabled' as MiniAppStatus, 0)
+      const undefinedRegion = transformMiniApp(createSource(), 'enabled' as MiniAppStatus)
       expect(undefinedRegion.supportedRegions).toBeNull()
     })
 
     it('should prefer bordered over bodered (typo) when both exist', () => {
       const source = createSource({ bodered: false, bordered: true })
-      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
       // bodered ?? bordered: bodered is false (falsy), so falls through to bordered
       expect(result.bordered).toBe(true)
     })
 
     it('should use bodered value when bordered is absent', () => {
       const source = createSource({ bodered: false })
-      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
       expect(result.bordered).toBe(false)
     })
 
     it('should default bordered to true when neither field is present', () => {
       const source = createSource()
-      const result = transformMiniApp(source, 'enabled' as MiniAppStatus, 0)
+      const result = transformMiniApp(source, 'enabled' as MiniAppStatus)
       expect(result.bordered).toBe(true)
     })
 
@@ -181,8 +164,7 @@ describe('MiniAppMappings', () => {
           url: 'https://unknown.com',
           logo: { $$typeof: Symbol.for('react.element') }
         },
-        'enabled' as MiniAppStatus,
-        0
+        'enabled' as MiniAppStatus
       )
       // Non-string logo → falls back to BUILTIN_APP_LOGO_MAP or DEFAULT_LOGO_KEY
       expect(result.logo).toBe('application')
@@ -190,20 +172,15 @@ describe('MiniAppMappings', () => {
 
     it('should preserve data URI logos for custom apps', () => {
       const dataUri = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=='
-      const result = transformMiniApp(
-        createSource({ id: 'my-custom-app', logo: dataUri }),
-        'enabled' as MiniAppStatus,
-        0
-      )
+      const result = transformMiniApp(createSource({ id: 'my-custom-app', logo: dataUri }), 'enabled' as MiniAppStatus)
       expect(result.logo).toBe(dataUri)
     })
 
     it('should handle all status values', () => {
       const statuses: MiniAppStatus[] = ['enabled', 'disabled', 'pinned']
       for (const status of statuses) {
-        const result = transformMiniApp(createSource(), status, 5)
+        const result = transformMiniApp(createSource(), status)
         expect(result.status).toBe(status)
-        expect(result.sortOrder).toBe(5)
       }
     })
   })

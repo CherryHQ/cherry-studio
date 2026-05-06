@@ -9,8 +9,11 @@ import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
+
+type MiniAppRowWithoutOrderKey = Omit<MiniAppInsert, 'orderKey'>
 
 const logger = loggerService.withContext('MiniAppMigrator')
 
@@ -60,7 +63,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
-      const seenIds = new Map<string, MiniAppInsert>()
+      const seenIds = new Map<string, MiniAppRowWithoutOrderKey>()
 
       // Process pinned first (highest priority), then enabled, then disabled
       const priorityOrder: MiniAppStatus[] = ['pinned', 'enabled', 'disabled']
@@ -69,9 +72,7 @@ export class MiniAppMigrator extends BaseMigrator {
         const group = groups.find((g) => g.status === status)
         if (!group) continue
 
-        for (let i = 0; i < group.data.length; i++) {
-          const app = group.data[i]
-
+        for (const app of group.data) {
           if (!app || !app.id || typeof app.id !== 'string') {
             this.skippedCount++
             warnings.push(`Skipped ${status} app without valid id: ${app?.name ?? 'unknown'}`)
@@ -79,7 +80,7 @@ export class MiniAppMigrator extends BaseMigrator {
           }
 
           try {
-            const row = transformMiniApp(app, status, i)
+            const row = transformMiniApp(app, status)
 
             // Skip rows with empty required fields (ghost apps)
             if (!row.name || !row.url) {
@@ -104,32 +105,20 @@ export class MiniAppMigrator extends BaseMigrator {
         }
       }
 
-      // Collect final unique rows, excluding duplicates that were demoted
-      // Re-index sortOrder within each status group after dedup
-      const statusGroups = new Map<MiniAppStatus, MiniAppInsert[]>()
-      for (const row of seenIds.values()) {
-        const status = row.status ?? 'enabled'
-        const group = statusGroups.get(status) ?? []
-        group.push(row)
-        statusGroups.set(status, group)
-      }
+      // Stamp orderKey within each status partition (data-ordering-guide.md §5)
+      const rowsWithoutOrder: MiniAppRowWithoutOrderKey[] = [...seenIds.values()]
+      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) => row.status ?? 'enabled') as MiniAppInsert[]
 
-      // Re-assign sortOrder within each group
-      this.preparedRows = []
-      for (const [, rows] of statusGroups) {
-        for (let i = 0; i < rows.length; i++) {
-          this.preparedRows.push({ ...rows[i], sortOrder: i })
-        }
+      const byStatus = {
+        enabled: this.preparedRows.filter((r) => r.status === 'enabled').length,
+        disabled: this.preparedRows.filter((r) => r.status === 'disabled').length,
+        pinned: this.preparedRows.filter((r) => r.status === 'pinned').length
       }
 
       logger.info('Preparation completed', {
         appCount: this.preparedRows.length,
         skipped: this.skippedCount,
-        byStatus: {
-          enabled: statusGroups.get('enabled')?.length ?? 0,
-          disabled: statusGroups.get('disabled')?.length ?? 0,
-          pinned: statusGroups.get('pinned')?.length ?? 0
-        }
+        byStatus
       })
 
       return {

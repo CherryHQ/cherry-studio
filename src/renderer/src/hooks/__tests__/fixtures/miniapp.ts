@@ -20,7 +20,7 @@ export const createMiniApp = (appId: string, overrides?: Partial<MiniApp>): Mini
   url: `https://${appId}.example.com`,
   kind: 'default',
   status: 'enabled',
-  sortOrder: 0,
+  orderKey: 'a0',
   ...overrides
 })
 

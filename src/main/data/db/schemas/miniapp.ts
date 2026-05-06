@@ -8,7 +8,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
@@ -34,8 +34,8 @@ export const miniAppTable = sqliteTable(
     // User status for this app
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
 
-    // Sort order within the same status group
-    sortOrder: integer('sort_order').notNull().default(0),
+    // Fractional-indexing order key, scoped per status (see data-ordering-guide.md)
+    ...orderKeyColumns,
 
     // Whether the app shows a border
     bordered: integer({ mode: 'boolean' }).default(true),
@@ -56,7 +56,7 @@ export const miniAppTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    index('mini_app_status_sort_idx').on(t.status, t.sortOrder),
+    scopedOrderKeyIndex('mini_app', 'status')(t),
     index('mini_app_kind_idx').on(t.kind),
     index('mini_app_status_kind_idx').on(t.status, t.kind),
     check('mini_app_status_check', sql`${t.status} IN ('enabled', 'disabled', 'pinned')`),
