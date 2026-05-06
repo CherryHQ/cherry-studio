@@ -15,7 +15,7 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '../shared/menuStyles'
+} from '..'
 
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()

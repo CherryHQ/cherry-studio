@@ -29,7 +29,7 @@ import {
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
-} from './shared/menuStyles'
+} from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 

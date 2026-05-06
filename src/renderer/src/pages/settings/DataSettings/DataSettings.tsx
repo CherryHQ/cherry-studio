@@ -10,14 +10,14 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer } from '..'
 import {
+  SettingContainer,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '../shared/menuStyles'
+} from '..'
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'

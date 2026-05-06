@@ -13,7 +13,6 @@ import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingTitleExternalLink } from '..'
 import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
@@ -21,8 +20,9 @@ import {
   settingsSubmenuItemClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
-  settingsSubmenuSectionTitleClassName
-} from '../shared/menuStyles'
+  settingsSubmenuSectionTitleClassName,
+  SettingTitleExternalLink
+} from '..'
 import OcrProviderSettings from './OcrProviderSettings'
 import PreprocessProviderSettings from './PreprocessProviderSettings'
 
