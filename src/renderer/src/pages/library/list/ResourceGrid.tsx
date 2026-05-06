@@ -591,7 +591,7 @@ interface FixedCardMenuProps {
   allTagNames: string[]
 }
 
-function FixedCardMenu({
+export function FixedCardMenu({
   x,
   y,
   resource,
@@ -608,6 +608,8 @@ function FixedCardMenu({
   const [localTags, setLocalTags] = useState<string[]>(resource.tags)
   const [tagInput, setTagInput] = useState('')
   const [bindingError, setBindingError] = useState<string | null>(null)
+  const [bindingPending, setBindingPending] = useState(false)
+  const bindingPendingRef = useRef(false)
 
   // Assistant / agent tag binding flows through the resource's own PATCH so
   // row updates and tag ids land together. Skills have no editable row fields
@@ -633,6 +635,9 @@ function FixedCardMenu({
   const persistTags = useCallback(
     async (nextNames: string[], previousNames: string[]) => {
       if (!canBindTags) return
+      if (bindingPendingRef.current) return
+      bindingPendingRef.current = true
+      setBindingPending(true)
       try {
         const tags = await ensureTags(nextNames)
         const tagIds = tags.map((tag) => tag.id)
@@ -648,6 +653,9 @@ function FixedCardMenu({
         // Roll back optimistic state on failure.
         setLocalTags(previousNames)
         setBindingError(e instanceof Error ? e.message : t('library.tag_sync_failed'))
+      } finally {
+        bindingPendingRef.current = false
+        setBindingPending(false)
       }
     },
     [
@@ -664,6 +672,7 @@ function FixedCardMenu({
   )
 
   const toggleTag = (tag: string) => {
+    if (bindingPendingRef.current) return
     const prev = localTags
     const next = prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     setLocalTags(next)
@@ -672,6 +681,7 @@ function FixedCardMenu({
   }
 
   const addNewTag = () => {
+    if (bindingPendingRef.current) return
     const t = tagInput.trim()
     if (!t || localTags.includes(t)) {
       setTagInput('')
@@ -739,14 +749,16 @@ function FixedCardMenu({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') addNewTag()
                     }}
+                    disabled={bindingPending}
                     placeholder={t('library.tag_picker.placeholder')}
-                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-foreground text-xs shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
+                    className="h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-foreground text-xs shadow-none outline-none placeholder:text-muted-foreground/30 focus-visible:ring-0 disabled:opacity-50"
                   />
                   {tagInput.trim() && (
                     <Button
                       variant="ghost"
                       onClick={addNewTag}
-                      className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/30 shadow-none transition-colors hover:text-foreground focus-visible:ring-0">
+                      disabled={bindingPending}
+                      className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/30 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
                       <Plus size={10} />
                     </Button>
                   )}
@@ -763,10 +775,15 @@ function FixedCardMenu({
                     return (
                       <label
                         key={tag}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-3xs px-2.5 py-[5px] text-muted-foreground/60 text-xs transition-colors hover:bg-accent/50 hover:text-foreground">
+                        className={`flex w-full items-center gap-2 rounded-3xs px-2.5 py-[5px] text-muted-foreground/60 text-xs transition-colors ${
+                          bindingPending
+                            ? 'cursor-not-allowed opacity-60'
+                            : 'cursor-pointer hover:bg-accent/50 hover:text-foreground'
+                        }`}>
                         <Checkbox
                           size="sm"
                           checked={checked}
+                          disabled={bindingPending}
                           onCheckedChange={() => toggleTag(tag)}
                           className="size-3.5 rounded-4xs border-border/30 bg-transparent shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 data-[state=checked]:border-primary/70 data-[state=checked]:bg-primary/70 data-[state=checked]:text-primary-foreground [&_[data-slot=checkbox-indicator]_svg]:size-2"
                         />

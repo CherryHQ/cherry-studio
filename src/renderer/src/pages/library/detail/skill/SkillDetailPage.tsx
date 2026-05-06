@@ -1,4 +1,4 @@
-import { Badge, Button, Separator } from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
 import type { InstalledSkill, SkillFileNode } from '@types'
@@ -75,6 +75,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   const [loadingTree, setLoadingTree] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
   const [uninstalling, setUninstalling] = useState(false)
+  const [confirmUninstallOpen, setConfirmUninstallOpen] = useState(false)
   const [localTags, setLocalTags] = useState<string[]>(() => skill.tags.map((tag) => tag.name))
   const [tagError, setTagError] = useState<string | null>(null)
   const [savingTags, setSavingTags] = useState(false)
@@ -226,6 +227,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
       window.toast.error(message)
+      throw error
     } finally {
       setUninstalling(false)
     }
@@ -383,7 +385,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
             </div>
             <Button
               variant="destructive"
-              onClick={() => void handleUninstall()}
+              onClick={() => setConfirmUninstallOpen(true)}
               disabled={uninstalling}
               className="shrink-0 gap-2 rounded-xs">
               {uninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -392,6 +394,23 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           </section>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirmUninstallOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setConfirmUninstallOpen(true)
+          } else if (!uninstalling) {
+            setConfirmUninstallOpen(false)
+          }
+        }}
+        title={t('library.delete.skill.title')}
+        description={t('library.delete.skill.content')}
+        confirmText={t('library.action.uninstall')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={uninstalling}
+        onConfirm={handleUninstall}
+      />
     </div>
   )
 }

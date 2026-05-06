@@ -141,11 +141,10 @@ function envVarsToText(raw: unknown): string {
 function envVarsFromText(text: string): Record<string, string> {
   const entries = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.trim().length > 0)
     .map((line): [string, string] | null => {
       const idx = line.indexOf('=')
-      if (idx === -1) return [line, '']
+      if (idx === -1) return [line.trim(), '']
       return [line.slice(0, idx).trim(), line.slice(idx + 1)]
     })
     .filter((entry): entry is [string, string] => entry !== null && entry[0].length > 0)

@@ -1,6 +1,6 @@
 import type { AgentDetail } from '@shared/data/types/agent'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutations, useAgentMutationsById } from '../../adapters/agentAdapter'
@@ -73,12 +73,19 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   const { t } = useTranslation()
   const isCreate = !agent
 
+  const [currentAgent, setCurrentAgent] = useState<AgentDetail | undefined>(agent)
   const [activeSection, setActiveSection] = useState<AgentConfigSection>('basic')
+
+  useEffect(() => {
+    setCurrentAgent(agent)
+  }, [agent])
+
+  const editAgent = agent && currentAgent?.id === agent.id ? currentAgent : agent
 
   const { createAgent } = useAgentMutations()
   // Safe empty-string id in create mode — `useMutation` builds the path at
   // call-time and we only invoke the edit mutations in edit mode.
-  const { updateAgent } = useAgentMutationsById(agent?.id ?? '')
+  const { updateAgent } = useAgentMutationsById(editAgent?.id ?? '')
   const { ensureTags } = useEnsureTags()
   const tagList = useTagList()
   const tagColorByName = useMemo(
@@ -87,7 +94,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   )
   const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
 
-  const initialForm = useMemo(() => buildInitialAgentFormState(agent), [agent])
+  const initialForm = useMemo(() => buildInitialAgentFormState(editAgent), [editAgent])
 
   const { form, onChange, canSave, saving, saved, error, handleSave } = useResourceEditorState<
     AgentFormState,
@@ -95,7 +102,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   >({
     initialForm,
     baselineKey: agent?.id ?? null,
-    diff: (nextForm, baseline) => diffAgentSaveIntent(nextForm, baseline, agent ?? null),
+    diff: (nextForm, baseline) => diffAgentSaveIntent(nextForm, baseline, editAgent ?? null),
     onCommit: async (intent) => {
       if (intent.kind === 'create') {
         // Resolve tag names to ids before the POST so the agent row + tag
@@ -119,6 +126,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
         ...intent.payload,
         ...(tagIds !== undefined ? { tagIds } : {})
       })
+      setCurrentAgent(updated)
       const next = buildInitialAgentFormState(updated)
       return { nextBaseline: next, nextForm: next }
     },
@@ -127,7 +135,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
 
   const title = isCreate
     ? form.name.trim() || t('library.config.agent.create_title')
-    : form.name || agent?.name || agent?.id || ''
+    : form.name || editAgent?.name || editAgent?.id || ''
   const requiredFieldMessage = t('common.required_field')
   const createValidation = isCreate ? validateAgentCreateForm(form) : null
 
@@ -157,7 +165,7 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
       {activeSection === 'prompt' && <PromptSection form={form} onChange={onChange} />}
       {activeSection === 'permission' && <PermissionSection form={form} onChange={onChange} />}
       {activeSection === 'tools' && (
-        <ToolsSection agent={agent ?? EMPTY_AGENT_FOR_CREATE} form={form} onChange={onChange} />
+        <ToolsSection agent={editAgent ?? EMPTY_AGENT_FOR_CREATE} form={form} onChange={onChange} />
       )}
       {activeSection === 'advanced' && <AdvancedSection form={form} onChange={onChange} />}
     </ConfigEditorShell>

@@ -211,6 +211,21 @@ describe('diffAgentUpdate', () => {
     })
   })
 
+  it('preserves env var value whitespace after the first equals sign', () => {
+    const agent = createAgent({ configuration: { env_vars: {} } })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto.configuration).toMatchObject({
+      env_vars: {
+        TOKEN: ' abc ',
+        EMPTY: '  ',
+        SPACED_KEY: 'value=with=equals'
+      }
+    })
+  })
+
   it('emits the accessiblePaths array when list contents change', () => {
     const agent = createAgent({ accessiblePaths: ['/a'] })
     const baseline = buildInitialAgentFormState(agent)
