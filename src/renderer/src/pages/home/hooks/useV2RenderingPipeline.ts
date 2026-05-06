@@ -28,15 +28,12 @@ import { uiToMessage } from '../uiToMessage'
 export interface V2RenderingPipeline {
   projectedMessages: Message[]
   mergedPartsMap: Record<string, CherryMessagePart[]>
+  executionMessagesById: Record<string, CherryUIMessage[]>
   handleExecutionMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
   handleExecutionDispose: (executionId: string) => void
 }
 
-export function useV2RenderingPipeline(
-  uiMessages: CherryUIMessage[],
-  activeExecutionIds: readonly string[],
-  topic: Topic
-): V2RenderingPipeline {
+export function useV2RenderingPipeline(uiMessages: CherryUIMessage[], topic: Topic): V2RenderingPipeline {
   const { assistant, model } = useAssistant(topic.assistantId)
 
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
@@ -80,12 +77,7 @@ export function useV2RenderingPipeline(
     })
   }, [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot])
 
-  // Per-execution streaming overlay. Each mounted `ExecutionStreamCollector`
-  // pushes its `messages` here; ids match DB placeholder ids directly
-  // (Main tags every chunk with the execution's modelId), so `mergedPartsMap`
-  // overlays by id.
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } =
-    useExecutionMessages(activeExecutionIds)
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
@@ -105,6 +97,7 @@ export function useV2RenderingPipeline(
   return {
     projectedMessages,
     mergedPartsMap,
+    executionMessagesById,
     handleExecutionMessagesChange,
     handleExecutionDispose
   }
