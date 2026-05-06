@@ -23,12 +23,17 @@ export interface MinAppsState {
   enabled: MinAppType[]
   disabled: MinAppType[]
   pinned: MinAppType[]
+  // Display settings
+  iconOnly: boolean
+  categoryColumns: number
 }
 
 const initialState: MinAppsState = {
   enabled: allMinApps,
   disabled: [],
-  pinned: []
+  pinned: [],
+  iconOnly: false,
+  categoryColumns: 1
 }
 
 const minAppsSlice = createSlice({
@@ -46,10 +51,42 @@ const minAppsSlice = createSlice({
     },
     setPinnedMinApps: (state, action: PayloadAction<MinAppType[]>) => {
       state.pinned = action.payload.map((app) => ({ ...app, logo: undefined }))
+    },
+    moveMinApp: (
+      state,
+      action: PayloadAction<{
+        appId: string
+        from: 'enabled' | 'disabled' | 'pinned'
+        to: 'enabled' | 'disabled' | 'pinned'
+      }>
+    ) => {
+      const { appId, from, to } = action.payload
+      if (from === to) return
+
+      const sourceList = state[from]
+      const appIndex = sourceList.findIndex((app) => app.id === appId)
+      if (appIndex === -1) return
+
+      const [app] = sourceList.splice(appIndex, 1)
+      state[to].push({ ...app, logo: undefined })
+    },
+    setIconOnly: (state, action: PayloadAction<boolean>) => {
+      state.iconOnly = action.payload
+    },
+    setCategoryColumns: (state, action: PayloadAction<number>) => {
+      state.categoryColumns = action.payload
     }
   }
 })
 
-export const { setMinApps, addMinApp, setDisabledMinApps, setPinnedMinApps } = minAppsSlice.actions
+export const {
+  setMinApps,
+  addMinApp,
+  setDisabledMinApps,
+  setPinnedMinApps,
+  moveMinApp,
+  setIconOnly,
+  setCategoryColumns
+} = minAppsSlice.actions
 
 export default minAppsSlice.reducer

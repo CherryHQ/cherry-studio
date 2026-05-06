@@ -4431,6 +4431,7 @@
           "label": "最大备份数",
           "unlimited": "不限"
         },
+        "pinned": "已固定",
         "region": {
           "label": "区域",
           "placeholder": "Region, 例如: us-east-1"
@@ -5089,6 +5090,14 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "把要隐藏的小程序从左侧拖拽到这里",
+      "category_columns": {
+        "description": "分类显示的列数",
+        "title": "分类列数"
+      },
+      "icon_only": {
+        "description": "仅显示小程序图标，不显示名称",
+        "title": "仅图标模式"
+      },
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
