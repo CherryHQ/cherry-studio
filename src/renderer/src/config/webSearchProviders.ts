@@ -94,7 +94,7 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       official: 'https://github.com/zcaceres/fetch-mcp'
     }
   },
-  'jina-reader': {
+  jina: {
     capabilities: {
       requiresApiKey: true,
       supportsBasicAuth: false
@@ -154,9 +154,9 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     name: 'Fetch'
   },
   {
-    id: 'jina-reader',
-    name: 'Jina Reader',
-    apiHost: 'https://r.jina.ai',
+    id: 'jina',
+    name: 'Jina',
+    apiHost: 'https://s.jina.ai',
     apiKey: ''
   }
 ] as const
@@ -219,7 +219,7 @@ export function getWebSearchProviderLogo(providerId: WebSearchProviderId): Compo
       return Querit
     case 'fetch':
       return Cherryin
-    case 'jina-reader':
+    case 'jina':
       return Jina
     default:
       return undefined

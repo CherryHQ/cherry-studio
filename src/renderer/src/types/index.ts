@@ -713,7 +713,7 @@ export const WebSearchProviderIds = {
   bocha: 'bocha',
   querit: 'querit',
   fetch: 'fetch',
-  'jina-reader': 'jina-reader'
+  jina: 'jina'
 } as const
 
 export type WebSearchProviderId = keyof typeof WebSearchProviderIds

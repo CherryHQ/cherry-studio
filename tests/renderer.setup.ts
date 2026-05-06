@@ -99,6 +99,14 @@ vi.mock('uuid', () => ({
   v4: () => 'test-uuid-' + ++uuidCounter
 }))
 
+vi.mock('@iconify/react', () => {
+  const React = require('react')
+  return {
+    Icon: ({ icon, ...props }: { icon?: string }) =>
+      React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
+  }
+})
+
 vi.mock('axios', () => {
   const defaultAxiosMock = {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request

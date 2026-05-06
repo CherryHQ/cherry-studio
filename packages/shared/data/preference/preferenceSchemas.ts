@@ -183,7 +183,9 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'chat.web_search.compression.method': PreferenceTypes.WebSearchCompressionMethod
     // target-key-definitions/complex/complex
-    'chat.web_search.default_provider': PreferenceTypes.WebSearchProviderId | null
+    'chat.web_search.default_fetch_urls_provider': PreferenceTypes.WebSearchProviderId | null
+    // target-key-definitions/complex/complex
+    'chat.web_search.default_search_keywords_provider': PreferenceTypes.WebSearchProviderId | null
     // target-key-definitions/complex/complex
     'chat.web_search.exclude_domains': string[]
     // target-key-definitions/complex/complex
@@ -569,7 +571,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.compression.cutoff_limit': 2000,
     'chat.web_search.compression.cutoff_unit': 'char',
     'chat.web_search.compression.method': 'none',
-    'chat.web_search.default_provider': null,
+    'chat.web_search.default_fetch_urls_provider': null,
+    'chat.web_search.default_search_keywords_provider': null,
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
     'chat.web_search.provider_overrides': {},
@@ -768,7 +771,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 227
+ * - 总配置项: 228
  * - electronStore项: 1
  * - redux项: 204
  * - localStorage项: 0

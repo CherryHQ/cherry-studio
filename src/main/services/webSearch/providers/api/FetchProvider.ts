@@ -4,7 +4,7 @@ import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 
 export class FetchProvider extends BaseWebSearchProvider {
-  async search(
+  async fetchUrls(
     query: string,
     _config: WebSearchExecutionConfig,
     httpOptions?: RequestInit
@@ -14,7 +14,15 @@ export class FetchProvider extends BaseWebSearchProvider {
 
     return {
       query: url,
-      results: [result]
+      providerId: this.provider.id,
+      capability: 'fetchUrls',
+      inputs: [url],
+      results: [
+        {
+          ...result,
+          sourceInput: url
+        }
+      ]
     }
   }
 }

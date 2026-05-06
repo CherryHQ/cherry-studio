@@ -25,7 +25,7 @@ vi.mock('electron', () => ({
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
-import { JinaReaderProvider } from '../api/JinaReaderProvider'
+import { JinaProvider } from '../api/JinaProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -44,17 +44,33 @@ const runtimeConfig: WebSearchExecutionConfig = {
   }
 }
 
-function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
+function createProvider(
+  overrides: Partial<ResolvedWebSearchProvider> & { apiHost?: string }
+): ResolvedWebSearchProvider {
+  const { apiHost, capabilities, ...restOverrides } = overrides
+  const id = overrides.id ?? 'tavily'
+  const resolvedApiHost = apiHost ?? 'https://api.example.com'
+  const resolvedCapabilities =
+    capabilities ??
+    (id === 'fetch'
+      ? [{ feature: 'fetchUrls' as const, apiHost: resolvedApiHost }]
+      : id === 'jina'
+        ? [
+            { feature: 'searchKeywords' as const, apiHost: 'https://s.jina.ai' },
+            { feature: 'fetchUrls' as const, apiHost: resolvedApiHost }
+          ]
+        : [{ feature: 'searchKeywords' as const, apiHost: resolvedApiHost }])
+
   return {
     id: 'tavily',
     name: 'Provider',
     type: 'api',
     apiKeys: ['test-key'],
-    apiHost: 'https://api.example.com',
+    capabilities: resolvedCapabilities,
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: '',
-    ...overrides
+    ...restOverrides
   }
 }
 
@@ -134,7 +150,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -159,10 +175,16 @@ describe('main web search API providers', () => {
           "url": "https://api.exa.ai/search",
         },
         "result": {
-          "query": "refined query",
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "exa",
+          "query": "hello",
           "results": [
             {
               "content": "Exa Content",
+              "sourceInput": "hello",
               "title": "Exa Title",
               "url": "https://exa.example/result",
             },
@@ -184,7 +206,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -206,10 +228,16 @@ describe('main web search API providers', () => {
           "url": "https://api.tavily.com/search",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "tavily",
           "query": "hello",
           "results": [
             {
               "content": "Tavily Content",
+              "sourceInput": "hello",
               "title": "Tavily Title",
               "url": "https://tavily.example/result",
             },
@@ -231,7 +259,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('https://example.com/article', runtimeConfig)
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -247,10 +275,16 @@ describe('main web search API providers', () => {
           "url": "https://example.com/article",
         },
         "result": {
+          "capability": "fetchUrls",
+          "inputs": [
+            "https://example.com/article",
+          ],
+          "providerId": "fetch",
           "query": "https://example.com/article",
           "results": [
             {
               "content": "Resolved content from the target page.",
+              "sourceInput": "https://example.com/article",
               "title": "Resolved Page Title",
               "url": "https://example.com/article",
             },
@@ -260,7 +294,7 @@ describe('main web search API providers', () => {
     `)
   })
 
-  it('matches Jina Reader request and normalized response snapshot', async () => {
+  it('matches Jina fetch URL request and normalized response snapshot', async () => {
     fetchMock.mockResolvedValue(
       createJsonResponse({
         code: 200,
@@ -272,16 +306,16 @@ describe('main web search API providers', () => {
       })
     )
 
-    const provider = new JinaReaderProvider(
+    const provider = new JinaProvider(
       createProvider({
-        id: 'jina-reader',
-        name: 'Jina Reader',
+        id: 'jina',
+        name: 'Jina',
         apiKeys: ['jina-key'],
         apiHost: 'https://r.jina.ai'
       })
     )
 
-    const result = await provider.search('https://example.com/article', runtimeConfig)
+    const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -301,10 +335,16 @@ describe('main web search API providers', () => {
           "url": "https://r.jina.ai/https://example.com/article",
         },
         "result": {
+          "capability": "fetchUrls",
+          "inputs": [
+            "https://example.com/article",
+          ],
+          "providerId": "jina",
           "query": "https://example.com/article",
           "results": [
             {
               "content": "Reader Content",
+              "sourceInput": "https://example.com/article",
               "title": "Reader Title",
               "url": "https://example.com/article",
             },
@@ -315,16 +355,16 @@ describe('main web search API providers', () => {
   })
 
   it('throws a clear error for non-URL reader queries', async () => {
-    const provider = new JinaReaderProvider(
+    const provider = new JinaProvider(
       createProvider({
-        id: 'jina-reader',
-        name: 'Jina Reader',
+        id: 'jina',
+        name: 'Jina',
         apiKeys: ['jina-key'],
         apiHost: 'https://r.jina.ai'
       })
     )
 
-    await expect(provider.search('not a url', runtimeConfig)).rejects.toThrow('Invalid URL format: not a url')
+    await expect(provider.fetchUrls('not a url', runtimeConfig)).rejects.toThrow('Invalid URL format: not a url')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -344,7 +384,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       searchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
@@ -361,10 +401,16 @@ describe('main web search API providers', () => {
           "url": "https://searx.example/result",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "searxng",
           "query": "hello",
           "results": [
             {
               "content": "Resolved content from the target page.",
+              "sourceInput": "hello",
               "title": "Resolved Page Title",
               "url": "https://searx.example/result",
             },
@@ -399,7 +445,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await provider.search('hello', runtimeConfig)
+    await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       configRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
@@ -442,10 +488,13 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect(result).toEqual({
       query: 'hello',
+      providerId: 'searxng',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
       results: []
     })
   })
@@ -479,15 +528,19 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect(result).toEqual({
       query: 'hello',
+      providerId: 'searxng',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
       results: [
         {
           title: 'Resolved Page Title',
           content: 'Resolved content from the target page.',
-          url: 'https://searx.example/first'
+          url: 'https://searx.example/first',
+          sourceInput: 'hello'
         }
       ]
     })
@@ -517,7 +570,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow('HTTP error: 500')
   })
 
   it('matches Bocha request and normalized response snapshots from fixtures', async () => {
@@ -532,7 +585,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -556,10 +609,16 @@ describe('main web search API providers', () => {
           "url": "https://api.bochaai.com/v1/web-search",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "bocha",
           "query": "hello",
           "results": [
             {
               "content": "Bocha Content",
+              "sourceInput": "hello",
               "title": "Bocha Title",
               "url": "https://bocha.example/result",
             },
@@ -581,7 +640,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -610,10 +669,16 @@ describe('main web search API providers', () => {
           "url": "https://api.querit.ai/v1/search",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "querit",
           "query": "hello",
           "results": [
             {
               "content": "Querit Content",
+              "sourceInput": "hello",
               "title": "Querit Title",
               "url": "https://querit.example/result",
             },
@@ -635,7 +700,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -658,10 +723,16 @@ describe('main web search API providers', () => {
           "url": "https://open.bigmodel.cn/api/paas/v4/tools",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "zhipu",
           "query": "hello",
           "results": [
             {
               "content": "Zhipu Content",
+              "sourceInput": "hello",
               "title": "Zhipu Title",
               "url": "https://zhipu.example/result",
             },
@@ -683,7 +754,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
       'exa search response validation failed for https://api.exa.ai/search'
     )
   })
@@ -700,7 +771,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
       'searxng config returned invalid JSON from https://searx.example/config'
     )
   })
@@ -717,7 +788,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
       `Exa search failed: HTTP 502 ${'x'.repeat(500)}... [truncated]`
     )
   })
@@ -734,7 +805,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect({
       request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
@@ -766,10 +837,16 @@ describe('main web search API providers', () => {
           "url": "https://mcp.exa.ai/mcp",
         },
         "result": {
+          "capability": "searchKeywords",
+          "inputs": [
+            "hello",
+          ],
+          "providerId": "exa-mcp",
           "query": "hello",
           "results": [
             {
               "content": "Exa MCP Content",
+              "sourceInput": "hello",
               "title": "Exa MCP Title",
               "url": "https://mcp.exa.ai/result",
             },
@@ -800,15 +877,19 @@ describe('main web search API providers', () => {
       })
     )
 
-    const result = await provider.search('hello', runtimeConfig)
+    const result = await provider.searchKeywords('hello', runtimeConfig)
 
     expect(result).toEqual({
       query: 'hello',
+      providerId: 'exa-mcp',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
       results: [
         {
           title: 'Exa MCP Title',
           content: 'Exa MCP Content',
-          url: 'https://mcp.exa.ai/result'
+          url: 'https://mcp.exa.ai/result',
+          sourceInput: 'hello'
         }
       ]
     })
@@ -826,7 +907,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    await expect(provider.search('hello', runtimeConfig)).rejects.toThrow(
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
       'Exa MCP response parsing failed: no parseable content found'
     )
   })
@@ -856,7 +937,7 @@ describe('main web search API providers', () => {
       })
     )
 
-    const searchPromise = provider.search('hello', runtimeConfig)
+    const searchPromise = provider.searchKeywords('hello', runtimeConfig)
     const timeoutAssertion = expect(searchPromise).rejects.toMatchObject({
       name: 'TimeoutError',
       message: 'Exa MCP search timed out after 25000ms'
@@ -927,10 +1008,10 @@ describe('main web search API providers', () => {
       })
     )
 
-    const exaResult = await exaProvider.search('hello', runtimeConfig)
-    const tavilyResult = await tavilyProvider.search('hello', runtimeConfig)
-    const zhipuResult = await zhipuProvider.search('hello', runtimeConfig)
-    const exaMcpResult = await exaMcpProvider.search('hello', runtimeConfig)
+    const exaResult = await exaProvider.searchKeywords('hello', runtimeConfig)
+    const tavilyResult = await tavilyProvider.searchKeywords('hello', runtimeConfig)
+    const zhipuResult = await zhipuProvider.searchKeywords('hello', runtimeConfig)
+    const exaMcpResult = await exaMcpProvider.searchKeywords('hello', runtimeConfig)
 
     expect(exaResult.results[0]?.title).toBe('')
     expect(tavilyResult.results[0]?.title).toBe('')

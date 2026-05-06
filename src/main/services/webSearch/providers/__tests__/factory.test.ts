@@ -33,65 +33,93 @@ vi.mock('electron', () => ({
 import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
-import { JinaReaderProvider } from '../api/JinaReaderProvider'
+import { JinaProvider } from '../api/JinaProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
-import { createKeywordSearchProvider, createUrlSearchProvider } from '../factory'
+import {
+  assertWebSearchProviderSupportsCapability,
+  createWebSearchProvider,
+  webSearchProviderSupportsCapability
+} from '../factory'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
+import { WEB_SEARCH_PROVIDER_REGISTRY } from '../registry'
 
 function createProvider<TProviderId extends ResolvedWebSearchProvider['id']>(
   overrides: Partial<ResolvedWebSearchProvider> & { id: TProviderId }
 ): ResolvedWebSearchProvider & { id: TProviderId } {
+  const { id, ...restOverrides } = overrides
+
   return {
-    id: 'tavily',
+    id,
     name: 'Provider',
     type: 'api',
     apiKeys: ['test-key'],
-    apiHost: 'https://api.example.com',
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.example.com' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: '',
-    ...overrides
+    ...restOverrides
   } as ResolvedWebSearchProvider & { id: TProviderId }
 }
 
-describe('createKeywordSearchProvider', () => {
-  it('maps each keyword provider id to the correct implementation class', () => {
-    expect(createKeywordSearchProvider(createProvider({ id: 'zhipu' }))).toBeInstanceOf(ZhipuProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'tavily' }))).toBeInstanceOf(TavilyProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'searxng' }))).toBeInstanceOf(SearxngProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'exa' }))).toBeInstanceOf(ExaProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
-    expect(createKeywordSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
+describe('createWebSearchProvider', () => {
+  it('registers every supported provider id', () => {
+    expect(Object.keys(WEB_SEARCH_PROVIDER_REGISTRY).sort()).toEqual([
+      'bocha',
+      'exa',
+      'exa-mcp',
+      'fetch',
+      'jina',
+      'querit',
+      'searxng',
+      'tavily',
+      'zhipu'
+    ])
   })
 
-  it('throws for URL provider ids', () => {
-    expect(() =>
-      createKeywordSearchProvider(
+  it('maps each provider id to the correct implementation class', () => {
+    expect(createWebSearchProvider(createProvider({ id: 'zhipu' }))).toBeInstanceOf(ZhipuProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'tavily' }))).toBeInstanceOf(TavilyProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'searxng' }))).toBeInstanceOf(SearxngProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'exa' }))).toBeInstanceOf(ExaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
+    expect(
+      createWebSearchProvider(createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls', apiHost: '' }] }))
+    ).toBeInstanceOf(FetchProvider)
+    expect(
+      createWebSearchProvider(
         createProvider({
-          id: 'fetch'
-        }) as Parameters<typeof createKeywordSearchProvider>[0]
+          id: 'jina',
+          capabilities: [
+            { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
+            { feature: 'fetchUrls', apiHost: 'https://r.jina.ai' }
+          ]
+        })
       )
-    ).toThrow('Unsupported keyword search provider: fetch')
-  })
-})
-
-describe('createUrlSearchProvider', () => {
-  it('maps each URL provider id to the correct implementation class', () => {
-    expect(createUrlSearchProvider(createProvider({ id: 'fetch' }))).toBeInstanceOf(FetchProvider)
-    expect(createUrlSearchProvider(createProvider({ id: 'jina-reader' }))).toBeInstanceOf(JinaReaderProvider)
+    ).toBeInstanceOf(JinaProvider)
   })
 
-  it('throws for keyword provider ids', () => {
-    expect(() =>
-      createUrlSearchProvider(
-        createProvider({
-          id: 'tavily'
-        }) as Parameters<typeof createUrlSearchProvider>[0]
-      )
-    ).toThrow('Unsupported URL search provider: tavily')
+  it('asserts provider capability support from capability definitions', () => {
+    const jina = createProvider({
+      id: 'jina',
+      capabilities: [
+        { feature: 'searchKeywords', apiHost: 'https://s.jina.ai' },
+        { feature: 'fetchUrls', apiHost: 'https://r.jina.ai' }
+      ]
+    })
+    const fetch = createProvider({ id: 'fetch', capabilities: [{ feature: 'fetchUrls', apiHost: '' }] })
+
+    expect(webSearchProviderSupportsCapability(jina, 'searchKeywords')).toBe(true)
+    expect(webSearchProviderSupportsCapability(jina, 'fetchUrls')).toBe(true)
+    expect(webSearchProviderSupportsCapability(fetch, 'searchKeywords')).toBe(false)
+    expect(() => assertWebSearchProviderSupportsCapability(fetch, 'searchKeywords')).toThrow(
+      'Web search provider fetch does not support capability searchKeywords'
+    )
+
+    expect(() => assertWebSearchProviderSupportsCapability(fetch, 'fetchUrls')).not.toThrow()
   })
 })

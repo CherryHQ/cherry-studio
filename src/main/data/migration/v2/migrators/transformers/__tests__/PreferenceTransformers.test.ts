@@ -5,8 +5,7 @@ import {
   getNestedValue,
   isNonEmptyString,
   isValidNumber,
-  migrateWebSearchProviders,
-  normalizeWebSearchDefaultProvider
+  migrateWebSearchProviders
 } from '../PreferenceTransformers'
 
 describe('PreferenceTransformers', () => {
@@ -135,28 +134,6 @@ describe('PreferenceTransformers', () => {
     })
   })
 
-  describe('normalizeWebSearchDefaultProvider', () => {
-    it('should keep supported provider ids', () => {
-      const result = normalizeWebSearchDefaultProvider({ defaultProvider: 'tavily' })
-
-      expect(result['chat.web_search.default_provider']).toBe('tavily')
-    })
-
-    it('should collapse removed local providers to null', () => {
-      const result = normalizeWebSearchDefaultProvider({ defaultProvider: 'local-bing' })
-
-      expect(result['chat.web_search.default_provider']).toBeNull()
-    })
-
-    it('should collapse empty and unknown providers to null', () => {
-      expect(normalizeWebSearchDefaultProvider({ defaultProvider: '' })['chat.web_search.default_provider']).toBeNull()
-      expect(
-        normalizeWebSearchDefaultProvider({ defaultProvider: 'custom-provider' })['chat.web_search.default_provider']
-      ).toBeNull()
-      expect(normalizeWebSearchDefaultProvider({})['chat.web_search.default_provider']).toBeNull()
-    })
-  })
-
   describe('flattenCompressionConfig', () => {
     it('should return defaults when no config provided', () => {
       const result = flattenCompressionConfig({})
@@ -276,7 +253,11 @@ describe('PreferenceTransformers', () => {
       const overrides = result['chat.web_search.provider_overrides'] as Record<string, Record<string, unknown>>
       expect(overrides).toEqual({
         searxng: {
-          apiHost: 'https://searx.example.com',
+          capabilities: {
+            searchKeywords: {
+              apiHost: 'https://searx.example.com'
+            }
+          },
           engines: ['news'],
           basicAuthUsername: 'user',
           basicAuthPassword: ' pass '

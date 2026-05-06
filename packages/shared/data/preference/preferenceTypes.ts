@@ -141,38 +141,26 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'bocha',
   'querit',
   'fetch',
-  'jina-reader'
+  'jina'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
-export const URL_SEARCH_PROVIDER_IDS = ['fetch', 'jina-reader'] as const satisfies readonly WebSearchProviderId[]
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
 
-export const KEYWORD_SEARCH_PROVIDER_IDS = [
-  'zhipu',
-  'tavily',
-  'searxng',
-  'exa',
-  'exa-mcp',
-  'bocha',
-  'querit'
-] as const satisfies readonly WebSearchProviderId[]
+export type WebSearchCapability = (typeof WEB_SEARCH_CAPABILITIES)[number]
 
-export type UrlSearchProviderId = (typeof URL_SEARCH_PROVIDER_IDS)[number]
-
-export type KeywordSearchProviderId = (typeof KEYWORD_SEARCH_PROVIDER_IDS)[number]
-
-export function isUrlSearchProviderId(providerId: WebSearchProviderId): providerId is UrlSearchProviderId {
-  return URL_SEARCH_PROVIDER_IDS.includes(providerId as UrlSearchProviderId)
+export type WebSearchProviderCapabilityOverride = {
+  apiHost?: string
 }
 
-export function isKeywordSearchProviderId(providerId: WebSearchProviderId): providerId is KeywordSearchProviderId {
-  return KEYWORD_SEARCH_PROVIDER_IDS.includes(providerId as KeywordSearchProviderId)
-}
+export type WebSearchProviderCapabilityOverrides = Partial<
+  Record<WebSearchCapability, WebSearchProviderCapabilityOverride>
+>
 
 export type WebSearchProviderOverride = {
   apiKeys?: string[]
-  apiHost?: string
+  capabilities?: WebSearchProviderCapabilityOverrides
   engines?: string[]
   basicAuthUsername?: string
   basicAuthPassword?: string
@@ -200,8 +188,11 @@ export interface WebSearchProvider {
   type: WebSearchProviderType
   /** API keys (from user overrides) */
   apiKeys: string[]
-  /** API host (user override or preset default) */
-  apiHost: string
+  /** Capability API settings (user override merged into preset capabilities) */
+  capabilities: Array<{
+    feature: WebSearchCapability
+    apiHost?: string
+  }>
   /** Search engines (from user overrides) */
   engines: string[]
   /** Basic auth username (from user overrides) */

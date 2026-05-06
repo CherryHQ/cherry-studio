@@ -154,11 +154,7 @@
  */
 
 import { loggerService } from '@logger'
-import type {
-  WebSearchProviderId,
-  WebSearchProviderOverride,
-  WebSearchProviderOverrides
-} from '@shared/data/preference/preferenceTypes'
+import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
@@ -206,39 +202,16 @@ export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
-const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = new Set<WebSearchProviderId>(
-  PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)
-)
-
-function isSupportedWebSearchProviderId(value: string): value is WebSearchProviderId {
-  return SUPPORTED_WEB_SEARCH_PROVIDER_IDS.has(value as WebSearchProviderId)
+function getPresetCapability(
+  preset: (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number],
+  feature: 'searchKeywords' | 'fetchUrls'
+) {
+  return preset.capabilities.find((capability) => capability.feature === feature)
 }
 
 // ============================================================================
 // WebSearch Transformers
 // ============================================================================
-
-/**
- * Normalize the legacy default web search provider into a v2 Preference key.
- *
- * Unsupported legacy ids, removed local providers, and empty strings are all
- * treated as "no default provider selected" to keep the migrated Preference
- * compatible with the curated preset list.
- */
-export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
-  const defaultProvider = sources.defaultProvider?.trim()
-
-  if (defaultProvider && !isSupportedWebSearchProviderId(defaultProvider)) {
-    logger.warn('Unsupported legacy web-search default provider dropped during v2 migration', {
-      providerId: defaultProvider
-    })
-  }
-
-  return {
-    'chat.web_search.default_provider':
-      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
-  }
-}
 
 /**
  * WebSearch compression config source type
@@ -385,8 +358,11 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
     const apiHost = rawApiHost?.trim()
-    if (apiHost && apiHost !== preset.defaultApiHost) {
-      override.apiHost = apiHost
+    const searchKeywordsCapability = getPresetCapability(preset, 'searchKeywords')
+    if (apiHost && searchKeywordsCapability && apiHost !== searchKeywordsCapability.apiHost) {
+      override.capabilities = {
+        searchKeywords: { apiHost }
+      }
     }
 
     if (provider.engines && provider.engines.length > 0) {

@@ -31,7 +31,11 @@ const ExaSearchResponseSchema = z.object({
 type ExaSearchContext = ApiKeyRequestSearchContext<z.infer<typeof ExaSearchRequestSchema>>
 
 export class ExaProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
 
@@ -49,7 +53,7 @@ export class ExaProvider extends BaseWebSearchProvider {
       apiKey,
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('/search'),
+      requestUrl: this.resolveApiUrl('searchKeywords', '/search'),
       requestBody: ExaSearchRequestSchema.parse({
         query,
         numResults: config.maxResults,
@@ -88,11 +92,15 @@ export class ExaProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof ExaSearchResponseSchema>
   ): WebSearchResponse {
     return {
-      query: searchPayload.autopromptString || context.query,
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: searchPayload.results.slice(0, context.maxResults).map((item) => ({
         title: item.title?.trim() || '',
         content: item.text?.trim() || '',
-        url: item.url || ''
+        url: item.url || '',
+        sourceInput: context.query
       }))
     }
   }

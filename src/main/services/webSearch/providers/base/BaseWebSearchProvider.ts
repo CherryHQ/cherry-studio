@@ -1,8 +1,5 @@
-import type {
-  ResolvedWebSearchProvider,
-  WebSearchExecutionConfig,
-  WebSearchResponse
-} from '@shared/data/types/webSearch'
+import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
+import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 import { withoutTrailingSlash } from '@shared/utils'
 import type * as z from 'zod'
 
@@ -13,14 +10,8 @@ const MAX_HTTP_ERROR_TEXT_LENGTH = 500
 export abstract class BaseWebSearchProvider {
   constructor(protected readonly provider: ResolvedWebSearchProvider) {}
 
-  abstract search(
-    query: string,
-    config: WebSearchExecutionConfig,
-    httpOptions?: RequestInit
-  ): Promise<WebSearchResponse>
-
-  protected resolveApiUrl(path: string): string {
-    const apiHost = resolveProviderApiHost(this.provider)
+  protected resolveApiUrl(capability: WebSearchCapability, path: string): string {
+    const apiHost = resolveProviderApiHost(this.provider, capability)
     const normalizedBaseUrl = `${withoutTrailingSlash(apiHost)}/`
     const normalizedPath = path.replace(/^\//, '')
     return new URL(normalizedPath, normalizedBaseUrl).toString()

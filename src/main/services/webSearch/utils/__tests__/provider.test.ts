@@ -9,7 +9,7 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
     name: 'Tavily',
     type: 'api',
     apiKeys: ['test-key'],
-    apiHost: 'https://api.example.com',
+    capabilities: [{ feature: 'searchKeywords', apiHost: 'https://api.example.com' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: '',
@@ -20,10 +20,10 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
 describe('webSearch provider utils', () => {
   it('trims the configured API host', () => {
     const provider = createProvider({
-      apiHost: '  https://api.example.com/v1  '
+      capabilities: [{ feature: 'searchKeywords', apiHost: '  https://api.example.com/v1  ' }]
     })
 
-    expect(resolveProviderApiHost(provider)).toBe('https://api.example.com/v1')
+    expect(resolveProviderApiHost(provider, 'searchKeywords')).toBe('https://api.example.com/v1')
   })
 
   it('throws when required API keys are missing after trimming', () => {

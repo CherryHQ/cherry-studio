@@ -1,11 +1,12 @@
+import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 const lastUsedKeyByProvider = new Map<ResolvedWebSearchProvider['id'], string>()
 
-export function resolveProviderApiHost(provider: ResolvedWebSearchProvider): string {
-  const host = provider.apiHost?.trim()
+export function resolveProviderApiHost(provider: ResolvedWebSearchProvider, capability: WebSearchCapability): string {
+  const host = provider.capabilities.find((item) => item.feature === capability)?.apiHost?.trim()
   if (!host) {
-    throw new Error(`API host is required for provider ${provider.id}`)
+    throw new Error(`API host is required for provider ${provider.id} capability ${capability}`)
   }
   return host
 }
