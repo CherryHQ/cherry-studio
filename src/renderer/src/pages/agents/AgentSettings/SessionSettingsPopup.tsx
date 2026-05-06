@@ -60,7 +60,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
   return (
     <BaseSettingsPopup
       isLoading={isLoading}
-      error={error}
+      error={error ?? null}
       initialTab={tab}
       onClose={resolve}
       titleContent={<SessionLabel session={session} />}

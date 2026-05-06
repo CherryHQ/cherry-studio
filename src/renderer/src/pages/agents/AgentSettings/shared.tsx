@@ -13,14 +13,24 @@ import type {
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
-import { AgentConfigurationSchema } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { ModalProps } from 'antd'
 import React, { type ReactNode } from 'react'
 
 // Shared types and constants for agent settings
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
-export const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
+
+// Concrete defaults — not derived from Zod schema, which carries no .default() calls
+// (Rule E: defaults belong at the consumption point, not in schemas). Use these where
+// a non-optional numeric / enum value is required (e.g. useState<number> initializers).
+export const DEFAULT_MAX_TURNS = 100
+export const DEFAULT_PERMISSION_MODE = 'default' as const
+
+export const defaultConfiguration: AgentConfigurationState = {
+  permission_mode: DEFAULT_PERMISSION_MODE,
+  max_turns: DEFAULT_MAX_TURNS,
+  env_vars: {}
+}
 
 /**
  * Unified props type for settings components that work with both Agent and Session

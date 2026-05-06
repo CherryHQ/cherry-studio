@@ -31,23 +31,23 @@ export function sanitizeKnowledgeUrl(rawUrl: string): string {
   }
 }
 
-/**
- * Fetches a knowledge web page through the Jina reader endpoint and returns
- * the normalized markdown payload.
- */
 export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): Promise<string> {
   try {
     const safeUrl = sanitizeKnowledgeUrl(url)
 
     const response = await knowledgeWebFetchQueue.add(
-      async () =>
-        await net.fetch(`${JINA_READER_BASE_URL}${safeUrl}`, {
-          signal: signal ?? AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS),
+      async () => {
+        const timeoutSignal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
+        const fetchSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+
+        return await net.fetch(`${JINA_READER_BASE_URL}${safeUrl}`, {
+          signal: fetchSignal,
           headers: {
             'X-Retain-Images': 'none',
             'X-Return-Format': 'markdown'
           }
-        }),
+        })
+      },
       signal ? { signal } : undefined
     )
     if (!response) {

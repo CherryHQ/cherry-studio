@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 import {
   type AgentOrSessionSettingsProps,
   computeModeDefaults,
-  defaultConfiguration,
+  DEFAULT_PERMISSION_MODE,
   isSoulModeEnabled,
   SettingsContainer,
   SettingsItem,
@@ -69,7 +69,7 @@ export const ToolsSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, upda
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
   const selectedMode = useMemo(
-    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    () => agentBase?.configuration?.permission_mode ?? DEFAULT_PERMISSION_MODE,
     [agentBase?.configuration?.permission_mode]
   )
   const selectedModeCard = useMemo(() => permissionModeCards.find((card) => card.mode === selectedMode), [selectedMode])

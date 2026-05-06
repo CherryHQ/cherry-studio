@@ -36,7 +36,9 @@
         "comingSoon": "近日公開",
         "connected": "接続済み",
         "connecting": "接続",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "チャンネル「{{name}}」を削除しますか？",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "エージェントをメッセージングプラットフォームに接続します。",
         "disconnected": "切断済み",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "チャンネル",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "WeChatアカウントを追加",
           "chatIds": "許可されたユーザーID",
@@ -211,6 +214,9 @@
         },
         "edit": "編集",
         "empty": "スケジュールタスクがありません。追加して開始しましょう。",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "間隔（分）",
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
@@ -220,6 +226,7 @@
           "error": "エラー",
           "justNow": "さっき",
           "label": "実行履歴",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "結果",
           "runAt": "実行時刻",
           "running": "走っている…",
@@ -1503,8 +1510,8 @@
     "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
-    "count_one": "{{count}}件",
-    "count_other": "{{count}}個のアイテム",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "カスタムパス",
     "custom_path_error": "カスタムターミナルパスの設定に失敗しました",
     "custom_path_required": "この端末にはカスタムパスを設定する必要があります",
@@ -1512,12 +1519,12 @@
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
     "empty": {
       "no_match": {
-        "description": "検索語を調整してみてください",
-        "title": "一致するツールが見つかりません"
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
       },
       "no_tool": {
-        "description": "CLIツールまたはコードアシスタントを追加して始めましょう",
-        "title": "まだコードツールはありません"
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
       }
     },
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
@@ -1529,28 +1536,28 @@
       "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
       "error": "起動に失敗しました。もう一度試してください",
       "label": "起動",
-      "launched": "発売",
+      "launched": "[to be translated]:Launched",
       "success": "起動成功",
       "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
     },
     "launching": "起動中...",
     "model": "モデル",
-    "model_hint": "CLIツールが使用するAIモデルを選択してください",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
-    "official_tag": "公式",
-    "official_tools": "公式",
-    "search_placeholder": "CLIツールを検索…",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "フォルダを選択",
     "set_custom_path": "カスタムターミナルパスを設定",
     "supported_providers": "サポートされているプロバイダー",
     "terminal": "端末",
-    "terminal_hint": "CLIを実行するターミナルアプリケーションを選択してください",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ",
-    "working_directory_hint": "CLIツールが起動する作業ディレクトリ"
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "折りたたむ",
@@ -2555,8 +2562,8 @@
   },
   "models": {
     "action": {
-      "pin": "このモデルをピン留めする",
-      "unpin": "モデルのピンを外す"
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
     },
     "add_parameter": "パラメータを追加",
     "all": "すべて",
@@ -2576,7 +2583,7 @@
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
     "multi_select": {
-      "label": "マルチモデル並列（マルチアシスタントとは相互に排他）"
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
     },
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
@@ -3817,6 +3824,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3884,45 +3916,73 @@
       "title": "チャンネル"
     },
     "componentLab": {
-      "description": "開発環境でのみ表示され、アプリ内で新しいモデルセレクターを直接テストするためのものです。",
-      "label": "コンポーネントラボ",
-      "modelSelector": {
-        "behaviorConfig": "動作と表示設定",
-        "callbackEmpty": "まだコンポーネントコールバックを受け取っていません",
-        "clearSelection": "選択をクリア",
-        "configDescription": "上の ModelSelector の主要なプロパティを切り替え、下の入力値とコールバックのペイロードを確認してください。",
-        "configTitle": "プロップスのプレイグラウンド",
-        "controlMultiSelectMode": "制御された複数選択モード",
-        "currentProps": "現在のプロップ",
-        "defaultMultiSelectMode": "defaultMultiSelectMode",
-        "description": "このページでは、現在の ModelSelector ビジネスコンポーネントを直接マウントして、選択、フィルタリング、検索、ピン留めの動作を確認できるようにしています。",
-        "empty": "現在利用可能なモデルがないため、セレクターはまだ表示できません。",
-        "lastModeChangeReturn": "Latest onMultiSelectModeChange 戻り値",
-        "lastSelectReturn": "最新のonSelect戻り値",
-        "loading": "モデルを読み込んでいます...",
-        "modelId": "モデルID",
-        "multiSelectMode": "マルチセレクトモード",
-        "multiple": "複数",
-        "normalizedIds": "正規化された選択ID",
-        "outputEmpty": "まだ表示するデータがありません",
-        "provider": "プロバイダー",
-        "resetOutputs": "出力をリセット",
-        "resultsDescription": "これは現在の値の提案、正規化された選択されたID、およびコンポーネントからの最新のコールバック出力を示しています。",
-        "resultsTitle": "出力と状態",
-        "selected": "現在の選択",
-        "selectedEmpty": "まだモデルが選択されていません",
-        "selectionConfig": "選択値設定",
-        "selectionType": "選択タイプ",
-        "selectionTypeId": "モデルIDを返す",
-        "selectionTypeModel": "モデルオブジェクトを返す",
-        "showPinnedModels": "ピン留めされたモデルを表示",
-        "showTagFilter": "showTagFilter",
-        "title": "モデルセレクター",
-        "triggerPlaceholder": "モデルを選択してください",
-        "triggerSelectedCount": "{{count}}個のモデルが選択されました",
-        "valueProp": "現在の価値提案"
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
       },
-      "title": "開発コンポーネントラボ"
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -4623,15 +4683,6 @@
         "button": "バックアップ",
         "title": "データのバックアップと復元"
       },
-      "common": {
-        "sections": {
-          "custom_css": "カスタムCSS",
-          "display_language": "表示と言語",
-          "privacy_advanced": "プライバシーと高度な設定",
-          "system_startup": "システム＆スタートアップ"
-        },
-        "title": "共通設定"
-      },
       "display": {
         "title": "表示設定"
       },
@@ -4644,11 +4695,6 @@
       },
       "restore": {
         "button": "復元"
-      },
-      "settings_open_target": {
-        "app": "アプリ内",
-        "title": "設定を開く対象",
-        "window": "別ウィンドウ"
       },
       "spell_check": {
         "label": "スペルチェック",
@@ -4967,13 +5013,6 @@
       "url": "URL",
       "user": "ユーザー"
     },
-    "menuGroups": {
-      "appSettings": "アプリ設定",
-      "integrations": "統合",
-      "productivity": "生産性",
-      "services": "サービス",
-      "system": "システム"
-    },
     "messages": {
       "divider": {
         "label": "メッセージ間に区切り線を表示",
@@ -5221,11 +5260,6 @@
         "title": "詳細度"
       }
     },
-    "plugins": {
-      "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
-      "title": "プラグイン",
-      "uvDescription": "MCPサービスおよび依存関係インストール用のPythonパッケージマネージャー。"
-    },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
       "title": "プライバシー設定"
@@ -5470,7 +5504,8 @@
         "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
         "learn_more": "詳細を確認",
         "location": "場所",
-        "location_help": "Vertex AIサービスの場所、例：us-central1",
+        "location_help": "Vertex AIサービスの場所、例：us-central1。この項目は Service Account JSON から読み取られないため、手動で入力する必要があります。",
+        "location_placeholder": "Vertex AI の場所を選択",
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5481,6 +5516,11 @@
           "client_email_placeholder": "サービスアカウントのクライアントメールを入力してください",
           "description": "ADCが利用できない環境での認証に適しています",
           "incomplete_config": "まずサービスアカウントの設定を完了してください",
+          "json_input": "Service Account JSON",
+          "json_input_help": "完全な JSON キー内容を貼り付けてください。解析後は project_id、client_email、private_key のみ保存され、元の JSON はクリアされます。",
+          "json_input_placeholder": "完全な Service Account JSON キー内容を貼り付け",
+          "json_parse_error": "Service Account JSON の解析に失敗しました。形式が正しいことを確認してください。",
+          "json_parse_success": "Service Account JSON を解析しました",
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
@@ -5542,22 +5582,12 @@
     "shortcuts": {
       "action": "操作",
       "actions": "操作",
-      "all_disable": "すべて無効にする",
-      "all_enable": "すべて有効にする",
       "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
-      "categories": {
-        "assistant": "AI アシスタントツール",
-        "chat": "メッセージインタラクション",
-        "general": "グローバルとウィンドウ",
-        "title": "ショートカットグループ",
-        "topic": "会話と話題"
-      },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "conflict_with": "すでに「{{name}}」によって使用されています",
       "copy_last_message": "最後のメッセージをコピー",
       "edit_last_user_message": "最後のユーザーメッセージを編集",
-      "empty": "このグループにはショートカットは利用できません",
       "enabled": "有効化",
       "exit_fullscreen": "フルスクリーンを終了",
       "label": "キー",
@@ -5566,7 +5596,6 @@
       "press_shortcut": "ショートカットを押す",
       "quick_assistant": "クイックアシスタント",
       "rename_topic": "トピックの名前を変更",
-      "reset": "リセット",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
       "reset_defaults_failed": "ショートカットをデフォルトにリセットできませんでした",
@@ -5647,14 +5676,6 @@
         "error": {
           "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
         },
-        "features": {
-          "paddleocr": "中国語のテキストに強く、レシート、スキャン、より複雑なレイアウトの画像により適しています。",
-          "system": {
-            "macos": "macOSの内蔵OCRエンジンを使用し、設定不要でスクリーンショットや軽量なテキスト抽出に最適です。",
-            "windows": "ネイティブのWindows OCRエンジンを使用し、OSとの統合が強く、基本的なローカル認識タスクに対応します。"
-          },
-          "tesseract": "カスタマイズ可能な言語パックを備えたクラシックなローカルOCRオプションで、オフラインおよび多言語ワークフローに最適です。"
-        },
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"
@@ -5681,13 +5702,6 @@
         "title": "OCRサービス"
       },
       "preprocess": {
-        "features": {
-          "doc2x": "PDFをよりクリーンなMarkdownまたは編集可能なテキストに変換し、後続の検索や編集に適した形式に整えるのに最適です。",
-          "mineru": "より高忠実なレイアウト復元に最適化されており、学術PDF、表、数式に特に有用です。",
-          "mistral": "強力なクラウドベースの文書理解機能で、構造化された抽出、複数ページのファイル、複雑なレイアウトに対応します。",
-          "open_mineru": "セルフホスティングや処理パイプラインをより厳密に制御したいチームに適した、オープンなデプロイメントオプション。",
-          "paddleocr": "中国語の文書、スキャン、一般的なレシート形式のコンテンツに適した、軽量な統合オプションです。"
-        },
         "paddleocr": {
           "aistudio_access_token": "AI Studioコミュニティのアクセストークン",
           "api_url": "API URL",

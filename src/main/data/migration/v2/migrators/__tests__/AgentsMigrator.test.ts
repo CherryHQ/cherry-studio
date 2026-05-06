@@ -87,25 +87,47 @@ describe('AgentsMigrator', () => {
 
   it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
     const run = vi.fn().mockResolvedValue(undefined)
+    // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
+    // mock to return empty arrays so the remap loop is a no-op.
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+    })
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    })
+    // remapAgentPrefixIds runs PRAGMA foreign_key_check via db.all; empty => no FK violations.
+    const all = vi.fn().mockResolvedValue([])
+
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(createMigrationContext({ db: { run } }))
+    const result = await migrator.execute(createMigrationContext({ db: { run, select, update, all } }))
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(45)
+
     const outer = getExecutedSql(run)
+    // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → [INSERTs] → COMMIT
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
     expect(outer[2]).toBe('BEGIN')
-    expect(outer.at(-3)).toBe('COMMIT')
+    // After import COMMIT: remapAgentPrefixIds emits PRAGMA FK OFF → BEGIN → COMMIT → PRAGMA FK ON
+    // Then execute() finally emits PRAGMA FK ON → DETACH
+    // run tail: ...COMMIT(import), PRAGMA FK OFF, BEGIN, COMMIT, PRAGMA FK ON, PRAGMA FK ON, DETACH
+    expect(outer.at(-7)).toBe('COMMIT')
+    expect(outer.at(-6)).toBe('PRAGMA foreign_keys = OFF')
+    expect(outer.at(-5)).toBe('BEGIN')
+    expect(outer.at(-4)).toBe('COMMIT')
+    expect(outer.at(-3)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    // INSERT statements run between BEGIN and COMMIT
-    const insertCalls = outer.slice(3, -3)
+    // INSERT statements sit between the initial BEGIN and the main COMMIT
+    const insertCalls = outer.slice(3, -7)
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
+    // No old-prefix IDs returned → no UPDATE calls
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
@@ -220,7 +242,14 @@ describe('AgentsMigrator', () => {
 
     const run = vi.fn().mockResolvedValue(undefined)
     const get = vi.fn().mockResolvedValue({ count: 8 })
-    const migrationContext = createMigrationContext({ db: { run, get } })
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+    })
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    })
+    const all = vi.fn().mockResolvedValue([])
+    const migrationContext = createMigrationContext({ db: { run, get, select, update, all } })
 
     await migrator.prepare(migrationContext)
     await migrator.execute(migrationContext)

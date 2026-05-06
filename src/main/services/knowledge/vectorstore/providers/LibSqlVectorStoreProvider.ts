@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
@@ -14,11 +15,24 @@ const logger = loggerService.withContext('LibSqlVectorStoreProvider')
 
 export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   async create(base: KnowledgeBase): Promise<BaseVectorStore> {
+    if (
+      base.status !== 'completed' ||
+      typeof base.dimensions !== 'number' ||
+      !Number.isInteger(base.dimensions) ||
+      base.dimensions <= 0
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'createLibSqlVectorStore',
+        `Knowledge base '${base.id}' is not ready for vector store operations`
+      )
+    }
+
+    const dimensions = base.dimensions
     const dbPath = await this.getKnowledgeBaseFilePath(base.id)
 
     return new LibSQLVectorStore({
       collection: base.id,
-      dimensions: base.dimensions,
+      dimensions,
       clientConfig: {
         url: pathToFileURL(dbPath).toString()
       }

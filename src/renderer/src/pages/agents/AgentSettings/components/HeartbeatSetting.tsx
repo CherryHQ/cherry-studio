@@ -20,7 +20,7 @@ interface HeartbeatSettingProps {
 export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingProps) => {
   const { t } = useTranslation()
 
-  const config = useMemo(() => (agentBase?.configuration ?? {}) as AgentConfiguration, [agentBase?.configuration])
+  const config = useMemo(() => agentBase?.configuration ?? {}, [agentBase?.configuration])
   const enabled = config.heartbeat_enabled ?? true
   const interval = config.heartbeat_interval ?? 30
 
