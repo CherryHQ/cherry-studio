@@ -38,10 +38,12 @@ import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
 import { ZhipuProvider } from '../api/ZhipuProvider'
-import { createWebSearchProvider } from '../factory'
+import { createKeywordSearchProvider, createUrlSearchProvider } from '../factory'
 import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
-function createProvider(overrides: Partial<ResolvedWebSearchProvider>): ResolvedWebSearchProvider {
+function createProvider<TProviderId extends ResolvedWebSearchProvider['id']>(
+  overrides: Partial<ResolvedWebSearchProvider> & { id: TProviderId }
+): ResolvedWebSearchProvider & { id: TProviderId } {
   return {
     id: 'tavily',
     name: 'Provider',
@@ -52,29 +54,44 @@ function createProvider(overrides: Partial<ResolvedWebSearchProvider>): Resolved
     basicAuthUsername: '',
     basicAuthPassword: '',
     ...overrides
-  }
+  } as ResolvedWebSearchProvider & { id: TProviderId }
 }
 
-describe('createWebSearchProvider', () => {
-  it('maps each provider id to the correct implementation class', () => {
-    expect(createWebSearchProvider(createProvider({ id: 'zhipu' }))).toBeInstanceOf(ZhipuProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'tavily' }))).toBeInstanceOf(TavilyProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'searxng' }))).toBeInstanceOf(SearxngProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'exa' }))).toBeInstanceOf(ExaProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'fetch' }))).toBeInstanceOf(FetchProvider)
-    expect(createWebSearchProvider(createProvider({ id: 'jina-reader' }))).toBeInstanceOf(JinaReaderProvider)
+describe('createKeywordSearchProvider', () => {
+  it('maps each keyword provider id to the correct implementation class', () => {
+    expect(createKeywordSearchProvider(createProvider({ id: 'zhipu' }))).toBeInstanceOf(ZhipuProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'tavily' }))).toBeInstanceOf(TavilyProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'searxng' }))).toBeInstanceOf(SearxngProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'exa' }))).toBeInstanceOf(ExaProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'exa-mcp', type: 'mcp' }))).toBeInstanceOf(ExaMcpProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'bocha' }))).toBeInstanceOf(BochaProvider)
+    expect(createKeywordSearchProvider(createProvider({ id: 'querit' }))).toBeInstanceOf(QueritProvider)
   })
 
-  it('throws for unsupported provider ids', () => {
+  it('throws for URL provider ids', () => {
     expect(() =>
-      createWebSearchProvider(
+      createKeywordSearchProvider(
         createProvider({
-          id: 'unsupported-provider' as ResolvedWebSearchProvider['id']
-        })
+          id: 'fetch'
+        }) as Parameters<typeof createKeywordSearchProvider>[0]
       )
-    ).toThrow('Unsupported web search provider: unsupported-provider')
+    ).toThrow('Unsupported keyword search provider: fetch')
+  })
+})
+
+describe('createUrlSearchProvider', () => {
+  it('maps each URL provider id to the correct implementation class', () => {
+    expect(createUrlSearchProvider(createProvider({ id: 'fetch' }))).toBeInstanceOf(FetchProvider)
+    expect(createUrlSearchProvider(createProvider({ id: 'jina-reader' }))).toBeInstanceOf(JinaReaderProvider)
+  })
+
+  it('throws for keyword provider ids', () => {
+    expect(() =>
+      createUrlSearchProvider(
+        createProvider({
+          id: 'tavily'
+        }) as Parameters<typeof createUrlSearchProvider>[0]
+      )
+    ).toThrow('Unsupported URL search provider: tavily')
   })
 })

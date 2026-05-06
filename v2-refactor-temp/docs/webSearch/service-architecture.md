@@ -47,7 +47,8 @@
 
 这层现在定义了 Main-side 执行契约：
 
-1. `WebSearchRequest`
+1. `WebSearchKeywordRequest`
+2. `WebSearchUrlRequest`
 2. `WebSearchResult`
 3. `WebSearchResponse`
 4. `WebSearchStatus`
@@ -58,8 +59,8 @@
 
 当前 contract 的边界很明确：
 
-1. 现在保留了一份轻量 shared request type：`providerId` / `questions` / `requestId`
-2. 同时覆盖结果、状态、运行时配置和 provider resolved config
+1. 现在保留两份轻量 shared request type：Keyword Search 使用 `providerId` / `questions` / `requestId`，URL Search 使用 `providerId` / `urls` / `requestId`
+2. 同时覆盖结果、状态、运行时配置、provider resolved config 和 provider id 子类型
 3. 只表达 Main-side 执行层当前已经稳定下来的字段
 4. 不包含 UI 文案、toast、Renderer span 细节
 5. 不包含原始 `links` / `summarize` / XML 之类上游编排协议
@@ -106,9 +107,10 @@
 
 职责：
 
-1. 根据 `providerId` 解析 provider
+1. 通过 `searchKeywords()` / `searchUrls()` 暴露关键词搜索与 URL 搜索两个入口
 2. 读取 runtime config
-3. 对 `questions` 执行 fanout
+3. 根据 `providerId` 解析 provider 并路由到 keyword/url provider factory
+4. 对 `questions` 或 `urls` 执行 fanout
 4. 合并成功的搜索结果
 5. 应用黑名单过滤
 6. 应用 post processing
@@ -328,9 +330,9 @@ Caller
   -> Future Entry Adapter / In-Process Caller
   -> getProviderById(providerId)
   -> getRuntimeConfig()
-  -> createWebSearchProvider(provider)
+  -> createKeywordSearchProvider(provider) / createUrlSearchProvider(provider)
   -> Promise.allSettled(
-       questions.map((question) => providerDriver.search(question, runtimeConfig))
+       questions_or_urls.map((query) => providerDriver.search(query, runtimeConfig))
      )
   -> merge successful results
   -> filterWebSearchResponseWithBlacklist()

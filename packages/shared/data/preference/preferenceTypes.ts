@@ -146,6 +146,30 @@ export const WEB_SEARCH_PROVIDER_IDS = [
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
+export const URL_SEARCH_PROVIDER_IDS = ['fetch', 'jina-reader'] as const satisfies readonly WebSearchProviderId[]
+
+export const KEYWORD_SEARCH_PROVIDER_IDS = [
+  'zhipu',
+  'tavily',
+  'searxng',
+  'exa',
+  'exa-mcp',
+  'bocha',
+  'querit'
+] as const satisfies readonly WebSearchProviderId[]
+
+export type UrlSearchProviderId = (typeof URL_SEARCH_PROVIDER_IDS)[number]
+
+export type KeywordSearchProviderId = (typeof KEYWORD_SEARCH_PROVIDER_IDS)[number]
+
+export function isUrlSearchProviderId(providerId: WebSearchProviderId): providerId is UrlSearchProviderId {
+  return URL_SEARCH_PROVIDER_IDS.includes(providerId as UrlSearchProviderId)
+}
+
+export function isKeywordSearchProviderId(providerId: WebSearchProviderId): providerId is KeywordSearchProviderId {
+  return KEYWORD_SEARCH_PROVIDER_IDS.includes(providerId as KeywordSearchProviderId)
+}
+
 export type WebSearchProviderOverride = {
   apiKeys?: string[]
   apiHost?: string

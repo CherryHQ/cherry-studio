@@ -1,4 +1,6 @@
 import type {
+  KeywordSearchProviderId,
+  UrlSearchProviderId,
   WebSearchCompressionCutoffUnit,
   WebSearchCompressionMethod,
   WebSearchProviderId,
@@ -23,9 +25,15 @@ export type WebSearchResponse = {
   results: WebSearchResult[]
 }
 
-export type WebSearchRequest = {
-  providerId: WebSearchProviderId
+export type WebSearchKeywordRequest = {
+  providerId: KeywordSearchProviderId
   questions: string[]
+  requestId: string
+}
+
+export type WebSearchUrlRequest = {
+  providerId: UrlSearchProviderId
+  urls: string[]
   requestId: string
 }
 

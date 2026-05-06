@@ -6,7 +6,8 @@ import type {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  createWebSearchProviderMock,
+  createKeywordSearchProviderMock,
+  createUrlSearchProviderMock,
   setWebSearchStatusMock,
   clearWebSearchStatusMock,
   getProviderByIdMock,
@@ -15,7 +16,8 @@ const {
   loggerErrorMock
 } = vi.hoisted(() => {
   return {
-    createWebSearchProviderMock: vi.fn(),
+    createKeywordSearchProviderMock: vi.fn(),
+    createUrlSearchProviderMock: vi.fn(),
     setWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
     clearWebSearchStatusMock: vi.fn().mockResolvedValue(undefined),
     getProviderByIdMock: vi.fn(),
@@ -26,7 +28,8 @@ const {
 })
 
 vi.mock('./providers/factory', () => ({
-  createWebSearchProvider: createWebSearchProviderMock
+  createKeywordSearchProvider: createKeywordSearchProviderMock,
+  createUrlSearchProvider: createUrlSearchProviderMock
 }))
 
 vi.mock('@main/core/application/Application', async () => {
@@ -107,11 +110,11 @@ describe('WebSearchService', () => {
       ]
     } satisfies WebSearchResponse)
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: searchMock
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-cutoff'
@@ -130,7 +133,7 @@ describe('WebSearchService', () => {
       excludeDomains: ['https://blocked.example/*', '/evil\\.example\\/post$/']
     })
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: vi.fn().mockResolvedValue({
         query: 'hello',
         results: [
@@ -153,7 +156,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-blacklist'
@@ -184,11 +187,11 @@ describe('WebSearchService', () => {
         ]
       } satisfies WebSearchResponse)
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: searchMock
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-partial-success'
@@ -233,12 +236,12 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
       .mockRejectedValueOnce(abortError)
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: searchMock
     })
 
     await expect(
-      webSearchService.search({
+      webSearchService.searchKeywords({
         providerId: 'tavily',
         questions: ['first', 'second'],
         requestId: 'req-partial-abort'
@@ -275,11 +278,11 @@ describe('WebSearchService', () => {
         ]
       } satisfies WebSearchResponse)
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: searchMock
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-multi-success'
@@ -314,12 +317,12 @@ describe('WebSearchService', () => {
 
   it('throws when all queries fail', async () => {
     const error = new Error('network failed')
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: vi.fn().mockRejectedValue(error)
     })
 
     await expect(
-      webSearchService.search({
+      webSearchService.searchKeywords({
         providerId: 'tavily',
         questions: ['first', 'second'],
         requestId: 'req-all-failed'
@@ -336,7 +339,7 @@ describe('WebSearchService', () => {
   it('keeps successful results when fetch status cache write fails', async () => {
     setWebSearchStatusMock.mockRejectedValueOnce(new Error('cache write failed'))
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: vi
         .fn()
         .mockResolvedValueOnce({
@@ -361,7 +364,7 @@ describe('WebSearchService', () => {
         } satisfies WebSearchResponse)
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['first', 'second'],
       requestId: 'req-status-write-failed'
@@ -387,7 +390,7 @@ describe('WebSearchService', () => {
     })
     setWebSearchStatusMock.mockRejectedValueOnce(new Error('cache write failed'))
 
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: vi.fn().mockResolvedValue({
         query: 'test',
         results: [
@@ -400,7 +403,7 @@ describe('WebSearchService', () => {
       } satisfies WebSearchResponse)
     })
 
-    const result = await webSearchService.search({
+    const result = await webSearchService.searchKeywords({
       providerId: 'tavily',
       questions: ['hello'],
       requestId: 'req-post-process-status-failed'
@@ -417,12 +420,12 @@ describe('WebSearchService', () => {
   it('does not let cleanup cache failures replace the original search error', async () => {
     const searchError = new Error('network failed')
     clearWebSearchStatusMock.mockRejectedValueOnce(new Error('cache cleanup failed'))
-    createWebSearchProviderMock.mockReturnValue({
+    createKeywordSearchProviderMock.mockReturnValue({
       search: vi.fn().mockRejectedValue(searchError)
     })
 
     await expect(
-      webSearchService.search({
+      webSearchService.searchKeywords({
         providerId: 'tavily',
         questions: ['first'],
         requestId: 'req-clear-failed'
@@ -433,5 +436,137 @@ describe('WebSearchService', () => {
       requestId: 'req-clear-failed',
       error: 'cache cleanup failed'
     })
+  })
+
+  it('uses the URL search provider factory and merges multiple URL results', async () => {
+    const urlProvider: ResolvedWebSearchProvider = {
+      ...provider,
+      id: 'fetch',
+      name: 'Fetch',
+      apiKeys: [],
+      apiHost: ''
+    }
+    getProviderByIdMock.mockResolvedValue(urlProvider)
+
+    const searchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        query: 'https://example.com/first',
+        results: [
+          {
+            title: 'First',
+            content: 'one',
+            url: 'https://example.com/first'
+          }
+        ]
+      } satisfies WebSearchResponse)
+      .mockResolvedValueOnce({
+        query: 'https://example.com/second',
+        results: [
+          {
+            title: 'Second',
+            content: 'two',
+            url: 'https://example.com/second'
+          }
+        ]
+      } satisfies WebSearchResponse)
+
+    createUrlSearchProviderMock.mockReturnValue({
+      search: searchMock
+    })
+
+    const result = await webSearchService.searchUrls({
+      providerId: 'fetch',
+      urls: ['https://example.com/first', 'https://example.com/second'],
+      requestId: 'req-url-multi-success'
+    })
+
+    expect(createKeywordSearchProviderMock).not.toHaveBeenCalled()
+    expect(createUrlSearchProviderMock).toHaveBeenCalledWith(urlProvider)
+    expect(result).toEqual({
+      query: 'https://example.com/first | https://example.com/second',
+      results: [
+        {
+          title: 'First',
+          content: 'one',
+          url: 'https://example.com/first'
+        },
+        {
+          title: 'Second',
+          content: 'two',
+          url: 'https://example.com/second'
+        }
+      ]
+    })
+    expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'req-url-multi-success',
+      {
+        phase: 'fetch_complete',
+        countAfter: 2
+      },
+      1000
+    )
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-url-multi-success')
+  })
+
+  it('applies blacklist and cutoff post processing to URL search results', async () => {
+    getProviderByIdMock.mockResolvedValue({
+      ...provider,
+      id: 'jina-reader',
+      name: 'Jina Reader',
+      apiHost: 'https://r.jina.ai'
+    } satisfies ResolvedWebSearchProvider)
+    getRuntimeConfigMock.mockResolvedValue({
+      ...runtimeConfig,
+      excludeDomains: ['https://blocked.example/*'],
+      compression: {
+        ...runtimeConfig.compression,
+        method: 'cutoff',
+        cutoffLimit: 5,
+        cutoffUnit: 'char'
+      }
+    })
+
+    createUrlSearchProviderMock.mockReturnValue({
+      search: vi.fn().mockResolvedValue({
+        query: 'https://example.com/article',
+        results: [
+          {
+            title: 'Blocked',
+            content: 'blocked',
+            url: 'https://blocked.example/article'
+          },
+          {
+            title: 'Allowed',
+            content: '1234567890',
+            url: 'https://allowed.example/article'
+          }
+        ]
+      } satisfies WebSearchResponse)
+    })
+
+    const result = await webSearchService.searchUrls({
+      providerId: 'jina-reader',
+      urls: ['https://example.com/article'],
+      requestId: 'req-url-post-process'
+    })
+
+    expect(result.results).toEqual([
+      {
+        title: 'Allowed',
+        content: '12345...',
+        url: 'https://allowed.example/article'
+      }
+    ])
+    expect(setWebSearchStatusMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'req-url-post-process',
+      {
+        phase: 'cutoff'
+      },
+      500
+    )
+    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-url-post-process')
   })
 })

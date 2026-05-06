@@ -73,10 +73,10 @@ export async function getResolvedConfig(preferences: WebSearchPreferenceReader):
   }
 }
 
-export async function getProviderById(
-  providerId: ResolvedWebSearchProvider['id'],
+export async function getProviderById<TProviderId extends ResolvedWebSearchProvider['id']>(
+  providerId: TProviderId,
   preferences: WebSearchPreferenceReader
-): Promise<ResolvedWebSearchProvider> {
+): Promise<ResolvedWebSearchProvider & { id: TProviderId }> {
   const providerOverrides = await getProviderOverrides(preferences)
   const override = providerOverrides[providerId]
   const preset = WEB_SEARCH_PROVIDER_PRESET_MAP[providerId]
@@ -95,5 +95,5 @@ export async function getProviderById(
     engines: override?.engines || [],
     basicAuthUsername: override?.basicAuthUsername?.trim() || '',
     basicAuthPassword: override?.basicAuthPassword?.trim() || ''
-  }
+  } as ResolvedWebSearchProvider & { id: TProviderId }
 }

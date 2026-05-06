@@ -2,14 +2,15 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type {
   WebSearchExecutionConfig,
-  WebSearchRequest,
+  WebSearchKeywordRequest,
   WebSearchResponse,
-  WebSearchStatus
+  WebSearchStatus,
+  WebSearchUrlRequest
 } from '@shared/data/types/webSearch'
 
 import { postProcessWebSearchResponse } from './postProcessing'
 import type { BaseWebSearchProvider } from './providers/base/BaseWebSearchProvider'
-import { createWebSearchProvider } from './providers/factory'
+import { createKeywordSearchProvider, createUrlSearchProvider } from './providers/factory'
 import { clearWebSearchStatus, setWebSearchStatus } from './runtime/status'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
 import { getProviderById, getRuntimeConfig } from './utils/config'
@@ -18,13 +19,13 @@ import { isAbortError } from './utils/errors'
 const logger = loggerService.withContext('MainWebSearchService')
 
 type PreparedWebSearchContext = {
-  questions: WebSearchRequest['questions']
+  queries: string[]
   runtimeConfig: WebSearchExecutionConfig
   providerDriver: BaseWebSearchProvider
 }
 
 class WebSearchService {
-  private async prepareSearchContext(request: WebSearchRequest): Promise<PreparedWebSearchContext> {
+  private async prepareKeywordSearchContext(request: WebSearchKeywordRequest): Promise<PreparedWebSearchContext> {
     const preferenceService = application.get('PreferenceService')
     const [provider, runtimeConfig] = await Promise.all([
       getProviderById(request.providerId, preferenceService),
@@ -32,9 +33,23 @@ class WebSearchService {
     ])
 
     return {
-      questions: request.questions,
+      queries: request.questions,
       runtimeConfig,
-      providerDriver: createWebSearchProvider(provider)
+      providerDriver: createKeywordSearchProvider(provider)
+    }
+  }
+
+  private async prepareUrlSearchContext(request: WebSearchUrlRequest): Promise<PreparedWebSearchContext> {
+    const preferenceService = application.get('PreferenceService')
+    const [provider, runtimeConfig] = await Promise.all([
+      getProviderById(request.providerId, preferenceService),
+      getRuntimeConfig(preferenceService)
+    ])
+
+    return {
+      queries: request.urls,
+      runtimeConfig,
+      providerDriver: createUrlSearchProvider(provider)
     }
   }
 
@@ -42,7 +57,7 @@ class WebSearchService {
     context: PreparedWebSearchContext,
     httpOptions?: RequestInit
   ): Promise<PromiseSettledResult<WebSearchResponse>[]> {
-    const searchPromises = context.questions.map((query) =>
+    const searchPromises = context.queries.map((query) =>
       context.providerDriver.search(query, context.runtimeConfig, httpOptions)
     )
 
@@ -73,7 +88,7 @@ class WebSearchService {
   }
 
   private async buildFinalResponse(
-    request: WebSearchRequest,
+    request: WebSearchKeywordRequest | WebSearchUrlRequest,
     context: PreparedWebSearchContext,
     searchResults: PromiseSettledResult<WebSearchResponse>[]
   ): Promise<WebSearchResponse> {
@@ -89,7 +104,7 @@ class WebSearchService {
       if (item.status === 'rejected') {
         logger.warn('Partial web search query failed', {
           requestId: request.requestId,
-          query: context.questions[index],
+          query: context.queries[index],
           error: item.reason instanceof Error ? item.reason.message : String(item.reason)
         })
       }
@@ -110,7 +125,7 @@ class WebSearchService {
     }
 
     const mergedResponse: WebSearchResponse = {
-      query: context.questions.join(' | '),
+      query: context.queries.join(' | '),
       results: successfulSearches.flatMap((item) => item.value.results)
     }
 
@@ -150,9 +165,12 @@ class WebSearchService {
     }
   }
 
-  async search(request: WebSearchRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  private async runSearch(
+    request: WebSearchKeywordRequest | WebSearchUrlRequest,
+    context: PreparedWebSearchContext,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     try {
-      const context = await this.prepareSearchContext(request)
       const searchResults = await this.executeSearches(context, httpOptions)
       const finalResponse = await this.buildFinalResponse(request, context, searchResults)
 
@@ -169,6 +187,16 @@ class WebSearchService {
     } finally {
       await this.clearWebSearchStatusSafely(request.requestId)
     }
+  }
+
+  async searchKeywords(request: WebSearchKeywordRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+    const context = await this.prepareKeywordSearchContext(request)
+    return this.runSearch(request, context, httpOptions)
+  }
+
+  async searchUrls(request: WebSearchUrlRequest, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+    const context = await this.prepareUrlSearchContext(request)
+    return this.runSearch(request, context, httpOptions)
   }
 }
 

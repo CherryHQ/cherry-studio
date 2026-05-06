@@ -1,3 +1,9 @@
+import {
+  isKeywordSearchProviderId,
+  isUrlSearchProviderId,
+  type KeywordSearchProviderId,
+  type UrlSearchProviderId
+} from '@shared/data/preference/preferenceTypes'
 import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 import { BochaProvider } from './api/BochaProvider'
@@ -11,7 +17,19 @@ import { ZhipuProvider } from './api/ZhipuProvider'
 import type { BaseWebSearchProvider } from './base/BaseWebSearchProvider'
 import { ExaMcpProvider } from './mcp/ExaMcpProvider'
 
-export function createWebSearchProvider(provider: ResolvedWebSearchProvider): BaseWebSearchProvider {
+type KeywordSearchProvider = ResolvedWebSearchProvider & {
+  id: KeywordSearchProviderId
+}
+
+type UrlSearchProvider = ResolvedWebSearchProvider & {
+  id: UrlSearchProviderId
+}
+
+export function createKeywordSearchProvider(provider: KeywordSearchProvider): BaseWebSearchProvider {
+  if (!isKeywordSearchProviderId(provider.id)) {
+    throw new Error(`Unsupported keyword search provider: ${provider.id}`)
+  }
+
   switch (provider.id) {
     case 'zhipu':
       return new ZhipuProvider(provider)
@@ -27,11 +45,18 @@ export function createWebSearchProvider(provider: ResolvedWebSearchProvider): Ba
       return new BochaProvider(provider)
     case 'querit':
       return new QueritProvider(provider)
+  }
+}
+
+export function createUrlSearchProvider(provider: UrlSearchProvider): BaseWebSearchProvider {
+  if (!isUrlSearchProviderId(provider.id)) {
+    throw new Error(`Unsupported URL search provider: ${provider.id}`)
+  }
+
+  switch (provider.id) {
     case 'fetch':
       return new FetchProvider(provider)
     case 'jina-reader':
       return new JinaReaderProvider(provider)
-    default:
-      throw new Error(`Unsupported web search provider: ${provider.id}`)
   }
 }
