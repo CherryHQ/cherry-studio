@@ -1,134 +1,153 @@
 {
-  "generated_at": "2026-05-05T17:50:20.827216+00:00",
-  "date": "2026-05-05",
+  "generated_at": "2026-05-06T17:49:22.723838+00:00",
+  "date": "2026-05-06",
   "issues": {
-    "open_total": 840,
-    "closed_30d_total": 6159,
+    "open_total": 859,
+    "closed_30d_total": 308,
     "bug_label_open": 118,
-    "no_label_open": 89,
-    "no_label_pct": 10.6,
+    "no_label_open": 84,
+    "no_label_pct": 9.8,
     "top_labels": {
-      "inactive": 36,
-      "Models": 33,
-      "UI/UX": 28,
-      "Assistant": 11,
-      "discussion": 9,
-      "help wanted": 7,
-      "MCP": 6,
-      "needs-repro": 6,
-      "BUG": 5,
-      "Connectivity": 5,
-      "Data": 5,
-      "Performance": 4,
-      "needs-more-info": 4,
-      "Agent": 4,
-      "P3": 3
+      "UI/UX": 236,
+      "Models": 218,
+      "feature": 138,
+      "BUG": 118,
+      "Assistant": 102,
+      "inactive": 100,
+      "MCP": 69,
+      "Blocked: v2": 62,
+      "Data": 59,
+      "needs-repro": 47,
+      "discussion": 46,
+      "help wanted": 43,
+      "RAG": 33,
+      "Connectivity": 28,
+      "P3": 27,
+      "Planned": 22,
+      "v2": 22,
+      "Performance": 20,
+      "Dev Team": 15,
+      "P2": 14
     },
     "p1_urgent": [
       {
-        "number": 11688,
-        "title": "[Bug]: Model API returns context-length error when Agent automatically sends ove",
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could no",
+        "labels": [
+          "P1",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      },
+      {
+        "number": 11765,
+        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
         "labels": [
           "BUG",
           "Models"
         ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/11688"
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/11765"
       },
       {
-        "number": 14717,
-        "title": "[Bug]: Agent model picker hides CherryIN provider's GPT models while AiHubMix GP",
-        "labels": [
-          "BUG",
-          "Assistant",
-          "Models"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14717"
-      },
-      {
-        "number": 13924,
-        "title": "[Bug]: AUTH_TOKEN set in settings.json conflicts with code tool settings, causin",
-        "labels": [
-          "BUG",
-          "Agent",
-          "ClaudeCode"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13924"
-      },
-      {
-        "number": 12304,
-        "title": "[Bug]: CPU usage is abnormally high even when no tasks are being performed",
-        "labels": [
-          "BUG",
-          "Performance",
-          "inactive"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12304"
-      },
-      {
-        "number": 13810,
-        "title": "[Discussion]: Agent conversation interface task is completed, but the task in ta",
-        "labels": [
-          "BUG",
-          "Assistant",
-          "inactive",
-          "Agent"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13810"
-      },
-      {
-        "number": 10918,
-        "title": "[Bug]: Impossible to add a knowledge base",
-        "labels": [
-          "BUG",
-          "RAG",
-          "inactive"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/10918"
-      },
-      {
-        "number": 12890,
-        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in sing",
-        "labels": [
-          "BUG",
-          "Models"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12890"
-      },
-      {
-        "number": 14470,
-        "title": "[Bug]: Agent MCP tool configuration not respected — Tavily not loaded when enabl",
-        "labels": [
-          "BUG",
-          "MCP",
-          "needs-repro"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14470"
-      },
-      {
-        "number": 14418,
-        "title": "[Bug]: Agent mode fails on all CherryIN models with ECONNRESET, Chat works with ",
-        "labels": [
-          "BUG",
-          "Assistant",
-          "Connectivity"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14418"
-      },
-      {
-        "number": 14419,
-        "title": "[Bug]: Scheduled task confirmation reply shows wrong time (~8h off) while actual",
+        "number": 10241,
+        "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
         "labels": [
           "BUG",
           "MCP"
         ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14419"
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/10241"
+      },
+      {
+        "number": 13082,
+        "title": "[Bug]: Frequent lag during normal operations",
+        "labels": [
+          "BUG",
+          "Planned",
+          "Performance",
+          "v2"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
+      },
+      {
+        "number": 12436,
+        "title": "[Bug]: Local backup directory should not be changed after restoring a backup",
+        "labels": [
+          "BUG",
+          "Data"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12436"
+      },
+      {
+        "number": 12534,
+        "title": "[Bug]: \"No allowed providers are available for the selected model.\" - when using",
+        "labels": [
+          "BUG",
+          "Models"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/12534"
+      },
+      {
+        "number": 10289,
+        "title": "[Bug]: Cerebras's qwen-3-235b-a22b-thinking-2507 will also output its thought pr",
+        "labels": [
+          "BUG",
+          "Models",
+          "inactive"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/10289"
+      },
+      {
+        "number": 11096,
+        "title": "[Bug]: In version 1.6.6, all HTTP-type MCPs cause model errors",
+        "labels": [
+          "BUG",
+          "MCP"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/11096"
+      },
+      {
+        "number": 10911,
+        "title": "[Bug]: Notes Bug",
+        "labels": [
+          "BUG",
+          "UI/UX"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/10911"
+      },
+      {
+        "number": 10876,
+        "title": "Web search not working correctly with Gemini 2.5 Pro and Flash models",
+        "labels": [
+          "BUG",
+          "Connectivity"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/10876"
+      },
+      {
+        "number": 11384,
+        "title": "[Bug]: Notion export missing content",
+        "labels": [
+          "BUG"
+        ],
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/11384"
       }
     ]
   },
   "pull_requests": {
-    "open_total": 100,
-    "open_main_branch": 61,
-    "open_v2_branch": 39,
-    "v2_open_total": 71
+    "open_total": 300,
+    "open_main_branch": 227,
+    "open_v2_branch": 73,
+    "v2_merged_30d": 41,
+    "draft_prs": 44,
+    "stale_gt30d": 190
   }
 }

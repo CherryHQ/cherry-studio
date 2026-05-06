@@ -1,15 +1,81 @@
 {
-  "generated_at": "2026-05-05T17:50:20.827216+00:00",
-  "date": "2026-05-05",
+  "generated_at": "2026-05-06T17:49:43.659735+00:00",
+  "date": "2026-05-06",
   "note": "Discussions GraphQL API not accessible via current MCP tools. Using 'discussion'-labeled issues as proxy.",
   "discussion_label_issues": {
-    "open_count": 9,
+    "open_count": 46,
     "description": "Issues tagged 'discussion' serve as community discussion threads"
   },
   "top_discussion_topics": [
-    "Agent Workflows & Collaboration (#5712)",
-    "Cherry Studio as a Service / CSaaS API (#5640)",
-    "MCP Protocol v2 upgrade (#11578)",
-    "Backup feature enhancement (#10844)"
+    "[Bug]: Built-in OpenClaw version 2026.3.14 has abnormal Playwright CDP (#13959)",
+    "[Discussion]: Which network does web search use? (#14559)",
+    "[Discussion]: Error when chatting with Doubao model after enabling MCP (#13905)",
+    "[Discussion]: When using Windows 11, calling the tool to write documen (#14746)",
+    "[Discussion]: Enabling MCP service may affect the DeepSeek\u2018s response (#14691)",
+    "[Discussion]: Cherry Studio v1.8.4 always consumes large amounts of me (#14008)",
+    "[Discussion]: What&#39;s the difference between plugins and skills in  (#13957)",
+    "[Discussion]: Why the speed of the Agent is so slow? (#14796)"
+  ],
+  "active_discussions_sample": [
+    {
+      "number": 13959,
+      "title": "[Bug]: Built-in OpenClaw version 2026.3.14 has abnormal Playwright CDP browser control, needs upgrade to 2026.3.31+. Request to upgrade built-in OpenClaw to 2026.3.31+ to fix Playwright CDP browser control issues.",
+      "comments": 4,
+      "updated_at": "2026-05-04"
+    },
+    {
+      "number": 14008,
+      "title": "[Discussion]: Cherry Studio v1.8.4 always consumes large amounts of memory and CPU after talking to an AI, causing the computer to become very laggy",
+      "comments": 2,
+      "updated_at": "2026-05-04"
+    },
+    {
+      "number": 14796,
+      "title": "[Discussion]: Why the speed of the Agent is so slow?",
+      "comments": 1,
+      "updated_at": "2026-05-03"
+    },
+    {
+      "number": 14807,
+      "title": "[Discussion]: Configuring NVIDIA models in the model list, verification fails",
+      "comments": 0,
+      "updated_at": "2026-05-03"
+    },
+    {
+      "number": 13957,
+      "title": "[Discussion]: What&#39;s the difference between plugins and skills in Agent [Available Plugins]?",
+      "comments": 2,
+      "updated_at": "2026-05-03"
+    },
+    {
+      "number": 13963,
+      "title": "[Discussion]: Can details button also be displayed during normal conversations?",
+      "comments": 1,
+      "updated_at": "2026-05-03"
+    },
+    {
+      "number": 13969,
+      "title": "[Discussion] Question about Agent Model Selection for SiliconFlow Platform",
+      "comments": 1,
+      "updated_at": "2026-05-03"
+    },
+    {
+      "number": 13949,
+      "title": "[Discussion]: Does document parsing provide a local option without relying on cloud services?",
+      "comments": 1,
+      "updated_at": "2026-05-02"
+    },
+    {
+      "number": 13905,
+      "title": "[Discussion]: Error when chatting with Doubao model after enabling MCP built-in server options in Cherry Studio with Volcengine API",
+      "comments": 3,
+      "updated_at": "2026-05-01"
+    },
+    {
+      "number": 14743,
+      "title": "[Discussion] OCR Preprocessed File Storage Location",
+      "comments": 1,
+      "updated_at": "2026-04-30"
+    }
   ]
 }

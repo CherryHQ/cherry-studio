@@ -1,28 +1,41 @@
 {
-  "generated_at": "2026-05-05T17:50:20.827216+00:00",
-  "date": "2026-05-05",
+  "generated_at": "2026-05-06T17:49:43.659735+00:00",
+  "date": "2026-05-06",
   "v2_branch_status": {
-    "open_prs_total": 71,
-    "feat_prs": 41,
-    "fix_prs": 10,
-    "other_prs": 20
+    "open_prs_total": 73,
+    "feat_prs": 44,
+    "fix_prs": 9,
+    "refactor_prs": 14,
+    "other_prs": 6,
+    "merged_last_30d": 41
   },
   "area_distribution": {
-    "other": 30,
-    "ui": 7,
+    "other": 27,
+    "ui": 9,
     "model": 6,
-    "data": 5,
-    "search": 4,
+    "search": 5,
     "file": 4,
-    "chat": 3,
-    "message": 3,
-    "agent": 3,
-    "settings": 3,
-    "trace": 1,
+    "data": 4,
+    "topic": 4,
+    "agent": 4,
+    "message": 2,
+    "chat": 2,
+    "backup": 1,
+    "translate": 1,
+    "mcp": 1,
     "memory": 1,
-    "mcp": 1
+    "settings": 1,
+    "trace": 1
   },
   "open_feat_prs": [
+    {
+      "number": 14864,
+      "title": "feat: pin chat session name to prevent auto-renames"
+    },
+    {
+      "number": 14858,
+      "title": "feat(i18n): add unused key cleaner"
+    },
     {
       "number": 14788,
       "title": "feat: add Duplicate Topic feature"
@@ -34,6 +47,10 @@
     {
       "number": 14739,
       "title": "feat(message-service): add getPathThrough for branch-aware path queries"
+    },
+    {
+      "number": 14734,
+      "title": "feat(v2): knowledge ui migration"
     },
     {
       "number": 14730,
@@ -90,18 +107,6 @@
     {
       "number": 14262,
       "title": "feat(minapp): add category-based display with cross-category drag-and-drop"
-    },
-    {
-      "number": 14261,
-      "title": "feat(anthropic): improve prompt caching with incremental strategy and cached tok"
-    },
-    {
-      "number": 14218,
-      "title": "feat: Insert message"
-    },
-    {
-      "number": 14160,
-      "title": "feat: migrate agents data access to data api"
     }
   ],
   "open_fix_prs": [
@@ -111,7 +116,7 @@
     },
     {
       "number": 14748,
-      "title": "fix(models): route gpt-image-2 through chat completion instead of dedicated imag"
+      "title": "fix(models): route gpt-image-2 through chat completion instead of dedicated image API"
     },
     {
       "number": 14735,
@@ -120,10 +125,6 @@
     {
       "number": 14678,
       "title": "fix(deepseek): display web search citations from DeepSeek annotations"
-    },
-    {
-      "number": 14609,
-      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1→v"
     },
     {
       "number": 14562,
@@ -146,18 +147,10 @@
       "title": "fix(mcp): clear OAuth token when deleting MCP server"
     }
   ],
-  "other_open_prs": [
+  "open_refactor_prs": [
     {
-      "number": 14734,
-      "title": "WIP(v2): knowledge ui migration"
-    },
-    {
-      "number": 14631,
-      "title": "Introduce ProviderSettingsV2 integration preview on v2"
-    },
-    {
-      "number": 14443,
-      "title": "refactor(websearch-settings): remove local providers and use v2 preferences"
+      "number": 14856,
+      "title": "refactor(web-search): split provider capabilities and add Fetch/Jina"
     },
     {
       "number": 14429,
@@ -172,20 +165,229 @@
       "title": "refactor(copilot): separate business logic from IPC handler signatures"
     },
     {
-      "number": 14096,
-      "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init"
-    },
-    {
       "number": 14049,
       "title": "refactor(miniapp): migrate to v2 data layer"
+    },
+    {
+      "number": 13871,
+      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 data APIs"
+    },
+    {
+      "number": 13561,
+      "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design"
+    },
+    {
+      "number": 13547,
+      "title": "refactor: redesign v2 migration window UI with shadcn components"
+    },
+    {
+      "number": 13430,
+      "title": "refactor(prompt-management): simplify prompt management"
+    },
+    {
+      "number": 13173,
+      "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown"
+    }
+  ],
+  "other_open_prs": [
+    {
+      "number": 10090,
+      "title": "[WIP] feat: terminal"
+    },
+    {
+      "number": 13687,
+      "title": "chore: migrate to vite 8"
     },
     {
       "number": 13989,
       "title": "[topic] Reuse assistant markdown heading for topic naming (v2)"
     },
     {
-      "number": 13871,
-      "title": "refactor(translate): migrate renderer translate module from Redux/Dexie to v2 da"
+      "number": 14096,
+      "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init"
+    },
+    {
+      "number": 14631,
+      "title": "Introduce ProviderSettingsV2 integration preview on v2"
+    },
+    {
+      "number": 14862,
+      "title": "chore(style-reminders): add Tailwind canonical checks"
+    }
+  ],
+  "recently_merged_v2": [
+    {
+      "number": 14443,
+      "title": "refactor(websearch-settings): remove local providers and use v2 preferences"
+    },
+    {
+      "number": 14609,
+      "title": "fix(migration): preserve default assistant data and clean up topic noise on v1\u2192v"
+    },
+    {
+      "number": 14669,
+      "title": "refactor(agent-schemas): migrate agent/session/task IDs to UUID v4 and remove bu"
+    },
+    {
+      "number": 14719,
+      "title": "refactor(knowledge-data): adjust knowledge v2 data and service"
+    },
+    {
+      "number": 14431,
+      "title": "refactor(agents): migrate renderer agent hooks from HTTP to DataApi"
+    },
+    {
+      "number": 14740,
+      "title": "fix(agents-migrator): coalesce legacy NULLs to schema defaults"
+    },
+    {
+      "number": 14627,
+      "title": "feat(topics): migrate ordering + pin to canonical fractional-indexing pattern"
+    },
+    {
+      "number": 14632,
+      "title": "fix(draggable-list): bind scroll node via callback ref"
+    },
+    {
+      "number": 14556,
+      "title": "feat(selector-v2): assistant & agent selectors on the EntitySelector composite"
+    },
+    {
+      "number": 14689,
+      "title": "fix(assistant-api): align patch defaults with entity schema"
+    },
+    {
+      "number": 14490,
+      "title": "feat(model-selector-v2): build v2 model selector on new data/UI stack"
+    },
+    {
+      "number": 14428,
+      "title": "\u267b\ufe0f refactor(agents-data-api): migrate agents domain to DataApi \u2014 remove BaseServ"
+    },
+    {
+      "number": 14269,
+      "title": "feat(data): add domain hooks for models/providers and batch model API"
+    },
+    {
+      "number": 14315,
+      "title": "refactor(code): redesign Code Tools page with tool grid and drawer UI"
+    },
+    {
+      "number": 14159,
+      "title": "feat: migrate agents storage to v2 main database"
+    }
+  ],
+  "long_pending_v2_prs": [
+    {
+      "number": 10090,
+      "title": "[WIP] feat: terminal",
+      "base": "v2",
+      "draft": true,
+      "days_old": 238,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 10699,
+      "title": "feat: video generation",
+      "base": "v2",
+      "draft": true,
+      "days_old": 205,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 10874,
+      "title": "feat: one-click fix mermaid error",
+      "base": "v2",
+      "draft": true,
+      "days_old": 196,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 10912,
+      "title": "refactor: i18n",
+      "base": "v2",
+      "draft": true,
+      "days_old": 195,
+      "author": "EurFelux",
+      "labels": [
+        "v2",
+        "Blocked: v2"
+      ]
+    },
+    {
+      "number": 10929,
+      "title": "refactor: Migrate to tiptap markdown",
+      "base": "v2",
+      "draft": false,
+      "days_old": 195,
+      "author": "Copilot",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 10933,
+      "title": "feat: show enabled provider only",
+      "base": "v2",
+      "draft": true,
+      "days_old": 194,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 11054,
+      "title": "feat: reset default model",
+      "base": "v2",
+      "draft": false,
+      "days_old": 188,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 11420,
+      "title": "feat: Model &amp; Provider Catalog",
+      "base": "v2",
+      "draft": true,
+      "days_old": 164,
+      "author": "DeJeune",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 11878,
+      "title": "feat(ui): toast",
+      "base": "v2",
+      "draft": false,
+      "days_old": 145,
+      "author": "EurFelux",
+      "labels": [
+        "v2"
+      ]
+    },
+    {
+      "number": 12060,
+      "title": "feat: context menu",
+      "base": "v2",
+      "draft": false,
+      "days_old": 136,
+      "author": "DeJeune",
+      "labels": [
+        "v2"
+      ]
     }
   ],
   "policy": "main branch is under code freeze; all new features must target v2 branch"

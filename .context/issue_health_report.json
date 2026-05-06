@@ -1,20 +1,28 @@
 {
-  "generated_at": "2026-05-05T17:50:20.827216+00:00",
-  "date": "2026-05-05",
-  "total_open_issues": 840,
+  "generated_at": "2026-05-06T17:49:22.723838+00:00",
+  "date": "2026-05-06",
+  "total_open_issues": 859,
   "health_buckets": {
+    "active_lte7d": {
+      "count": 177,
+      "pct": 20.6
+    },
+    "aging_8_30d": {
+      "count": 518,
+      "pct": 60.3
+    },
+    "stale_31_90d": {
+      "count": 160,
+      "pct": 18.6
+    },
     "zombie_gt90d": {
       "count": 4,
+      "pct": 0.5,
       "items": [
         {
-          "number": 5712,
-          "title": "【需求汇总】Agents with Workflows / 工作流&协同",
-          "last_updated": "2025-10-23"
-        },
-        {
-          "number": 10844,
-          "title": "[Feature]: Backup feature enhance",
-          "last_updated": "2025-11-01"
+          "number": 5640,
+          "title": "\u3010\u9700\u6c42\u6c47\u603b\u3011Cherry Studio as a Service (CSaaS) / Cherry Studio\u4f5c\u4e3a\u670d\u52a1\u5bf9\u5916\u63d0\u4f9bAPI\u63a5\u53e3",
+          "last_updated": "2026-01-31"
         },
         {
           "number": 11578,
@@ -22,131 +30,333 @@
           "last_updated": "2025-11-30"
         },
         {
-          "number": 5640,
-          "title": "【需求汇总】Cherry Studio as a Service (CSaaS)",
-          "last_updated": "2026-01-31"
+          "number": 10844,
+          "title": "[Feature]: Backup feature enhance",
+          "last_updated": "2025-11-01"
+        },
+        {
+          "number": 5712,
+          "title": "\u3010\u9700\u6c42\u6c47\u603b\u3011Agents with Workflows / \u5de5\u4f5c\u6d41&amp;\u534f\u540c",
+          "last_updated": "2025-10-23"
         }
       ]
     }
   },
   "labeling": {
-    "no_label_total": 89,
-    "no_label_pct": 10.6,
-    "inactive_label": 36,
-    "needs_repro_label": 6,
-    "needs_more_info_label": 4
+    "no_label_total": 84,
+    "no_label_pct": 9.8,
+    "inactive_label": 100,
+    "needs_repro_label": 47,
+    "needs_more_info_label": 0,
+    "blocked_v2_label": 62
   },
   "bug_breakdown": {
     "total_bug_open": 118,
     "active_bugs_sample": [
       {
-        "number": 11688,
-        "title": "[Bug]: Model API returns context-length error when Agent automatically sends ove",
+        "number": 11765,
+        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
         "labels": [
-          "BUG",
-          "Models"
-        ]
-      },
-      {
-        "number": 14717,
-        "title": "[Bug]: Agent model picker hides CherryIN provider's GPT models while AiHubMix GP",
-        "labels": [
-          "BUG",
-          "Assistant",
-          "Models"
-        ]
-      },
-      {
-        "number": 13924,
-        "title": "[Bug]: AUTH_TOKEN set in settings.json conflicts with code tool settings, causin",
-        "labels": [
-          "BUG",
-          "Agent",
-          "ClaudeCode"
-        ]
-      },
-      {
-        "number": 12890,
-        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in sing",
-        "labels": [
-          "BUG",
-          "Models"
-        ]
-      },
-      {
-        "number": 14470,
-        "title": "[Bug]: Agent MCP tool configuration not respected — Tavily not loaded when enabl",
-        "labels": [
-          "BUG",
-          "MCP",
-          "needs-repro"
-        ]
-      },
-      {
-        "number": 14418,
-        "title": "[Bug]: Agent mode fails on all CherryIN models with ECONNRESET, Chat works with ",
-        "labels": [
-          "BUG",
-          "Assistant",
-          "Connectivity"
-        ]
-      },
-      {
-        "number": 14419,
-        "title": "[Bug]: Scheduled task confirmation reply shows wrong time (~8h off) while actual",
-        "labels": [
-          "BUG",
-          "MCP"
-        ]
-      },
-      {
-        "number": 14415,
-        "title": "[Bug]: OpenClaw dashboard opens without auth token — 'gateway token missing', co",
-        "labels": [
-          "BUG"
-        ]
-      },
-      {
-        "number": 13082,
-        "title": "[Bug]: Frequent lag during normal operations",
-        "labels": [
-          "BUG",
-          "Planned",
-          "Performance",
-          "v2"
-        ]
-      },
-      {
-        "number": 9943,
-        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
-        "labels": [
-          "BUG",
-          "MCP"
-        ]
-      },
-      {
-        "number": 13194,
-        "title": "[Bug]: VertexAI Provider Data Storage Architecture Flaw - Type Mismatch with Act",
-        "labels": [
-          "BUG",
-          "P2",
-          "Data"
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8506811653,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Models",
+            "name": "Models",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG LLM",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-wulBQ"
+          }
         ]
       },
       {
         "number": 10241,
         "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
         "labels": [
-          "BUG",
-          "MCP"
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8307386314,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/MCP",
+            "name": "MCP",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG MCP",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB7yinyg"
+          }
+        ]
+      },
+      {
+        "number": 13082,
+        "title": "[Bug]: Frequent lag during normal operations",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 7504705359,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Planned",
+            "name": "Planned",
+            "color": "bfdadc",
+            "description": "Added to the development plan, no specific development time yet.",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABv1C3Tw"
+          },
+          {
+            "id": 8506824038,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Performance",
+            "name": "Performance",
+            "color": "d5c5f7",
+            "description": "",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-wvVZg"
+          },
+          {
+            "id": 9281539509,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/v2",
+            "name": "v2",
+            "color": "1d76db",
+            "description": "",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAACKTkNtQ"
+          }
+        ]
+      },
+      {
+        "number": 12436,
+        "title": "[Bug]: Local backup directory should not be changed after restoring a backup",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8383739682,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Data",
+            "name": "Data",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG Data",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB87W3Ig"
+          }
+        ]
+      },
+      {
+        "number": 12534,
+        "title": "[Bug]: \"No allowed providers are available for the selected model.\" - when using",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8506811653,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Models",
+            "name": "Models",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG LLM",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-wulBQ"
+          }
+        ]
+      },
+      {
+        "number": 10289,
+        "title": "[Bug]: Cerebras's qwen-3-235b-a22b-thinking-2507 will also output its thought pr",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8506811653,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Models",
+            "name": "Models",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG LLM",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-wulBQ"
+          },
+          {
+            "id": 8924711310,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/inactive",
+            "name": "inactive",
+            "color": "ededed",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAACE_RJjg"
+          }
+        ]
+      },
+      {
+        "number": 11096,
+        "title": "[Bug]: In version 1.6.6, all HTTP-type MCPs cause model errors",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8307386314,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/MCP",
+            "name": "MCP",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG MCP",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB7yinyg"
+          }
+        ]
+      },
+      {
+        "number": 10911,
+        "title": "[Bug]: Notes Bug",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8395579611,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/UI/UX",
+            "name": "UI/UX",
+            "color": "D4C5F9",
+            "description": "",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB9Gpg2w"
+          }
+        ]
+      },
+      {
+        "number": 10876,
+        "title": "Web search not working correctly with Gemini 2.5 Pro and Flash models",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8489557171,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Connectivity",
+            "name": "Connectivity",
+            "color": "d4c5f9",
+            "description": "",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-gRcsw"
+          }
+        ]
+      },
+      {
+        "number": 11384,
+        "title": "[Bug]: Notion export missing content",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          }
+        ]
+      },
+      {
+        "number": 11316,
+        "title": "[Bug]: 'temperature' must be Float",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          },
+          {
+            "id": 8506811653,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/Models",
+            "name": "Models",
+            "color": "d4c5f9",
+            "description": "Categorizes an issue or PR as relevant to SIG LLM",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAAB-wulBQ"
+          }
+        ]
+      },
+      {
+        "number": 12079,
+        "title": "[Bug]:  cherry-studio cannot read the file since today",
+        "labels": [
+          {
+            "id": 6991237703,
+            "url": "https://api.github.com/repos/CherryHQ/cherry-studio/labels/BUG",
+            "name": "BUG",
+            "color": "d73a4a",
+            "description": "Categorizes issue or PR as related to a bug",
+            "default": false,
+            "node_id": "LA_kwDOL_2xws8AAAABoLXSRw"
+          }
         ]
       }
     ]
   },
   "action_items": [
-    "Triage 89 unlabeled issues (10.6% of open)",
+    "Triage 84 unlabeled issues (9.8% of open)",
     "Review 4 zombie issues (>90d) for closure or re-prioritization",
-    "Address 118 open BUG-labeled issues — highest priority category",
+    "Address 118 open BUG-labeled issues \u2014 highest priority category",
+    "Follow up on 2 P1-labeled issues (one 48d old, one 62d old without resolution)",
+    "62 issues blocked by v2 \u2014 track v2 progress to unblock",
     "MCP/Agent/Connectivity bug cluster needs dedicated attention"
   ]
 }
