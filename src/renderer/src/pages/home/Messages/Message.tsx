@@ -127,7 +127,8 @@ const MessageItem: FC<Props> = ({
   const { status: topicStreamStatus } = useTopicStreamStatus(topic.id)
   const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
   const isAwaitingApproval = useTopicAwaitingApproval(topic.id)
-  const showMenubar = !hideMenuBar && !isEditing
+  const isProcessing = isTopicStreaming || isAwaitingApproval
+  const showMenubar = !hideMenuBar && !isEditing && !(isProcessing && isLastMessage)
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -248,7 +249,7 @@ const MessageItem: FC<Props> = ({
                     isLastMessage={isLastMessage}
                     isAssistantMessage={isAssistantMessage}
                     isGrouped={isGrouped}
-                    isProcessing={isTopicStreaming || isAwaitingApproval}
+                    isProcessing={isProcessing}
                     messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
                     setModel={setModel}
                     onUpdateUseful={onUpdateUseful}
