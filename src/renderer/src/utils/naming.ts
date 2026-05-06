@@ -69,6 +69,7 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * 例如：
  * - 'deepseek/DeepSeek-R1' => 'deepseek-r1'
  * - 'deepseek-ai/deepseek/DeepSeek-R1' => 'deepseek-r1'
+ * - 'deepseek/deepseek-v4-pro:deepseek' => 'deepseek-v4-pro'
  * @param {string} id 模型 ID
  * @param {string} [delimiter='/'] 分隔符，默认为 '/'
  * @returns {string} 小写的基础名称
@@ -80,8 +81,22 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   const normalizedId = id.toLowerCase().startsWith('accounts/fireworks/models/')
     ? id.replace(/(\d)p(?=\d)/g, '$1.')
     : id
+  const lowerNormalizedId = normalizedId.toLowerCase()
 
   let baseModelName = getBaseModelName(normalizedId, delimiter).toLowerCase()
+  // Some routed model IDs repeat the provider both in the path and as the final suffix,
+  // e.g. deepseek/deepseek-v4-pro:deepseek. Strip only that duplicated route suffix and
+  // keep semantic colon suffixes such as qwen3:32b or anthropic ... :0 untouched.
+  const duplicatedRouteSuffix = baseModelName.match(/:([^:()]+)$/)?.[1]
+
+  if (duplicatedRouteSuffix) {
+    const routeSegments = lowerNormalizedId.split(delimiter).slice(0, -1).filter(Boolean)
+
+    if (routeSegments.includes(duplicatedRouteSuffix)) {
+      baseModelName = baseModelName.slice(0, -(duplicatedRouteSuffix.length + 1))
+    }
+  }
+
   // Remove suffix
   // for openrouter
   if (baseModelName.endsWith(':free')) {

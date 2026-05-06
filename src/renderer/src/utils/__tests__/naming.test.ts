@@ -231,6 +231,18 @@ describe('naming', () => {
       expect(getLowerBaseModelName('local/kimi-k2.5:cloud')).toBe('kimi-k2.5')
     })
 
+    it('should remove duplicated routed provider suffixes', () => {
+      expect(getLowerBaseModelName('deepseek/deepseek-v4-pro:deepseek')).toBe('deepseek-v4-pro')
+      expect(getLowerBaseModelName('openrouter/deepseek/deepseek-v4-flash:deepseek')).toBe('deepseek-v4-flash')
+    })
+
+    it('should preserve non-routed colon suffixes', () => {
+      expect(getLowerBaseModelName('qwen3:32b')).toBe('qwen3:32b')
+      expect(getLowerBaseModelName('anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe(
+        'anthropic.claude-sonnet-4-5-20250929-v1:0'
+      )
+    })
+
     it('should normalize Fireworks model IDs by replacing digit-p-digit with digit-.-digit', () => {
       expect(getLowerBaseModelName('accounts/fireworks/models/deepseek-v3p2')).toBe('deepseek-v3.2')
       expect(getLowerBaseModelName('accounts/fireworks/models/kimi-k2p5')).toBe('kimi-k2.5')
