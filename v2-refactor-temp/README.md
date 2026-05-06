@@ -11,7 +11,8 @@ v2-refactor-temp/
 ├── tools/                    # Refactor tooling
 │   └── data-classify/        # Data classification and code generation
 ├── docs/                     # Working notes
-│   └── breaking-changes/     # User-perceivable v2 changes (aggregated at release)
+│   ├── breaking-changes.md   # V2 breaking changes index
+│   └── breaking-changes/     # Individual breaking change records
 └── README.md                 # This file
 ```
 
@@ -26,6 +27,10 @@ v2-refactor-temp/
   - See [tools/data-classify/README.md](./tools/data-classify/README.md)
 
 ### Docs (`docs/`)
+
+- **breaking-changes.md** — Index of v2 user-perceivable breaking changes
+  - Any removed capability, incompatible data shape, migration downgrade, or user-visible behavior change should add an individual document and update this index
+  - See [docs/breaking-changes.md](./docs/breaking-changes.md)
 
 - **breaking-changes/** — Log of v2 changes that affect how users use the app
   - PR authors drop an entry alongside their PR; the release manager aggregates and translates these into the Chinese user-facing release note at v2.0.0

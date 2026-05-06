@@ -2497,9 +2497,7 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "rag": "正在執行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
-      "rag_failed": "RAG 失敗，回傳空結果..."
+      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
   "minapp": {
@@ -5740,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失敗"
-          },
-          "info": {
-            "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
-            "none": "不壓縮",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文件片段數量",
-              "tooltip": "預期從單個搜尋結果中提取的文件片段數量，實際提取的總數量是這個值乘以搜尋結果數量。"
-            }
+            "none": "不壓縮"
           },
           "title": "搜尋結果壓縮"
         },
