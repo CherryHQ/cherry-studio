@@ -124,11 +124,12 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
 
-  const { status: topicStreamStatus } = useTopicStreamStatus(topic.id)
+  const { status: topicStreamStatus, activeExecutions } = useTopicStreamStatus(topic.id)
   const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
   const isAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const isProcessing = isTopicStreaming || isAwaitingApproval
-  const showMenubar = !hideMenuBar && !isEditing && !(isProcessing && isLastMessage)
+  const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
+  const showMenubar = !hideMenuBar && !isEditing && !isStreamTarget
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
