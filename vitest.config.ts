@@ -79,7 +79,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('packages/shared')
+            '@shared': resolve('packages/shared'),
+            '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }
         },
         test: {
