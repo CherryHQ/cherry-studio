@@ -203,12 +203,12 @@
     "minapps": {
       "_meta": {
         "file": "src/renderer/src/store/miniapps.ts",
-        "interface": "MinappsState"
+        "interface": "MinAppsState"
       },
       "enabled": {
         "file": "src/renderer/src/store/miniapps.ts",
         "type": "string",
-        "defaultValue": "allMinapps"
+        "defaultValue": "allMiniApps"
       },
       "disabled": {
         "file": "src/renderer/src/store/miniapps.ts",

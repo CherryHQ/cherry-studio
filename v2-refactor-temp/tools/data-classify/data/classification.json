@@ -461,7 +461,7 @@
         {
           "originalKey": "enabled",
           "type": "string",
-          "defaultValue": "DEFAULT_MINI_APPS",
+          "defaultValue": "allMiniApps",
           "status": "pending",
           "category": null,
           "targetKey": null
