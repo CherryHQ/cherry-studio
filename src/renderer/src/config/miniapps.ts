@@ -64,7 +64,6 @@ import {
   Zhida,
   Zhipu
 } from '@cherrystudio/ui/icons'
-import { loggerService } from '@logger'
 import { PRESETS_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/mini-apps'
 
 /**
@@ -85,64 +84,10 @@ export type MiniAppType = {
   type?: 'Custom' | 'Default'
 }
 
-const logger = loggerService.withContext('Config:miniapps')
-
-// Load custom miniapps
-const loadCustomMiniApps = async (): Promise<MiniAppType[]> => {
-  const FILENAME = 'custom-miniapps.json'
-  try {
-    let content: string
-    try {
-      content = await window.api.file.read(FILENAME)
-    } catch (error: any) {
-      // I6: Only create empty file on ENOENT; for other errors, quarantine and return empty
-      if (error?.code === 'ENOENT' || error?.message?.includes('no such file')) {
-        content = '[]'
-        await window.api.file.writeWithId(FILENAME, content)
-      } else {
-        logger.error('Failed to read custom mini apps file:', error as Error)
-        return []
-      }
-    }
-
-    const customApps: unknown = JSON.parse(content)
-    const now = new Date().toISOString()
-
-    if (!Array.isArray(customApps)) return []
-
-    return (customApps as Partial<MiniAppType>[])
-      .filter((app): app is MiniAppType => typeof app.id === 'string')
-      .map((app) => ({
-        ...app,
-        type: 'Custom' as const,
-        // Custom apps can use image URLs directly or icon keys
-        logo: app.logo && app.logo !== '' ? app.logo : 'application',
-        addTime: app.addTime || now,
-        supportedRegions: ['CN', 'Global'] as const
-      }))
-  } catch (error) {
-    // JSON parse or other unexpected error — quarantine the broken file so the
-    // user can recover their data instead of silently losing all custom apps.
-    logger.error('Failed to load custom mini apps, quarantining broken file:', error as Error)
-    try {
-      const ts = Date.now()
-      const brokenName = `${FILENAME}.broken-${ts}`
-      // Preserve the corrupt content under the .broken name for user recovery
-      const rawContent = await window.api.file.read(FILENAME).catch(() => '')
-      if (rawContent) {
-        await window.api.file.writeWithId(brokenName, rawContent)
-        logger.info(`Quarantined ${FILENAME} as ${brokenName}`)
-      }
-      // Reset the original file so next load succeeds
-      await window.api.file.writeWithId(FILENAME, '[]')
-    } catch (quarantineErr) {
-      logger.warn('Could not quarantine broken custom miniapps file', quarantineErr as Error)
-    }
-    return []
-  }
-}
-
-// I13: Derive renderer preset list from the shared single source of truth
+// Renderer preset list, derived from the shared source of truth.
+// Custom mini apps are no longer file-backed in v2 — they live in the
+// `mini_app` SQLite table and are accessed via DataApi. Anything in v1's
+// `custom-miniapps.json` reaches v2 only through MiniAppMigrator.
 const PRESETS_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   id: app.id,
   name: app.name,
@@ -155,8 +100,7 @@ const PRESETS_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   style: app.style
 }))
 
-// All mini apps: built-in defaults + custom apps loaded from user config
-const allMiniApps = [...PRESETS_MINI_APPS, ...(await loadCustomMiniApps())]
+const allMiniApps = PRESETS_MINI_APPS
 
 export { allMiniApps, PRESETS_MINI_APPS }
 
