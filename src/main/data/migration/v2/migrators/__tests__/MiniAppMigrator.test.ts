@@ -470,7 +470,7 @@ describe('MiniAppMigrator', () => {
       expect(result.stats?.targetCount).toBe(3)
       expect(result.stats?.skippedCount).toBe(1)
       // engine invariant
-      expect(result.stats!.targetCount).toBe(result.stats!.sourceCount - result.stats!.skippedCount)
+      expect(result.stats.targetCount).toBe(result.stats.sourceCount - result.stats.skippedCount)
     })
   })
 
