@@ -5187,7 +5187,7 @@
         "use_all_keys": "使用金鑰"
       },
       "default_assistant_model": "預設助手模型",
-      "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
+      "default_assistant_model_description": "助手未指定模型時使用",
       "empty": "找不到模型",
       "manage": {
         "add_listed": {

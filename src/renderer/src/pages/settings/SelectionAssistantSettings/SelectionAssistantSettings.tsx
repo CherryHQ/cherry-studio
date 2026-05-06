@@ -94,17 +94,17 @@ const SelectionAssistantSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
-        <div className="flex items-center">
-          <SettingTitle>{t('selection.name')}</SettingTitle>
-          <Spacer />
-          <Button
-            variant="ghost"
-            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
-            style={{ fontSize: 12 }}>
-            {'FAQ & ' + t('settings.about.feedback.button')}
-          </Button>
-          {isMac && <ExperimentalText>{t('selection.settings.experimental')}</ExperimentalText>}
-        </div>
+        <SettingTitle>
+          <span className="font-semibold text-[15px]">{t('selection.name')}</span>
+          <div className="flex items-center">
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
+              onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
+              {'FAQ & ' + t('settings.about.feedback.button')}
+            </button>
+          </div>
+        </SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingLabel>
@@ -364,9 +364,6 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
   <div className={cn('flex-1', className)} {...props} />
 )
 const SettingLabel = Spacer
-const ExperimentalText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-foreground-muted text-xs', className)} {...props} />
-)
 const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )

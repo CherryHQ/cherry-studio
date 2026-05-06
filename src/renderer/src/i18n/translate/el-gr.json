@@ -36,9 +36,9 @@
         "comingSoon": "Σύντομα διαθέσιμο",
         "connected": "Συνδεδεμένος",
         "connecting": "Σύνδεση",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Αποτυχία δημιουργίας καναλιού",
         "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Αποτυχία διαγραφής καναλιού",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
         "disconnected": "Αποσυνδέθηκε",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Κανάλια",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Αποτυχία ενημέρωσης καναλιού",
         "wechat": {
           "addAccount": "Προσθέστε λογαριασμό WeChat",
           "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
@@ -215,7 +215,7 @@
         "edit": "Επεξεργασία",
         "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Αποτυχία φόρτωσης εργασιών"
         },
         "intervalPlaceholder": "Διάστημα σε λεπτά",
         "intervalUnit": "λεπτά",
@@ -226,7 +226,7 @@
           "error": "Σφάλμα",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
           "result": "Αποτέλεσμα",
           "runAt": "Εκτελέστηκε στις",
           "running": "Τρέχει...",
@@ -1510,8 +1510,8 @@
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
     "cli_tool": "Εργαλείο CLI",
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} αντικείμενο",
+    "count_other": "{{count}} αντικείμενα",
     "custom_path": "Προσαρμοσμένη διαδρομή",
     "custom_path_error": "Η ρύθμιση της προσαρμοσμένης διαδρομής τερματικού απέτυχε",
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
@@ -1519,12 +1519,12 @@
     "description": "Εκκίνηση γρήγορα πολλών εργαλείων CLI κώδικα, για αύξηση της αποδοτικότητας ανάπτυξης",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Δοκιμάστε να προσαρμόσετε τους όρους αναζήτησής σας",
+        "title": "Δεν βρέθηκαν αντιστοιχιζόμενα εργαλεία"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Προσθέστε ένα εργαλείο CLI ή βοηθό κώδικα για να ξεκινήσετε",
+        "title": "Κανένα εργαλείο κώδικα ακόμα"
       }
     },
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
@@ -1536,28 +1536,28 @@
       "bun_required": "Παρακαλώ εγκαταστήστε πρώτα το περιβάλλον Bun πριν εκκινήσετε το εργαλείο CLI",
       "error": "Η εκκίνηση απέτυχε, παρακαλώ δοκιμάστε ξανά",
       "label": "Εκκίνηση",
-      "launched": "[to be translated]:Launched",
+      "launched": "Ξεκίνησε",
       "success": "Επιτυχής εκκίνηση",
       "validation_error": "Συμπληρώστε όλα τα υποχρεωτικά πεδία: εργαλείο CLI, μοντέλο και κατάλογος εργασίας"
     },
     "launching": "Εκκίνηση...",
     "model": "μοντέλο",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Επέλεξε ποιο μοντέλο AI θα χρησιμοποιήσει το εργαλείο CLI",
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
     "model_required": "Επιλέξτε μοντέλο",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Επίσημος",
+    "official_tools": "Επίσημος",
+    "search_placeholder": "Αναζήτηση εργαλείων CLI…",
     "select_folder": "Επιλογή φακέλου",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Επιλέξτε σε ποιο τερματικό θα εκτελέσετε τη γραμμή εντολών",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
     "update_options": "Ενημέρωση επιλογών",
     "working_directory": "κατάλογος εργασίας",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Ο κατάλογος εργασίας στον οποίο εκκινεί το εργαλείο CLI"
   },
   "code_block": {
     "collapse": "συμπεριληφθείς",
@@ -2562,8 +2562,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Καρφίτσωσε αυτό το μοντέλο",
+      "unpin": "Ξεκαρφίτσωμα μοντέλου"
     },
     "add_parameter": "Προσθήκη παραμέτρων",
     "all": "Όλα",
@@ -2583,7 +2583,7 @@
     "invalid_model": "Μη έγκυρο μοντέλο",
     "json_parse_error": "Μη έγκυρη μορφή JSON",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Παράλληλη λειτουργία πολλών μοντέλων (αμοιβαία αποκλειόμενη με πολλούς βοηθούς)"
     },
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
@@ -3826,27 +3826,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Νέος Πράκτορας",
+      "empty_text": "Κανένας πράκτορας ακόμα",
+      "search_placeholder": "Αναζήτηση πρακτόρων…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Νέος Βοηθός",
+      "empty_text": "Κανένας βοηθός ακόμα",
+      "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
+      "multi_label": "Παράλληλος πολλαπλών βοηθών",
+      "search_placeholder": "Αναζήτηση βοηθών…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Επεξεργασία",
+      "pin": "Καρφίτσα",
+      "pinned_title": "Καρφιτσωμένο",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Παλαιότερος",
+        "desc": "Πρόσφατα"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Ταξινόμηση",
+      "unpin": "Ξεκαρφίτσωμα"
     }
   },
   "settings": {
@@ -3917,72 +3917,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Το AgentSelector διαβάζει πλέον πραγματικά δεδομένα από το /agents του DataApi για να επαληθεύει τη συμπεριφορά επιλογής id/item, καρφιτσώματος, ταξινόμησης και αναζήτησης.",
+        "emptyShellNotice": "Αυτή η προεπισκόπηση χρησιμοποιει την πραγματική λίστα πρακτόρων που επιστρέφεται από το /agents DataApi.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Πράκτορα",
+        "triggerPlaceholder": "Επιλέξτε έναν πράκτορα",
+        "valueProp": "Τρέχουσα τιμή"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Τοποθετεί το επιχειρησιακό στοιχείο AssistantSelector απευθείας για να επαληθεύσει τη συμπεριφορά πολλαπλού/μονού, αναγνωριστικού/αντικειμένου, καρφίτσας, ταξινόμησης και αναζήτησης.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Βοηθού",
+        "triggerPlaceholder": "Επιλέξτε βοηθό",
+        "triggerSelectedCount": "{{count}} βοηθοί επιλέχθηκαν",
+        "valueProp": "Τρέχουσα τιμή"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Ορατό μόνο κατά την ανάπτυξη για τη δοκιμή του νέου επιλογέα μοντέλου απευθείας μέσα στην εφαρμογή.",
+      "label": "Εργαστήριο Συστατικών",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Ρύθμιση Συμπεριφοράς και Εμφάνισης",
+        "callbackEmpty": "Δεν έχει ληφθεί ακόμη κλήση συστατικού",
+        "clearSelection": "Καθαρισμός Επιλογής",
+        "configDescription": "Εναλλάξτε τα βασικά props του ModelSelector παραπάνω και επιθεωρήστε την τιμή εισόδου καθώς και τα payloads των callbacks παρακάτω.",
+        "configTitle": "Παιχνίδι με Αξεσουάρ",
+        "controlMultiSelectMode": "Ελεγχόμενη λειτουργία πολλαπλής επιλογής",
+        "currentProps": "Τρέχοντα Props",
+        "defaultMultiSelectMode": "προεπιλεγμένηΛειτουργίαΠολλαπλήςΕπιλογής",
+        "description": "Αυτή η σελίδα τοποθετεί απευθείας το τρέχον επιχειρησιακό στοιχείο ModelSelector, ώστε να μπορούμε να επαληθεύσουμε τη συμπεριφορά επιλογής, φιλτραρίσματος, αναζήτησης και καρφιτσώματος.",
+        "empty": "Δεν είναι διαθέσιμα μοντέλα αυτή τη στιγμή, επομένως ο επιλογέας δεν μπορεί ακόμα να εμφανιστεί.",
+        "lastModeChangeReturn": "Τελευταία επιστροφή onMultiSelectModeChange",
+        "lastSelectReturn": "Τελευταίο onSelect Return",
+        "loading": "Φόρτωση μοντέλων...",
+        "modelId": "Αναγνωριστικό μοντέλου",
+        "multiSelectMode": "πολλαπλήΛειτουργίαΕπιλογής",
+        "multiple": "πολλαπλές",
+        "normalizedIds": "Κανονικοποιημένα Επιλεγμένα Αναγνωριστικά",
+        "outputEmpty": "Δεν υπάρχουν ακόμα δεδομένα για εμφάνιση",
+        "provider": "Πάροχος",
+        "resetOutputs": "Επαναφορά Εξόδων",
+        "resultsDescription": "Αυτό δείχνει την τρέχουσα πρόταση αξίας, τα κανονικοποιημένα επιλεγμένα αναγνωριστικά και το τελευταίο αποτέλεσμα callback από το στοιχείο.",
+        "resultsTitle": "Έξοδοι & Κατάσταση",
+        "selected": "Τρέχουσα Επιλογή",
+        "selectedEmpty": "Δεν έχει επιλεγεί ακόμα μοντέλο",
+        "selectionConfig": "Διαμόρφωση τιμής επιλογής",
+        "selectionType": "τύπος επιλογής",
+        "selectionTypeId": "Επιστροφή Αναγνωριστικών Μοντέλου",
+        "selectionTypeModel": "Επιστροφή Αντικειμένων Μοντέλου",
+        "showPinnedModels": "εμφάνιση καρφιτσωμένων μοντέλων",
+        "showTagFilter": "showTagFilter",
+        "title": "Επιλογέας Μοντέλου",
+        "triggerPlaceholder": "Επιλέξτε ένα μοντέλο",
+        "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
+        "valueProp": "Τρέχουσα Πρόταση Αξίας"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
     },
     "data": {
       "app_data": {
@@ -4683,6 +4683,15 @@
         "button": "Αντιγραφή ασφαλείας",
         "title": "Αντιγραφή ασφαλείας και αποκατάσταση δεδομένων"
       },
+      "common": {
+        "sections": {
+          "custom_css": "Προσαρμοσμένη CSS",
+          "display_language": "Εμφάνιση & Γλώσσα",
+          "privacy_advanced": "Ιδιωτικότητα & Προηγμένα",
+          "system_startup": "Σύστημα & Εκκίνηση"
+        },
+        "title": "Κοινές Ρυθμίσεις"
+      },
       "display": {
         "title": "Ρυθμίσεις εμφάνισης"
       },
@@ -4695,6 +4704,11 @@
       },
       "restore": {
         "button": "Αποκατάσταση"
+      },
+      "settings_open_target": {
+        "app": "Στην εφαρμογή",
+        "title": "Ρυθμίσεις Άνοιγμα Στόχου",
+        "window": "Ξεχωριστό Παράθυρο"
       },
       "spell_check": {
         "label": "Έλεγχος Ορθογραφίας",
@@ -5013,6 +5027,13 @@
       "url": "URL",
       "user": "Χρήστης"
     },
+    "menuGroups": {
+      "appSettings": "Ρυθμίσεις Εφαρμογής",
+      "integrations": "Μοντέλα",
+      "productivity": "Παραγωγικότητα",
+      "services": "Πρόσθετα",
+      "system": "Σύστημα"
+    },
     "messages": {
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
@@ -5166,7 +5187,7 @@
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
-      "default_assistant_model_description": "Το μοντέλο που χρησιμοποιείται όταν δημιουργείτε νέο υπάλληλο. Αν το υπάλληλο δεν έχει επιλεγμένο ένα μοντέλο, τότε θα χρησιμοποιεί αυτό το μοντέλο.",
+      "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "empty": "Δεν υπάρχουν μοντέλα",
       "manage": {
         "add_listed": {
@@ -5259,6 +5280,14 @@
         "tip": "Ελέγχει το βαθμό λεπτομέρειας της έξοδου του μοντέλου.",
         "title": "λεπτομέρεια"
       }
+    },
+    "plugins": {
+      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
+      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "installing": "Εγκατάσταση...",
+      "notInstalled": "Δεν έχει εγκατασταθεί",
+      "title": "Εξαρτήσεις Περιβάλλοντος",
+      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
     },
     "privacy": {
       "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων",
@@ -5582,12 +5611,22 @@
     "shortcuts": {
       "action": "Ενέργεια",
       "actions": "Λειτουργία",
+      "all_disable": "Απενεργοποίηση Όλων",
+      "all_enable": "Ενεργοποίηση Όλων",
       "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
+      "categories": {
+        "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
+        "chat": "Αλληλεπίδραση Μηνυμάτων",
+        "general": "Καθολικό και Παράθυρο",
+        "title": "Ομάδες Συντομεύσεων",
+        "topic": "Συζήτηση και Θέματα"
+      },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
+      "empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
@@ -5596,6 +5635,7 @@
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
+      "reset": "Επαναφορά",
       "reset_defaults": "Επαναφορά στα προεπιλεγμένα συντομού πλήκτρα",
       "reset_defaults_confirm": "Θέλετε να επαναφέρετε όλα τα συντομού πλήκτρα στις προεπιλεγμένες τιμές;",
       "reset_defaults_failed": "Αποτυχία επαναφοράς των συντομεύσεων στις προεπιλογές",
@@ -5676,6 +5716,14 @@
         "error": {
           "not_system": "Το σύστημα OCR υποστηρίζει μόνο Windows και MacOS"
         },
+        "features": {
+          "paddleocr": "Ισχυρότερο για κινέζικο κείμενο και πιο κατάλληλο για αποδείξεις, σαρωμένα έγγραφα και εικόνες με πιο πολύπλοκες διατάξεις.",
+          "system": {
+            "macos": "Χρησιμοποιεί την ενσωματωμένη μηχανή OCR του macOS χωρίς καμία ρύθμιση, ιδανική για στιγμιότυπα οθόνης και ελαφριά εξαγωγή κειμένου.",
+            "windows": "Χρησιμοποιεί τη γηγενή μηχανή OCR των Windows με ισχυρή ενσωμάτωση στο λειτουργικό σύστημα για βασικές τοπικές εργασίες αναγνώρισης."
+          },
+          "tesseract": "Μια κλασική τοπική επιλογή OCR με προσαρμόσιμα πακέτα γλωσσών, ιδανική για χρήση εκτός σύνδεσης και πολύγλωσσες ροές εργασίας."
+        },
         "image": {
           "error": {
             "provider_not_found": "Ο πάροχος δεν υπάρχει"
@@ -5702,6 +5750,13 @@
         "title": "Υπηρεσία OCR"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Κατάλληλο για τη μετατροπή αρχείων PDF σε καθαρότερη μορφή Markdown ή επεξεργάσιμο κείμενο για περαιτέρω ανάκτηση και επεξεργασία.",
+          "mineru": "Βελτιστοποιημένο για ανάκτηση διάταξης υψηλότερης πιστότητας, ιδιαίτερα χρήσιμο για ακαδημαϊκά PDF, πίνακες και τύπους.",
+          "mistral": "Ισχυρή κατανόηση εγγράφων μέσω cloud, κατάλληλη για δομημένη εξαγωγή, πολυσέλιδα αρχεία και πολύπλοκες διατάξεις.",
+          "open_mineru": "Μια ανοιχτή επιλογή ανάπτυξης που ταιριάζει σε ομάδες που επιθυμούν αυτο-φιλοξενία ή μεγαλύτερο έλεγχο στη διαδικασία επεξεργασίας.",
+          "paddleocr": "Μια ελαφρύτερη επιλογή ενσωμάτωσης που λειτουργεί καλά για κινέζικα έγγραφα, σκαναρίσματα και κοινό περιεχόμενο σε στυλ αποδείξεων."
+        },
         "paddleocr": {
           "aistudio_access_token": "Δείκτης πρόσβασης της κοινότητας AI Studio",
           "api_url": "Διεύθυνση URL του API",

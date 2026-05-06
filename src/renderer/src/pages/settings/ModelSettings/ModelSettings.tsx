@@ -42,15 +42,15 @@ interface ModelSettingRowProps {
 }
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className="flex-col items-stretch gap-3 py-1">
-    <div className="min-w-0">
+  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
+    <div className="min-w-0 flex-1">
       <SettingRowTitle className="gap-2 font-semibold">
         {icon}
         {title}
       </SettingRowTitle>
       {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
     </div>
-    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-full max-w-[420px] items-center gap-2'}>
+    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
       {children}
     </div>
   </SettingRow>

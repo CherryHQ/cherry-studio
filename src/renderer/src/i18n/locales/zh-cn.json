@@ -4066,7 +4066,7 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "file": {
-          "button": "导出到文件",
+          "button": "导出文件",
           "content": "将数据导出为备份文件，可在手机上通过文件方式导入。",
           "export_failed": "导出失败",
           "export_success": "导出成功",
@@ -5187,7 +5187,7 @@
         "use_all_keys": "使用密钥"
       },
       "default_assistant_model": "默认助手模型",
-      "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
+      "default_assistant_model_description": "助手未指定模型时使用",
       "empty": "没有模型",
       "manage": {
         "add_listed": {

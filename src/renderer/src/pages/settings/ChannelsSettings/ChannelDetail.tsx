@@ -348,7 +348,11 @@ const ChannelInstanceRow: FC<{
         </Button>
       </Tooltip>
       <Tooltip title={t('common.delete')}>
-        <Button variant="destructive" size="icon-sm" onClick={() => setDeleteConfirmOpen(true)}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hover:!text-destructive"
+          onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>
       </Tooltip>

@@ -36,9 +36,9 @@
         "comingSoon": "Demnächst verfügbar",
         "connected": "Verbunden",
         "connecting": "Verbinden",
-        "createError": "[to be translated]:Failed to create channel",
+        "createError": "Fehler beim Erstellen des Kanals",
         "deleteConfirm": "Kanal „{{name}}“ löschen?",
-        "deleteError": "[to be translated]:Failed to delete channel",
+        "deleteError": "Fehler beim Löschen des Kanals",
         "description": "Verbinden Sie Ihren Agenten mit Messaging-Plattformen.",
         "disconnected": "Getrennt",
         "discord": {
@@ -123,7 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kanäle",
-        "updateError": "[to be translated]:Failed to update channel",
+        "updateError": "Fehler beim Aktualisieren des Kanals",
         "wechat": {
           "addAccount": "WeChat-Konto hinzufügen",
           "chatIds": "Erlaubte Benutzer-IDs",
@@ -215,7 +215,7 @@
         "edit": "Bearbeiten",
         "empty": "Keine geplanten Aufgaben. Fügen Sie eine hinzu, um zu beginnen.",
         "error": {
-          "loadFailed": "[to be translated]:Failed to load tasks"
+          "loadFailed": "Aufgaben konnten nicht geladen werden"
         },
         "intervalPlaceholder": "Intervall in Minuten",
         "intervalUnit": "Minuten",
@@ -226,7 +226,7 @@
           "error": "Fehler",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
-          "loadError": "[to be translated]:Failed to load run history",
+          "loadError": "Fehler beim Laden des Laufverlaufs",
           "result": "Ergebnis",
           "runAt": "Ausgeführt am",
           "running": "Läuft...",
@@ -1510,8 +1510,8 @@
     "bun_required_message": "Bun-Umgebung erforderlich zum Ausführen von CLI-Tools",
     "cli_tool": "CLI-Tool",
     "cli_tool_placeholder": "CLI-Tool auswählen",
-    "count_one": "[to be translated]:{{count}} item",
-    "count_other": "[to be translated]:{{count}} items",
+    "count_one": "{{count}} Artikel",
+    "count_other": "{{count}} Artikel",
     "custom_path": "Benutzerdefinierter Pfad",
     "custom_path_error": "Benutzerdefinierten Terminalpfad festlegen fehlgeschlagen",
     "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
@@ -1519,12 +1519,12 @@
     "description": "Starten Sie schnell mehrere Code-CLI-Tools, um die Entwicklungseffizienz zu steigern",
     "empty": {
       "no_match": {
-        "description": "[to be translated]:Try adjusting your search terms",
-        "title": "[to be translated]:No matching tools found"
+        "description": "Versuchen Sie, Ihre Suchbegriffe anzupassen",
+        "title": "Keine passenden Werkzeuge gefunden"
       },
       "no_tool": {
-        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
-        "title": "[to be translated]:No code tools yet"
+        "description": "Fügen Sie ein CLI-Tool oder einen Code-Assistenten hinzu, um loszulegen",
+        "title": "Noch keine Code-Tools"
       }
     },
     "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
@@ -1536,28 +1536,28 @@
       "bun_required": "Bitte installieren Sie zuerst die Bun-Umgebung, bevor Sie CLI-Tools starten",
       "error": "Start fehlgeschlagen, bitte versuchen Sie es erneut",
       "label": "Starten",
-      "launched": "[to be translated]:Launched",
+      "launched": "Gestartet",
       "success": "Erfolgreich gestartet",
       "validation_error": "Bitte füllen Sie alle Pflichtfelder aus: CLI-Tool, Modell und Arbeitsverzeichnis"
     },
     "launching": "Wird gestartet...",
     "model": "Modell",
-    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
+    "model_hint": "Wählen Sie, welches KI-Modell das CLI-Tool verwenden soll",
     "model_placeholder": "Zu verwendendes Modell auswählen",
     "model_required": "Bitte Modell auswählen",
-    "official_tag": "[to be translated]:Official",
-    "official_tools": "[to be translated]:Official",
-    "search_placeholder": "[to be translated]:Search CLI tools…",
+    "official_tag": "Offiziell",
+    "official_tools": "Offiziell",
+    "search_placeholder": "CLI-Tools suchen…",
     "select_folder": "Ordner auswählen",
     "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
     "supported_providers": "Unterstützte Anbieter",
     "terminal": "Terminal",
-    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
+    "terminal_hint": "Wählen Sie, in welchem Terminal die CLI ausgeführt werden soll",
     "terminal_placeholder": "Terminal-Anwendung auswählen",
     "title": "Code-Tools",
     "update_options": "Update-Optionen",
     "working_directory": "Arbeitsverzeichnis",
-    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
+    "working_directory_hint": "Das Arbeitsverzeichnis, in dem das CLI-Tool gestartet wird"
   },
   "code_block": {
     "collapse": "Einklappen",
@@ -2562,8 +2562,8 @@
   },
   "models": {
     "action": {
-      "pin": "[to be translated]:Pin this model",
-      "unpin": "[to be translated]:Unpin model"
+      "pin": "Dieses Modell anheften",
+      "unpin": "Modell lösen"
     },
     "add_parameter": "Parameter hinzufügen",
     "all": "Alle",
@@ -2583,7 +2583,7 @@
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
-      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
     },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
@@ -3826,27 +3826,27 @@
   },
   "selector": {
     "agent": {
-      "create_new": "[to be translated]:New Agent",
-      "empty_text": "[to be translated]:No agents yet",
-      "search_placeholder": "[to be translated]:Search agents…"
+      "create_new": "Neuer Agent",
+      "empty_text": "Noch keine Agenten",
+      "search_placeholder": "Suchagenten…"
     },
     "assistant": {
-      "create_new": "[to be translated]:New Assistant",
-      "empty_text": "[to be translated]:No assistants yet",
-      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
-      "multi_label": "[to be translated]:Multi-assistant parallel",
-      "search_placeholder": "[to be translated]:Search assistants…"
+      "create_new": "Neuer Assistent",
+      "empty_text": "Noch keine Assistenten",
+      "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
+      "multi_label": "Multi-Assistent-Parallel",
+      "search_placeholder": "Suchassistenten…"
     },
     "common": {
-      "edit": "[to be translated]:Edit",
-      "pin": "[to be translated]:Pin",
-      "pinned_title": "[to be translated]:Pinned",
+      "edit": "Bearbeiten",
+      "pin": "Stift",
+      "pinned_title": "Angepinnt",
       "sort": {
-        "asc": "[to be translated]:Oldest",
-        "desc": "[to be translated]:Recent"
+        "asc": "Ältester",
+        "desc": "Kürzlich"
       },
-      "sort_label": "[to be translated]:Sort",
-      "unpin": "[to be translated]:Unpin"
+      "sort_label": "Sortieren",
+      "unpin": "Lösen"
     }
   },
   "settings": {
@@ -3917,72 +3917,72 @@
     },
     "componentLab": {
       "agentSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
-        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Agent Selector",
-        "triggerPlaceholder": "[to be translated]:Select an agent",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Klar",
+        "configDescription": "Schalten Sie Props um, um das Verhalten der Komponente in der Vorschau anzuzeigen",
+        "configTitle": "Konfig",
+        "currentProps": "Aktuelle Requisiten",
+        "description": "AgentSelector liest jetzt echte /agents-Daten der DataApi, um die Auswahl der ID/des Elements, das Anheften, Sortieren und Suchverhalten zu überprüfen.",
+        "emptyShellNotice": "Diese Vorschau verwendet die echte Agentenliste, die von der /agents DataApi zurückgegeben wird.",
+        "lastOnChange": "Neuestes onChange",
+        "previewDescription": "Klicken Sie auf den Auslöser, um den Selektor zu öffnen",
+        "previewTitle": "Vorschau",
+        "title": "Agenten-Auswahl",
+        "triggerPlaceholder": "Wählen Sie einen Agenten",
+        "valueProp": "Aktueller Wert"
       },
       "assistantSelector": {
-        "clearSelection": "[to be translated]:Clear",
-        "configDescription": "[to be translated]:Toggle props to preview component behavior",
-        "configTitle": "[to be translated]:Config",
-        "currentProps": "[to be translated]:Current props",
-        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
-        "lastOnChange": "[to be translated]:Latest onChange",
-        "previewDescription": "[to be translated]:Click the trigger to open the selector",
-        "previewTitle": "[to be translated]:Preview",
-        "title": "[to be translated]:Assistant Selector",
-        "triggerPlaceholder": "[to be translated]:Select an assistant",
-        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
-        "valueProp": "[to be translated]:Current value"
+        "clearSelection": "Klar",
+        "configDescription": "Schalten Sie Props um, um das Verhalten der Komponente in der Vorschau anzuzeigen",
+        "configTitle": "Konfig",
+        "currentProps": "Aktuelle Requisiten",
+        "description": "Bindet die AssistantSelector-Business-Komponente direkt ein, um das Verhalten bei Multi-/Single-Auswahl, ID/Element, Anheften, Sortierung und Suche zu überprüfen.",
+        "lastOnChange": "Neuestes onChange",
+        "previewDescription": "Klicken Sie auf den Auslöser, um den Selektor zu öffnen",
+        "previewTitle": "Vorschau",
+        "title": "Assistentenauswahl",
+        "triggerPlaceholder": "Wählen Sie einen Assistenten",
+        "triggerSelectedCount": "{{count}} Assistenten ausgewählt",
+        "valueProp": "Aktueller Wert"
       },
-      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
-      "label": "[to be translated]:Component Lab",
+      "description": "Nur in der Entwicklung sichtbar, um die neue Modellauswahl direkt in der App zu testen.",
+      "label": "Komponentenlabor",
       "modelSelector": {
-        "behaviorConfig": "[to be translated]:Behavior & Display Config",
-        "callbackEmpty": "[to be translated]:No component callback received yet",
-        "clearSelection": "[to be translated]:Clear Selection",
-        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
-        "configTitle": "[to be translated]:Props Playground",
-        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
-        "currentProps": "[to be translated]:Current Props",
-        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
-        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
-        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
-        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
-        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
-        "loading": "[to be translated]:Loading models...",
-        "modelId": "[to be translated]:Model ID",
-        "multiSelectMode": "[to be translated]:multiSelectMode",
-        "multiple": "[to be translated]:multiple",
-        "normalizedIds": "[to be translated]:Normalized Selected IDs",
-        "outputEmpty": "[to be translated]:No data to display yet",
-        "provider": "[to be translated]:Provider",
-        "resetOutputs": "[to be translated]:Reset Outputs",
-        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
-        "resultsTitle": "[to be translated]:Outputs & State",
-        "selected": "[to be translated]:Current Selection",
-        "selectedEmpty": "[to be translated]:No model selected yet",
-        "selectionConfig": "[to be translated]:Selection Value Config",
-        "selectionType": "[to be translated]:selectionType",
-        "selectionTypeId": "[to be translated]:Return Model IDs",
-        "selectionTypeModel": "[to be translated]:Return Model Objects",
-        "showPinnedModels": "[to be translated]:showPinnedModels",
-        "showTagFilter": "[to be translated]:showTagFilter",
-        "title": "[to be translated]:Model Selector",
-        "triggerPlaceholder": "[to be translated]:Select a model",
-        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
-        "valueProp": "[to be translated]:Current Value Prop"
+        "behaviorConfig": "Verhalten & Anzeige-Konfiguration",
+        "callbackEmpty": "Noch kein Komponenten-Callback erhalten",
+        "clearSelection": "Auswahl aufheben",
+        "configDescription": "Schalten Sie die oben genannten ModelSelector-Schlüsseleigenschaften um und untersuchen Sie den Eingabewert sowie die Callback-Nutzlasten unten.",
+        "configTitle": "Requisiten-Spielplatz",
+        "controlMultiSelectMode": "Gesteuerte Mehrfachauswahl-Modus",
+        "currentProps": "Aktuelle Props",
+        "defaultMultiSelectMode": "Standard-Mehrfachauswahlmodus",
+        "description": "Diese Seite bindet die aktuelle ModelSelector-Businesskomponente direkt ein, sodass wir Auswahl, Filterung, Suche und Anheftverhalten überprüfen können.",
+        "empty": "Derzeit sind keine Modelle verfügbar, daher kann die Auswahl noch nicht angezeigt werden.",
+        "lastModeChangeReturn": "Neuestes zu onMultiSelectModeChange Rückgabe",
+        "lastSelectReturn": "Neuestes onSelect Return",
+        "loading": "Modelle werden geladen...",
+        "modelId": "Modell-ID",
+        "multiSelectMode": "Mehrfachauswahlmodus",
+        "multiple": "mehrere",
+        "normalizedIds": "Normalisierte ausgewählte IDs",
+        "outputEmpty": "Noch keine Daten anzuzeigen",
+        "provider": "Anbieter",
+        "resetOutputs": "Ausgaben zurücksetzen",
+        "resultsDescription": "Dies zeigt die aktuelle Value-Prop, die normalisierten ausgewählten IDs und die neueste Callback-Ausgabe der Komponente.",
+        "resultsTitle": "Ausgaben & Zustand",
+        "selected": "Aktuelle Auswahl",
+        "selectedEmpty": "Noch kein Modell ausgewählt",
+        "selectionConfig": "Auswahlwert-Konfiguration",
+        "selectionType": "Auswahltyp",
+        "selectionTypeId": "Modell-IDs zurückgeben",
+        "selectionTypeModel": "Modellobjekte zurückgeben",
+        "showPinnedModels": "angeheftete Modelle anzeigen",
+        "showTagFilter": "showTagFilter",
+        "title": "Modell-Auswahl",
+        "triggerPlaceholder": "Wählen Sie ein Modell",
+        "triggerSelectedCount": "{{count}} Modelle ausgewählt",
+        "valueProp": "Aktueller Wertvorschlag"
       },
-      "title": "[to be translated]:Development Component Lab"
+      "title": "Entwicklungskomponentenlabor"
     },
     "data": {
       "app_data": {
@@ -4683,6 +4683,15 @@
         "button": "Backup",
         "title": "Datensicherung und -wiederherstellung"
       },
+      "common": {
+        "sections": {
+          "custom_css": "Benutzerdefiniertes CSS",
+          "display_language": "Anzeige & Sprache",
+          "privacy_advanced": "Privatsphäre & Erweitert",
+          "system_startup": "System & Start"
+        },
+        "title": "Allgemeine Einstellungen"
+      },
       "display": {
         "title": "Anzeigeeinstellungen"
       },
@@ -4695,6 +4704,11 @@
       },
       "restore": {
         "button": "Wiederherstellen"
+      },
+      "settings_open_target": {
+        "app": "In der App",
+        "title": "Einstellungen Ziel öffnen",
+        "window": "Separates Fenster"
       },
       "spell_check": {
         "label": "Rechtschreibprüfung",
@@ -5013,6 +5027,13 @@
       "url": "URL",
       "user": "Benutzer"
     },
+    "menuGroups": {
+      "appSettings": "App-Einstellungen",
+      "integrations": "Modelle",
+      "productivity": "Produktivität",
+      "services": "Plugins",
+      "system": "System"
+    },
     "messages": {
       "divider": {
         "label": "Nachrichtentrennlinie",
@@ -5166,7 +5187,7 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "default_assistant_model": "Standard-Assistent-Modell",
-      "default_assistant_model_description": "Modell für neue Assistenten. Wird verwendet, wenn Assistent kein Modell hat.",
+      "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "empty": "Kein Modell",
       "manage": {
         "add_listed": {
@@ -5259,6 +5280,14 @@
         "tip": "Detailgrad der Modellausgabe kontrollieren",
         "title": "Detailgrad"
       }
+    },
+    "plugins": {
+      "bunDescription": "JavaScript-Laufzeitumgebung, die von MCP-Diensten und zugehörigen Toolchains verwendet wird.",
+      "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
+      "installing": "Installiere...",
+      "notInstalled": "Nicht installiert",
+      "title": "Umgebungsabhängigkeiten",
+      "uvDescription": "Python-Paketmanager für MCP-Dienste und Abhängigkeitsinstallation."
     },
     "privacy": {
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
@@ -5582,12 +5611,22 @@
     "shortcuts": {
       "action": "Aktionen",
       "actions": "Aktionen",
+      "all_disable": "Alle deaktivieren",
+      "all_enable": "Alle aktivieren",
       "bind_first_to_enable": "Weisen Sie zunächst eine Tastenkombination zu, um ihren aktivierten Zustand zu ändern.",
+      "categories": {
+        "assistant": "KI-Assistenten-Tools",
+        "chat": "Nachrichteninteraktion",
+        "general": "Global und Fenster",
+        "title": "Tastenkürzelgruppen",
+        "topic": "Gespräch und Themen"
+      },
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
       "conflict_with": "Bereits von \"{{name}}\" verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
+      "empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
       "enabled": "Aktivieren",
       "exit_fullscreen": "Vollbildmodus beenden",
       "label": "Taste",
@@ -5596,6 +5635,7 @@
       "press_shortcut": "Shortcut drücken",
       "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
+      "reset": "Zurücksetzen",
       "reset_defaults": "Standard-Shortcuts zurücksetzen",
       "reset_defaults_confirm": "Alle Shortcuts wirklich zurücksetzen?",
       "reset_defaults_failed": "Verknüpfungen konnten nicht auf Standard zurückgesetzt werden",
@@ -5676,6 +5716,14 @@
         "error": {
           "not_system": "System OCR unterstützt nur Windows und MacOS"
         },
+        "features": {
+          "paddleocr": "Stärker für chinesische Texte und besser geeignet für Quittungen, Scans und Bilder mit komplexeren Layouts.",
+          "system": {
+            "macos": "Verwendet die integrierte macOS-OCR-Engine ohne jegliche Einrichtung – ideal für Screenshots und einfache Textextraktion.",
+            "windows": "Verwendet die native Windows-OCR-Engine mit starker OS-Integration für grundlegende lokale Erkennungsaufgaben."
+          },
+          "tesseract": "Eine klassische lokale OCR-Option mit anpassbaren Sprachpaketen, gut geeignet für Offline- und mehrsprachige Workflows."
+        },
         "image": {
           "error": {
             "provider_not_found": "Der Anbieter wurde nicht gefunden"
@@ -5702,6 +5750,13 @@
         "title": "OCR-Dienst"
       },
       "preprocess": {
+        "features": {
+          "doc2x": "Gut geeignet zur Konvertierung von PDFs in sauberes Markdown oder bearbeitbaren Text für die nachgelagerte Wiederverwendung und Bearbeitung.",
+          "mineru": "Optimiert für hochwertigere Layout-Wiederherstellung, besonders nützlich für akademische PDFs, Tabellen und Formeln.",
+          "mistral": "Starke cloudbasierte Dokumentenverständnis, geeignet für strukturierte Extraktion, mehrseitige Dateien und komplexe Layouts.",
+          "open_mineru": "Eine offene Bereitstellungsoption, die Teams passt, die Self-Hosting oder eine engere Kontrolle über die Verarbeitungspipeline wünschen.",
+          "paddleocr": "Eine leichtere Integrationsoption, die gut für chinesische Dokumente, Scans und gängige Belegformate funktioniert."
+        },
         "paddleocr": {
           "aistudio_access_token": "Zugriffstoken der AI Studio Community",
           "api_url": "API-URL",

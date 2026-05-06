@@ -5187,7 +5187,7 @@
         "use_all_keys": "Key(s)"
       },
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model",
       "empty": "No models found",
       "manage": {
         "add_listed": {
