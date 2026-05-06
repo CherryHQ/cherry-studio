@@ -474,6 +474,7 @@ describe('useMiniAppPopup', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(true)
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('cached-app')
+      expect(mockNavigate).not.toHaveBeenCalled()
     })
 
     it('should respect keepAlive in side navbar mode', async () => {

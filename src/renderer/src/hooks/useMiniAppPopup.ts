@@ -271,8 +271,8 @@ export const useMiniAppPopup = () => {
       const app = toMiniApp(config)
       if (isTopNavbar && sharedCache) {
         // For top navbar mode, need to add to cache first for temporary apps
-        const cacheApp = sharedCache.get(app.appId)
-        if (!cacheApp) {
+        const wasCached = sharedCache.has(app.appId)
+        if (!wasCached) {
           // Add temporary app to cache so MiniAppPage can find it
           sharedCache.set(app.appId, app)
         }
@@ -281,8 +281,10 @@ export const useMiniAppPopup = () => {
         setCurrentMiniAppId(app.appId)
         setMiniAppShow(true)
 
-        // Then navigate to the app tab using NavigationService
-        if (NavigationService.navigate) {
+        // Skip route navigation when the app is already cached: the user is
+        // already on/near that tab, and re-navigating would rerun route
+        // effects unnecessarily.
+        if (!wasCached && NavigationService.navigate) {
           void NavigationService.navigate({ to: `/app/mini-app/${app.appId}` })
         }
       } else {
