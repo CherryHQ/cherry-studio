@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { applicationMock, windowManagerMock, loggerMock } = vi.hoisted(() => {
   const windowManagerMock = {
-    open: vi.fn<(type: string, args?: { initData?: unknown }) => string>(() => 'settings-window-id'),
+    open: vi.fn<(type: string, args?: { initData?: unknown; options?: unknown }) => string>(() => 'settings-window-id'),
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() }))
@@ -28,6 +28,12 @@ vi.mock('@application', () => ({ application: applicationMock }))
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMock
+  }
+}))
+
+vi.mock('electron', () => ({
+  nativeTheme: {
+    shouldUseDarkColors: false
   }
 }))
 
@@ -103,13 +109,19 @@ describe('SettingsWindowService', () => {
     const handler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_Open)
     handler({}, '/settings/about')
 
-    expect(windowManagerMock.open).toHaveBeenCalledWith(WindowType.Settings, { initData: '/settings/about' })
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({ initData: '/settings/about' })
+    )
   })
 
   it('normalizes non-settings paths to the provider settings page', () => {
     service.open('/agents')
 
-    expect(windowManagerMock.open).toHaveBeenCalledWith(WindowType.Settings, { initData: '/settings/provider' })
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({ initData: '/settings/provider' })
+    )
   })
 
   it('shows and focuses a ready settings window immediately', () => {
@@ -142,7 +154,10 @@ describe('SettingsWindowService', () => {
     const id = service.prewarm()
 
     expect(id).toBe('settings-window-id')
-    expect(windowManagerMock.open).toHaveBeenCalledWith(WindowType.Settings, { initData: '/settings/provider' })
+    expect(windowManagerMock.open).toHaveBeenCalledWith(
+      WindowType.Settings,
+      expect.objectContaining({ initData: '/settings/provider' })
+    )
     expect(windowManagerMock.getWindow).not.toHaveBeenCalled()
   })
 

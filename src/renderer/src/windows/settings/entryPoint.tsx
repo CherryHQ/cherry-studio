@@ -6,15 +6,18 @@ import '@renderer/databases'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import TopViewContainer from '@renderer/components/TopView'
+import { isMac } from '@renderer/config/constant'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { routeTree } from '@renderer/routeTree.gen'
 import NavigationService from '@renderer/services/NavigationService'
 import store, { persistor } from '@renderer/store'
+import { cn } from '@renderer/utils/style'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -28,6 +31,7 @@ loggerService.initWindowSource('SettingsWindow')
 const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'app.language',
   'ui.theme_mode',
+  'ui.window_style',
   'ui.theme_user.color_primary',
   'chat.code.editor.enabled',
   'chat.code.editor.theme_light',
@@ -74,7 +78,12 @@ function SettingsWindowRouter() {
 }
 
 function SettingsWindowApp(): React.ReactElement {
-  const shellStyle = { '--navbar-height': '0px' } as CSSProperties
+  const shellStyle = {
+    '--navbar-height': '0px',
+    '--settings-window-sidebar-top-padding': isMac ? '32px' : '0px',
+    '--settings-window-sidebar-app-region': isMac ? 'drag' : 'no-drag'
+  } as CSSProperties
+  const isMacTransparentWindow = useMacTransparentWindow()
 
   return (
     <Provider store={store}>
@@ -87,7 +96,10 @@ function SettingsWindowApp(): React.ReactElement {
                   <PersistGate loading={null} persistor={persistor}>
                     <TopViewContainer>
                       <div
-                        className="flex h-screen w-screen overflow-hidden bg-background text-foreground"
+                        className={cn(
+                          'flex h-screen w-screen overflow-hidden text-foreground',
+                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                        )}
                         style={shellStyle}>
                         <SettingsWindowRouter />
                       </div>

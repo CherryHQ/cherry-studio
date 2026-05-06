@@ -1,10 +1,13 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
+import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
+import { type WindowOptions, WindowType } from '@main/core/window/types'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
+import { nativeTheme } from 'electron'
 
 const DEFAULT_SETTINGS_PATH = '/settings/provider'
 const PREWARM_DELAY_MS = 1000
@@ -53,7 +56,10 @@ export class SettingsWindowService extends BaseService {
 
   public open(path?: unknown): string {
     const wm = application.get('WindowManager')
-    const windowId = wm.open(WindowType.Settings, { initData: this.normalizePath(path) })
+    const windowId = wm.open(WindowType.Settings, {
+      initData: this.normalizePath(path),
+      options: this.getWindowOptions()
+    })
     const window = wm.getWindow(windowId)
 
     if (window) {
@@ -91,7 +97,10 @@ export class SettingsWindowService extends BaseService {
     }
 
     try {
-      return wm.open(WindowType.Settings, { initData: DEFAULT_SETTINGS_PATH })
+      return wm.open(WindowType.Settings, {
+        initData: DEFAULT_SETTINGS_PATH,
+        options: this.getWindowOptions()
+      })
     } catch (error) {
       logger.warn('Failed to prewarm settings window', error as Error)
       return null
@@ -123,6 +132,16 @@ export class SettingsWindowService extends BaseService {
       window.off('closed', onClosed)
       window.webContents.off('page-title-updated', onPageTitleUpdated)
     })
+  }
+
+  private getWindowOptions(): Partial<WindowOptions> {
+    const dark = nativeTheme.shouldUseDarkColors
+
+    return {
+      darkTheme: dark,
+      ...(isMac && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
+      ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' })
+    }
   }
 
   private showWhenReady(windowId: string, window: BrowserWindow): void {

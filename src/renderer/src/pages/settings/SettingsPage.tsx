@@ -2,6 +2,8 @@ import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isDev } from '@renderer/config/constant'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
   Blocks,
@@ -29,6 +31,7 @@ const SettingsPage: FC = () => {
   const navigate = useNavigate()
   const { pathname } = location
   const { t } = useTranslation()
+  const isMacTransparentWindow = useMacTransparentWindow()
 
   const isActive = (path: string) => pathname.startsWith(path)
   const go = (path: string) => navigate({ to: path })
@@ -38,11 +41,19 @@ const SettingsPage: FC = () => {
   const sectionDividerClassName = 'my-1 bg-transparent'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-background">
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 flex-col',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+      )}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-[200px] min-w-[200px]">
-          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col p-2.5">
-            <MenuList className="gap-1">
+        <div
+          className={cn(
+            'flex min-h-0 w-[200px] min-w-[200px]',
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+          )}>
+          <Scrollbar className="flex min-h-0 flex-1 select-none flex-col px-2.5 pt-[calc(var(--settings-window-sidebar-top-padding,0px)+0.625rem)] pb-2.5 [-webkit-app-region:var(--settings-window-sidebar-app-region,no-drag)]">
+            <MenuList className="gap-1 [-webkit-app-region:no-drag]">
               <div className={sectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={menuItemClassName}
