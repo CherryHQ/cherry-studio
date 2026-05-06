@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LibraryPage from '../LibraryPage'
@@ -10,13 +10,18 @@ const refetchSpy = vi.fn()
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
-  })
+  }),
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  }
 }))
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   motion: {
-    div: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
+    div: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+    create: (Component: ComponentType<Record<string, unknown>>) => Component
   }
 }))
 
@@ -68,6 +73,10 @@ vi.mock('../list/DeleteConfirmDialog', () => ({
 
 vi.mock('../list/ImportAssistantDialog', () => ({
   ImportAssistantDialog: () => null
+}))
+
+vi.mock('../list/ImportSkillDialog', () => ({
+  ImportSkillDialog: () => null
 }))
 
 vi.mock('../list/ResourceGrid', () => ({

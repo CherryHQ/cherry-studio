@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -11,6 +12,64 @@ const models = [
   { id: 'anthropic::claude-haiku-4-5', name: 'Claude Haiku 4.5' },
   { id: 'anthropic::claude-opus-4-5', name: 'Claude Opus 4.5' }
 ]
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  const React = await import('react')
+  const PopoverContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void } | null>(null)
+
+  const Popover = ({
+    open,
+    onOpenChange,
+    children
+  }: {
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    children: React.ReactNode
+  }) => {
+    const [uncontrolledOpen, setUncontrolledOpen] = React.useState(Boolean(open))
+    const resolvedOpen = open ?? uncontrolledOpen
+
+    const setOpen = (nextOpen: boolean) => {
+      if (open === undefined) {
+        setUncontrolledOpen(nextOpen)
+      }
+      onOpenChange?.(nextOpen)
+    }
+
+    return <PopoverContext value={{ open: resolvedOpen, setOpen }}>{children}</PopoverContext>
+  }
+
+  const PopoverTrigger = ({
+    children
+  }: {
+    asChild?: boolean
+    children: React.ReactElement<{ onClick?: (event: React.MouseEvent) => void }>
+  }) => {
+    const context = React.use(PopoverContext)
+    if (!context) return children
+
+    return React.cloneElement(children, {
+      onClick: (event: React.MouseEvent) => {
+        children.props.onClick?.(event)
+        context.setOpen(!context.open)
+      }
+    })
+  }
+
+  const PopoverContent = ({ children }: { children: React.ReactNode }) => {
+    const context = React.use(PopoverContext)
+    if (!context?.open) return null
+    return <div>{children}</div>
+  }
+
+  return {
+    ...actual,
+    Popover,
+    PopoverTrigger,
+    PopoverContent
+  }
+})
 
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: () => ({ models, isLoading: false })

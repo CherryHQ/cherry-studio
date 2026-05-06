@@ -1,8 +1,11 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
+
+const logger = loggerService.withContext('SkillAdapter')
 
 /**
  * List hook for skill resources. `GET /skills` is read-only — install / uninstall
@@ -70,7 +73,13 @@ function unwrapSkillResult<T>(
  */
 export function useSkillMutations() {
   const invalidate = useInvalidateCache()
-  const refresh = useCallback(() => invalidate('/skills'), [invalidate])
+  const refresh = useCallback(async () => {
+    try {
+      await invalidate('/skills')
+    } catch (error) {
+      logger.warn('Failed to refresh skills cache after IPC mutation', { error })
+    }
+  }, [invalidate])
 
   const install = useCallback(
     async (installSource: string): Promise<InstalledSkill> => {
@@ -116,7 +125,11 @@ export function useSkillMutationsById(id: string) {
   const uninstallSkill = useCallback(async (): Promise<void> => {
     const result = await window.api.skill.uninstall(id)
     unwrapSkillResult(result, 'Failed to uninstall skill')
-    await invalidate('/skills')
+    try {
+      await invalidate('/skills')
+    } catch (error) {
+      logger.warn('Failed to refresh skills cache after IPC mutation', { error })
+    }
   }, [id, invalidate])
 
   return { uninstallSkill }
