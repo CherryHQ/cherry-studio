@@ -447,6 +447,22 @@ export interface TokenFluxPainting extends PaintingParams {
   status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 }
 
+export interface VercelGatewayPainting {
+  id: string
+  urls: string[]
+  files: FileMetadata[]
+  providerId?: string
+  model?: string
+  prompt?: string
+  inputParams?: Record<string, any>
+  status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+  size?: string
+  quality?: string
+  background?: string
+  n?: number
+  moderation?: string
+}
+
 export interface OvmsPainting extends PaintingParams {
   model?: string
   prompt?: string
@@ -483,7 +499,8 @@ export type PaintingAction = Partial<
     DmxapiPainting &
     TokenFluxPainting &
     OvmsPainting &
-    PpioPainting
+    PpioPainting &
+    VercelGatewayPainting
 > &
   PaintingParams
 
@@ -509,6 +526,8 @@ export interface PaintingsState {
   // PPIO
   ppio_draw: PpioPainting[]
   ppio_edit: PpioPainting[]
+  // Vercel Gateway
+  vermimt_gateway_paintings: VercelGatewayPainting[]
 }
 
 export type MinAppType = {
