@@ -10,7 +10,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
@@ -141,32 +141,41 @@ const V2ChatContentInner: FC<InnerProps> = ({
 
   const respondToToolApproval = useToolApprovalBridge(chat, uiMessages)
 
-  // Rendering: project uiMessages + layer per-execution streaming overlay.
-  const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
-    useV2RenderingPipeline(uiMessages, activeExecutionIds, topic)
+  const {
+    projectedMessages,
+    mergedPartsMap,
+    executionMessagesById,
+    handleExecutionMessagesChange,
+    handleExecutionDispose
+  } = useV2RenderingPipeline(uiMessages, topic)
 
-  // Topic-messages optimistic cache + DataApi mutation triggers.
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+
+  const executionMessagesByIdRef = useRef(executionMessagesById)
+  executionMessagesByIdRef.current = executionMessagesById
 
   useEffect(() => {
     const unsub = window.api.ai.onStreamDone((data) => {
       if (data.topicId !== topic.id) return
-      if (data.executionId && !data.isTopicDone) return
-      const final = data.finalMessage
+      if (!data.executionId) return
+      const overlay = executionMessagesByIdRef.current[data.executionId]
+      const final = overlay?.findLast((m: CherryUIMessage) => m.role === 'assistant')
       if (!final) {
-        void cache.rollbackBranch()
+        if (data.isTopicDone) void cache.rollbackBranch()
         return
       }
-      void cache.patchMessageInBranch(final.id, {
-        status: data.status,
-        data: { parts: final.parts as never },
-        updatedAt: new Date().toISOString()
-      })
+      void cache
+        .patchMessageInBranch(final.id, {
+          status: data.status,
+          data: { parts: final.parts as never },
+          updatedAt: new Date().toISOString()
+        })
+        .then(() => handleExecutionDispose(data.executionId!))
     })
     return () => {
       unsub()
     }
-  }, [topic.id, cache])
+  }, [topic.id, cache, handleExecutionDispose])
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so

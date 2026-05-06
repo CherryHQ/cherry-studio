@@ -87,8 +87,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   // Per-execution collector pattern (see ActionTranslate for the why).
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } =
-    useExecutionMessages(activeExecutionIds)
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
   useEffect(() => {
     if (isPending) {

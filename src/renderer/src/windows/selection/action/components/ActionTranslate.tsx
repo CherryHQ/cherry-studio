@@ -153,7 +153,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   // we read the streaming assistant message from its internal state.
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
-    useExecutionMessages(activeExecutionIds)
+    useExecutionMessages()
 
   // Flatten all collectors' assistant messages — in practice there's at
   // most one (single-model translate), but keep the shape generic in case

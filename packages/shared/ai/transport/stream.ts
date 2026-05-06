@@ -47,13 +47,9 @@ export interface TopicStatusSnapshotEntry {
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
-  /** Multi-model: which model's execution finished. */
   executionId?: UniqueModelId
-  /** 'success' = natural completion; 'paused' = user-initiated abort with partial output. */
   status: 'success' | 'paused'
-  /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
-  finalMessage?: CherryUIMessage
 }
 
 /** Stream error. */

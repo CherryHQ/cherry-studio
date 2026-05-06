@@ -166,9 +166,7 @@ const AgentChatInner = ({
     return map
   }, [uiMessages])
 
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages(
-    chat.activeExecutionIds
-  )
+  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }

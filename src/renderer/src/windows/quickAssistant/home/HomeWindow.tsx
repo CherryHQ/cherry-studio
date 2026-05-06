@@ -118,24 +118,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutionIds, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
-    useExecutionMessages(activeExecutionIds)
+    useExecutionMessages()
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
-  // Freeze assistants from the just-ended stream(s) into permanent history.
-  // Runs on the same activeExecutionIds transition that wipes the overlay —
-  // so we read the overlay contents BEFORE `useExecutionMessages` clears them
-  // (useEffect ordering: local effects before child-hook effects? no; but
-  // `executionMessagesById` we read here is the pre-clear snapshot of this
-  // render, which is fine because the clear happens in the next commit).
   const prevActiveCountRef = useRef(activeExecutionIds.length)
   useEffect(() => {
     const wasActive = prevActiveCountRef.current > 0
     prevActiveCountRef.current = activeExecutionIds.length
     if (activeExecutionIds.length === 0 && wasActive) {
       const finalized = collectLiveAssistants(executionMessagesById)
-      if (finalized.length) setCompletedAssistants((done) => [...done, ...finalized])
+      if (finalized.length) {
+        setCompletedAssistants((done) => [...done, ...finalized])
+        resetExecutionMessages()
+      }
     }
-  }, [activeExecutionIds, executionMessagesById])
+  }, [activeExecutionIds, executionMessagesById, resetExecutionMessages])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
