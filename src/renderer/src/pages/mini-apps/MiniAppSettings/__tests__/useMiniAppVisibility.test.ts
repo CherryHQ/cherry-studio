@@ -79,9 +79,12 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.swap())
 
     // Pinned 'p' stays visible; only the enabled row 'a' actually moves.
-    // Otherwise 'p' would briefly show up in `hidden` and then snap back to
-    // `visible` after the next cache invalidate, producing a visual flicker.
-    expect(result.current.visible.map((a) => a.appId).sort()).toEqual(['c', 'p'])
+    // Pinned must come at the head of the new visible list so the order
+    // matches the post-revalidate `miniApps` (pinned has a small orderKey,
+    // formerly-hidden gets a tail orderKey on the status flip). Otherwise
+    // pinned briefly appears at the bottom for one render before snapping
+    // to the top.
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['p', 'c'])
     expect(result.current.hidden.map((a) => a.appId)).toEqual(['a'])
 
     expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)

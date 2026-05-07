@@ -65,12 +65,17 @@ export function useMiniAppVisibility() {
 
   const swap = useCallback(() => {
     // Pinned rows are visible-by-design and the bulk update below intentionally
-    // skips them. Mirror that filter in the optimistic state too — otherwise
-    // pinned rows briefly appear in `hidden`, then snap back to `visible` after
-    // the next cache invalidate revalidates the truth from DB.
+    // skips them. Mirror that filter in the optimistic state, AND put pinned
+    // at the head of the new visible list — after the PATCH lands, the
+    // service tail-assigns new orderKeys to the rows whose status flipped, so
+    // the formerly-hidden rows sort to the bottom of `miniApps` while pinned
+    // (whose orderKeys are unchanged) sort near the top. Matching that order
+    // here keeps the resync a no-op and avoids the brief jump where pinned
+    // would otherwise appear at the bottom for one render before snapping
+    // back to the top.
     const movingToHidden = visible.filter((a) => a.status === 'enabled')
     const pinnedStays = visible.filter((a) => a.status === 'pinned')
-    setVisible([...hidden, ...pinnedStays])
+    setVisible([...pinnedStays, ...hidden])
     setHidden(movingToHidden)
     setAppStatusBulk([
       ...movingToHidden.map((a) => ({ appId: a.appId, status: 'disabled' as const })),
