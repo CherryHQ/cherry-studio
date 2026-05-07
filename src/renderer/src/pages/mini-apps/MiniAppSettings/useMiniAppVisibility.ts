@@ -1,16 +1,20 @@
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 /**
- * Owns the visible/hidden list state for the mini-app display settings panel.
+ * Owns the visible / hidden list state for the mini-app display settings panel.
  *
- * Mirrors `useMiniApps` reads into local state so swap / reset / per-row
- * toggles can be optimistic, then writes back to DataApi via
- * `updateMiniApps` / `updateDisabledMiniApps` / `reorderMiniApps`.
+ * The panel only ever sees the region-filtered subset of mini-apps, so we use
+ * command-style writes (`updateAppStatus` / `setAppStatusBulk`) — every PATCH
+ * names exactly the rows that should change. Region-hidden rows are simply not
+ * referenced and therefore never touched. The previous declarative
+ * `updateMiniApps(newList)` API tried to infer "rows to disable" from the
+ * difference against the full enabled set and would sweep CN-only apps into
+ * `disabled` whenever the user touched the Global view.
  */
 export function useMiniAppVisibility() {
-  const { miniapps, disabled, allApps, updateMiniApps, updateDisabledMiniApps, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniapps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniapps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
@@ -20,74 +24,44 @@ export function useMiniAppVisibility() {
     setHidden(disabled || [])
   }, [miniapps, disabled])
 
-  // The settings panel only shows apps that pass the region filter. The full
-  // enabled/disabled sets in DataApi may include rows hidden by region — those
-  // rows must be re-merged before persisting, otherwise updateMiniApps' diff
-  // ("everything in `enabled` not in the input → disable") would silently
-  // disable every region-hidden enabled row each time the user edits the
-  // visible list. After switching the region back, those rows would resurface
-  // as disabled.
-  const { regionHiddenEnabled, regionHiddenDisabled } = useMemo(() => {
-    const displayedIds = new Set<string>()
-    for (const a of miniapps) displayedIds.add(a.appId)
-    for (const a of disabled || []) displayedIds.add(a.appId)
-    const enabledTail: MiniApp[] = []
-    const disabledTail: MiniApp[] = []
-    for (const a of allApps) {
-      if (displayedIds.has(a.appId)) continue
-      if (a.status === 'enabled') enabledTail.push(a)
-      else if (a.status === 'disabled') disabledTail.push(a)
-    }
-    return { regionHiddenEnabled: enabledTail, regionHiddenDisabled: disabledTail }
-  }, [allApps, miniapps, disabled])
-
-  const persistVisible = useCallback(
-    (next: MiniApp[]) => updateMiniApps([...next, ...regionHiddenEnabled]),
-    [updateMiniApps, regionHiddenEnabled]
-  )
-  const persistHidden = useCallback(
-    (next: MiniApp[]) => updateDisabledMiniApps([...next, ...regionHiddenDisabled]),
-    [updateDisabledMiniApps, regionHiddenDisabled]
-  )
-
   const swap = useCallback(() => {
     const newVisible = hidden
     const newHidden = visible
     setVisible(newVisible)
     setHidden(newHidden)
-    void persistVisible(newVisible)
-    void persistHidden(newHidden)
-  }, [hidden, visible, persistVisible, persistHidden])
+    // Pinned rows are visible-by-design but should not be flipped to disabled
+    // on swap; only the rows that were status='enabled' move into disabled.
+    void setAppStatusBulk([
+      ...visible.filter((a) => a.status === 'enabled').map((a) => ({ appId: a.appId, status: 'disabled' as const })),
+      ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
+    ])
+  }, [hidden, visible, setAppStatusBulk])
 
   const reset = useCallback(() => {
-    setVisible(miniapps)
+    const newVisible = [...visible, ...hidden]
+    setVisible(newVisible)
     setHidden([])
-    void persistVisible(miniapps)
-    void persistHidden([])
-  }, [miniapps, persistVisible, persistHidden])
+    // Promote everything currently hidden back to enabled — visible rows are
+    // already enabled / pinned and are not touched.
+    void setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const })))
+  }, [visible, hidden, setAppStatusBulk])
 
   const hide = useCallback(
     (app: MiniApp) => {
-      const newVisible = visible.filter((a) => a.appId !== app.appId)
-      const newHidden = [...hidden, app]
-      setVisible(newVisible)
-      setHidden(newHidden)
-      void persistVisible(newVisible)
-      void persistHidden(newHidden)
+      setVisible((v) => v.filter((a) => a.appId !== app.appId))
+      setHidden((h) => [...h, app])
+      void updateAppStatus(app.appId, 'disabled')
     },
-    [visible, hidden, persistVisible, persistHidden]
+    [updateAppStatus]
   )
 
   const show = useCallback(
     (app: MiniApp) => {
-      const newHidden = hidden.filter((a) => a.appId !== app.appId)
-      const newVisible = [...visible, app]
-      setVisible(newVisible)
-      setHidden(newHidden)
-      void persistVisible(newVisible)
-      void persistHidden(newHidden)
+      setHidden((h) => h.filter((a) => a.appId !== app.appId))
+      setVisible((v) => [...v, app])
+      void updateAppStatus(app.appId, 'enabled')
     },
-    [hidden, visible, persistVisible, persistHidden]
+    [updateAppStatus]
   )
 
   const reorderVisible = useCallback(

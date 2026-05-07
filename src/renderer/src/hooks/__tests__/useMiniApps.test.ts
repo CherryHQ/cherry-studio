@@ -223,135 +223,68 @@ describe('useMiniApps', () => {
   describe('mutations', () => {
     it('should expose all mutation functions', () => {
       const { result } = renderHook(() => useMiniApps())
-      expect(typeof result.current.updateMiniApps).toBe('function')
-      expect(typeof result.current.updateDisabledMiniApps).toBe('function')
-      expect(typeof result.current.updatePinnedMiniApps).toBe('function')
       expect(typeof result.current.updateAppStatus).toBe('function')
+      expect(typeof result.current.setAppStatusBulk).toBe('function')
       expect(typeof result.current.createCustomMiniApp).toBe('function')
       expect(typeof result.current.removeCustomMiniApp).toBe('function')
       expect(typeof result.current.reorderMiniApps).toBe('function')
     })
   })
 
-  // === updateMiniApps ===
+  // === setAppStatusBulk ===
 
-  describe('updateMiniApps', () => {
-    it('should call patchApp for apps being disabled', async () => {
-      const apps = [
-        createMiniApp('app1', { status: 'enabled' }),
-        createMiniApp('app2', { status: 'enabled' }),
-        createMiniApp('app3', { status: 'enabled' })
-      ]
+  describe('setAppStatusBulk', () => {
+    it('issues exactly one PATCH per requested update', async () => {
+      const apps = [createMiniApp('a', { status: 'enabled' }), createMiniApp('b', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-
-      const visibleApps = [apps[0], apps[2]]
-      await act(async () => {
-        await result.current.updateMiniApps(visibleApps)
-      })
-
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/app2', { body: { status: 'disabled' } }])
-    })
-
-    it('should call patchApp for apps being enabled', async () => {
-      const apps = [createMiniApp('app1', { status: 'enabled' }), createMiniApp('app2', { status: 'disabled' })]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      const { result } = renderHook(() => useMiniApps())
-
-      const visibleApps = [apps[0], apps[1]]
-      await act(async () => {
-        await result.current.updateMiniApps(visibleApps)
-      })
-
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/app2', { body: { status: 'enabled' } }])
-    })
-
-    it('should be a no-op when the visible list is unchanged', async () => {
-      const apps = [createMiniApp('app1', { status: 'enabled' })]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      const { result } = renderHook(() => useMiniApps())
-
-      // Clear any prior patch calls from hook initialization
       MockDataApiUtils.resetMocks()
 
       await act(async () => {
-        await result.current.updateMiniApps(apps)
-      })
-
-      // No patch calls should be made when the visible list is unchanged
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toHaveLength(0)
-    })
-
-    it('should not unpin pinned apps that share the visible list (#3198809321)', async () => {
-      // Settings UI passes the visible column — which contains both enabled and
-      // pinned rows — into updateMiniApps when the user hides an unrelated app.
-      // updateMiniApps must leave pinned rows alone.
-      const enabledApp = createMiniApp('enabled1', { status: 'enabled' })
-      const pinnedApp = createMiniApp('pinned1', { status: 'pinned' })
-      const droppedApp = createMiniApp('enabled2', { status: 'enabled' })
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([enabledApp, pinnedApp, droppedApp]))
-
-      const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
-
-      // User hides droppedApp; pinnedApp stays in the visible column.
-      await act(async () => {
-        await result.current.updateMiniApps([enabledApp, pinnedApp])
+        await result.current.setAppStatusBulk([
+          { appId: 'a', status: 'disabled' },
+          { appId: 'b', status: 'enabled' }
+        ])
       })
 
       const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/enabled2', { body: { status: 'disabled' } }])
-      // Critical: the pinned row must not have been touched.
-      expect(patchCalls.find(([path]) => path === '/mini-apps/pinned1')).toBeUndefined()
+      expect(patchCalls).toContainEqual(['/mini-apps/a', { body: { status: 'disabled' } }])
+      expect(patchCalls).toContainEqual(['/mini-apps/b', { body: { status: 'enabled' } }])
+      expect(patchCalls).toHaveLength(2)
     })
 
-    it('should disable region-hidden enabled apps when removed from visible list (I2.1)', async () => {
+    it('does not touch rows the caller never names — region-hidden apps stay put', async () => {
+      // Replaces the legacy "updateMiniApps under Global mode disables CN apps"
+      // bug. With the command-style API the caller only PATCHes what it names.
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
-
-      const app1 = createGlobalApp('app1', { status: 'enabled' })
-      const app2 = createCnOnlyApp('app2', { status: 'enabled' })
-      const app3 = createGlobalApp('app3', { status: 'enabled' })
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([app1, app2, app3]))
+      const globalApp = createGlobalApp('globalA', { status: 'enabled' })
+      const cnOnly = createCnOnlyApp('cnOnly', { status: 'enabled' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([globalApp, cnOnly]))
 
       const { result } = renderHook(() => useMiniApps())
       MockDataApiUtils.resetMocks()
 
-      // User keeps only app1 in the visible list
+      // Hide the only visible Global app — should produce one PATCH for it,
+      // never sweep the region-hidden CN app into disabled.
       await act(async () => {
-        await result.current.updateMiniApps([app1])
+        await result.current.setAppStatusBulk([{ appId: 'globalA', status: 'disabled' }])
       })
 
       const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/app2', { body: { status: 'disabled' } }])
-      expect(patchCalls).toContainEqual(['/mini-apps/app3', { body: { status: 'disabled' } }])
-      expect(patchCalls.find(([path]) => path === '/mini-apps/app1')).toBeUndefined()
+      expect(patchCalls).toContainEqual(['/mini-apps/globalA', { body: { status: 'disabled' } }])
+      expect(patchCalls.find(([path]) => path === '/mini-apps/cnOnly')).toBeUndefined()
     })
-  })
 
-  // === updatePinnedMiniApps ===
-
-  describe('updatePinnedMiniApps', () => {
-    it('should pin new apps and unpin removed ones', async () => {
-      const apps = [
-        createMiniApp('app1', { status: 'pinned' }),
-        createMiniApp('app2', { status: 'pinned' }),
-        createMiniApp('app3', { status: 'enabled' })
-      ]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+    it('returns immediately for an empty update list (no PATCH calls)', async () => {
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())
+      MockDataApiUtils.resetMocks()
 
-      const newPinned = [apps[0], apps[2]]
       await act(async () => {
-        await result.current.updatePinnedMiniApps(newPinned)
+        await result.current.setAppStatusBulk([])
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      // app2 should be unpinned (→ enabled), app3 should be pinned
-      expect(patchCalls).toContainEqual(['/mini-apps/app2', { body: { status: 'enabled' } }])
-      expect(patchCalls).toContainEqual(['/mini-apps/app3', { body: { status: 'pinned' } }])
+      expect(MockDataApiUtils.getCalls('patch')).toHaveLength(0)
     })
   })
 
@@ -409,12 +342,23 @@ describe('useMiniApps', () => {
       expect(result.current.miniapps).toEqual([])
     })
 
-    it('should handle apps with empty supportedRegions array as CN-only', () => {
+    it('should handle preset apps with empty supportedRegions array as CN-only', () => {
       const apps = [createMiniApp('empty-regions', { supportedRegions: [], status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.miniapps).toHaveLength(0)
+    })
+
+    it('should treat custom apps without supportedRegions as visible everywhere', () => {
+      // Custom rows (presetMiniappId === null) without region info come from
+      // migrated v1 data or hand-added apps. Defaulting them to CN-only would
+      // hide a user's own app under Global.
+      const apps = [createMiniApp('mine', { presetMiniappId: null, status: 'enabled' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+      const { result } = renderHook(() => useMiniApps())
+      expect(result.current.miniapps).toHaveLength(1)
     })
 
     it('should return consistent shape across renders', () => {
@@ -558,14 +502,13 @@ describe('useMiniApps', () => {
     })
   })
 
-  // === updateMiniApps partial-failure ===
+  // === setAppStatusBulk partial-failure ===
 
-  describe('updateMiniApps partial-failure', () => {
-    it('should throw PartialFailureError and invalidate cache when some updates fail', async () => {
+  describe('setAppStatusBulk partial-failure', () => {
+    it('throws when one of the PATCHes fails and invalidates the cache', async () => {
       const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
 
-      // Make patch succeed for app1 but fail for app2
       vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
         if (path === '/mini-apps/app1') return { success: true } as never
         if (path === '/mini-apps/app2') throw new Error('Server error')
@@ -574,15 +517,13 @@ describe('useMiniApps', () => {
 
       const { result } = renderHook(() => useMiniApps())
 
-      // Try to enable both apps - the visible list now contains apps that were disabled
-      // so they need to be enabled (moved from disabled to visible)
-      const visibleApps = [
-        { ...apps[0], status: 'disabled' as const },
-        { ...apps[1], status: 'disabled' as const }
-      ]
-
       await act(async () => {
-        await expect(result.current.updateMiniApps(visibleApps)).rejects.toThrow()
+        await expect(
+          result.current.setAppStatusBulk([
+            { appId: 'app1', status: 'enabled' },
+            { appId: 'app2', status: 'enabled' }
+          ])
+        ).rejects.toThrow()
       })
     })
   })

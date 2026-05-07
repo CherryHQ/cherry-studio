@@ -41,7 +41,7 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
-  const { pinned, updatePinnedMiniApps, allApps } = useMiniApps()
+  const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
@@ -216,9 +216,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {
-    const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
-    void updatePinnedMiniApps(newPinned)
-  }, [app, isPinned, pinned, updatePinnedMiniApps])
+    void updateAppStatus(app.appId, isPinned ? 'enabled' : 'pinned')
+  }, [app.appId, isPinned, updateAppStatus])
 
   const handleToggleOpenExternal = useCallback(() => {
     void setOpenLinkExternal(!openLinkExternal)

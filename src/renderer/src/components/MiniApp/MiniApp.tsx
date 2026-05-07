@@ -27,14 +27,11 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const {
     miniapps,
     pinned,
-    disabled,
     openedKeepAliveMiniApps,
     currentMiniAppId,
     miniAppShow,
     setOpenedKeepAliveMiniApps,
-    updateMiniApps,
-    updateDisabledMiniApps,
-    updatePinnedMiniApps,
+    updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
   const { openTab } = useTabs()
@@ -65,12 +62,15 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           ? t('miniapp.add_to_launchpad')
           : t('miniapp.add_to_sidebar'),
       onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.appId !== app.appId) : [...pinned, app]
-        void updatePinnedMiniApps(newPinned).catch((error: unknown) => {
+        // Toggle pin: enabled ↔ pinned. Custom apps that were technically
+        // 'disabled' (shouldn't normally end up in the grid) fall back to
+        // 'enabled' on unpin, matching the previous diff behavior.
+        const nextStatus = isPinned ? 'enabled' : 'pinned'
+        void updateAppStatus(app.appId, nextStatus).catch((error: unknown) => {
           if (isDataApiError(error)) {
-            logger.error('Failed to update pinned apps', { code: error.code, message: error.message })
+            logger.error('Failed to update pin state', { code: error.code, message: error.message })
           } else {
-            logger.error('Failed to update pinned apps', error as Error)
+            logger.error('Failed to update pin state', error as Error)
           }
         })
       }
@@ -81,25 +81,16 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             key: 'hide',
             label: t('miniapp.sidebar.hide.title'),
             onClick: () => {
-              const newMiniApps = miniapps.filter((item) => item.appId !== app.appId)
-              void updateMiniApps(newMiniApps).catch((error: unknown) => {
+              void updateAppStatus(app.appId, 'disabled').catch((error: unknown) => {
                 if (isDataApiError(error)) {
-                  logger.error('Failed to update mini apps', { code: error.code, message: error.message })
+                  logger.error('Failed to hide mini app', { code: error.code, message: error.message })
                 } else {
-                  logger.error('Failed to update mini apps', error as Error)
+                  logger.error('Failed to hide mini app', error as Error)
                 }
               })
-              const newDisabled = [...(disabled || []), app]
-              void updateDisabledMiniApps(newDisabled).catch((error: unknown) => {
-                if (isDataApiError(error)) {
-                  logger.error('Failed to update disabled apps', { code: error.code, message: error.message })
-                } else {
-                  logger.error('Failed to update disabled apps', error as Error)
-                }
-              })
-              // Update openedKeepAliveMiniApps
-              const newOpenedKeepAliveMiniApps = openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId)
-              setOpenedKeepAliveMiniApps(newOpenedKeepAliveMiniApps)
+              // Drop the app from the keep-alive pool — its tab and webview go
+              // away alongside the status flip.
+              setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
             }
           }
         ]

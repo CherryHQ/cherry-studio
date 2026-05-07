@@ -127,7 +127,6 @@ async function settleAndInvalidate(
 }
 
 export const useMiniApps = () => {
-  // === Data (DataApi) ===
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
@@ -233,67 +232,13 @@ export const useMiniApps = () => {
     refresh: ['/mini-apps']
   })
 
-  // === Write: Update enabled apps (backward-compat) ===
-  // Diff against the full `enabled` set (not the region-filtered view): a CN-only
-  // app enabled under Global region is hidden from `visibleApps` but must still
-  // be disabled when the caller drops it from the new visible list.
-  //
-  // Pinned apps are intentionally left alone: they appear in `visibleApps` because
-  // the settings UI shows them in the visible column, but flipping them to
-  // `enabled` here would silently unpin them. Pin state changes go through
-  // `updatePinnedMiniApps`.
-  const updateMiniApps = useCallback(
-    (visibleApps: MiniApp[]) => {
-      const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
-
-      const toEnable = visibleApps.filter((a) => a.status === 'disabled')
-      const toDisable = enabled.filter((a) => !newVisibleIds.has(a.appId))
-
-      return Promise.allSettled([
-        ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' })),
-        ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' }))
-      ]).then((results) => settleAndInvalidate(results, invalidate, 'updateMiniApps'))
-    },
-    [enabled, patchApp, invalidate]
-  )
-
-  // Write: Update disabled apps (backward-compat) ===
-  // Diff against the full `disabled` set; see updateMiniApps for rationale.
-  // Symmetric pinned-safety guard: only promote previously-enabled rows into the
-  // disabled bucket — pinned rows in the input are ignored.
-  const updateDisabledMiniApps = useCallback(
-    (hiddenApps: MiniApp[]) => {
-      const newHiddenIds = new Set(hiddenApps.map((a) => a.appId))
-
-      const toDisable = hiddenApps.filter((a) => a.status === 'enabled')
-      const toEnable = disabled.filter((a) => !newHiddenIds.has(a.appId))
-
-      return Promise.allSettled([
-        ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
-        ...toEnable.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).then((results) => settleAndInvalidate(results, invalidate, 'updateDisabledMiniApps'))
-    },
-    [disabled, patchApp, invalidate]
-  )
-
-  // Write: Update pinned apps (backward-compat) ===
-  const updatePinnedMiniApps = useCallback(
-    (apps: MiniApp[]) => {
-      const newPinnedIds = new Set(apps.map((a) => a.appId))
-      const currentPinnedIds = new Set(pinned.map((a) => a.appId))
-
-      const toPin = apps.filter((a) => !currentPinnedIds.has(a.appId))
-      const toUnpin = pinned.filter((a) => !newPinnedIds.has(a.appId))
-
-      return Promise.allSettled([
-        ...toPin.map((a) => patchApp(a.appId, { status: 'pinned' })),
-        ...toUnpin.map((a) => patchApp(a.appId, { status: 'enabled' }))
-      ]).then((results) => settleAndInvalidate(results, invalidate, 'updatePinnedMiniApps'))
-    },
-    [pinned, patchApp, invalidate]
-  )
-
-  // === V2-style mutations ===
+  /**
+   * Single-item status flip. Use this for hide / show / pin / unpin actions.
+   *
+   * Command-style — caller names the row and the target state. No inference
+   * about untouched rows, so region-filtered views can call this safely without
+   * accidentally affecting rows the caller never saw.
+   */
   const updateAppStatus = useCallback(
     async (appId: string, status: MiniApp['status']) => {
       try {
@@ -304,6 +249,28 @@ export const useMiniApps = () => {
       }
     },
     [patchAppTrigger]
+  )
+
+  /**
+   * Batch status flip. Each entry is an explicit {appId, status} change.
+   * Rows not present in `updates` are not touched — there is no diff against
+   * the current cache, so this is safe to call from a region-filtered context.
+   *
+   * Use for swap (move two columns) and reset (move all hidden back to
+   * enabled). Single-row actions belong on `updateAppStatus`.
+   *
+   * Throws an aggregated {@link DataApiErrorFactory.invalidOperation} when one
+   * or more PATCHes fail; the cache is invalidated either way so the UI
+   * reconciles with the DB on the next render.
+   */
+  const setAppStatusBulk = useCallback(
+    async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
+      if (updates.length === 0) return Promise.resolve([] as MiniApp[])
+      return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
+        settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
+      )
+    },
+    [patchApp, invalidate]
   )
 
   const createCustomMiniApp = useCallback(
@@ -390,10 +357,8 @@ export const useMiniApps = () => {
     isLoading,
     error,
     refetch,
-    updateMiniApps,
-    updateDisabledMiniApps,
-    updatePinnedMiniApps,
     updateAppStatus,
+    setAppStatusBulk,
     createCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
