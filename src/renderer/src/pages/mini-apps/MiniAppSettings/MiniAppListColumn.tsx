@@ -1,5 +1,6 @@
 import { Sortable, Tooltip } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
+import { getMiniAppsLogo } from '@renderer/config/miniapps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { Eye, EyeOff } from 'lucide-react'
 import type { FC } from 'react'
@@ -42,9 +43,15 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
             onSortEnd={({ oldIndex, newIndex }) => onReorder(oldIndex, newIndex)}
             gap={2}
             renderItem={(app) => (
-              <div className="group/row flex items-center gap-2 rounded-2xs px-1.5 py-1 hover:bg-accent/40">
-                <LogoAvatar logo={app.logo} size={20} />
-                <span className="flex-1 truncate text-[12px] text-foreground">
+              <div className="group/row flex w-full items-center gap-2 rounded-2xs px-1.5 py-1 hover:bg-accent/40">
+                {/*
+                 * app.logo is the preset's CompoundIcon ID (e.g. "Moonshot") for
+                 * preset rows and a URL/path for custom rows. Resolve the ID to a
+                 * CompoundIcon before passing to LogoAvatar so preset icons render
+                 * via Icon.Avatar instead of being treated as a broken image URL.
+                 */}
+                <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={20} />
+                <span className="min-w-0 flex-1 truncate text-left text-[12px] text-foreground">
                   {app.nameKey ? t(app.nameKey) : app.name}
                 </span>
                 <Tooltip content={tooltip} placement="left">
