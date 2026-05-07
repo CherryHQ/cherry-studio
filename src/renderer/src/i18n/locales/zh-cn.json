@@ -2508,6 +2508,7 @@
       "not_found": "应用未找到"
     },
     "hide_failed": "隐藏小程序失败",
+    "pin_failed": "固定小程序失败",
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
@@ -2538,6 +2539,7 @@
       }
     },
     "title": "小程序",
+    "unpin_failed": "取消固定小程序失败",
     "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
   "miniApps": {

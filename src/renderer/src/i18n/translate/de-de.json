@@ -2508,6 +2508,7 @@
       "not_found": "[to be translated]:App not found"
     },
     "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
@@ -2538,6 +2539,7 @@
       }
     },
     "title": "Mini-Apps",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniApps": {

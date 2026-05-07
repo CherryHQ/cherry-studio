@@ -12,6 +12,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
@@ -209,8 +210,18 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
   const handleTogglePin = useCallback(() => {
-    void updateAppStatus(app.appId, isPinned ? 'enabled' : 'pinned')
-  }, [app.appId, isPinned, updateAppStatus])
+    const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
+    updateAppStatus(app.appId, isPinned ? 'enabled' : 'pinned').catch((err) => {
+      const e = toDataApiError(err)
+      if (isDataApiError(e)) {
+        logger.error('togglePin failed', { code: e.code, message: e.message })
+        window.toast?.error?.(e.message || t(fallbackKey))
+      } else {
+        logger.error('togglePin failed', err as Error)
+        window.toast?.error?.(t(fallbackKey))
+      }
+    })
+  }, [app.appId, isPinned, updateAppStatus, t])
 
   const handleToggleOpenExternal = useCallback(() => {
     void setOpenLinkExternal(!openLinkExternal)

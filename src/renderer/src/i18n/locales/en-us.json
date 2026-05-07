@@ -2508,6 +2508,7 @@
       "not_found": "App not found"
     },
     "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "Failed to pin mini-app",
     "popup": {
       "close": "Close MiniApp",
       "devtools": "Developer Tools",
@@ -2538,6 +2539,7 @@
       }
     },
     "title": "MiniApp",
+    "unpin_failed": "Failed to unpin mini-app",
     "update_partial_failure": "{{failed}} of {{total}} updates failed"
   },
   "miniApps": {

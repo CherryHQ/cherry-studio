@@ -2508,6 +2508,7 @@
       "not_found": "應用未找到"
     },
     "hide_failed": "隱藏小程式失敗",
+    "pin_failed": "固定小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
@@ -2538,6 +2539,7 @@
       }
     },
     "title": "小工具",
+    "unpin_failed": "取消固定小程式失敗",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniApps": {
