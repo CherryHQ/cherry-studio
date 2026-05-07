@@ -1,7 +1,7 @@
 /**
  * Builtin (preset) miniapp definitions
  *
- * Single source of truth for all built-in miniapps.
+ * Single source of truth for all built-in miniApps.
  * Both renderer (UI display) and main process (DB merge logic) import from here.
  */
 
@@ -51,7 +51,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'yi',
     name: 'Wanzhi',
-    nameKey: 'miniapps.wanzhi',
+    nameKey: 'miniApps.wanzhi',
     url: 'https://www.wanzhi.com/',
     logo: 'zeroone',
     bordered: true,
@@ -60,7 +60,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'zhipu',
     name: 'ChatGLM',
-    nameKey: 'miniapps.chatglm',
+    nameKey: 'miniApps.chatglm',
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: 'zhipu',
     bordered: true,
@@ -76,7 +76,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'baichuan',
     name: 'Baichuan',
-    nameKey: 'miniapps.baichuan',
+    nameKey: 'miniApps.baichuan',
     url: 'https://ying.baichuan-ai.com/chat',
     logo: 'baichuan',
     supportedRegions: ['CN']
@@ -84,7 +84,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'dashscope',
     name: 'Qwen',
-    nameKey: 'miniapps.qwen',
+    nameKey: 'miniApps.qwen',
     url: 'https://www.qianwen.com',
     logo: 'qwen',
     supportedRegions: ['CN']
@@ -92,7 +92,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'stepfun',
     name: 'Stepfun',
-    nameKey: 'miniapps.stepfun',
+    nameKey: 'miniApps.stepfun',
     url: 'https://stepfun.com',
     logo: 'step',
     bordered: true,
@@ -101,7 +101,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'doubao',
     name: 'Doubao',
-    nameKey: 'miniapps.doubao',
+    nameKey: 'miniApps.doubao',
     url: 'https://www.doubao.com/chat/',
     logo: 'doubao',
     supportedRegions: ['CN']
@@ -116,7 +116,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'hailuo',
     name: 'Hailuo',
-    nameKey: 'miniapps.hailuo',
+    nameKey: 'miniApps.hailuo',
     url: 'https://hailuoai.com/',
     logo: 'hailuo',
     bordered: true,
@@ -125,7 +125,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'minimax-agent',
     name: 'Minimax Agent',
-    nameKey: 'miniapps.minimax-agent',
+    nameKey: 'miniApps.minimax-agent',
     url: 'https://agent.minimaxi.com/',
     logo: 'minimax',
     bordered: true,
@@ -134,7 +134,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'minimax-agent-global',
     name: 'Minimax Agent',
-    nameKey: 'miniapps.minimax-global',
+    nameKey: 'miniApps.minimax-global',
     url: 'https://agent.minimax.io/',
     logo: 'minimax',
     bordered: true,
@@ -143,7 +143,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'ima',
     name: 'ima',
-    nameKey: 'miniapps.ima',
+    nameKey: 'miniApps.ima',
     url: 'https://ima.qq.com/',
     logo: 'ima',
     bordered: true,
@@ -177,7 +177,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'baidu-ai-chat',
     name: 'Wenxin',
-    nameKey: 'miniapps.wenxin',
+    nameKey: 'miniApps.wenxin',
     logo: 'wenxin',
     url: 'https://yiyan.baidu.com/',
     supportedRegions: ['CN', 'Global']
@@ -185,7 +185,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'baidu-ai-search',
     name: 'Baidu AI Search',
-    nameKey: 'miniapps.baidu-ai-search',
+    nameKey: 'miniApps.baidu-ai-search',
     logo: 'baidu',
     url: 'https://chat.baidu.com/',
     bordered: true,
@@ -197,7 +197,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'tencent-yuanbao',
     name: 'Tencent Yuanbao',
-    nameKey: 'miniapps.tencent-yuanbao',
+    nameKey: 'miniApps.tencent-yuanbao',
     logo: 'yuanbao',
     url: 'https://yuanbao.tencent.com/chat',
     bordered: true,
@@ -206,7 +206,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'sensetime-chat',
     name: 'Sensechat',
-    nameKey: 'miniapps.sensechat',
+    nameKey: 'miniApps.sensechat',
     logo: 'sensetime',
     url: 'https://chat.sensetime.com/wb/chat',
     bordered: true,
@@ -222,7 +222,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'metaso',
     name: 'Metaso',
-    nameKey: 'miniapps.metaso',
+    nameKey: 'miniApps.metaso',
     logo: 'metaso',
     url: 'https://metaso.cn/',
     supportedRegions: ['CN', 'Global']
@@ -251,7 +251,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'tiangong-ai',
     name: 'Tiangong AI',
-    nameKey: 'miniapps.tiangong-ai',
+    nameKey: 'miniApps.tiangong-ai',
     logo: 'tng',
     url: 'https://www.tiangong.cn/',
     bordered: true,
@@ -283,7 +283,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'nm',
     name: 'Nami AI',
-    nameKey: 'miniapps.nami-ai',
+    nameKey: 'miniApps.nami-ai',
     logo: 'namiai',
     url: 'https://bot.n.cn/',
     bordered: true,
@@ -363,7 +363,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'xiaoyi',
     name: 'Xiaoyi',
-    nameKey: 'miniapps.xiaoyi',
+    nameKey: 'miniApps.xiaoyi',
     logo: 'xiaoyi',
     url: 'https://xiaoyi.huawei.com/chat/',
     bordered: true,
@@ -398,7 +398,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'wpslingxi',
     name: 'WPS AI',
-    nameKey: 'miniapps.wps-copilot',
+    nameKey: 'miniApps.wps-copilot',
     logo: 'lingxi',
     url: 'https://copilot.wps.cn/',
     bordered: true,
@@ -446,7 +446,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'zhihu',
     name: 'Zhihu Zhida',
-    nameKey: 'miniapps.zhihu',
+    nameKey: 'miniApps.zhihu',
     logo: 'zhida',
     url: 'https://zhida.zhihu.com/',
     bordered: true,
@@ -455,7 +455,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'dangbei',
     name: 'Dangbei AI',
-    nameKey: 'miniapps.dangbei',
+    nameKey: 'miniApps.dangbei',
     logo: 'dangbei',
     url: 'https://ai.dangbei.com/',
     bordered: true,
@@ -491,7 +491,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
     id: 'ling',
     name: 'Ant Ling',
-    nameKey: 'miniapps.ant-ling',
+    nameKey: 'miniApps.ant-ling',
     url: 'https://ling.tbox.cn/chat',
     logo: 'ling',
     bordered: true,

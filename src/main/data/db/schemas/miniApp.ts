@@ -15,7 +15,7 @@ export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 export type MiniAppRegion = 'CN' | 'Global'
 
 /**
- * MiniApp table — single table holds preset-derived and custom miniapps,
+ * MiniApp table — single table holds preset-derived and custom miniApps,
  * following the same pattern as `user_provider` / `user_model`:
  *
  *   - `presetMiniAppId` links a row to its preset entry (NULL for custom apps).

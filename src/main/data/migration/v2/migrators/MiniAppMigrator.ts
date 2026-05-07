@@ -49,7 +49,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }>('minapps')
 
       if (!state) {
-        logger.info('No miniapps state found, skipping migration')
+        logger.info('No miniApps state found, skipping migration')
         return { success: true, itemCount: 0 }
       }
 
@@ -171,7 +171,7 @@ export class MiniAppMigrator extends BaseMigrator {
         }
       })
 
-      this.reportProgress(100, `Migrated ${processed} miniapps`, {
+      this.reportProgress(100, `Migrated ${processed} miniApps`, {
         key: 'migration.progress.migrated_miniapps',
         params: { processed, total: this.preparedRows.length }
       })
@@ -198,7 +198,7 @@ export class MiniAppMigrator extends BaseMigrator {
       if (appCount !== this.preparedRows.length) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedRows.length} miniapps but found ${appCount}`
+          message: `Expected ${this.preparedRows.length} miniApps but found ${appCount}`
         })
       }
 

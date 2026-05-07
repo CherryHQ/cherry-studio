@@ -74,7 +74,7 @@ export class MiniAppService {
   }
 
   /**
-   * List miniapps with optional filters.
+   * List miniApps with optional filters.
    * Sort: status priority (pinned > enabled > disabled), then orderKey ASC.
    */
   async list(query: { status?: MiniAppStatus } = {}): Promise<MiniApp[]> {
@@ -217,7 +217,7 @@ export class MiniAppService {
   }
 
   /**
-   * Reorder miniapps via fractional-indexing. The `mini_app.status` column is
+   * Reorder miniApps via fractional-indexing. The `mini_app.status` column is
    * the reorder scope: a single batch must stay inside one status partition
    * (`enabled` | `disabled` | `pinned`). Cross-partition batches are rejected
    * with `VALIDATION_ERROR` per the DataApi scoped-reorder contract — moving
@@ -236,7 +236,7 @@ export class MiniAppService {
         ),
       defaultHandlersFor('MiniApp', 'multiple')
     )
-    logger.info('Reordered miniapps', { count: moves.length })
+    logger.info('Reordered miniApps', { count: moves.length })
   }
 }
 

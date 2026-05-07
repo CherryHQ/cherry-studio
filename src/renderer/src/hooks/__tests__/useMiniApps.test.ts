@@ -31,7 +31,7 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.allApps).toEqual([])
-      expect(result.current.miniapps).toEqual([])
+      expect(result.current.miniApps).toEqual([])
       expect(result.current.disabled).toEqual([])
       expect(result.current.pinned).toEqual([])
     })
@@ -53,8 +53,8 @@ describe('useMiniApps', () => {
       const apps = [mixedStatus.enabled1, mixedStatus.enabled2, mixedStatus.disabled1, mixedStatus.pinned1]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      // miniapps includes enabled + pinned apps (pinned apps remain visible in the grid)
-      expect(result.current.miniapps).toHaveLength(3)
+      // miniApps includes enabled + pinned apps (pinned apps remain visible in the grid)
+      expect(result.current.miniApps).toHaveLength(3)
       expect(result.current.disabled).toHaveLength(1)
       expect(result.current.pinned).toHaveLength(1)
     })
@@ -80,7 +80,7 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'CN')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(3)
+      expect(result.current.miniApps).toHaveLength(3)
     })
 
     it('should only show Global apps when region is Global', () => {
@@ -89,8 +89,8 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(1)
-      expect(result.current.miniapps[0].appId).toBe('global-app')
+      expect(result.current.miniApps).toHaveLength(1)
+      expect(result.current.miniApps[0].appId).toBe('global-app')
     })
 
     it('should show apps without supportedRegions as CN-only (hidden from Global)', () => {
@@ -102,8 +102,8 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(1)
-      expect(result.current.miniapps[0].appId).toBe('global-app')
+      expect(result.current.miniApps).toHaveLength(1)
+      expect(result.current.miniApps[0].appId).toBe('global-app')
     })
 
     it('should not filter pinned apps by region', () => {
@@ -139,7 +139,7 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(2)
+      expect(result.current.miniApps).toHaveLength(2)
     })
 
     it('should use preference Global when explicitly set', () => {
@@ -147,8 +147,8 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(1)
-      expect(result.current.miniapps[0].appId).toBe('g')
+      expect(result.current.miniApps).toHaveLength(1)
+      expect(result.current.miniApps[0].appId).toBe('g')
     })
 
     it('should use detected region when preference is auto and detected region exists', () => {
@@ -157,7 +157,7 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(1)
+      expect(result.current.miniApps).toHaveLength(1)
     })
 
     it('should default to CN when preference is auto and no detected region', () => {
@@ -166,7 +166,7 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(2)
+      expect(result.current.miniApps).toHaveLength(2)
     })
   })
 
@@ -339,7 +339,7 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toEqual([])
+      expect(result.current.miniApps).toEqual([])
     })
 
     it('should handle preset apps with empty supportedRegions array as CN-only', () => {
@@ -347,7 +347,7 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(0)
+      expect(result.current.miniApps).toHaveLength(0)
     })
 
     it('should treat custom apps without supportedRegions as visible everywhere', () => {
@@ -358,7 +358,7 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniapps).toHaveLength(1)
+      expect(result.current.miniApps).toHaveLength(1)
     })
 
     it('should return consistent shape across renders', () => {

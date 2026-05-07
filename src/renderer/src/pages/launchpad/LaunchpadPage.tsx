@@ -106,7 +106,7 @@ const LaunchpadPage: FC = () => {
 
         {sortedMiniApps.length > 0 && (
           <Section>
-            <SectionTitle>{t('launchpad.miniapps')}</SectionTitle>
+            <SectionTitle>{t('launchpad.miniApps')}</SectionTitle>
             <Grid>
               {sortedMiniApps.map((app) => (
                 <AppWrapper key={app.appId}>

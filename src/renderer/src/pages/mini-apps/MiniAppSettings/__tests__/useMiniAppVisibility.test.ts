@@ -14,7 +14,7 @@ const stubApp = (id: string): MiniApp => ({
 })
 
 const mocks = vi.hoisted(() => ({
-  miniapps: [] as MiniApp[],
+  miniApps: [] as MiniApp[],
   disabled: [] as MiniApp[],
   updateAppStatus: vi.fn(),
   setAppStatusBulk: vi.fn(),
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
-    miniapps: mocks.miniapps,
+    miniApps: mocks.miniApps,
     disabled: mocks.disabled,
     updateAppStatus: mocks.updateAppStatus,
     setAppStatusBulk: mocks.setAppStatusBulk,
@@ -33,7 +33,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 
 describe('useMiniAppVisibility', () => {
   beforeEach(() => {
-    mocks.miniapps = [stubApp('a'), stubApp('b')]
+    mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = [stubApp('c')]
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
@@ -48,7 +48,7 @@ describe('useMiniAppVisibility', () => {
 
   it('hide flips a single row to disabled via updateAppStatus', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
-    act(() => result.current.hide(mocks.miniapps[0]))
+    act(() => result.current.hide(mocks.miniApps[0]))
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['b'])
     expect(result.current.hidden.map((a) => a.appId)).toEqual(['c', 'a'])
@@ -71,7 +71,7 @@ describe('useMiniAppVisibility', () => {
   it('swap explicitly names every row in the move and ignores pinned rows', () => {
     // visible includes a pinned row that must stay pinned across the swap.
     const pinnedApp = { ...stubApp('p'), status: 'pinned' as const }
-    mocks.miniapps = [stubApp('a'), pinnedApp]
+    mocks.miniApps = [stubApp('a'), pinnedApp]
     mocks.disabled = [stubApp('c')]
 
     const { result } = renderHook(() => useMiniAppVisibility())
@@ -100,14 +100,14 @@ describe('useMiniAppVisibility', () => {
   })
 
   it('region-hidden rows are never referenced when hiding a visible app (#region-bug)', () => {
-    // Simulates Global mode: useMiniApps' miniapps/disabled are region-filtered.
+    // Simulates Global mode: useMiniApps' miniApps/disabled are region-filtered.
     // The CN-only row exists in the DB but the panel doesn't see it. The
     // command-style API guarantees we never touch what we don't name.
     const cnOnly = { ...stubApp('cn1'), status: 'enabled' as const }
     void cnOnly // present in DB; intentionally not exposed to useMiniAppVisibility
 
     const { result } = renderHook(() => useMiniAppVisibility())
-    act(() => result.current.hide(mocks.miniapps[0]))
+    act(() => result.current.hide(mocks.miniApps[0]))
 
     // Only the user's own click was PATCHed.
     expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)

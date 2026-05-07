@@ -53,14 +53,14 @@ const isInKeepAlive = (appId: string) => getKeepAlive().some((a) => a.appId === 
  */
 const useTestMiniAppPopup = () => {
   const popup = useMiniAppPopup()
-  const miniapps = useMiniApps()
+  const miniApps = useMiniApps()
   return {
     ...popup,
     // State properties from useMiniApps
-    miniAppShow: miniapps.miniAppShow,
-    currentMiniAppId: miniapps.currentMiniAppId,
-    openedKeepAliveMiniApps: miniapps.openedKeepAliveMiniApps,
-    openedOneOffMiniApp: miniapps.openedOneOffMiniApp
+    miniAppShow: miniApps.miniAppShow,
+    currentMiniAppId: miniApps.currentMiniAppId,
+    openedKeepAliveMiniApps: miniApps.openedKeepAliveMiniApps,
+    openedOneOffMiniApp: miniApps.openedOneOffMiniApp
   }
 }
 

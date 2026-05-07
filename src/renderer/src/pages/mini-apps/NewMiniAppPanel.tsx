@@ -17,7 +17,7 @@ const logger = loggerService.withContext('NewMiniAppPanel')
 
 const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
   const { t } = useTranslation()
-  const { miniapps, disabled, pinned, createCustomMiniApp } = useMiniApps()
+  const { miniApps, disabled, pinned, createCustomMiniApp } = useMiniApps()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [id, setId] = useState('')
@@ -43,8 +43,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
   const canSubmit = useMemo(() => id.trim() && name.trim() && url.trim() && !submitting, [id, name, url, submitting])
 
   const existingAppIds = useMemo(
-    () => new Set([...miniapps, ...disabled, ...pinned].map((a) => a.appId)),
-    [miniapps, disabled, pinned]
+    () => new Set([...miniApps, ...disabled, ...pinned].map((a) => a.appId)),
+    [miniApps, disabled, pinned]
   )
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {

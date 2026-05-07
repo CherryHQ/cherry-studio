@@ -47,7 +47,7 @@ describe('MiniAppMigrator', () => {
   })
 
   describe('prepare', () => {
-    it('should return success with 0 items when no miniapps state', async () => {
+    it('should return success with 0 items when no miniApps state', async () => {
       const ctx = createTestContext({}, dbh.db) as any
       const result = await migrator.prepare(ctx)
 
@@ -55,7 +55,7 @@ describe('MiniAppMigrator', () => {
       expect(result.itemCount).toBe(0)
     })
 
-    it('should return success with 0 items when miniapps is null', async () => {
+    it('should return success with 0 items when miniApps is null', async () => {
       const ctx = createTestContext({ minapps: null }, dbh.db) as any
       const result = await migrator.prepare(ctx)
 

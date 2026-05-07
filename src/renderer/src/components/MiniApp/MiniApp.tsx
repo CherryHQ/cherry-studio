@@ -25,7 +25,7 @@ const logger = loggerService.withContext('App')
 const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { t } = useTranslation()
   const {
-    miniapps,
+    miniApps,
     pinned,
     openedKeepAliveMiniApps,
     currentMiniAppId,
@@ -36,7 +36,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   } = useMiniApps()
   const { openTab } = useTabs()
   const isPinned = pinned.some((p) => p.appId === app.appId)
-  const isVisible = miniapps.some((m) => m.appId === app.appId)
+  const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
   const isActive = miniAppShow && currentMiniAppId === app.appId

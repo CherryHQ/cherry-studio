@@ -70,7 +70,7 @@ const MiniAppPage: FC = () => {
 
   const attachWebview = useCallback(() => {
     if (!app) return true // No app — stop monitoring
-    const selector = `webview[data-miniapp-id="${CSS.escape(app.appId)}"]`
+    const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
     const el = document.querySelector<WebviewTag>(selector)
     if (!el) return false
 

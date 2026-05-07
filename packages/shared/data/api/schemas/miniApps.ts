@@ -39,7 +39,7 @@ export const UpdateMiniAppSchema = z.object({
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
 /**
- * Query parameters for listing miniapps
+ * Query parameters for listing miniApps
  */
 export const ListMiniAppsQuerySchema = z.object({
   status: MiniAppStatusSchema.optional()
@@ -61,7 +61,7 @@ type MiniAppBaseSchemas = {
    * @example POST /mini-apps { "appId": "my-app", "name": "My App", "url": "https://example.com" }
    */
   '/mini-apps': {
-    /** Get all miniapps (optionally filtered by status/type) */
+    /** Get all miniApps (optionally filtered by status/type) */
     GET: {
       query?: ListMiniAppsQuery
       response: MiniApp[]

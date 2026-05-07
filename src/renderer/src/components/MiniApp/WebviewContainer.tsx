@@ -177,7 +177,7 @@ const WebviewContainer = memo(
       <webview
         key={appid}
         ref={handleRef}
-        data-miniapp-id={appid}
+        data-mini-app-id={appid}
         style={WebviewStyle}
         allowpopups={true}
         partition="persist:webview"

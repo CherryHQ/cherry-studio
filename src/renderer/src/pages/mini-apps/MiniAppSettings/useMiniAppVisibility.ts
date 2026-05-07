@@ -14,24 +14,24 @@ import { useCallback, useEffect, useState } from 'react'
  * `disabled` whenever the user touched the Global view.
  */
 export function useMiniAppVisibility() {
-  const { miniapps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniApps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
 
-  const [visible, setVisible] = useState<MiniApp[]>(miniapps)
+  const [visible, setVisible] = useState<MiniApp[]>(miniApps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
 
   // Resync local optimistic state with the upstream cache, but only when the
   // membership or order actually changed. Reordering goes through
   // `useReorder`, which writes an optimistic /mini-apps cache update — that
-  // re-renders us with a fresh `miniapps` array reference whose IDs match
+  // re-renders us with a fresh `miniApps` array reference whose IDs match
   // what we already have. Replacing local state with that fresh reference
   // mid-drop forces Sortable to re-layout while dnd-kit's drop animation is
   // still in flight, producing a visible "snap back to original position"
   // before the item lands at its target. Comparing by id sequence makes this
   // a no-op.
   useEffect(() => {
-    setVisible((prev) => (sameAppIdSequence(prev, miniapps) ? prev : miniapps))
+    setVisible((prev) => (sameAppIdSequence(prev, miniApps) ? prev : miniApps))
     setHidden((prev) => (sameAppIdSequence(prev, disabled || []) ? prev : disabled || []))
-  }, [miniapps, disabled])
+  }, [miniApps, disabled])
 
   const swap = useCallback(() => {
     const newVisible = hidden

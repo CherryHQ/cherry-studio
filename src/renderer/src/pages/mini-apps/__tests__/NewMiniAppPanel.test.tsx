@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import NewMiniAppPanel from '../NewMiniAppPanel'
 
 const mocks = vi.hoisted(() => ({
-  miniapps: [],
+  miniApps: [],
   disabled: [],
   pinned: [],
   createCustomMiniApp: vi.fn().mockResolvedValue(undefined)
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
-    miniapps: mocks.miniapps,
+    miniApps: mocks.miniApps,
     disabled: mocks.disabled,
     pinned: mocks.pinned,
     createCustomMiniApp: mocks.createCustomMiniApp

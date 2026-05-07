@@ -20,14 +20,14 @@ const MiniAppsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newAppOpen, setNewAppOpen] = useState(false)
-  const { miniapps, isLoading, error } = useMiniApps()
+  const { miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
 
   const filteredApps = search
-    ? miniapps.filter(
+    ? miniApps.filter(
         (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
       )
-    : miniapps
+    : miniApps
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()

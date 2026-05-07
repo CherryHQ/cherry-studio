@@ -87,7 +87,7 @@ export type MiniAppType = {
 // Renderer preset list, derived from the shared source of truth.
 // Custom mini apps are no longer file-backed in v2 — they live in the
 // `mini_app` SQLite table and are accessed via DataApi. Anything in v1's
-// `custom-miniapps.json` reaches v2 only through MiniAppMigrator.
+// `custom-miniApps.json` reaches v2 only through MiniAppMigrator.
 const PRESETS_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
   id: app.id,
   name: app.name,

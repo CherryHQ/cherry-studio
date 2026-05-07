@@ -220,7 +220,7 @@ export const useMiniAppPopup = () => {
     [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
   )
 
-  /** Close all miniapps (popup hides and all miniapps unloaded) */
+  /** Close all miniApps (popup hides and all miniApps unloaded) */
   const closeAllMiniApps = useCallback(() => {
     const list = keepAliveRef.current
     setOpenedKeepAliveMiniApps([])

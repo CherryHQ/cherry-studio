@@ -265,7 +265,7 @@ export type FileProcessorOverride = {
 
 export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcessorOverride>>
 
-/** Region types for miniapps visibility */
+/** Region types for miniApps visibility */
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion

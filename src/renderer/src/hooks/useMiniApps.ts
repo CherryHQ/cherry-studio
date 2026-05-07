@@ -181,7 +181,7 @@ export const useMiniApps = () => {
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
   // Sort by sortOrder to maintain consistent positions regardless of status
-  const miniapps = useMemo(() => {
+  const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
     return regionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
@@ -298,7 +298,7 @@ export const useMiniApps = () => {
   )
 
   /**
-   * Reorder miniapps. Pass the new ordered list (typically from a drag-and-drop
+   * Reorder miniApps. Pass the new ordered list (typically from a drag-and-drop
    * callback). Internally diffs against current order and dispatches the
    * minimal set of `PATCH /:id/order` or `PATCH /order:batch` calls.
    */
@@ -315,7 +315,7 @@ export const useMiniApps = () => {
   )
 
   /**
-   * Reorder miniapps inside a single status partition.
+   * Reorder miniApps inside a single status partition.
    *
    * `useReorder('/mini-apps')` diffs the new list against the full `/mini-apps`
    * cache and `computeMinimalMoves` requires a permutation of the cache rows.
@@ -343,7 +343,7 @@ export const useMiniApps = () => {
 
   return {
     allApps,
-    miniapps,
+    miniApps,
     disabled: disabledApps,
     pinned: pinnedApps,
     openedKeepAliveMiniApps,

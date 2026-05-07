@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 describe('MiniAppSeeder', () => {
   const dbh = setupTestDatabase()
 
-  it('should insert all preset miniapps on empty table', async () => {
+  it('should insert all preset miniApps on empty table', async () => {
     const seed = new MiniAppSeeder()
     await seed.run(dbh.db)
 
