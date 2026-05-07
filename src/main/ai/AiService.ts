@@ -8,6 +8,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import { recordDecision as recordApprovalDecision } from '@main/services/toolApproval/observability'
 import { saveRule } from '@main/services/toolApproval/rules'
 import type { PermissionRule } from '@main/services/toolApproval/types'
 import { type Assistant } from '@shared/data/types/assistant'
@@ -17,6 +18,7 @@ import { serializeError } from '@shared/types/error'
 import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
+  getToolName,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
@@ -38,6 +40,58 @@ import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
 
 const logger = loggerService.withContext('AiService')
+
+/**
+ * Best-effort recording of an approval/denial decision into the
+ * observability ring buffer. Only records when we can derive a tool
+ * name from the renderer-patched anchor parts; missing context is
+ * logged at debug level and skipped — the rest of the IPC handler
+ * proceeds normally regardless.
+ */
+async function recordDecisionForObservability(payload: {
+  approved: boolean
+  reason?: string
+  topicId?: string
+  anchorId?: string
+  toolCallId?: string
+}): Promise<void> {
+  if (!payload.topicId || !payload.anchorId || !payload.toolCallId) {
+    logger.debug('Skipping approval observability record — missing topic/anchor/toolCall id', {
+      topicId: payload.topicId,
+      anchorId: payload.anchorId,
+      toolCallId: payload.toolCallId
+    })
+    return
+  }
+
+  try {
+    const anchor = await messageService.getById(payload.anchorId)
+    const part = (anchor.data.parts ?? []).find((p) => isToolUIPart(p) && p.toolCallId === payload.toolCallId)
+    if (!part || !isToolUIPart(part)) {
+      logger.debug('Skipping approval observability record — no matching tool part on anchor', {
+        anchorId: payload.anchorId,
+        toolCallId: payload.toolCallId
+      })
+      return
+    }
+    const toolName = getToolName(part)
+    recordApprovalDecision(payload.topicId, {
+      toolName,
+      toolCallId: payload.toolCallId,
+      decision: payload.approved ? 'approved' : 'denied',
+      decidedAt: new Date().toISOString(),
+      reason: payload.reason
+    })
+  } catch (err) {
+    // Observability is best-effort — never let it crash the IPC handler.
+    logger.warn('Failed to record approval observability entry', {
+      err: err instanceof Error ? err.message : String(err),
+      topicId: payload.topicId,
+      anchorId: payload.anchorId,
+      toolCallId: payload.toolCallId
+    })
+  }
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -238,6 +292,14 @@ export class AiService extends BaseService {
           const cacheService = application.get('CacheService')
           cacheService.deleteShared(`tool_approval.suggested_rule.${payload.toolCallId}`)
         }
+
+        // Observability hint for context-chef's `dynamicState` slot. The
+        // model gets a system-message summary of recent decisions on the
+        // next iteration so it doesn't have to infer "did approval just
+        // come through?" from history scanning. Best-effort: requires
+        // `topicId` + `toolCallId` + an anchor we can read to derive the
+        // tool name; missing any one of these, we skip silently.
+        await recordDecisionForObservability(payload)
 
         // 1. Claude-Agent path — registry still has the pending approval,
         // dispatching unblocks `canUseTool` so the in-flight stream resumes.

@@ -1,15 +1,24 @@
+import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { topicService } from '@main/data/services/TopicService'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  type ContextSettingsOverride,
+  DEFAULT_CONTEXT_SETTINGS,
+  type EffectiveContextSettings
+} from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { stepCountIs, type ToolSet } from 'ai'
 
+import { resolveCompressionModel } from '../../contextChef/resolveCompressionModel'
+import { resolveContextSettings } from '../../contextChef/resolveContextSettings'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from '../../provider/config'
 import { getAiSdkProviderId } from '../../provider/factory'
+import { toolsetCache } from '../../stream-manager/toolsetCache'
 import type { RequestContext } from '../../tools/context'
 import { applyDeferExposition } from '../../tools/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../tools/mcp/mcpTools'
@@ -64,6 +73,22 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
   const workspaceRoot = await resolveTopicWorkspaceRoot(request.chatId)
 
+  // Three-layer context-settings resolution: globals (prefs) <- assistant
+  // override <- topic override. `compress.modelId` further falls back to
+  // the user's topic-naming model. See `resolveContextSettings` docs.
+  const contextSettings = await resolveRequestContextSettings(assistant, request.chatId)
+
+  // Pre-resolve the compression model so chef's `compress.model` slot
+  // gets a `LanguageModelV3` instance, not a triple. Goes through the
+  // same `createExecutor → languageModel` path the agent uses, so
+  // resolution rules stay symmetric. `null` here means chef will skip
+  // LLM compression and fall back to onBeforeCompress sliding-window
+  // drop in the contextBuild feature wiring.
+  const compressionModel =
+    contextSettings.enabled && contextSettings.compress.enabled && contextSettings.compress.modelId
+      ? await resolveCompressionModel(contextSettings.compress.modelId)
+      : null
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
@@ -85,13 +110,23 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     sdkConfig,
     requestContext,
     mcpToolIds,
-    workspaceRoot
+    workspaceRoot,
+    contextSettings,
+    compressionModel
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, workspaceRoot, tools, deferredEntries })
+  const system = await assembleSystemPrompt({
+    assistant,
+    model,
+    provider,
+    workspaceRoot,
+    contextSettings,
+    tools,
+    deferredEntries
+  })
   const options = buildAgentOptions(scope)
 
   return {
@@ -136,12 +171,12 @@ async function resolveTools(
   }
   const mcpToolIds = new Set(mcpIdList ?? [])
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds })
-  let tools: ToolSet | undefined
-  if (activeEntries.length > 0) {
-    tools = {}
-    for (const entry of activeEntries) tools[entry.name] = entry.tool
-  }
+  // Per-topic toolset cache: when the user's tool-affecting settings haven't
+  // shifted between turns, reuse the same `ToolSet` reference so Anthropic's
+  // prompt prefix cache stays warm. Signature-based: a settings change
+  // mid-conversation transparently invalidates and rebuilds.
+  const cachedTools = toolsetCache.resolve({ assistant, mcpToolIds }, request.chatId, registry)
+  const tools: ToolSet | undefined = Object.keys(cachedTools).length > 0 ? cachedTools : undefined
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
@@ -214,4 +249,52 @@ function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof st
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
   const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   return stepCountIs(count)
+}
+
+/**
+ * Read globals from preferences, fetch per-topic override, and collapse
+ * the three layers via `resolveContextSettings`. Topic fetch failures
+ * (e.g. transient temp-chat with no DB row) degrade silently to
+ * "no topic override".
+ */
+async function resolveRequestContextSettings(
+  assistant: Assistant | undefined,
+  chatId: string | undefined
+): Promise<EffectiveContextSettings> {
+  const prefs = application.get('PreferenceService')
+  const globals: EffectiveContextSettings = {
+    enabled: prefs.get('chat.context_settings.enabled'),
+    truncateThreshold: prefs.get('chat.context_settings.truncate_threshold'),
+    compress: {
+      enabled: prefs.get('chat.context_settings.compress.enabled'),
+      modelId: prefs.get('chat.context_settings.compress.model_id')
+    }
+  }
+  const topicNamingModelId = prefs.get('topic.naming.model_id')
+
+  let topic: ContextSettingsOverride | null | undefined
+  if (chatId) {
+    try {
+      const t = await topicService.getById(chatId)
+      topic = t.contextSettings ?? undefined
+    } catch {
+      // Topic not yet persisted (temp chat) or other lookup failure —
+      // treat as no override; assistant + globals still apply.
+      topic = undefined
+    }
+  }
+
+  return resolveContextSettings({
+    assistant: assistant?.settings?.contextSettings,
+    topic,
+    globals: {
+      enabled: globals.enabled ?? DEFAULT_CONTEXT_SETTINGS.enabled,
+      truncateThreshold: globals.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
+      compress: {
+        enabled: globals.compress.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
+        modelId: globals.compress.modelId ?? DEFAULT_CONTEXT_SETTINGS.compress.modelId
+      }
+    },
+    topicNamingModelId
+  })
 }

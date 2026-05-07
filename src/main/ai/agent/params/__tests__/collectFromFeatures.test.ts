@@ -1,3 +1,4 @@
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Tool } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +18,10 @@ function makeScope(): RequestScope {
     capabilities: undefined,
     sdkConfig: { providerId: 'p1' as never, providerSettings: {} as never, modelId: 'm1' },
     requestContext: { requestId: 'req-1', abortSignal: new AbortController().signal },
-    mcpToolIds: new Set()
+    mcpToolIds: new Set(),
+    workspaceRoot: null,
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 

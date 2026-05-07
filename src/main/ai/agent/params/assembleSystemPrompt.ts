@@ -7,7 +7,9 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet } from 'ai'
 
 import type { ToolEntry } from '../../tools/types'
@@ -17,6 +19,10 @@ import { renderSystemPrompt } from '../prompts/sections/renderSystemPrompt'
 export interface AssembleSystemPromptInput {
   assistant?: Assistant
   model: Model
+  /** Provider hosting the model — used by provider-specific sections. */
+  provider?: Provider
+  /** Resolved context-chef settings (drives gating for context-* hint sections). */
+  contextSettings?: EffectiveContextSettings
   /** Topic's bound workspace path; drives `env` section + git detection. */
   workspaceRoot?: string | null
   /** Final tool set going to the model — checked for `tool_search` membership. */

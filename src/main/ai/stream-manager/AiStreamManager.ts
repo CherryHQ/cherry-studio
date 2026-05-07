@@ -16,13 +16,16 @@ import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { readUIMessageStream, type ToolSet, type UIMessageChunk } from 'ai'
 
 import { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
+import { registry as defaultToolRegistry } from '../tools/registry'
+import type { ToolApplyScope } from '../tools/types'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
 import { WebContentsListener } from './listeners/WebContentsListener'
+import { toolsetCache } from './toolsetCache'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -190,6 +193,11 @@ export class AiStreamManager extends BaseService {
    * to write the same assistant turn twice.
    */
   protected async onStop(): Promise<void> {
+    // Drop the toolset cache unconditionally — even when no streams are
+    // live, stale entries from earlier turns would otherwise outlive the
+    // service across hot-restart in tests and dev reloads.
+    toolsetCache.invalidateAll()
+
     const activeTopics = [...this.activeStreams.entries()]
       .filter(([, s]) => isLiveStatus(s.status))
       .map(([topicId]) => topicId)
@@ -208,6 +216,22 @@ export class AiStreamManager extends BaseService {
     }
 
     await Promise.allSettled(loopPromises)
+  }
+
+  // ── Public: toolset resolution ────────────────────────────────────
+
+  /**
+   * Resolve the active {@link ToolSet} for a topic, reusing a cached snapshot
+   * when the input signature is unchanged. Delegates to the module-level
+   * {@link toolsetCache}; the indirection is here so callers and tests can
+   * drive resolution through the same lifecycle-managed surface that owns
+   * topic eviction.
+   *
+   * Pass `topicId === undefined` to bypass the cache (the underlying call
+   * still returns a fresh resolve).
+   */
+  resolveToolset(scope: ToolApplyScope, topicId: string | undefined): ToolSet {
+    return toolsetCache.resolve(scope, topicId, defaultToolRegistry)
   }
 
   // ── Public: unified send ──────────────────────────────────────────
@@ -922,6 +946,12 @@ export class AiStreamManager extends BaseService {
     stream.cleanupTimer = setTimeout(() => {
       if (this.activeStreams.get(topicId) === stream) {
         this.activeStreams.delete(topicId)
+        // Topic is truly idle now (no live executions, grace window
+        // expired). Drop the cached toolset so memory stays bounded.
+        // Across-grace re-engagement still hits the cache: the timer
+        // is rescheduled on each onExecutionDone, so the cache only
+        // drops once the user has actually walked away.
+        toolsetCache.invalidate(topicId)
       }
     }, this.config.gracePeriodMs)
   }

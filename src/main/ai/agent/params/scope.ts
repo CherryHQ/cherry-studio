@@ -9,7 +9,9 @@
  * that already pull from `agentParams/`.
  */
 
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import type { EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -45,4 +47,23 @@ export interface RequestScope extends ToolApplyScope {
    * `null` for chats not bound to a folder.
    */
   readonly workspaceRoot: string | null
+  /**
+   * Fully resolved context-chef settings for THIS request. Collapsed
+   * from globals (`chat.context_settings.*` prefs) <- assistant
+   * override <- topic override, with `compress.modelId` further
+   * resolved through the explicit -> topic-naming-model fallback chain
+   * by `resolveContextSettings()`. Always present (helper guarantees a
+   * fully-set object even when no overrides exist).
+   */
+  readonly contextSettings: EffectiveContextSettings
+  /**
+   * Pre-resolved `LanguageModelV3` for context-build's history
+   * compression. Populated by `buildAgentParams` when
+   * `contextSettings.compress.enabled === true` AND
+   * `contextSettings.compress.modelId` resolves successfully via the
+   * same path the agent uses (`createExecutor.languageModel`).
+   * `null` when compression is disabled or resolution fails — chef
+   * then falls back to its `onBeforeCompress` sliding-window drop.
+   */
+  readonly compressionModel: LanguageModelV3 | null
 }

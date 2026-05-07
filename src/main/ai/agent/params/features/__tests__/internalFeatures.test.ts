@@ -7,6 +7,7 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
@@ -74,7 +75,9 @@ function makeScope(overrides: {
       abortSignal: new AbortController().signal
     },
     mcpToolIds: new Set(overrides.mcpToolIds ?? []),
-    workspaceRoot: null
+    workspaceRoot: null,
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 
@@ -83,13 +86,15 @@ function activeNames(scope: RequestScope): string[] {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('produces nothing when there is no assistant and no special provider/model traits', () => {
-    // pdf-compatibility and static-reminders are always-on regardless
-    // of provider/model — the former is a v3-prompt-shape adapter,
-    // the latter no-ops cheaply when there is no AGENTS.md to inject.
+  it('produces only the always-on triple when no assistant and no special provider/model traits', () => {
+    // pdf-compatibility and static-reminders are always-on regardless of
+    // provider/model. context-build also defaults on globally (compact +
+    // truncate are zero-cost; compress only fires opt-in with a model
+    // resolved). Together these three form the baseline plugin chain.
     expect(activeNames(makeScope({ provider: { id: 'unknown' }, model: {} }))).toEqual([
       'pdf-compatibility',
-      'static-reminders'
+      'static-reminders',
+      'context-build'
     ])
   })
 
