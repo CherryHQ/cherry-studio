@@ -2512,7 +2512,6 @@
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
-      "minimize": "最小化小程序",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",

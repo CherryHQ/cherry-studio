@@ -2512,7 +2512,6 @@
       "devtools": "Developer Tools",
       "goBack": "Go Back",
       "goForward": "Go Forward",
-      "minimize": "Minimize MiniApp",
       "openExternal": "Open in Browser",
       "open_link_external_off": "Current: Open links in default window",
       "open_link_external_on": "Current: Open links in browser",
