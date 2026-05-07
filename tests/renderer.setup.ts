@@ -221,10 +221,16 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
-    Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
-    PopoverTrigger: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
-    PopoverContent: ({ children, ...props }) =>
+    Popover: ({ children, open, onOpenChange, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
+    PopoverTrigger: ({ children, asChild, ...props }) => {
+      const triggerProps = { ...props, 'data-testid': 'popover-trigger' }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...triggerProps, ...children.props })
+      }
+      return React.createElement('div', triggerProps, children)
+    },
+    PopoverContent: ({ children, align, side, sideOffset, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
