@@ -2,6 +2,7 @@ import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { GlobalContextSettingsPanel } from '@renderer/components/ContextSettings/GlobalContextSettingsPanel'
 import Selector from '@renderer/components/Selector'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -355,6 +356,11 @@ const GeneralSettings: FC = () => {
             }}
           />
         </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.context_settings.section_title')}</SettingTitle>
+        <SettingDivider />
+        <GlobalContextSettingsPanel />
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>

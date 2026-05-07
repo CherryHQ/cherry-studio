@@ -2492,6 +2492,14 @@
         "plan_other": "{{count}} plans",
         "result_one": "{{count}} result",
         "result_other": "{{count}} results"
+      },
+      "vfs": {
+        "dialog_title": "Full tool output",
+        "error_generic": "Failed to load full content: {{message}}",
+        "error_missing": "This blob is no longer available. It may have been evicted.",
+        "loading": "Loading full content…",
+        "retry": "Retry",
+        "view_full": "View full content"
       }
     },
     "topic": {
@@ -4009,6 +4017,32 @@
       },
       "title": "Development Component Lab"
     },
+    "context_settings": {
+      "compression": {
+        "fallback_to_topic_naming": "Will use topic naming model when unspecified: {{name}}",
+        "help": "Pick a cheap, fast model — every compression runs as an LLM call.",
+        "model": "Model",
+        "no_model_warning": "Pick a compression model, or set a topic naming model in Settings → Topic",
+        "placeholder": "Pick a model",
+        "section": "Compression (advanced)",
+        "toggle": "Enable summarization",
+        "toggle_help": "Summarize older turns once history grows large. Requires picking a cheap, fast model."
+      },
+      "help": "Compact, truncate, and (optionally) summarize the conversation before each turn so it fits within the model's context window. When off, every message and tool result is sent verbatim.",
+      "inherit": {
+        "click_to_inherit": "Click to inherit",
+        "click_to_override": "Click to override",
+        "label_with_value": "Inherit ({{value}})",
+        "override_label": "Override",
+        "value_off": "Off",
+        "value_on": "On",
+        "value_unset": "Unset"
+      },
+      "label": "Context management",
+      "section_title": "Context Management",
+      "truncate_threshold": "Truncate large tool results above (chars)",
+      "truncate_threshold_help": "Tool results longer than this character count are truncated to head + tail and the full content is offloaded to a virtual file the model can read on demand."
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copy data, will automatically restart after copying the original directory data to the new directory",
@@ -5352,6 +5386,21 @@
           "array_content": {
             "help": "Does the provider support the content field of the message being of array type?",
             "label": "Supports array format message content"
+          },
+          "context_management": {
+            "compression": {
+              "help": "Pick a cheap, fast model — every compression runs as an LLM call.",
+              "label": "Summarization model",
+              "model": "Model",
+              "placeholder": "Pick a model",
+              "section": "Compression (advanced)",
+              "toggle": "Enable summarization",
+              "toggle_help": "Summarize older turns once history grows large. Requires picking a cheap, fast model."
+            },
+            "help": "Compact, truncate, and (optionally) summarize the conversation before each turn so it fits within the model's context window. When off, every message and tool result is sent verbatim.",
+            "label": "Context management",
+            "truncate_threshold": "Truncate large tool results above (chars)",
+            "truncate_threshold_help": "Tool results longer than this character count are truncated to head + tail and the full content is offloaded to a virtual file the model can read on demand."
           },
           "developer_role": {
             "help": "Does the provider support messages with role: \"developer\"?",
