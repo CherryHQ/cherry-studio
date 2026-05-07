@@ -106,6 +106,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const { t } = useTranslation()
   const navigate = useNavigate()
   const checkBinariesTimerRef = useRef<NodeJS.Timeout>(undefined)
+  const hasShownCheckBinariesErrorRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -124,9 +125,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setUvPath(uvPath)
       setBunPath(bunPath)
       setBinariesDir(dir)
+      hasShownCheckBinariesErrorRef.current = false
     } catch (error) {
       logger.error('Failed to check MCP environment dependencies', error as Error)
-      window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
+      if (!hasShownCheckBinariesErrorRef.current) {
+        hasShownCheckBinariesErrorRef.current = true
+        window.toast.error(`${t('settings.mcp.installError')}: ${formatErrorMessage(error)}`)
+      }
     }
   }, [setIsUvInstalled, setIsBunInstalled, t])
 

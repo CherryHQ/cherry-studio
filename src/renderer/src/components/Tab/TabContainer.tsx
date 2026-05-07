@@ -20,6 +20,7 @@ import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { isSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { LRUCache } from 'lru-cache'
 import {
@@ -119,7 +120,7 @@ const getTabIcon = (
   }
 }
 
-let lastSettingsPath = '/settings/provider'
+let lastSettingsPath: SettingsPath = '/settings/provider'
 const specialTabs = ['launchpad', 'settings']
 
 const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
@@ -195,8 +196,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
       dispatch(setActiveTab(currentTab.id))
     }
 
-    // 当访问设置页面时，记录路径
-    if (location.pathname.startsWith('/settings/')) {
+    // Remember the last visited settings route for window-mode reopen.
+    if (isSettingsPath(location.pathname)) {
       lastSettingsPath = location.pathname
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

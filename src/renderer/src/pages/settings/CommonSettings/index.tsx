@@ -328,8 +328,14 @@ const CommonSettings: FC = () => {
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true,
-      onOk() {
-        void setUseSystemTitleBar(checked)
+      async onOk() {
+        try {
+          await setUseSystemTitleBar(checked)
+        } catch (error) {
+          window.toast.error(formatErrorMessage(error))
+          throw error
+        }
+
         setTimeoutTimer(
           'handleUseSystemTitleBarChange',
           () => {

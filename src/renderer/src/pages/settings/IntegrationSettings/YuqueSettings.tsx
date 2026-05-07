@@ -72,7 +72,7 @@ const YuqueSettings: FC = () => {
         window.toast.error(t('settings.data.yuque.check.fail'))
         return
       }
-      void setYuqueRepoId(String(data.data.id))
+      await setYuqueRepoId(String(data.data.id))
       window.toast.success(t('settings.data.yuque.check.success'))
     } catch (error) {
       logger.error('Failed to check Yuque connection', error as Error)

@@ -33,6 +33,7 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -555,9 +556,9 @@ const api = {
     }
   },
   windowManager: {
-    openSettings: (path = '/settings/provider'): Promise<string> =>
+    openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
-    openSettingsInApp: (path = '/settings/provider'): Promise<boolean> =>
+    openSettingsInApp: (path: SettingsPath = '/settings/provider'): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.SettingsWindow_OpenInApp, path),
 
     // Retrieve init data that the main process stored for this window via
