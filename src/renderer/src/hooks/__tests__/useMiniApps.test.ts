@@ -285,6 +285,29 @@ describe('useMiniApps', () => {
       expect(patchCalls).toHaveLength(0)
     })
 
+    it('should not unpin pinned apps that share the visible list (#3198809321)', async () => {
+      // Settings UI passes the visible column — which contains both enabled and
+      // pinned rows — into updateMiniApps when the user hides an unrelated app.
+      // updateMiniApps must leave pinned rows alone.
+      const enabledApp = createMiniApp('enabled1', { status: 'enabled' })
+      const pinnedApp = createMiniApp('pinned1', { status: 'pinned' })
+      const droppedApp = createMiniApp('enabled2', { status: 'enabled' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([enabledApp, pinnedApp, droppedApp]))
+
+      const { result } = renderHook(() => useMiniApps())
+      MockDataApiUtils.resetMocks()
+
+      // User hides droppedApp; pinnedApp stays in the visible column.
+      await act(async () => {
+        await result.current.updateMiniApps([enabledApp, pinnedApp])
+      })
+
+      const patchCalls = MockDataApiUtils.getCalls('patch')
+      expect(patchCalls).toContainEqual(['/mini-apps/enabled2', { body: { status: 'disabled' } }])
+      // Critical: the pinned row must not have been touched.
+      expect(patchCalls.find(([path]) => path === '/mini-apps/pinned1')).toBeUndefined()
+    })
+
     it('should disable region-hidden enabled apps when removed from visible list (I2.1)', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
 

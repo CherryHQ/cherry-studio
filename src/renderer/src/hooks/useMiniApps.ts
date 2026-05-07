@@ -233,11 +233,16 @@ export const useMiniApps = () => {
   // Diff against the full `enabled` set (not the region-filtered view): a CN-only
   // app enabled under Global region is hidden from `visibleApps` but must still
   // be disabled when the caller drops it from the new visible list.
+  //
+  // Pinned apps are intentionally left alone: they appear in `visibleApps` because
+  // the settings UI shows them in the visible column, but flipping them to
+  // `enabled` here would silently unpin them. Pin state changes go through
+  // `updatePinnedMiniApps`.
   const updateMiniApps = useCallback(
     (visibleApps: MiniApp[]) => {
       const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
 
-      const toEnable = visibleApps.filter((a) => a.status !== 'enabled')
+      const toEnable = visibleApps.filter((a) => a.status === 'disabled')
       const toDisable = enabled.filter((a) => !newVisibleIds.has(a.appId))
 
       return Promise.allSettled([
@@ -250,12 +255,14 @@ export const useMiniApps = () => {
 
   // Write: Update disabled apps (backward-compat) ===
   // Diff against the full `disabled` set; see updateMiniApps for rationale.
+  // Symmetric pinned-safety guard: only promote previously-enabled rows into the
+  // disabled bucket — pinned rows in the input are ignored.
   const updateDisabledMiniApps = useCallback(
-    (visibleApps: MiniApp[]) => {
-      const newVisibleIds = new Set(visibleApps.map((a) => a.appId))
+    (hiddenApps: MiniApp[]) => {
+      const newHiddenIds = new Set(hiddenApps.map((a) => a.appId))
 
-      const toDisable = visibleApps.filter((a) => a.status !== 'disabled')
-      const toEnable = disabled.filter((a) => !newVisibleIds.has(a.appId))
+      const toDisable = hiddenApps.filter((a) => a.status === 'enabled')
+      const toEnable = disabled.filter((a) => !newHiddenIds.has(a.appId))
 
       return Promise.allSettled([
         ...toDisable.map((a) => patchApp(a.appId, { status: 'disabled' })),
