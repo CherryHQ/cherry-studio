@@ -310,7 +310,7 @@ export class MigrationEngine {
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
       { table: mcpServerTable, name: 'mcp_server' },
-      { table: miniAppTable, name: 'miniapp' },
+      { table: miniAppTable, name: 'mini_app' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
