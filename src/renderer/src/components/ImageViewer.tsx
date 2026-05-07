@@ -1,151 +1,246 @@
 import {
-  CopyOutlined,
-  DownloadOutlined,
-  RotateLeftOutlined,
-  RotateRightOutlined,
-  SwapOutlined,
-  UndoOutlined,
-  ZoomInOutlined,
-  ZoomOutOutlined
-} from '@ant-design/icons'
+  type ImagePreviewAction,
+  ImagePreviewContextMenu,
+  ImagePreviewDialog,
+  type ImagePreviewItem,
+  type ImagePreviewLabels
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils'
-import type { ImageProps as AntImageProps } from 'antd'
-import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
-import { DownloadIcon } from 'lucide-react'
+import { CopyIcon, DownloadIcon } from 'lucide-react'
 import mime from 'mime'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
-
-import { CopyIcon } from './Icons'
-
-interface ImageViewerProps extends AntImageProps {
-  src: string
-}
 
 const logger = loggerService.withContext('ImageViewer')
 
-const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
-  const { t } = useTranslation()
-
-  // 复制图片到剪贴板
-  const handleCopyImage = async (src: string) => {
-    try {
-      let blob: Blob
-
-      if (src.startsWith('data:')) {
-        // 处理 base64 格式的图片 - 使用 parseDataUrl 避免正则匹配大字符串导致OOM
-        const parseResult = parseDataUrl(src)
-        if (!parseResult || !parseResult.mediaType || !parseResult.isBase64) {
-          throw new Error('Invalid base64 image format')
-        }
-        const byteArray = Base64.toUint8Array(parseResult.data)
-        blob = new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
-      } else if (src.startsWith('file://')) {
-        // 处理本地文件路径
-        const bytes = await window.api.fs.read(src)
-        const mimeType = mime.getType(src) || 'application/octet-stream'
-        blob = new Blob([bytes], { type: mimeType })
-      } else {
-        // 处理 URL 格式的图片
-        const response = await fetch(src)
-        blob = await response.blob()
-      }
-
-      // 统一转换为 PNG 以确保兼容性（剪贴板 API 不支持 JPEG）
-      const pngBlob = await convertImageToPng(blob)
-
-      const item = new ClipboardItem({
-        'image/png': pngBlob
-      })
-      await navigator.clipboard.write([item])
-
-      window.toast.success(t('message.copy.success'))
-    } catch (error) {
-      const err = error as Error
-      logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
-      window.toast.error(t('message.copy.failed'))
-    }
-  }
-
-  const getContextMenuItems = (src: string, size: number = 14) => {
-    return [
-      {
-        key: 'copy-image',
-        label: t('common.copy'),
-        icon: <CopyIcon size={size} />,
-        onClick: () => handleCopyImage(src)
-      },
-      {
-        key: 'copy-url',
-        label: t('preview.copy.src'),
-        icon: <CopyIcon size={size} />,
-        onClick: () => {
-          void navigator.clipboard.writeText(src)
-          window.toast.success(t('message.copy.success'))
-        }
-      },
-      {
-        key: 'download',
-        label: t('common.download'),
-        icon: <DownloadIcon size={size} />,
-        onClick: () => download(src)
-      }
-    ]
-  }
-
-  return (
-    <Dropdown menu={{ items: getContextMenuItems(src) }} trigger={['contextMenu']}>
-      <AntImage
-        src={src}
-        style={style}
-        onContextMenu={(e) => e.stopPropagation()}
-        {...props}
-        preview={{
-          mask: typeof props.preview === 'object' ? props.preview.mask : false,
-          ...(typeof props.preview === 'object' ? props.preview : {}),
-          toolbarRender: (
-            _,
-            {
-              transform: { scale },
-              actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-            }
-          ) => (
-            <ToolbarWrapper size={12} className="toolbar-wrapper">
-              <SwapOutlined rotate={90} onClick={onFlipY} />
-              <SwapOutlined onClick={onFlipX} />
-              <RotateLeftOutlined onClick={onRotateLeft} />
-              <RotateRightOutlined onClick={onRotateRight} />
-              <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-              <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-              <UndoOutlined onClick={onReset} />
-              <CopyOutlined onClick={() => handleCopyImage(src)} />
-              <DownloadOutlined onClick={() => download(src)} />
-            </ToolbarWrapper>
-          )
-        }}
-      />
-    </Dropdown>
-  )
+export interface ImageViewerPreviewConfig {
+  activeIndex?: number
+  actions?: ImagePreviewAction[]
+  defaultActiveIndex?: number
+  items?: ImagePreviewItem[]
+  mask?: boolean
+  onActiveIndexChange?: (index: number) => void
+  onVisibleChange?: (visible: boolean) => void
+  src?: string
+  toolbarActions?: ImagePreviewAction[]
+  visible?: boolean
 }
 
-const ToolbarWrapper = styled(Space)`
-  padding: 0px 24px;
-  color: #fff;
-  font-size: 20px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border-radius: 100px;
-  .anticon {
-    padding: 12px;
-    cursor: pointer;
+export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+  preview?: boolean | ImageViewerPreviewConfig
+  src: string
+}
+
+export async function getImageBlobFromSource(src: string): Promise<Blob> {
+  if (src.startsWith('data:')) {
+    const parseResult = parseDataUrl(src)
+    if (!parseResult || !parseResult.mediaType || !parseResult.isBase64) {
+      throw new Error('Invalid base64 image format')
+    }
+    const byteArray = Base64.toUint8Array(parseResult.data)
+    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
   }
-  .anticon:hover {
-    opacity: 0.3;
+
+  if (src.startsWith('file://')) {
+    const bytes = await window.api.fs.read(src)
+    const mimeType = mime.getType(src) || 'application/octet-stream'
+    return new Blob([bytes], { type: mimeType })
   }
-`
+
+  const response = await fetch(src)
+  return response.blob()
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
+}
+
+const getPreviewIndex = (items: ImagePreviewItem[], src: string, fallbackIndex = 0) => {
+  const matchedIndex = items.findIndex((item) => item.src === src)
+  return matchedIndex >= 0 ? matchedIndex : fallbackIndex
+}
+
+const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, preview, src, ...props }) => {
+  const { t } = useTranslation()
+  const previewConfig = typeof preview === 'object' ? preview : undefined
+  const previewEnabled = preview !== false
+  const previewSrc = previewConfig?.src ?? src
+  const items = React.useMemo<ImagePreviewItem[]>(() => {
+    return (
+      previewConfig?.items ?? [
+        {
+          alt: typeof alt === 'string' ? alt : undefined,
+          id: previewSrc,
+          src: previewSrc
+        }
+      ]
+    )
+  }, [alt, previewConfig?.items, previewSrc])
+
+  const initialIndex = React.useMemo(
+    () => previewConfig?.activeIndex ?? previewConfig?.defaultActiveIndex ?? getPreviewIndex(items, previewSrc),
+    [items, previewConfig?.activeIndex, previewConfig?.defaultActiveIndex, previewSrc]
+  )
+  const [localOpen, setLocalOpen] = React.useState(false)
+  const [localActiveIndex, setLocalActiveIndex] = React.useState(initialIndex)
+  const open = previewConfig?.visible ?? localOpen
+  const activeIndex = previewConfig?.activeIndex ?? localActiveIndex
+
+  React.useEffect(() => {
+    setLocalActiveIndex(initialIndex)
+  }, [initialIndex])
+
+  const labels = React.useMemo<Partial<ImagePreviewLabels>>(
+    () => ({
+      close: t('preview.close'),
+      dialogTitle: t('preview.label'),
+      flipHorizontal: t('preview.flip_horizontal'),
+      flipVertical: t('preview.flip_vertical'),
+      next: t('preview.next'),
+      previous: t('preview.previous'),
+      reset: t('preview.reset'),
+      rotateLeft: t('preview.rotate_left'),
+      rotateRight: t('preview.rotate_right'),
+      zoomIn: t('preview.zoom_in'),
+      zoomOut: t('preview.zoom_out')
+    }),
+    [t]
+  )
+
+  const setOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      if (previewConfig?.visible == null) {
+        setLocalOpen(nextOpen)
+      }
+      previewConfig?.onVisibleChange?.(nextOpen)
+    },
+    [previewConfig]
+  )
+
+  const setActiveIndex = React.useCallback(
+    (nextIndex: number) => {
+      if (previewConfig?.activeIndex == null) {
+        setLocalActiveIndex(nextIndex)
+      }
+      previewConfig?.onActiveIndexChange?.(nextIndex)
+    },
+    [previewConfig]
+  )
+
+  const handleCopyImage = React.useCallback(
+    async (item: ImagePreviewItem) => {
+      try {
+        await copyImageToClipboard(item.src)
+        window.toast.success(t('message.copy.success'))
+      } catch (error) {
+        const err = error as Error
+        logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
+        window.toast.error(t('message.copy.failed'))
+      }
+    },
+    [t]
+  )
+
+  const handleCopySource = React.useCallback(
+    async (item: ImagePreviewItem) => {
+      try {
+        await navigator.clipboard.writeText(item.src)
+        window.toast.success(t('message.copy.success'))
+      } catch (error) {
+        const err = error as Error
+        logger.error(`Failed to copy image source: ${err.message}`, { stack: err.stack })
+        window.toast.error(t('message.copy.failed'))
+      }
+    },
+    [t]
+  )
+
+  const builtInActions = React.useMemo<ImagePreviewAction[]>(
+    () => [
+      {
+        icon: <CopyIcon className="size-3.5" />,
+        id: 'copy-image',
+        label: t('common.copy'),
+        onSelect: handleCopyImage
+      },
+      {
+        icon: <CopyIcon className="size-3.5" />,
+        id: 'copy-src',
+        label: t('preview.copy.src'),
+        onSelect: handleCopySource
+      },
+      {
+        icon: <DownloadIcon className="size-3.5" />,
+        id: 'download',
+        label: t('common.download'),
+        onSelect: (item) => download(item.src)
+      }
+    ],
+    [handleCopyImage, handleCopySource, t]
+  )
+
+  const contextActions = React.useMemo(
+    () => [...builtInActions, ...(previewConfig?.actions ?? [])],
+    [builtInActions, previewConfig?.actions]
+  )
+  const toolbarActions = React.useMemo(
+    () => [builtInActions[0], builtInActions[2], ...(previewConfig?.toolbarActions ?? [])],
+    [builtInActions, previewConfig?.toolbarActions]
+  )
+  const displayItem = items.find((item) => item.src === src) ?? {
+    alt: typeof alt === 'string' ? alt : undefined,
+    id: src,
+    src
+  }
+
+  const image = (
+    <img
+      alt={alt}
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented && previewEnabled) {
+          setActiveIndex(initialIndex)
+          setOpen(true)
+        }
+      }}
+      onContextMenu={(event) => {
+        event.stopPropagation()
+        onContextMenu?.(event)
+      }}
+      src={src}
+      {...props}
+    />
+  )
+
+  return (
+    <>
+      <ImagePreviewContextMenu actions={contextActions} item={displayItem}>
+        {image}
+      </ImagePreviewContextMenu>
+      {previewEnabled && (
+        <ImagePreviewDialog
+          actions={contextActions}
+          activeIndex={activeIndex}
+          items={items}
+          labels={labels}
+          onActiveIndexChange={setActiveIndex}
+          onOpenChange={setOpen}
+          open={open}
+          toolbarActions={toolbarActions}
+        />
+      )}
+    </>
+  )
+}
 
 export default ImageViewer

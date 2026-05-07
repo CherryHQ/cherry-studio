@@ -88,6 +88,28 @@ export {
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './composites/IconTooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
+// ImagePreview
+export {
+  DEFAULT_IMAGE_PREVIEW_LABELS,
+  type ImagePreviewAction,
+  type ImagePreviewActionContext,
+  ImagePreviewContextMenu,
+  type ImagePreviewContextMenuProps,
+  ImagePreviewDialog,
+  type ImagePreviewDialogProps,
+  ImagePreviewImage,
+  type ImagePreviewImageProps,
+  type ImagePreviewItem,
+  type ImagePreviewLabels,
+  ImagePreviewToolbar,
+  type ImagePreviewToolbarProps,
+  type ImagePreviewTransform,
+  type ImagePreviewTransformControls,
+  type ImagePreviewTransformOptions,
+  ImagePreviewTrigger,
+  type ImagePreviewTriggerProps,
+  useImagePreviewTransform
+} from './composites/ImagePreview'
 // MenuList
 export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/MenuList'
 export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/MenuList'

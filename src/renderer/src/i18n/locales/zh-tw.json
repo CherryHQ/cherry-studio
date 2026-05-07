@@ -3359,18 +3359,25 @@
     "uninstalling": "解除安裝中..."
   },
   "preview": {
+    "close": "關閉預覽",
     "copy": {
       "image": "複製為圖片",
       "src": "複製圖片來源"
     },
     "dialog": "開啟預覽視窗",
+    "flip_horizontal": "水平翻轉",
+    "flip_vertical": "垂直翻轉",
     "label": "預覽",
+    "next": "下一張圖片",
     "pan": "移動",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
     "pan_up": "上移",
+    "previous": "上一張圖片",
     "reset": "重設",
+    "rotate_left": "向左旋轉",
+    "rotate_right": "向右旋轉",
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"

@@ -211,6 +211,106 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    ImagePreviewContextMenu: ({ actions = [], children, item }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'image-preview-context-menu' },
+        children,
+        actions.map((action) =>
+          React.createElement(
+            'button',
+            {
+              disabled: action.disabled,
+              key: action.id,
+              onClick: () =>
+                action.onSelect?.(item, {
+                  close: vi.fn(),
+                  index: 0,
+                  items: item ? [item] : [],
+                  resetTransform: vi.fn(),
+                  transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+                }),
+              type: 'button'
+            },
+            action.icon,
+            action.label
+          )
+        )
+      ),
+    ImagePreviewDialog: ({ activeIndex = 0, items = [], labels = {}, onOpenChange, open, toolbarActions = [] }) =>
+      open
+        ? React.createElement(
+            'div',
+            { 'data-testid': 'image-preview-dialog' },
+            items[activeIndex]
+              ? React.createElement('img', {
+                  alt: items[activeIndex].alt,
+                  src: items[activeIndex].src
+                })
+              : null,
+            toolbarActions.map((action) =>
+              React.createElement(
+                'button',
+                {
+                  disabled: action.disabled,
+                  key: action.id,
+                  onClick: () =>
+                    action.onSelect?.(items[activeIndex], {
+                      close: () => onOpenChange?.(false),
+                      index: activeIndex,
+                      items,
+                      resetTransform: vi.fn(),
+                      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 }
+                    }),
+                  type: 'button'
+                },
+                action.icon,
+                action.label
+              )
+            ),
+            React.createElement(
+              'button',
+              { 'aria-label': labels.close, onClick: () => onOpenChange?.(false), type: 'button' },
+              labels.close
+            )
+          )
+        : null,
+    ImagePreviewImage: ({ item, ...props }) =>
+      React.createElement('img', { ...props, alt: item?.alt, src: item?.src, 'data-testid': 'image-preview-image' }),
+    ImagePreviewToolbar: ({ actions = [], context, item, labels = {}, onClose }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'image-preview-toolbar' },
+        actions.map((action) =>
+          React.createElement(
+            'button',
+            {
+              disabled: action.disabled,
+              key: action.id,
+              onClick: () => action.onSelect?.(item, context),
+              type: 'button'
+            },
+            action.icon,
+            action.label
+          )
+        ),
+        React.createElement('button', { 'aria-label': labels.close, onClick: onClose, type: 'button' }, labels.close)
+      ),
+    ImagePreviewTrigger: ({ alt, item, ...props }) =>
+      React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
+    useImagePreviewTransform: () => ({
+      canZoomIn: true,
+      canZoomOut: false,
+      flipHorizontal: vi.fn(),
+      flipVertical: vi.fn(),
+      reset: vi.fn(),
+      rotateLeft: vi.fn(),
+      rotateRight: vi.fn(),
+      setTransform: vi.fn(),
+      transform: { flipX: false, flipY: false, rotate: 0, scale: 1 },
+      zoomIn: vi.fn(),
+      zoomOut: vi.fn()
+    }),
     Dialog: ({ children, open = true, ...props }) =>
       open ? React.createElement('div', { ...props, 'data-testid': 'dialog' }, children) : null,
     DialogContent: ({ children, ...props }) =>

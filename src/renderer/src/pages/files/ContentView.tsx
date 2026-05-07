@@ -1,10 +1,10 @@
+import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Col, Image, Row, Spin, Table } from 'antd'
+import { Table } from 'antd'
 import React, { memo } from 'react'
-import styled from 'styled-components'
 
 interface ContentViewProps {
   id: FileType | 'all' | string
@@ -15,110 +15,46 @@ interface ContentViewProps {
 
 const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, columns }) => {
   if (id === FILE_TYPE.IMAGE && files?.length && files?.length > 0) {
+    const previewItems = files.map((file) => ({
+      alt: FileManager.formatFileName(file),
+      id: file.id,
+      src: FileManager.getFileUrl(file)
+    }))
+
     return (
-      <Image.PreviewGroup>
-        <Row gutter={[16, 16]}>
-          {files?.map((file) => (
-            <Col key={file.id} xs={24} sm={12} md={8} lg={4} xl={3}>
-              <ImageWrapper>
-                <LoadingWrapper>
-                  <Spin />
-                </LoadingWrapper>
-                <Image
-                  src={FileManager.getFileUrl(file)}
-                  style={{ height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                  preview={{ mask: false }}
-                  onLoad={(e) => {
-                    const img = e.target as HTMLImageElement
-                    img.parentElement?.classList.add('loaded')
-                  }}
-                />
-                <ImageInfo>
-                  <div>{formatFileSize(file.size)}</div>
-                </ImageInfo>
-              </ImageWrapper>
-            </Col>
-          ))}
-        </Row>
-      </Image.PreviewGroup>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4">
+        {files.map((file, index) => (
+          <div
+            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-background-subtle"
+            key={file.id}>
+            <div className="absolute inset-0 flex items-center justify-center bg-background-subtle">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
+            </div>
+            <ImageViewer
+              alt={FileManager.formatFileName(file)}
+              className="h-full w-full cursor-pointer object-cover opacity-0 transition-[opacity,transform] duration-300 [&.loaded]:opacity-100 group-hover:[&.loaded]:scale-105"
+              preview={{
+                defaultActiveIndex: index,
+                items: previewItems
+              }}
+              src={FileManager.getFileUrl(file)}
+              onLoad={(e) => {
+                const img = e.target as HTMLImageElement
+                img.classList.add('loaded')
+              }}
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/60 px-2 py-[5px] text-white text-xs opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+              <div className="truncate">{formatFileSize(file.size)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     )
   }
 
   return (
-    <Table
-      dataSource={dataSource}
-      columns={columns}
-      style={{ width: '100%' }}
-      size="small"
-      pagination={{ pageSize: 100 }}
-    />
+    <Table className="w-full" dataSource={dataSource} columns={columns} size="small" pagination={{ pageSize: 100 }} />
   )
 }
-
-const ImageWrapper = styled.div`
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: var(--color-background-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0.5px solid var(--color-border);
-
-  .ant-image {
-    height: 100%;
-    width: 100%;
-    opacity: 0;
-    transition:
-      opacity 0.3s ease,
-      transform 0.3s ease;
-
-    &.loaded {
-      opacity: 1;
-    }
-  }
-
-  &:hover {
-    .ant-image.loaded {
-      transform: scale(1.05);
-    }
-
-    div:last-child {
-      opacity: 1;
-    }
-  }
-`
-
-const LoadingWrapper = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--color-background-soft);
-`
-
-const ImageInfo = styled.div`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  padding: 5px 8px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  font-size: 12px;
-
-  > div:first-child {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-`
 
 export default memo(ContentView)

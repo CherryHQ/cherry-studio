@@ -3359,18 +3359,25 @@
     "uninstalling": "Uninstalling..."
   },
   "preview": {
+    "close": "Close Preview",
     "copy": {
       "image": "Copy as image",
       "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
+    "flip_horizontal": "Flip Horizontal",
+    "flip_vertical": "Flip Vertical",
     "label": "Preview",
+    "next": "Next Image",
     "pan": "Pan",
     "pan_down": "Pan Down",
     "pan_left": "Pan Left",
     "pan_right": "Pan Right",
     "pan_up": "Pan Up",
+    "previous": "Previous Image",
     "reset": "Reset",
+    "rotate_left": "Rotate Left",
+    "rotate_right": "Rotate Right",
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"

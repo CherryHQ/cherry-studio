@@ -14,17 +14,16 @@ import {
 } from '@ant-design/icons'
 import { ColFlex, Tooltip } from '@cherrystudio/ui'
 import ConfirmDialog from '@renderer/components/ConfirmDialog'
+import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Image } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC, MouseEvent } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   files: FileMetadata[]
@@ -104,8 +103,8 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
       content={
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
-            <Image
-              style={{ width: 80, maxHeight: 200 }}
+            <ImageViewer
+              className="max-h-[200px] w-20"
               src={'file://' + FileManager.getSafePath(file)}
               preview={{
                 visible: visible,
@@ -114,11 +113,12 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
               }}
             />
           )}
-          <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
+          <span className="break-all">{fullName}</span>
           {formatFileSize(file.size)}
         </ColFlex>
       }>
-      <FileName
+      <span
+        className="cursor-pointer hover:underline"
         onClick={() => {
           if (isImage(file.ext)) {
             setVisible(true)
@@ -130,7 +130,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
         }}
         title={fullName}>
         {displayName}
-      </FileName>
+      </span>
     </Tooltip>
   )
 }
@@ -194,7 +194,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu
 
   return (
     <>
-      <ContentContainer>
+      <div className="flex w-full flex-wrap gap-1 px-[15px] py-[5px]">
         {files.map((file) => (
           <CustomTag
             key={file.id}
@@ -208,7 +208,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu
             <FileNameRender file={file} />
           </CustomTag>
         ))}
-      </ContentContainer>
+      </div>
 
       {contextMenu && (
         <ConfirmDialog
@@ -222,20 +222,5 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu
     </>
   )
 }
-
-const ContentContainer = styled.div`
-  width: 100%;
-  padding: 5px 15px 5px 15px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 4px;
-`
-
-const FileName = styled.span`
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
-`
 
 export default AttachmentPreview

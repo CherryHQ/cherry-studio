@@ -3359,18 +3359,25 @@
     "uninstalling": "卸载中..."
   },
   "preview": {
+    "close": "关闭预览",
     "copy": {
       "image": "复制为图片",
       "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
+    "flip_horizontal": "水平翻转",
+    "flip_vertical": "垂直翻转",
     "label": "预览",
+    "next": "下一张图片",
     "pan": "移动",
     "pan_down": "下移",
     "pan_left": "左移",
     "pan_right": "右移",
     "pan_up": "上移",
+    "previous": "上一张图片",
     "reset": "重置",
+    "rotate_left": "向左旋转",
+    "rotate_right": "向右旋转",
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
