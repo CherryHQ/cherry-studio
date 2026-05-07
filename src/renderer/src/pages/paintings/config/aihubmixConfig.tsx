@@ -66,7 +66,10 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           {
             label: 'OpenAI',
             title: 'OpenAI',
-            options: [{ label: 'gpt-image-1', value: 'gpt-image-1' }]
+            options: [
+              { label: 'gpt-image-2', value: 'gpt-image-2' },
+              { label: 'gpt-image-1', value: 'gpt-image-1' }
+            ]
           },
           {
             label: 'Gemini',
@@ -166,7 +169,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
           { label: '2:3', value: '1024x1536' }
         ],
         initialValue: '1024x1024',
-        condition: (painting) => painting.model === 'gpt-image-1'
+        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
       },
       {
         type: 'slider',
@@ -176,7 +179,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         min: 1,
         max: 10,
         initialValue: 1,
-        condition: (painting) => painting.model === 'gpt-image-1'
+        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
       },
       {
         type: 'select',
@@ -184,7 +187,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.quality',
         options: QUALITY_OPTIONS,
         initialValue: 'auto',
-        condition: (painting) => painting.model === 'gpt-image-1'
+        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
       },
       {
         type: 'select',
@@ -198,9 +201,12 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'background',
         title: 'paintings.background',
-        options: BACKGROUND_OPTIONS,
+        options: (_config, painting) =>
+          painting?.model === 'gpt-image-2'
+            ? BACKGROUND_OPTIONS.filter((opt) => opt.value !== 'transparent')
+            : BACKGROUND_OPTIONS,
         initialValue: 'auto',
-        condition: (painting) => painting.model === 'gpt-image-1'
+        condition: (painting) => painting.model === 'gpt-image-1' || painting.model === 'gpt-image-2'
       },
       {
         type: 'slider',

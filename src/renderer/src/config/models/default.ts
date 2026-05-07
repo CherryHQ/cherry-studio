@@ -178,6 +178,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'OpenAI'
     },
     {
+      id: 'gpt-image-2',
+      provider: 'aihubmix',
+      name: 'gpt-image-2',
+      group: 'OpenAI'
+    },
+    {
       id: 'DeepSeek-V3',
       provider: 'aihubmix',
       name: 'DeepSeek-V3',
