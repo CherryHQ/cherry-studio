@@ -96,7 +96,10 @@ export function createKbSearchToolEntry(): ToolEntry {
     capability: ToolCapability.Read,
     tool: kbSearchTool,
     applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0,
-    checkPermissions: () => ({ behavior: 'allow' })
+    checkPermissions: () => ({ behavior: 'allow' }),
+    // Citation contract — see web search note. Truncating mid-array breaks
+    // the model's `[id]` references back to retrieved snippets.
+    truncatable: false
   }
 }
 

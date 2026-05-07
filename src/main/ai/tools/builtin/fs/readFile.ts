@@ -58,6 +58,24 @@ export const FS_READ_TOOL_NAME = 'fs__read'
 
 const SIZE_CAP_BYTES = 5 * MB
 
+/**
+ * Maximum characters returned in a single `fs__read` call. Above this
+ * threshold the tool returns a structured error instructing the model
+ * to use `offset` / `limit` for narrower paging.
+ *
+ * Why an internal cap rather than letting context-build's truncate
+ * persist large reads: persisting an `fs__read` result would route the
+ * model right back through `fs__read` to retrieve the persisted file
+ * (the only built-in that knows how to read paths), which loops on
+ * the same too-large condition. Forcing native pagination at the
+ * source breaks the loop.
+ *
+ * Kept in sync with the default `chat.context_settings.truncate_threshold`
+ * so the read tool's "too large" boundary lines up with the persistence
+ * boundary other tools see — consistent mental model for the model.
+ */
+const READ_OUTPUT_CHAR_CAP = 100_000
+
 const inputSchema = z.object({
   path: z
     .string()
@@ -68,9 +86,13 @@ const inputSchema = z.object({
     .number()
     .int()
     .min(1)
-    .max(DEFAULT_READ_LIMIT)
     .optional()
-    .describe(`Maximum number of lines to return in this call. Default: ${DEFAULT_READ_LIMIT}.`)
+    .describe(
+      `Maximum number of lines to return in this call. Default: ${DEFAULT_READ_LIMIT}. ` +
+        `No upper bound is enforced at the schema layer — the per-call output cap (${READ_OUTPUT_CHAR_CAP} chars) is ` +
+        `the actual safety gate. Files with short lines (CSV, JSONL, logs) can be paged in larger chunks; ` +
+        `files with long lines need smaller limits.`
+    )
 })
 
 const outputSchema = z.discriminatedUnion('kind', [
@@ -109,6 +131,7 @@ const outputSchema = z.discriminatedUnion('kind', [
       'not-a-file',
       'binary',
       'too-large',
+      'output-too-large',
       'device-file',
       'pipe-or-socket',
       'parse-error',
@@ -244,17 +267,27 @@ Supports text/code, images (PNG/JPG/etc.), audio (MP3/WAV/etc., audio-capable mo
         message: `Path is not a file: ${absolutePath}`
       }
     }
+    // File-size guardrail with pagination escape: if the model passes
+    // `offset` or `limit` it has explicitly opted into paging, so let
+    // the read proceed regardless of total file size — the per-call
+    // output cap (READ_OUTPUT_CHAR_CAP) is the real safety net for
+    // what actually flows back to the model. Only when neither paging
+    // arg is present do we refuse oversized files outright; otherwise
+    // a 30 MB bundle would be unreadable even with `limit: 10`.
+    //
     // TODO: when the active provider exposes a remote-file API
     // (`src/main/services/remotefile/` — OpenAI, Gemini, Mistral),
     // route oversize files through `FileServiceManager` and emit a
-    // `file-id` chunk instead of inlining bytes. That removes this
-    // cap for capable providers; today every emit is inline so we
-    // hold the line at 5 MB to protect context + IPC payload size.
-    if (stats.size > SIZE_CAP_BYTES) {
+    // `file-id` chunk instead of inlining bytes.
+    const hasPagingArgs = offset !== undefined || limit !== undefined
+    if (!hasPagingArgs && stats.size > SIZE_CAP_BYTES) {
       return {
         kind: 'error' as const,
         code: 'too-large' as const,
-        message: `File is ${stats.size} bytes; max is ${SIZE_CAP_BYTES} bytes.`
+        message:
+          `File is ${stats.size} bytes (cap for unscoped reads: ${SIZE_CAP_BYTES} bytes). ` +
+          `Re-call with \`offset\` and \`limit\` to page through; the per-call output cap (${READ_OUTPUT_CHAR_CAP} chars) ` +
+          `still applies, so start with a small \`limit\` (e.g. limit=200) and adjust based on the returned content.`
       }
     }
 
@@ -378,6 +411,31 @@ Supports text/code, images (PNG/JPG/etc.), audio (MP3/WAV/etc., audio-capable mo
       }
 
       recordRead(topicId, absolutePath, stats.mtimeMs, result.startLine, result.endLine, result.totalLines)
+
+      // Internal output-size cap. Read tools must NOT participate in
+      // chef's persistence flow (would loop), so we surface a structured
+      // error here when the returned page is too long for inline use.
+      // The error message includes a FILE-SPECIFIC recommended `limit`
+      // computed from actual avg chars/line — without this, a generic
+      // "use limit=500" suggestion fails on files where 500 lines
+      // already exceed the cap.
+      if (result.text.length > READ_OUTPUT_CHAR_CAP) {
+        const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
+        const avgPerLine = Math.max(1, Math.round(result.text.length / returnedLines))
+        // Reserve ~200 chars for the trailing edge case + safety margin.
+        const safeLimit = Math.max(1, Math.floor((READ_OUTPUT_CHAR_CAP - 200) / avgPerLine))
+        return {
+          kind: 'error' as const,
+          code: 'output-too-large' as const,
+          message:
+            `Output ${result.text.length} chars across lines ${result.startLine}-${result.endLine} of ${result.totalLines} ` +
+            `(avg ~${avgPerLine} chars/line including line-number prefix) exceeds the per-call cap (${READ_OUTPUT_CHAR_CAP} chars). ` +
+            `\n\nFor THIS file, request at most ${safeLimit} lines per call: \`limit: ${safeLimit}\` (or smaller). ` +
+            `Step through with \`offset\` — first call \`offset: 1, limit: ${safeLimit}\`, then \`offset: ${safeLimit + 1}, limit: ${safeLimit}\`, etc. ` +
+            `If you only need a specific section, prefer \`fs__grep\` to locate it first, then read that narrow line range directly.`
+        }
+      }
+
       return { kind: 'text' as const, ...result }
     } catch (err) {
       return {
@@ -397,6 +455,12 @@ export function createReadFileToolEntry(): ToolEntry {
     defer: ToolDefer.Never,
     capability: ToolCapability.Read,
     tool: fsReadTool,
+    // Read tool exempt from chef's truncate. fs__read returns its own
+    // `output-too-large` error when the page exceeds READ_OUTPUT_CHAR_CAP,
+    // forcing the model to re-call with `offset` / `limit` instead. Letting
+    // chef persist the result would loop: persisted file → fs__read it →
+    // still too large → persist again.
+    truncatable: false,
     // Read-only tool — L3 always-allow. User can still add an explicit
     // deny rule at L2 (e.g. to forbid reading paths under `/etc`).
     checkPermissions: () => ({ behavior: 'allow' })

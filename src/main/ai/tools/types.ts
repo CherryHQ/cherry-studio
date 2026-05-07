@@ -46,7 +46,8 @@ export const BuiltinToolNamespace = {
   Meta: 'meta',
   Fs: 'fs',
   Shell: 'shell',
-  Skills: 'skills'
+  Skills: 'skills',
+  Vfs: 'vfs'
 } as const
 export type BuiltinToolNamespace = (typeof BuiltinToolNamespace)[keyof typeof BuiltinToolNamespace]
 
@@ -92,4 +93,17 @@ export interface ToolEntry {
    * `'passthrough'` to defer to user-configured rules.
    */
   checkPermissions?: ToolCheckPermissions
+  /**
+   * Whether this tool's output may be truncated by the context-build
+   * middleware (chef). Default: `true`. Set to `false` for tools whose
+   * output has structural integrity the model relies on inline — e.g.
+   * citation arrays (`web__search`, `kb__search`) where mid-array
+   * truncation breaks `[id]` references in the model's reply, OR for
+   * tools that have their own size handling and shouldn't be wrapped
+   * (e.g. `fs__read` returns its own too-large error and must not be
+   * persisted, otherwise re-reading the persisted file would loop).
+   * Read by the contextBuild feature to populate chef's
+   * `truncate.perTool` exemption list.
+   */
+  truncatable?: boolean
 }
