@@ -11,6 +11,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
@@ -143,7 +144,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (provider.id === SystemProviderIds.dashscope &&
         (isDeepSeekHybridInferenceModel(model) ||
           isSupportedThinkingTokenZhipuModel(model) ||
-          isSupportedThinkingTokenKimiModel(model)))
+          isSupportedThinkingTokenKimiModel(model))) ||
+      // SiliconFlow uses enable_thinking for DeepSeek and Zhipu models, same as positive path
+      (provider.id === SystemProviderIds.silicon &&
+        (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
     }
@@ -211,6 +215,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           enable_thinking: false
         }
       }
+    }
+
+    // Mistral Small models: reasoningEffort 'none'
+    if (modelId.includes('mistral-small-2603')) {
+      return { reasoningEffort: 'none' }
     }
 
     logger.warn(`Model ${model.id} doesn't match any disable reasoning behavior. Fallback to empty reasoning param.`)
@@ -505,6 +514,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
+  // Mistral Small models use reasoningEffort with 'none' | 'high'
+  if (modelId.includes('mistral-small-2603')) {
+    return { reasoningEffort: 'high' }
+  }
+
   // gemini series, openai compatible api
   if (isSupportedThinkingTokenGeminiModel(model)) {
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
@@ -681,11 +695,19 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
  *   Uses the new adaptive thinking API with effort-based control.
  * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
  *   Uses the classic thinking API with explicit token budget.
+ * - **Non-Anthropic models served via the Claude-compatible endpoint** (Kimi, MiniMax,
+ *   DeepSeek V4+, etc.): `{ thinking: { type: 'enabled', budgetTokens: number }, sendReasoning: true, effort? }`
+ *   `sendReasoning: true` ensures reasoning output is streamed back to the UI.
+ *   `effort` is only added for DeepSeek V4+ (`high` | `xhigh` → `high` | `max`).
  */
 export function getAnthropicReasoningParams(
   assistant: Assistant,
   model: Model
-): { thinking?: AnthropicProviderOptions['thinking']; effort?: Exclude<AnthropicProviderOptions['effort'], 'xhigh'> } {
+): {
+  thinking?: AnthropicProviderOptions['thinking']
+  effort?: AnthropicProviderOptions['effort']
+  sendReasoning?: AnthropicProviderOptions['sendReasoning']
+} {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -706,6 +728,24 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
+    // Claude 4.7: adaptive thinking + native 'xhigh' effort.
+    // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
+    // (no reasoning text in response), which would break Cherry's thinking UI.
+    if (isClaude47SeriesModel(model)) {
+      const effort47Map = {
+        default: undefined,
+        auto: undefined,
+        minimal: 'low',
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh'
+      } as const satisfies Record<Exclude<ReasoningEffortOption, 'none'>, AnthropicProviderOptions['effort']>
+      const effort = effort47Map[reasoningEffort]
+      const thinking = { type: 'adaptive', display: 'summarized' } as const
+      return effort ? { thinking, effort } : { thinking }
+    }
+
     // Claude 4.6 uses adaptive thinking + effort parameters
     // Map reasoningEffort to Claude 4.6 supported effort values
     if (isClaude46SeriesModel(model)) {
@@ -742,10 +782,33 @@ export function getAnthropicReasoningParams(
     // 其他使用claude端點的模型，比如Kimi,Minimax等等
     const { maxTokens } = getAssistantSettings(assistant)
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
+      thinking: {
+        type: 'enabled',
+        budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort)
+      },
+      sendReasoning: true
+    }
+    // https://api-docs.deepseek.com/guides/thinking_mode
+    // DeepSeek V4+ exposes only 'high' and 'xhigh' as user-facing effort levels
+    // (see MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4); default/none are already
+    // short-circuited earlier in this function. The explicit map avoids silently
+    // downgrading future levels (low/medium/auto) to 'high' — unmapped values are
+    // simply omitted so callers fall back to API defaults instead.
+    if (isDeepSeekV4PlusModel(model)) {
+      const deepSeekV4EffortMap = {
+        high: 'high',
+        xhigh: 'max'
+      } as const
+      const effort = deepSeekV4EffortMap[reasoningEffort as keyof typeof deepSeekV4EffortMap]
+      if (effort) {
+        params.effort = effort
+      }
+    }
     // Always include budgetTokens to prevent Claude Agent SDK from converting
     // { type: 'enabled' } into '--thinking adaptive', which non-Anthropic
     // upstream providers do not support (they only accept 'enabled'/'disabled').
-    return { thinking: { type: 'enabled', budgetTokens: budgetTokens ?? getFallbackBudgetTokens(reasoningEffort) } }
+    return params
   }
 }
 
@@ -908,8 +971,10 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Claude 4.6 uses adaptive thinking + maxReasoningEffort
-  if (isClaude46SeriesModel(model)) {
+  // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
+  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
+  // falls back to 'max' here (matches the 4.6 mapping).
+  if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',

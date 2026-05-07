@@ -374,6 +374,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   anthropic: [
     {
+      id: 'claude-opus-4-7',
+      provider: 'anthropic',
+      name: 'Claude Opus 4.7',
+      group: 'Claude 4.7'
+    },
+    {
       id: 'claude-opus-4-6',
       provider: 'anthropic',
       name: 'Claude Opus 4.6',
@@ -729,6 +735,14 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'moonshot',
       name: 'Kimi K2.5',
       group: 'Kimi K2.5',
+      owned_by: 'moonshot',
+      capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
+    },
+    {
+      id: 'kimi-k2.6',
+      provider: 'moonshot',
+      name: 'Kimi K2.6',
+      group: 'Kimi K2.6',
       owned_by: 'moonshot',
       capabilities: [{ type: 'text' }, { type: 'vision' }, { type: 'function_calling' }]
     },
