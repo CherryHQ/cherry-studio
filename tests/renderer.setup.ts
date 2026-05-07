@@ -150,6 +150,7 @@ vi.stubGlobal('api', {
 // Mock @cherrystudio/ui globally for renderer tests
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
+  const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   return {
     Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
       React.createElement(
@@ -210,6 +211,48 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
+    PopoverTrigger: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
+    PopoverContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    MenuList: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
+    MenuItem: ({ children, icon, label, onClick, ...props }) =>
+      React.createElement(
+        'button',
+        { ...props, type: 'button', onClick, 'data-testid': 'menu-item' },
+        icon,
+        label,
+        children
+      ),
+    Select: ({ children, value, onValueChange, ...props }) => {
+      return React.createElement(
+        SelectContext.Provider,
+        { value: { value, onValueChange } },
+        React.createElement('div', { ...props, 'data-testid': 'select', 'data-value': value }, children)
+      )
+    },
+    SelectTrigger: ({ children, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'select-trigger' }, children),
+    SelectValue: ({ children, placeholder, ...props }) =>
+      React.createElement('span', { ...props, 'data-testid': 'select-value' }, children ?? placeholder),
+    SelectContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'select-content' }, children),
+    SelectItem: ({ children, value, ...props }) => {
+      const context = React.useContext(SelectContext)
+      return React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          'data-testid': 'select-item',
+          'data-value': value,
+          onClick: () => context.onValueChange?.(value)
+        },
+        children
+      )
+    },
     Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
