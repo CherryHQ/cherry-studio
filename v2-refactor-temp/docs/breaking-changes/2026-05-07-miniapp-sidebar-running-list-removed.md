@@ -1,5 +1,5 @@
 ---
-title: 'Mini-app: running mini-apps no longer surface in the sidebar'
+title: 'Mini-app: running mini-apps strip removed from the sidebar (entry icon stays)'
 category: removed
 severity: notice
 introduced_in_pr: '#14049'
@@ -8,11 +8,20 @@ date: 2026-05-07
 
 ## What changed
 
-The sidebar no longer renders a list of currently-opened mini-apps under the
-mini-app entry. The setting that toggled this behavior
-(`feature.mini_app.show_opened_in_sidebar`, formerly `showOpenedMinappsInSidebar`
-in v1) is removed and is no longer migrated. Open mini-apps are surfaced
-exclusively in the AppShell tab bar at the top of the window.
+**Removed**: the strip of currently-opened mini-app icons that used to render
+**under** the mini-app entry in the sidebar (the `activeMiniAppTabs`
+mini-tab list) and the preference that toggled it
+(`feature.mini_app.show_opened_in_sidebar`, formerly
+`showOpenedMinappsInSidebar` in v1).
+
+**Kept**: the mini-app entry itself (the launchpad-style icon in the sidebar
+nav). Routing to `/app/mini-app`, the icon mapping, the default
+`ui.sidebar.icons.visible` membership, the SidebarIconsManager toggle, the
+i18n label, and the migration that rewrites the v1 sidebar literal
+`'minapp'` → `'mini_app'` are all unchanged.
+
+Switching between opened mini-apps now lives exclusively in the AppShell
+tab bar at the top of the window.
 
 ## Why this matters to the user
 
@@ -23,7 +32,7 @@ switches the same way the sidebar list used to imply.
 
 ## What the user should do
 
-Nothing required. The mini-app launcher still lives at the same sidebar entry
+Nothing required. The mini-app launcher entry still lives in the sidebar
 and opens each app in a tab. Users who want a particular mini-app to stay
 loaded should pin its tab from the top tab bar.
 
