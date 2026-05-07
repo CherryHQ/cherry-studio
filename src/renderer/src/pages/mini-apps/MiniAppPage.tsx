@@ -37,7 +37,7 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (isLoading) return
     if (error) {
-      logger.error('Failed to load mini apps', error instanceof DataApiError ? error : undefined)
+      logger.error('Failed to load mini apps', error instanceof Error ? error : new Error(String(error)))
       return
     }
     if (!app) return
