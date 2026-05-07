@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@cherrystudio/ui/components/primitives/table'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../primitives/table'
 
 afterEach(() => {
   cleanup()

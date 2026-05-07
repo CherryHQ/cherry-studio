@@ -1,3 +1,14 @@
+import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
+import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@cherrystudio/ui/components/primitives/table'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   type Cell,
   type ColumnDef,
@@ -9,11 +20,6 @@ import {
 } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import * as React from 'react'
-
-import { cn } from '../../../lib/utils'
-import { Checkbox } from '../../primitives/checkbox'
-import { RadioGroup, RadioGroupItem } from '../../primitives/radio-group'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../primitives/table'
 
 export type DataTableKey = React.Key
 

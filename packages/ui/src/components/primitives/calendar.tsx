@@ -1,3 +1,4 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import * as React from 'react'
 import {
@@ -9,7 +10,6 @@ import {
   type MonthCaptionProps
 } from 'react-day-picker'
 
-import { cn } from '../../lib/utils'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
