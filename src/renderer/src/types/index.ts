@@ -461,8 +461,56 @@ export interface VercelGatewayPainting {
   background?: string
   n?: number
   moderation?: string
-  metadata?: any
-  usage?: any
+  metadata?: {
+    xai: {
+      images: any[]
+      costInUsdTicks: number
+    }
+    gateway: {
+      routing: {
+        originalModelId: string
+        resolvedProvider: string
+        resolvedProviderApiModelId: string
+        fallbacksAvailable: any[]
+        planningReasoning: string
+        canonicalSlug: string
+        finalProvider: string
+        modelAttemptCount: number
+        modelAttempts: [
+          {
+            modelId: string
+            canonicalSlug: string
+            success: boolean
+            providerAttemptCount: number
+            providerAttempts: [
+              {
+                provider: string
+                internalModelId: string
+                providerApiModelId: string
+                credentialType: string
+                success: boolean
+                startTime: number
+                endTime: number
+                statusCode: number
+              }
+            ]
+          }
+        ]
+        totalProviderAttemptCount: number
+      }
+      cost: string
+      marketCost: string
+      inferenceCost: string
+      inputInferenceCost: string
+      outputInferenceCost: string
+      generationId: string
+    }
+  }
+  usage?: {
+    total_tokens: number
+    input_tokens: number
+    output_tokens: number
+  }
 }
 
 export interface OvmsPainting extends PaintingParams {

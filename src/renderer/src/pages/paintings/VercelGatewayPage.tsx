@@ -36,6 +36,39 @@ import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('VercelGatewayPage')
 
+const PaintingInfo = ({ painting }: { painting: VercelGatewayPainting }) => {
+  const { t } = useTranslation()
+
+  let duration = 'n/a'
+  try {
+    duration = painting.metadata
+      ? `${((painting.metadata.gateway.routing.modelAttempts[0].providerAttempts[0].endTime - painting.metadata.gateway.routing.modelAttempts[0].providerAttempts[0].startTime) / 1000).toFixed(2)}s`
+      : 'n/a'
+  } catch {}
+
+  const cost =
+    painting.metadata?.gateway?.cost || painting.metadata?.xai?.costInUsdTicks
+      ? Number(painting.metadata?.gateway?.cost || painting.metadata?.xai?.costInUsdTicks / 1000000).toFixed(4)
+      : 'n/a'
+
+  return (
+    <InfoContainer>
+      <InfoItem>
+        <InfoLabel>{t('paintings.model')}</InfoLabel>
+        <InfoValue>{painting.model}</InfoValue>
+      </InfoItem>
+      <InfoItem>
+        <InfoLabel>{t('agent.cherryClaw.tasks.logs.duration')}</InfoLabel>
+        <InfoValue>{duration}</InfoValue>
+      </InfoItem>
+      <InfoItem>
+        <InfoLabel>{t('models.price.cost')}</InfoLabel>
+        <InfoValue>{cost}</InfoValue>
+      </InfoItem>
+    </InfoContainer>
+  )
+}
+
 const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [models, setModels] = useState<typeof MODELS>(MODELS)
   const [selectedModel, setSelectedModel] = useState<(typeof MODELS)[0] | null>(MODELS[0])
@@ -391,36 +424,6 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
             ))}
           </Select>
           <div style={{ fontSize: 'small', marginTop: -8, marginLeft: 10 }}>{selectedModel?.name}</div>
-          {selectedModel && selectedModel.imageSizes && (
-            <>
-              <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SectionTitle>
-              <Select
-                style={{ width: '100%', marginBottom: 12 }}
-                value={painting.size || 'auto'}
-                onChange={(value) => updatePaintingState({ size: value })}>
-                {selectedModel.imageSizes.map((size) => (
-                  <Select.Option key={size.value} value={size.value}>
-                    {size.value}
-                  </Select.Option>
-                ))}
-              </Select>
-            </>
-          )}
-          {selectedModel && selectedModel.quality && (
-            <>
-              <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.quality')}</SectionTitle>
-              <Select
-                style={{ width: '100%', marginBottom: 12 }}
-                value={painting.quality || 'auto'}
-                onChange={(value) => updatePaintingState({ quality: value })}>
-                {selectedModel.quality.map((q) => (
-                  <Select.Option key={q.value} value={q.value}>
-                    {q.value}
-                  </Select.Option>
-                ))}
-              </Select>
-            </>
-          )}
           {selectedModel && selectedModel.background && (
             <>
               <SectionTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.background')}</SectionTitle>
@@ -447,6 +450,7 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
+          <PaintingInfo painting={painting} />
           <InputContainer>
             <Textarea
               ref={textareaRef}
@@ -485,6 +489,37 @@ const VercelGatewayPage: FC<{ Options: string[] }> = ({ Options }) => {
     </Container>
   )
 }
+
+const InfoContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+  padding: 6px 20px;
+  margin: 0 auto 20px auto;
+  border: 1px solid var(--color-border-soft);
+  transition: all 0.3s ease;
+  border-radius: 10px;
+  --artboard-max: calc(100vh - 256px);
+  width: var(--artboard-max);
+`
+
+const InfoItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+`
+
+const InfoLabel = styled.span`
+  font-size: 10px;
+  color: var(--color-text-secondary);
+`
+
+const InfoValue = styled.span`
+  font-size: 12px;
+  color: var(--color-text);
+  font-weight: 500;
+`
 
 const SectionTitle = styled.div`
   font-size: 14px;

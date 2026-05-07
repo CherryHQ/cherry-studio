@@ -4,19 +4,7 @@ import { uuid } from '@renderer/utils'
 export const SUPPORTED_MODELS = ['xai/grok-imagine-image', 'gptimage-1']
 
 export const MODELS_BASE = {
-  name: 'xai/grok-imagine-image',
   group: 'Vercel',
-  imageSizes: [
-    { value: 'auto' },
-    { value: '512x512' },
-    { value: '1024x1024' },
-    { value: '1536x1024' },
-    { value: '1024x1536' }
-  ],
-  max_images: 10,
-  quality: [{ value: 'auto' }, { value: 'high' }, { value: 'medium' }, { value: 'low' }],
-  moderation: [{ value: 'auto' }, { value: 'low' }],
-  output_compression_format: [{ value: 'jpeg' }, { value: 'webp' }],
   output_format: [{ value: 'image/png' }, { value: 'image/jpeg' }, { value: 'image/webp' }],
   background: [{ value: 'auto' }, { value: 'transparent' }, { value: 'opaque' }]
 }
@@ -160,15 +148,15 @@ export type VercelGatewayPaintingResponse = {
   }
   providerMetadata: {
     xai: {
-      images: [{}]
-      costInUsdTicks: 200000000
+      images: any[]
+      costInUsdTicks: number
     }
     gateway: {
       routing: {
         originalModelId: string
         resolvedProvider: string
         resolvedProviderApiModelId: string
-        fallbacksAvailable: []
+        fallbacksAvailable: any[]
         planningReasoning: string
         canonicalSlug: string
         finalProvider: string
