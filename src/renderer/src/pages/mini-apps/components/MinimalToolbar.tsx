@@ -4,7 +4,6 @@ import {
   CodeOutlined,
   ExportOutlined,
   LinkOutlined,
-  MinusOutlined,
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
@@ -14,7 +13,6 @@ import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { useNavigate } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -43,7 +41,6 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
-  const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
   const canPinned = allApps.some((item) => item.appId === app.appId)
@@ -211,10 +208,6 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
     }
   }, [app.appId, webviewRef, scheduleNavigationUpdate])
 
-  const handleMinimize = useCallback(() => {
-    void navigate({ to: '/app/mini-app' })
-  }, [navigate])
-
   const handleTogglePin = useCallback(() => {
     void updateAppStatus(app.appId, isPinned ? 'enabled' : 'pinned')
   }, [app.appId, isPinned, updateAppStatus])
@@ -307,12 +300,6 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               </ToolbarButton>
             </Tooltip>
           )}
-
-          <Tooltip content={t('miniapp.popup.minimize')} placement="bottom">
-            <ToolbarButton onClick={handleMinimize} aria-label={t('miniapp.popup.minimize')}>
-              <MinusOutlined />
-            </ToolbarButton>
-          </Tooltip>
         </ButtonGroup>
       </RightSection>
     </ToolbarContainer>
