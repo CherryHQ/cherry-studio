@@ -14,11 +14,17 @@ import type { OrderEndpoints } from './_endpointHelpers'
 /**
  * Zod schema for creating a new custom miniapp
  */
-export const CreateMiniAppSchema = z.object({
+export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: z.string().min(1),
-  logo: z.string().min(1),
+  // Logos are stored inline (data URLs / SVG / remote URLs) and end up in the
+  // SQLite row alongside the app metadata. Cap at 1 MiB to keep a runaway data
+  // URL from blowing up the row size and the SwR cache value.
+  logo: z
+    .string()
+    .min(1)
+    .max(1024 * 1024),
   bordered: z.boolean(),
   supportedRegions: z.array(MiniAppRegionSchema).min(1),
   background: z.string().nullable().optional(),
@@ -33,7 +39,7 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
  * (name/url/logo/...) are owned by the seeder and have no edit UI. Reordering
  * goes through the dedicated `/order` endpoints, not this PATCH.
  */
-export const UpdateMiniAppSchema = z.object({
+export const UpdateMiniAppSchema = z.strictObject({
   status: MiniAppStatusSchema.optional()
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
@@ -41,7 +47,7 @@ export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 /**
  * Query parameters for listing miniApps
  */
-export const ListMiniAppsQuerySchema = z.object({
+export const ListMiniAppsQuerySchema = z.strictObject({
   status: MiniAppStatusSchema.optional()
 })
 export type ListMiniAppsQuery = z.infer<typeof ListMiniAppsQuerySchema>
