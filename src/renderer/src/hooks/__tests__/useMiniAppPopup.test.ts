@@ -16,6 +16,17 @@ vi.mock('@renderer/services/NavigationService', () => ({
   }
 }))
 
+// useTabs is consumed by useMiniAppPopup to find AppShell tabs that pin a
+// miniapp route — pinned tabs are exempt from keep-alive eviction. The test
+// surface here doesn't exercise the AppShell tab system, so default to "no
+// pinned tabs"; the pinned-exemption test below overrides this per-test.
+const mockTabs = vi.hoisted(() => ({
+  tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>
+}))
+vi.mock('@renderer/hooks/useTabs', () => ({
+  useTabs: () => ({ tabs: mockTabs.tabs })
+}))
+
 // Import mocked modules
 import NavigationService from '@renderer/services/NavigationService'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
@@ -61,6 +72,7 @@ describe('useMiniAppPopup', () => {
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
     mockNavigate!.mockClear()
+    mockTabs.tabs = []
   })
 
   // === Basic Return Values ===
@@ -419,6 +431,82 @@ describe('useMiniAppPopup', () => {
       expect(list[0].appId).toBe('c')
       expect(mockClearWebviewState).toHaveBeenCalledWith('a')
       expect(mockClearWebviewState).toHaveBeenCalledWith('b')
+    })
+
+    // Regression for https://github.com/CherryHQ/cherry-studio/pull/14049 —
+    // before the fix, switching between miniapp tabs that the user had pinned
+    // in the AppShell tab bar would still evict them from keep-alive (the
+    // hook didn't know about pin status), so the side-bar mini-tab list
+    // collapsed to whatever cap was. Pinning is the user explicitly saying
+    // "keep this loaded"; the cap must respect that.
+    describe('pinned-tab exemption', () => {
+      it('should not evict a miniapp whose AppShell tab is pinned, even when over cap', async () => {
+        MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 3)
+        const seeded = [createMiniApp('pinA'), createMiniApp('pinB'), createMiniApp('pinC')]
+        MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, seeded)
+        // All three existing apps are pinned in the AppShell tab bar; the
+        // user is now opening a fourth. Old behavior shifted pinA out (oldest),
+        // dropping the count to cap=3. Expected behavior: keep all four, since
+        // pinA / pinB / pinC are pinned and exempt; the fourth fits even though
+        // we're over cap because there's nothing evictable.
+        mockTabs.tabs = [
+          { id: 't1', type: 'route', url: '/app/mini-app/pinA', isPinned: true },
+          { id: 't2', type: 'route', url: '/app/mini-app/pinB', isPinned: true },
+          { id: 't3', type: 'route', url: '/app/mini-app/pinC', isPinned: true }
+        ]
+
+        const { result } = renderHook(() => useTestMiniAppPopup())
+
+        await act(async () => {
+          result.current.openMiniApp(createMiniApp('newcomer'), true)
+        })
+
+        const list = getKeepAlive()
+        expect(list.map((a) => a.appId).sort()).toEqual(['newcomer', 'pinA', 'pinB', 'pinC'])
+        expect(mockClearWebviewState).not.toHaveBeenCalledWith('pinA')
+      })
+
+      it('should evict the oldest non-pinned entry when over cap and at least one is unpinned', async () => {
+        MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 3)
+        const seeded = [createMiniApp('pinA'), createMiniApp('floatB'), createMiniApp('pinC')]
+        MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, seeded)
+        // Only pinA and pinC are pinned. Opening newcomer pushes us to 4;
+        // floatB is the only evictable entry, so it goes.
+        mockTabs.tabs = [
+          { id: 't1', type: 'route', url: '/app/mini-app/pinA', isPinned: true },
+          { id: 't3', type: 'route', url: '/app/mini-app/pinC', isPinned: true }
+        ]
+
+        const { result } = renderHook(() => useTestMiniAppPopup())
+
+        await act(async () => {
+          result.current.openMiniApp(createMiniApp('newcomer'), true)
+        })
+
+        const list = getKeepAlive()
+        expect(list.map((a) => a.appId).sort()).toEqual(['newcomer', 'pinA', 'pinC'])
+        expect(mockClearWebviewState).toHaveBeenCalledWith('floatB')
+      })
+
+      it('should not trim pinned entries when the user lowers the cap', async () => {
+        MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.max_keep_alive', 1)
+        const initial = [createMiniApp('pinA'), createMiniApp('floatB'), createMiniApp('pinC')]
+        MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, initial)
+        mockTabs.tabs = [
+          { id: 't1', type: 'route', url: '/app/mini-app/pinA', isPinned: true },
+          { id: 't3', type: 'route', url: '/app/mini-app/pinC', isPinned: true }
+        ]
+
+        renderHook(() => useTestMiniAppPopup())
+
+        // Lowering cap to 1 normally trims to one survivor; with pin
+        // exemption the two pinned entries survive and floatB goes.
+        const list = getKeepAlive()
+        expect(list.map((a) => a.appId).sort()).toEqual(['pinA', 'pinC'])
+        expect(mockClearWebviewState).toHaveBeenCalledWith('floatB')
+        expect(mockClearWebviewState).not.toHaveBeenCalledWith('pinA')
+        expect(mockClearWebviewState).not.toHaveBeenCalledWith('pinC')
+      })
     })
   })
 })
