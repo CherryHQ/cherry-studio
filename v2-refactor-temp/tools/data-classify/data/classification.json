@@ -1888,9 +1888,9 @@
           "originalKey": "showOpenedMinappsInSidebar",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.mini_app.show_opened_in_sidebar"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "minappsOpenLinkExternal",

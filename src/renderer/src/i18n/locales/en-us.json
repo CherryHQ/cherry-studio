@@ -5103,8 +5103,6 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
-      "sidebar_description": "Show active mini apps in the sidebar",
-      "sidebar_title": "Sidebar Active Mini Apps Display",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },

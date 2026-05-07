@@ -17,7 +17,6 @@ const DEFAULT_MAX_KEEPALIVE = 3
 const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
-  const [showInSidebar, setShowInSidebar] = usePreference('feature.mini_app.show_opened_in_sidebar')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -79,14 +78,6 @@ const MiniAppDisplaySettings: FC = () => {
           />
           <span className="w-6 text-right text-[10px] text-muted-foreground/60">{maxKeepAlive}</span>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-foreground">{t('settings.miniapps.sidebar_title')}</span>
-          <span className="text-[10px] text-muted-foreground/60">{t('settings.miniapps.sidebar_description')}</span>
-        </div>
-        <Switch checked={showInSidebar} onCheckedChange={(v) => setShowInSidebar(v)} />
       </div>
     </div>
   )

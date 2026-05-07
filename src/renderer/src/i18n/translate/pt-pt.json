@@ -5099,8 +5099,6 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "sidebar_description": "Defina se os mini aplicativos ativos serão exibidos na barra lateral",
-      "sidebar_title": "Exibição de Mini Aplicativos Ativos na Barra Lateral",
       "title": "Configurações do Mini Aplicativo",
       "visible": "Mini Aplicativos Visíveis"
     },
