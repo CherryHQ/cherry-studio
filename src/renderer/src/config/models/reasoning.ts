@@ -656,7 +656,8 @@ export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
  */
 export const isDeepSeekV4PlusModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
-    const modelId = getLowerBaseModelName(model.id)
+    // Ignore routed provider suffix chains like :deepseek or :deepseek:together.
+    const modelId = getLowerBaseModelName(model.id).split(':', 1)[0]
     // Match deepseek-v{N} where N >= 4, with any optional suffix
     return /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/.test(modelId)
   })
