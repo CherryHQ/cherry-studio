@@ -68,7 +68,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                       e.stopPropagation()
                       onToggle(app)
                     }}
-                    className="opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100"
                     aria-label={tooltip}>
                     <Icon size={14} className="text-muted-foreground/60" />
                   </button>
