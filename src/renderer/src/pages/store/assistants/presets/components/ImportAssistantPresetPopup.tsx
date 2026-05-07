@@ -63,7 +63,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     setLoading(true)
     try {
-      let presets: AssistantPreset[] = []
+      // Imported JSON carries the v1 shape (`type`, `topics`, `regularPhrases`,
+      // `knowledge_bases`); decode loosely and adapt to v2 below.
+      let presets: Array<Record<string, unknown> & { name?: string; prompt?: string }> = []
 
       if (importType === 'url') {
         const response = await fetch(urlValue.trim())
@@ -85,7 +87,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           throw new Error(t('assistants.presets.import.error.invalid_format'))
         }
 
-        const newPreset: AssistantPreset = {
+        // legacy v1 shape — see AddAssistantPresetPopup for the same pattern.
+        const newPreset = {
           id: uuid(),
           name: preset.name,
           emoji: preset.emoji || '🤖',
@@ -97,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           messages: [],
           defaultModel: v1DefaultModel,
           regularPhrases: preset.regularPhrases || []
-        }
+        } as unknown as AssistantPreset
         addAssistantPreset(newPreset)
       }
 
@@ -105,7 +108,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       setTimeoutTimer('onFinish', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       setOpen(false)
-      resolve(presets)
+      resolve(presets as unknown as AssistantPreset[])
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     } finally {

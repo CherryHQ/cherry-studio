@@ -39,6 +39,9 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
   )
 
   const exportPreset = useCallback(async () => {
+    // Reads `regularPhrases` off the live v1 record; AssistantPreset's
+    // typing dropped it, but the underlying redux slice still carries it.
+    const legacy = preset as unknown as { regularPhrases?: unknown }
     const result = [
       {
         name: preset.name,
@@ -46,7 +49,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
         group: preset.group,
         prompt: preset.prompt,
         description: preset.description,
-        regularPhrases: preset.regularPhrases,
+        regularPhrases: legacy.regularPhrases,
         type: 'agent'
       }
     ]

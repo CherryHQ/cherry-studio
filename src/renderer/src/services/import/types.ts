@@ -1,4 +1,4 @@
-import type { Assistant, Topic } from '@renderer/types'
+import type { LegacyAssistant, Topic } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 
 /**
@@ -16,7 +16,7 @@ export interface ImportResult {
  */
 export interface ImportResponse {
   success: boolean
-  assistant?: Assistant
+  assistant?: LegacyAssistant
   topicsCount: number
   messagesCount: number
   error?: string

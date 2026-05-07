@@ -46,7 +46,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   // Normalize preset (full-record write) and assistant (partial PATCH) update
   // shapes to the same partial-patch contract that child panels expect.
   const updateAssistant: (patch: UpdateAssistantDto) => void = isAgent
-    ? (patch) => _useAgent.updateAssistantPreset({ ...(assistant as AssistantPreset), ...patch })
+    ? (patch) => _useAgent.updateAssistantPreset({ ...(assistant as AssistantPreset), ...patch } as AssistantPreset)
     : (patch) => void _useAssistant.updateAssistant(patch)
   const updateAssistantSettings = isAgent
     ? _useAgent.updateAssistantPresetSettings

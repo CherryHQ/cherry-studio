@@ -72,7 +72,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       return
     }
 
-    const _agent: AssistantPreset = {
+    // legacy v1 shape — slated for removal alongside the v1 presets slice;
+    // the slice still stores `knowledge_bases`, `type`, `topics`, `messages`
+    // even though v2 `AssistantPreset` has dropped them.
+    const _agent = {
       id: uuid(),
       name: values.name,
       knowledge_bases: values.knowledge_base_ids
@@ -84,7 +87,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       type: 'agent',
       topics: [],
       messages: []
-    }
+    } as unknown as AssistantPreset
 
     addAssistantPreset(_agent)
     resolve(_agent)

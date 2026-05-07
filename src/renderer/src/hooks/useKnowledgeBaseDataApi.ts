@@ -11,8 +11,8 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useKnowledgeBaseDataApi')
