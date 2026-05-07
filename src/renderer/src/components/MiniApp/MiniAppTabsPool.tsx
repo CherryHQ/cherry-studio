@@ -1,39 +1,43 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useTabs } from '@renderer/hooks/useTabs'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { useLocation } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useMemo, useRef } from 'react'
 import styled from 'styled-components'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
  * route changes for opened keep-alive miniapps. Mounted once at the AppShell
- * level so both sidebar and top-navbar modes share the same pool.
+ * level (outside any per-tab Router) so both sidebar and top-navbar modes
+ * share the same pool.
  *
  * Visibility:
- *  - The active app's webview is shown (display: inline-flex) when on the
- *    `/app/mini-app/<id>` detail route
+ *  - The active app's webview is shown (display: inline-flex) when the active
+ *    tab points at `/app/mini-app/<id>`
  *  - All other webviews stay mounted but display:none (keep-alive)
  */
 const logger = loggerService.withContext('MiniAppTabsPool')
 
 const MiniAppTabsPool: React.FC = () => {
   const { openedKeepAliveMiniApps, currentMiniAppId } = useMiniApps()
-  const location = useLocation()
+  // Read the active tab's URL from the v2 tabs cache. We can't use the
+  // `@tanstack/react-router` `useLocation` here — the Pool sits above the
+  // per-tab MemoryRouter, with no Router context.
+  const { tabs, activeTabId } = useTabs()
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
 
-  // Show only when on a specific miniapp detail route.
-  const shouldShow = (() => {
-    const pathname = location.pathname
-    if (pathname === '/app/mini-app') return false
-    if (!pathname.startsWith('/app/mini-app/')) return false
-    const parts = pathname.split('/').filter(Boolean) // ['app', 'mini-app', '<id>', ...]
+  // Show only when the active tab's URL points at a specific miniapp detail.
+  const shouldShow = useMemo(() => {
+    const url = tabs.find((t) => t.id === activeTabId)?.url ?? ''
+    if (url === '/app/mini-app') return false
+    if (!url.startsWith('/app/mini-app/')) return false
+    const parts = url.split('/').filter(Boolean) // ['app', 'mini-app', '<id>', ...]
     return parts.length >= 3
-  })()
+  }, [tabs, activeTabId])
 
   // Combine the list to render (preserve order)
   const apps = openedKeepAliveMiniApps
