@@ -17,7 +17,6 @@
 import type { Stats } from 'node:fs'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebDavConfig } from '@types'
 import type { S3Config } from '@types'
@@ -917,13 +916,13 @@ class BackupManager {
   }
 
   /**
-   * Create a empty restore data path, it will be reset after app relaunch
+   * Stage an empty Data directory; handleStartupRestore swaps it into place at the
+   * next launch, before any DB connection or window is created. Staging on every
+   * platform avoids the window between `fs.remove(Data)` and `app.relaunchApp()`
+   * during which libsql / MemoryService / KnowledgeService could checkpoint or
+   * recreate files under `Data/`.
    */
   public async resetData() {
-    if (!isWin) {
-      return await fs.remove(getDataPath()).catch(() => {})
-    }
-
     const dataRestorePath = getDataPath() + '.restore'
     await fs.remove(dataRestorePath).catch(() => {})
     await fs.ensureDir(dataRestorePath)
