@@ -97,6 +97,35 @@ function getIpcHandleHandler(service: SettingsWindowService, channel: string) {
   return call[1]
 }
 
+function mockManagedWindows({
+  mainWindow,
+  settingsWindow
+}: {
+  mainWindow: MockBrowserWindow
+  settingsWindow?: MockBrowserWindow
+}) {
+  windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
+    if (type === WindowType.Main) return [{ id: 'main-window-id' }]
+    if (type === WindowType.Settings && settingsWindow) return [{ id: 'settings-window-id' }]
+    return []
+  })
+  windowManagerMock.getWindow.mockImplementation((id: string) => {
+    if (id === 'main-window-id') return mainWindow
+    if (id === 'settings-window-id') return settingsWindow
+    return undefined
+  })
+  windowManagerMock.getWindowIdByWebContents.mockImplementation((sender: unknown) => {
+    if (sender === mainWindow.webContents) return 'main-window-id'
+    if (settingsWindow && sender === settingsWindow.webContents) return 'settings-window-id'
+    return null
+  })
+}
+
+function markMainWindowReady(service: SettingsWindowService, mainWindow: MockBrowserWindow) {
+  const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
+  return readyHandler({ sender: mainWindow.webContents })
+}
+
 describe('SettingsWindowService', () => {
   let service: SettingsWindowService
 
@@ -181,11 +210,7 @@ describe('SettingsWindowService', () => {
 
   it('queues in-app settings tabs until the main window registers its tab attach listener', () => {
     const mainWindow = createMockWindow()
-    windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
-      if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-      return []
-    })
-    windowManagerMock.getWindow.mockReturnValue(mainWindow)
+    mockManagedWindows({ mainWindow })
 
     const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
     openInAppHandler({ sender: createMockWindow().webContents }, '/settings/about')
@@ -193,9 +218,7 @@ describe('SettingsWindowService', () => {
     expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledOnce()
     expect(mainWindow.webContents.send).not.toHaveBeenCalled()
 
-    windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-id')
-    const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
-    expect(readyHandler({ sender: mainWindow.webContents })).toBe(true)
+    expect(markMainWindowReady(service, mainWindow)).toBe(true)
 
     expect(mainWindow.webContents.send).toHaveBeenCalledWith(
       IpcChannel.Tab_Attach,
@@ -208,15 +231,8 @@ describe('SettingsWindowService', () => {
 
   it('sends in-app settings tabs immediately after the main window is ready', () => {
     const mainWindow = createMockWindow()
-    windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
-      if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-      return []
-    })
-    windowManagerMock.getWindow.mockReturnValue(mainWindow)
-    windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-id')
-
-    const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
-    readyHandler({ sender: mainWindow.webContents })
+    mockManagedWindows({ mainWindow })
+    markMainWindowReady(service, mainWindow)
 
     const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
     openInAppHandler({ sender: createMockWindow().webContents }, '/settings/display')
@@ -233,20 +249,8 @@ describe('SettingsWindowService', () => {
   it('closes the settings sender after opening settings in the main app', () => {
     const mainWindow = createMockWindow()
     const settingsWindow = createMockWindow()
-    windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
-      if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-      if (type === WindowType.Settings) return [{ id: 'settings-window-id' }]
-      return []
-    })
-    windowManagerMock.getWindow.mockReturnValue(mainWindow)
-    windowManagerMock.getWindowIdByWebContents.mockImplementation((sender: unknown) => {
-      if (sender === mainWindow.webContents) return 'main-window-id'
-      if (sender === settingsWindow.webContents) return 'settings-window-id'
-      return null
-    })
-
-    const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
-    readyHandler({ sender: mainWindow.webContents })
+    mockManagedWindows({ mainWindow, settingsWindow })
+    markMainWindowReady(service, mainWindow)
 
     const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
     openInAppHandler({ sender: settingsWindow.webContents }, '/settings/provider')
@@ -256,19 +260,13 @@ describe('SettingsWindowService', () => {
 
   it('drops pending settings tabs when the main window is destroyed before it is ready', () => {
     const mainWindow = createMockWindow()
-    windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
-      if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-      return []
-    })
-    windowManagerMock.getWindow.mockReturnValue(mainWindow)
+    mockManagedWindows({ mainWindow })
 
     const openInAppHandler = getIpcHandleHandler(service, IpcChannel.SettingsWindow_OpenInApp)
     openInAppHandler({ sender: createMockWindow().webContents }, '/settings/about')
     getDestroyedListener()({ id: 'main-window-id', window: mainWindow })
 
-    windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window-id')
-    const readyHandler = getIpcHandleHandler(service, IpcChannel.Tab_AttachReady)
-    readyHandler({ sender: mainWindow.webContents })
+    markMainWindowReady(service, mainWindow)
 
     expect(mainWindow.webContents.send).not.toHaveBeenCalled()
   })
