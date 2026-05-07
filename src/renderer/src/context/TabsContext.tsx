@@ -87,28 +87,6 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   const pinnedTabsRef = useRef(pinnedTabs)
   pinnedTabsRef.current = pinnedTabs
 
-  // One-shot migration: a previous v2 build shipped mini-apps under
-  // `/app/minapp/*`; this PR renamed them to `/app/mini-app/*` and removed
-  // the old routes. Pinned tabs are persisted across upgrades, so a user
-  // with a pinned `/app/minapp/<id>` tab would land on a non-existent route
-  // after upgrade. Rewrite the URL once at app boot.
-  const migrationRanRef = useRef(false)
-  useEffect(() => {
-    if (migrationRanRef.current) return
-    if (!pinnedTabs) return
-    migrationRanRef.current = true
-    const needs = pinnedTabs.some((t) => /^\/app\/minapp(\/|$)/.test(t.url))
-    if (!needs) return
-    const migrated = pinnedTabs.map((t) => ({
-      ...t,
-      url: t.url.replace(/^\/app\/minapp(?=\/|$)/, '/app/mini-app')
-    }))
-    setPinnedTabsRaw(migrated)
-    logger.info('Migrated pinned tab URLs from /app/minapp to /app/mini-app', {
-      migrated: migrated.length - pinnedTabs.filter((t) => !/^\/app\/minapp(\/|$)/.test(t.url)).length
-    })
-  }, [pinnedTabs, setPinnedTabsRaw])
-
   // Wrap setter to support functional updates
   const setPinnedTabs = useCallback(
     (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
