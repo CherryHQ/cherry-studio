@@ -136,11 +136,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleMiniAppTabClick = useCallback(
     (tabId: string) => {
       const app = openedKeepAliveMiniApps.find((a) => a.appId === tabId)
-      if (app) {
-        openMiniAppKeepAlive(app)
-      }
+      if (!app) return
+      // Switch the AppShell tab to this mini-app's route — openTab reuses an
+      // existing tab when one matches the URL, so this also activates the
+      // matching top-bar tab.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: app.nameKey ? t(app.nameKey) : app.name,
+        icon: app.logo
+      })
+      openMiniAppKeepAlive(app)
     },
-    [openedKeepAliveMiniApps, openMiniAppKeepAlive]
+    [openedKeepAliveMiniApps, openMiniAppKeepAlive, openTab, t]
   )
 
   // Floating sidebar (hover reveal when hidden)
