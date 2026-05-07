@@ -180,6 +180,7 @@ export enum IpcChannel {
 
   // Tab
   Tab_Attach = 'tab:attach',
+  Tab_AttachReady = 'tab:attach-ready',
   Tab_Detach = 'tab:detach',
   Tab_MoveWindow = 'tab:move-window',
   Tab_TryAttach = 'tab:try-attach',

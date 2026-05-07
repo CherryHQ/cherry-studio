@@ -105,6 +105,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
   // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
+  const didNotifyAttachReady = useRef(false)
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLRUManager | null>(null)
@@ -448,7 +449,16 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       attachTab(tabData)
     }
 
-    return window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
+    const removeAttachRequest = window.electron.ipcRenderer.on(IpcChannel.Tab_Attach, handleAttachRequest)
+    if (!didNotifyAttachReady.current) {
+      didNotifyAttachReady.current = true
+      void window.electron.ipcRenderer.invoke(IpcChannel.Tab_AttachReady).catch((error) => {
+        didNotifyAttachReady.current = false
+        logger.warn('Failed to notify tab attach readiness', error as Error)
+      })
+    }
+
+    return removeAttachRequest
   }, [attachTab])
 
   /**

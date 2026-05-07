@@ -9,13 +9,14 @@ import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 
 const DEFAULT_SETTINGS_PATH = '/settings/provider'
-const ATTACH_TO_MAIN_DELAY_MS = 100
 
 @Injectable('SettingsWindowService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
 export class SettingsWindowService extends BaseService {
-  private readonly configuredWindowIds = new Set<string>()
+  private readonly mainWindowsReadyForTabAttach = new Set<string>()
+  private readonly pendingSettingsTabsByWindowId = new Map<string, Tab[]>()
+  private readonly settingsWindowCleanups = new Map<string, () => void>()
 
   protected async onInit() {
     const wm = application.get('WindowManager')
@@ -25,6 +26,20 @@ export class SettingsWindowService extends BaseService {
         this.setupSettingsWindow(id, window)
       })
     )
+    this.registerDisposable(
+      wm.onWindowDestroyedByType(WindowType.Main, ({ id }) => {
+        this.mainWindowsReadyForTabAttach.delete(id)
+        this.pendingSettingsTabsByWindowId.delete(id)
+      })
+    )
+    this.registerDisposable(() => {
+      for (const cleanup of this.settingsWindowCleanups.values()) {
+        cleanup()
+      }
+      this.settingsWindowCleanups.clear()
+      this.mainWindowsReadyForTabAttach.clear()
+      this.pendingSettingsTabsByWindowId.clear()
+    })
 
     this.ipcHandle(IpcChannel.SettingsWindow_Open, (_event, path?: unknown) => {
       return this.open(path)
@@ -32,6 +47,10 @@ export class SettingsWindowService extends BaseService {
 
     this.ipcHandle(IpcChannel.SettingsWindow_OpenInApp, (event, path?: unknown) => {
       return this.openInApp(path, event.sender)
+    })
+
+    this.ipcHandle(IpcChannel.Tab_AttachReady, (event) => {
+      return this.markMainWindowReadyForTabAttach(event.sender)
     })
   }
 
@@ -63,24 +82,27 @@ export class SettingsWindowService extends BaseService {
   }
 
   private setupSettingsWindow(windowId: string, window: BrowserWindow): void {
-    if (this.configuredWindowIds.has(windowId)) return
-    this.configuredWindowIds.add(windowId)
     window.setTitle('')
+    const webContents = window.webContents
 
-    const onClosed = () => {
-      this.configuredWindowIds.delete(windowId)
-    }
     const onPageTitleUpdated = (event: Electron.Event) => {
       event.preventDefault()
       window.setTitle('')
     }
+    let cleaned = false
+    const cleanup = () => {
+      if (cleaned) return
+      cleaned = true
+      window.off('closed', cleanup)
+      if (!webContents.isDestroyed()) {
+        webContents.off('page-title-updated', onPageTitleUpdated)
+      }
+      this.settingsWindowCleanups.delete(windowId)
+    }
 
-    window.once('closed', onClosed)
-    window.webContents.on('page-title-updated', onPageTitleUpdated)
-    this.registerDisposable(() => {
-      window.off('closed', onClosed)
-      window.webContents.off('page-title-updated', onPageTitleUpdated)
-    })
+    window.once('closed', cleanup)
+    webContents.on('page-title-updated', onPageTitleUpdated)
+    this.settingsWindowCleanups.set(windowId, cleanup)
   }
 
   private getWindowOptions(): Partial<WindowOptions> {
@@ -104,43 +126,44 @@ export class SettingsWindowService extends BaseService {
     const wm = application.get('WindowManager')
     const tab = this.createSettingsTab(path)
 
-    const sendToWindow = (window: BrowserWindow) => {
-      if (window.isDestroyed()) return
+    for (const windowInfo of wm.getWindowsByType(WindowType.Main)) {
+      this.sendOrQueueSettingsTab(windowInfo.id, tab)
+    }
+  }
 
-      if (window.webContents.isLoadingMainFrame()) {
-        window.webContents.once('did-finish-load', () => {
-          setTimeout(() => {
-            if (!window.isDestroyed()) {
-              window.webContents.send(IpcChannel.Tab_Attach, tab)
-            }
-          }, ATTACH_TO_MAIN_DELAY_MS)
-        })
-      } else {
-        setTimeout(() => {
-          if (!window.isDestroyed()) {
-            window.webContents.send(IpcChannel.Tab_Attach, tab)
-          }
-        }, ATTACH_TO_MAIN_DELAY_MS)
-      }
+  private markMainWindowReadyForTabAttach(sender: Electron.WebContents): boolean {
+    const wm = application.get('WindowManager')
+    const windowId = wm.getWindowIdByWebContents(sender)
+    if (!windowId || !wm.getWindowsByType(WindowType.Main).some((windowInfo) => windowInfo.id === windowId)) {
+      return false
     }
 
-    const sendToMainWindows = () => {
-      const mainWindows = wm.getWindowsByType(WindowType.Main)
-
-      for (const windowInfo of mainWindows) {
-        const window = wm.getWindow(windowInfo.id)
-        if (window) {
-          sendToWindow(window)
-        }
+    this.mainWindowsReadyForTabAttach.add(windowId)
+    const pendingTabs = this.pendingSettingsTabsByWindowId.get(windowId)
+    if (pendingTabs) {
+      this.pendingSettingsTabsByWindowId.delete(windowId)
+      for (const tab of pendingTabs) {
+        this.sendSettingsTabToMain(windowId, tab)
       }
     }
+    return true
+  }
 
-    if (wm.getWindowsByType(WindowType.Main).length === 0) {
-      setTimeout(sendToMainWindows, ATTACH_TO_MAIN_DELAY_MS)
+  private sendOrQueueSettingsTab(windowId: string, tab: Tab): void {
+    if (this.mainWindowsReadyForTabAttach.has(windowId)) {
+      this.sendSettingsTabToMain(windowId, tab)
       return
     }
 
-    sendToMainWindows()
+    const pendingTabs = this.pendingSettingsTabsByWindowId.get(windowId) ?? []
+    pendingTabs.push(tab)
+    this.pendingSettingsTabsByWindowId.set(windowId, pendingTabs)
+  }
+
+  private sendSettingsTabToMain(windowId: string, tab: Tab): void {
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (!window || window.isDestroyed()) return
+    window.webContents.send(IpcChannel.Tab_Attach, tab)
   }
 
   private createSettingsTab(path: string): Tab {
