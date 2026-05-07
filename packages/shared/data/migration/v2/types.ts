@@ -46,6 +46,8 @@ export interface MigrationProgress {
 export interface PrepareResult {
   success: boolean
   itemCount: number
+  /** Fatal reason when `success === false`. Non-fatal diagnostics belong in `warnings`. */
+  error?: string
   warnings?: string[]
 }
 

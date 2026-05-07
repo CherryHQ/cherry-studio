@@ -957,17 +957,6 @@
         "xhigh": "Extra hoch",
         "xhigh_description": "Extra hohes Denkvermögen"
       },
-      "regular_phrases": {
-        "add": "Phrase hinzufügen",
-        "contentLabel": "Inhalt",
-        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein. Sie können Variablen verwenden und dann die Tab-Taste drücken, um schnell zu Variablen zu navigieren und sie zu ändern. Zum Beispiel:\nPlanen Sie mir eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-        "delete": "Phrase löschen",
-        "deleteConfirm": "Möchten Sie diese Phrase wirklich löschen?",
-        "edit": "Phrase bearbeiten",
-        "title": "Häufig verwendete Phrasen",
-        "titleLabel": "Titel",
-        "titlePlaceholder": "Titel eingeben"
-      },
       "title": "Assistenteneinstellungen",
       "tool_use_mode": {
         "function": "Funktion",
@@ -5262,6 +5251,24 @@
       "enable_privacy_mode": "Fehlerberichte und Statistiken anonym senden",
       "title": "Datenschutzeinstellungen"
     },
+    "prompts": {
+      "add": "Prompt hinzufügen",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Prompt löschen",
+      "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
+      "edit": "Prompt bearbeiten",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "Prompt-Verwaltung",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5554,20 +5561,6 @@
       "page": "Seite umblättern",
       "select": "Auswählen",
       "title": "Schnellmenü"
-    },
-    "quickPhrase": {
-      "add": "Phrase hinzufügen",
-      "assistant": "Assistenten-Phrasen",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte Phrase-Inhalt eingeben, unterstützt Variablenverwendung, dann Tab-Taste zum schnellen Navigieren zu Variablen für Bearbeitung. Z.B.:\nPlanen Sie eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-      "delete": "Phrase löschen",
-      "deleteConfirm": "Gelöschte Phrase kann nicht wiederhergestellt werden. Fortfahren?",
-      "edit": "Phrase bearbeiten",
-      "global": "Globale Phrasen",
-      "locationLabel": "Position hinzufügen",
-      "title": "Schnellphrasen",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Bitte Phrasentitel eingeben"
     },
     "scheduledTasks": {
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",

@@ -957,17 +957,6 @@
         "xhigh": "Extra ridicat",
         "xhigh_description": "Raționament de nivel extra ridicat"
       },
-      "regular_phrases": {
-        "add": "Adaugă expresie",
-        "contentLabel": "Conținut",
-        "contentPlaceholder": "Te rugăm să introduci conținutul expresiei; poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} până la ${to} și trimite-o la ${email}.",
-        "delete": "Șterge expresia",
-        "deleteConfirm": "Ești sigur că vrei să ștergi această expresie?",
-        "edit": "Editează expresia",
-        "title": "Expresie uzuală",
-        "titleLabel": "Titlu",
-        "titlePlaceholder": "Introdu titlul"
-      },
       "title": "Setări asistent",
       "tool_use_mode": {
         "function": "Funcție",
@@ -5262,6 +5251,24 @@
       "enable_privacy_mode": "Raportare anonimă a erorilor și statisticilor",
       "title": "Setări confidențialitate"
     },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5554,20 +5561,6 @@
       "page": "Pagină",
       "select": "Selectează",
       "title": "Meniu rapid"
-    },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
     },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",

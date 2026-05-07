@@ -957,17 +957,6 @@
         "xhigh": "Extra High",
         "xhigh_description": "Extra high level reasoning"
       },
-      "regular_phrases": {
-        "add": "Add Phrase",
-        "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "Delete Phrase",
-        "deleteConfirm": "Are you sure to delete this phrase?",
-        "edit": "Edit Phrase",
-        "title": "Regular Phrase",
-        "titleLabel": "Title",
-        "titlePlaceholder": "Enter title"
-      },
       "title": "Assistant Settings",
       "tool_use_mode": {
         "function": "Function",
@@ -5262,6 +5251,24 @@
       "enable_privacy_mode": "Anonymous reporting of errors and statistics",
       "title": "Privacy Settings"
     },
+    "prompts": {
+      "add": "Add Prompt",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Delete Prompt",
+      "deleteConfirm": "The prompt will be permanently deleted. Continue?",
+      "edit": "Edit Prompt",
+      "errors": {
+        "createFailed": "Failed to create prompt",
+        "deleteFailed": "Failed to delete prompt",
+        "loadFailed": "Failed to load prompts",
+        "reorderFailed": "Failed to reorder prompts",
+        "updateFailed": "Failed to update prompt"
+      },
+      "title": "Prompt Management",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter prompt title"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5554,20 +5561,6 @@
       "page": "Page",
       "select": "Select",
       "title": "Quick Menu"
-    },
-    "quickPhrase": {
-      "add": "Add Phrase",
-      "assistant": "Assistant Phrases",
-      "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "Delete Phrase",
-      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
-      "edit": "Edit Phrase",
-      "global": "Global Phrases",
-      "locationLabel": "Add Location",
-      "title": "Quick Phrases",
-      "titleLabel": "Title",
-      "titlePlaceholder": "Please enter phrase title"
     },
     "scheduledTasks": {
       "description": "Manage scheduled tasks across all agents. Tasks run automatically on the configured schedule.",
