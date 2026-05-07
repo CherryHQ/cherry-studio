@@ -3,11 +3,10 @@ import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppModalProvider from '@renderer/components/AppModal'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { message } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { getToastUtilities, initMessageApi } from './toast'
+import { getToastUtilities, ToastViewport } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -35,16 +34,14 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [messageApi, messageContextHolder] = message.useMessage()
   const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
 
   useEffect(() => {
-    initMessageApi(messageApi)
     window.toast = getToastUtilities()
-  }, [messageApi])
+  }, [])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -97,7 +94,7 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   return (
     <>
       {children}
-      {messageContextHolder}
+      <ToastViewport />
       <AppModalProvider
         onReady={(modal) => {
           window.modal = modal

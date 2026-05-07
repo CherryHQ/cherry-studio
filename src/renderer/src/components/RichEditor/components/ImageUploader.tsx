@@ -1,13 +1,19 @@
-import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
-import { Input, Modal, Spin, Tabs, Upload } from 'antd'
-
-const { Dragger } = Upload
-import type { RcFile } from 'antd/es/upload'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Dropzone,
+  Input,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
+import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface ImageUploaderProps {
   /** Callback when image is selected/uploaded */
@@ -18,31 +24,7 @@ interface ImageUploaderProps {
   onClose: () => void
 }
 
-const TabContent = styled.div`
-  padding: 24px 0;
-  display: flex;
-  flex-direction: column;
-`
-
-const UrlInput = styled(Input)`
-  .ant-input {
-    padding: 12px 16px;
-    font-size: 14px;
-    border-radius: 4px;
-    border: 1px solid #dadce0;
-    transition: all 0.2s ease;
-    background: #ffffff;
-
-    &:hover {
-      border-color: #4285f4;
-    }
-
-    &:focus {
-      border-color: #4285f4;
-      box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3);
-    }
-  }
-`
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 // Function to convert file to base64 URL
 const convertFileToBase64 = (file: File): Promise<string> => {
@@ -65,23 +47,29 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
   const [urlInput, setUrlInput] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleFileSelect = async (file: RcFile) => {
+  const validateFile = (file: File) => {
+    const isImage = file.type.startsWith('image/')
+    if (!isImage) {
+      return t('richEditor.imageUploader.invalidType')
+    }
+
+    const isLt10M = file.size < MAX_IMAGE_SIZE
+    if (!isLt10M) {
+      return t('richEditor.imageUploader.tooLarge')
+    }
+
+    return null
+  }
+
+  const handleFileSelect = async (file: File) => {
+    const validationError = validateFile(file)
+    if (validationError) {
+      window.toast.error(validationError)
+      return
+    }
+
     try {
       setLoading(true)
-
-      // Validate file type
-      const isImage = file.type.startsWith('image/')
-      if (!isImage) {
-        window.toast.error(t('richEditor.imageUploader.invalidType'))
-        return false
-      }
-
-      // Validate file size (max 10MB)
-      const isLt10M = file.size / 1024 / 1024 < 10
-      if (!isLt10M) {
-        window.toast.error(t('richEditor.imageUploader.tooLarge'))
-        return false
-      }
 
       // Convert to base64 and call callback
       const base64Url = await convertFileToBase64(file)
@@ -93,8 +81,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     } finally {
       setLoading(false)
     }
-
-    return false // Prevent default upload
   }
 
   const handleUrlSubmit = () => {
@@ -120,82 +106,82 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     onClose()
   }
 
-  const tabItems = [
-    {
-      key: 'upload',
-      label: (
-        <div>
-          <UploadOutlined size={18} style={{ marginRight: 8 }} />
-          {t('richEditor.imageUploader.upload')}
-        </div>
-      ),
-      children: (
-        <TabContent>
-          <Dragger
-            accept="image/*"
-            showUploadList={false}
-            beforeUpload={handleFileSelect}
-            customRequest={() => {}} // Prevent default upload
-            disabled={loading}>
-            {loading ? (
-              <>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
-                <p className="ant-upload-text">{t('richEditor.imageUploader.uploading')}</p>
-                <p className="ant-upload-hint">{t('richEditor.imageUploader.processing')}</p>
-              </>
-            ) : (
-              <>
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined />
-                </p>
-                <p className="ant-upload-text">{t('richEditor.imageUploader.uploadText')}</p>
-                <p className="ant-upload-hint">{t('richEditor.imageUploader.uploadHint')}</p>
-              </>
-            )}
-          </Dragger>
-        </TabContent>
-      )
-    },
-    {
-      key: 'url',
-      label: (
-        <span>
-          <LinkOutlined style={{ marginRight: 8 }} />
-          {t('richEditor.imageUploader.embedLink')}
-        </span>
-      ),
-      children: (
-        <TabContent>
-          <Flex className="justify-center gap-3">
-            <UrlInput
-              placeholder={t('richEditor.imageUploader.urlPlaceholder')}
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onPressEnter={handleUrlSubmit}
-              prefix={<LinkOutlined style={{ color: '#999' }} />}
-              style={{ flex: 1 }}
-            />
-            <Button onClick={() => setUrlInput('')} className="border border-gray-300 bg-white text-gray-700">
-              {t('common.clear')}
-            </Button>
-            <Button color="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
-              {t('richEditor.imageUploader.embedImage')}
-            </Button>
-          </Flex>
-        </TabContent>
-      )
-    }
-  ]
-
   return (
-    <Modal
-      title={t('richEditor.imageUploader.title')}
-      open={visible}
-      onCancel={handleCancel}
-      footer={null}
-      width={600}
-      centered>
-      <Tabs defaultActiveKey="upload" items={tabItems} size="large" />
-    </Modal>
+    <Dialog open={visible} onOpenChange={(open) => !open && handleCancel()}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>{t('richEditor.imageUploader.title')}</DialogTitle>
+        </DialogHeader>
+
+        <Tabs defaultValue="upload" className="gap-4">
+          <TabsList>
+            <TabsTrigger value="upload">
+              <UploadCloud className="size-4" />
+              {t('richEditor.imageUploader.upload')}
+            </TabsTrigger>
+            <TabsTrigger value="url">
+              <Link className="size-4" />
+              {t('richEditor.imageUploader.embedLink')}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload" className="pt-2">
+            <Dropzone
+              accept={{ 'image/*': [] }}
+              disabled={loading}
+              maxFiles={1}
+              validator={(file) => {
+                const validationError = validateFile(file)
+                return validationError ? { code: 'image-validation-error', message: validationError } : null
+              }}
+              onDrop={(files) => {
+                const file = files[0]
+                if (file) {
+                  void handleFileSelect(file)
+                }
+              }}
+              onError={() => window.toast.error(t('richEditor.imageUploader.invalidType'))}
+              className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
+              <div className="flex flex-col items-center justify-center gap-2 text-center">
+                <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  {loading ? <LoaderCircle className="size-5 animate-spin" /> : <ImageUp className="size-5" />}
+                </div>
+                <div className="font-medium text-sm">
+                  {loading ? t('richEditor.imageUploader.uploading') : t('richEditor.imageUploader.uploadText')}
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  {loading ? t('richEditor.imageUploader.processing') : t('richEditor.imageUploader.uploadHint')}
+                </div>
+              </div>
+            </Dropzone>
+          </TabsContent>
+
+          <TabsContent value="url" className="pt-2">
+            <div className="flex items-center justify-center gap-3">
+              <div className="relative flex-1">
+                <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Input
+                  placeholder={t('richEditor.imageUploader.urlPlaceholder')}
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUrlSubmit()
+                    }
+                  }}
+                  className="pl-9"
+                />
+              </div>
+              <Button variant="outline" onClick={() => setUrlInput('')}>
+                {t('common.clear')}
+              </Button>
+              <Button onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
+                {t('richEditor.imageUploader.embedImage')}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   )
 }
