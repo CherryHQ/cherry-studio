@@ -24,6 +24,8 @@ import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/
 import type { MiniApp } from '@shared/data/types/miniapp'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
+import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
+
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 // Build lookup structures from the shared preset data (id -> appId mapping)
@@ -34,30 +36,18 @@ const builtinMiniAppDefaultSortOrder = new Map<string, number>(
 )
 
 /**
- * Strip null values from an object, converting them to undefined.
- * This bridges the gap between SQLite NULL and TypeScript optional fields.
- */
-function stripNulls<T extends Record<string, unknown>>(obj: T): { [K in keyof T]: Exclude<T[K], null> } {
-  const result = {} as Record<string, unknown>
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = value === null ? undefined : value
-  }
-  return result as { [K in keyof T]: Exclude<T[K], null> }
-}
-
-/**
  * Convert database row to MiniApp entity
  */
 function rowToMiniApp(row: MiniAppSelect): MiniApp {
-  const clean = stripNulls(row)
+  const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: clean.type,
     status: clean.status,
-    sortOrder: clean.sortOrder ?? 0,
+    sortOrder: row.sortOrder,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
-    createdAt: clean.createdAt ? new Date(clean.createdAt).toISOString() : undefined,
-    updatedAt: clean.updatedAt ? new Date(clean.updatedAt).toISOString() : undefined
+    createdAt: timestampToISO(clean.createdAt),
+    updatedAt: timestampToISO(clean.updatedAt)
   }
 }
 
@@ -79,8 +69,8 @@ function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect):
     supportedRegions: def.supportedRegions,
     configuration: undefined,
     nameKey: def.nameKey,
-    createdAt: dbRow?.createdAt ? new Date(dbRow.createdAt).toISOString() : undefined,
-    updatedAt: dbRow?.updatedAt ? new Date(dbRow.updatedAt).toISOString() : undefined
+    createdAt: timestampToISOOrUndefined(dbRow?.createdAt),
+    updatedAt: timestampToISOOrUndefined(dbRow?.updatedAt)
   }
 }
 

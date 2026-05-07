@@ -15,6 +15,7 @@ import JaJP from '../../renderer/src/i18n/translate/ja-jp.json'
 import ptPT from '../../renderer/src/i18n/translate/pt-pt.json'
 import roRO from '../../renderer/src/i18n/translate/ro-ro.json'
 import RuRu from '../../renderer/src/i18n/translate/ru-ru.json'
+import viVN from '../../renderer/src/i18n/translate/vi-vn.json'
 
 export const locales = Object.fromEntries(
   [
@@ -28,7 +29,8 @@ export const locales = Object.fromEntries(
     ['es-ES', esES],
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
-    ['ro-RO', roRO]
+    ['ro-RO', roRO],
+    ['vi-VN', viVN]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 

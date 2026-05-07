@@ -8,7 +8,6 @@
 import * as z from 'zod'
 
 import { type Assistant, AssistantSchema } from '../../types/assistant'
-import { AutoFields } from '../../types/index'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
@@ -16,19 +15,35 @@ import type { OffsetPaginationResponse } from '../apiTypes'
 // ============================================================================
 
 /**
+ * Mutable assistant fields — explicit whitelist of everything a client may write.
+ * Anything not listed here (id, createdAt, updatedAt, future auto-managed columns)
+ * is rejected at the API boundary by default.
+ */
+const ASSISTANT_MUTABLE_FIELDS = {
+  name: true,
+  prompt: true,
+  emoji: true,
+  description: true,
+  settings: true,
+  modelId: true,
+  mcpServerIds: true,
+  knowledgeBaseIds: true
+} as const
+
+/**
  * DTO for creating a new assistant.
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.omit(AutoFields).partial().required({ name: true })
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial().required({ name: true })
 export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
- * DTO for updating an existing assistant.
- * All fields optional, `id` excluded (comes from URL path).
+ * DTO for updating an existing assistant. All fields optional.
  * Relation arrays (mcpServerIds, knowledgeBaseIds), if provided, replace existing junction table rows.
+ * Update picks directly from the entity, not Create, so Create defaults do not bleed into partial updates.
  */
-export const UpdateAssistantSchema = AssistantSchema.omit(AutoFields).partial()
+export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS).partial()
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 /**
@@ -51,7 +66,7 @@ export type ListAssistantsQuery = z.infer<typeof ListAssistantsQuerySchema>
 /**
  * Assistant API Schema definitions
  */
-export interface AssistantSchemas {
+export type AssistantSchemas = {
   /**
    * Assistants collection endpoint
    * @example GET /assistants

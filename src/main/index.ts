@@ -19,8 +19,9 @@ import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 
-requireSingleInstance()
+// should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
+requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
 // Freeze the path registry — bootstrap() asserts this completed.

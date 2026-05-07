@@ -36,7 +36,9 @@
         "comingSoon": "Σύντομα διαθέσιμο",
         "connected": "Συνδεδεμένος",
         "connecting": "Σύνδεση",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Διαγραφή καναλιού \"{{name}}\";",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Συνδέστε τον πράκτορά σας σε πλατφόρμες μηνυμάτων.",
         "disconnected": "Αποσυνδέθηκε",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Κανάλια",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Προσθέστε λογαριασμό WeChat",
           "chatIds": "Επιτρεπόμενα Αναγνωριστικά Χρηστών",
@@ -211,6 +214,9 @@
         },
         "edit": "Επεξεργασία",
         "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Διάστημα σε λεπτά",
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
@@ -220,6 +226,7 @@
           "error": "Σφάλμα",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Αποτέλεσμα",
           "runAt": "Εκτελέστηκε στις",
           "running": "Τρέχει...",
@@ -1503,11 +1510,23 @@
     "bun_required_message": "Για τη λειτουργία του εργαλείου CLI πρέπει να εγκαταστήσετε το περιβάλλον Bun",
     "cli_tool": "Εργαλείο CLI",
     "cli_tool_placeholder": "Επιλέξτε το CLI εργαλείο που θέλετε να χρησιμοποιήσετε",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Προσαρμοσμένη διαδρομή",
     "custom_path_error": "Η ρύθμιση της προσαρμοσμένης διαδρομής τερματικού απέτυχε",
     "custom_path_required": "Αυτό το τερματικό απαιτεί τη ρύθμιση προσαρμοσμένης διαδρομής",
     "custom_path_set": "Η προσαρμοσμένη διαδρομή τερματικού ορίστηκε με επιτυχία",
     "description": "Εκκίνηση γρήγορα πολλών εργαλείων CLI κώδικα, για αύξηση της αποδοτικότητας ανάπτυξης",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Εισαγάγετε προσαρμοσμένες μεταβλητές περιβάλλοντος (μία ανά γραμμή, με τη μορφή: KEY=value)",
     "environment_variables": "Μεταβλητές περιβάλλοντος",
     "folder_placeholder": "Επιλέξτε κατάλογο εργασίας",
@@ -1517,21 +1536,28 @@
       "bun_required": "Παρακαλώ εγκαταστήστε πρώτα το περιβάλλον Bun πριν εκκινήσετε το εργαλείο CLI",
       "error": "Η εκκίνηση απέτυχε, παρακαλώ δοκιμάστε ξανά",
       "label": "Εκκίνηση",
+      "launched": "[to be translated]:Launched",
       "success": "Επιτυχής εκκίνηση",
       "validation_error": "Συμπληρώστε όλα τα υποχρεωτικά πεδία: εργαλείο CLI, μοντέλο και κατάλογος εργασίας"
     },
     "launching": "Εκκίνηση...",
     "model": "μοντέλο",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
     "model_required": "Επιλέξτε μοντέλο",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Επιλογή φακέλου",
     "set_custom_path": "Ρύθμιση προσαρμοσμένης διαδρομής τερματικού",
     "supported_providers": "υποστηριζόμενοι πάροχοι",
     "terminal": "τερματικό",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Επιλέξτε εφαρμογή τερματικού",
     "title": "Εργαλεία κώδικα",
     "update_options": "Ενημέρωση επιλογών",
-    "working_directory": "κατάλογος εργασίας"
+    "working_directory": "κατάλογος εργασίας",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "συμπεριληφθείς",
@@ -2471,9 +2497,7 @@
     "websearch": {
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
-      "rag": "Εκτελείται RAG...",
-      "rag_complete": "Διατηρούνται {{countAfter}} από τα {{countBefore}} αποτελέσματα...",
-      "rag_failed": "Το RAG απέτυχε, επιστρέφεται κενό αποτέλεσμα..."
+      "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
   "minapp": {
@@ -2535,6 +2559,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Προσθήκη παραμέτρων",
     "all": "Όλα",
     "custom_parameters": "Προσαρμοσμένοι παράμετροι",
@@ -2552,6 +2580,9 @@
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
     "invalid_model": "Μη έγκυρο μοντέλο",
     "json_parse_error": "Μη έγκυρη μορφή JSON",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {
@@ -3670,7 +3701,7 @@
         "title": "Λίστα Εφαρμογών Φιλτραρίσματος",
         "user_tips": {
           "mac": "Παρακαλώ εισαγάγετε το Bundle ID της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: com.google.Chrome, com.apple.mail κ.λπ.",
-          "windows": "Παρακαλώ εισαγάγετε το όνομα του εκτελέσιμου αρχείου της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: chrome.exe, weixin.exe, Cherry Studio.exe κ.λπ."
+          "windows": "Παρακαλώ εισαγάγετε το όνομα του εκτελέσιμου αρχείου της εφαρμογής, ένα ανά γραμμή, δεν γίνεται διάκριση πεζών/κεφαλαίων, υποστηρίζεται ασαφής αντιστοίχιση. Για παράδειγμα: chrome.exe, weixin.exe, CherryStudio.exe κ.λπ."
         }
       },
       "linux": {
@@ -3791,6 +3822,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3856,6 +3912,75 @@
     "channels": {
       "description": "Συνδέστε πράκτορες με πλατφόρμες μηνυμάτων όπως το Telegram, το Feishu, το Discord και άλλες.",
       "title": "Κανάλια"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5377,7 +5502,8 @@
         "documentation": "Δείτε την επίσημη τεκμηρίωση για περισσότερες λεπτομέρειες ρύθμισης:",
         "learn_more": "Μάθετε περισσότερα",
         "location": "Περιοχή",
-        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1",
+        "location_help": "Η περιοχή της υπηρεσίας Vertex AI, π.χ. us-central1. Αυτό το πεδίο δεν διαβάζεται από το JSON του Service Account και πρέπει να συμπληρωθεί χειροκίνητα.",
+        "location_placeholder": "Επιλέξτε περιοχή Vertex AI",
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5388,6 +5514,11 @@
           "client_email_placeholder": "Παρακαλώ εισάγετε το email πελάτη του λογαριασμού υπηρεσίας",
           "description": "Επαλήθευση με λογαριασμό υπηρεσίας, κατάλληλο για περιβάλλοντα όπου δεν είναι διαθέσιμο το ADC",
           "incomplete_config": "Παρακαλώ συμπληρώστε πρώτα πλήρως τις πληροφορίες του λογαριασμού υπηρεσίας",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON. Μετά την ανάλυση αποθηκεύονται μόνο τα project_id, client_email και private_key και το αρχικό JSON διαγράφεται.",
+          "json_input_placeholder": "Επικολλήστε το πλήρες περιεχόμενο κλειδιού JSON του Service Account",
+          "json_parse_error": "Αποτυχία ανάλυσης Service Account JSON. Παρακαλώ επιβεβαιώστε ότι η μορφή είναι σωστή.",
+          "json_parse_success": "Το Service Account JSON αναλύθηκε",
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
@@ -5607,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "Το RAG απέτυχε"
-          },
-          "info": {
-            "dimensions_auto_success": "Η αυτόματη λήψη διαστάσεων ήταν επιτυχής, οι διαστάσεις είναι {{dimensions}}"
-          },
           "method": {
             "cutoff": "Αποκοπή",
             "label": "Μέθοδος συμπίεσης",
-            "none": "Χωρίς συμπίεση",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Αριθμός αποσπασμάτων εγγράφου",
-              "tooltip": "Ο αναμενόμενος αριθμός αποσπασμάτων εγγράφου που θα εξαχθούν από κάθε αποτέλεσμα αναζήτησης· ο πραγματικός συνολικός αριθμός είναι αυτή η τιμή επί τον αριθμό των αποτελεσμάτων αναζήτησης"
-            }
+            "none": "Χωρίς συμπίεση"
           },
           "title": "Συμπίεση αποτελεσμάτων αναζήτησης"
         },

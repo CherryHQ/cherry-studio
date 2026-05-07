@@ -1,12 +1,13 @@
 import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
+import type { AgentChannelEntity as ChannelRow } from '@shared/data/api/schemas/agentChannels'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import type { ChannelConfig, ChannelRow } from '../../database/schema'
-import { channelService } from '../ChannelService'
 import type { ChannelAdapter } from './ChannelAdapter'
+import type { ChannelConfig } from './channelConfig'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 
@@ -60,22 +61,25 @@ class ChannelManager {
   }
 
   async start(): Promise<void> {
+    let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
-      const channels = await channelService.listChannels()
-      const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
-
-      // Lazy-load only the adapter modules needed for active channels
-      const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
-      await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
-
-      await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
-
-      logger.info('Channel manager started', { adapterCount: this.adapters.size })
+      channels = await channelService.listChannels()
     } catch (error) {
-      logger.error('Failed to start channel manager', {
+      logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
       })
+      return
     }
+
+    const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+
+    // Lazy-load only the adapter modules needed for active channels
+    const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
+    await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
+
+    await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
+
+    logger.info('Channel manager started', { adapterCount: this.adapters.size })
   }
 
   async stop(): Promise<void> {
@@ -162,16 +166,24 @@ class ChannelManager {
   }
 
   /** Disconnect the adapter for a single channel without reconnecting. */
-  async disconnectChannel(channelId: string): Promise<void> {
+  async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
+    const { suppressErrors = true } = options
     for (const [key, adapter] of this.adapters) {
-      if (adapter.channelId === channelId) {
-        await adapter.disconnect().catch((err) => {
+      if (adapter.channelId !== channelId) continue
+
+      try {
+        await adapter.disconnect()
+        this.adapters.delete(key)
+      } catch (err) {
+        if (suppressErrors) {
           logger.warn('Error disconnecting adapter', {
             key,
             error: err instanceof Error ? err.message : String(err)
           })
-        })
-        this.adapters.delete(key)
+          this.adapters.delete(key)
+          continue
+        }
+        throw err
       }
     }
   }
@@ -180,14 +192,18 @@ class ChannelManager {
    * Sync a single channel: disconnect its adapter (if any) and reconnect if active.
    * Use this instead of disconnectAgent() when only one channel changed.
    */
-  async syncChannel(channelId: string): Promise<void> {
-    await this.disconnectChannel(channelId)
+  async syncChannel(
+    channelId: string,
+    options: { awaitConnect?: boolean; strictDisconnect?: boolean } = {}
+  ): Promise<void> {
+    const { awaitConnect = false, strictDisconnect = false } = options
+    await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
 
     // Re-read from DB and reconnect if active
     const channel = await channelService.getChannel(channelId)
     if (channel && channel.isActive && channel.agentId) {
       await ensureAdapterLoaded(channel.type)
-      await this.connectChannelFromRow(channel)
+      await this.connectChannelFromRow(channel, { awaitConnect })
     }
   }
 
@@ -237,7 +253,7 @@ class ChannelManager {
     await this.syncChannel(channelId)
   }
 
-  private async connectChannelFromRow(row: ChannelRow): Promise<void> {
+  private async connectChannelFromRow(row: ChannelRow, options: { awaitConnect?: boolean } = {}): Promise<void> {
     const agentId = row.agentId
     if (!agentId) return
 
@@ -279,6 +295,9 @@ class ChannelManager {
             channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
+          adapter
+            .sendMessage(msg.chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .catch(() => {})
         })
       })
 
@@ -290,6 +309,9 @@ class ChannelManager {
             channelId: row.id,
             error: err instanceof Error ? err.message : String(err)
           })
+          adapter
+            .sendMessage(cmd.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+            .catch(() => {})
         })
       })
 
@@ -327,19 +349,31 @@ class ChannelManager {
         this.sendToRenderer(IpcChannel.Channel_StatusChange, status)
       })
 
-      // Register adapter immediately so it's discoverable, then connect in background.
-      // Network I/O (WebSocket handshake, HTTP auth) should not block startup.
+      // Register adapter immediately so it's discoverable. Callers can either
+      // await connect for strict workflows or leave it in the background.
       this.adapters.set(key, adapter)
-      adapter.connect().then(
-        () => logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type }),
-        (error) =>
+
+      const connect = async () => {
+        try {
+          await adapter.connect()
+          logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
+        } catch (error) {
+          this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,
             type: row.type,
             error: error instanceof Error ? error.message : String(error)
           })
-      )
+          throw error
+        }
+      }
+
+      if (options.awaitConnect) {
+        await connect()
+      } else {
+        void connect().catch(() => {})
+      }
     } catch (error) {
       logger.error('Failed to create channel adapter', {
         agentId,
@@ -347,6 +381,16 @@ class ChannelManager {
         type: row.type,
         error: error instanceof Error ? error.message : String(error)
       })
+      const errorStatus: ChannelStatusEvent = {
+        channelId: row.id,
+        connected: false,
+        error: error instanceof Error ? error.message : String(error)
+      }
+      this.channelStatuses.set(row.id, errorStatus)
+      this.sendToRenderer(IpcChannel.Channel_StatusChange, errorStatus)
+      if (options.awaitConnect) {
+        throw error
+      }
     }
   }
 }

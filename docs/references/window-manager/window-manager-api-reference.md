@@ -9,7 +9,7 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | Method | Layer | Signature | Description |
 |--------|-------|-----------|-------------|
 | `open` | **Consumer** | `(type: WindowType, args?: OpenWindowArgs) => string` | Lifecycle-aware open: singleton reuse, pool recycle, or fresh create per registry `lifecycle`. Returns window ID. |
-| `close` | **Consumer** | `(windowId: string) => boolean` | Lifecycle-aware release: destroys non-pooled windows, returns pooled windows to the pool (or destroys if over cap / pool suspended). |
+| `close` | **Consumer** | `(windowId: string) => boolean` | Lifecycle-aware release: destroys `default` and singleton-without-config windows; hides pooled / singleton-with-retention windows into the warmup state machine (GC destroys per config). |
 | `create` | Internal | `(type: WindowType, args?: OpenWindowArgs) => string` | Force fresh creation; throws if a singleton of this type already exists. Use only as a defensive assertion — consumer code should use `open()` + `onWindowCreatedByType` instead. |
 | `destroy` | Internal | `(windowId: string) => boolean` | Force destroy via `window.destroy()`, which skips the `close` event — and therefore skips the pool's `close` interception, bypassing pool recycling. Non-pooled windows: identical to `close()`. Pooled windows: use `suspendPool(type)` for pool-wide shutdown instead of destroying individual pooled windows. |
 
@@ -32,7 +32,7 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 |--------|-----------|-------------|
 | `wm.behavior.setHideOnBlur` | `(windowId: string, enabled: boolean) => void` | Override the declared `behavior.hideOnBlur` at runtime. `enabled: true` keeps auto-hide on; `enabled: false` suppresses (effectively "pinned"). No-op when the window type does not declare `behavior.hideOnBlur` (no listener to override). Override is cleared on window destroy and on pool `releaseToPool`. |
 | `wm.behavior.setAlwaysOnTop` | `(windowId: string, enabled: boolean) => void` | Toggle always-on-top using `level` / `relativeLevel` from `behavior.alwaysOnTop` (single source of truth). When neither is declared, `setAlwaysOnTop(enabled)` is called with no level — matching Electron's default. |
-| `wm.behavior.setMacShowInDockByType` | `(type: WindowType, value: boolean) => void` | Override `behavior.macShowInDock` for an entire type at runtime. Use this to express "app is entering / leaving tray mode": `(Main, false)` before `window.hide()` makes the Dock track the transition; `(Main, true)` before `window.show()` lifts the suppression. Keyed by type (not windowId) so it can be set BEFORE the first instance exists (e.g. tray-on-launch path). When multiple window types contribute (e.g. Main + DetachedTab), the Dock stays visible as long as any contributing type is alive — `wm.behavior.setMacShowInDockByType(Main, false)` will not hide the Dock if a DetachedTab window is still present. |
+| `wm.behavior.setMacShowInDockByType` | `(type: WindowType, value: boolean) => void` | Override `behavior.macShowInDock` for an entire type at runtime. Use this to express "app is entering / leaving tray mode": `(Main, false)` before `window.hide()` makes the Dock track the transition; `(Main, true)` before `window.show()` lifts the suppression. Keyed by type (not windowId) so it can be set BEFORE the first instance exists (e.g. tray-on-launch path). When multiple window types contribute (e.g. Main + SubWindow), the Dock stays visible as long as any contributing type is alive — `wm.behavior.setMacShowInDockByType(Main, false)` will not hide the Dock if a SubWindow is still present. |
 
 > No WM-level `setVisibleOnAllWorkspaces` is provided: its options differ per call in real usage (e.g. SelectionAction's full-screen show sequence), and WM has no state to maintain. Consumers call `window.setVisibleOnAllWorkspaces(enabled, options)` directly on the `BrowserWindow` instance. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter) for the decision rule.
 
@@ -62,13 +62,16 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 | `open<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `WindowManager_Reused` payload on reuse paths. |
 | `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never fires `Reused` (all create paths are fresh creation). |
 | `setInitData` | `(windowId: string, data: unknown) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
-| `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release. |
+| `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release; preserved on singleton hide. |
+| `pushInitData<T>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and fires `WindowManager_Reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
+| `pushInitDataToType<T>` | `(type: WindowType, data: T) => number` | Same as `pushInitData` but fans out to every live window of the given type. Returns the number of windows that received the event. Does not filter by visibility — idle pooled windows receive the payload too. |
 
 **Timing contract:**
 
 - **Cold start** (fresh creation): `createWindow` writes `initData` to the store synchronously before returning, so any `getInitData` invoke from the renderer (after React mounts) sees the fresh value. The renderer should use the [`useWindowInitData` hook](./window-manager-usage.md#renderer-usewindowinitdata-hook) — it handles the invoke on mount automatically.
 - **Reuse** (pool recycle / singleton reopen): `open()` simultaneously writes to the store AND fires `WindowManager_Reused` with the same payload. The `useWindowInitData` hook updates its state directly from the event payload — no round-trip.
 - **No initData** on a reuse call: the event is NOT fired. No "empty Reused" events — the hook therefore never needs a fallback invoke.
+- **Live update** (already-open window): call `pushInitData` / `pushInitDataToType` from any main-process service. Both paths reuse the `WindowManager_Reused` channel, so `useWindowInitData` picks up the new payload in-place with no remount — useful for "swap the visible window's context without `close()`+`open()` flicker". Unlike reuse, these methods forbid `undefined` payloads: pushing nothing has no meaningful semantics here.
 
 `webContents.send` is fire-and-forget and does not buffer messages sent before the renderer registers listeners. This is exactly why fresh windows can't use PUSH — they still must PULL via `getInitData` on mount.
 
@@ -79,7 +82,7 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 | `suspendPool` | `(type: WindowType) => number` | Suspend pool: destroy idle windows, disable pool tracking. Returns count destroyed. |
 | `resumePool` | `(type: WindowType) => void` | Resume pool: restore lifecycle behavior, trigger eager warmup if configured. |
 
-See [Suspend / Resume](./window-manager-pool-mechanics.md#suspend--resume) for semantics while suspended.
+See [Suspend / Resume](./window-manager-warmup-mechanics.md#suspend--resume) for semantics while suspended.
 
 ## Title Bar
 
@@ -91,7 +94,7 @@ See [Suspend / Resume](./window-manager-pool-mechanics.md#suspend--resume) for s
 
 All methods above are main-process APIs. WindowManager also exposes an IPC surface so the renderer can drive window operations for itself. Channel constants live in `packages/shared/IpcChannel.ts`; handlers are registered in `WindowManager.registerIpcHandlers()`.
 
-Preload only wraps `getInitData` as `window.api.windowManager.getInitData()`. The other channels are invoked directly via `window.electron.ipcRenderer.invoke(IpcChannel.WindowManager_*, ...)`. `WindowManager_Reused` is a push-only channel (main → renderer) — see [Pool Mechanics → `WindowManager_Reused` IPC](./window-manager-pool-mechanics.md#windowmanager_reused-ipc).
+Preload only wraps `getInitData` as `window.api.windowManager.getInitData()`. The other channels are invoked directly via `window.electron.ipcRenderer.invoke(IpcChannel.WindowManager_*, ...)`. `WindowManager_Reused` is a push-only channel (main → renderer) — see [Warmup Mechanics → `WindowManager_Reused` IPC](./window-manager-warmup-mechanics.md#windowmanager_reused-ipc).
 
 | Channel | Direction | Args | Effect |
 |---|---|---|---|

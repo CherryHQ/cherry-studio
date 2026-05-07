@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { WebSearchProvider } from '@renderer/types'
 
 import type BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -5,13 +6,12 @@ import BochaProvider from './BochaProvider'
 import DefaultProvider from './DefaultProvider'
 import ExaMcpProvider from './ExaMcpProvider'
 import ExaProvider from './ExaProvider'
-import LocalBaiduProvider from './LocalBaiduProvider'
-import LocalBingProvider from './LocalBingProvider'
-import LocalGoogleProvider from './LocalGoogleProvider'
 import QueritProvider from './QueritProvider'
 import SearxngProvider from './SearxngProvider'
 import TavilyProvider from './TavilyProvider'
 import ZhipuProvider from './ZhipuProvider'
+
+const logger = loggerService.withContext('WebSearchProviderFactory')
 
 export default class WebSearchProviderFactory {
   static create(provider: WebSearchProvider): BaseWebSearchProvider {
@@ -30,13 +30,8 @@ export default class WebSearchProviderFactory {
         return new ExaMcpProvider(provider)
       case 'querit':
         return new QueritProvider(provider)
-      case 'local-google':
-        return new LocalGoogleProvider(provider)
-      case 'local-baidu':
-        return new LocalBaiduProvider(provider)
-      case 'local-bing':
-        return new LocalBingProvider(provider)
       default:
+        logger.error('Unsupported web-search provider id', { providerId: provider.id })
         return new DefaultProvider(provider)
     }
   }

@@ -79,7 +79,9 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('packages/shared')
+            '@shared': resolve('packages/shared'),
+            '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }
         },
         test: {
@@ -109,6 +111,11 @@ export default defineConfig({
       // packages/ui 单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: {
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+          }
+        },
         test: {
           name: 'ui',
           environment: 'node',

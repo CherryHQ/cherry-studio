@@ -36,7 +36,9 @@
         "comingSoon": "即將推出",
         "connected": "已連線",
         "connecting": "連接",
+        "createError": "",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
+        "deleteError": "",
         "description": "將您的 Agent 連接到訊息平台。",
         "disconnected": "已中斷連線",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "頻道",
+        "updateError": "",
         "wechat": {
           "addAccount": "新增微信帳號",
           "chatIds": "允許的使用者 ID",
@@ -211,6 +214,9 @@
         },
         "edit": "編輯",
         "empty": "暫無排程任務。新增一個開始吧。",
+        "error": {
+          "loadFailed": ""
+        },
         "intervalPlaceholder": "間隔（分鐘）",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
@@ -220,6 +226,7 @@
           "error": "錯誤",
           "justNow": "剛剛",
           "label": "執行歷史",
+          "loadError": "",
           "result": "結果",
           "runAt": "執行時間",
           "running": "執行中...",
@@ -1503,11 +1510,23 @@
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "count_one": "{{count}} 個",
+    "count_other": "{{count}} 個",
     "custom_path": "自訂路徑",
     "custom_path_error": "設定自訂終端機路徑失敗",
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "empty": {
+      "no_match": {
+        "description": "嘗試調整搜尋關鍵字",
+        "title": "未找到符合的工具"
+      },
+      "no_tool": {
+        "description": "新增 CLI 工具或程式碼助理以開始使用",
+        "title": "尚無程式碼工具"
+      }
+    },
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
@@ -1517,21 +1536,28 @@
       "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
       "error": "啟動失敗，請重試",
       "label": "啟動",
+      "launched": "已啟動",
       "success": "啟動成功",
       "validation_error": "請完成所有必填欄位：CLI 工具、模型和工作目錄"
     },
     "launching": "啟動中...",
     "model": "模型",
+    "model_hint": "為 CLI 工具選擇要使用的 AI 模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
+    "official_tag": "官方",
+    "official_tools": "官方工具",
+    "search_placeholder": "搜尋 CLI 工具…",
     "select_folder": "選擇資料夾",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
     "terminal": "終端機",
+    "terminal_hint": "選擇執行命令的終端機應用程式",
     "terminal_placeholder": "選擇終端機應用程式",
     "title": "程式碼工具",
     "update_options": "更新選項",
-    "working_directory": "工作目錄"
+    "working_directory": "工作目錄",
+    "working_directory_hint": "CLI 工具啟動時的工作目錄"
   },
   "code_block": {
     "collapse": "收合",
@@ -2471,9 +2497,7 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
-      "rag": "正在執行 RAG...",
-      "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
-      "rag_failed": "RAG 失敗，回傳空結果..."
+      "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
   "minapp": {
@@ -2535,6 +2559,10 @@
     "zhihu": "知乎直答"
   },
   "models": {
+    "action": {
+      "pin": "置頂此模型",
+      "unpin": "取消置頂"
+    },
     "add_parameter": "新增參數",
     "all": "全部",
     "custom_parameters": "自訂參數",
@@ -2552,6 +2580,9 @@
     "function_calling": "函式呼叫",
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
+    "multi_select": {
+      "label": "多模型並行（與多助理互斥）"
+    },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -3670,7 +3701,7 @@
         "title": "應用篩選名單",
         "user_tips": {
           "mac": "請輸入應用程式的 Bundle ID（每行一個、不區分大小寫，可模糊比對）。例如：com.google.Chrome、com.apple.mail 等",
-          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、Cherry Studio.exe 等"
+          "windows": "請輸入應用程式的執行檔名稱（每行一個、不區分大小寫，可模糊比對）。例如：chrome.exe、weixin.exe、CherryStudio.exe 等"
         }
       },
       "linux": {
@@ -3791,6 +3822,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "新建智能體",
+      "empty_text": "暫無智能體",
+      "search_placeholder": "搜尋智能體…"
+    },
+    "assistant": {
+      "create_new": "新建助手",
+      "empty_text": "暫無助手",
+      "multi_hint": "（與多模型互斥）",
+      "multi_label": "多助手並行",
+      "search_placeholder": "搜尋助手…"
+    },
+    "common": {
+      "edit": "編輯",
+      "pin": "固定",
+      "pinned_title": "已固定",
+      "sort": {
+        "asc": "最早",
+        "desc": "最近"
+      },
+      "sort_label": "排序",
+      "unpin": "取消固定"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3856,6 +3912,75 @@
     "channels": {
       "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
+        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "智能體選擇器",
+        "triggerPlaceholder": "選擇智能體",
+        "valueProp": "目前 value"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "助手選擇器",
+        "triggerPlaceholder": "選擇助手",
+        "triggerSelectedCount": "已選 {{count}} 個助手",
+        "valueProp": "目前 value"
+      },
+      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "label": "元件測試",
+      "modelSelector": {
+        "behaviorConfig": "互動與顯示設定",
+        "callbackEmpty": "尚未收到元件回呼",
+        "clearSelection": "清空選擇",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "目前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
+        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在載入模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "正規化選中 ID",
+        "outputEmpty": "目前沒有可顯示的資料",
+        "provider": "服務商",
+        "resetOutputs": "重設輸出",
+        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
+        "resultsTitle": "返回資料與狀態",
+        "selected": "目前選擇",
+        "selectedEmpty": "尚未選擇模型",
+        "selectionConfig": "選擇值設定",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型物件",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型選擇元件",
+        "triggerPlaceholder": "選擇一個模型",
+        "triggerSelectedCount": "已選 {{count}} 個模型",
+        "valueProp": "目前傳入 value"
+      },
+      "title": "開發環境元件測試"
     },
     "data": {
       "app_data": {
@@ -5377,7 +5502,8 @@
         "documentation": "檢視官方文件以取得更多設定詳細資訊：",
         "learn_more": "瞭解更多",
         "location": "地區",
-        "location_help": "Vertex AI 服務地區，例如：us-central1",
+        "location_help": "Vertex AI 服務地區，例如：us-central1。此欄位不會從 Service Account JSON 自動帶入，需手動填寫。",
+        "location_placeholder": "選擇 Vertex AI 地區",
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5387,7 +5513,12 @@
           "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
           "client_email_placeholder": "輸入服務帳戶 client email",
           "description": "使用服務帳戶進行身份驗證，適用於 ADC 無法使用的環境",
-          "incomplete_config": "請先完成服務帳戶設定",
+          "incomplete_config": "請先完整填寫所有必需的 Vertex AI 設定",
+          "json_input": "Service Account JSON",
+          "json_input_help": "貼上完整 JSON 金鑰內容。解析後只會儲存 project_id、client_email 和 private_key，並清空原始 JSON。",
+          "json_input_placeholder": "貼上完整的 Service Account JSON 金鑰內容",
+          "json_parse_error": "解析 Service Account JSON 失敗，請確認格式正確",
+          "json_parse_success": "Service Account JSON 已解析",
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
@@ -5607,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG 失敗"
-          },
-          "info": {
-            "dimensions_auto_success": "維度自動取得成功，維度為 {{dimensions}}"
-          },
           "method": {
             "cutoff": "截斷",
             "label": "壓縮方法",
-            "none": "不壓縮",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "文件片段數量",
-              "tooltip": "預期從單個搜尋結果中提取的文件片段數量，實際提取的總數量是這個值乘以搜尋結果數量。"
-            }
+            "none": "不壓縮"
           },
           "title": "搜尋結果壓縮"
         },

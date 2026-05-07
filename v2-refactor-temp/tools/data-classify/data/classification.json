@@ -2849,7 +2849,7 @@
         {
           "originalKey": "defaultProvider",
           "type": "string",
-          "defaultValue": "local-bing",
+          "defaultValue": "",
           "status": "classified",
           "category": "preferences",
           "targetKey": null
@@ -2868,7 +2868,7 @@
           "defaultValue": true,
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.search_with_time"
         },
         {
           "originalKey": "maxResults",
@@ -2892,7 +2892,7 @@
           "defaultValue": [],
           "status": "classified",
           "category": "preferences",
-          "targetKey": null
+          "targetKey": "chat.web_search.subscribe_sources"
         },
         {
           "originalKey": "overwrite",
@@ -3475,8 +3475,8 @@
         },
         {
           "originalKey": "pinned:models",
-          "type": "unknown",
-          "defaultValue": null,
+          "type": "string[]",
+          "defaultValue": [],
           "status": "pending",
           "category": null,
           "targetKey": null

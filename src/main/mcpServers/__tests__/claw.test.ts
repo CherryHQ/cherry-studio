@@ -18,15 +18,22 @@ const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 
-vi.mock('@main/services/agents/services/TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     createTask: mockCreateTask,
     listTasks: mockListTasks,
     deleteTask: mockDeleteTask
   }
 }))
 
-vi.mock('@main/services/agents/services/AgentService', () => ({
+vi.mock('@data/services/AgentTaskWorkflowService', () => ({
+  agentTaskWorkflowService: {
+    createTask: mockCreateTask,
+    deleteTask: mockDeleteTask
+  }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent,
     updateAgent: mockUpdateAgent
@@ -48,11 +55,19 @@ vi.mock('qrcode', () => ({
   default: { toDataURL: mockQRCodeToDataURL }
 }))
 
-vi.mock('@main/services/agents/services/ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     listChannels: mockListChannels,
     createChannel: mockCreateChannel,
     getChannel: mockGetChannel,
+    updateChannel: mockUpdateChannel,
+    deleteChannel: mockDeleteChannel
+  }
+}))
+
+vi.mock('@data/services/AgentChannelWorkflowService', () => ({
+  agentChannelWorkflowService: {
+    createChannel: mockCreateChannel,
     updateChannel: mockUpdateChannel,
     deleteChannel: mockDeleteChannel
   }
@@ -109,7 +124,7 @@ describe('ClawServer', () => {
 
   describe('add action', () => {
     it('should create a task with cron schedule', async () => {
-      const task = { id: 'task_1', name: 'test', schedule_type: 'cron', schedule_value: '0 9 * * 1-5' }
+      const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_1')
@@ -123,14 +138,14 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', {
         name: 'Daily standup',
         prompt: 'Run standup check',
-        schedule_type: 'cron',
-        schedule_value: '0 9 * * 1-5'
+        scheduleType: 'cron',
+        scheduleValue: '0 9 * * 1-5'
       })
       expect(result.content[0].text).toContain('Job created')
     })
 
     it('should create a task with interval schedule', async () => {
-      const task = { id: 'task_2', name: 'check', schedule_type: 'interval', schedule_value: '30' }
+      const task = { id: 'task_2', name: 'check', scheduleType: 'interval', scheduleValue: '30' }
       mockCreateTask.mockResolvedValue(task)
 
       const server = createServer('agent_2')
@@ -144,8 +159,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith('agent_2', {
         name: 'Health check',
         prompt: 'Check system health',
-        schedule_type: 'interval',
-        schedule_value: '30'
+        scheduleType: 'interval',
+        scheduleValue: '30'
       })
     })
 
@@ -163,8 +178,8 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'interval',
-          schedule_value: '90'
+          scheduleType: 'interval',
+          scheduleValue: '90'
         })
       )
     })
@@ -183,7 +198,7 @@ describe('ClawServer', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
         expect.objectContaining({
-          schedule_type: 'once'
+          scheduleType: 'once'
         })
       )
     })
@@ -369,7 +384,7 @@ describe('ClawServer', () => {
         const result = await callTool(server, { action: 'status' }, 'config')
 
         const parsed = JSON.parse(result.content[0].text)
-        expect(parsed.agent_id).toBe('agent_1')
+        expect(parsed.agentId).toBe('agent_1')
         expect(parsed.model).toBe('claude-sonnet-4-20250514')
         expect(parsed.channels).toHaveLength(1)
         expect(parsed.channels[0].type).toBe('telegram')
@@ -432,7 +447,6 @@ describe('ClawServer', () => {
             isActive: true
           })
         )
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_new')
       })
 
       it('should error when type is missing', async () => {
@@ -498,9 +512,9 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('not saved')
         // Should have deleted the orphan channel
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // syncChannel for the initial add (fire-and-forget), disconnectChannel for orphan cleanup
+        // syncChannel for the initial add (fire-and-forget), deleteChannel for orphan cleanup
         expect(mockSyncChannel).toHaveBeenCalledTimes(1)
-        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_wc2')
+        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
       })
 
       it('should error when required config field is missing', async () => {
@@ -529,7 +543,6 @@ describe('ClawServer', () => {
 
         expect(result.content[0].text).toContain('updated and reloaded')
         expect(mockUpdateChannel).toHaveBeenCalledWith('ch_1', expect.objectContaining({ isActive: false }))
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {
@@ -561,7 +574,6 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('removed')
         expect(result.content[0].text).toContain('My Telegram')
         expect(mockDeleteChannel).toHaveBeenCalledWith('ch_1')
-        expect(mockDisconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {

@@ -61,21 +61,8 @@ const provider: ResolvedWebSearchProvider = {
   id: 'tavily',
   name: 'Tavily',
   type: 'api',
-  usingBrowser: false,
   apiKeys: ['key'],
   apiHost: 'https://api.tavily.com',
-  engines: [],
-  basicAuthUsername: '',
-  basicAuthPassword: ''
-}
-
-const localProvider: ResolvedWebSearchProvider = {
-  id: 'local-google',
-  name: 'Google',
-  type: 'local',
-  usingBrowser: true,
-  apiKeys: [],
-  apiHost: 'https://www.google.com/search?q=%s',
   engines: [],
   basicAuthUsername: '',
   basicAuthPassword: ''
@@ -86,12 +73,8 @@ const runtimeConfig: WebSearchExecutionConfig = {
   excludeDomains: [],
   compression: {
     method: 'none',
-    cutoffLimit: null,
-    cutoffUnit: 'char',
-    ragDocumentCount: 5,
-    ragEmbeddingModelId: null,
-    ragEmbeddingDimensions: null,
-    ragRerankModelId: null
+    cutoffLimit: 2000,
+    cutoffUnit: 'char'
   }
 }
 
@@ -139,29 +122,6 @@ describe('WebSearchService', () => {
     expect(setWebSearchStatusMock).toHaveBeenCalledTimes(1)
     expect(setWebSearchStatusMock).toHaveBeenNthCalledWith(1, expect.anything(), 'req-cutoff', { phase: 'cutoff' }, 500)
     expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-cutoff')
-  })
-
-  it('supports local providers through provider factory', async () => {
-    getProviderByIdMock.mockResolvedValue(localProvider)
-
-    const searchMock = vi.fn().mockResolvedValue({
-      query: 'hello',
-      results: []
-    } satisfies WebSearchResponse)
-
-    createWebSearchProviderMock.mockReturnValue({
-      search: searchMock
-    })
-
-    await webSearchService.search({
-      providerId: 'local-google',
-      questions: ['hello'],
-      requestId: 'req-local-provider'
-    })
-
-    expect(createWebSearchProviderMock).toHaveBeenCalledWith(localProvider)
-    expect(searchMock).toHaveBeenCalledTimes(1)
-    expect(clearWebSearchStatusMock).toHaveBeenCalledWith(expect.anything(), 'req-local-provider')
   })
 
   it('filters blacklisted results before post processing', async () => {

@@ -1,7 +1,7 @@
 import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
-import ModelSelector from '@renderer/components/ModelSelector'
+import ModelSelector from '@renderer/components/ModelSelectorLegacy'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'

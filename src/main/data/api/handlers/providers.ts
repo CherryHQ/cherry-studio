@@ -4,44 +4,29 @@
  * Implements all provider-related API endpoints including:
  * - Provider CRUD operations
  * - Listing with filters
- *
- * Runtime validation uses the ORM-derived Zod schema (userProviderInsertSchema)
- * so the DB table definition is the single source of truth.
  */
 
-import { userProviderInsertSchema } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
-import type { CreateProviderDto, UpdateProviderDto } from '@shared/data/api/schemas/providers'
-import type { ProviderSchemas } from '@shared/data/api/schemas/providers'
-import * as z from 'zod'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
+import {
+  AddProviderApiKeySchema,
+  CreateProviderSchema,
+  ListProvidersQuerySchema,
+  type ProviderSchemas,
+  UpdateProviderSchema
+} from '@shared/data/api/schemas/providers'
 
-/**
- * Handler type for a specific provider endpoint
- */
-type ProviderHandler<Path extends keyof ProviderSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-/**
- * Provider API handlers implementation
- */
-export const providerHandlers: {
-  [Path in keyof ProviderSchemas]: {
-    [Method in keyof ProviderSchemas[Path]]: ProviderHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
-      return await providerService.list(query ?? {})
+      const parsed = ListProvidersQuerySchema.parse(query ?? {})
+      return await providerService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const parsed = userProviderInsertSchema.safeParse(body)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
-      }
-      return await providerService.create(parsed.data as CreateProviderDto)
+      const parsed = CreateProviderSchema.parse(body)
+      return await providerService.create(parsed)
     }
   },
 
@@ -51,11 +36,8 @@ export const providerHandlers: {
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = userProviderInsertSchema.partial().safeParse(body)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.validation({ body: [parsed.error.message] })
-      }
-      return await providerService.update(params.providerId, parsed.data as UpdateProviderDto)
+      const parsed = UpdateProviderSchema.parse(body)
+      return await providerService.update(params.providerId, parsed)
     },
 
     DELETE: async ({ params }) => {
@@ -78,12 +60,8 @@ export const providerHandlers: {
     },
 
     POST: async ({ params, body }) => {
-      const AddApiKeySchema = z.object({ key: z.string().min(1), label: z.string().optional() })
-      const parsed = AddApiKeySchema.safeParse(body)
-      if (!parsed.success) {
-        throw DataApiErrorFactory.validation({ key: [parsed.error.issues[0]?.message ?? 'Invalid input'] })
-      }
-      return await providerService.addApiKey(params.providerId, parsed.data.key, parsed.data.label)
+      const parsed = AddProviderApiKeySchema.parse(body)
+      return await providerService.addApiKey(params.providerId, parsed.key, parsed.label)
     }
   },
 

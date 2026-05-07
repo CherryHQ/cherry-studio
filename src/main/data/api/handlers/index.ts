@@ -14,13 +14,17 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { agentChannelHandlers } from './agentChannels'
+import { agentHandlers } from './agents'
 import { assistantHandlers } from './assistants'
 import { fileProcessingHandlers } from './fileProcessing'
+import { groupHandlers } from './groups'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
 import { miniappHandlers } from './miniapps'
 import { modelHandlers } from './models'
+import { pinHandlers } from './pins'
 import { providerHandlers } from './providers'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
@@ -35,7 +39,9 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...agentHandlers,
   ...assistantHandlers,
+  ...agentChannelHandlers,
   ...fileProcessingHandlers,
   ...topicHandlers,
   ...messageHandlers,
@@ -46,5 +52,7 @@ export const apiHandlers: ApiImplementation = {
   ...translateHandlers,
   ...mcpServerHandlers,
   ...miniappHandlers,
-  ...tagHandlers
+  ...tagHandlers,
+  ...groupHandlers,
+  ...pinHandlers
 }

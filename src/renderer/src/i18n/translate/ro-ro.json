@@ -36,7 +36,9 @@
         "comingSoon": "În curând",
         "connected": "Conectat",
         "connecting": "Conectare",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Șterge canalul „{{name}}”?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Conectați agentul la platforme de mesagerie.",
         "disconnected": "Deconectat",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Canale",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "Adaugă cont WeChat",
           "chatIds": "ID-uri de utilizator permise",
@@ -211,6 +214,9 @@
         },
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
@@ -220,6 +226,7 @@
           "error": "Eroare",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Rezultat",
           "runAt": "Rulat la",
           "running": "Alergând...",
@@ -1503,11 +1510,23 @@
     "bun_required_message": "Mediul Bun este necesar pentru a rula instrumente CLI",
     "cli_tool": "Instrument CLI",
     "cli_tool_placeholder": "Selectează instrumentul CLI de utilizat",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Cale personalizată",
     "custom_path_error": "Nu s-a putut seta calea personalizată a terminalului",
     "custom_path_required": "Calea personalizată este necesară pentru acest terminal",
     "custom_path_set": "Calea personalizată a terminalului a fost setată cu succes",
     "description": "Lansează rapid mai multe instrumente CLI de cod pentru a îmbunătăți eficiența dezvoltării",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Introdu variabile de mediu personalizate (una pe rând, format: CHEIE=valoare)",
     "environment_variables": "Variabile de mediu",
     "folder_placeholder": "Selectează directorul de lucru",
@@ -1517,21 +1536,28 @@
       "bun_required": "Te rugăm să instalezi mai întâi mediul Bun înainte de a lansa instrumentele CLI",
       "error": "Lansarea a eșuat, te rugăm să încerci din nou",
       "label": "Lansează",
+      "launched": "[to be translated]:Launched",
       "success": "Lansare reușită",
       "validation_error": "Te rugăm să completezi toate câmpurile obligatorii: instrument CLI, model și director de lucru"
     },
     "launching": "Se lansează...",
     "model": "Model",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Selectează modelul de utilizat",
     "model_required": "Te rugăm să selectezi un model",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Selectează dosarul",
     "set_custom_path": "Setează calea personalizată a terminalului",
     "supported_providers": "Furnizori acceptați",
     "terminal": "Terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Selectează aplicația terminal",
     "title": "Instrumente de cod",
     "update_options": "Opțiuni de actualizare",
-    "working_directory": "Director de lucru"
+    "working_directory": "Director de lucru",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Restrânge",
@@ -2471,9 +2497,7 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
-      "rag": "Se execută RAG...",
-      "rag_complete": "Se păstrează {{countAfter}} din {{countBefore}} rezultate...",
-      "rag_failed": "RAG a eșuat, se returnează rezultate goale..."
+      "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
   "minapp": {
@@ -2535,6 +2559,10 @@
     "zhihu": "Zhihu"
   },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Adaugă parametru",
     "all": "Toate",
     "custom_parameters": "Parametri personalizați",
@@ -2552,6 +2580,9 @@
     "function_calling": "Apelare funcții",
     "invalid_model": "Model invalid",
     "json_parse_error": "Format JSON invalid",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Nu există modele disponibile",
     "parameter_name": "Nume parametru",
     "parameter_type": {
@@ -3670,7 +3701,7 @@
         "title": "Listă filtrare aplicații",
         "user_tips": {
           "mac": "Te rugăm să introduci Bundle ID-ul aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: com.google.Chrome, com.apple.mail etc.",
-          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, Cherry Studio.exe etc."
+          "windows": "Te rugăm să introduci numele fișierului executabil al aplicației, unul pe linie, nu este sensibil la majuscule/minuscule, poate fi potrivit aproximativ. De exemplu: chrome.exe, weixin.exe, CherryStudio.exe etc."
         }
       },
       "linux": {
@@ -3791,6 +3822,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3856,6 +3912,75 @@
     "channels": {
       "description": "Conectați agenți la platforme de mesagerie precum Telegram, Feishu, Discord și altele.",
       "title": "Canale"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5377,7 +5502,8 @@
         "documentation": "Vezi documentația oficială pentru mai multe detalii de configurare:",
         "learn_more": "Află mai multe",
         "location": "Locație",
-        "location_help": "Locația serviciului Vertex AI, de ex., us-central1",
+        "location_help": "Locația serviciului Vertex AI, de ex., us-central1. Acest câmp nu este citit din JSON-ul Service Account și trebuie introdus manual.",
+        "location_placeholder": "Selectează locația Vertex AI",
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
@@ -5388,6 +5514,11 @@
           "client_email_placeholder": "Introdu e-mailul clientului Contului de Serviciu",
           "description": "Folosește Contul de Serviciu pentru autentificare, potrivit pentru mediile unde ADC nu este disponibil",
           "incomplete_config": "Te rugăm să finalizezi mai întâi configurarea Contului de Serviciu",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Lipește conținutul complet al cheii JSON. După analiză, se salvează doar project_id, client_email și private_key, iar JSON-ul inițial este șters.",
+          "json_input_placeholder": "Lipește conținutul complet al cheii JSON pentru Service Account",
+          "json_parse_error": "Analizarea Service Account JSON a eșuat. Te rugăm să confirmi că formatul este corect.",
+          "json_parse_success": "Service Account JSON analizat",
           "private_key": "Cheie privată",
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
@@ -5607,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG eșuat"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensiuni obținute automat cu succes, dimensiuni: {{dimensions}}"
-          },
           "method": {
             "cutoff": "Trunchiere",
             "label": "Metodă compresie",
-            "none": "Niciuna",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Număr fragmente document",
-              "tooltip": "Numărul așteptat de fragmente de document de extras din fiecare rezultat al căutării; numărul total real de fragmente extrase este această valoare înmulțită cu numărul de rezultate ale căutării."
-            }
+            "none": "Niciuna"
           },
           "title": "Compresie rezultate căutare"
         },

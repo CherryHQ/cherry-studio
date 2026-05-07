@@ -1,10 +1,11 @@
 import type {
+  InferSharedCacheValue,
+  InferUseCacheValue,
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
-  UseCacheKey,
-  InferUseCacheValue,
   SharedCacheKey,
-  SharedCacheSchema
+  SharedCacheSchema,
+  UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSubscriber } from '@shared/data/cache/cacheTypes'
@@ -176,20 +177,23 @@ export const createMockCacheService = (
 
     // ============ Shared Cache (Type-safe) ============
 
-    getShared: vi.fn(<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined => {
+    getShared: vi.fn(<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
       const entry = sharedCache.get(key)
+      // For fixed schema keys, fall back to the schema default. Template
+      // instances miss this lookup at runtime and return undefined.
+      const fallback = DefaultSharedCache[key as keyof SharedCacheSchema] as InferSharedCacheValue<K> | undefined
       if (entry === undefined) {
-        return DefaultSharedCache[key]
+        return fallback
       }
       if (isExpired(entry)) {
         sharedCache.delete(key)
         notifySubscribers(key)
-        return DefaultSharedCache[key]
+        return fallback
       }
-      return entry.value
+      return entry.value as InferSharedCacheValue<K>
     }),
 
-    setShared: vi.fn(<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void => {
+    setShared: vi.fn(<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void => {
       const entry: CacheEntry = {
         value,
         expireAt: ttl ? Date.now() + ttl : undefined
@@ -225,61 +229,6 @@ export const createMockCacheService = (
     }),
 
     hasSharedTTL: vi.fn(<K extends SharedCacheKey>(key: K): boolean => {
-      const entry = sharedCache.get(key)
-      return entry?.expireAt !== undefined
-    }),
-
-    // ============ Shared Cache (Casual - Dynamic Keys) ============
-
-    getSharedCasual: vi.fn(<T>(key: string): T | undefined => {
-      const entry = sharedCache.get(key)
-      if (entry === undefined) {
-        return undefined
-      }
-      if (isExpired(entry)) {
-        sharedCache.delete(key)
-        notifySubscribers(key)
-        return undefined
-      }
-      return entry.value as T
-    }),
-
-    setSharedCasual: vi.fn(<T>(key: string, value: T, ttl?: number): void => {
-      const entry: CacheEntry = {
-        value,
-        expireAt: ttl ? Date.now() + ttl : undefined
-      }
-      sharedCache.set(key, entry)
-      notifySubscribers(key)
-    }),
-
-    hasSharedCasual: vi.fn((key: string): boolean => {
-      const entry = sharedCache.get(key)
-      if (entry === undefined) {
-        return false
-      }
-      if (isExpired(entry)) {
-        sharedCache.delete(key)
-        notifySubscribers(key)
-        return false
-      }
-      return true
-    }),
-
-    deleteSharedCasual: vi.fn((key: string): boolean => {
-      if (activeHookCounts.get(key)) {
-        console.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)
-        return false
-      }
-      const existed = sharedCache.has(key)
-      sharedCache.delete(key)
-      if (existed) {
-        notifySubscribers(key)
-      }
-      return true
-    }),
-
-    hasSharedTTLCasual: vi.fn((key: string): boolean => {
       const entry = sharedCache.get(key)
       return entry?.expireAt !== undefined
     }),
@@ -401,6 +350,17 @@ export const createMockCacheService = (
         sharedCacheReadyCallbacks.forEach((cb) => cb())
         sharedCacheReadyCallbacks.length = 0
       }
+    },
+
+    // Test scaffold: seed a shared cache entry with an arbitrary string key,
+    // bypassing SharedCacheKey type-safety. Used by setInitialState.
+    _setSharedEntry: (key: string, value: unknown, ttl?: number) => {
+      const entry: CacheEntry = {
+        value,
+        expireAt: ttl ? Date.now() + ttl : undefined
+      }
+      sharedCache.set(key, entry)
+      notifySubscribers(key)
     }
   }
 
@@ -460,12 +420,12 @@ export const MockCacheService = {
     }
 
     // ============ Shared Cache (Type-safe) ============
-    getShared<K extends SharedCacheKey>(key: K): SharedCacheSchema[K] | undefined {
-      return mockCacheService.getShared(key)
+    getShared<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+      return mockCacheService.getShared(key) as InferSharedCacheValue<K> | undefined
     }
 
-    setShared<K extends SharedCacheKey>(key: K, value: SharedCacheSchema[K], ttl?: number): void {
-      return mockCacheService.setShared(key, value, ttl)
+    setShared<K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K>, ttl?: number): void {
+      return mockCacheService.setShared(key, value as never, ttl)
     }
 
     hasShared<K extends SharedCacheKey>(key: K): boolean {
@@ -478,27 +438,6 @@ export const MockCacheService = {
 
     hasSharedTTL<K extends SharedCacheKey>(key: K): boolean {
       return mockCacheService.hasSharedTTL(key)
-    }
-
-    // ============ Shared Cache (Casual) ============
-    getSharedCasual<T>(key: string): T | undefined {
-      return mockCacheService.getSharedCasual(key) as T | undefined
-    }
-
-    setSharedCasual<T>(key: string, value: T, ttl?: number): void {
-      return mockCacheService.setSharedCasual(key, value, ttl)
-    }
-
-    hasSharedCasual(key: string): boolean {
-      return mockCacheService.hasSharedCasual(key)
-    }
-
-    deleteSharedCasual(key: string): boolean {
-      return mockCacheService.deleteSharedCasual(key)
-    }
-
-    hasSharedTTLCasual(key: string): boolean {
-      return mockCacheService.hasSharedTTLCasual(key)
     }
 
     // ============ Persist Cache ============
@@ -581,7 +520,7 @@ export const MockCacheUtils = {
       mockCacheService.setCasual(key, value, ttl)
     })
     state.shared?.forEach(([key, value, ttl]) => {
-      mockCacheService.setSharedCasual(key, value, ttl)
+      mockCacheService._setSharedEntry(key, value, ttl)
     })
     state.persist?.forEach(([key, value]) => {
       mockCacheService.setPersist(key, value)

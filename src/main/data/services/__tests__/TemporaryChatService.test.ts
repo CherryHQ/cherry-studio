@@ -96,17 +96,17 @@ describe('TemporaryChatService', () => {
   describe('return shape', () => {
     it('createTopic returns Topic with activeNodeId=null and ISO timestamps', async () => {
       // Note: we do NOT set assistantId here because FK enforcement is ON
-      // and the assistant table starts empty. The original test used FK OFF.
+      // and the assistant table starts empty.
       const topic = await service.createTopic({ name: 'hello' })
       expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.activeNodeId).toBeNull()
-      expect(topic.isPinned).toBe(false)
+      expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })
 
-    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=null', async () => {
+    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
       const topic = await service.createTopic({ name: 'T' })
       const snapshot = { id: 'mdl-1', name: 'GPT', provider: 'openai' }
       const msg = await service.appendMessage(topic.id, {
@@ -119,7 +119,7 @@ describe('TemporaryChatService', () => {
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
-      expect(msg.searchableText).toBeNull()
+      expect(msg.searchableText).toBe('')
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.modelSnapshot).toEqual(snapshot)
@@ -143,9 +143,11 @@ describe('TemporaryChatService', () => {
       const topic = await service.createTopic({ name: 'T' })
       await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = await service.listMessages(topic.id)
+      expect(list1).toHaveLength(1)
       const block = list1[0].data.blocks[0]
       if (block.type === BlockType.MAIN_TEXT) block.content = 'mutated'
       const list2 = await service.listMessages(topic.id)
+      expect(list2).toHaveLength(1)
       const fresh = list2[0].data.blocks[0]
       expect(fresh.type).toBe(BlockType.MAIN_TEXT)
       if (fresh.type === BlockType.MAIN_TEXT) {
@@ -192,6 +194,18 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', async () => {
       await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
+    })
+
+    it('persisted topic has a non-empty fractional-indexing orderKey', async () => {
+      // Regression guard: a refactor swapping insertWithOrderKey for plain
+      // tx.insert() would ship the row with orderKey = '' — silently breaks
+      // all subsequent reorders and the unpinned section's sort.
+      const topic = await service.createTopic({ name: 'with-key' })
+      await service.persist(topic.id)
+      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+      expect(dbTopic?.orderKey).toBeDefined()
+      expect(dbTopic?.orderKey).not.toBe('')
+      expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
     })
 
     // NOTE: The original "rollback on tx failure" test dropped the message

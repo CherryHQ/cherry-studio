@@ -36,7 +36,9 @@
         "comingSoon": "Demnächst verfügbar",
         "connected": "Verbunden",
         "connecting": "Verbinden",
+        "createError": "[to be translated]:Failed to create channel",
         "deleteConfirm": "Kanal „{{name}}“ löschen?",
+        "deleteError": "[to be translated]:Failed to delete channel",
         "description": "Verbinden Sie Ihren Agenten mit Messaging-Plattformen.",
         "disconnected": "Getrennt",
         "discord": {
@@ -121,6 +123,7 @@
           "title": "Telegram"
         },
         "title": "Kanäle",
+        "updateError": "[to be translated]:Failed to update channel",
         "wechat": {
           "addAccount": "WeChat-Konto hinzufügen",
           "chatIds": "Erlaubte Benutzer-IDs",
@@ -211,6 +214,9 @@
         },
         "edit": "Bearbeiten",
         "empty": "Keine geplanten Aufgaben. Fügen Sie eine hinzu, um zu beginnen.",
+        "error": {
+          "loadFailed": "[to be translated]:Failed to load tasks"
+        },
         "intervalPlaceholder": "Intervall in Minuten",
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
@@ -220,6 +226,7 @@
           "error": "Fehler",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
+          "loadError": "[to be translated]:Failed to load run history",
           "result": "Ergebnis",
           "runAt": "Ausgeführt am",
           "running": "Läuft...",
@@ -1503,11 +1510,23 @@
     "bun_required_message": "Bun-Umgebung erforderlich zum Ausführen von CLI-Tools",
     "cli_tool": "CLI-Tool",
     "cli_tool_placeholder": "CLI-Tool auswählen",
+    "count_one": "[to be translated]:{{count}} item",
+    "count_other": "[to be translated]:{{count}} items",
     "custom_path": "Benutzerdefinierter Pfad",
     "custom_path_error": "Benutzerdefinierten Terminalpfad festlegen fehlgeschlagen",
     "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
     "custom_path_set": "Benutzerdefinierter Terminalpfad erfolgreich festgelegt",
     "description": "Starten Sie schnell mehrere Code-CLI-Tools, um die Entwicklungseffizienz zu steigern",
+    "empty": {
+      "no_match": {
+        "description": "[to be translated]:Try adjusting your search terms",
+        "title": "[to be translated]:No matching tools found"
+      },
+      "no_tool": {
+        "description": "[to be translated]:Add a CLI tool or code assistant to get started",
+        "title": "[to be translated]:No code tools yet"
+      }
+    },
     "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
     "environment_variables": "Umgebungsvariablen",
     "folder_placeholder": "Arbeitsverzeichnis auswählen",
@@ -1517,21 +1536,28 @@
       "bun_required": "Bitte installieren Sie zuerst die Bun-Umgebung, bevor Sie CLI-Tools starten",
       "error": "Start fehlgeschlagen, bitte versuchen Sie es erneut",
       "label": "Starten",
+      "launched": "[to be translated]:Launched",
       "success": "Erfolgreich gestartet",
       "validation_error": "Bitte füllen Sie alle Pflichtfelder aus: CLI-Tool, Modell und Arbeitsverzeichnis"
     },
     "launching": "Wird gestartet...",
     "model": "Modell",
+    "model_hint": "[to be translated]:Choose which AI model the CLI tool should use",
     "model_placeholder": "Zu verwendendes Modell auswählen",
     "model_required": "Bitte Modell auswählen",
+    "official_tag": "[to be translated]:Official",
+    "official_tools": "[to be translated]:Official",
+    "search_placeholder": "[to be translated]:Search CLI tools…",
     "select_folder": "Ordner auswählen",
     "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
     "supported_providers": "Unterstützte Anbieter",
     "terminal": "Terminal",
+    "terminal_hint": "[to be translated]:Choose which terminal application to run the CLI in",
     "terminal_placeholder": "Terminal-Anwendung auswählen",
     "title": "Code-Tools",
     "update_options": "Update-Optionen",
-    "working_directory": "Arbeitsverzeichnis"
+    "working_directory": "Arbeitsverzeichnis",
+    "working_directory_hint": "[to be translated]:The working directory that the CLI tool launches in"
   },
   "code_block": {
     "collapse": "Einklappen",
@@ -2471,9 +2497,7 @@
     "websearch": {
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
-      "rag": "RAG wird ausgeführt...",
-      "rag_complete": "{{countAfter}} von {{countBefore}} Ergebnissen behalten...",
-      "rag_failed": "RAG fehlgeschlagen, leere Ergebnisse zurückgegeben..."
+      "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
   "minapp": {
@@ -2535,6 +2559,10 @@
     "zhihu": "Zhihu Zhida"
   },
   "models": {
+    "action": {
+      "pin": "[to be translated]:Pin this model",
+      "unpin": "[to be translated]:Unpin model"
+    },
     "add_parameter": "Parameter hinzufügen",
     "all": "Alle",
     "custom_parameters": "Benutzerdefinierte Parameter",
@@ -2552,6 +2580,9 @@
     "function_calling": "Funktionsaufruf",
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
+    "multi_select": {
+      "label": "[to be translated]:Multi-model parallel (mutually exclusive with multi-assistant)"
+    },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
     "parameter_type": {
@@ -3670,7 +3701,7 @@
         "title": "App-Filterliste anwenden",
         "user_tips": {
           "mac": "Bitte geben Sie die Bundle-ID der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: com.google.Chrome, com.apple.mail",
-          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, Cherry Studio.exe"
+          "windows": "Bitte geben Sie den ausführbaren Dateinamen der App ein, eine pro Zeile, Groß-/Kleinschreibung egal, unscharfe Übereinstimmung möglich. Z. B.: chrome.exe, weixin.exe, CherryStudio.exe"
         }
       },
       "linux": {
@@ -3791,6 +3822,31 @@
       }
     }
   },
+  "selector": {
+    "agent": {
+      "create_new": "[to be translated]:New Agent",
+      "empty_text": "[to be translated]:No agents yet",
+      "search_placeholder": "[to be translated]:Search agents…"
+    },
+    "assistant": {
+      "create_new": "[to be translated]:New Assistant",
+      "empty_text": "[to be translated]:No assistants yet",
+      "multi_hint": "[to be translated]:(mutually exclusive with multi-model)",
+      "multi_label": "[to be translated]:Multi-assistant parallel",
+      "search_placeholder": "[to be translated]:Search assistants…"
+    },
+    "common": {
+      "edit": "[to be translated]:Edit",
+      "pin": "[to be translated]:Pin",
+      "pinned_title": "[to be translated]:Pinned",
+      "sort": {
+        "asc": "[to be translated]:Oldest",
+        "desc": "[to be translated]:Recent"
+      },
+      "sort_label": "[to be translated]:Sort",
+      "unpin": "[to be translated]:Unpin"
+    }
+  },
   "settings": {
     "about": {
       "careers": {
@@ -3856,6 +3912,75 @@
     "channels": {
       "description": "Verbinden Sie Agenten mit Messaging-Plattformen wie Telegram, Feishu, Discord und vielen mehr.",
       "title": "Kanäle"
+    },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:AgentSelector now reads real /agents DataApi data to verify id/item selection, pinning, sorting, and search behavior.",
+        "emptyShellNotice": "[to be translated]:This preview uses the real agent list returned by /agents DataApi.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Agent Selector",
+        "triggerPlaceholder": "[to be translated]:Select an agent",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "assistantSelector": {
+        "clearSelection": "[to be translated]:Clear",
+        "configDescription": "[to be translated]:Toggle props to preview component behavior",
+        "configTitle": "[to be translated]:Config",
+        "currentProps": "[to be translated]:Current props",
+        "description": "[to be translated]:Mounts the AssistantSelector business component directly to verify multi/single, id/item, pin, sort, and search behavior.",
+        "lastOnChange": "[to be translated]:Latest onChange",
+        "previewDescription": "[to be translated]:Click the trigger to open the selector",
+        "previewTitle": "[to be translated]:Preview",
+        "title": "[to be translated]:Assistant Selector",
+        "triggerPlaceholder": "[to be translated]:Select an assistant",
+        "triggerSelectedCount": "[to be translated]:{{count}} assistants selected",
+        "valueProp": "[to be translated]:Current value"
+      },
+      "description": "[to be translated]:Visible only in development for testing the new model selector directly inside the app.",
+      "label": "[to be translated]:Component Lab",
+      "modelSelector": {
+        "behaviorConfig": "[to be translated]:Behavior & Display Config",
+        "callbackEmpty": "[to be translated]:No component callback received yet",
+        "clearSelection": "[to be translated]:Clear Selection",
+        "configDescription": "[to be translated]:Toggle the key ModelSelector props above and inspect the input value plus callback payloads below.",
+        "configTitle": "[to be translated]:Props Playground",
+        "controlMultiSelectMode": "[to be translated]:Controlled multiSelectMode",
+        "currentProps": "[to be translated]:Current Props",
+        "defaultMultiSelectMode": "[to be translated]:defaultMultiSelectMode",
+        "description": "[to be translated]:This page mounts the current ModelSelector business component directly so we can verify selection, filtering, search, and pinning behavior.",
+        "empty": "[to be translated]:No models are currently available, so the selector cannot be displayed yet.",
+        "lastModeChangeReturn": "[to be translated]:Latest onMultiSelectModeChange Return",
+        "lastSelectReturn": "[to be translated]:Latest onSelect Return",
+        "loading": "[to be translated]:Loading models...",
+        "modelId": "[to be translated]:Model ID",
+        "multiSelectMode": "[to be translated]:multiSelectMode",
+        "multiple": "[to be translated]:multiple",
+        "normalizedIds": "[to be translated]:Normalized Selected IDs",
+        "outputEmpty": "[to be translated]:No data to display yet",
+        "provider": "[to be translated]:Provider",
+        "resetOutputs": "[to be translated]:Reset Outputs",
+        "resultsDescription": "[to be translated]:This shows the current value prop, the normalized selected ids, and the latest callback output from the component.",
+        "resultsTitle": "[to be translated]:Outputs & State",
+        "selected": "[to be translated]:Current Selection",
+        "selectedEmpty": "[to be translated]:No model selected yet",
+        "selectionConfig": "[to be translated]:Selection Value Config",
+        "selectionType": "[to be translated]:selectionType",
+        "selectionTypeId": "[to be translated]:Return Model IDs",
+        "selectionTypeModel": "[to be translated]:Return Model Objects",
+        "showPinnedModels": "[to be translated]:showPinnedModels",
+        "showTagFilter": "[to be translated]:showTagFilter",
+        "title": "[to be translated]:Model Selector",
+        "triggerPlaceholder": "[to be translated]:Select a model",
+        "triggerSelectedCount": "[to be translated]:{{count}} models selected",
+        "valueProp": "[to be translated]:Current Value Prop"
+      },
+      "title": "[to be translated]:Development Component Lab"
     },
     "data": {
       "app_data": {
@@ -5377,7 +5502,8 @@
         "documentation": "Offizielle Dokumentation für weitere Konfigurationsdetails ansehen:",
         "learn_more": "Mehr erfahren",
         "location": "Region",
-        "location_help": "Vertex AI-Serviceregion, z.B. us-central1",
+        "location_help": "Vertex AI-Serviceregion, z.B. us-central1. Dieses Feld wird nicht aus dem Service Account JSON gelesen und muss manuell eingegeben werden.",
+        "location_placeholder": "Vertex AI-Region auswählen",
         "project_id": "Projekt-ID",
         "project_id_help": "Ihre Google Cloud Projekt-ID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -5388,6 +5514,11 @@
           "client_email_placeholder": "Service Account-Client-E-Mail eingeben",
           "description": "Authentifizierung mit Service Account, geeignet für Umgebungen, in denen ADC nicht verwendet werden kann",
           "incomplete_config": "Bitte zuerst vollständig Service Account-Informationen konfigurieren",
+          "json_input": "Service Account JSON",
+          "json_input_help": "Fügen Sie den vollständigen JSON-Schlüsselinhalt ein. Nach dem Parsen werden nur project_id, client_email und private_key gespeichert, und das rohe JSON wird gelöscht.",
+          "json_input_placeholder": "Vollständigen Service Account JSON-Schlüsselinhalt einfügen",
+          "json_parse_error": "Service Account JSON konnte nicht geparst werden. Bitte prüfen Sie, ob das Format korrekt ist.",
+          "json_parse_success": "Service Account JSON geparst",
           "private_key": "Privater Schlüssel",
           "private_key_help": "private_key-Feld aus der JSON-Schlüsseldatei aus Google Cloud Console",
           "private_key_placeholder": "Service Account-Privat-Schlüssel eingeben",
@@ -5607,23 +5738,10 @@
               "token": "Token"
             }
           },
-          "error": {
-            "rag_failed": "RAG fehlgeschlagen"
-          },
-          "info": {
-            "dimensions_auto_success": "Dimensionen automatisch erfolgreich abgerufen, Dimensionen sind {{dimensions}}"
-          },
           "method": {
             "cutoff": "Abschneiden",
             "label": "Kompressionsmethode",
-            "none": "Nicht komprimieren",
-            "rag": "RAG"
-          },
-          "rag": {
-            "document_count": {
-              "label": "Anzahl Dokumentfragmente",
-              "tooltip": "Die erwartete Anzahl von Dokumentfragmenten, die aus einem einzelnen Suchergebnis extrahiert werden, ist dieser Wert multipliziert mit der Anzahl der Suchergebnisse."
-            }
+            "none": "Nicht komprimieren"
           },
           "title": "Suchergebnis-Kompression"
         },

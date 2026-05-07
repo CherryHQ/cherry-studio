@@ -19,20 +19,7 @@ import type {
   ReasoningConfig,
   RuntimeModelPricing
 } from '@shared/data/types/model'
-import {
-  ENDPOINT_TYPE,
-  MODALITY,
-  MODEL_CAPABILITY,
-  objectValues,
-  ParameterSupportDbSchema,
-  ReasoningConfigSchema,
-  RuntimeModelPricingSchema
-} from '@shared/data/types/model'
 import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-import { createSchemaFactory } from 'drizzle-zod'
-import * as z from 'zod'
-
-const { createInsertSchema, createSelectSchema } = createSchemaFactory({ zodInstance: z })
 
 import { createUpdateTimestamps } from './_columnHelpers'
 import { userProviderTable } from './userProvider'
@@ -169,20 +156,6 @@ export const userModelTable = sqliteTable(
 // Export table type
 export type UserModel = typeof userModelTable.$inferSelect
 export type NewUserModel = typeof userModelTable.$inferInsert
-
-const jsonColumnOverrides = {
-  capabilities: () => z.array(z.enum(objectValues(MODEL_CAPABILITY))).nullable(),
-  inputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
-  outputModalities: () => z.array(z.enum(objectValues(MODALITY))).nullable(),
-  endpointTypes: () => z.array(z.enum(objectValues(ENDPOINT_TYPE))).nullable(),
-  reasoning: () => ReasoningConfigSchema.nullable(),
-  parameters: () => ParameterSupportDbSchema.nullable(),
-  pricing: () => RuntimeModelPricingSchema.nullable(),
-  userOverrides: () => z.array(z.string()).nullable()
-}
-
-export const userModelInsertSchema = createInsertSchema(userModelTable, jsonColumnOverrides)
-export const userModelSelectSchema = createSelectSchema(userModelTable, jsonColumnOverrides)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Utility Functions

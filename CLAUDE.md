@@ -1,17 +1,62 @@
 ## Guiding Principles (MUST FOLLOW)
 
+### Mindset
+
+How to approach any coding task in this repo.
+
+#### Think Before Coding
+
+- State assumptions explicitly. If uncertain, ask before implementing.
+- When multiple interpretations exist, surface them — do not pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what is confusing. Ask.
+
+#### Simplicity First
+
+- Write the minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that was not requested.
+- No error handling for impossible scenarios.
+- If you wrote 200 lines and it could be 50, rewrite it.
+
+#### Surgical Changes
+
+- Touch only what the task requires. Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match existing style even if you would do it differently.
+- If you notice unrelated dead code, mention it — do not delete it.
+- Remove imports / variables / functions that **your** changes orphaned. Leave pre-existing dead code alone unless asked.
+- Every changed line must trace directly to the user's request.
+
+#### Goal-Driven Execution
+
+- Convert tasks into verifiable goals before coding:
+  - "Add validation" → "Write tests for invalid inputs, then make them pass."
+  - "Fix the bug" → "Write a test that reproduces it, then make it pass."
+  - "Refactor X" → "Ensure tests pass before and after."
+- For multi-step tasks, state a brief plan with explicit verification per step:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+```
+
+### Operational Rules
+
+Project-specific tools, paths, and conventions.
+
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
-- **Start simple**: Begin with the simplest design — no extra abstraction layers, wrapper classes, or separate services unless explicitly requested. Prefer flat, minimal designs.
-- **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Read local READMEs first**: Before editing code in a directory, check for a `README.md` in that directory (and its parents) and read it — these files capture local conventions, invariants, and entry points that aren't obvious from the code alone.
+- **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Library-first, custom-last**: Before writing custom code, check library/framework docs for built-in options or existing solutions. Write custom code only when no adequate alternative exists.
-- **Match the house style**: Reuse existing patterns, naming, and conventions.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component; never add `antd`, `HeroUI`, or `styled-components`.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
+- **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
 - **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
 
 ## Development
@@ -40,24 +85,15 @@ Before upgrading any dependency, check `patches/` for custom patches.
 
 ### Pull Requests
 
-When creating a Pull Request, you MUST use the `gh-create-pr` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually.
+Use the `gh-create-pr` skill. Fallback: read `.agents/skills/gh-create-pr/SKILL.md` directly.
 
 ### Code Review
 
-When reviewing a Pull Request, do NOT run `pnpm lint`, `pnpm test`, or `pnpm format` locally.
-Instead, check CI status directly using GitHub CLI:
-
-- **Check CI status**: `gh pr checks <PR_NUMBER>` - View all CI check results for the PR
-- **Check PR details**: `gh pr view <PR_NUMBER>` - View PR status, reviews, and merge readiness
-- **View failed logs**: `gh run view <RUN_ID> --log-failed` - Inspect logs for failed CI runs
-
-Only investigate CI failures by reading the logs, not by re-running checks locally.
+Do NOT run `pnpm lint` / `pnpm test` / `pnpm format` locally — inspect CI via `gh` instead.
 
 ### Issues
 
-When creating an Issue, you MUST use the `gh-create-issue` skill.
-If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL.md` and follow it manually.
+Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/SKILL.md` directly.
 
 ## Conventions
 
@@ -114,7 +150,7 @@ For any UI component or page style work, read [DESIGN.md](./DESIGN.md) first and
 Scope:
 
 - **BootConfig**: sync file-based; direct in main (pre-lifecycle), via `usePreference('BootConfig.*')` otherwise
-- **Cache**: memory / cross-window / persisted tiers; usable in main and renderer
+- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist is renderer-only (main relays IPC but doesn't store)
 - **Preference**: cross-process (main + renderer); auto-syncs across windows
 - **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
 
@@ -158,13 +194,21 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ### Data Layer
 
-- **Removing**: Redux, Dexie
+- **Removing**: Redux, Dexie, ElectronStore
 - **Adopting**: Cache / Preference / DataApi architecture (see [Data](#data))
 
 ### UI Layer
 
 - **Prohibited**: antd, HeroUI, styled-components
 - **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
+
+### Coexistence Mindset
+
+Two things on this branch are throwaway — do not defend them.
+
+**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Redux, Dexie, ElectronStore) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work; leave mixed-branch v1 code alone unless it blocks v2.
+
+**Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
 ### Data Classification Toolchain
 
@@ -182,6 +226,10 @@ To change any of them, edit `classification.json` or `target-key-definitions.jso
 ```bash
 cd v2-refactor-temp/tools/data-classify && npm run generate
 ```
+
+### Breaking Changes Log
+
+When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
 
 ## Security
 
