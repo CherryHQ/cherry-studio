@@ -166,6 +166,34 @@ describe('MiniAppMigrator', () => {
       expect(result.warnings!.length).toBeGreaterThan(0)
     })
 
+    it('should skip apps whose id violates the v2 API regex', async () => {
+      // v1 was permissive about ids; v2 `POST /mini-apps` requires
+      // `[A-Za-z0-9_-]+`. Migrating a row the v2 API would refuse to recreate
+      // is a one-way trap, so reject up front.
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [
+              { id: 'valid-id', name: 'Valid', url: 'https://v.com', type: 'Custom' },
+              { id: 'has:colon', name: 'Bad', url: 'https://b.com', type: 'Custom' },
+              { id: 'has/slash', name: 'Worse', url: 'https://w.com', type: 'Custom' },
+              { id: '', name: 'Empty', url: 'https://e.com', type: 'Custom' }
+            ]
+          }
+        },
+        dbh.db
+      ) as any
+
+      const result = await migrator.prepare(ctx)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(1)
+      const colonWarning = result.warnings?.some((w: string) => w.includes('has:colon'))
+      const slashWarning = result.warnings?.some((w: string) => w.includes('has/slash'))
+      expect(colonWarning).toBe(true)
+      expect(slashWarning).toBe(true)
+    })
+
     it('should reattach custom-app logos from custom-minapps.json (v1 strips logo from Redux)', async () => {
       // Set up a temporary userData dir with a real custom-minapps.json on disk.
       const tmpUserData = await fs.mkdtemp(path.join(os.tmpdir(), 'miniapp-mig-'))

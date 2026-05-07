@@ -7,6 +7,7 @@ import fs from 'node:fs/promises'
 import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
+import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { sql } from 'drizzle-orm'
 
@@ -88,6 +89,15 @@ export class MiniAppMigrator extends BaseMigrator {
           if (!app || !app.id || typeof app.id !== 'string') {
             this.skippedCount++
             warnings.push(`Skipped ${status} app without valid id: ${app?.name ?? 'unknown'}`)
+            continue
+          }
+
+          // Reject ids that the v2 API would refuse on `POST /mini-apps`.
+          // Otherwise a stray `:` / `/` in a v1 custom-app id (legal in v1)
+          // migrates a row that the v2 schema can never recreate after deletion.
+          if (!MINI_APP_ID_REGEX.test(app.id)) {
+            this.skippedCount++
+            warnings.push(`Skipped ${status} app with invalid id format: ${app.id}`)
             continue
           }
 
