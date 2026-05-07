@@ -50,6 +50,9 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
 
+const getDefaultNamesForKey = (key: string): Set<string> =>
+  new Set(Object.keys(i18n.store.data).map((locale) => i18n.getFixedT(locale)(key)))
+
 const GeneralSettings: FC = () => {
   const {
     language,
@@ -104,9 +107,6 @@ const GeneralSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const defaultAssistant = useSelector((state: RootState) => state.assistants.defaultAssistant)
-
-  const getDefaultNamesForKey = (key: string): Set<string> =>
-    new Set(Object.keys(i18n.store.data).map((locale) => i18n.getFixedT(locale)(key)))
 
   const onSelectLanguage = async (value: LanguageVarious) => {
     dispatch(setLanguage(value))
