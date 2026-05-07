@@ -1,153 +1,69 @@
 {
-  "generated_at": "2026-05-06T17:49:22.723838+00:00",
-  "date": "2026-05-06",
+  "generated_at": "2026-05-07T17:00:00Z",
+  "snapshot_date": "2026-05-07",
   "issues": {
-    "open_total": 859,
-    "closed_30d_total": 308,
-    "bug_label_open": 118,
-    "no_label_open": 84,
-    "no_label_pct": 9.8,
-    "top_labels": {
-      "UI/UX": 236,
-      "Models": 218,
-      "feature": 138,
-      "BUG": 118,
-      "Assistant": 102,
-      "inactive": 100,
-      "MCP": 69,
-      "Blocked: v2": 62,
-      "Data": 59,
-      "needs-repro": 47,
-      "discussion": 46,
-      "help wanted": 43,
-      "RAG": 33,
-      "Connectivity": 28,
-      "P3": 27,
-      "Planned": 22,
-      "v2": 22,
-      "Performance": 20,
-      "Dev Team": 15,
-      "P2": 14
+    "open_total": 832,
+    "closed_last_30d": 367,
+    "by_label": {
+      "bug": 116,
+      "feature": 125,
+      "P1": 3,
+      "P2": 14,
+      "Planned": 21,
+      "no_label": 83
     },
-    "p1_urgent": [
+    "unlabeled_ratio": 0.0997,
+    "p1_issues": [
+      {
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+        "author": "SiinXu",
+        "labels": [
+          "Planned",
+          "P1",
+          "feature",
+          "UI/UX"
+        ],
+        "milestone": "v2.4.0",
+        "created_at": "2026-05-07T05:01:00Z",
+        "comments": 0
+      },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "author": "lsy08",
         "labels": [
           "P1",
           "Models"
         ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+        "milestone": "v1.8.1",
+        "created_at": "2026-03-18T14:34:38Z",
+        "comments": 8
       },
       {
         "number": 13193,
-        "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could no",
+        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "author": "simplezhao",
         "labels": [
           "P1",
           "Models"
         ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-      },
-      {
-        "number": 11765,
-        "title": "[Bug]: Provider Support overwrite \"User-Agent\" in Headers",
-        "labels": [
-          "BUG",
-          "Models"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/11765"
-      },
-      {
-        "number": 10241,
-        "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
-        "labels": [
-          "BUG",
-          "MCP"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/10241"
-      },
-      {
-        "number": 13082,
-        "title": "[Bug]: Frequent lag during normal operations",
-        "labels": [
-          "BUG",
-          "Planned",
-          "Performance",
-          "v2"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
-      },
-      {
-        "number": 12436,
-        "title": "[Bug]: Local backup directory should not be changed after restoring a backup",
-        "labels": [
-          "BUG",
-          "Data"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12436"
-      },
-      {
-        "number": 12534,
-        "title": "[Bug]: \"No allowed providers are available for the selected model.\" - when using",
-        "labels": [
-          "BUG",
-          "Models"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/12534"
-      },
-      {
-        "number": 10289,
-        "title": "[Bug]: Cerebras's qwen-3-235b-a22b-thinking-2507 will also output its thought pr",
-        "labels": [
-          "BUG",
-          "Models",
-          "inactive"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/10289"
-      },
-      {
-        "number": 11096,
-        "title": "[Bug]: In version 1.6.6, all HTTP-type MCPs cause model errors",
-        "labels": [
-          "BUG",
-          "MCP"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/11096"
-      },
-      {
-        "number": 10911,
-        "title": "[Bug]: Notes Bug",
-        "labels": [
-          "BUG",
-          "UI/UX"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/10911"
-      },
-      {
-        "number": 10876,
-        "title": "Web search not working correctly with Gemini 2.5 Pro and Flash models",
-        "labels": [
-          "BUG",
-          "Connectivity"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/10876"
-      },
-      {
-        "number": 11384,
-        "title": "[Bug]: Notion export missing content",
-        "labels": [
-          "BUG"
-        ],
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/11384"
+        "assignee": "DeJeune",
+        "created_at": "2026-03-04T05:07:40Z",
+        "comments": 1
       }
     ]
   },
   "pull_requests": {
-    "open_total": 300,
-    "open_main_branch": 227,
-    "open_v2_branch": 73,
-    "v2_merged_30d": 41,
-    "draft_prs": 44,
-    "stale_gt30d": 190
+    "open_main": 229,
+    "open_v2": 72,
+    "open_total": 301
+  },
+  "branch_strategy": {
+    "main_status": "code_freeze_hotfix_only",
+    "v2_status": "active_development"
   }
 }
