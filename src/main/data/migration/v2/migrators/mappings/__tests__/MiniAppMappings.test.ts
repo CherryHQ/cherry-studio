@@ -98,7 +98,7 @@ describe('MiniAppMappings', () => {
         const result = transformMiniApp(source, 'pinned' as MiniAppStatus)
 
         expect(result.appId).toBe('openai')
-        expect(result.presetMiniappId).toBe('openai')
+        expect(result.presetMiniAppId).toBe('openai')
         expect(result.status).toBe('pinned')
         // Preset values are stamped in (not the stale source values).
         expect(result.name).toBe('ChatGPT')
@@ -110,7 +110,7 @@ describe('MiniAppMappings', () => {
         for (const status of statuses) {
           const result = transformMiniApp(createPresetSource(), status)
           expect(result.status).toBe(status)
-          expect(result.presetMiniappId).toBe('openai')
+          expect(result.presetMiniAppId).toBe('openai')
         }
       })
 
@@ -126,7 +126,7 @@ describe('MiniAppMappings', () => {
 
         const result = transformMiniApp(source, 'enabled')
 
-        expect(result.presetMiniappId).toBeNull()
+        expect(result.presetMiniAppId).toBeNull()
         expect(result.name).toBe('My Custom Override')
         expect(result.url).toBe('https://my-custom.example.com')
       })

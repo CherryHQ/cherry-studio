@@ -26,13 +26,13 @@ export const MiniAppRegionSchema = z.enum(['CN', 'Global'])
 /**
  * MiniApp entity schema.
  *
- * `presetMiniappId` mirrors `userProvider.presetProviderId`:
+ * `presetMiniAppId` mirrors `userProvider.presetProviderId`:
  *   - non-null  → row inherits from a PRESETS_MINI_APPS entry (preset-derived)
  *   - null      → pure custom app
  */
 export const MiniAppSchema = z.object({
   appId: z.string(),
-  presetMiniappId: z.string().nullable(),
+  presetMiniAppId: z.string().nullable(),
   status: MiniAppStatusSchema,
   orderKey: z.string(),
   name: z.string(),

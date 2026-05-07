@@ -17,7 +17,7 @@ function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
-type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniappId' | 'status' | 'orderKey'> & {
+type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orderKey'> & {
   appId: string
 }
 
@@ -25,7 +25,7 @@ function toMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
     appId: brandId(input.appId),
-    presetMiniappId: input.appId,
+    presetMiniAppId: input.appId,
     status: 'enabled',
     orderKey: ''
   }

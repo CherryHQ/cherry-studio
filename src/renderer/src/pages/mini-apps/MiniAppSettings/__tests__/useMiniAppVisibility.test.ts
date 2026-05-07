@@ -8,7 +8,7 @@ const stubApp = (id: string): MiniApp => ({
   appId: id,
   name: id,
   url: `https://${id}.example.com`,
-  presetMiniappId: id as MiniApp['presetMiniappId'],
+  presetMiniAppId: id as MiniApp['presetMiniAppId'],
   status: 'enabled',
   orderKey: 'a0'
 })

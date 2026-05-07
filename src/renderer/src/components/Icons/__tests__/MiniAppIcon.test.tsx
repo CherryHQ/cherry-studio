@@ -28,7 +28,7 @@ vi.mock('@renderer/config/miniapps', () => ({
 describe('MiniAppIcon', () => {
   const mockApp = {
     appId: 'test-app-1' as any,
-    presetMiniappId: 'test-preset',
+    presetMiniAppId: 'test-preset',
     status: 'enabled' as const,
     orderKey: 'a0',
     name: 'Test App',
@@ -68,7 +68,7 @@ describe('MiniAppIcon', () => {
   it('should return null when app is not found in allMiniApps', () => {
     const unknownApp = {
       appId: 'unknown-app' as any,
-      presetMiniappId: 'test-preset',
+      presetMiniAppId: 'test-preset',
       status: 'enabled' as const,
       orderKey: 'a0',
       name: 'Unknown App',

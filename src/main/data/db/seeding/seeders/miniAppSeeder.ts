@@ -32,7 +32,7 @@ export class MiniAppSeeder implements ISeeder {
     for (const preset of PRESETS_MINI_APPS) {
       const insertRow: MiniAppInsert = {
         appId: preset.id,
-        presetMiniappId: preset.id,
+        presetMiniAppId: preset.id,
         name: preset.name,
         url: preset.url,
         logo: preset.logo ?? null,
@@ -45,10 +45,10 @@ export class MiniAppSeeder implements ISeeder {
       }
 
       // On conflict: refresh preset display fields, but only for rows that
-      // were themselves seeded from a preset (`presetMiniappId IS NOT NULL`).
+      // were themselves seeded from a preset (`presetMiniAppId IS NOT NULL`).
       // A custom row whose appId happens to collide with a preset id (e.g. a
       // migrated v1 custom app) keeps its own name/url/logo. status, orderKey,
-      // and presetMiniappId stay untouched on every existing row.
+      // and presetMiniAppId stay untouched on every existing row.
       await db
         .insert(miniAppTable)
         .values(insertRow)
@@ -63,7 +63,7 @@ export class MiniAppSeeder implements ISeeder {
             supportedRegions: insertRow.supportedRegions,
             nameKey: insertRow.nameKey
           },
-          setWhere: isNotNull(miniAppTable.presetMiniappId)
+          setWhere: isNotNull(miniAppTable.presetMiniAppId)
         })
     }
   }

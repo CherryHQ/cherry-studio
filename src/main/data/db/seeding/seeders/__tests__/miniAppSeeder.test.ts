@@ -17,7 +17,7 @@ describe('MiniAppSeeder', () => {
     for (const preset of PRESETS_MINI_APPS) {
       const row = rows.find((r) => r.appId === preset.id)
       expect(row).toBeDefined()
-      expect(row?.presetMiniappId).toBe(preset.id)
+      expect(row?.presetMiniAppId).toBe(preset.id)
       expect(row?.name).toBe(preset.name)
       expect(row?.url).toBe(preset.url)
     }
@@ -27,7 +27,7 @@ describe('MiniAppSeeder', () => {
     const preset = PRESETS_MINI_APPS[0]
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
-      presetMiniappId: preset.id,
+      presetMiniAppId: preset.id,
       name: 'Stale Name',
       url: preset.url,
       status: 'enabled',
@@ -45,7 +45,7 @@ describe('MiniAppSeeder', () => {
     const preset = PRESETS_MINI_APPS[0]
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
-      presetMiniappId: preset.id,
+      presetMiniAppId: preset.id,
       name: preset.name,
       url: preset.url,
       status: 'disabled',
@@ -63,7 +63,7 @@ describe('MiniAppSeeder', () => {
   it('should leave custom (non-preset) rows untouched', async () => {
     await dbh.db.insert(miniAppTable).values({
       appId: 'my-custom-app',
-      presetMiniappId: null,
+      presetMiniAppId: null,
       name: 'My Custom',
       url: 'https://custom.app',
       status: 'enabled',
@@ -76,17 +76,17 @@ describe('MiniAppSeeder', () => {
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'my-custom-app'))
     expect(row).toBeDefined()
     expect(row.name).toBe('My Custom')
-    expect(row.presetMiniappId).toBeNull()
+    expect(row.presetMiniAppId).toBeNull()
   })
 
   it('should not refresh display fields when a custom row collides with a preset id (#3198809691)', async () => {
     const preset = PRESETS_MINI_APPS[0]
     // A migrated v1 custom app whose appId happens to match a preset's id.
-    // Custom rows are identified by `presetMiniappId IS NULL`; the seeder must
+    // Custom rows are identified by `presetMiniAppId IS NULL`; the seeder must
     // leave their display fields alone on re-run.
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
-      presetMiniappId: null,
+      presetMiniAppId: null,
       name: 'My Custom Override',
       url: 'https://custom.example/path',
       logo: 'custom-logo',
@@ -98,7 +98,7 @@ describe('MiniAppSeeder', () => {
     await seed.run(dbh.db)
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
-    expect(row.presetMiniappId).toBeNull()
+    expect(row.presetMiniAppId).toBeNull()
     expect(row.name).toBe('My Custom Override')
     expect(row.url).toBe('https://custom.example/path')
     expect(row.logo).toBe('custom-logo')

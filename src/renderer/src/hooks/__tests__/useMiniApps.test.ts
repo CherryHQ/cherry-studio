@@ -351,10 +351,10 @@ describe('useMiniApps', () => {
     })
 
     it('should treat custom apps without supportedRegions as visible everywhere', () => {
-      // Custom rows (presetMiniappId === null) without region info come from
+      // Custom rows (presetMiniAppId === null) without region info come from
       // migrated v1 data or hand-added apps. Defaulting them to CN-only would
       // hide a user's own app under Global.
-      const apps = [createMiniApp('mine', { presetMiniappId: null, status: 'enabled' })]
+      const apps = [createMiniApp('mine', { presetMiniAppId: null, status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())

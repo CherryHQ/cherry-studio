@@ -3,12 +3,12 @@
  *
  * Owns the `mini_app` SQLite table. Mirrors {@link ProviderService}:
  * uniform CRUD over rows, with row-shape policy enforced via column checks
- * (`presetMiniappId`). Preset display fields are seeded by {@link MiniAppSeeder}
+ * (`presetMiniAppId`). Preset display fields are seeded by {@link MiniAppSeeder}
  * at boot and refreshed on every re-run (no UI exposes them for editing).
  *
  * Layered preset pattern:
- *   - presetMiniappId !== null  →  inherits from a {@link PRESETS_MINI_APPS} entry
- *   - presetMiniappId === null  →  pure custom app
+ *   - presetMiniAppId !== null  →  inherits from a {@link PRESETS_MINI_APPS} entry
+ *   - presetMiniAppId === null  →  pure custom app
  */
 
 import { application } from '@application'
@@ -34,7 +34,7 @@ import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 /** Preset id set, used for write-time collision rejection. */
-const presetMiniappIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
+const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
 
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
@@ -45,7 +45,7 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
   const clean = nullsToUndefined(row)
   return {
     appId: brandId(clean.appId),
-    presetMiniappId: clean.presetMiniappId ?? null,
+    presetMiniAppId: clean.presetMiniAppId ?? null,
     name: clean.name,
     url: clean.url,
     logo: clean.logo,
@@ -96,7 +96,7 @@ export class MiniAppService {
    * Auto-assigns orderKey at the end of the status='enabled' partition.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
-    if (presetMiniappIdSet.has(dto.appId)) {
+    if (presetMiniAppIdSet.has(dto.appId)) {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a preset app and cannot be recreated`)
     }
 
@@ -109,7 +109,7 @@ export class MiniAppService {
             miniAppTable,
             {
               appId: dto.appId,
-              presetMiniappId: null,
+              presetMiniAppId: null,
               name: dto.name,
               url: dto.url,
               logo: dto.logo,
@@ -196,13 +196,13 @@ export class MiniAppService {
    */
   async delete(appId: string): Promise<void> {
     const [existing] = await this.db
-      .select({ presetMiniappId: miniAppTable.presetMiniappId })
+      .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
       .from(miniAppTable)
       .where(eq(miniAppTable.appId, appId))
       .limit(1)
     if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
-    if (existing.presetMiniappId !== null) {
+    if (existing.presetMiniAppId !== null) {
       throw DataApiErrorFactory.invalidOperation(
         `delete miniapp ${appId}`,
         'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'

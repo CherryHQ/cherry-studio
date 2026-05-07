@@ -18,7 +18,7 @@ describe('MiniAppService', () => {
   async function seedCustom(overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {
     const values: typeof miniAppTable.$inferInsert = {
       appId: 'custom-app',
-      presetMiniappId: null,
+      presetMiniAppId: null,
       name: 'Custom App',
       url: 'https://custom.app',
       logo: 'application',
@@ -37,7 +37,7 @@ describe('MiniAppService', () => {
     if (!preset) throw new Error(`Unknown preset: ${appId}`)
     const values: typeof miniAppTable.$inferInsert = {
       appId,
-      presetMiniappId: appId,
+      presetMiniAppId: appId,
       name: preset.name,
       url: preset.url,
       logo: preset.logo ?? null,
@@ -59,14 +59,14 @@ describe('MiniAppService', () => {
       const result = await miniAppService.getByAppId('custom-app')
       expect(result.appId).toBe('custom-app')
       expect(result.name).toBe('Custom App')
-      expect(result.presetMiniappId).toBeNull()
+      expect(result.presetMiniAppId).toBeNull()
     })
 
-    it('should return a preset-derived miniapp with presetMiniappId set', async () => {
+    it('should return a preset-derived miniapp with presetMiniAppId set', async () => {
       await seedPreset('openai')
       const result = await miniAppService.getByAppId('openai')
       expect(result.appId).toBe('openai')
-      expect(result.presetMiniappId).toBe('openai')
+      expect(result.presetMiniAppId).toBe('openai')
     })
 
     it('should throw NOT_FOUND for nonexistent appId', async () => {
@@ -111,10 +111,10 @@ describe('MiniAppService', () => {
       const result = await miniAppService.create(dto)
 
       expect(result.appId).toBe('new-app')
-      expect(result.presetMiniappId).toBeNull()
+      expect(result.presetMiniAppId).toBeNull()
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
-      expect(row.presetMiniappId).toBeNull()
+      expect(row.presetMiniAppId).toBeNull()
       expect(row.name).toBe('New App')
     })
 

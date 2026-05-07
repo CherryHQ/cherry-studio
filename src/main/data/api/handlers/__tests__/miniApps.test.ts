@@ -81,7 +81,7 @@ describe('miniAppHandlers', () => {
     it('should parse body and delegate to service', async () => {
       const created = {
         appId: 'my-app',
-        presetMiniappId: null,
+        presetMiniAppId: null,
         status: 'enabled',
         orderKey: 'a0',
         name: 'My App',
@@ -197,7 +197,7 @@ describe('miniAppHandlers', () => {
     it('should delegate to service with path appId', async () => {
       const app = {
         appId: 'openai',
-        presetMiniappId: 'openai',
+        presetMiniAppId: 'openai',
         status: 'enabled',
         sortOrder: 0,
         name: 'ChatGPT',
@@ -216,7 +216,7 @@ describe('miniAppHandlers', () => {
     it('should parse body and delegate to service', async () => {
       const updated = {
         appId: 'custom-app',
-        presetMiniappId: null,
+        presetMiniAppId: null,
         status: 'disabled',
         sortOrder: 0,
         name: 'My App',

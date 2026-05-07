@@ -55,12 +55,12 @@ export function transformMiniApp(
   const isExplicitCustom = source.type === 'Custom'
   const preset = !isExplicitCustom ? presetMap.get(appId) : undefined
 
-  // Preset (default) app — full preset data + delta status, presetMiniappId set.
+  // Preset (default) app — full preset data + delta status, presetMiniAppId set.
   // Mirrors ModelService preset-derived rows: full data with presetModelId.
   if (preset) {
     return {
       appId,
-      presetMiniappId: appId,
+      presetMiniAppId: appId,
       name: preset.name,
       url: preset.url,
       logo: preset.logo ?? null,
@@ -78,7 +78,7 @@ export function transformMiniApp(
 
   return {
     appId,
-    presetMiniappId: null,
+    presetMiniAppId: null,
     name: toRequired<string>(source.name, ''),
     url: toRequired<string>(source.url, ''),
     logo,

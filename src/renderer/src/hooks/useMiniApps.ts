@@ -31,7 +31,7 @@ import { useCallback, useEffect, useMemo } from 'react'
  *    - Preset apps without supportedRegions → CN-only (preserves the existing
  *      curated catalog semantics: presets that omit the field are intentionally
  *      gated to CN by the catalog author).
- *    - Custom apps (`presetMiniappId === null`) without supportedRegions →
+ *    - Custom apps (`presetMiniAppId === null`) without supportedRegions →
  *      visible. Custom apps come from migrated v1 data (which had no region
  *      concept) or from the user's own form, neither of which has a curated
  *      region intent. Defaulting them to CN-only would silently hide a user's
@@ -41,7 +41,7 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   if (region === 'CN') return true
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
-    return app.presetMiniappId === null
+    return app.presetMiniAppId === null
   }
   return app.supportedRegions.includes('Global')
 }

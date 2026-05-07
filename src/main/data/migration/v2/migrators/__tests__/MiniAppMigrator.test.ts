@@ -360,7 +360,7 @@ describe('MiniAppMigrator', () => {
       // Insert a duplicate row to trigger a UNIQUE constraint violation
       await dbh.db.insert(miniAppTable).values({
         appId: 'app1',
-        presetMiniappId: null,
+        presetMiniAppId: null,
         name: 'Existing',
         url: 'https://existing.com',
         status: 'enabled',

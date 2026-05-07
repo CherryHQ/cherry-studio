@@ -2097,8 +2097,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "preset_miniapp_id": {
-          "name": "preset_miniapp_id",
+        "preset_mini_app_id": {
+          "name": "preset_mini_app_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2197,9 +2197,9 @@
           "columns": ["status", "order_key"],
           "isUnique": false
         },
-        "mini_app_preset_miniapp_id_idx": {
-          "name": "mini_app_preset_miniapp_id_idx",
-          "columns": ["preset_miniapp_id"],
+        "mini_app_preset_mini_app_id_idx": {
+          "name": "mini_app_preset_mini_app_id_idx",
+          "columns": ["preset_mini_app_id"],
           "isUnique": false
         }
       },
