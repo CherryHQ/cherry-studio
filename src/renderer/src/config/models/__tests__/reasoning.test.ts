@@ -425,6 +425,9 @@ describe('DeepSeek V4+ Models', () => {
       expect(isDeepSeekV4PlusModel(createModel({ id: 'prefix-deepseek-v4-flash' }))).toBe(true)
       expect(isDeepSeekV4PlusModel(createModel({ id: 'agent/deepseek-v4-pro' }))).toBe(true)
       expect(isDeepSeekV4PlusModel(createModel({ id: 'accounts/fireworks/models/deepseek-v4-pro' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek/deepseek-v4-flash:deepseek' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek/deepseek-v4-pro:fireworks' }))).toBe(true)
+      expect(isDeepSeekV4PlusModel(createModel({ id: 'deepseek/deepseek-v4-pro:deepseek:together' }))).toBe(true)
     })
 
     it('is case insensitive', () => {
@@ -471,6 +474,9 @@ describe('DeepSeek V4+ Models', () => {
       expect(getThinkModelType(createModel({ id: 'deepseek-v4' }))).toBe('deepseek_v4')
       expect(getThinkModelType(createModel({ id: 'deepseek-v4-flash' }))).toBe('deepseek_v4')
       expect(getThinkModelType(createModel({ id: 'deepseek-v4-pro' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek/deepseek-v4-flash:deepseek' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek/deepseek-v4-pro:fireworks' }))).toBe('deepseek_v4')
+      expect(getThinkModelType(createModel({ id: 'deepseek/deepseek-v4-pro:deepseek:together' }))).toBe('deepseek_v4')
       expect(getThinkModelType(createModel({ id: 'deepseek-v5' }))).toBe('deepseek_v4')
       expect(getThinkModelType(createModel({ id: 'deepseek-v10-ultra' }))).toBe('deepseek_v4')
     })
@@ -505,6 +511,21 @@ describe('DeepSeek V4+ Models', () => {
       ).toEqual(['default', 'none', 'high', 'xhigh'])
       expect(
         getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v4-pro', provider: 'openrouter' }))
+      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      expect(
+        getModelSupportedReasoningEffortOptions(
+          createModel({ id: 'deepseek/deepseek-v4-flash:deepseek', provider: 'deepseek' })
+        )
+      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      expect(
+        getModelSupportedReasoningEffortOptions(
+          createModel({ id: 'deepseek/deepseek-v4-pro:fireworks', provider: 'deepseek' })
+        )
+      ).toEqual(['default', 'none', 'high', 'xhigh'])
+      expect(
+        getModelSupportedReasoningEffortOptions(
+          createModel({ id: 'deepseek/deepseek-v4-pro:deepseek:together', provider: 'deepseek' })
+        )
       ).toEqual(['default', 'none', 'high', 'xhigh'])
       expect(getModelSupportedReasoningEffortOptions(createModel({ id: 'deepseek-v5', provider: 'deepseek' }))).toEqual(
         ['default', 'none', 'high', 'xhigh']
@@ -2680,6 +2701,20 @@ describe('Claude Models', () => {
       expect(findTokenLimit('claude-opus-4')).toEqual({ min: 1024, max: 32_000 })
       // Opus 4.1 should have 32K
       expect(findTokenLimit('claude-opus-4-1')).toEqual({ min: 1024, max: 32_000 })
+    })
+  })
+
+  describe('Claude 4.7 thinking model type and token limits', () => {
+    it('routes Opus 4.7 through the claude46 thinking type', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe('claude46')
+    })
+
+    it('returns 128K max tokens for Opus 4.7 models', () => {
+      expect(findTokenLimit('claude-opus-4-7')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4.7')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('anthropic.claude-opus-4-7-v1')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-7@20260401')).toEqual({ min: 1024, max: 128_000 })
     })
   })
 })
