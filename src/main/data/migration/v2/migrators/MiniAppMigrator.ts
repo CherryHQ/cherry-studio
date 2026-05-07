@@ -3,7 +3,6 @@
  */
 
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniapp'
 import { miniAppTable } from '@data/db/schemas/miniapp'
@@ -66,9 +65,10 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // v1 strips `logo` to undefined before persisting custom apps to Redux state
       // (see v1 src/renderer/src/store/minapps.ts reducers). The full custom-app
-      // record — including logo — lives in {userData}/Data/Files/custom-minapps.json
-      // and is reattached at runtime. Re-read it here so logos survive migration.
-      const customLogosByAppId = await loadCustomMiniAppLogos(ctx.paths.userData)
+      // record — including logo — lives in `customMiniAppsFile` (resolved by
+      // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
+      // reattached at runtime. Re-read it here so logos survive migration.
+      const customLogosByAppId = await loadCustomMiniAppLogos(ctx.paths.customMiniAppsFile)
 
       // Track seen IDs to detect duplicates across groups
       // A pinned app also appears in enabled — prefer the pinned status (higher priority)
@@ -241,13 +241,13 @@ export class MiniAppMigrator extends BaseMigrator {
 }
 
 /**
- * Load `{userData}/Data/Files/custom-minapps.json` and return a map from app id
- * to its logo string. Tolerant of missing/malformed files — returns an empty map.
+ * Load the v1 `custom-minapps.json` sidecar at the path supplied by
+ * MigrationPaths and return a map from app id to its logo string. Tolerant of
+ * missing/malformed files — returns an empty map.
  */
-async function loadCustomMiniAppLogos(userData: string | undefined): Promise<Map<string, string>> {
+async function loadCustomMiniAppLogos(file: string | undefined): Promise<Map<string, string>> {
   const result = new Map<string, string>()
-  if (!userData) return result
-  const file = path.join(userData, 'Data', 'Files', 'custom-minapps.json')
+  if (!file) return result
   let raw: string
   try {
     raw = await fs.readFile(file, 'utf-8')

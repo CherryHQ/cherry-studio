@@ -194,7 +194,10 @@ describe('MiniAppMigrator', () => {
           },
           dbh.db
         ) as any
-        ctx.paths = { userData: tmpUserData }
+        ctx.paths = {
+          userData: tmpUserData,
+          customMiniAppsFile: path.join(tmpUserData, 'Data', 'Files', 'custom-minapps.json')
+        }
 
         await migrator.prepare(ctx)
         await migrator.execute(ctx)
