@@ -444,7 +444,7 @@ describe('WebSearchService', () => {
     })
 
     beforeAll(() => {
-      provider.register()
+      trace.setGlobalTracerProvider(provider)
     })
 
     afterAll(async () => {

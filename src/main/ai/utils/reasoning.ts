@@ -4,6 +4,7 @@ import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import type OpenAI from '@cherrystudio/openai'
+import type { OpenAIReasoningEffort } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import {
   computeBudgetTokens,

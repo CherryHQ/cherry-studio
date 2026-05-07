@@ -320,7 +320,7 @@ export interface BlocksToPartsTransformResult {
   totalMessages: number
   messagesConverted: number
   messagesSkipped: number
-  errors: Array<{ rowId: number; error: string }>
+  errors: Array<{ rowId: string; error: string }>
 }
 
 /**

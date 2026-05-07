@@ -38,6 +38,7 @@ describe('transformAgentModelIdFormat', () => {
       id: 'a1',
       type: 'claude_code',
       name: 'a1',
+      instructions: '',
       model: 'anchor::model'
     })
   })
@@ -49,6 +50,7 @@ describe('transformAgentModelIdFormat', () => {
       agentType: 'claude_code',
       agentId: 'a1',
       name: 'test',
+      instructions: '',
       model: 'openrouter:stepfun/step-3.5-flash:free'
     })
 
@@ -96,6 +98,7 @@ describe('transformAgentModelIdFormat', () => {
       agentType: 'claude_code',
       agentId: 'a1',
       name: 'test',
+      instructions: '',
       model: 'anthropic:claude-4',
       planModel: 'anthropic:claude-4-haiku',
       smallModel: 'anthropic:claude-4-haiku'
@@ -140,6 +143,7 @@ describe('transformAgentBlocksToParts', () => {
       id: 'a1',
       type: 'claude_code',
       name: 'a1',
+      instructions: '',
       model: 'cherryin::agent/kimi'
     })
   })
@@ -150,6 +154,7 @@ describe('transformAgentBlocksToParts', () => {
       agentType: 'claude_code',
       agentId: 'a1',
       name: id,
+      instructions: '',
       model: 'cherryin::agent/kimi'
     })
     insertedSessions.push(id)

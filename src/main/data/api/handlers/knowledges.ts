@@ -36,6 +36,9 @@ export const knowledgeHandlers: HandlersFor<KnowledgeSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateKnowledgeBaseSchema.parse(body)
       return await knowledgeBaseService.update(params.id, parsed)
+    },
+    DELETE: async ({ params }) => {
+      await knowledgeBaseService.delete(params.id)
     }
   },
 
