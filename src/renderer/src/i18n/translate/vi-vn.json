@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
-    "miniapps": "MiniApps"
+    "miniApps": "MiniApps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -5048,7 +5048,7 @@
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
       "cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
       "cache_settings": "Cài đặt bộ nhớ đệm",

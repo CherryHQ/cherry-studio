@@ -55,21 +55,21 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
       const data = event.target?.result
       if (typeof data === 'string') {
         setLogo(data)
-        window.toast.success(t('settings.miniapps.custom.logo_upload_success'))
+        window.toast.success(t('settings.miniApps.custom.logo_upload_success'))
       }
     }
-    reader.onerror = () => window.toast.error(t('settings.miniapps.custom.logo_upload_error'))
+    reader.onerror = () => window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
     reader.readAsDataURL(file)
   }
 
   const handleSubmit = async () => {
     const trimmedId = id.trim()
     if (PRESETS_MINI_APPS.some((app) => app.id === trimmedId)) {
-      window.toast.error(t('settings.miniapps.custom.conflicting_ids', { ids: trimmedId }))
+      window.toast.error(t('settings.miniApps.custom.conflicting_ids', { ids: trimmedId }))
       return
     }
     if (existingAppIds.has(trimmedId)) {
-      window.toast.error(t('settings.miniapps.custom.duplicate_ids', { ids: trimmedId }))
+      window.toast.error(t('settings.miniApps.custom.duplicate_ids', { ids: trimmedId }))
       return
     }
     setSubmitting(true)
@@ -82,17 +82,17 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
         bordered: false,
         supportedRegions: ['CN', 'Global']
       })
-      window.toast.success(t('settings.miniapps.custom.save_success'))
+      window.toast.success(t('settings.miniApps.custom.save_success'))
       handleClose()
     } catch (error) {
-      window.toast.error(t('settings.miniapps.custom.save_error'))
+      window.toast.error(t('settings.miniApps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error as Error)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const header = <span className="text-[12px] text-foreground">{t('settings.miniapps.custom.edit_title')}</span>
+  const header = <span className="text-[12px] text-foreground">{t('settings.miniApps.custom.edit_title')}</span>
 
   const footer = (
     <div className="flex items-center justify-end gap-2">
@@ -114,42 +114,42 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
 
       <Field>
         <FieldLabel htmlFor="miniapp-id">
-          <span className="text-destructive">*</span> {t('settings.miniapps.custom.id')}
+          <span className="text-destructive">*</span> {t('settings.miniApps.custom.id')}
         </FieldLabel>
         <Input
           id="miniapp-id"
           value={id}
           onChange={(e) => setId(e.target.value)}
-          placeholder={t('settings.miniapps.custom.id_placeholder')}
+          placeholder={t('settings.miniApps.custom.id_placeholder')}
         />
       </Field>
 
       <Field>
         <FieldLabel htmlFor="miniapp-name">
-          <span className="text-destructive">*</span> {t('settings.miniapps.custom.name')}
+          <span className="text-destructive">*</span> {t('settings.miniApps.custom.name')}
         </FieldLabel>
         <Input
           id="miniapp-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={t('settings.miniapps.custom.name_placeholder')}
+          placeholder={t('settings.miniApps.custom.name_placeholder')}
         />
       </Field>
 
       <Field>
         <FieldLabel htmlFor="miniapp-url">
-          <span className="text-destructive">*</span> {t('settings.miniapps.custom.url')}
+          <span className="text-destructive">*</span> {t('settings.miniApps.custom.url')}
         </FieldLabel>
         <Input
           id="miniapp-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder={t('settings.miniapps.custom.url_placeholder')}
+          placeholder={t('settings.miniApps.custom.url_placeholder')}
         />
       </Field>
 
       <Field>
-        <FieldLabel>{t('settings.miniapps.custom.logo')}</FieldLabel>
+        <FieldLabel>{t('settings.miniApps.custom.logo')}</FieldLabel>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -158,7 +158,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
             onClick={() => setLogoMode('url')}
             className="gap-1.5">
             <Link2 size={12} />
-            {t('settings.miniapps.custom.logo_url')}
+            {t('settings.miniApps.custom.logo_url')}
           </Button>
           <Button
             type="button"
@@ -170,7 +170,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
             }}
             className="gap-1.5">
             <Upload size={12} />
-            {t('settings.miniapps.custom.logo_file')}
+            {t('settings.miniApps.custom.logo_file')}
           </Button>
           <input
             ref={fileInputRef}
@@ -178,14 +178,14 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
             accept="image/*"
             className="hidden"
             onChange={handleFileChange}
-            aria-label={t('settings.miniapps.custom.logo_upload_label')}
+            aria-label={t('settings.miniApps.custom.logo_upload_label')}
           />
         </div>
         {logoMode === 'url' && (
           <Input
             value={logo}
             onChange={(e) => setLogo(e.target.value)}
-            placeholder={t('settings.miniapps.custom.logo_url_placeholder')}
+            placeholder={t('settings.miniApps.custom.logo_url_placeholder')}
           />
         )}
       </Field>

@@ -87,13 +87,13 @@ describe('NewMiniAppPanel', () => {
 
   it('submits with the trimmed form values', async () => {
     render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText('settings.miniapps.custom.id_placeholder'), {
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.id_placeholder'), {
       target: { value: '  custom-app  ' }
     })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniapps.custom.name_placeholder'), {
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
       target: { value: 'My App' }
     })
-    fireEvent.change(screen.getByPlaceholderText('settings.miniapps.custom.url_placeholder'), {
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
       target: { value: 'https://my.app' }
     })
 

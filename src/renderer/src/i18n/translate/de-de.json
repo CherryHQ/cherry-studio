@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "miniapps": "Mini-Apps"
+    "miniApps": "Mini-Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "Mini-Apps",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "Wissens-Symbol anzeigen"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "Mini-App-Symbol anzeigen"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
       "cache_settings": "Cache-Einstellungen",

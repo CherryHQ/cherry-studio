@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "miniapps": "Приложения"
+    "miniApps": "Приложения"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "Встроенные приложения",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
       "cache_settings": "Настройки кэша",

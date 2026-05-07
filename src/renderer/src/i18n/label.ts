@@ -178,7 +178,7 @@ const sidebarIconKeyMap = {
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  mini_app: 'miniapp.title',
+  mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
@@ -271,8 +271,8 @@ export const getMcpProviderDescriptionLabel = (key: string): string => {
 }
 
 const miniAppsStatusKeyMap = {
-  visible: 'settings.miniapps.visible',
-  disabled: 'settings.miniapps.disabled'
+  visible: 'settings.miniApps.visible',
+  disabled: 'settings.miniApps.disabled'
 } as const
 
 export const getMiniAppsStatusLabel = (key: string): string => {

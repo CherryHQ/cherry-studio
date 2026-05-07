@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "miniapps": "Mini-aplicații"
+    "miniApps": "Mini-aplicații"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "MiniApp",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "Afișează pictograma Cunoștințe"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "Afișează pictograma MiniApp"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
       "cache_settings": "Setări cache",

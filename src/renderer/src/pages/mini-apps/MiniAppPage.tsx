@@ -144,7 +144,7 @@ const MiniAppPage: FC = () => {
     return (
       <ShellContainer>
         <LoadingMask>
-          <ErrorText>{t(isNotFound ? 'miniapp.error.not_found' : 'miniapp.error.load_failed')}</ErrorText>
+          <ErrorText>{t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}</ErrorText>
         </LoadingMask>
       </ShellContainer>
     )

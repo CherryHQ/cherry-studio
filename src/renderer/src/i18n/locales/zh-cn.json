@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "应用",
-    "miniapps": "小程序"
+    "miniApps": "小程序"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
     "error": {
@@ -2537,7 +2537,7 @@
     "title": "小程序",
     "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "蚂蚁百灵",
     "baichuan": "百小应",
     "baidu-ai-search": "百度AI搜索",
@@ -4650,7 +4650,7 @@
         "knowledge": {
           "icon": "显示知识图标"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "显示小程序图标"
         },
         "painting": {
@@ -5052,7 +5052,7 @@
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
       "cache_settings": "缓存设置",

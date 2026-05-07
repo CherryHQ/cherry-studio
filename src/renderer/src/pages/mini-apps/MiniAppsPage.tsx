@@ -36,7 +36,7 @@ const MiniAppsPage: FC = () => {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col text-foreground" onContextMenu={handleContextMenu}>
       <Navbar>
-        <NavbarCenter className="border-r-0">{t('miniapp.title')}</NavbarCenter>
+        <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -44,21 +44,21 @@ const MiniAppsPage: FC = () => {
         <div className="flex h-11 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-1.5 text-xs">
             <LayoutGrid size={13} className="text-muted-foreground" strokeWidth={1.6} />
-            <span className="text-foreground">{t('miniapp.title')}</span>
+            <span className="text-foreground">{t('miniApp.title')}</span>
             <span className="ml-1 text-[10px] text-muted-foreground/40">{filteredApps.length}</span>
           </div>
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={t('settings.miniapps.custom.title')}
+              aria-label={t('settings.miniApps.custom.title')}
               onClick={() => setNewAppOpen(true)}>
               <Plus size={14} />
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={t('settings.miniapps.display_title')}
+              aria-label={t('settings.miniApps.display_title')}
               onClick={() => setSettingsOpen(true)}>
               <Menu size={14} />
             </Button>
@@ -103,7 +103,7 @@ const MiniAppsPage: FC = () => {
             ) : filteredApps.length === 0 ? (
               <EmptyState
                 preset={search ? 'no-result' : 'no-miniapp'}
-                title={search ? t('common.no_results') : t('miniapp.title')}
+                title={search ? t('common.no_results') : t('miniApp.title')}
               />
             ) : (
               <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8">

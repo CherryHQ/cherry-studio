@@ -21,7 +21,7 @@ const MiniAppSettingsPanel: FC<Props> = ({ open, onClose, headerActions, childre
 
   const header = (
     <div className="flex w-full items-center gap-2">
-      <span className="text-[12px] text-foreground">{t('settings.miniapps.display_title')}</span>
+      <span className="text-[12px] text-foreground">{t('settings.miniApps.display_title')}</span>
       {headerActions && <div className="ml-auto flex items-center gap-1">{headerActions}</div>}
     </div>
   )

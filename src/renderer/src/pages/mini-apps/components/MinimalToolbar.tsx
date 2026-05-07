@@ -225,28 +225,28 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
     <ToolbarContainer>
       <LeftSection>
         <ButtonGroup>
-          <Tooltip content={t('miniapp.popup.goBack')} placement="bottom">
+          <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">
             <ToolbarButton
               onClick={handleGoBack}
               $disabled={!canGoBack}
-              aria-label={t('miniapp.popup.goBack')}
+              aria-label={t('miniApp.popup.goBack')}
               aria-disabled={!canGoBack}>
               <ArrowLeftOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip content={t('miniapp.popup.goForward')} placement="bottom">
+          <Tooltip content={t('miniApp.popup.goForward')} placement="bottom">
             <ToolbarButton
               onClick={handleGoForward}
               $disabled={!canGoForward}
-              aria-label={t('miniapp.popup.goForward')}
+              aria-label={t('miniApp.popup.goForward')}
               aria-disabled={!canGoForward}>
               <ArrowRightOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip content={t('miniapp.popup.refresh')} placement="bottom">
-            <ToolbarButton onClick={onReload} aria-label={t('miniapp.popup.refresh')}>
+          <Tooltip content={t('miniApp.popup.refresh')} placement="bottom">
+            <ToolbarButton onClick={onReload} aria-label={t('miniApp.popup.refresh')}>
               <ReloadOutlined />
             </ToolbarButton>
           </Tooltip>
@@ -256,8 +256,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       <RightSection>
         <ButtonGroup>
           {canOpenExternalLink && (
-            <Tooltip content={t('miniapp.popup.openExternal')} placement="bottom">
-              <ToolbarButton onClick={handleOpenLink} aria-label={t('miniapp.popup.openExternal')}>
+            <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
+              <ToolbarButton onClick={handleOpenLink} aria-label={t('miniApp.popup.openExternal')}>
                 <ExportOutlined />
               </ToolbarButton>
             </Tooltip>
@@ -265,12 +265,12 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
           {canPinned && (
             <Tooltip
-              content={isPinned ? t('miniapp.remove_from_launchpad') : t('miniapp.add_to_launchpad')}
+              content={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
               placement="bottom">
               <ToolbarButton
                 onClick={handleTogglePin}
                 $active={isPinned}
-                aria-label={isPinned ? t('miniapp.remove_from_launchpad') : t('miniapp.add_to_launchpad')}
+                aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
                 aria-pressed={isPinned}>
                 <PushpinOutlined />
               </ToolbarButton>
@@ -279,14 +279,14 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
           <Tooltip
             content={
-              openLinkExternal ? t('miniapp.popup.open_link_external_on') : t('miniapp.popup.open_link_external_off')
+              openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
             }
             placement="bottom">
             <ToolbarButton
               onClick={handleToggleOpenExternal}
               $active={openLinkExternal}
               aria-label={
-                openLinkExternal ? t('miniapp.popup.open_link_external_on') : t('miniapp.popup.open_link_external_off')
+                openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
               }
               aria-pressed={openLinkExternal}>
               <LinkOutlined />
@@ -294,8 +294,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           </Tooltip>
 
           {isDev && (
-            <Tooltip content={t('miniapp.popup.devtools')} placement="bottom">
-              <ToolbarButton onClick={onOpenDevTools} aria-label={t('miniapp.popup.devtools')}>
+            <Tooltip content={t('miniApp.popup.devtools')} placement="bottom">
+              <ToolbarButton onClick={onOpenDevTools} aria-label={t('miniApp.popup.devtools')}>
                 <CodeOutlined />
               </ToolbarButton>
             </Tooltip>

@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "miniapps": "アプリ"
+    "miniApps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "ミニアプリ",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
       "cache_settings": "キャッシュ設定",

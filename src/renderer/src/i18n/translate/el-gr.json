@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "miniapps": "Μικρές εφαρμογές"
+    "miniApps": "Μικρές εφαρμογές"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "Μικρόπρογραμμα",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "Εμφάνιση εικονιδίου γνώσης"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "Εμφάνιση εικονιδίου μικροπρογραμμάτων"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
       "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",

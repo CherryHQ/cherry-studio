@@ -44,7 +44,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { isTopNavbar } = useNavbarPosition()
 
   // Calculate display name
-  const displayName = isLast ? t('settings.miniapps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
+  const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
     openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
@@ -56,11 +56,11 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       key: 'togglePin',
       label: isPinned
         ? isTopNavbar
-          ? t('miniapp.remove_from_launchpad')
-          : t('miniapp.remove_from_sidebar')
+          ? t('miniApp.remove_from_launchpad')
+          : t('miniApp.remove_from_sidebar')
         : isTopNavbar
-          ? t('miniapp.add_to_launchpad')
-          : t('miniapp.add_to_sidebar'),
+          ? t('miniApp.add_to_launchpad')
+          : t('miniApp.add_to_sidebar'),
       onClick: () => {
         // Toggle pin: enabled ↔ pinned. Custom apps that were technically
         // 'disabled' (shouldn't normally end up in the grid) fall back to
@@ -79,7 +79,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       ? [
           {
             key: 'hide',
-            label: t('miniapp.sidebar.hide.title'),
+            label: t('miniApp.sidebar.hide.title'),
             onClick: () => {
               void updateAppStatus(app.appId, 'disabled').catch((error: unknown) => {
                 if (isDataApiError(error)) {
@@ -99,23 +99,23 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       ? [
           {
             key: 'removeCustom',
-            label: t('miniapp.sidebar.remove_custom.title'),
+            label: t('miniApp.sidebar.remove_custom.title'),
             danger: true,
             onClick: async () => {
               try {
                 await removeCustomMiniApp(app.appId)
-                window.toast.success(t('settings.miniapps.custom.remove_success'))
+                window.toast.success(t('settings.miniApps.custom.remove_success'))
               } catch (error) {
                 if (isDataApiError(error)) {
                   if (error.code === ErrorCode.NOT_FOUND) {
-                    window.toast.warning(t('miniapp.not_found'))
+                    window.toast.warning(t('miniApp.not_found'))
                   } else if (!error.isRetryable) {
-                    window.toast.error(t('settings.miniapps.custom.remove_error'))
+                    window.toast.error(t('settings.miniApps.custom.remove_error'))
                   } else {
-                    window.toast.error(t('settings.miniapps.custom.remove_error'))
+                    window.toast.error(t('settings.miniApps.custom.remove_error'))
                   }
                 } else {
-                  window.toast.error(t('settings.miniapps.custom.remove_error'))
+                  window.toast.error(t('settings.miniApps.custom.remove_error'))
                 }
                 logger.error('Failed to remove custom mini app:', error as Error)
               }

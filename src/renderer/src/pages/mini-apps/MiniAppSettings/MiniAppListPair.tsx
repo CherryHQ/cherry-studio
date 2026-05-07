@@ -15,7 +15,7 @@ const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisibl
   return (
     <div className="flex h-72 gap-2">
       <MiniAppListColumn
-        title={t('settings.miniapps.visible')}
+        title={t('settings.miniApps.visible')}
         count={visible.length}
         apps={visible}
         onToggle={hide}
@@ -24,13 +24,13 @@ const MiniAppListPair: FC<Props> = ({ visible, hidden, hide, show, reorderVisibl
       />
       <div className="w-px shrink-0 bg-border/30" />
       <MiniAppListColumn
-        title={t('settings.miniapps.disabled')}
+        title={t('settings.miniApps.disabled')}
         count={hidden.length}
         apps={hidden}
         onToggle={show}
         onReorder={reorderHidden}
         toggleAction="show"
-        emptyText={t('settings.miniapps.empty')}
+        emptyText={t('settings.miniApps.empty')}
       />
     </div>
   )

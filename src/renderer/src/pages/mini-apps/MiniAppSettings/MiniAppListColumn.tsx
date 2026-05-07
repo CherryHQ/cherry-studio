@@ -23,7 +23,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
   const { t } = useTranslation()
 
   const Icon = toggleAction === 'hide' ? EyeOff : Eye
-  const tooltip = toggleAction === 'hide' ? t('miniapp.sidebar.hide.title') : t('settings.miniapps.visible')
+  const tooltip = toggleAction === 'hide' ? t('miniApp.sidebar.hide.title') : t('settings.miniApps.visible')
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

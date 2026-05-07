@@ -119,7 +119,7 @@ async function settleAndInvalidate(
     await invalidate('/mini-apps')
     throw DataApiErrorFactory.invalidOperation(
       `${label}: ${rejected.length} of ${results.length} updates failed`,
-      i18n.t('miniapp.update_partial_failure', { failed: rejected.length, total: results.length })
+      i18n.t('miniApp.update_partial_failure', { failed: rejected.length, total: results.length })
     )
   }
 

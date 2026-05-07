@@ -2147,7 +2147,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
-    "miniapps": "Miniaplicaciones"
+    "miniApps": "Miniaplicaciones"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2500,7 +2500,7 @@
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
-  "miniapp": {
+  "miniApp": {
     "add_to_launchpad": "Agregar al panel de inicio",
     "add_to_sidebar": "Agregar a la barra lateral",
     "popup": {
@@ -2533,7 +2533,7 @@
     "title": "Mini programa",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "miniapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
@@ -4646,7 +4646,7 @@
         "knowledge": {
           "icon": "Mostrar icono de conocimiento"
         },
-        "miniapp": {
+        "miniApp": {
           "icon": "Mostrar icono de miniprogramas"
         },
         "painting": {
@@ -5048,7 +5048,7 @@
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
       "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
       "cache_settings": "Configuración de caché",
