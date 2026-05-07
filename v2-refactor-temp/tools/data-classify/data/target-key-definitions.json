@@ -111,6 +111,20 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
+      "targetKey": "ui.sidebar.icons.visible",
+      "type": "PreferenceTypes.SidebarIcon[]",
+      "defaultValue": ["assistants", "store", "paintings", "translate", "mini_app", "knowledge", "files", "code_tools", "notes"],
+      "status": "classified",
+      "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+    },
+    {
+      "targetKey": "ui.sidebar.icons.invisible",
+      "type": "PreferenceTypes.SidebarIcon[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+    },{
+
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLRUManager } from '@renderer/services/TabLRUManager'
 import { uuid } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
@@ -20,9 +20,11 @@ const DEFAULT_TAB: Tab = {
 }
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
-  if (tab.type !== 'route') {
-    return tab
-  }
+  if (tab.type !== 'route') return tab
+  // Only auto-localize titles for top-level routes. Parameterized routes
+  // (e.g. /app/mini-app/<id>) preserve the title supplied at openTab time so
+  // callers can pass per-entity names like a mini-app's display name.
+  if (!isTopLevelRoute(tab.url)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
 
@@ -38,6 +40,8 @@ export interface OpenTabOptions {
   type?: TabType
   /** Custom tab ID (auto-generated if not provided) */
   id?: string
+  /** Per-entity icon descriptor (e.g. mini-app logo string); rendered in the tab bar when set */
+  icon?: string
 }
 
 export interface TabsContextValue {
@@ -284,7 +288,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id } = options
+      const { forceNew = false, title, type = 'route', id, icon } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -299,6 +303,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
         type,
         url,
         title: title || getDefaultRouteTitle(url),
+        icon,
         lastAccessTime: Date.now(),
         isDormant: false
       }

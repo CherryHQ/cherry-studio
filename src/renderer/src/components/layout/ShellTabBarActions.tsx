@@ -49,9 +49,14 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
     }
 
     if (activeTabId) {
+      // Clear any per-entity icon (e.g. a mini-app logo carried over from
+      // /app/mini-app/<id>) so the settings tab falls back to its default
+      // route icon. Same pattern as AppShell.handleUrlChange and
+      // Sidebar.handleNavigate.
       updateTab(activeTabId, {
         url: settingsPath,
-        title: getDefaultRouteTitle(settingsPath)
+        title: getDefaultRouteTitle(settingsPath),
+        icon: undefined
       })
     }
   }

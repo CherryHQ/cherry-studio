@@ -27,9 +27,10 @@ import type { GroupSchemas } from './groups'
 import type { KnowledgeSchemas } from './knowledges'
 import type { MCPServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
-import type { MiniappSchemas } from './miniapps'
+import type { MiniAppSchemas } from './miniApps'
 import type { ModelSchemas } from './models'
 import type { PinSchemas } from './pins'
+import type { PromptSchemas } from './prompts'
 import type { ProviderSchemas } from './providers'
 import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
@@ -48,7 +49,6 @@ import type { TranslateSchemas } from './translate'
  * 1. Create the schema file (e.g., topic.ts)
  * 2. Import and add to intersection below
  */
-
 export type ApiSchemas = AssertValidSchemas<
   TopicSchemas &
     MessageSchemas &
@@ -58,9 +58,10 @@ export type ApiSchemas = AssertValidSchemas<
     TranslateSchemas &
     MCPServerSchemas &
     KnowledgeSchemas &
-    MiniappSchemas &
+    MiniAppSchemas &
     AssistantSchemas &
     TagSchemas &
+    PromptSchemas &
     GroupSchemas &
     PinSchemas &
     AgentSchemas &
