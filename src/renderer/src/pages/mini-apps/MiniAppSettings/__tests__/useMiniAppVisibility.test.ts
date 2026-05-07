@@ -68,8 +68,9 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled')
   })
 
-  it('swap explicitly names every row in the move and ignores pinned rows', () => {
-    // visible includes a pinned row that must stay pinned across the swap.
+  it('swap explicitly names every row in the move and keeps pinned rows visible', () => {
+    // visible includes a pinned row that must stay in the visible column AND
+    // must not appear in the bulk update.
     const pinnedApp = { ...stubApp('p'), status: 'pinned' as const }
     mocks.miniApps = [stubApp('a'), pinnedApp]
     mocks.disabled = [stubApp('c')]
@@ -77,13 +78,14 @@ describe('useMiniAppVisibility', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.swap())
 
-    expect(result.current.visible.map((a) => a.appId)).toEqual(['c'])
-    expect(result.current.hidden.map((a) => a.appId)).toEqual(['a', 'p'])
+    // Pinned 'p' stays visible; only the enabled row 'a' actually moves.
+    // Otherwise 'p' would briefly show up in `hidden` and then snap back to
+    // `visible` after the next cache invalidate, producing a visual flicker.
+    expect(result.current.visible.map((a) => a.appId).sort()).toEqual(['c', 'p'])
+    expect(result.current.hidden.map((a) => a.appId)).toEqual(['a'])
 
     expect(mocks.setAppStatusBulk).toHaveBeenCalledTimes(1)
     const updates = mocks.setAppStatusBulk.mock.calls[0][0] as Array<{ appId: string; status: string }>
-    // 'a' (was enabled) moves to disabled; 'c' (was disabled) moves to enabled;
-    // 'p' (pinned) is in the visible column but must NOT appear in the bulk call.
     expect(updates).toContainEqual({ appId: 'a', status: 'disabled' })
     expect(updates).toContainEqual({ appId: 'c', status: 'enabled' })
     expect(updates.find((u) => u.appId === 'p')).toBeUndefined()

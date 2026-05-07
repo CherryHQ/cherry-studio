@@ -61,14 +61,16 @@ export function useMiniAppVisibility() {
   }, [miniApps, disabled])
 
   const swap = useCallback(() => {
-    const newVisible = hidden
-    const newHidden = visible
-    setVisible(newVisible)
-    setHidden(newHidden)
-    // Pinned rows are visible-by-design but should not be flipped to disabled
-    // on swap; only the rows that were status='enabled' move into disabled.
+    // Pinned rows are visible-by-design and the bulk update below intentionally
+    // skips them. Mirror that filter in the optimistic state too — otherwise
+    // pinned rows briefly appear in `hidden`, then snap back to `visible` after
+    // the next cache invalidate revalidates the truth from DB.
+    const movingToHidden = visible.filter((a) => a.status === 'enabled')
+    const pinnedStays = visible.filter((a) => a.status === 'pinned')
+    setVisible([...hidden, ...pinnedStays])
+    setHidden(movingToHidden)
     setAppStatusBulk([
-      ...visible.filter((a) => a.status === 'enabled').map((a) => ({ appId: a.appId, status: 'disabled' as const })),
+      ...movingToHidden.map((a) => ({ appId: a.appId, status: 'disabled' as const })),
       ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
     ]).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
   }, [hidden, visible, setAppStatusBulk, t])
