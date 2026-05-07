@@ -34,7 +34,8 @@ import {
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
-  TogetherModelsResponseSchema
+  TogetherModelsResponseSchema,
+  VercelGatewayModelsResponseSchema
 } from './listModelsSchemas'
 
 const logger = loggerService.withContext('ModelListService')
@@ -342,6 +343,32 @@ const aiHubMixFetcher: ModelFetcher = {
   }
 }
 
+/** Vercel AI Gateway: hits /v3/ai/config directly with `ai-gateway-protocol-version` header
+ *  instead of going through `@ai-sdk/gateway`'s `getAvailableModels()`. The SDK validates the
+ *  response against a strict schema that breaks whenever Vercel evolves the registry, so we
+ *  parse with `z.looseObject` here to keep listing resilient. Inference still uses the SDK. */
+const gatewayFetcher: ModelFetcher = {
+  match: (p) => isAIGatewayProvider(p),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `https://ai-gateway.vercel.sh/v3/ai/config`,
+      headers: {
+        ...(await defaultHeaders(provider)),
+        'ai-gateway-protocol-version': '0.0.1'
+      },
+      responseSchema: VercelGatewayModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.models, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        description: m.description,
+        ownedBy: m.specification?.provider
+      })
+    )
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
@@ -369,17 +396,14 @@ const fetchers: ModelFetcher[] = [
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,
+  gatewayFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 
 const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
 
 function isUnsupported(provider: Provider): boolean {
-  return (
-    isAIGatewayProvider(provider) ||
-    UNSUPPORTED_PROVIDERS.has(provider.id) ||
-    provider.presetProviderId === 'vertex-anthropic'
-  )
+  return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.presetProviderId === 'vertex-anthropic'
 }
 
 // ── Public API ──
