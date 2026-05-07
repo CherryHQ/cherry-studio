@@ -1,4 +1,4 @@
-import { Switch } from '@cherrystudio/ui'
+import { Switch, TreeSelect, type TreeSelectOption } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
@@ -11,7 +11,7 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
+import { Alert, Empty, Form, Input, Modal, Select, Spin } from 'antd'
 import React, { useEffect, useState } from 'react'
 const logger = loggerService.withContext('ObsidianExportDialog')
 
@@ -42,8 +42,8 @@ interface PopupContainerProps {
 }
 
 // 转换文件信息数组为树形结构
-const convertToTreeData = (files: FileInfo[]) => {
-  const treeData: any[] = [
+const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
+  const treeData: TreeSelectOption[] = [
     {
       title: i18n.t('chat.topics.export.obsidian_root_directory'),
       value: '',
@@ -53,7 +53,7 @@ const convertToTreeData = (files: FileInfo[]) => {
   ]
 
   // 记录已创建的节点路径
-  const pathMap: Record<string, any> = {
+  const pathMap: Record<string, TreeSelectOption> = {
     '': treeData[0]
   }
 
@@ -156,7 +156,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [files, setFiles] = useState<FileInfo[]>([])
-  const [fileTreeData, setFileTreeData] = useState<any[]>([])
+  const [fileTreeData, setFileTreeData] = useState<TreeSelectOption[]>([])
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -361,12 +361,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
                 value={state.folder}
                 onChange={handleFileSelect}
                 placeholder={i18n.t('chat.topics.export.obsidian_path_placeholder')}
-                style={{ width: '100%' }}
-                showSearch
-                dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
-                treeDefaultExpandAll={false}
-                treeNodeFilterProp="title"
-                treeData={fileTreeData}></TreeSelect>
+                searchPlaceholder={i18n.t('common.search')}
+                emptyText={i18n.t('common.no_results')}
+                width="100%"
+                maxHeight={400}
+                treeData={fileTreeData}
+              />
             ) : (
               <Empty
                 description={i18n.t('chat.topics.export.obsidian_select_vault_first')}
