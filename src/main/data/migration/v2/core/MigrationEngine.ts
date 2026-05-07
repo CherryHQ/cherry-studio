@@ -16,7 +16,7 @@ import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/s
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
-import { miniappTable } from '@data/db/schemas/miniapp'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
@@ -310,7 +310,7 @@ export class MigrationEngine {
       { table: assistantKnowledgeBaseTable, name: 'assistant_knowledge_base' }, // Junction: clear before assistant
       { table: assistantTable, name: 'assistant' },
       { table: mcpServerTable, name: 'mcp_server' },
-      { table: miniappTable, name: 'miniapp' },
+      { table: miniAppTable, name: 'mini_app' },
       { table: preferenceTable, name: 'preference' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },

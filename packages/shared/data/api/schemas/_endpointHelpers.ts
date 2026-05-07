@@ -5,7 +5,7 @@
  * runtime Zod schemas that handlers validate against and the type-level
  * helpers that inject whole endpoint definitions (path + method + params +
  * body + response) into a resource's schema map. Consumed by resource schema
- * files (e.g. `topics.ts`, `miniapps.ts`), main-side handlers, and renderer
+ * files (e.g. `topics.ts`, `miniApps.ts`), main-side handlers, and renderer
  * hooks.
  *
  * The leading underscore mirrors `src/main/data/db/schemas/_columnHelpers.ts`

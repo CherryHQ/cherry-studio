@@ -2136,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "minapps": "Приложения"
+    "miniApps": "Приложения"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2489,15 +2489,20 @@
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
-      "minimize": "Свернуть встроенное приложение",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
@@ -2506,6 +2511,13 @@
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "Закрыть"
@@ -2520,9 +2532,11 @@
         "title": "Удалить пользовательское приложение"
       }
     },
-    "title": "Встроенные приложения"
+    "title": "Встроенные приложения",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
@@ -2541,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "Tencent Yuanbao",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "Wanzhi",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4635,7 +4650,7 @@
         "knowledge": {
           "icon": "Показывать иконку знаний"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "Показывать иконку мини-приложения"
         },
         "painting": {
@@ -5037,7 +5052,7 @@
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
       "cache_settings": "Настройки кэша",
@@ -5087,8 +5102,6 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
-      "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-      "sidebar_title": "Отображение активных мини-приложений в боковой панели",
       "title": "Настройки мини-приложений",
       "visible": "Отображаемые мини-приложения"
     },

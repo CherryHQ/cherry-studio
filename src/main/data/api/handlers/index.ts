@@ -22,7 +22,7 @@ import { groupHandlers } from './groups'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
-import { miniappHandlers } from './miniapps'
+import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
@@ -52,7 +52,7 @@ export const apiHandlers: ApiImplementation = {
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
-  ...miniappHandlers,
+  ...miniAppHandlers,
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,

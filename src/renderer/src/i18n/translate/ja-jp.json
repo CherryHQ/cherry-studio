@@ -2136,7 +2136,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "アプリ"
+    "miniApps": "アプリ"
   },
   "lmstudio": {
     "keep_alive_time": {
@@ -2489,15 +2489,20 @@
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
+  "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
+    "error": {
+      "load_failed": "[to be translated]:Failed to load app",
+      "not_found": "[to be translated]:App not found"
+    },
+    "hide_failed": "Failed to hide mini-app",
+    "pin_failed": "[to be translated]:Failed to pin mini-app",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
-      "minimize": "ミニアプリを最小化",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
@@ -2506,6 +2511,13 @@
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
+    "reorder_failed": "Failed to reorder mini-apps",
+    "shortcut": {
+      "failed": "[to be translated]:Failed: {{message}}",
+      "html_saved": "[to be translated]:HTML saved to: {{path}}",
+      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+    },
+    "show_failed": "Failed to show mini-app",
     "sidebar": {
       "close": {
         "title": "閉じる"
@@ -2520,9 +2532,11 @@
         "title": "カスタムアプリを削除"
       }
     },
-    "title": "ミニアプリ"
+    "title": "ミニアプリ",
+    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
+    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
-  "minapps": {
+  "miniApps": {
     "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI検索",
@@ -2541,6 +2555,7 @@
     "stepfun": "Stepfun",
     "tencent-yuanbao": "騰訊元宝",
     "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Some mini-apps failed to update",
     "wanzhi": "万知",
     "wenxin": "ERNIE",
     "wps-copilot": "WPS Copilot",
@@ -4635,7 +4650,7 @@
         "knowledge": {
           "icon": "ナレッジのアイコンを表示"
         },
-        "minapp": {
+        "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
         },
         "painting": {
@@ -5037,7 +5052,7 @@
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
-    "miniapps": {
+    "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
       "cache_settings": "キャッシュ設定",
@@ -5087,8 +5102,6 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-      "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },

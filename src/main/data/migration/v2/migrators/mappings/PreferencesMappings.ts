@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-04-27T08:44:03.193Z
+ * Generated at: 2026-05-07T06:53:51.740Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -363,14 +363,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.confirm_regenerate'
     },
     {
-      originalKey: 'sidebarIcons.visible',
-      targetKey: 'ui.sidebar.icons.visible'
-    },
-    {
-      originalKey: 'sidebarIcons.disabled',
-      targetKey: 'ui.sidebar.icons.invisible'
-    },
-    {
       originalKey: 'narrowMode',
       targetKey: 'chat.narrow_mode'
     },
@@ -476,15 +468,15 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'maxKeepAliveMinapps',
-      targetKey: 'feature.minapp.max_keep_alive'
-    },
-    {
-      originalKey: 'showOpenedMinappsInSidebar',
-      targetKey: 'feature.minapp.show_opened_in_sidebar'
+      targetKey: 'feature.mini_app.max_keep_alive'
     },
     {
       originalKey: 'minappsOpenLinkExternal',
-      targetKey: 'feature.minapp.open_link_external'
+      targetKey: 'feature.mini_app.open_link_external'
+    },
+    {
+      originalKey: 'minAppRegion',
+      targetKey: 'feature.mini_app.region'
     },
     {
       originalKey: 'enableSpellCheck',
@@ -859,11 +851,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 188
+ * - Redux Store项: 186
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 7
  * - localStorage项: 0
- * - 总配置项: 196
+ * - 总配置项: 194
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)
