@@ -128,4 +128,28 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.reorderVisible(0, 0))
     expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
+
+  it('resyncs local row status when upstream flips status without changing membership', () => {
+    // Reproducer for the "right-click → Add to Launchpad while panel open"
+    // scenario: id sequence stays identical, but row 'a' flips enabled →
+    // pinned. The old id-only comparator skipped resync, leaving a stale
+    // `status='enabled'` locally — then `swap` filtered 'a' as movingToHidden
+    // and dragged the now-pinned row into the hidden column.
+    mocks.miniApps = [stubApp('a'), stubApp('b')]
+    mocks.disabled = []
+
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+    expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('enabled')
+
+    // Simulate upstream PATCH landing: status flip but same membership/order.
+    mocks.miniApps = [{ ...stubApp('a'), status: 'pinned' }, stubApp('b')]
+    rerender()
+
+    expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('pinned')
+
+    // Now swap must keep 'a' visible (it's pinned), only 'b' (enabled) moves.
+    act(() => result.current.swap())
+    expect(result.current.visible.map((x) => x.appId)).toContain('a')
+    expect(result.current.hidden.map((x) => x.appId)).not.toContain('a')
+  })
 })

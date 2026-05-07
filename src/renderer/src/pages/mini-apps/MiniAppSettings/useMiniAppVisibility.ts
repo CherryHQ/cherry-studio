@@ -46,18 +46,21 @@ export function useMiniAppVisibility() {
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
 
-  // Resync local optimistic state with the upstream cache, but only when the
-  // membership or order actually changed. Reordering goes through
-  // `useReorder`, which writes an optimistic /mini-apps cache update — that
-  // re-renders us with a fresh `miniApps` array reference whose IDs match
-  // what we already have. Replacing local state with that fresh reference
-  // mid-drop forces Sortable to re-layout while dnd-kit's drop animation is
-  // still in flight, producing a visible "snap back to original position"
-  // before the item lands at its target. Comparing by id sequence makes this
-  // a no-op.
+  // Resync local optimistic state with the upstream cache, but skip the resync
+  // when the membership / order / status of every row is unchanged. Reordering
+  // goes through `useReorder`, which writes an optimistic /mini-apps cache
+  // update — replacing local state with that fresh reference mid-drop forces
+  // Sortable to re-layout while dnd-kit's drop animation is still in flight,
+  // producing a visible "snap back" before the item lands at its target.
+  //
+  // Compare by (appId, status) — id alone is too lax: a status flip from a
+  // sibling action (e.g. right-clicking an app and picking "Add to Launchpad"
+  // while this panel is open) leaves the membership identical but changes
+  // status, and the local row's stale `status` then misclassifies the row in
+  // `swap`/`reset`/`reorderVisible` filters that key off `a.status`.
   useEffect(() => {
-    setVisible((prev) => (sameAppIdSequence(prev, miniApps) ? prev : miniApps))
-    setHidden((prev) => (sameAppIdSequence(prev, disabled || []) ? prev : disabled || []))
+    setVisible((prev) => (sameRowsByIdAndStatus(prev, miniApps) ? prev : miniApps))
+    setHidden((prev) => (sameRowsByIdAndStatus(prev, disabled || []) ? prev : disabled || []))
   }, [miniApps, disabled])
 
   const swap = useCallback(() => {
@@ -134,10 +137,11 @@ export function useMiniAppVisibility() {
 
 export type MiniAppVisibility = ReturnType<typeof useMiniAppVisibility>
 
-function sameAppIdSequence(a: MiniApp[], b: MiniApp[]): boolean {
+function sameRowsByIdAndStatus(a: MiniApp[], b: MiniApp[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
     if (a[i].appId !== b[i].appId) return false
+    if (a[i].status !== b[i].status) return false
   }
   return true
 }
