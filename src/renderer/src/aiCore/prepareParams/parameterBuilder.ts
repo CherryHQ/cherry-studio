@@ -42,7 +42,7 @@ import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { addAnthropicHeaders } from './header'
-import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
+import { filterStandardParams, getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
@@ -57,6 +57,16 @@ function validateMaxToolCalls(value: number | undefined): number {
     return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
   return value
+}
+
+export function getEffectiveMaxToolCalls(settings?: { maxToolCalls?: number; enableMaxToolCalls?: boolean }): number {
+  const enableMaxToolCalls = settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+
+  if (!enableMaxToolCalls) {
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  }
+
+  return validateMaxToolCalls(settings?.maxToolCalls)
 }
 
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
@@ -192,10 +202,9 @@ export async function buildStreamTextParams(
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
 
-  // Get max tool calls from assistant settings
-  // When enabled, validate and use user-defined value (1-100)
-  // When disabled, don't pass stopWhen - let AI SDK use its own default
-  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+  // AI SDK defaults to stepCountIs(1), which would stop after the first tool call.
+  // Always pass an explicit cap so native tool use can continue across steps.
+  const maxToolCalls = getEffectiveMaxToolCalls(assistant.settings)
 
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -203,19 +212,15 @@ export async function buildStreamTextParams(
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
-    ...standardParams,
+    // (filtered to drop ones the model rejects, e.g. topK on Claude Opus 4.7)
+    ...filterStandardParams(standardParams, model),
     abortSignal: finalSignal,
     headers,
     providerOptions,
     maxRetries: 0
   }
 
-  // Only add stopWhen when explicitly enabled and validated
-  if (enableMaxToolCalls) {
-    const maxToolCalls = validateMaxToolCalls(assistant.settings?.maxToolCalls)
-    params.stopWhen = stepCountIs(maxToolCalls)
-  }
-  // When disabled, don't pass stopWhen - let AI SDK use its own default
+  params.stopWhen = stepCountIs(maxToolCalls)
 
   if (tools) {
     params.tools = tools

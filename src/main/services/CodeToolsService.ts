@@ -130,6 +130,37 @@ class CodeToolsService {
   }
 
   /**
+   * Get the command to execute claude-code.
+   *
+   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
+   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
+   * a JS launcher that locates and spawns the correct platform-specific binary.
+   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
+   */
+  private async getClaudeCodeCommand(bunPath: string): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const cliWrapperPath = path.join(
+      globalInstallDir,
+      'node_modules',
+      '@anthropic-ai',
+      'claude-code',
+      'cli-wrapper.cjs'
+    )
+
+    if (fs.existsSync(cliWrapperPath)) {
+      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
+      return `"${bunPath}" "${cliWrapperPath}"`
+    }
+
+    // Fallback: try to execute the binary directly (works if postinstall ran correctly)
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeTools.claudeCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
+    return `"${executablePath}"`
+  }
+
+  /**
    * Generate opencode.json config file for OpenCode CLI
    * Merge approach:
    * 1. Parse existing config (if any) with JSONC support
@@ -144,15 +175,16 @@ class CodeToolsService {
     supportsReasoningEffort: boolean,
     budgetTokens: number | undefined,
     providerType: string,
-    providerName: string
+    providerName: string,
+    endpointType: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
-    // Determine npm package based on provider type
+    // Determine npm package based on endpoint type (model-level) then provider type (fallback)
     let npmPackage = '@ai-sdk/openai-compatible'
-    if (providerType === 'anthropic') {
+    if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
       npmPackage = '@ai-sdk/anthropic'
-    } else if (providerType === 'openai-response') {
+    } else if (endpointType === 'openai-response' || (!endpointType && providerType === 'openai-response')) {
       npmPackage = '@ai-sdk/openai'
     }
 
@@ -161,10 +193,10 @@ class CodeToolsService {
       name: model.name
     }
 
-    // Add reasoning config based on provider type
+    // Add reasoning config based on endpoint type and provider type
     if (isReasoning) {
       modelConfig.reasoning = true
-      if (providerType === 'anthropic') {
+      if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
         // Anthropic style: thinking with budgetTokens
         modelConfig.options = {
           thinking: {
@@ -653,11 +685,21 @@ class CodeToolsService {
     if (isInstalled) {
       logger.info(`${cliTool} is installed, getting current version`)
       try {
-        const executableName = await this.getCliExecutableName(cliTool)
-        const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-        const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+        let versionCommand: string
 
-        const { stdout } = await execAsync(`"${executablePath}" --version`, {
+        // claude-code ships a native binary that cannot be executed via Bun.
+        // Use cli-wrapper.cjs (via Bun) to run --version reliably on all platforms.
+        if (cliTool === codeTools.claudeCode) {
+          const bunPath = await this.getBunPath()
+          versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else {
+          const executableName = await this.getCliExecutableName(cliTool)
+          const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+          const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+          versionCommand = `"${executablePath}"`
+        }
+
+        const { stdout } = await execAsync(`${versionCommand} --version`, {
           timeout: 10000
         })
         // Extract version number from output (format may vary by tool)
@@ -919,7 +961,17 @@ class CodeToolsService {
       }
     }
 
-    let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
+    let baseCommand: string
+
+    // claude-code ships a native binary that cannot be executed via Bun.
+    // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
+    if (cliTool === codeTools.claudeCode) {
+      baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (isWin) {
+      baseCommand = `"${executablePath}"`
+    } else {
+      baseCommand = `"${bunPath}" "${executablePath}"`
+    }
 
     // Special handling for kimi-cli: use uvx instead of bun
     if (cliTool === codeTools.kimiCli) {
@@ -985,6 +1037,7 @@ class CodeToolsService {
       const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
       const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
       const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
+      const endpointType = env.OPENCODE_MODEL_ENDPOINT_TYPE || ''
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
@@ -994,7 +1047,8 @@ class CodeToolsService {
         supportsReasoningEffort,
         budgetTokens,
         providerType,
-        providerName
+        providerName,
+        endpointType
       )
       this.scheduleOpenCodeConfigCleanup(configPath)
 

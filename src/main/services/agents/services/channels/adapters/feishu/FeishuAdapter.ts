@@ -10,6 +10,7 @@ import {
   ChannelAdapter,
   type ChannelAdapterConfig,
   type FileAttachment,
+  type ImageAttachment,
   MAX_FILE_SIZE_BYTES,
   type SendMessageOptions
 } from '../../ChannelAdapter'
@@ -20,6 +21,22 @@ import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 
 const FEISHU_MAX_LENGTH = 4000
+
+/**
+ * Lifecycle reactions on the user's last message. Feishu has no native typing
+ * API, so we use emoji reactions as a visible status indicator: thinking →
+ * done / error. Each value must be a valid Feishu emoji_type.
+ * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
+ */
+const REACTION_THINKING = 'Typing'
+const REACTION_DONE = 'OK'
+const REACTION_ERROR = 'CRY'
+
+type ChatReaction = {
+  messageId: string
+  reactionId: string
+  emoji: string
+}
 
 type FeishuApiResponse<T = unknown> = {
   code?: number
@@ -453,6 +470,10 @@ class FeishuAdapter extends ChannelAdapter {
   private registrationAbort: AbortController | null = null
   /** Per-chat streaming controller. One stream at a time per chat. */
   private readonly streamingControllers = new Map<string, FeishuStreamingController>()
+  /** Latest user message id per chat — used as the target for status reactions. */
+  private readonly latestUserMessageByChat = new Map<string, string>()
+  /** Active status reaction per chat, so we can swap or remove it. */
+  private readonly chatReactions = new Map<string, ChatReaction>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -596,6 +617,8 @@ class FeishuAdapter extends ChannelAdapter {
       controller.dispose()
     }
     this.streamingControllers.clear()
+    this.chatReactions.clear()
+    this.latestUserMessageByChat.clear()
 
     if (this.wsClient) {
       this.wsClient.close()
@@ -607,10 +630,19 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
+    void _opts
+    // Promote the typing reaction to DONE before delivering the reply,
+    // so the user sees the lifecycle transition. No-op for messages that
+    // weren't preceded by a typing indicator (e.g. /new acks).
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
+    await this.sendRawMessage(chatId, text)
+  }
+
+  /** Send chunked text via the IM API without touching status reactions. */
+  private async sendRawMessage(chatId: string, text: string): Promise<void> {
     if (!this.client) {
       throw new Error('Client is not connected')
     }
-    void _opts
 
     const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
 
@@ -633,10 +665,80 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  async sendTypingIndicator(_chatId: string): Promise<void> {
-    void _chatId
-    // Feishu doesn't have a native typing indicator API.
-    // The streaming card itself serves as a visual indicator.
+  async sendTypingIndicator(chatId: string): Promise<void> {
+    await this.setChatReaction(chatId, REACTION_THINKING)
+  }
+
+  /**
+   * Set the status reaction for a chat to `emoji`, swapping any existing
+   * reaction on the same user message. No-op if there is no recent user
+   * message to react to. Idempotent for the same (messageId, emoji) pair.
+   */
+  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
+    if (!this.client) return
+
+    const messageId = this.latestUserMessageByChat.get(chatId)
+    if (!messageId) return
+
+    const existing = this.chatReactions.get(chatId)
+    if (existing?.messageId === messageId && existing.emoji === emoji) return
+
+    if (existing) {
+      await this.clearChatReaction(chatId)
+    }
+
+    try {
+      const res = ensureFeishuSuccess<{ reaction_id?: string }>(
+        await this.client.im.messageReaction.create({
+          path: { message_id: messageId },
+          data: { reaction_type: { emoji_type: emoji } }
+        }),
+        'Add status reaction'
+      )
+      const reactionId = res.data?.reaction_id
+      if (reactionId) {
+        this.chatReactions.set(chatId, { messageId, reactionId, emoji })
+      }
+    } catch (error) {
+      this.log.debug('Failed to add status reaction', {
+        chatId,
+        messageId,
+        emoji,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /**
+   * Swap the active reaction to `emoji`, but only if there is currently a
+   * transient reaction (e.g. THINKING). Used at completion/error so that
+   * non-streaming sendMessage calls (e.g. /new) don't get a DONE reaction.
+   */
+  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
+    const existing = this.chatReactions.get(chatId)
+    if (!existing || !from.includes(existing.emoji)) return
+    await this.setChatReaction(chatId, emoji)
+  }
+
+  private async clearChatReaction(chatId: string): Promise<void> {
+    const reaction = this.chatReactions.get(chatId)
+    if (!reaction) return
+    this.chatReactions.delete(chatId)
+    if (!this.client) return
+
+    try {
+      ensureFeishuSuccess(
+        await this.client.im.messageReaction.delete({
+          path: { message_id: reaction.messageId, reaction_id: reaction.reactionId }
+        }),
+        'Remove status reaction'
+      )
+    } catch (error) {
+      this.log.debug('Failed to remove status reaction', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
@@ -652,6 +754,7 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
+    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
     const controller = this.streamingControllers.get(chatId)
     if (!controller) return false
 
@@ -660,11 +763,24 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   override async onStreamError(chatId: string, error: string): Promise<void> {
+    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
     const controller = this.streamingControllers.get(chatId)
-    if (!controller) return
+    if (controller) {
+      this.streamingControllers.delete(chatId)
+      await controller.error(error)
+      return
+    }
 
-    this.streamingControllers.delete(chatId)
-    await controller.error(error)
+    // No streaming card was created (LLM errored before producing any text),
+    // so the error would otherwise be silent. Send it as a plain message.
+    try {
+      await this.sendRawMessage(chatId, `**Error**: ${error}`)
+    } catch (sendError) {
+      this.log.warn('Failed to deliver stream error to chat', {
+        chatId,
+        error: sendError instanceof Error ? sendError.message : String(sendError)
+      })
+    }
   }
 
   private handleMessageEvent(event: FeishuMessageEvent): void {
@@ -676,11 +792,21 @@ class FeishuAdapter extends ChannelAdapter {
       return
     }
 
+    // Remember the latest user message so sendTypingIndicator can react to it.
+    if (event.message.message_id) {
+      this.latestUserMessageByChat.set(chatId, event.message.message_id)
+    }
+
     const messageType = event.message.message_type
     const userId = event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? ''
 
     if (messageType === 'file') {
       this.handleFileMessage(event, chatId, userId)
+      return
+    }
+
+    if (messageType === 'image') {
+      this.handleImageMessage(event, chatId, userId)
       return
     }
 
@@ -718,6 +844,96 @@ class FeishuAdapter extends ChannelAdapter {
       userName: '',
       text
     })
+  }
+
+  private handleImageMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
+    let imageKey: string
+    try {
+      const parsed = JSON.parse(event.message.content) as { image_key?: string }
+      imageKey = parsed.image_key ?? ''
+    } catch {
+      return
+    }
+    if (!imageKey) return
+
+    this.downloadFeishuImage(event.message.message_id, imageKey)
+      .then((images) => {
+        if (images.length === 0) {
+          this.emit('message', {
+            chatId,
+            userId,
+            userName: '',
+            text: '[Image — download failed]'
+          })
+          return
+        }
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: '',
+          images
+        })
+      })
+      .catch((error) => {
+        this.log.warn('Failed to download Feishu image', {
+          imageKey,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        this.emit('message', {
+          chatId,
+          userId,
+          userName: '',
+          text: '[Image — download failed]'
+        })
+      })
+  }
+
+  private async downloadFeishuImage(messageId: string, imageKey: string): Promise<ImageAttachment[]> {
+    if (!this.client) return []
+
+    this.log.info('Downloading Feishu image', { messageId, imageKey })
+
+    let resp: Awaited<ReturnType<typeof this.client.im.messageResource.get>>
+    try {
+      resp = await this.client.im.messageResource.get({
+        params: { type: 'image' },
+        path: { message_id: messageId, file_key: imageKey }
+      })
+    } catch (error) {
+      this.log.error('Feishu messageResource.get failed', {
+        messageId,
+        imageKey,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      throw error
+    }
+
+    const stream = resp.getReadableStream()
+    const chunks: Buffer[] = []
+    let totalSize = 0
+
+    for await (const chunk of stream) {
+      totalSize += chunk.length
+      if (totalSize > MAX_FILE_SIZE_BYTES) {
+        this.log.warn('Feishu image too large, aborting download', { imageKey, size: totalSize })
+        stream.destroy()
+        return []
+      }
+      chunks.push(Buffer.from(chunk))
+    }
+
+    const buffer = Buffer.concat(chunks)
+    if (buffer.length === 0) return []
+
+    const rawContentType =
+      (resp.headers as Record<string, string | string[] | undefined> | undefined)?.['content-type'] ?? ''
+    const headerValue = Array.isArray(rawContentType) ? rawContentType[0] : rawContentType
+    const mediaType = headerValue ? headerValue.split(';')[0].trim() || 'image/png' : 'image/png'
+
+    this.log.info('Feishu image downloaded', { imageKey, totalSize: buffer.length, mediaType })
+    return [{ data: buffer.toString('base64'), media_type: mediaType }]
   }
 
   private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
