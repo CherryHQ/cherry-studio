@@ -1110,7 +1110,7 @@
       },
       "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
-      "paste_text_file_confirm": "¿Pegar en el cuadro de entrada?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",

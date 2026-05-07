@@ -1,3 +1,4 @@
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -8,8 +9,6 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { MinAppType } from '@renderer/types'
 import { useNavigate } from '@tanstack/react-router'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -61,83 +60,78 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     onClick?.()
   }
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'togglePin',
-      label: isPinned
-        ? isTopNavbar
-          ? t('minapp.remove_from_launchpad')
-          : t('minapp.remove_from_sidebar')
-        : isTopNavbar
-          ? t('minapp.add_to_launchpad')
-          : t('minapp.add_to_sidebar'),
-      onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
-        updatePinnedMinapps(newPinned)
-      }
-    },
-    {
-      key: 'hide',
-      label: t('minapp.sidebar.hide.title'),
-      onClick: () => {
-        const newMinapps = minapps.filter((item) => item.id !== app.id)
-        updateMinapps(newMinapps)
-        const newDisabled = [...(disabled || []), app]
-        updateDisabledMinapps(newDisabled)
-        updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
-        // 更新 openedKeepAliveMinapps
-        const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
-        setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
-      }
-    },
-    ...(app.type === 'Custom'
-      ? [
-          {
-            key: 'removeCustom',
-            label: t('minapp.sidebar.remove_custom.title'),
-            danger: true,
-            onClick: async () => {
-              try {
-                const content = await window.api.file.read('custom-minapps.json')
-                const customApps = JSON.parse(content)
-                const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
-                await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
-                window.toast.success(t('settings.miniapps.custom.remove_success'))
-                const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
-                updateAllMinApps(reloadedApps)
-                updateMinapps(minapps.filter((item) => item.id !== app.id))
-                updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
-                updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
-              } catch (error) {
-                window.toast.error(t('settings.miniapps.custom.remove_error'))
-                logger.error('Failed to remove custom mini app:', error as Error)
-              }
-            }
-          }
-        ]
-      : [])
-  ]
+  const togglePinLabel = isPinned
+    ? isTopNavbar
+      ? t('minapp.remove_from_launchpad')
+      : t('minapp.remove_from_sidebar')
+    : isTopNavbar
+      ? t('minapp.add_to_launchpad')
+      : t('minapp.add_to_sidebar')
+
+  const handleTogglePin = () => {
+    const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...pinned, app]
+    updatePinnedMinapps(newPinned)
+  }
+
+  const handleHide = () => {
+    const newMinapps = minapps.filter((item) => item.id !== app.id)
+    updateMinapps(newMinapps)
+    const newDisabled = [...(disabled || []), app]
+    updateDisabledMinapps(newDisabled)
+    updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
+    const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
+    setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
+  }
+
+  const handleRemoveCustom = async () => {
+    try {
+      const content = await window.api.file.read('custom-minapps.json')
+      const customApps = JSON.parse(content)
+      const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
+      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
+      window.toast.success(t('settings.miniapps.custom.remove_success'))
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateAllMinApps(reloadedApps)
+      updateMinapps(minapps.filter((item) => item.id !== app.id))
+      updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
+      updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
+    } catch (error) {
+      window.toast.error(t('settings.miniapps.custom.remove_error'))
+      logger.error('Failed to remove custom mini app:', error as Error)
+    }
+  }
 
   if (!shouldShow) {
     return null
   }
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleClick}>
-        <IconContainer>
-          <MinAppIcon size={size} app={app} />
-          {isOpened && (
-            <StyledIndicator>
-              <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
-            </StyledIndicator>
-          )}
-        </IconContainer>
-        <AppTitle>
-          <MarqueeText>{displayName}</MarqueeText>
-        </AppTitle>
-      </Container>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Container onClick={handleClick}>
+          <IconContainer>
+            <MinAppIcon size={size} app={app} />
+            {isOpened && (
+              <StyledIndicator>
+                <IndicatorLight color="#22c55e" size={6} animation={!isActive} />
+              </StyledIndicator>
+            )}
+          </IconContainer>
+          <AppTitle>
+            <MarqueeText>{displayName}</MarqueeText>
+          </AppTitle>
+        </Container>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleTogglePin}>{togglePinLabel}</ContextMenuItem>
+        <ContextMenuItem onSelect={handleHide}>{t('minapp.sidebar.hide.title')}</ContextMenuItem>
+        {app.type === 'Custom' && (
+          <ContextMenuItem variant="destructive" onSelect={handleRemoveCustom}>
+            {t('minapp.sidebar.remove_custom.title')}
+          </ContextMenuItem>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

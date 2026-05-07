@@ -1110,7 +1110,7 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
-      "paste_text_file_confirm": "In Eingabefeld einfügen?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",

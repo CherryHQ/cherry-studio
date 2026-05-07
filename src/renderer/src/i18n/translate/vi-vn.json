@@ -1110,7 +1110,7 @@
       },
       "new_session": "Phiên mới {{Command}}",
       "new_topic": "Chủ đề mới {{Command}}",
-      "paste_text_file_confirm": "Dán vào thanh nhập liệu?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",

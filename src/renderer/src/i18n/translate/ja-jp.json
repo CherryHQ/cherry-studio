@@ -1110,7 +1110,7 @@
       },
       "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
-      "paste_text_file_confirm": "入力欄に貼り付けますか？",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",

@@ -1110,7 +1110,7 @@
       },
       "new_session": "Sesiune nouă {{Command}}",
       "new_topic": "Subiect nou {{Command}}",
-      "paste_text_file_confirm": "Lipești în bara de introducere?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",

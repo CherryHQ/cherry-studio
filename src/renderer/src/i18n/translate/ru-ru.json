@@ -1110,7 +1110,7 @@
       },
       "new_session": "Новая сессия {{Команда}}",
       "new_topic": "Новый топик {{Command}}",
-      "paste_text_file_confirm": "Вставить в поле ввода?",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",

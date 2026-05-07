@@ -1110,7 +1110,7 @@
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
-      "paste_text_file_confirm": "Επικόλληση στο πεδίο εισαγωγής;",
+      "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",

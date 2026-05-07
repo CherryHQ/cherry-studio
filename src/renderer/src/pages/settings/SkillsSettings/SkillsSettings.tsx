@@ -1,4 +1,13 @@
-import { MenuItem, MenuList } from '@cherrystudio/ui'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  MenuItem,
+  MenuList
+} from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -9,7 +18,6 @@ import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSourc
 import {
   Button,
   Checkbox,
-  Dropdown,
   Empty,
   Input,
   message,
@@ -592,42 +600,36 @@ const SkillsSettings: FC = () => {
                       )
                     }
                     return (
-                      <Dropdown
-                        key={skill.id}
-                        trigger={['contextMenu']}
-                        menu={{
-                          items: [
-                            {
-                              key: 'multiSelect',
-                              label: t('settings.skills.multiSelect'),
-                              onClick: () => setMultiSelectMode(true)
-                            },
-                            ...(!isBuiltin
-                              ? [
-                                  { type: 'divider' as const, key: 'div' },
-                                  {
-                                    key: 'uninstall',
-                                    label: t('settings.skills.uninstall'),
-                                    danger: true,
-                                    icon: <Trash2 size={14} />,
-                                    onClick: () => handleContextMenuUninstall(skill)
-                                  }
-                                ]
-                              : [])
-                          ]
-                        }}>
-                        <div>
-                          <MenuItem
-                            label={skill.name}
-                            description={skill.description ?? undefined}
-                            descriptionLines={2}
-                            active={selectedSkillId === skill.id}
-                            onClick={() => setSelectedSkill(skill)}
-                            icon={<Puzzle size={16} />}
-                            className="rounded-xs font-medium"
-                          />
-                        </div>
-                      </Dropdown>
+                      <ContextMenu key={skill.id}>
+                        <ContextMenuTrigger asChild>
+                          <div>
+                            <MenuItem
+                              label={skill.name}
+                              description={skill.description ?? undefined}
+                              descriptionLines={2}
+                              active={selectedSkillId === skill.id}
+                              onClick={() => setSelectedSkill(skill)}
+                              icon={<Puzzle size={16} />}
+                              className="rounded-xs font-medium"
+                            />
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onSelect={() => setMultiSelectMode(true)}>
+                            {t('settings.skills.multiSelect')}
+                          </ContextMenuItem>
+                          {!isBuiltin && (
+                            <>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem variant="destructive" onSelect={() => handleContextMenuUninstall(skill)}>
+                                <ContextMenuItemContent icon={<Trash2 size={14} />}>
+                                  {t('settings.skills.uninstall')}
+                                </ContextMenuItemContent>
+                              </ContextMenuItem>
+                            </>
+                          )}
+                        </ContextMenuContent>
+                      </ContextMenu>
                     )
                   })
                 )}

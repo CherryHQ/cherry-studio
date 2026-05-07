@@ -12,8 +12,14 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
-import { ColFlex, Tooltip } from '@cherrystudio/ui'
-import ConfirmDialog from '@renderer/components/ConfirmDialog'
+import {
+  ColFlex,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
@@ -21,15 +27,15 @@ import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Image } from 'antd'
 import { isEmpty } from 'lodash'
-import type { FC, MouseEvent } from 'react'
-import { useState } from 'react'
+import type { FC } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
   files: FileMetadata[]
   setFiles: (files: FileMetadata[]) => void
-  onAttachmentContextMenu?: (file: FileMetadata, event: MouseEvent<HTMLDivElement>) => void
+  onPasteAsText?: (file: FileMetadata) => void
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
@@ -135,91 +141,62 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   )
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu }) => {
+const AttachmentItem: FC<{
+  file: FileMetadata
+  onRemove: () => void
+  onPasteAsText?: (file: FileMetadata) => void
+}> = ({ file, onRemove, onPasteAsText }) => {
   const { t } = useTranslation()
-  const [contextMenu, setContextMenu] = useState<{
-    file: FileMetadata
-    x: number
-    y: number
-  } | null>(null)
+  const [isTextFile, setIsTextFile] = useState<boolean | null>(null)
+  const probedRef = useRef(false)
 
-  const handleContextMenu = async (file: FileMetadata, event: MouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-
-    // 获取被点击元素的位置
-    const target = event.currentTarget as HTMLElement
-    const rect = target.getBoundingClientRect()
-
-    // 计算对话框位置：附件标签的中心位置
-    const x = rect.left + rect.width / 2
-    const y = rect.top
-
-    try {
-      const isText = await window.api.file.isTextFile(file.path)
-      if (!isText) {
-        setContextMenu(null)
-        return
-      }
-
-      setContextMenu({
-        file,
-        x,
-        y
-      })
-    } catch (error) {
-      setContextMenu(null)
-    }
+  const handleOpenChange = (open: boolean) => {
+    if (!open || probedRef.current) return
+    probedRef.current = true
+    void window.api.file
+      .isTextFile(file.path)
+      .then(setIsTextFile)
+      .catch(() => setIsTextFile(false))
   }
 
-  const handleConfirm = () => {
-    if (contextMenu && onAttachmentContextMenu) {
-      // Create a synthetic mouse event for the callback
-      const syntheticEvent = {
-        preventDefault: () => {},
-        stopPropagation: () => {}
-      } as MouseEvent<HTMLDivElement>
-      onAttachmentContextMenu(contextMenu.file, syntheticEvent)
-    }
-    setContextMenu(null)
+  const tag = (
+    <CustomTag icon={getFileIcon(file.ext)} color="#37a5aa" closable onClose={onRemove}>
+      <FileNameRender file={file} />
+    </CustomTag>
+  )
+
+  if (!onPasteAsText) {
+    return tag
   }
 
-  const handleCancel = () => {
-    setContextMenu(null)
-  }
+  return (
+    <ContextMenu onOpenChange={handleOpenChange}>
+      <ContextMenuTrigger asChild>{tag}</ContextMenuTrigger>
+      {isTextFile && (
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={() => onPasteAsText(file)}>{t('chat.input.paste_text_file')}</ContextMenuItem>
+        </ContextMenuContent>
+      )}
+    </ContextMenu>
+  )
+}
 
+const AttachmentPreview: FC<Props> = ({ files, setFiles, onPasteAsText }) => {
   if (isEmpty(files)) {
     return null
   }
 
   return (
-    <>
-      <ContentContainer>
-        {files.map((file) => (
-          <CustomTag
-            key={file.id}
-            icon={getFileIcon(file.ext)}
-            color="#37a5aa"
-            closable
-            onClose={() => setFiles(files.filter((f) => f.id !== file.id))}
-            onContextMenu={(event) => {
-              void handleContextMenu(file, event)
-            }}>
-            <FileNameRender file={file} />
-          </CustomTag>
-        ))}
-      </ContentContainer>
-
-      {contextMenu && (
-        <ConfirmDialog
-          x={contextMenu.x}
-          y={contextMenu.y}
-          message={t('chat.input.paste_text_file_confirm')}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
+    <ContentContainer>
+      {files.map((file) => (
+        <AttachmentItem
+          key={file.id}
+          file={file}
+          onRemove={() => setFiles(files.filter((f) => f.id !== file.id))}
+          onPasteAsText={onPasteAsText}
         />
-      )}
-    </>
+      ))}
+    </ContentContainer>
   )
 }
 

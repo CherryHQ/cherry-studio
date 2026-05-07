@@ -1,3 +1,11 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -8,8 +16,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import type { KnowledgeBase } from '@renderer/types'
-import type { MenuProps } from 'antd'
-import { Dropdown, Empty } from 'antd'
+import { Empty } from 'antd'
 import { Book, Plus, Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -45,52 +52,32 @@ const KnowledgePage: FC = () => {
     !hasSelectedBase && setSelectedBase(bases[0])
   }, [bases, selectedBase])
 
-  const getMenuItems = useCallback(
-    (base: KnowledgeBase) => {
-      const menus: MenuProps['items'] = [
-        {
-          label: t('knowledge.rename'),
-          key: 'rename',
-          icon: <EditIcon size={14} />,
-          async onClick() {
-            const name = await PromptPopup.show({
-              title: t('knowledge.rename'),
-              message: '',
-              defaultValue: base.name || ''
-            })
-            if (name && base.name !== name) {
-              renameKnowledgeBase(base.id, name)
-            }
-          }
-        },
-        {
-          label: t('common.settings'),
-          key: 'settings',
-          icon: <Settings size={14} />,
-          onClick: () => handleEditKnowledgeBase(base)
-        },
-        { type: 'divider' },
-        {
-          label: t('common.delete'),
-          danger: true,
-          key: 'delete',
-          icon: <DeleteIcon size={14} className="lucide-custom" />,
-          onClick: () => {
-            window.modal.confirm({
-              title: t('knowledge.delete_confirm'),
-              centered: true,
-              onOk: () => {
-                setSelectedBase(undefined)
-                deleteKnowledgeBase(base.id)
-              }
-            })
-          }
-        }
-      ]
-
-      return menus
+  const handleRename = useCallback(
+    async (base: KnowledgeBase) => {
+      const name = await PromptPopup.show({
+        title: t('knowledge.rename'),
+        message: '',
+        defaultValue: base.name || ''
+      })
+      if (name && base.name !== name) {
+        renameKnowledgeBase(base.id, name)
+      }
     },
-    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
+    [renameKnowledgeBase, t]
+  )
+
+  const handleDelete = useCallback(
+    (base: KnowledgeBase) => {
+      window.modal.confirm({
+        title: t('knowledge.delete_confirm'),
+        centered: true,
+        onOk: () => {
+          setSelectedBase(undefined)
+          deleteKnowledgeBase(base.id)
+        }
+      })
+    },
+    [deleteKnowledgeBase, t]
   )
 
   useShortcut('general.search', () => {
@@ -113,16 +100,36 @@ const KnowledgePage: FC = () => {
             onDragStart={() => setIsDragging(true)}
             onDragEnd={() => setIsDragging(false)}>
             {(base: KnowledgeBase) => (
-              <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-                <div>
-                  <ListItem
-                    active={selectedBase?.id === base.id}
-                    icon={<Book size={16} />}
-                    title={base.name}
-                    onClick={() => setSelectedBase(base)}
-                  />
-                </div>
-              </Dropdown>
+              <ContextMenu key={base.id}>
+                <ContextMenuTrigger asChild>
+                  <div>
+                    <ListItem
+                      active={selectedBase?.id === base.id}
+                      icon={<Book size={16} />}
+                      title={base.name}
+                      onClick={() => setSelectedBase(base)}
+                    />
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => handleRename(base)}>
+                    <ContextMenuItemContent icon={<EditIcon size={14} />}>
+                      {t('knowledge.rename')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => handleEditKnowledgeBase(base)}>
+                    <ContextMenuItemContent icon={<Settings size={14} />}>
+                      {t('common.settings')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem variant="destructive" onSelect={() => handleDelete(base)}>
+                    <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
+                      {t('common.delete')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             )}
           </DraggableList>
           {!isDragging && (

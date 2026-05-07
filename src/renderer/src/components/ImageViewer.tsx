@@ -8,12 +8,19 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils'
 import type { ImageProps as AntImageProps } from 'antd'
-import { Dropdown, Image as AntImage, Space } from 'antd'
+import { Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
 import { DownloadIcon } from 'lucide-react'
 import mime from 'mime'
@@ -72,64 +79,56 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
     }
   }
 
-  const getContextMenuItems = (src: string, size: number = 14) => {
-    return [
-      {
-        key: 'copy-image',
-        label: t('common.copy'),
-        icon: <CopyIcon size={size} />,
-        onClick: () => handleCopyImage(src)
-      },
-      {
-        key: 'copy-url',
-        label: t('preview.copy.src'),
-        icon: <CopyIcon size={size} />,
-        onClick: () => {
-          void navigator.clipboard.writeText(src)
-          window.toast.success(t('message.copy.success'))
-        }
-      },
-      {
-        key: 'download',
-        label: t('common.download'),
-        icon: <DownloadIcon size={size} />,
-        onClick: () => download(src)
-      }
-    ]
+  const handleCopyUrl = () => {
+    void navigator.clipboard.writeText(src)
+    window.toast.success(t('message.copy.success'))
   }
 
   return (
-    <Dropdown menu={{ items: getContextMenuItems(src) }} trigger={['contextMenu']}>
-      <AntImage
-        src={src}
-        style={style}
-        onContextMenu={(e) => e.stopPropagation()}
-        {...props}
-        preview={{
-          mask: typeof props.preview === 'object' ? props.preview.mask : false,
-          ...(typeof props.preview === 'object' ? props.preview : {}),
-          toolbarRender: (
-            _,
-            {
-              transform: { scale },
-              actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-            }
-          ) => (
-            <ToolbarWrapper size={12} className="toolbar-wrapper">
-              <SwapOutlined rotate={90} onClick={onFlipY} />
-              <SwapOutlined onClick={onFlipX} />
-              <RotateLeftOutlined onClick={onRotateLeft} />
-              <RotateRightOutlined onClick={onRotateRight} />
-              <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-              <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-              <UndoOutlined onClick={onReset} />
-              <CopyOutlined onClick={() => handleCopyImage(src)} />
-              <DownloadOutlined onClick={() => download(src)} />
-            </ToolbarWrapper>
-          )
-        }}
-      />
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <AntImage
+          src={src}
+          style={style}
+          onContextMenu={(e) => e.stopPropagation()}
+          {...props}
+          preview={{
+            mask: typeof props.preview === 'object' ? props.preview.mask : false,
+            ...(typeof props.preview === 'object' ? props.preview : {}),
+            toolbarRender: (
+              _,
+              {
+                transform: { scale },
+                actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
+              }
+            ) => (
+              <ToolbarWrapper size={12} className="toolbar-wrapper">
+                <SwapOutlined rotate={90} onClick={onFlipY} />
+                <SwapOutlined onClick={onFlipX} />
+                <RotateLeftOutlined onClick={onRotateLeft} />
+                <RotateRightOutlined onClick={onRotateRight} />
+                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+                <UndoOutlined onClick={onReset} />
+                <CopyOutlined onClick={() => handleCopyImage(src)} />
+                <DownloadOutlined onClick={() => download(src)} />
+              </ToolbarWrapper>
+            )
+          }}
+        />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={() => handleCopyImage(src)}>
+          <ContextMenuItemContent icon={<CopyIcon size={14} />}>{t('common.copy')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleCopyUrl}>
+          <ContextMenuItemContent icon={<CopyIcon size={14} />}>{t('preview.copy.src')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => download(src)}>
+          <ContextMenuItemContent icon={<DownloadIcon size={14} />}>{t('common.download')}</ContextMenuItemContent>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

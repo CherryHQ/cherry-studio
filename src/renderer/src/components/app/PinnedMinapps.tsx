@@ -1,12 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { MinAppType } from '@renderer/types'
-import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,37 +66,28 @@ export const SidebarOpenedMinappTabs: FC = () => {
       <TabsWrapper>
         <Menus>
           {openedKeepAliveMinapps.map((app) => {
-            const menuItems: MenuProps['items'] = [
-              {
-                key: 'closeApp',
-                label: t('minapp.sidebar.close.title'),
-                onClick: () => {
-                  closeMinapp(app.id)
-                }
-              },
-              {
-                key: 'closeAllApp',
-                label: t('minapp.sidebar.closeall.title'),
-                onClick: () => {
-                  closeAllMinapps()
-                }
-              }
-            ]
             const isActive = minappShow && currentMinappId === app.id
-
             return (
-              <Dropdown
-                key={app.id}
-                menu={{ items: menuItems }}
-                trigger={['contextMenu']}
-                overlayStyle={{ zIndex: 10000 }}>
-                {/* FIXME: Antd Dropdown is not compatible with HeroUI Tooltip */}
-                {/* <Tooltip content={app.name} placement="right" delay={800}> */}
-                <Icon theme={theme} onClick={() => handleOnClick(app)} className={`${isActive ? 'opened-active' : ''}`}>
-                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                </Icon>
-                {/* </Tooltip> */}
-              </Dropdown>
+              <ContextMenu key={app.id}>
+                <ContextMenuTrigger asChild>
+                  <Tooltip content={app.name} placement="right" delay={800}>
+                    <Icon
+                      theme={theme}
+                      onClick={() => handleOnClick(app)}
+                      className={`${isActive ? 'opened-active' : ''}`}>
+                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                    </Icon>
+                  </Tooltip>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => closeMinapp(app.id)}>
+                    {t('minapp.sidebar.close.title')}
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => closeAllMinapps()}>
+                    {t('minapp.sidebar.closeall.title')}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             )
           })}
         </Menus>
@@ -117,27 +106,25 @@ export const SidebarPinnedApps: FC = () => {
   return (
     <DraggableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
       {(app) => {
-        const menuItems: MenuProps['items'] = [
-          {
-            key: 'togglePin',
-            label: isTopNavbar ? t('minapp.remove_from_launchpad') : t('minapp.remove_from_sidebar'),
-            onClick: () => {
-              updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
-            }
-          }
-        ]
         const isActive = minappShow && currentMinappId === app.id
         return (
-          <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
-            <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-              <Icon
-                theme={theme}
-                onClick={() => openMinappKeepAlive(app)}
-                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
-                <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-              </Icon>
-            </Dropdown>
-          </Tooltip>
+          <ContextMenu key={app.id}>
+            <ContextMenuTrigger asChild>
+              <Tooltip content={app.name} placement="right" delay={800}>
+                <Icon
+                  theme={theme}
+                  onClick={() => openMinappKeepAlive(app)}
+                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
+                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                </Icon>
+              </Tooltip>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))}>
+                {isTopNavbar ? t('minapp.remove_from_launchpad') : t('minapp.remove_from_sidebar')}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         )
       }}
     </DraggableList>

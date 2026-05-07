@@ -1,23 +1,21 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
-import type { CSSProperties, FC, MouseEventHandler } from 'react'
-import { memo, useMemo } from 'react'
+import type { FC } from 'react'
+import { memo } from 'react'
 import styled from 'styled-components'
 
-export interface CustomTagProps {
+export type CustomTagProps = {
   icon?: React.ReactNode
   children?: React.ReactNode | string
   color: string
   size?: number
-  style?: CSSProperties
   tooltip?: string
   closable?: boolean
   onClose?: () => void
-  onClick?: MouseEventHandler<HTMLDivElement>
-  onContextMenu?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
-}
+  ref?: React.Ref<HTMLDivElement>
+} & Omit<React.HTMLAttributes<HTMLDivElement>, 'color'>
 
 const CustomTag: FC<CustomTagProps> = ({
   children,
@@ -31,36 +29,37 @@ const CustomTag: FC<CustomTagProps> = ({
   onClick,
   onContextMenu,
   disabled,
-  inactive
+  inactive,
+  ref,
+  ...rest
 }) => {
   const actualColor = inactive ? '#aaaaaa' : color
-  const tagContent = useMemo(
-    () => (
-      <Tag
-        $color={actualColor}
-        $size={size}
-        $closable={closable}
-        $clickable={!disabled && !!onClick}
-        onClick={disabled ? undefined : onClick}
-        onContextMenu={disabled ? undefined : onContextMenu}
-        style={{
-          ...(disabled && { cursor: 'not-allowed' }),
-          ...style
-        }}>
-        {icon} {children}
-        {closable && (
-          <CloseIcon
-            $size={size}
-            $color={actualColor}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose?.()
-            }}
-          />
-        )}
-      </Tag>
-    ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, onContextMenu, size, style]
+  const tagContent = (
+    <Tag
+      ref={ref}
+      $color={actualColor}
+      $size={size}
+      $closable={closable}
+      $clickable={!disabled && !!onClick}
+      onClick={disabled ? undefined : onClick}
+      onContextMenu={disabled ? undefined : onContextMenu}
+      style={{
+        ...(disabled && { cursor: 'not-allowed' }),
+        ...style
+      }}
+      {...rest}>
+      {icon} {children}
+      {closable && (
+        <CloseIcon
+          $size={size}
+          $color={actualColor}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose?.()
+          }}
+        />
+      )}
+    </Tag>
   )
 
   return tooltip ? (
