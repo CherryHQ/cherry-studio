@@ -12,10 +12,13 @@ import {
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { computeQuickPhraseInsertResult } from './quickPhraseInsert'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -46,7 +49,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     refresh: ['/prompts'],
     onError: (error) => {
       logger.error('Failed to create prompt', error)
-      window.toast.error(t('message.error.unknown'))
+      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
     }
   })
 
@@ -61,58 +64,28 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
             const triggerInfo = triggerInfoRef.current
             const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
 
-            const focusAndSelect = (start: number) => {
-              setTimeoutTimer(
-                'handlePhraseSelect_2',
-                () => {
-                  if (textArea) {
-                    textArea.focus()
-                    textArea.setSelectionRange(start, start + text.length)
-                  }
-                  resizeTextArea()
-                },
-                10
-              )
-            }
-
-            if (triggerInfo?.type === 'input' && triggerInfo.position !== undefined) {
-              const symbol = triggerInfo.symbol ?? QuickPanelReservedSymbol.Root
-              const searchText = triggerInfo.searchText ?? ''
-              const startIndex = triggerInfo.position
-
-              let endIndex = startIndex + 1
-              if (searchText) {
-                const expected = symbol + searchText
-                const actual = prev.slice(startIndex, startIndex + expected.length)
-                if (actual === expected) {
-                  endIndex = startIndex + expected.length
-                } else {
-                  while (endIndex < prev.length && !/\s/.test(prev[endIndex])) {
-                    endIndex++
-                  }
-                }
-              } else {
-                while (endIndex < prev.length && !/\s/.test(prev[endIndex])) {
-                  endIndex++
-                }
-              }
-
-              const newText = prev.slice(0, startIndex) + text + prev.slice(endIndex)
-              triggerInfoRef.current = undefined
-              focusAndSelect(startIndex)
-              return newText
-            }
-
-            if (!textArea) {
-              triggerInfoRef.current = undefined
-              return prev + text
-            }
-
-            const cursorPosition = textArea.selectionStart ?? prev.length
-            const newText = prev.slice(0, cursorPosition) + text + prev.slice(cursorPosition)
+            const result = computeQuickPhraseInsertResult({
+              currentValue: prev,
+              insertText: text,
+              rootSymbol: QuickPanelReservedSymbol.Root,
+              triggerInfo,
+              selectionStart: textArea?.selectionStart,
+              selectionEnd: textArea?.selectionEnd
+            })
             triggerInfoRef.current = undefined
-            focusAndSelect(cursorPosition)
-            return newText
+
+            setTimeoutTimer(
+              'handlePhraseSelect_2',
+              () => {
+                if (textArea) {
+                  textArea.focus()
+                  textArea.setSelectionRange(result.selectionStart, result.selectionEnd)
+                }
+                resizeTextArea()
+              },
+              10
+            )
+            return result.value
           })
         },
         10
@@ -156,7 +129,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
       })
     } else if (promptsError && promptItems.length === 0) {
       newList.push({
-        label: t('message.error.unknown'),
+        label: formatErrorMessageWithPrefix(promptsError, t('settings.prompts.errors.loadFailed')),
         icon: <Zap />,
         disabled: true
       })

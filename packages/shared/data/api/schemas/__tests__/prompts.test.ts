@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '../../../types/prompt'
 import { CreatePromptSchema, UpdatePromptSchema } from '../prompts'
 
 describe('prompt DTO schemas', () => {
@@ -15,6 +16,11 @@ describe('prompt DTO schemas', () => {
   it('rejects create with empty title or content', () => {
     expect(() => CreatePromptSchema.parse({ title: '', content: 'Hello' })).toThrow()
     expect(() => CreatePromptSchema.parse({ title: 'Test', content: '' })).toThrow()
+  })
+
+  it('rejects create values over schema limits', () => {
+    expect(() => CreatePromptSchema.parse({ title: 'x'.repeat(PROMPT_TITLE_MAX + 1), content: 'Hello' })).toThrow()
+    expect(() => CreatePromptSchema.parse({ title: 'Test', content: 'x'.repeat(PROMPT_CONTENT_MAX + 1) })).toThrow()
   })
 
   it('rejects create with unknown prompt fields', () => {

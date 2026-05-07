@@ -274,9 +274,10 @@ export class MigrationEngine {
         totalDuration: Date.now() - startTime
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const err = error instanceof Error ? error : new Error(String(error))
+      const errorMessage = err.message
 
-      logger.error('Migration failed', { error: errorMessage })
+      logger.error('Migration failed', err)
 
       // Mark migration as failed with error details
       await this.markFailed(errorMessage)
@@ -338,33 +339,12 @@ export class MigrationEngine {
       }
     }
 
-    // Clear tables in dependency order (children before parents)
-    await db.delete(pinTable)
-    await db.delete(userModelTable)
-    await db.delete(userProviderTable)
-    await db.delete(messageTable) // FK → topic
-    await db.delete(topicTable) // FK → assistant
-    await db.delete(assistantMcpServerTable) // FK → assistant, mcp_server
-    await db.delete(assistantKnowledgeBaseTable) // FK → assistant
-    await db.delete(assistantTable)
-    await db.delete(mcpServerTable)
-    await db.delete(miniappTable)
-    await db.delete(preferenceTable)
-    await db.delete(translateHistoryTable)
-    await db.delete(translateLanguageTable)
-    await db.delete(knowledgeItemTable) // FK → knowledge_base
-    await db.delete(knowledgeBaseTable)
-    await db.delete(promptTable)
-    // Agents-domain cleanup — child → parent order
-    await db.delete(agentSessionMessageTable) // FK → agent_session
-    await db.delete(agentChannelTaskTable) // FK → agent_channel, agent_task
-    await db.delete(agentTaskRunLogTable) // FK → agent_task
-    await db.delete(agentChannelTable) // FK → agent, agent_session
-    await db.delete(agentTaskTable) // FK → agent
-    await db.delete(agentSkillTable) // FK → agent, agent_global_skill
-    await db.delete(agentSessionTable) // FK → agent
-    await db.delete(agentGlobalSkillTable)
-    await db.delete(agentTable)
+    // Clear tables atomically in dependency order (children before parents).
+    await db.transaction(async (tx) => {
+      for (const { table } of tables) {
+        await tx.delete(table)
+      }
+    })
 
     logger.info('All new architecture tables cleared successfully')
   }

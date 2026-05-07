@@ -1,3 +1,6 @@
+import { promptTable } from '@data/db/schemas/prompt'
+import { setupTestDatabase } from '@test-helpers/db'
+import { asc } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -94,7 +97,7 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       expect(migrator.id).toBe('prompt')
       expect(migrator.name).toBe('Prompts')
-      expect(migrator.order).toBe(5)
+      expect(migrator.order).toBe(5.5)
     })
   })
 
@@ -112,12 +115,14 @@ describe('PromptMigrator', () => {
       expect(result.warnings).toContain('quick_phrases table not found - skipping')
     })
 
-    it('should count phrases with content and skip only invalid content', async () => {
+    it('should count phrases with content and finite timestamps', async () => {
       const ctx = createMockContext({
         tableData: [
           makePhrase({ id: 'a', content: 'valid' }),
           makePhrase({ id: undefined, content: 'missing id' }), // valid: id is regenerated during execute
           makePhrase({ id: 'b', content: '' }), // invalid: empty content
+          makePhrase({ id: 'bad-created-at', content: 'bad timestamp', createdAt: Number.NaN }),
+          makePhrase({ id: 'bad-updated-at', content: 'bad timestamp', updatedAt: Number.POSITIVE_INFINITY }),
           makePhrase({ id: 'c', content: 'also valid' })
         ]
       })
@@ -127,7 +132,7 @@ describe('PromptMigrator', () => {
 
       expect(result.success).toBe(true)
       expect(result.itemCount).toBe(3)
-      expect(result.warnings?.[0]).toMatch(/Skipped 1/)
+      expect(result.warnings?.[0]).toMatch(/Skipped 3/)
     })
 
     it('should handle empty table', async () => {
@@ -209,20 +214,20 @@ describe('PromptMigrator', () => {
       await migrator.execute(ctx)
 
       // First insert call is the prompt row
-      const promptRow = insertCalls[0] as Record<string, unknown>
+      const [promptRow] = insertCalls[0] as Array<Record<string, unknown>>
       expect(promptRow.title).toBe('Untitled')
     })
 
     it('should preserve legacy quick phrase order', async () => {
       const phrases = [
-        makePhrase({ id: 'p-late', title: 'Late', content: 'late', order: 20 }),
-        makePhrase({ id: 'p-early', title: 'Early', content: 'early', order: 10 })
+        makePhrase({ id: 'p-old', title: 'Older', content: 'old', order: 20 }),
+        makePhrase({ id: 'p-new', title: 'Newer', content: 'new', order: 10 })
       ]
       const ctx = createMockContext({ tableData: phrases })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      const insertCalls: Array<Record<string, unknown>> = []
+      const insertCalls: unknown[] = []
       const mockInsert = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
           insertCalls.push(val)
@@ -238,8 +243,9 @@ describe('PromptMigrator', () => {
 
       await migrator.execute(ctx)
 
-      expect(insertCalls.map((row) => row.title)).toEqual(['Late', 'Early'])
-      expect(String(insertCalls[0].orderKey) < String(insertCalls[1].orderKey)).toBe(true)
+      const rows = insertCalls[0] as Array<Record<string, unknown>>
+      expect(rows.map((row) => row.title)).toEqual(['Older', 'Newer'])
+      expect(String(rows[0].orderKey) < String(rows[1].orderKey)).toBe(true)
     })
 
     it('should report progress', async () => {
@@ -270,7 +276,7 @@ describe('PromptMigrator', () => {
       const result = await migrator.execute(ctx)
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('db error')
+      expect(result.error).toContain('db error')
       // Rolled-back transaction means zero rows committed — processedCount reflects persisted state.
       expect(result.processedCount).toBe(0)
     })
@@ -284,15 +290,10 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      // Simulate a DB-level failure on the second prompt insert to cover
-      // mid-batch rollback paths (any SQLITE_CONSTRAINT, FK mismatch, etc.).
-      let insertCount = 0
+      // Simulate a DB-level failure from the bulk insert path (any
+      // SQLITE_CONSTRAINT, FK mismatch, etc.).
       const insertFn = vi.fn().mockImplementation(() => ({
-        values: vi.fn().mockImplementation(() => {
-          insertCount++
-          if (insertCount === 2) return Promise.reject(new Error('UNIQUE constraint failed: prompt.id'))
-          return Promise.resolve(undefined)
-        })
+        values: vi.fn().mockRejectedValue(new Error('UNIQUE constraint failed: prompt.id'))
       }))
 
       ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
@@ -304,17 +305,19 @@ describe('PromptMigrator', () => {
       const result = await migrator.execute(ctx)
 
       expect(result.success).toBe(false)
+      expect(result.error).toContain('source row 0')
       expect(result.error).toContain('UNIQUE')
       expect(result.processedCount).toBe(0)
     })
 
-    it('should regenerate prompt.id as uuidv7 instead of preserving the legacy uuidv4', async () => {
-      const phrases = [makePhrase({ id: 'legacy-v4-id', content: 'c1' })]
+    it('should preserve the legacy quick phrase id', async () => {
+      const legacyId = '550e8400-e29b-41d4-a716-446655440000'
+      const phrases = [makePhrase({ id: legacyId, content: 'c1' })]
       const ctx = createMockContext({ tableData: phrases })
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      const insertCalls: Array<Record<string, unknown>> = []
+      const insertCalls: unknown[] = []
       const insertFn = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
           insertCalls.push(val)
@@ -329,11 +332,9 @@ describe('PromptMigrator', () => {
 
       await migrator.execute(ctx)
 
-      const [promptRow] = insertCalls
-      const uuidv7Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      expect(promptRow.id).toMatch(uuidv7Pattern)
-      expect(promptRow.id).not.toBe('legacy-v4-id')
-      expect(insertCalls).toHaveLength(1)
+      const [promptRow] = insertCalls[0] as Array<Record<string, unknown>>
+      expect(promptRow.id).toBe(legacyId)
+      expect(insertCalls[0] as unknown[]).toHaveLength(1)
     })
   })
 
@@ -428,5 +429,36 @@ describe('PromptMigrator', () => {
 
       expect(result.stats.skippedCount).toBe(1)
     })
+  })
+})
+
+describe('PromptMigrator SQLite integration', () => {
+  const dbh = setupTestDatabase()
+
+  it('migrates quick phrases into the real prompt table with order keys', async () => {
+    const ctx = createMockContext({
+      tableData: [
+        makePhrase({ id: '550e8400-e29b-41d4-a716-446655440000', title: 'Older', content: 'old ${name}', order: 2 }),
+        makePhrase({ id: '550e8400-e29b-41d4-a716-446655440001', title: 'Newer', content: 'new', order: 1 })
+      ]
+    })
+    ctx.db = dbh.db
+    const migrator = new PromptMigrator()
+
+    const prepareResult = await migrator.prepare(ctx)
+    const executeResult = await migrator.execute(ctx)
+    const validateResult = await migrator.validate(ctx)
+
+    const rows = await dbh.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
+
+    expect(prepareResult).toMatchObject({ success: true, itemCount: 2 })
+    expect(executeResult).toMatchObject({ success: true, processedCount: 2 })
+    expect(validateResult.success).toBe(true)
+    expect(rows.map((row) => row.title)).toEqual(['Older', 'Newer'])
+    expect(rows.map((row) => row.id)).toEqual([
+      '550e8400-e29b-41d4-a716-446655440000',
+      '550e8400-e29b-41d4-a716-446655440001'
+    ])
+    expect(rows[0].orderKey < rows[1].orderKey).toBe(true)
   })
 })

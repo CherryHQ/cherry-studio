@@ -1,6 +1,6 @@
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKeyOrdered } from './_columnHelpers'
+import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
 /**
  * Prompt table - user prompt snippets (replaces legacy QuickPhrase).
@@ -8,7 +8,7 @@ import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKeyO
 export const promptTable = sqliteTable(
   'prompt',
   {
-    id: uuidPrimaryKeyOrdered(),
+    id: uuidPrimaryKey(),
     title: text().notNull(),
     content: text().notNull(),
     ...orderKeyColumns,

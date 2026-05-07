@@ -26,8 +26,8 @@ vi.mock('@data/services/PromptService', () => ({
 
 import { promptHandlers } from '../prompts'
 
-const PROMPT_ID = '019dbeea-3c00-73cb-acba-ec41b092cffa'
-const OTHER_PROMPT_ID = '019dbeea-3c01-70e1-b362-63fb55a380f3'
+const PROMPT_ID = '550e8400-e29b-41d4-a716-446655440000'
+const OTHER_PROMPT_ID = '550e8400-e29b-41d4-a716-446655440001'
 
 describe('promptHandlers', () => {
   beforeEach(() => {
@@ -100,7 +100,7 @@ describe('promptHandlers', () => {
       expect(getByIdMock).toHaveBeenCalledWith(PROMPT_ID)
     })
 
-    it('should reject GET with a non-UUIDv7 id', async () => {
+    it('should reject GET with a non-UUID id', async () => {
       await expect(
         promptHandlers['/prompts/:id'].GET({ params: { id: 'not-a-uuid' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

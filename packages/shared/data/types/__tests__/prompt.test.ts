@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { PromptContentSchema, PromptSchema, PromptTitleSchema } from '../prompt'
+import { PROMPT_CONTENT_MAX, PromptContentSchema, PromptSchema, PromptTitleSchema } from '../prompt'
 
 const prompt = {
-  id: '019dbeea-3c00-73cb-acba-ec41b092cffa',
+  id: '550e8400-e29b-41d4-a716-446655440000',
   title: 'Greeting',
   content: 'Hello',
+  orderKey: 'a0',
   createdAt: new Date(1700000000000).toISOString(),
   updatedAt: new Date(1700000000000).toISOString()
 }
@@ -43,5 +44,9 @@ describe('PromptContentSchema', () => {
 
   it('rejects empty content', () => {
     expect(() => PromptContentSchema.parse('')).toThrow()
+  })
+
+  it('rejects content over the max size', () => {
+    expect(() => PromptContentSchema.parse('x'.repeat(PROMPT_CONTENT_MAX + 1))).toThrow()
   })
 })

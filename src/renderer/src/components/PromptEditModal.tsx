@@ -9,6 +9,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import type { Prompt } from '@shared/data/types/prompt'
+import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,9 +29,16 @@ interface PromptEditModalProps {
 const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSave, onCancel }) => {
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const isEdit = !!prompt
-  const canSave = formData.title.trim().length > 0 && formData.content.trim().length > 0
+  const trimmedTitleLength = formData.title.trim().length
+  const canSave =
+    trimmedTitleLength > 0 &&
+    trimmedTitleLength <= PROMPT_TITLE_MAX &&
+    formData.content.length > 0 &&
+    formData.content.length <= PROMPT_CONTENT_MAX
+  const isSaving = saving || isSubmitting
 
   useEffect(() => {
     if (open) {
@@ -38,6 +46,8 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
         title: prompt?.title ?? '',
         content: prompt?.content ?? ''
       })
+    } else {
+      setIsSubmitting(false)
     }
   }, [open, prompt])
 
@@ -46,10 +56,17 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
       return
     }
 
-    await onSave({
-      title: formData.title,
-      content: formData.content
-    })
+    try {
+      setIsSubmitting(true)
+      await onSave({
+        title: formData.title,
+        content: formData.content
+      })
+    } catch {
+      // Parent mutation handlers surface the error; keep the modal usable.
+    } finally {
+      setIsSubmitting(false)
+    }
   }, [canSave, formData, onSave])
 
   const handleOpenChange = useCallback(
@@ -91,10 +108,10 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={saving}>
+          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={() => void handleOk()} loading={saving} disabled={!canSave || saving}>
+          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
             {t('common.confirm')}
           </Button>
         </DialogFooter>

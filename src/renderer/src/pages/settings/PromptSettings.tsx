@@ -7,6 +7,7 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptEditModal from '@renderer/components/PromptEditModal'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -29,17 +30,20 @@ const PromptSettings: FC = () => {
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
-    onError: () => window.toast.error(t('message.error.unknown'))
+    onError: (error) =>
+      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
   })
 
   const { trigger: updatePrompt, isLoading: isUpdatingPrompt } = useMutation('PATCH', '/prompts/:id', {
     refresh: ['/prompts'],
-    onError: () => window.toast.error(t('message.error.unknown'))
+    onError: (error) =>
+      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.updateFailed')))
   })
 
   const { trigger: deletePrompt, isLoading: isDeletingPrompt } = useMutation('DELETE', '/prompts/:id', {
     refresh: ['/prompts'],
-    onError: () => window.toast.error(t('message.delete.failed'))
+    onError: (error) =>
+      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.deleteFailed')))
   })
 
   const { applyReorderedList } = useReorder('/prompts')
@@ -85,7 +89,7 @@ const PromptSettings: FC = () => {
         await applyReorderedList(newPrompts)
       } catch (error) {
         logger.error('Failed to reorder prompts', error as Error)
-        window.toast.error(t('message.error.unknown'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.reorderFailed')))
       }
     },
     [applyReorderedList, t]
@@ -93,6 +97,7 @@ const PromptSettings: FC = () => {
 
   const handleDraggableUpdate = useCallback(
     (newList: Prompt[]) => {
+      // The API returns canonical orderKey ascending (old → new), while this page displays new → old.
       void handleUpdateOrder([...newList].reverse())
     },
     [handleUpdateOrder]
@@ -119,7 +124,10 @@ const PromptSettings: FC = () => {
     }
   }
 
+  // Keep the legacy settings affordance: newest prompts render first, backed by old → new API order.
   const reversedPrompts = useMemo(() => [...promptsList].reverse(), [promptsList])
+  const promptErrorText =
+    promptsError && formatErrorMessageWithPrefix(promptsError, t('settings.prompts.errors.loadFailed'))
   const isSavingPrompt = isCreatingPrompt || isUpdatingPrompt
 
   return (
@@ -140,7 +148,7 @@ const PromptSettings: FC = () => {
               </div>
             ) : promptsError && reversedPrompts.length === 0 ? (
               <div className="flex flex-1 items-center justify-center text-[var(--color-text-3)] text-sm">
-                {t('message.error.unknown')}
+                {promptErrorText}
               </div>
             ) : (
               <div className={dragging ? 'pb-[34px]' : 'pb-0'}>

@@ -17,16 +17,16 @@ import type { Prompt } from '@shared/data/types/prompt'
 import { asc, eq, inArray } from 'drizzle-orm'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PromptService')
 
 function rowToPrompt(row: typeof promptTable.$inferSelect): Prompt {
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    createdAt: new Date(row.createdAt).toISOString(),
-    updatedAt: new Date(row.updatedAt).toISOString()
+    ...clean,
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
@@ -50,6 +50,7 @@ export class PromptService {
   }
 
   async getAll(): Promise<Prompt[]> {
+    // Canonical API order is old → new; settings UI reverses this for display.
     const rows = await this.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
     return rows.map(rowToPrompt)
   }
@@ -75,19 +76,26 @@ export class PromptService {
       )
       const row = inserted as typeof promptTable.$inferSelect
 
-      logger.info('Created prompt', { id: row.id, title: dto.title })
+      logger.info('Created prompt', { id: row.id })
       return rowToPrompt(row)
     })
   }
 
   async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
     return this.db.transaction(async (tx) => {
-      const [existing] = await tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
-      if (!existing) {
+      const updates: Partial<typeof promptTable.$inferInsert> = {}
+      if (dto.title !== undefined) updates.title = dto.title
+      if (dto.content !== undefined) updates.content = dto.content
+
+      const result = await tx.update(promptTable).set(updates).where(eq(promptTable.id, id))
+      if (result.rowsAffected === 0) {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
-      const [row] = await tx.update(promptTable).set(dto).where(eq(promptTable.id, id)).returning()
+      const [row] = await tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Prompt', id)
+      }
 
       logger.info('Updated prompt', { id, changes: Object.keys(dto) })
       return rowToPrompt(row)

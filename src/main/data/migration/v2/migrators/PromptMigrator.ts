@@ -2,9 +2,7 @@
  * Prompt migrator - migrates quick phrases from Dexie to SQLite prompt table.
  *
  * Mapping:
- *   (new uuidv7)          → prompt.id (legacy QuickPhrase.id was uuidv4 and would
- *                           fail PromptIdSchema's z.uuidv7() validation; nothing
- *                           external references the old id so we regenerate)
+ *   QuickPhrase.id        → prompt.id (legacy QuickPhrase.id was uuidv4; preserve it)
  *   QuickPhrase.title     → prompt.title (fallback 'Untitled')
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
  *   QuickPhrase.order     → drives relative order; stamped as fractional-indexing `orderKey`
@@ -15,14 +13,16 @@
 import { promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import { PROMPT_CONTENT_MAX } from '@shared/data/types/prompt'
 import { sql } from 'drizzle-orm'
-import { v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('PromptMigrator')
+
+type PromptInsertRow = typeof promptTable.$inferInsert
 
 /** Legacy QuickPhrase shape from Dexie. */
 interface LegacyQuickPhrase {
@@ -38,7 +38,7 @@ export class PromptMigrator extends BaseMigrator {
   readonly id = 'prompt'
   readonly name = 'Prompts'
   readonly description = 'Migrate quick phrases to prompts'
-  readonly order = 5
+  readonly order = 5.5
 
   private promptCount = 0
   private skippedCount = 0
@@ -63,7 +63,14 @@ export class PromptMigrator extends BaseMigrator {
       }
 
       const phrases = await ctx.sources.dexieExport.readTable<LegacyQuickPhrase>('quick_phrases')
-      this.preparedPhrases = phrases.filter((p) => typeof p.content === 'string' && p.content.length > 0)
+      this.preparedPhrases = phrases.filter(
+        (p) =>
+          typeof p.content === 'string' &&
+          p.content.length > 0 &&
+          p.content.length <= PROMPT_CONTENT_MAX &&
+          Number.isFinite(p.createdAt) &&
+          Number.isFinite(p.updatedAt)
+      )
       this.skippedCount = phrases.length - this.preparedPhrases.length
       this.promptCount = this.preparedPhrases.length
 
@@ -94,56 +101,50 @@ export class PromptMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
-    // Stamp orderKeys in the same order legacy QuickPhraseService.getAll() returned
-    // (descending by `order`, newest-first).
-    // Consumers already preserve their old display behavior from that canonical order.
-    const sortedPhrases = [...this.preparedPhrases].sort((a, b) => {
-      const ao = a.order ?? 0
-      const bo = b.order ?? 0
-      return bo - ao
-    })
+    // Legacy QuickPhraseService.add() gave older rows larger `order` values,
+    // so this descending sort reproduces its canonical getAll() order: old → new.
+    // PromptService keeps that canonical ascending orderKey; settings UI reverses it for display.
+    const sortedPhrases = [...this.preparedPhrases].sort((a, b) => getLegacyOrder(b) - getLegacyOrder(a))
     const stamped = assignOrderKeysInSequence(sortedPhrases)
-
-    let processedCount = 0
+    const rows: PromptInsertRow[] = []
 
     try {
       const db = ctx.db
 
-      await db.transaction(async (tx) => {
-        for (const row of stamped) {
-          // Regenerate id as uuidv7 so it passes PromptIdSchema on the API boundary;
-          // legacy Dexie id is uuidv4 and would be rejected by every :id handler.
-          const promptId = uuidv7()
+      for (let index = 0; index < stamped.length; index++) {
+        const row = stamped[index]
+        rows.push({
+          id: row.id,
+          title: normalizeTitle(row.title),
+          content: row.content,
+          orderKey: row.orderKey,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
 
-          await tx.insert(promptTable).values({
-            id: promptId,
-            title: row.title || 'Untitled',
-            content: row.content,
-            orderKey: row.orderKey,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt
-          })
-
-          processedCount++
-
-          if (processedCount % 10 === 0 || processedCount === this.promptCount) {
-            this.reportProgress(
-              Math.round((processedCount / this.promptCount) * 100),
-              `Migrated ${processedCount}/${this.promptCount} prompts`
-            )
-          }
+        const preparedCount = index + 1
+        if (preparedCount % 10 === 0 || preparedCount === this.promptCount) {
+          this.reportProgress(
+            Math.round((preparedCount / this.promptCount) * 100),
+            `Migrated ${preparedCount}/${this.promptCount} prompts`
+          )
         }
+      }
+
+      await db.transaction(async (tx) => {
+        await tx.insert(promptTable).values(rows)
       })
 
-      logger.info('Prompt migration completed', { processedCount })
-      return { success: true, processedCount }
+      logger.info('Prompt migration completed', { processedCount: rows.length })
+      return { success: true, processedCount: rows.length }
     } catch (error) {
-      logger.error('Execute failed', error as Error)
+      const err = wrapExecuteError(error, stamped, rows.length)
+      logger.error('Execute failed', err)
       // The transaction rolled back; no partial rows remain committed.
       return {
         success: false,
         processedCount: 0,
-        error: error instanceof Error ? error.message : String(error)
+        error: err.message
       }
     }
   }
@@ -197,4 +198,27 @@ export class PromptMigrator extends BaseMigrator {
       }
     }
   }
+}
+
+function getLegacyOrder(phrase: LegacyQuickPhrase): number {
+  return Number.isFinite(phrase.order) ? (phrase.order as number) : 0
+}
+
+function normalizeTitle(title: LegacyQuickPhrase['title']): string {
+  return typeof title === 'string' && title.length > 0 ? title : 'Untitled'
+}
+
+function wrapExecuteError(
+  error: unknown,
+  stamped: Array<LegacyQuickPhrase & { orderKey: string }>,
+  preparedCount: number
+): Error {
+  const baseMessage = error instanceof Error ? error.message : String(error)
+  const failedBatch = stamped
+    .slice(0, Math.min(stamped.length, preparedCount || stamped.length, 5))
+    .map((row, index) => `source row ${index} title="${normalizeTitle(row.title)}"`)
+    .join('; ')
+  return new Error(`Prompt bulk insert failed${failedBatch ? ` (${failedBatch})` : ''}: ${baseMessage}`, {
+    cause: error
+  })
 }

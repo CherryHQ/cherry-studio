@@ -957,17 +957,6 @@
         "xhigh": "超高",
         "xhigh_description": "超高度な推論"
       },
-      "regular_phrases": {
-        "add": "プロンプトを追加",
-        "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
-        "delete": "プロンプトを削除",
-        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
-        "edit": "プロンプトを編集",
-        "title": "定型プロンプト",
-        "titleLabel": "タイトル",
-        "titlePlaceholder": "タイトルを入力"
-      },
       "title": "アシスタント設定",
       "tool_use_mode": {
         "function": "関数",
@@ -5265,10 +5254,17 @@
     "prompts": {
       "add": "プロンプトを追加",
       "contentLabel": "内容",
-      "contentPlaceholder": "プロンプト内容を入力してください",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "プロンプトを削除",
       "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
       "edit": "プロンプトを編集",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
       "titlePlaceholder": "プロンプトのタイトルを入力してください"

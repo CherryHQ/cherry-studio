@@ -957,17 +957,6 @@
         "xhigh": "Extra Alta",
         "xhigh_description": "Razonamiento de extra alto nivel"
       },
-      "regular_phrases": {
-        "add": "Agregar frase",
-        "contentLabel": "Contenido",
-        "contentPlaceholder": "Por favor, introduzca el contenido de la frase. Puede usar variables y luego presionar Tab para navegar rápidamente a las variables y modificarlas. Por ejemplo: \\nAyúdame a planificar una ruta desde ${from} hasta ${to}, y luego envíala a ${email}.",
-        "delete": "Eliminar frase",
-        "deleteConfirm": "¿Está seguro de que desea eliminar esta frase?",
-        "edit": "Editar frase",
-        "title": "Frases comunes",
-        "titleLabel": "Título",
-        "titlePlaceholder": "Ingrese el título"
-      },
       "title": "Configuración del Asistente",
       "tool_use_mode": {
         "function": "Función",
@@ -5265,10 +5254,17 @@
     "prompts": {
       "add": "Añadir Prompt",
       "contentLabel": "Contenido",
-      "contentPlaceholder": "Introduce el contenido del prompt",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "Eliminar Prompt",
       "deleteConfirm": "El prompt se eliminará permanentemente. ¿Continuar?",
       "edit": "Editar Prompt",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduce el título del prompt"

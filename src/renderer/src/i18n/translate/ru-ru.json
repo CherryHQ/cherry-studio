@@ -957,17 +957,6 @@
         "xhigh": "Сверхвысокое",
         "xhigh_description": "Высочайший уровень рассуждений"
       },
-      "regular_phrases": {
-        "add": "Добавить подсказку",
-        "contentLabel": "Содержание",
-        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
-        "delete": "Удалить подсказку",
-        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
-        "edit": "Редактировать подсказку",
-        "title": "Регулярные подсказки",
-        "titleLabel": "Заголовок",
-        "titlePlaceholder": "Введите заголовок"
-      },
       "title": "Настройки ассистента",
       "tool_use_mode": {
         "function": "Функция",
@@ -5265,10 +5254,17 @@
     "prompts": {
       "add": "Добавить промпт",
       "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержимое промпта",
+      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "Удалить промпт",
       "deleteConfirm": "Промпт будет удален без возможности восстановления. Продолжить?",
       "edit": "Редактировать промпт",
+      "errors": {
+        "createFailed": "[to be translated]:Failed to create prompt",
+        "deleteFailed": "[to be translated]:Failed to delete prompt",
+        "loadFailed": "[to be translated]:Failed to load prompts",
+        "reorderFailed": "[to be translated]:Failed to reorder prompts",
+        "updateFailed": "[to be translated]:Failed to update prompt"
+      },
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок промпта"

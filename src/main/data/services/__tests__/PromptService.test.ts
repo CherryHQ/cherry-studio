@@ -23,6 +23,7 @@ describe('PromptService', () => {
       const result = await promptService.create({ title: 'T1', content: 'C1' })
 
       expect(result).toMatchObject({ title: 'T1', content: 'C1' })
+      expect(result.orderKey.length).toBeGreaterThan(0)
       expect(result.createdAt).toEqual(expect.any(String))
       expect(result.updatedAt).toEqual(expect.any(String))
 
