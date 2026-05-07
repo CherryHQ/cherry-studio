@@ -1,3 +1,4 @@
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { describe, expect, it } from 'vitest'
 
@@ -22,7 +23,7 @@ describe('normalizeLoadedBlocks', () => {
         content: 'Hello',
         createdAt: new Date().toISOString()
       }
-    ]
+    ] as MessageBlock[]
 
     const result = normalizeLoadedBlocks(blocks)
 
@@ -40,7 +41,7 @@ describe('normalizeLoadedBlocks', () => {
         content: 'Processing...',
         createdAt: new Date().toISOString()
       }
-    ]
+    ] as MessageBlock[]
 
     const result = normalizeLoadedBlocks(blocks)
 
@@ -57,7 +58,7 @@ describe('normalizeLoadedBlocks', () => {
         content: 'Pending tool call...',
         createdAt: new Date().toISOString()
       }
-    ]
+    ] as MessageBlock[]
 
     const result = normalizeLoadedBlocks(blocks)
 
@@ -82,7 +83,7 @@ describe('normalizeLoadedBlocks', () => {
         content: 'Paused',
         createdAt: new Date().toISOString()
       }
-    ]
+    ] as MessageBlock[]
 
     const result = normalizeLoadedBlocks(blocks)
 
@@ -98,7 +99,7 @@ describe('normalizeLoadedBlocks', () => {
       status: MessageBlockStatus.STREAMING,
       content: 'Thinking...',
       createdAt: new Date().toISOString()
-    }
+    } as MessageBlock
 
     const result = normalizeLoadedBlocks([originalBlock])
 
@@ -109,14 +110,15 @@ describe('normalizeLoadedBlocks', () => {
 
 describe('normalizeLoadedMessages', () => {
   it('should normalize PROCESSING assistant message statuses to SUCCESS', () => {
-    const messages = [
+    const messages: Message[] = [
       {
         id: 'msg-1',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.PROCESSING,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       }
     ]
 
@@ -126,14 +128,15 @@ describe('normalizeLoadedMessages', () => {
   })
 
   it('should normalize PENDING assistant message statuses to SUCCESS', () => {
-    const messages = [
+    const messages: Message[] = [
       {
         id: 'msg-1',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.PENDING,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       }
     ]
 
@@ -143,14 +146,15 @@ describe('normalizeLoadedMessages', () => {
   })
 
   it('should normalize SEARCHING assistant message statuses to SUCCESS', () => {
-    const messages = [
+    const messages: Message[] = [
       {
         id: 'msg-1',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.SEARCHING,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       }
     ]
 
@@ -160,30 +164,33 @@ describe('normalizeLoadedMessages', () => {
   })
 
   it('should preserve SUCCESS, PAUSED, and ERROR message statuses', () => {
-    const messages = [
+    const messages: Message[] = [
       {
         id: 'msg-success',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.SUCCESS,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       },
       {
         id: 'msg-paused',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.PAUSED,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       },
       {
         id: 'msg-error',
-        role: 'assistant' as const,
+        role: 'assistant',
         assistantId: 'assistant-1',
         topicId: 'topic-1',
         status: AssistantMessageStatus.ERROR,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        blocks: []
       }
     ]
 
@@ -195,13 +202,14 @@ describe('normalizeLoadedMessages', () => {
   })
 
   it('should not mutate original message objects', () => {
-    const originalMessage = {
+    const originalMessage: Message = {
       id: 'msg-1',
-      role: 'assistant' as const,
+      role: 'assistant',
       assistantId: 'assistant-1',
       topicId: 'topic-1',
       status: AssistantMessageStatus.PROCESSING,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      blocks: []
     }
 
     const result = normalizeLoadedMessages([originalMessage])
