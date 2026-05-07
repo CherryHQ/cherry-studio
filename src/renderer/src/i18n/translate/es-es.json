@@ -5566,20 +5566,6 @@
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"
     },
-    "quickPhrase": {
-      "add": "Agregar frase",
-      "assistant": "Frase de asistente",
-      "contentLabel": "Contenido",
-      "contentPlaceholder": "Ingrese el contenido de la frase. Se admite el uso de variables, y luego puede presionar Tab para ubicar rápidamente la variable y modificarla. Por ejemplo: \\nAyúdame a planificar la ruta desde ${desde} hasta ${hasta}, y luego envíala a ${correo}.",
-      "delete": "Eliminar frase",
-      "deleteConfirm": "Una vez eliminada, la frase no podrá recuperarse. ¿Desea continuar?",
-      "edit": "Editar frase",
-      "global": "Frase global",
-      "locationLabel": "Agregar ubicación",
-      "title": "Frases rápidas",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Ingrese el título de la frase"
-    },
     "scheduledTasks": {
       "description": "Administrar tareas programadas en todos los agentes. Las tareas se ejecutan automáticamente según el horario configurado.",
       "noAgents": "No se encontraron agentes. Crea primero un agente para añadir tareas programadas.",

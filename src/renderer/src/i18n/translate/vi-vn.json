@@ -5262,6 +5262,17 @@
       "enable_privacy_mode": "Báo cáo lỗi và thống kê ẩn danh",
       "title": "Cài đặt quyền riêng tư"
     },
+    "prompts": {
+      "add": "[to be translated]:Add Prompt",
+      "contentLabel": "[to be translated]:Content",
+      "contentPlaceholder": "[to be translated]:Enter prompt content",
+      "delete": "[to be translated]:Delete Prompt",
+      "deleteConfirm": "[to be translated]:The prompt will be permanently deleted. Continue?",
+      "edit": "[to be translated]:Edit Prompt",
+      "title": "[to be translated]:Prompt Management",
+      "titleLabel": "[to be translated]:Title",
+      "titlePlaceholder": "[to be translated]:Enter prompt title"
+    },
     "provider": {
       "add": {
         "name": {
@@ -5554,20 +5565,6 @@
       "page": "Trang",
       "select": "Chọn",
       "title": "Menú Rápido"
-    },
-    "quickPhrase": {
-      "add": "Thêm cụm từ",
-      "assistant": "Cụm từ Trợ lý",
-      "contentLabel": "Nội dung",
-      "contentPlaceholder": "Vui lòng nhập nội dung cụm từ, hỗ trợ sử dụng biến và nhấn Tab để nhanh chóng định vị biến cần sửa. Ví dụ:  \nHãy giúp tôi lên lộ trình từ ${from} đến ${to} và gửi nó đến ${email}.",
-      "delete": "Xóa cụm từ",
-      "deleteConfirm": "Cụm từ này không thể khôi phục sau khi xóa, tiếp tục?",
-      "edit": "Bearbeite Phrase",
-      "global": "Frases Globales",
-      "locationLabel": "Thêm Vị trí",
-      "title": "Cụm từ nhanh",
-      "titleLabel": "Tiêu đề",
-      "titlePlaceholder": "Vui lòng nhập tiêu đề cụm từ"
     },
     "scheduledTasks": {
       "description": "Quản lý các tác vụ đã lên lịch trên tất cả các tác nhân. Các tác vụ sẽ tự động chạy theo lịch đã cấu hình.",

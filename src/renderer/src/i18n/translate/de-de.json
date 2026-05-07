@@ -5566,20 +5566,6 @@
       "select": "Auswählen",
       "title": "Schnellmenü"
     },
-    "quickPhrase": {
-      "add": "Phrase hinzufügen",
-      "assistant": "Assistenten-Phrasen",
-      "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte Phrase-Inhalt eingeben, unterstützt Variablenverwendung, dann Tab-Taste zum schnellen Navigieren zu Variablen für Bearbeitung. Z.B.:\nPlanen Sie eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
-      "delete": "Phrase löschen",
-      "deleteConfirm": "Gelöschte Phrase kann nicht wiederhergestellt werden. Fortfahren?",
-      "edit": "Phrase bearbeiten",
-      "global": "Globale Phrasen",
-      "locationLabel": "Position hinzufügen",
-      "title": "Schnellphrasen",
-      "titleLabel": "Titel",
-      "titlePlaceholder": "Bitte Phrasentitel eingeben"
-    },
     "scheduledTasks": {
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
       "noAgents": "Keine Agenten gefunden. Erstellen Sie zuerst einen Agenten, um geplante Aufgaben hinzuzufügen.",

@@ -5566,20 +5566,6 @@
       "select": "Selectează",
       "title": "Meniu rapid"
     },
-    "quickPhrase": {
-      "add": "Adaugă expresie",
-      "assistant": "Expresii asistent",
-      "contentLabel": "Conținut",
-      "contentPlaceholder": "Te rugăm să introduci conținutul expresiei, poți folosi variabile și poți apăsa Tab pentru a localiza rapid variabila de modificat. De exemplu: \nAjută-mă să planific o rută de la ${from} la ${to} și trimite-o la ${email}.",
-      "delete": "Șterge expresia",
-      "deleteConfirm": "Expresia nu poate fi recuperată după ștergere, continui?",
-      "edit": "Editează expresia",
-      "global": "Expresii globale",
-      "locationLabel": "Adaugă locație",
-      "title": "Expresii rapide",
-      "titleLabel": "Titlu",
-      "titlePlaceholder": "Te rugăm să introduci titlul expresiei"
-    },
     "scheduledTasks": {
       "description": "Gestionați sarcinile programate pentru toți agenții. Sarcinile rulează automat conform programului configurat.",
       "noAgents": "Niciun agent găsit. Creează mai întâi un agent pentru a adăuga sarcini programate.",

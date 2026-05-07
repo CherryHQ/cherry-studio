@@ -5566,20 +5566,6 @@
       "select": "Выбрать",
       "title": "Быстрое меню"
     },
-    "quickPhrase": {
-      "add": "Добавить фразу",
-      "assistant": "Фразы помощника",
-      "contentLabel": "Содержание",
-      "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, после этого нажмите Tab, чтобы быстро перейти к переменной для редактирования. Например: \\n Запланируй маршрут от ${from} до ${to}, а затем отправь его на ${email}.",
-      "delete": "Удалить фразу",
-      "deleteConfirm": "После удаления фразы её невозможно восстановить. Продолжить?",
-      "edit": "Редактировать фразу",
-      "global": "Глобальные фразы",
-      "locationLabel": "Добавить местоположение",
-      "title": "Быстрые фразы",
-      "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок фразы"
-    },
     "scheduledTasks": {
       "description": "Gérez les tâches planifiées sur tous les agents. Les tâches s'exécutent automatiquement selon le planning configuré.",
       "noAgents": "Aucun agent trouvé. Créez d'abord un agent pour ajouter des tâches planifiées.",

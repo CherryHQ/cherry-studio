@@ -5566,20 +5566,6 @@
       "select": "選擇",
       "title": "快捷選單"
     },
-    "quickPhrase": {
-      "add": "新增短語",
-      "assistant": "助手提示詞",
-      "contentLabel": "內容",
-      "contentPlaceholder": "請輸入短語內容，支援使用變數，然後按 Tab 鍵可以快速定位到變數進行修改。例如：\n幫我規劃從 ${from} 到 ${to} 的行程，然後傳送到 ${email}",
-      "delete": "刪除短語",
-      "deleteConfirm": "刪除後無法復原，是否繼續？",
-      "edit": "編輯短語",
-      "global": "全域快速短語",
-      "locationLabel": "新增位置",
-      "title": "快捷短語",
-      "titleLabel": "標題",
-      "titlePlaceholder": "請輸入短語標題"
-    },
     "scheduledTasks": {
       "description": "管理所有代理的排程任務。任務將依設定好的排程自動執行。",
       "noAgents": "排程任務需要開啟靈魂模式或無權限模式的代理才能執行。請先在代理設定中啟用。",

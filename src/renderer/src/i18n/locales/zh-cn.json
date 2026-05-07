@@ -5566,20 +5566,6 @@
       "select": "选择",
       "title": "快捷菜单"
     },
-    "quickPhrase": {
-      "add": "添加短语",
-      "assistant": "助手短语",
-      "contentLabel": "内容",
-      "contentPlaceholder": "请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-      "delete": "删除短语",
-      "deleteConfirm": "删除短语后将无法恢复，是否继续？",
-      "edit": "编辑短语",
-      "global": "全局短语",
-      "locationLabel": "添加位置",
-      "title": "快捷短语",
-      "titleLabel": "标题",
-      "titlePlaceholder": "请输入短语标题"
-    },
     "scheduledTasks": {
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
       "noAgents": "定时任务需要开启灵魂模式或无权限模式的 Agent 才能运行。请先在 Agent 设置中启用。",
